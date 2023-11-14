@@ -89,33 +89,63 @@ Note: as the SSTable does not support redundant keys, there is no ambiguity betw
 
 ### SSTFooter
 ```
-+-------+-------+-----+-------------+---------+---------+
-| Block | Block | ... | IndexOffset | NumTerm | Version |
-+-------+-------+-----+-------------+---------+---------+
-|----( # of blocks)---|
++-----+----------------+-------------+-------------+---------+---------+
+| Fst | BlockAddrStore | StoreOffset | IndexOffset | NumTerm | Version |
++-----+----------------+-------------+-------------+---------+---------+
 ```
-- Block(SSTBlock): uses IndexValue for its Values format
+- Fst(Fst): finit state transducer mapping keys to a block number
+- BlockAddrStore(BlockAddrStore): store mapping a block number to its BlockAddr
+- FstLen(u64): Lenght of the Fst
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
-- Version(u32): Currently equal to 2
+- Version(u32): Currently equal to 3
 
-### IndexValue
-```
-+------------+----------+-------+-------+-----+
-| EntryCount | StartPos | Entry | Entry | ... |
-+------------+----------+-------+-------+-----+
-                        |---( # of entries)---|
-```
+### Fst
 
-- EntryCount(VInt): number of entries
-- StartPos(VInt): the start pos of the first (data) block referenced by this (index) block
-- Entry (IndexEntry)
+Fst is in the format of tantivy\_fst
 
-### Entry
-```
-+----------+--------------+
-| BlockLen | FirstOrdinal |
-+----------+--------------+
-```
-- BlockLen(VInt): length of the block
-- FirstOrdinal(VInt): ordinal of the first element in the given block
+### BlockAddrStore
+
++---------+-----------+-----------+-----+-----------+-----------+-----+
+| MetaLen | BlockMeta | BlockMeta | ... | BlockData | BlockData | ... |
++---------+-----------+-----------+-----+-----------+-----------+-----+
+          |---------(N blocks)----------|---------(N blocks)----------|
+
+- MetaLen(u64): lenght of the BlockMeta section
+- BlockMeta(BlockAddrBlockMetadata): metadata to seek through BlockData
+- BlockData(CompactedBlockAddr): bitpacked per block metadata
+
+### BlockAddrBlockMetadata
+
++--------+--------------+-------------------+-----------------+---------------+
+| Offset | RefBlockAddr | FirstOrdinalNBits | RangeStartNBits | RangeLenNBits |
++--------+--------------+-------------------+-----------------+---------------+
+
+- Offset(u64): offset of the corresponding BlockData in the datastream
+- RefBlockAddr(BlockAddr): reference block for the compacted block data
+- FirstOrdinalNBits(u8): number of bits per ordinal in datastream
+- RangeStartNBits(u8): number of bits per range start in datastream
+- RangeLenNBits(u8): number of bits per range lenght in datastream
+
+### BlockAddr
+
++--------------+------------+----------+
+| FirstOrdinal | RangeStart | RangeEnd |
++--------------+------------+----------+
+
+- FirstOrdinal(u64): the first ordinal of this block
+- RangeStart(u64): the start position of the corresponding block in the sstable
+- RangeEnd(u64): the end position of the corresponding block in the sstable
+
+### BlockData
+
++-------------------+-----------------+----------+
+| FirstOrdinalDelta | RangeStartDelta | RangeEnd |
++-------------------+-----------------+----------+
+|---------------(255 repetitions)----------------|
+
+- FirstOrdinalDelta(var): FirstOrdinalNBits *bits* of little endian number. Delta between the first
+ordinal for this block, and the reference block
+- RangeStartDelta(var): RangeStartNBits *bits* of little endian number. Delta between the range
+start for this block, and it of the reference block
+- RangeEnd(var): RangeEndNBits *bits* of little endian number. Lenght of the range of this block

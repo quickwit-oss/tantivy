@@ -1,56 +1,50 @@
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::ops::Range;
+use std::sync::Arc;
 
-use common::OwnedBytes;
+use common::{BinarySerializable, FixedSize, OwnedBytes};
+use tantivy_fst::raw::Fst;
+use tantivy_fst::{IntoStreamer, Map, MapBuilder, Streamer};
 
-use crate::{common_prefix_len, SSTable, SSTableDataCorruption, TermOrdinal};
+use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct SSTableIndex {
-    blocks: Vec<BlockMeta>,
+    fst_index: Arc<Map<OwnedBytes>>,
+    block_addr_store: BlockAddrStore,
 }
 
 impl SSTableIndex {
     /// Load an index from its binary representation
-    pub fn load(data: OwnedBytes) -> Result<SSTableIndex, SSTableDataCorruption> {
-        let mut reader = IndexSSTable::reader(data);
-        let mut blocks = Vec::new();
+    pub fn load(data: OwnedBytes, fst_length: u64) -> Result<SSTableIndex, SSTableDataCorruption> {
+        let (fst_slice, block_addr_store_slice) = data.split(fst_length as usize);
+        let fst_index = Fst::new(fst_slice)
+            .map_err(|_| SSTableDataCorruption)?
+            .into();
+        let block_addr_store =
+            BlockAddrStore::open(block_addr_store_slice).map_err(|_| SSTableDataCorruption)?;
 
-        while reader.advance().map_err(|_| SSTableDataCorruption)? {
-            blocks.push(BlockMeta {
-                last_key_or_greater: reader.key().to_vec(),
-                block_addr: reader.value().clone(),
-            });
-        }
-
-        Ok(SSTableIndex { blocks })
+        Ok(SSTableIndex {
+            fst_index: Arc::new(fst_index),
+            block_addr_store,
+        })
     }
 
     /// Get the [`BlockAddr`] of the requested block.
-    pub(crate) fn get_block(&self, block_id: usize) -> Option<BlockAddr> {
-        self.blocks
-            .get(block_id)
-            .map(|block_meta| block_meta.block_addr.clone())
+    pub(crate) fn get_block(&self, block_id: u64) -> Option<BlockAddr> {
+        self.block_addr_store.get(block_id)
     }
 
     /// Get the block id of the block that would contain `key`.
     ///
     /// Returns None if `key` is lexicographically after the last key recorded.
-    pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<usize> {
-        let pos = self
-            .blocks
-            .binary_search_by_key(&key, |block| &block.last_key_or_greater);
-        match pos {
-            Ok(pos) => Some(pos),
-            Err(pos) => {
-                if pos < self.blocks.len() {
-                    Some(pos)
-                } else {
-                    // after end of last block: no block matches
-                    None
-                }
-            }
-        }
+    pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<u64> {
+        self.fst_index
+            .range()
+            .ge(key)
+            .into_stream()
+            .next()
+            .map(|(_key, id)| id)
     }
 
     /// Get the [`BlockAddr`] of the block that would contain `key`.
@@ -60,29 +54,20 @@ impl SSTableIndex {
         self.locate_with_key(key).and_then(|id| self.get_block(id))
     }
 
-    pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> usize {
-        let pos = self
-            .blocks
-            .binary_search_by_key(&ord, |block| block.block_addr.first_ordinal);
-
-        match pos {
-            Ok(pos) => pos,
-            // Err(0) can't happen as the sstable starts with ordinal zero
-            Err(pos) => pos - 1,
-        }
+    pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> u64 {
+        self.block_addr_store.binary_search_ord(ord).0
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
     pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
-        // locate_with_ord always returns an index within range
-        self.get_block(self.locate_with_ord(ord)).unwrap()
+        self.block_addr_store.binary_search_ord(ord).1
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BlockAddr {
-    pub byte_range: Range<usize>,
     pub first_ordinal: u64,
+    pub byte_range: Range<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,9 +79,38 @@ pub(crate) struct BlockMeta {
     pub block_addr: BlockAddr,
 }
 
+impl BinarySerializable for BlockAddr {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        self.first_ordinal.serialize(writer)?;
+        let start = self.byte_range.start as u64;
+        start.serialize(writer)?;
+        let end = self.byte_range.end as u64;
+        end.serialize(writer)
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let first_ordinal = u64::deserialize(reader)?;
+        let start = u64::deserialize(reader)? as usize;
+        let end = u64::deserialize(reader)? as usize;
+        Ok(BlockAddr {
+            first_ordinal,
+            byte_range: start..end,
+        })
+    }
+
+    // Provided method
+    fn num_bytes(&self) -> u64 {
+        BlockAddr::SIZE_IN_BYTES as u64
+    }
+}
+
+impl FixedSize for BlockAddr {
+    const SIZE_IN_BYTES: usize = 3 * u64::SIZE_IN_BYTES;
+}
+
 #[derive(Default)]
 pub struct SSTableIndexBuilder {
-    index: SSTableIndex,
+    blocks: Vec<BlockMeta>,
 }
 
 /// Given that left < right,
@@ -124,13 +138,13 @@ impl SSTableIndexBuilder {
     /// try to find a shorter alternative to the last key of the last block
     /// that is still smaller than the next key.
     pub(crate) fn shorten_last_block_key_given_next_key(&mut self, next_key: &[u8]) {
-        if let Some(last_block) = self.index.blocks.last_mut() {
+        if let Some(last_block) = self.blocks.last_mut() {
             find_shorter_str_in_between(&mut last_block.last_key_or_greater, next_key);
         }
     }
 
     pub fn add_block(&mut self, last_key: &[u8], byte_range: Range<usize>, first_ordinal: u64) {
-        self.index.blocks.push(BlockMeta {
+        self.blocks.push(BlockMeta {
             last_key_or_greater: last_key.to_vec(),
             block_addr: BlockAddr {
                 byte_range,
@@ -139,44 +153,236 @@ impl SSTableIndexBuilder {
         })
     }
 
-    pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<()> {
-        // we can't use a plain writer as it would generate an index
-        let mut sstable_writer = IndexSSTable::delta_writer(wrt);
-
-        // in tests, set a smaller block size to stress-test
-        #[cfg(test)]
-        sstable_writer.set_block_len(16);
-
-        let mut previous_key = Vec::with_capacity(crate::DEFAULT_KEY_CAPACITY);
-        for block in self.index.blocks.iter() {
-            let keep_len = common_prefix_len(&previous_key, &block.last_key_or_greater);
-
-            sstable_writer.write_suffix(keep_len, &block.last_key_or_greater[keep_len..]);
-            sstable_writer.write_value(&block.block_addr);
-            sstable_writer.flush_block_if_required()?;
-
-            previous_key.clear();
-            previous_key.extend_from_slice(&block.last_key_or_greater);
+    pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<u64> {
+        // TODO handle errors
+        let counting_writer = common::CountingWriter::wrap(wrt);
+        let mut map_builder = MapBuilder::new(counting_writer).unwrap();
+        for (i, block) in self.blocks.iter().enumerate() {
+            map_builder
+                .insert(&block.last_key_or_greater, i as u64)
+                .unwrap();
         }
-        sstable_writer.flush_block()?;
-        sstable_writer.finish().write_all(&0u32.to_le_bytes())?;
-        Ok(())
+        let counting_writer = map_builder.into_inner().unwrap();
+        let written_bytes = counting_writer.written_bytes();
+        let _writer = counting_writer.finish();
+
+        // TODO write a BlockAddrStore
+        Ok(written_bytes)
     }
 }
 
-/// SSTable representing an index
-///
-/// `last_key_or_greater` is used as the key, the value contains the
-/// length and first ordinal of each block. The start offset is implicitly
-/// obtained from lengths.
-struct IndexSSTable;
+const STORE_BLOCK_LEN: usize = 256;
 
-impl SSTable for IndexSSTable {
-    type Value = BlockAddr;
+#[derive(Debug)]
+struct BlockAddrBlockMetadata {
+    offset: u64,
+    ref_block_addr: BlockAddr,
+    first_ordinal_nbits: u8,
+    range_start_nbits: u8,
+    range_len_nbits: u8,
+}
 
-    type ValueReader = crate::value::index::IndexValueReader;
+impl BlockAddrBlockMetadata {
+    fn num_bits(&self) -> u8 {
+        self.first_ordinal_nbits + self.range_start_nbits + self.range_len_nbits
+    }
 
-    type ValueWriter = crate::value::index::IndexValueWriter;
+    fn deserialize_block_addr(&self, data: &[u8], inner_offset: usize) -> Option<BlockAddr> {
+        assert!(inner_offset < STORE_BLOCK_LEN - 1);
+        let num_bits = self.num_bits() as usize;
+
+        let ordinal_addr = num_bits * inner_offset;
+        let range_start_addr = ordinal_addr + self.first_ordinal_nbits as usize;
+        let range_len_addr = range_start_addr + self.first_ordinal_nbits as usize;
+
+        if (range_len_addr + self.range_len_nbits as usize + 7) / 8 > data.len() {
+            return None;
+        }
+
+        let first_ordinal = self.ref_block_addr.first_ordinal
+            + extract_bits(data, ordinal_addr, self.first_ordinal_nbits);
+        let range_start = self.ref_block_addr.byte_range.start
+            + extract_bits(data, range_start_addr, self.range_start_nbits) as usize;
+        let range_len = extract_bits(data, range_len_addr, self.range_len_nbits) as usize;
+
+        let range_end = range_start + range_len;
+        Some(BlockAddr {
+            first_ordinal,
+            byte_range: range_start..range_end,
+        })
+    }
+
+    // /!\ countrary to deserialize_block_addr() for which inner_offset goes from 0 to
+    // STORE_BLOCK_LEN - 2, this function goes from 1 to STORE_BLOCK_LEN - 1, and 0 marks
+    // we should use ref_block_addr
+    fn bissect_for_ord(&self, data: &[u8], target_ord: TermOrdinal) -> (u64, BlockAddr) {
+        let max = (STORE_BLOCK_LEN - 1).min(data.len() * 8 / self.num_bits() as usize);
+
+        let inner_target_ord = target_ord - self.ref_block_addr.first_ordinal;
+        let num_bits = self.num_bits() as usize;
+        let get_ord =
+            |index| extract_bits(data, num_bits * index as usize, self.first_ordinal_nbits);
+
+        let inner_offset =
+            match binary_search(max as u64, |index| inner_target_ord.cmp(&get_ord(index))) {
+                Ok(inner_offset) => inner_offset + 1,
+                Err(inner_offset) => inner_offset,
+            };
+        if inner_offset == 0 {
+            (0, self.ref_block_addr.clone())
+        } else {
+            (
+                inner_offset,
+                self.deserialize_block_addr(data, inner_offset as usize - 1)
+                    .unwrap(),
+            )
+        }
+    }
+}
+
+// TODO move this function to tantivy_common?
+fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
+    use byteorder::{ByteOrder, LittleEndian};
+    assert!(num_bits <= 56);
+    let addr_byte = addr_bits / 8;
+    let bit_shift = (addr_bits % 8) as u64;
+    let val_unshifted_unmasked: u64 = if data.len() >= addr_byte + 8 {
+        LittleEndian::read_u64(&data[addr_byte..][..8])
+    } else {
+        // the buffer is not large enough.
+        // Let's copy the few remaining bytes to a 8 byte buffer
+        // padded with 0s.
+        let mut buf = [0u8; 8];
+        let data_to_copy = &data[addr_byte..];
+        let nbytes = data_to_copy.len();
+        buf[..nbytes].copy_from_slice(data_to_copy);
+        LittleEndian::read_u64(&buf)
+    };
+    let val_shifted_unmasked = val_unshifted_unmasked >> bit_shift;
+    let mask = (1u64 << u64::from(num_bits)) - 1;
+    val_shifted_unmasked & mask
+}
+
+impl BinarySerializable for BlockAddrBlockMetadata {
+    fn serialize<W: Write + ?Sized>(&self, write: &mut W) -> io::Result<()> {
+        self.offset.serialize(write)?;
+        self.ref_block_addr.serialize(write)?;
+        write.write_all(&[
+            self.first_ordinal_nbits,
+            self.range_start_nbits,
+            self.range_len_nbits,
+        ])?;
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let offset = u64::deserialize(reader)?;
+        let ref_block_addr = BlockAddr::deserialize(reader)?;
+        let mut buffer = [0u8; 3];
+        reader.read_exact(&mut buffer)?;
+        Ok(BlockAddrBlockMetadata {
+            offset,
+            ref_block_addr,
+            first_ordinal_nbits: buffer[0],
+            range_start_nbits: buffer[1],
+            range_len_nbits: buffer[2],
+        })
+    }
+}
+
+impl FixedSize for BlockAddrBlockMetadata {
+    const SIZE_IN_BYTES: usize =
+        u64::SIZE_IN_BYTES + BlockAddr::SIZE_IN_BYTES + 3 * u8::SIZE_IN_BYTES;
+}
+
+#[derive(Debug, Clone)]
+struct BlockAddrStore {
+    block_meta_bytes: OwnedBytes,
+    addr_bytes: OwnedBytes,
+}
+
+impl BlockAddrStore {
+    fn open(term_info_store_file: OwnedBytes) -> io::Result<BlockAddrStore> {
+        let (mut len_slice, main_slice) = term_info_store_file.split(8);
+        let len = u64::deserialize(&mut len_slice)? as usize;
+        let (block_meta_bytes, addr_bytes) = main_slice.split(len);
+        Ok(BlockAddrStore {
+            block_meta_bytes,
+            addr_bytes,
+        })
+    }
+
+    fn get_block_meta(&self, store_block_id: usize) -> Option<BlockAddrBlockMetadata> {
+        let mut block_data: &[u8] = &self
+            .block_meta_bytes
+            .get(store_block_id * BlockAddrBlockMetadata::SIZE_IN_BYTES..)?;
+        BlockAddrBlockMetadata::deserialize(&mut block_data).ok()
+    }
+
+    fn get(&self, block_id: u64) -> Option<BlockAddr> {
+        let store_block_id = (block_id as usize) / STORE_BLOCK_LEN;
+        let inner_offset = (block_id as usize) % STORE_BLOCK_LEN;
+        let block_addr_block_data = self.get_block_meta(store_block_id)?;
+        if inner_offset == 0 {
+            return Some(block_addr_block_data.ref_block_addr);
+        }
+        block_addr_block_data.deserialize_block_addr(
+            &self.addr_bytes[block_addr_block_data.offset as usize..],
+            inner_offset - 1,
+        )
+    }
+
+    fn binary_search_ord(&self, ord: TermOrdinal) -> (u64, BlockAddr) {
+        let max_block =
+            (self.block_meta_bytes.len() / BlockAddrBlockMetadata::SIZE_IN_BYTES) as u64;
+        let get_first_ordinal = |block_id| {
+            self.get(block_id * STORE_BLOCK_LEN as u64)
+                .unwrap()
+                .first_ordinal
+        };
+        let store_block_id =
+            binary_search(max_block, |block_id| ord.cmp(&get_first_ordinal(block_id)));
+        let store_block_id = match store_block_id {
+            Ok(store_block_id) => {
+                let block_id = store_block_id * STORE_BLOCK_LEN as u64;
+                return (block_id, self.get(block_id).unwrap());
+            }
+            Err(store_block_id) => store_block_id - 1,
+        };
+
+        let block_addr_block_data = self.get_block_meta(store_block_id as usize).unwrap();
+        let (inner_offset, block_addr) = block_addr_block_data.bissect_for_ord(
+            &self.addr_bytes[block_addr_block_data.offset as usize..],
+            ord,
+        );
+        (
+            store_block_id * STORE_BLOCK_LEN as u64 + inner_offset,
+            block_addr,
+        )
+    }
+}
+
+fn binary_search(max: u64, cmp_fn: impl Fn(u64) -> std::cmp::Ordering) -> Result<u64, u64> {
+    use std::cmp::Ordering::*;
+    let mut size = max;
+    let mut left = 0;
+    let mut right = size;
+    while left < right {
+        let mid = left + size / 2;
+
+        let cmp = cmp_fn(mid);
+
+        if cmp == Less {
+            left = mid + 1;
+        } else if cmp == Greater {
+            right = mid;
+        } else {
+            return Ok(mid);
+        }
+
+        size = right - left;
+    }
+    Err(left)
 }
 
 #[cfg(test)]
@@ -194,9 +400,9 @@ mod tests {
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
-        sstable_builder.serialize(&mut buffer).unwrap();
+        let fst_len = sstable_builder.serialize(&mut buffer).unwrap();
         let buffer = OwnedBytes::new(buffer);
-        let sstable_index = SSTableIndex::load(buffer).unwrap();
+        let sstable_index = SSTableIndex::load(buffer, fst_len).unwrap();
         assert_eq!(
             sstable_index.get_block_with_key(b"bbbde"),
             Some(BlockAddr {
@@ -226,10 +432,10 @@ mod tests {
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
-        sstable_builder.serialize(&mut buffer).unwrap();
+        let fst_len = sstable_builder.serialize(&mut buffer).unwrap();
         buffer[2] = 9u8;
         let buffer = OwnedBytes::new(buffer);
-        let data_corruption_err = SSTableIndex::load(buffer).err().unwrap();
+        let data_corruption_err = SSTableIndex::load(buffer, fst_len).err().unwrap();
         assert!(matches!(data_corruption_err, SSTableDataCorruption));
     }
 
