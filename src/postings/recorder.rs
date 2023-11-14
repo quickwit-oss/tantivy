@@ -79,6 +79,11 @@ pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
     ///
     /// Returns `None` if not available.
     fn term_doc_freq(&self) -> Option<u32>;
+
+    #[inline]
+    fn has_term_freq(&self) -> bool {
+        true
+    }
 }
 
 /// Only records the doc ids
@@ -135,6 +140,10 @@ impl Recorder for DocIdRecorder {
 
     fn term_doc_freq(&self) -> Option<u32> {
         None
+    }
+
+    fn has_term_freq(&self) -> bool {
+        false
     }
 }
 
