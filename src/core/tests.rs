@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
 use crate::indexer::{LogMergePolicy, NoMergePolicy};
@@ -499,12 +501,12 @@ fn test_get_many_docs() -> crate::Result<()> {
 
     let doc_addresses = (0..10)
         .map(|i| DocAddress::new(0u32, i))
-        .collect::<Vec<_>>();
+        .collect::<BTreeSet<_>>();
 
     let docs = searcher.docs::<TantivyDocument>(&doc_addresses)?;
     let mut doc_nums = Vec::new();
 
-    for doc in docs {
+    for (_doc_addr, doc) in docs {
         let num_value = doc.get_first(num_field).unwrap();
 
         if let OwnedValue::U64(num) = num_value {

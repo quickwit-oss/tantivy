@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use common::{BinarySerializable, OwnedBytes};
+#[cfg(feature = "quickwit")]
+use futures_util::StreamExt;
 use lru::LruCache;
 
 use super::footer::DocStoreFooter;
@@ -423,10 +425,6 @@ impl StoreReader {
         &self,
         mut doc_ids: BTreeSet<DocId>,
     ) -> crate::Result<HashMap<DocId, D>> {
-        use futures_util::StreamExt;
-
-        let mut results = HashMap::with_capacity(doc_ids.len());
-
         // Helper function to deserialize a document from bytes.
         let deserialize_from_bytes = |doc_bytes: &mut OwnedBytes| {
             let deserializer = BinaryDocumentDeserializer::from_reader(doc_bytes)
@@ -449,6 +447,8 @@ impl StoreReader {
             };
             read_block_futures.push(read_block_future());
         }
+
+        let mut results = HashMap::with_capacity(doc_ids.len());
 
         while let Some(read_block_result) = read_block_futures.next().await {
             let (block, checkpoint, checkpoint_doc_ids) = read_block_result?;
