@@ -1,6 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::{fmt, io};
+
+#[cfg(feature = "quickwit")]
+use futures_util::StreamExt;
 
 use crate::collector::Collector;
 use crate::core::{Executor, SegmentReader};
@@ -89,6 +92,75 @@ impl Searcher {
         store_reader.get(doc_address.doc_id)
     }
 
+    /// Fetches documents from tantivy's store given a list of [`DocAddress`].
+    ///
+    /// This method is more efficient than calling [`doc`](Self::doc) multiple times, as it batches
+    /// overlapping requests to segments and blocks.
+    ///
+    /// The documents are returned in the same order as the `doc_addresses` slice.
+    pub fn docs<D: DocumentDeserialize + Clone>(
+        &self,
+        doc_addresses: &[DocAddress],
+    ) -> crate::Result<Vec<D>> {
+        // Ordering by segment ordinal allows reuse of a store reader for documents in the same
+        // segment.
+        let mut doc_addrs_by_segment_ord = HashMap::new();
+        for (idx, doc_address) in doc_addresses.iter().enumerate() {
+            doc_addrs_by_segment_ord
+                .entry(doc_address.segment_ord as usize)
+                .or_insert_with(HashMap::new)
+                .entry(doc_address)
+                .or_insert_with(Vec::new)
+                .push(idx);
+        }
+
+        let mut docs = Vec::with_capacity(doc_addresses.len());
+
+        for (segment_ord, doc_addr_to_idxs) in doc_addrs_by_segment_ord {
+            let store_reader = &self.inner.store_readers[segment_ord];
+
+            let doc_ids = doc_addr_to_idxs
+                .keys()
+                .map(|doc_address| doc_address.doc_id)
+                .collect();
+            let mut docs_in_segment: HashMap<u32, D> = store_reader.get_many(doc_ids)?;
+
+            for (doc_address, idxs) in doc_addr_to_idxs {
+                match idxs.as_slice() {
+                    [idx] => {
+                        debug_assert!(*idx < docs.capacity());
+
+                        // Safety: The index is valid because it was derived from `doc_addresses`.
+                        unsafe {
+                            *docs.get_unchecked_mut(*idx) =
+                                docs_in_segment.remove(&doc_address.doc_id).unwrap();
+                        }
+                    }
+                    idxs_slice => {
+                        let doc = docs_in_segment.remove(&doc_address.doc_id).unwrap();
+                        for idx in idxs_slice {
+                            debug_assert!(*idx < docs.capacity());
+
+                            // Safety: The index is valid because it was derived from
+                            // `doc_addresses`.
+                            unsafe {
+                                *docs.get_unchecked_mut(*idx) = doc.clone();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Safety: The length is valid because every element is fetched and populated in the loop
+        // above.
+        unsafe {
+            docs.set_len(doc_addresses.len());
+        }
+
+        Ok(docs)
+    }
+
     /// The cache stats for the underlying store reader.
     ///
     /// Aggregates the sum for each segment store reader.
@@ -110,6 +182,85 @@ impl Searcher {
     ) -> crate::Result<D> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id).await
+    }
+
+    /// Fetches a set of documents in an asynchronous manner.
+    ///
+    /// This method is more efficient than calling [`doc_async`](Self::doc_async) multiple times, as
+    /// it batches overlapping requests to segments and blocks.
+    ///
+    /// The documents are returned in the same order as the `doc_addresses` slice.
+    #[cfg(feature = "quickwit")]
+    pub async fn docs_async<D: DocumentDeserialize + Clone>(
+        &self,
+        doc_addresses: &[DocAddress],
+    ) -> crate::Result<Vec<D>> {
+        // Ordering by segment ordinal allows reuse of a store reader for documents in the same
+        // segment.
+        let mut doc_addrs_by_segment_ord = HashMap::new();
+        for (idx, doc_address) in doc_addresses.iter().enumerate() {
+            doc_addrs_by_segment_ord
+                .entry(doc_address.segment_ord as usize)
+                .or_insert_with(HashMap::new)
+                .entry(doc_address)
+                .or_insert_with(Vec::new)
+                .push(idx);
+        }
+
+        let mut futures = futures_util::stream::FuturesUnordered::new();
+
+        for (segment_ord, doc_addr_to_idxs) in doc_addrs_by_segment_ord {
+            let store_reader = &self.inner.store_readers[segment_ord];
+
+            let doc_ids = doc_addr_to_idxs
+                .keys()
+                .map(|doc_address| doc_address.doc_id)
+                .collect();
+            let doc_future = || async move {
+                let docs_in_segment: HashMap<u32, D> = store_reader.get_many_async(doc_ids).await?;
+                Ok::<_, crate::TantivyError>((docs_in_segment, doc_addr_to_idxs))
+            };
+            futures.push(doc_future());
+        }
+
+        let mut docs = Vec::with_capacity(doc_addresses.len());
+
+        while let Some(result) = futures.next().await {
+            let (mut docs_in_segment, doc_addr_to_idxs) = result?;
+            for (doc_address, idxs) in doc_addr_to_idxs {
+                match idxs.as_slice() {
+                    [idx] => {
+                        debug_assert!(*idx < docs.capacity());
+
+                        // Safety: The index is valid because it was derived from `doc_addresses`.
+                        unsafe {
+                            *docs.get_unchecked_mut(*idx) =
+                                docs_in_segment.remove(&doc_address.doc_id).unwrap();
+                        }
+                    }
+                    idxs_slice => {
+                        let doc = docs_in_segment.remove(&doc_address.doc_id).unwrap();
+                        for idx in idxs_slice {
+                            debug_assert!(*idx < docs.capacity());
+
+                            // Safety: The index is valid because it was derived from
+                            // `doc_addresses`.
+                            unsafe {
+                                *docs.get_unchecked_mut(*idx) = doc.clone();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Safety: The length is valid because every element is fetched and populated in the loop
+        // above.
+        unsafe {
+            docs.set_len(doc_addresses.len());
+        }
+
+        Ok(docs)
     }
 
     /// Access the schema associated with the index of this searcher.

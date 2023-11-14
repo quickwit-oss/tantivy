@@ -1,3 +1,4 @@
+use std::collections::{BTreeSet, HashMap};
 use std::io;
 use std::iter::Sum;
 use std::num::NonZeroUsize;
@@ -206,6 +207,44 @@ impl StoreReader {
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
 
+    /// Reads a set of given documents.
+    ///
+    /// Calling [`get_many`](Self::get_many) is more efficient than calling [`get`](Self::get)
+    /// multiple times, as it will only read and decompress a block once for all documents within a
+    /// block.
+    pub fn get_many<D: DocumentDeserialize>(
+        &self,
+        mut doc_ids: BTreeSet<DocId>,
+    ) -> crate::Result<HashMap<DocId, D>> {
+        let mut results = HashMap::with_capacity(doc_ids.len());
+
+        // Helper function to deserialize a document from bytes.
+        let deserialize_from_bytes = |doc_bytes: &mut OwnedBytes| {
+            let deserializer = BinaryDocumentDeserializer::from_reader(doc_bytes)
+                .map_err(crate::TantivyError::from)?;
+            D::deserialize(deserializer).map_err(crate::TantivyError::from)
+        };
+
+        while let Some(doc_id) = doc_ids.pop_last() {
+            let checkpoint = self.block_checkpoint(doc_id)?;
+            let block = self.read_block(&checkpoint)?;
+            let mut doc_bytes =
+                Self::get_document_bytes_from_block(block.clone(), doc_id, &checkpoint)?;
+
+            results.insert(doc_id, deserialize_from_bytes(&mut doc_bytes)?);
+
+            // Split off all doc ids that are in the same block and read them in as well.
+            let additional_doc_ids = doc_ids.split_off(&checkpoint.doc_range.start);
+            for doc_id in additional_doc_ids {
+                let mut doc_bytes =
+                    Self::get_document_bytes_from_block(block.clone(), doc_id, &checkpoint)?;
+                results.insert(doc_id, deserialize_from_bytes(&mut doc_bytes)?);
+            }
+        }
+
+        Ok(results)
+    }
+
     /// Returns raw bytes of a given document.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
@@ -376,6 +415,52 @@ impl StoreReader {
         let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
             .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
+    }
+
+    /// Fetches a set of documents asynchronously. Async version of [`get_many`](Self::get_many),
+    /// except that it may read blocks in parallel.
+    pub async fn get_many_async<D: DocumentDeserialize>(
+        &self,
+        mut doc_ids: BTreeSet<DocId>,
+    ) -> crate::Result<HashMap<DocId, D>> {
+        use futures_util::StreamExt;
+
+        let mut results = HashMap::with_capacity(doc_ids.len());
+
+        // Helper function to deserialize a document from bytes.
+        let deserialize_from_bytes = |doc_bytes: &mut OwnedBytes| {
+            let deserializer = BinaryDocumentDeserializer::from_reader(doc_bytes)
+                .map_err(crate::TantivyError::from)?;
+            D::deserialize(deserializer).map_err(crate::TantivyError::from)
+        };
+
+        let mut read_block_futures = futures_util::stream::FuturesUnordered::new();
+
+        // Spawn a future for each block to read.
+        while let Some(doc_id) = doc_ids.pop_last() {
+            let checkpoint = self.block_checkpoint(doc_id)?;
+
+            let mut checkpoint_doc_ids = doc_ids.split_off(&checkpoint.doc_range.start);
+            checkpoint_doc_ids.insert(doc_id);
+
+            let read_block_future = || async move {
+                let block = self.read_block_async(&checkpoint).await?;
+                Ok::<_, io::Error>((block, checkpoint, checkpoint_doc_ids))
+            };
+            read_block_futures.push(read_block_future());
+        }
+
+        while let Some(read_block_result) = read_block_futures.next().await {
+            let (block, checkpoint, checkpoint_doc_ids) = read_block_result?;
+
+            for doc_id in checkpoint_doc_ids {
+                let mut doc_bytes =
+                    Self::get_document_bytes_from_block(block.clone(), doc_id, &checkpoint)?;
+                results.insert(doc_id, deserialize_from_bytes(&mut doc_bytes)?);
+            }
+        }
+
+        Ok(results)
     }
 }
 

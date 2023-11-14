@@ -3,11 +3,13 @@ use crate::directory::{RamDirectory, WatchCallback};
 use crate::indexer::{LogMergePolicy, NoMergePolicy};
 use crate::json_utils::JsonTermWriter;
 use crate::query::TermQuery;
-use crate::schema::{Field, IndexRecordOption, Schema, Type, INDEXED, STRING, TEXT};
+use crate::schema::{
+    Field, IndexRecordOption, OwnedValue, Schema, Type, INDEXED, STORED, STRING, TEXT,
+};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, Postings,
-    ReloadPolicy, SegmentId, TantivyDocument, Term,
+    Directory, DocAddress, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter,
+    Postings, ReloadPolicy, SegmentId, TantivyDocument, Term,
 };
 
 #[test]
@@ -473,4 +475,47 @@ fn test_non_text_json_term_freq_bitpacked() {
         assert_eq!(postings.advance(), i);
         assert_eq!(postings.term_freq(), 1u32);
     }
+}
+
+#[test]
+fn test_get_many_docs() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let num_field = schema_builder.add_u64_field("num", STORED);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer: IndexWriter = index.writer_for_tests()?;
+    index_writer.set_merge_policy(Box::new(NoMergePolicy));
+    for i in 0..10u64 {
+        let doc = doc!(num_field=>i);
+        index_writer.add_document(doc)?;
+    }
+
+    index_writer.commit()?;
+    let segment_ids = index.searchable_segment_ids()?;
+    index_writer.merge(&segment_ids).wait().unwrap();
+
+    let searcher = index.reader()?.searcher();
+    assert_eq!(searcher.num_docs(), 10);
+
+    let doc_addresses = (0..10)
+        .map(|i| DocAddress::new(0u32, i))
+        .collect::<Vec<_>>();
+
+    let docs = searcher.docs::<TantivyDocument>(&doc_addresses)?;
+    let mut doc_nums = Vec::new();
+
+    for doc in docs {
+        let num_value = doc.get_first(num_field).unwrap();
+
+        if let OwnedValue::U64(num) = num_value {
+            doc_nums.push(*num);
+        } else {
+            panic!("Expected u64 value");
+        }
+    }
+
+    doc_nums.sort();
+    assert_eq!(doc_nums, (0..10).collect::<Vec<u64>>());
+
+    Ok(())
 }
