@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::{fmt, io};
 
+use fnv::FnvHashMap;
 use itertools::{EitherOrBoth, Itertools};
 
 use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
@@ -9,6 +10,7 @@ use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
+use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
@@ -286,8 +288,13 @@ impl SegmentReader {
     /// The field list includes the field defined in the schema as well as the fields
     /// that have been indexed as a part of a JSON field.
     /// The returned field name is the full field name, including the name of the JSON field.
+    ///
+    /// The returned field names can be used in queries.
+    ///
+    /// Notice: If your data contains JSON fields this is **very expensive**.
     pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
         let mut indexed_fields: Vec<(String, Type)> = Vec::new();
+        let mut map_to_canonical = FnvHashMap::default();
         for (field, field_entry) in self.schema().fields() {
             let field_name = field_entry.name().to_string();
             let is_indexed = field_entry.is_indexed();
@@ -301,10 +308,28 @@ impl SegmentReader {
                 if is_json {
                     let inv_index = self.inverted_index(field)?;
                     let encoded_fields_in_index = inv_index.list_encoded_fields()?;
+                    let mut build_path = |field_name: &str, mut json_path: String| {
+                        // In this case we need to map the potential fast field to the field name
+                        // accepted by the query parser.
+                        let create_canonical =
+                            !field_entry.is_expand_dots_enabled() && json_path.contains('.');
+                        if create_canonical {
+                            // Without expand dots enabled dots need to be escaped.
+                            let escaped_json_path = json_path.replace('.', "\\.");
+                            let full_path = format!("{}.{}", field_name, escaped_json_path);
+                            let full_path_unescaped = format!("{}.{}", field_name, &json_path);
+                            map_to_canonical.insert(full_path_unescaped, full_path.to_string());
+                            full_path
+                        } else {
+                            // With expand dots enabled, we can use '.' instead of '\u{1}'.
+                            json_path_sep_to_dot(&mut json_path);
+                            format!("{}.{}", field_name, json_path)
+                        }
+                    };
                     indexed_fields.extend(
                         encoded_fields_in_index
                             .into_iter()
-                            .map(|(name, typ)| (format!("{}.{}", field_name, name), typ)),
+                            .map(|(name, typ)| (build_path(&field_name, name), typ)),
                     );
                 }
             }
@@ -313,7 +338,17 @@ impl SegmentReader {
             .fast_fields()
             .columnar()
             .iter_columns()?
-            .map(|(name, handle)| (name.to_string(), Type::from(handle.column_type())))
+            .map(|(mut field_name, handle)| {
+                json_path_sep_to_dot(&mut field_name);
+                // map to canonical path, to avoid similar but different entries.
+                // Eventually we should just accept '.' seperated for all cases.
+                let field_name = map_to_canonical
+                    .get(&field_name)
+                    .unwrap_or(&field_name)
+                    .to_string();
+
+                (field_name, Type::from(handle.column_type()))
+            })
             .collect();
         // Since the type is encoded differently in the fast field and in the inverted index,
         // the order of the fields is not guaranteed to be the same. Therefore, we sort the fields.
@@ -338,21 +373,21 @@ impl SegmentReader {
                     indexed: true,
                     stored: is_field_stored(field_name, self.schema()),
                     fast: false,
-                    typ: typ.clone(),
+                    typ: *typ,
                 },
                 EitherOrBoth::Right((field_name, typ)) => FieldMetadata {
                     field_name: field_name.clone(),
                     indexed: false,
                     stored: is_field_stored(field_name, self.schema()),
                     fast: true,
-                    typ: typ.clone(),
+                    typ: *typ,
                 },
                 EitherOrBoth::Both((field_name, typ), (_field_name2, _typ2)) => FieldMetadata {
                     field_name: field_name.clone(),
                     indexed: true,
                     stored: is_field_stored(field_name, self.schema()),
                     fast: true,
-                    typ: typ.clone(),
+                    typ: *typ,
                 },
             })
             .collect();

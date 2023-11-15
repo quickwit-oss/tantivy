@@ -59,8 +59,11 @@ type AddBatchReceiver<D> = channel::Receiver<AddBatch<D>>;
 #[cfg(test)]
 mod tests_mmap {
 
+    use crate::aggregation::agg_req::Aggregations;
+    use crate::aggregation::agg_result::AggregationResults;
+    use crate::aggregation::AggregationCollector;
     use crate::collector::{Count, TopDocs};
-    use crate::query::QueryParser;
+    use crate::query::{AllQuery, QueryParser};
     use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
     use crate::{FieldMetadata, Index, IndexWriter, Term};
 
@@ -173,8 +176,7 @@ mod tests_mmap {
     #[test]
     fn test_json_field_list_fields() {
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions =
-            JsonObjectOptions::from(TEXT).set_expand_dots_enabled();
+        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT);
         let json_field = schema_builder.add_json_field("json", json_options);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests().unwrap();
@@ -195,7 +197,7 @@ mod tests_mmap {
         assert_eq!(
             inverted_index.list_encoded_fields().unwrap(),
             [
-                ("k8s\u{1}container\u{1}name".to_string(), Type::Str),
+                ("k8s.container.name".to_string(), Type::Str),
                 ("sub\u{1}a".to_string(), Type::I64),
                 ("sub\u{1}b".to_string(), Type::I64),
                 ("suber\u{1}a".to_string(), Type::I64),
@@ -207,17 +209,27 @@ mod tests_mmap {
     }
 
     #[test]
-    fn test_json_fields_metadata() {
+    fn test_json_fields_metadata_expanded_dots() {
+        test_json_fields_metadata(true);
+    }
+    #[test]
+    fn test_json_fields_metadata_no_expanded_dots() {
+        test_json_fields_metadata(false);
+    }
+
+    fn test_json_fields_metadata(expanded_dots: bool) {
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
-        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
-            .set_expand_dots_enabled()
-            .set_stored();
-        schema_builder.add_json_field("json.confusing", json_options);
-        let json_options: JsonObjectOptions = JsonObjectOptions::from(TEXT)
-            .set_expand_dots_enabled() // TODO: Test fails without expand dots
-            .set_stored();
-        let json_field = schema_builder.add_json_field("json", json_options.clone());
+        let json_options: JsonObjectOptions =
+            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        let json_options = if expanded_dots {
+            json_options.set_expand_dots_enabled()
+        } else {
+            json_options
+        };
+        schema_builder.add_json_field("json.confusing", json_options.clone());
+        let json_field = schema_builder.add_json_field("json.shadow", json_options.clone());
+        let json_field2 = schema_builder.add_json_field("json", json_options.clone());
         schema_builder.add_json_field("empty_json", json_options);
         let number_field = schema_builder.add_u64_field("numbers", FAST);
         schema_builder.add_u64_field("empty", FAST | INDEXED | STORED);
@@ -229,10 +241,9 @@ mod tests_mmap {
         let json =
             serde_json::json!({"k8s.container.name": "a", "val": "a", "suber": {"a": 1, "b": 1}});
         index_writer.add_document(doc!(json_field=>json)).unwrap();
-        let json =
-            serde_json::json!({"k8s.container.name": "a", "val": "a", "suber": {"a": "a", "b": 1}});
+        let json = serde_json::json!({"k8s.container.name": "a", "k8s.container.name": "a", "val": "a", "suber": {"a": "a", "b": 1}});
         index_writer
-            .add_document(doc!(number_field => 50u64, json_field=>json))
+            .add_document(doc!(number_field => 50u64, json_field=>json, json_field2=>json!({"shadow": {"val": "a"}})))
             .unwrap();
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
@@ -274,52 +285,70 @@ mod tests_mmap {
                     typ: Type::Json
                 },
                 FieldMetadata {
-                    field_name: "json.k8s\u{1}container\u{1}name".to_string(),
+                    field_name: "json.shadow".to_string(),
                     indexed: true,
                     stored: true,
                     fast: false,
+                    typ: Type::Json
+                },
+                FieldMetadata {
+                    field_name: if expanded_dots {
+                        "json.shadow.k8s.container.name".to_string()
+                    } else {
+                        "json.shadow.k8s\\.container\\.name".to_string()
+                    },
+                    indexed: true,
+                    stored: true,
+                    fast: true,
                     typ: Type::Str
                 },
                 FieldMetadata {
-                    field_name: "json.sub\u{1}a".to_string(),
+                    field_name: "json.shadow.sub.a".to_string(),
                     indexed: true,
                     stored: true,
-                    fast: false,
+                    fast: true,
                     typ: Type::I64
                 },
                 FieldMetadata {
-                    field_name: "json.sub\u{1}b".to_string(),
+                    field_name: "json.shadow.sub.b".to_string(),
                     indexed: true,
                     stored: true,
-                    fast: false,
+                    fast: true,
                     typ: Type::I64
                 },
                 FieldMetadata {
-                    field_name: "json.suber\u{1}a".to_string(),
+                    field_name: "json.shadow.suber.a".to_string(),
                     indexed: true,
                     stored: true,
-                    fast: false,
+                    fast: true,
                     typ: Type::I64
                 },
                 FieldMetadata {
-                    field_name: "json.suber\u{1}a".to_string(),
+                    field_name: "json.shadow.suber.a".to_string(),
                     indexed: true,
                     stored: true,
-                    fast: false,
+                    fast: true,
                     typ: Type::Str
                 },
                 FieldMetadata {
-                    field_name: "json.suber\u{1}b".to_string(),
+                    field_name: "json.shadow.suber.b".to_string(),
                     indexed: true,
                     stored: true,
-                    fast: false,
+                    fast: true,
                     typ: Type::I64
                 },
                 FieldMetadata {
-                    field_name: "json.val".to_string(),
+                    field_name: "json.shadow.val".to_string(),
                     indexed: true,
                     stored: true,
-                    fast: false,
+                    fast: true,
+                    typ: Type::Str
+                },
+                FieldMetadata {
+                    field_name: "json.shadow.val".to_string(),
+                    indexed: true,
+                    stored: true,
+                    fast: true,
                     typ: Type::Str
                 },
                 FieldMetadata {
@@ -332,6 +361,7 @@ mod tests_mmap {
             ]
         );
         let query_parser = QueryParser::for_index(&index, vec![]);
+        // Test if returned field name can be queried
         for indexed_field in fields_metadata.iter().filter(|meta| meta.indexed) {
             let val = if indexed_field.typ == Type::Str {
                 "a"
@@ -339,14 +369,103 @@ mod tests_mmap {
                 "1"
             };
             let query_str = &format!("{}:{}", indexed_field.field_name, val);
-            // dbg!(query_str);
             let query = query_parser.parse_query(query_str).unwrap();
             let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
             if indexed_field.field_name.contains("empty") || indexed_field.typ == Type::Json {
                 assert_eq!(count_docs.len(), 0);
             } else {
-                assert!(count_docs.len() >= 1);
+                assert!(!count_docs.is_empty(), "{}", indexed_field.field_name);
             }
+        }
+        // Test if returned field name can be used for aggregation
+        for fast_field in fields_metadata.iter().filter(|meta| meta.fast) {
+            let agg_req_str = json!(
+            {
+              "termagg": {
+                "terms": {
+                  "field": fast_field.field_name,
+                }
+              }
+            });
+
+            let agg_req: Aggregations = serde_json::from_value(agg_req_str).unwrap();
+            let collector = AggregationCollector::from_aggs(agg_req, Default::default());
+            let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+            let res = serde_json::to_value(agg_res).unwrap();
+            if !fast_field.field_name.contains("empty") && fast_field.typ != Type::Json {
+                assert!(
+                    !res["termagg"]["buckets"].as_array().unwrap().is_empty(),
+                    "{}",
+                    fast_field.field_name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_json_field_shadowing_field_name_bug() {
+        /// This test is only there to display a bug on addressing a field if it gets shadowed
+        /// The issues only occurs if the field name that shadows contains a dot.
+        ///
+        /// Happens independently of the `expand_dots` option. Since that option does not
+        /// affect the field name itself.
+        use pretty_assertions::assert_eq;
+        let mut schema_builder = Schema::builder();
+        let json_options: JsonObjectOptions =
+            JsonObjectOptions::from(TEXT).set_fast(None).set_stored();
+        // let json_options = json_options.set_expand_dots_enabled();
+        let json_field_shadow = schema_builder.add_json_field("json.shadow", json_options.clone());
+        let json_field = schema_builder.add_json_field("json", json_options.clone());
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(
+                doc!(json_field_shadow=>json!({"val": "b"}), json_field=>json!({"shadow": {"val": "a"}})),
+            )
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+
+        let searcher = reader.searcher();
+
+        let fields_and_vals = vec![
+            // Only way to address or it gets shadowed by `json.shadow` field
+            ("json.shadow\u{1}val".to_string(), "a"), // Succeeds
+            //("json.shadow.val".to_string(), "a"),   // Fails
+            ("json.shadow.val".to_string(), "b"), // Succeeds
+        ];
+
+        let query_parser = QueryParser::for_index(&index, vec![]);
+        // Test if field name can be queried
+        for (indexed_field, val) in fields_and_vals.iter() {
+            let query_str = &format!("{}:{}", indexed_field, val);
+            let query = query_parser.parse_query(query_str).unwrap();
+            let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
+            assert!(!count_docs.is_empty(), "{}:{}", indexed_field, val);
+        }
+        // Test if field name can be used for aggregation
+        for (field_name, val) in fields_and_vals.iter() {
+            let agg_req_str = json!(
+            {
+              "termagg": {
+                "terms": {
+                  "field": field_name,
+                }
+              }
+            });
+
+            let agg_req: Aggregations = serde_json::from_value(agg_req_str).unwrap();
+            let collector = AggregationCollector::from_aggs(agg_req, Default::default());
+            let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+            let res = serde_json::to_value(agg_res).unwrap();
+            assert_eq!(
+                res["termagg"]["buckets"].as_array().unwrap()[0]["key"]
+                    .as_str()
+                    .unwrap(),
+                *val,
+                "{}",
+                field_name
+            );
         }
     }
 }
