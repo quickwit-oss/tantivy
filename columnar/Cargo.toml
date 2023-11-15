@@ -9,7 +9,7 @@ description = "column oriented storage for tantivy"
 categories = ["database-implementations", "data-structures", "compression"]
 
 [dependencies]
-itertools = "0.11.0"
+itertools = "0.12.0"
 fnv = "1.0.7"
 fastdivide = "0.4.0"
 
