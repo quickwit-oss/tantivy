@@ -101,7 +101,7 @@ impl TermQuery {
                 ..
             } => Bm25Weight::for_terms(statistics_provider, &[self.term.clone()])?,
             EnableScoring::Disabled { .. } => {
-                Bm25Weight::new(Explanation::new("<no score>".to_string(), 1.0f32), 1.0f32)
+                Bm25Weight::new(Explanation::new("<no score>", 1.0f32), 1.0f32)
             }
         };
         let scoring_enabled = enable_scoring.is_scoring_enabled();
