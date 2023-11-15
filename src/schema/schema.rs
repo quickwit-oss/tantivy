@@ -30,7 +30,7 @@ use crate::TantivyError;
 /// let body_field = schema_builder.add_text_field("body", TEXT);
 /// let schema = schema_builder.build();
 /// ```
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SchemaBuilder {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>,
