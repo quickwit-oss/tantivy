@@ -304,6 +304,7 @@ where
 
         let offset = wrt.written_bytes();
 
+        eprintln!("index_offset={offset}");
         let fst_len: u64 = self.index_builder.serialize(&mut wrt)?;
         wrt.write_all(&fst_len.to_le_bytes())?;
         wrt.write_all(&offset.to_le_bytes())?;

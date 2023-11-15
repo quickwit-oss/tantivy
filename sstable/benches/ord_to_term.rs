@@ -15,6 +15,7 @@ fn make_test_sstable(suffix: &str) -> FileSlice {
     }
 
     let table = builder.finish().unwrap();
+    eprintln!("len={}", table.len());
     let table = Arc::new(OwnedBytes::new(table));
     let slice = common::file_slice::FileSlice::new(table.clone());
 
@@ -40,6 +41,31 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 assert!(dict.ord_to_term(19_000_000, &mut res).unwrap());
             })
         });
+        c.bench_function("term_ord_suffix", |b| {
+            b.iter(|| {
+                assert_eq!(
+                    dict.term_ord(b"prefix.00186A0.suffix").unwrap().unwrap(),
+                    100_000
+                );
+                assert_eq!(
+                    dict.term_ord(b"prefix.121EAC0.suffix").unwrap().unwrap(),
+                    19_000_000
+                );
+            })
+        });
+        c.bench_function("open_and_term_ord_suffix", |b| {
+            b.iter(|| {
+                let dict = Dictionary::<MonotonicU64SSTable>::open(slice.clone()).unwrap();
+                assert_eq!(
+                    dict.term_ord(b"prefix.00186A0.suffix").unwrap().unwrap(),
+                    100_000
+                );
+                assert_eq!(
+                    dict.term_ord(b"prefix.121EAC0.suffix").unwrap().unwrap(),
+                    19_000_000
+                );
+            })
+        });
     }
     {
         let slice = make_test_sstable("");
@@ -57,6 +83,25 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 let dict = Dictionary::<MonotonicU64SSTable>::open(slice.clone()).unwrap();
                 assert!(dict.ord_to_term(100_000, &mut res).unwrap());
                 assert!(dict.ord_to_term(19_000_000, &mut res).unwrap());
+            })
+        });
+        c.bench_function("term_ord", |b| {
+            b.iter(|| {
+                assert_eq!(dict.term_ord(b"prefix.00186A0").unwrap().unwrap(), 100_000);
+                assert_eq!(
+                    dict.term_ord(b"prefix.121EAC0").unwrap().unwrap(),
+                    19_000_000
+                );
+            })
+        });
+        c.bench_function("open_and_term_ord", |b| {
+            b.iter(|| {
+                let dict = Dictionary::<MonotonicU64SSTable>::open(slice.clone()).unwrap();
+                assert_eq!(dict.term_ord(b"prefix.00186A0").unwrap().unwrap(), 100_000);
+                assert_eq!(
+                    dict.term_ord(b"prefix.121EAC0").unwrap().unwrap(),
+                    19_000_000
+                );
             })
         });
     }
