@@ -1,6 +1,7 @@
+use std::borrow::Cow;
 use std::fmt;
 
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 use crate::{DocId, Score, TantivyError};
 
@@ -16,25 +17,11 @@ pub(crate) fn does_not_match(doc: DocId) -> TantivyError {
 #[derive(Clone, Serialize)]
 pub struct Explanation {
     value: Score,
-    description: StaticOrDynamic,
+    description: Cow<'static, str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<Vec<Explanation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     context: Option<Vec<String>>,
-}
-#[derive(Clone)]
-enum StaticOrDynamic {
-    Static(&'static str),
-    Dynamic(String),
-}
-impl Serialize for StaticOrDynamic {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
-        match self {
-            StaticOrDynamic::Static(s) => serializer.serialize_str(s),
-            StaticOrDynamic::Dynamic(s) => serializer.serialize_str(s),
-        }
-    }
 }
 impl fmt::Debug for Explanation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -47,7 +34,7 @@ impl Explanation {
     pub fn new_with_string(description: String, value: Score) -> Explanation {
         Explanation {
             value,
-            description: StaticOrDynamic::Dynamic(description),
+            description: Cow::Owned(description),
             details: None,
             context: None,
         }
@@ -56,7 +43,7 @@ impl Explanation {
     pub fn new(description: &'static str, value: Score) -> Explanation {
         Explanation {
             value,
-            description: StaticOrDynamic::Static(description),
+            description: Cow::Borrowed(description),
             details: None,
             context: None,
         }
