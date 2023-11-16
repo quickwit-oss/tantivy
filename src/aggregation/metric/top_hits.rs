@@ -127,12 +127,14 @@ impl RetrievalFields {
     }
 
     fn resolve_field_names(self, reader: &ColumnarReader) -> crate::Result<Self> {
-        let globbed_string_to_regex = |globbed: &str| {
-            let sanitized = format!("^{}$", regex::escape(globbed).replace(r"\*", ".*"));
+        // Tranform a glob (`pattern*`, for example) into a regex::Regex (`^pattern.*$`)
+        let globbed_string_to_regex = |glob: &str| {
+            // Replace `*` glob with `.*` regex
+            let sanitized = format!("^{}$", regex::escape(glob).replace(r"\*", ".*"));
             Regex::new(&sanitized.replace('*', ".*")).map_err(|e| {
                 crate::TantivyError::SchemaError(format!(
                     "Invalid regex '{}' in docvalue_fields: {}",
-                    globbed, e
+                    glob, e
                 ))
             })
         };
@@ -161,7 +163,7 @@ impl RetrievalFields {
         })
     }
 
-    fn get_fields(
+    fn get_document_field_data(
         &self,
         accessors: &HashMap<String, DynamicColumn>,
         doc_id: DocId,
@@ -170,7 +172,9 @@ impl RetrievalFields {
             .doc_value_fields
             .iter()
             .map(|field| {
-                let accessor = accessors.get(field).expect("field accessor must exist");
+                let accessor = accessors
+                    .get(field)
+                    .expect("could not find field in accessors");
 
                 let value: OwnedValue = match accessor {
                     DynamicColumn::U64(accessor) => accessor
@@ -192,7 +196,7 @@ impl RetrievalFields {
                         let mut buffer = vec![];
                         match accessor
                             .ord_to_bytes(term_ord, &mut buffer)
-                            .expect("term dictionary read must succeed")
+                            .expect("could not find term_ord in the term dictionary")
                         {
                             false => OwnedValue::Null,
                             true => OwnedValue::Bytes(buffer),
@@ -485,7 +489,7 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
                 let order = *order;
                 let value = accessors
                     .get(idx)
-                    .expect("field accessor must exist")
+                    .expect("could not find field in accessors")
                     .0
                     .values_for_doc(doc_id)
                     .next();
@@ -497,7 +501,7 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
             .inner_collector
             .req
             .retrieval
-            .get_fields(value_accessors, doc_id);
+            .get_document_field_data(value_accessors, doc_id);
 
         self.inner_collector.collect(
             ComparableDocFeatures(features, retrieval_result),
@@ -751,8 +755,6 @@ mod tests {
             ],
         ];
 
-        println!("docs: {:?}", docs);
-        println!("merge_segments: {:?}", merge_segments);
         let index = get_test_index_from_docs(merge_segments, &docs)?;
 
         let d: Aggregations = serde_json::from_value(json!({
