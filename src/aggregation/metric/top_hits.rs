@@ -176,61 +176,53 @@ impl RetrievalFields {
                     .get(field)
                     .expect("could not find field in accessors");
 
-                let value: OwnedValue = match accessor {
+                let values: Vec<OwnedValue> = match accessor {
                     DynamicColumn::U64(accessor) => accessor
                         .values_for_doc(doc_id)
-                        .next()
-                        .map_or(OwnedValue::Null, OwnedValue::U64),
+                        .map(OwnedValue::U64)
+                        .collect::<Vec<_>>(),
                     DynamicColumn::I64(accessor) => accessor
                         .values_for_doc(doc_id)
-                        .next()
-                        .map_or(OwnedValue::Null, OwnedValue::I64),
+                        .map(OwnedValue::I64)
+                        .collect::<Vec<_>>(),
                     DynamicColumn::F64(accessor) => accessor
                         .values_for_doc(doc_id)
-                        .next()
-                        .map_or(OwnedValue::Null, OwnedValue::F64),
-                    DynamicColumn::Bytes(accessor) => 'l: {
-                        let Some(term_ord) = accessor.term_ords(doc_id).next() else {
-                            break 'l OwnedValue::Null;
-                        };
-                        let mut buffer = vec![];
-                        match accessor
-                            .ord_to_bytes(term_ord, &mut buffer)
-                            .expect("could not find term_ord in the term dictionary")
-                        {
-                            false => OwnedValue::Null,
-                            true => OwnedValue::Bytes(buffer),
-                        }
-                    }
-                    DynamicColumn::Str(accessor) => 'l: {
-                        let Some(term_ord) = accessor.term_ords(doc_id).next() else {
-                            break 'l OwnedValue::Null;
-                        };
-                        let mut buffer = vec![];
-                        match accessor
-                            .ord_to_bytes(term_ord, &mut buffer)
-                            .expect("term dictionary read must succeed")
-                        {
-                            false => OwnedValue::Null,
-                            true => OwnedValue::Str(
-                                String::from_utf8(buffer).expect("string must be valid utf8"),
-                            ),
-                        }
-                    }
+                        .map(OwnedValue::F64)
+                        .collect::<Vec<_>>(),
+                    DynamicColumn::Bytes(accessor) => accessor
+                        .term_ords(doc_id)
+                        .map(|term_ord| {
+                            let mut buffer = vec![];
+                            match accessor.ord_to_bytes(term_ord, &mut buffer).unwrap() {
+                                false => OwnedValue::Null,
+                                true => OwnedValue::Bytes(buffer),
+                            }
+                        })
+                        .collect::<Vec<_>>(),
+                    DynamicColumn::Str(accessor) => accessor
+                        .term_ords(doc_id)
+                        .map(|term_ord| {
+                            let mut buffer = vec![];
+                            match accessor.ord_to_bytes(term_ord, &mut buffer).unwrap() {
+                                false => OwnedValue::Null,
+                                true => OwnedValue::Str(String::from_utf8(buffer).expect("")),
+                            }
+                        })
+                        .collect::<Vec<_>>(),
                     DynamicColumn::Bool(accessor) => accessor
                         .values_for_doc(doc_id)
-                        .next()
-                        .map_or(OwnedValue::Null, OwnedValue::Bool),
+                        .map(OwnedValue::Bool)
+                        .collect::<Vec<_>>(),
                     DynamicColumn::IpAddr(accessor) => accessor
                         .values_for_doc(doc_id)
-                        .next()
-                        .map_or(OwnedValue::Null, OwnedValue::IpAddr),
+                        .map(OwnedValue::IpAddr)
+                        .collect::<Vec<_>>(),
                     DynamicColumn::DateTime(accessor) => accessor
                         .values_for_doc(doc_id)
-                        .next()
-                        .map_or(OwnedValue::Null, OwnedValue::Date),
+                        .map(OwnedValue::Date)
+                        .collect::<Vec<_>>(),
                 };
-                (field.to_owned(), value)
+                (field.to_owned(), OwnedValue::Array(values))
             })
             .collect();
         FieldRetrivalResult {
