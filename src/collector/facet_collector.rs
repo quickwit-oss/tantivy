@@ -493,7 +493,7 @@ mod tests {
     use super::{FacetCollector, FacetCounts};
     use crate::collector::facet_collector::compress_mapping;
     use crate::collector::Count;
-    use crate::core::Index;
+    use crate::index::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
     use crate::schema::{Facet, FacetOptions, IndexRecordOption, Schema, TantivyDocument};
     use crate::{IndexWriter, Term};

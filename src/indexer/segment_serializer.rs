@@ -1,8 +1,8 @@
 use common::TerminatingWrite;
 
-use crate::core::{Segment, SegmentComponent};
 use crate::directory::WritePtr;
 use crate::fieldnorm::FieldNormsSerializer;
+use crate::index::{Segment, SegmentComponent};
 use crate::postings::InvertedIndexSerializer;
 use crate::store::StoreWriter;
 

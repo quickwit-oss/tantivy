@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::core::SegmentReader;
 use crate::docset::BUFFER_LEN;
+use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::collector::TopDocs;
-    use crate::core::Index;
     use crate::fastfield::AliveBitSet;
+    use crate::index::Index;
     use crate::query::QueryParser;
     use crate::schema::document::Value;
     use crate::schema::{
@@ -485,7 +485,7 @@ mod bench_sorted_index_merge {
 
     use test::{self, Bencher};
 
-    use crate::core::Index;
+    use crate::index::Index;
     use crate::indexer::merger::IndexMerger;
     use crate::schema::{NumericOptions, Schema};
     use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};

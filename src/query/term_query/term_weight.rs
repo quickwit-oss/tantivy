@@ -1,7 +1,7 @@
 use super::term_scorer::TermScorer;
-use crate::core::SegmentReader;
 use crate::docset::{DocSet, BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
+use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;

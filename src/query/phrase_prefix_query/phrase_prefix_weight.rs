@@ -1,6 +1,6 @@
 use super::{prefix_end, PhrasePrefixScorer};
-use crate::core::SegmentReader;
 use crate::fieldnorm::FieldNormReader;
+use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
@@ -157,8 +157,8 @@ impl Weight for PhrasePrefixWeight {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::Index;
     use crate::docset::TERMINATED;
+    use crate::index::Index;
     use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
     use crate::schema::{Schema, TEXT};
     use crate::{DocSet, IndexWriter, Term};

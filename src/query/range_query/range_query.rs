@@ -7,8 +7,8 @@ use common::{BinarySerializable, BitSet};
 
 use super::map_bound;
 use super::range_query_u64_fastfield::FastFieldRangeWeight;
-use crate::core::SegmentReader;
 use crate::error::TantivyError;
+use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
 use crate::query::range_query::range_query_ip_fastfield::IPFastFieldRangeWeight;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, map_bound_res};

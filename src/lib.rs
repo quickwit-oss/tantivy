@@ -189,6 +189,7 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
+pub mod index;
 pub mod positions;
 pub mod postings;
 
@@ -220,18 +221,18 @@ pub use self::docset::{DocSet, TERMINATED};
 pub use self::snippet::{Snippet, SnippetGenerator};
 #[doc(hidden)]
 pub use crate::core::json_utils;
-pub use crate::core::{
-    merge_field_meta_data, Executor, FieldMetadata, Index, IndexBuilder, IndexMeta, IndexSettings,
-    IndexSortByField, InvertedIndexReader, Order, Searcher, SearcherGeneration, Segment,
-    SegmentComponent, SegmentId, SegmentMeta, SegmentReader, SingleSegmentIndexWriter,
-};
+pub use crate::core::{Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
-pub use crate::indexer::IndexWriter;
+pub use crate::index::{
+    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
+    Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader,
+};
 #[deprecated(
     since = "0.22.0",
     note = "Will be removed in tantivy 0.23. Use export from indexer module instead"
 )]
-pub use crate::indexer::{merge_filtered_segments, merge_indices, PreparedCommit};
+pub use crate::indexer::PreparedCommit;
+pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::postings::Postings;
 #[allow(deprecated)]
 pub use crate::schema::DatePrecision;
@@ -386,8 +387,8 @@ pub mod tests {
     use time::OffsetDateTime;
 
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
-    use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
+    use crate::index::SegmentReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
     use crate::schema::document::Value;

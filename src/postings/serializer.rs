@@ -4,9 +4,9 @@ use std::io::{self, Write};
 use common::{BinarySerializable, CountingWriter, VInt};
 
 use super::TermInfo;
-use crate::core::Segment;
 use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
+use crate::index::Segment;
 use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;

@@ -6,24 +6,23 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::segment::Segment;
-use super::IndexSettings;
-use crate::core::single_segment_index_writer::SingleSegmentIndexWriter;
-use crate::core::{
-    Executor, IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory, META_FILEPATH,
-};
+use super::segment_reader::merge_field_meta_data;
+use super::{FieldMetadata, IndexSettings};
+use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
+use crate::index::{IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
-use crate::indexer::IndexWriter;
+use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{merge_field_meta_data, FieldMetadata, SegmentReader};
+use crate::SegmentReader;
 
 fn load_metas(
     directory: &dyn Directory,

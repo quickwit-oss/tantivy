@@ -6,9 +6,9 @@ use tokenizer_api::BoxTokenStream;
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::core::json_utils::index_json_values;
-use crate::core::Segment;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
+use crate::index::Segment;
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
