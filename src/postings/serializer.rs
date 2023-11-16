@@ -355,7 +355,7 @@ impl<W: Write> PostingsSerializer<W> {
             return;
         }
 
-        self.bm25_weight = Some(Bm25Weight::for_one_term(
+        self.bm25_weight = Some(Bm25Weight::for_one_term_without_explain(
             term_doc_freq as u64,
             num_docs_in_segment,
             self.avg_fieldnorm,
