@@ -165,7 +165,7 @@ impl SSTableIndexBuilder {
         }
         let counting_writer = map_builder.into_inner().unwrap();
         let written_bytes = counting_writer.written_bytes();
-        let mut wrt = counting_writer.finish();
+        let mut wrt = counting_writer;
 
         let mut block_store_writer = BlockAddrStoreWriter::new();
         for block in &self.blocks {
@@ -173,6 +173,7 @@ impl SSTableIndexBuilder {
         }
         block_store_writer.serialize(&mut wrt)?;
         eprintln!("fst len={written_bytes}");
+        eprintln!("store len={}", wrt.written_bytes() - written_bytes);
 
         Ok(written_bytes)
     }
@@ -184,8 +185,11 @@ const STORE_BLOCK_LEN: usize = 256;
 struct BlockAddrBlockMetadata {
     offset: u64,
     ref_block_addr: BlockAddr,
+    range_start_slop: u32,
+    first_ordinal_slop: u32,
     range_start_nbits: u8,
     first_ordinal_nbits: u8,
+    block_len: u16,
 }
 
 impl BlockAddrBlockMetadata {
@@ -194,23 +198,28 @@ impl BlockAddrBlockMetadata {
     }
 
     fn deserialize_block_addr(&self, data: &[u8], inner_offset: usize) -> Option<BlockAddr> {
-        assert!(inner_offset < STORE_BLOCK_LEN - 1);
+        if inner_offset >= self.block_len as usize {
+            return None;
+        }
         let num_bits = self.num_bits() as usize;
 
         let range_start_addr = num_bits * inner_offset;
         let ordinal_addr = range_start_addr + self.range_start_nbits as usize;
-        let range_end_addr = range_start_addr + self.num_bits() as usize;
+        let range_end_addr = range_start_addr + num_bits as usize;
 
         if (range_end_addr + self.range_start_nbits as usize + 7) / 8 > data.len() {
             return None;
         }
 
-        let range_start = self.ref_block_addr.byte_range.end
-            + extract_bits(data, range_start_addr, self.range_start_nbits) as usize;
+        let range_start = self.ref_block_addr.byte_range.start
+            + extract_bits(data, range_start_addr, self.range_start_nbits) as usize
+            + self.range_start_slop as usize * (inner_offset + 1);
         let first_ordinal = self.ref_block_addr.first_ordinal
-            + extract_bits(data, ordinal_addr, self.first_ordinal_nbits);
-        let range_end = self.ref_block_addr.byte_range.end
-            + extract_bits(data, range_end_addr, self.range_start_nbits) as usize;
+            + extract_bits(data, ordinal_addr, self.first_ordinal_nbits)
+            + self.first_ordinal_slop as u64 * (inner_offset + 1) as u64;
+        let range_end = self.ref_block_addr.byte_range.start
+            + extract_bits(data, range_end_addr, self.range_start_nbits) as usize
+            + self.range_start_slop as usize * (inner_offset + 2);
 
         Some(BlockAddr {
             first_ordinal,
@@ -223,8 +232,6 @@ impl BlockAddrBlockMetadata {
     // we should use ref_block_addr
     fn bissect_for_ord(&self, data: &[u8], target_ord: TermOrdinal) -> (u64, BlockAddr) {
         // TODO can panic if block has header only
-        let max = (STORE_BLOCK_LEN - 1).min(data.len() * 8 / self.num_bits() as usize);
-
         let inner_target_ord = target_ord - self.ref_block_addr.first_ordinal;
         let num_bits = self.num_bits() as usize;
         let range_start_nbits = self.range_start_nbits as usize;
@@ -233,14 +240,15 @@ impl BlockAddrBlockMetadata {
                 data,
                 num_bits * index as usize + range_start_nbits,
                 self.first_ordinal_nbits,
-            )
+            ) + self.first_ordinal_slop as u64 * (index + 1) as u64
         };
 
-        let inner_offset =
-            match binary_search(max as u64, |index| get_ord(index).cmp(&inner_target_ord)) {
-                Ok(inner_offset) => inner_offset + 1,
-                Err(inner_offset) => inner_offset,
-            };
+        let inner_offset = match binary_search(self.block_len as u64, |index| {
+            get_ord(index).cmp(&inner_target_ord)
+        }) {
+            Ok(inner_offset) => inner_offset + 1,
+            Err(inner_offset) => inner_offset,
+        };
         if inner_offset == 0 {
             (0, self.ref_block_addr.clone())
         } else {
@@ -280,27 +288,39 @@ impl BinarySerializable for BlockAddrBlockMetadata {
     fn serialize<W: Write + ?Sized>(&self, write: &mut W) -> io::Result<()> {
         self.offset.serialize(write)?;
         self.ref_block_addr.serialize(write)?;
+        self.range_start_slop.serialize(write)?;
+        self.first_ordinal_slop.serialize(write)?;
         write.write_all(&[self.first_ordinal_nbits, self.range_start_nbits])?;
+        self.block_len.serialize(write)?;
         Ok(())
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let offset = u64::deserialize(reader)?;
         let ref_block_addr = BlockAddr::deserialize(reader)?;
+        let range_start_slop = u32::deserialize(reader)?;
+        let first_ordinal_slop = u32::deserialize(reader)?;
         let mut buffer = [0u8; 2];
         reader.read_exact(&mut buffer)?;
+        let block_len = u16::deserialize(reader)?;
         Ok(BlockAddrBlockMetadata {
             offset,
             ref_block_addr,
-            first_ordinal_nbits: buffer[0],
+            range_start_slop,
+            first_ordinal_slop,
             range_start_nbits: buffer[1],
+            first_ordinal_nbits: buffer[0],
+            block_len,
         })
     }
 }
 
 impl FixedSize for BlockAddrBlockMetadata {
-    const SIZE_IN_BYTES: usize =
-        u64::SIZE_IN_BYTES + BlockAddr::SIZE_IN_BYTES + 2 * u8::SIZE_IN_BYTES;
+    const SIZE_IN_BYTES: usize = u64::SIZE_IN_BYTES
+        + BlockAddr::SIZE_IN_BYTES
+        + 2 * u32::SIZE_IN_BYTES
+        + 2 * u8::SIZE_IN_BYTES
+        + u16::SIZE_IN_BYTES;
 }
 
 #[derive(Debug, Clone)]
@@ -411,38 +431,84 @@ impl BlockAddrStoreWriter {
     fn flush_block(&mut self) -> io::Result<()> {
         let ref_block_addr = self.block_addrs[0].clone();
 
-        let last_block_addr = self.block_addrs.last().unwrap().clone();
+        for block_addr in &mut self.block_addrs {
+            block_addr.byte_range.start -= ref_block_addr.byte_range.start;
+            block_addr.first_ordinal -= ref_block_addr.first_ordinal;
+        }
 
-        let ordinal_offset = last_block_addr.first_ordinal - ref_block_addr.first_ordinal;
-        let range_offset = (last_block_addr.byte_range.end - ref_block_addr.byte_range.end) as u64;
+        let mut last_block_addr = self.block_addrs.last().unwrap().clone();
+        last_block_addr.byte_range.end -= ref_block_addr.byte_range.start;
 
-        let max_ordinal_nbits = compute_num_bits(ordinal_offset);
-        let max_range_start_nbits = compute_num_bits(range_offset);
+        let (range_start_slop, first_ordinal_slop) =
+            self.block_addrs.iter().enumerate().skip(1).fold(
+                (u64::MAX, u64::MAX),
+                |(range_slop, ordinal_slop), (index, block)| {
+                    (
+                        range_slop.min((block.byte_range.start / index) as u64),
+                        ordinal_slop.min(block.first_ordinal / index as u64),
+                    )
+                },
+            );
+        let range_start_slop =
+            range_start_slop.min((last_block_addr.byte_range.end / self.block_addrs.len()) as u64);
+
+        // we need correction to be at least 1 otherwise we may fail to assess the number of
+        // elements in a block if each block is exactly the same size and the same number of
+        // ordinal
+        let (range_max_correction, ordinal_max_correction) =
+            self.block_addrs.iter().enumerate().skip(1).fold(
+                (1, 0),
+                |(range_max_correction, ordinal_max_correction), (index, block)| {
+                    let range_correction =
+                        block.byte_range.start - range_start_slop as usize * index;
+                    let ordinal_correction =
+                        block.first_ordinal - first_ordinal_slop * index as u64;
+                    (
+                        range_max_correction.max(range_correction),
+                        ordinal_max_correction.max(ordinal_correction),
+                    )
+                },
+            );
+
+        let range_max_correction = range_max_correction.max(
+            last_block_addr.byte_range.end - range_start_slop as usize * self.block_addrs.len(),
+        );
+
+        let range_start_nbits = compute_num_bits(range_max_correction as u64);
+        let first_ordinal_nbits = compute_num_bits(ordinal_max_correction);
 
         let block_addr_block_meta = BlockAddrBlockMetadata {
             offset: self.buffer_addrs.len() as u64,
             ref_block_addr: ref_block_addr.clone(),
-            range_start_nbits: max_range_start_nbits,
-            first_ordinal_nbits: max_ordinal_nbits,
+            range_start_slop: range_start_slop as u32,
+            first_ordinal_slop: first_ordinal_slop as u32,
+            range_start_nbits,
+            first_ordinal_nbits,
+            block_len: self.block_addrs.len() as u16 - 1,
         };
         block_addr_block_meta.serialize(&mut self.buffer_block_metas)?;
 
         let mut bit_packer = BitPacker::new();
 
-        for block_addr in &self.block_addrs[1..] {
+        for (i, block_addr) in self.block_addrs.iter().enumerate().skip(1) {
             bit_packer.write(
-                (block_addr.byte_range.start - ref_block_addr.byte_range.end) as u64,
-                max_range_start_nbits,
+                (block_addr.byte_range.start - range_start_slop as usize * i) as u64,
+                range_start_nbits,
                 &mut self.buffer_addrs,
             )?;
             bit_packer.write(
-                (block_addr.first_ordinal - ref_block_addr.first_ordinal) as u64,
-                max_ordinal_nbits,
+                block_addr.first_ordinal - first_ordinal_slop * i as u64,
+                first_ordinal_nbits,
                 &mut self.buffer_addrs,
             )?;
         }
 
-        bit_packer.write(range_offset, max_range_start_nbits, &mut self.buffer_addrs)?;
+        bit_packer.write(
+            (last_block_addr.byte_range.end - range_start_slop as usize * self.block_addrs.len())
+                as u64,
+            range_start_nbits,
+            &mut self.buffer_addrs,
+        )?;
         bit_packer.flush(&mut self.buffer_addrs)?;
 
         self.block_addrs.clear();

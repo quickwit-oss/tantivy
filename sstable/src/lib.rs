@@ -548,4 +548,41 @@ mod test {
             assert!(btree_set_range.next().is_none());
         }
     }
+
+    #[test]
+    fn tmp() {
+        let words: std::collections::BTreeSet<String> =
+            ["", "a", "aa", "aaaa", "aba", "acaaaa", "b"]
+                .into_iter()
+                .map(ToString::to_string)
+                .collect();
+        let (lower_bound, upper_bound) =
+            (Bound::Excluded("b".to_string()), Bound::<String>::Unbounded);
+        let mut builder = Dictionary::<VoidSSTable>::builder(Vec::new()).unwrap();
+        builder.set_block_len(16);
+        for word in &words {
+            builder.insert(word.as_bytes(), &()).unwrap();
+        }
+        let buffer: Vec<u8> = builder.finish().unwrap();
+        let dictionary: Dictionary<VoidSSTable> =
+            Dictionary::open(FileSlice::from(buffer)).unwrap();
+        let mut range_builder = dictionary.range();
+        range_builder = match lower_bound.as_ref() {
+            Bound::Included(key) => range_builder.ge(key.as_bytes()),
+            Bound::Excluded(key) => range_builder.gt(key.as_bytes()),
+            Bound::Unbounded => range_builder,
+        };
+        range_builder = match upper_bound.as_ref() {
+            Bound::Included(key) => range_builder.le(key.as_bytes()),
+            Bound::Excluded(key) => range_builder.lt(key.as_bytes()),
+            Bound::Unbounded => range_builder,
+        };
+        let mut stream = range_builder.into_stream().unwrap();
+        let mut btree_set_range = words.range((lower_bound, upper_bound));
+        while stream.advance() {
+            let val = btree_set_range.next().unwrap();
+            assert_eq!(val.as_bytes(), stream.key());
+        }
+        assert!(btree_set_range.next().is_none());
+    }
 }
