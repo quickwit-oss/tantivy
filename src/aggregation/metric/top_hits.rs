@@ -782,17 +782,17 @@ mod tests {
                     {
                         "sort": [common::i64_to_u64(date_2017.unix_timestamp_nanos() as i64)],
                         "docvalue_fields": {
-                            "date": SchemaValue::Date(DateTime::from_utc(date_2017)),
-                            "text": "ccc",
-                            "text2": "ddd",
+                            "date": [ SchemaValue::Date(DateTime::from_utc(date_2017)) ],
+                            "text": [ "ccc" ],
+                            "text2": [ "ddd" ],
                         }
                     },
                     {
                         "sort": [common::i64_to_u64(date_2016.unix_timestamp_nanos() as i64)],
                         "docvalue_fields": {
-                            "date": SchemaValue::Date(DateTime::from_utc(date_2016)),
-                            "text": "aaa",
-                            "text2": "bbb",
+                            "date": [ SchemaValue::Date(DateTime::from_utc(date_2016)) ],
+                            "text": [ "aaa" ],
+                            "text2": [ "bbb" ],
                         }
                     }
                 ]
