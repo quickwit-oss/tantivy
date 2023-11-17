@@ -1,6 +1,7 @@
 //! This will enhance the request tree with access to the fastfield and metadata.
 
 use std::collections::HashMap;
+use std::io;
 
 use columnar::{Column, ColumnBlockAccessor, ColumnType, DynamicColumn, StrColumn};
 
@@ -16,7 +17,7 @@ use super::metric::{
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
 use crate::aggregation::{f64_to_fastfield_u64, Key};
-use crate::{SegmentOrdinal, SegmentReader, TantivyError};
+use crate::{SegmentOrdinal, SegmentReader};
 
 #[derive(Default)]
 pub(crate) struct AggregationsWithAccessor {
@@ -54,9 +55,9 @@ pub struct AggregationWithAccessor {
     // NOTE: we can make all other aggregations use this instead of the `accessor` and `field_type`
     // (making them obsolete) But will it have a performance impact?
     pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
-    /// Map field names to dynamic column accessors.
+    /// Map field names to all associated column accessors.
     /// This field is used for `docvalue_fields`, which is currently only supported for `top_hits`.
-    pub(crate) value_accessors: HashMap<String, DynamicColumn>,
+    pub(crate) value_accessors: HashMap<String, Vec<DynamicColumn>>,
     pub(crate) agg: Aggregation,
 }
 
@@ -97,7 +98,7 @@ impl AggregationWithAccessor {
 
         let add_agg_with_accessors = |accessors: Vec<(Column<u64>, ColumnType)>,
                                       aggs: &mut Vec<AggregationWithAccessor>,
-                                      value_accessors: HashMap<String, DynamicColumn>,
+                                      value_accessors: HashMap<String, Vec<DynamicColumn>>,
                                       agg_override: Option<&Aggregation>|
          -> crate::Result<()> {
             let agg = if let Some(agg_override) = agg_override {
@@ -111,7 +112,7 @@ impl AggregationWithAccessor {
                 // TODO: We should do away with the `accessor` field altogether
                 accessor: accessor.clone(),
                 value_accessors,
-                field_type: field_type.clone(),
+                field_type: *field_type,
                 accessors,
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
@@ -397,15 +398,14 @@ fn get_ff_reader(
 fn get_dynamic_column(
     reader: &SegmentReader,
     field_name: &str,
-) -> crate::Result<columnar::DynamicColumn> {
-    let ff_fields = reader.fast_fields();
-    Ok(ff_fields
-        .dynamic_column_handles(field_name)?
-        .get(0)
-        .ok_or(TantivyError::FieldNotFound(format!(
-            "field {field_name} not found"
-        )))?
-        .open()?)
+) -> crate::Result<Vec<columnar::DynamicColumn>> {
+    let ff_fields = reader.fast_fields().dynamic_column_handles(field_name)?;
+    let cols = ff_fields
+        .iter()
+        .map(|h| h.open())
+        .collect::<io::Result<_>>()?;
+    assert!(!ff_fields.is_empty(), "field {} not found", field_name);
+    Ok(cols)
 }
 
 /// Get all fast field reader or empty as default.
