@@ -193,20 +193,26 @@ impl RetrievalFields {
                         .term_ords(doc_id)
                         .map(|term_ord| {
                             let mut buffer = vec![];
-                            match accessor.ord_to_bytes(term_ord, &mut buffer).unwrap() {
-                                false => OwnedValue::Null,
-                                true => OwnedValue::Bytes(buffer),
-                            }
+                            assert!(
+                                accessor
+                                    .ord_to_bytes(term_ord, &mut buffer)
+                                    .expect("could not read term dictionary"),
+                                "term corresponding to term_ord does not exist"
+                            );
+                            OwnedValue::Bytes(buffer)
                         })
                         .collect::<Vec<_>>(),
                     DynamicColumn::Str(accessor) => accessor
                         .term_ords(doc_id)
                         .map(|term_ord| {
                             let mut buffer = vec![];
-                            match accessor.ord_to_bytes(term_ord, &mut buffer).unwrap() {
-                                false => OwnedValue::Null,
-                                true => OwnedValue::Str(String::from_utf8(buffer).expect("")),
-                            }
+                            assert!(
+                                accessor
+                                    .ord_to_bytes(term_ord, &mut buffer)
+                                    .expect("could not read term dictionary"),
+                                "term corresponding to term_ord does not exist"
+                            );
+                            OwnedValue::Str(String::from_utf8(buffer).unwrap())
                         })
                         .collect::<Vec<_>>(),
                     DynamicColumn::Bool(accessor) => accessor
