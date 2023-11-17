@@ -1,4 +1,6 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::ops::BitOrAssign;
 use std::sync::{Arc, RwLock};
 use std::{fmt, io};
 
@@ -365,29 +367,29 @@ impl SegmentReader {
         }
 
         let merged: Vec<FieldMetadata> = indexed_fields
-            .iter()
-            .merge_join_by(fast_fields.iter(), |i, j| i.cmp(j))
+            .into_iter()
+            .merge_join_by(fast_fields, |i, j| i.cmp(j))
             .map(|either| match either {
                 EitherOrBoth::Left((field_name, typ)) => FieldMetadata {
-                    field_name: field_name.clone(),
                     indexed: true,
-                    stored: is_field_stored(field_name, self.schema()),
+                    stored: is_field_stored(&field_name, self.schema()),
+                    field_name,
                     fast: false,
-                    typ: *typ,
+                    typ,
                 },
                 EitherOrBoth::Right((field_name, typ)) => FieldMetadata {
-                    field_name: field_name.clone(),
                     indexed: false,
-                    stored: is_field_stored(field_name, self.schema()),
+                    stored: is_field_stored(&field_name, self.schema()),
+                    field_name,
                     fast: true,
-                    typ: *typ,
+                    typ,
                 },
                 EitherOrBoth::Both((field_name, typ), (_field_name2, _typ2)) => FieldMetadata {
-                    field_name: field_name.clone(),
                     indexed: true,
-                    stored: is_field_stored(field_name, self.schema()),
+                    stored: is_field_stored(&field_name, self.schema()),
+                    field_name,
                     fast: true,
-                    typ: *typ,
+                    typ,
                 },
             })
             .collect();
@@ -445,19 +447,73 @@ impl SegmentReader {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// FieldMetadata
 pub struct FieldMetadata {
     /// The field name
     pub field_name: String,
+    /// The field type
+    pub typ: Type,
     /// Is the field indexed for search
     pub indexed: bool,
     /// Is the field stored in the doc store
     pub stored: bool,
     /// Is the field stored in the columnar storage
     pub fast: bool,
-    /// The field type
-    pub typ: Type,
+}
+impl PartialOrd for FieldMetadata {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FieldMetadata {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.field_name.cmp(&other.field_name) {
+            Ordering::Equal => self.typ.cmp(&other.typ),
+            other => other,
+        }
+    }
+}
+
+impl BitOrAssign for FieldMetadata {
+    fn bitor_assign(&mut self, rhs: Self) {
+        assert!(self.field_name == rhs.field_name);
+        assert!(self.typ == rhs.typ);
+        self.indexed |= rhs.indexed;
+        self.stored |= rhs.stored;
+        self.fast |= rhs.fast;
+    }
+}
+
+/// Helper to merge the field metadata from multiple segments.
+pub fn merge_field_meta_data(
+    input: Vec<Vec<FieldMetadata>>,
+    schema: &Schema,
+) -> Vec<FieldMetadata> {
+    // Maybe too slow for the high cardinality case
+    fn is_field_stored(field_name: &str, schema: &Schema) -> bool {
+        schema
+            .find_field(field_name)
+            .map(|(field, _path)| schema.get_field_entry(field).is_stored())
+            .unwrap_or(false)
+    }
+
+    let mut out = Vec::new();
+    for (_key, mut group) in &input
+        .into_iter()
+        .kmerge_by(|a, b| a < b)
+        // TODO: Remove allocation
+        .group_by(|el| (el.field_name.to_string(), el.typ))
+    {
+        let mut merged = group.next().unwrap();
+        for el in group {
+            merged |= el;
+        }
+        merged.stored = is_field_stored(&merged.field_name, schema);
+        out.push(merged);
+    }
+    out
 }
 
 fn intersect_alive_bitset(
@@ -483,9 +539,127 @@ impl fmt::Debug for SegmentReader {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::core::Index;
-    use crate::schema::{Schema, Term, STORED, TEXT};
-    use crate::{DocId, IndexWriter};
+    use crate::schema::{Schema, SchemaBuilder, Term, STORED, TEXT};
+    use crate::{DocId, FieldMetadata, IndexWriter};
+
+    #[test]
+    fn test_merge_field_meta_data_same() {
+        let schema = SchemaBuilder::new().build();
+        let field_metadata1 = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: true,
+            stored: false,
+            fast: true,
+        };
+        let field_metadata2 = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: true,
+            stored: false,
+            fast: true,
+        };
+        let res = merge_field_meta_data(
+            vec![vec![field_metadata1.clone()], vec![field_metadata2]],
+            &schema,
+        );
+        assert_eq!(res, vec![field_metadata1]);
+    }
+    #[test]
+    fn test_merge_field_meta_data_different() {
+        let schema = SchemaBuilder::new().build();
+        let field_metadata1 = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: false,
+            stored: false,
+            fast: true,
+        };
+        let field_metadata2 = FieldMetadata {
+            field_name: "b".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: false,
+            stored: false,
+            fast: true,
+        };
+        let field_metadata3 = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: true,
+            stored: false,
+            fast: false,
+        };
+        let res = merge_field_meta_data(
+            vec![
+                vec![field_metadata1.clone(), field_metadata2.clone()],
+                vec![field_metadata3],
+            ],
+            &schema,
+        );
+        let field_metadata_expected1 = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: true,
+            stored: false,
+            fast: true,
+        };
+        assert_eq!(res, vec![field_metadata_expected1, field_metadata2.clone()]);
+    }
+    #[test]
+    fn test_merge_field_meta_data_merge() {
+        use pretty_assertions::assert_eq;
+        let get_meta_data = |name: &str, typ: Type| FieldMetadata {
+            field_name: name.to_string(),
+            typ,
+            indexed: false,
+            stored: false,
+            fast: true,
+        };
+        let schema = SchemaBuilder::new().build();
+        let mut metas = vec![get_meta_data("d", Type::Str), get_meta_data("e", Type::U64)];
+        metas.sort();
+        let res = merge_field_meta_data(vec![vec![get_meta_data("e", Type::Str)], metas], &schema);
+        assert_eq!(
+            res,
+            vec![
+                get_meta_data("d", Type::Str),
+                get_meta_data("e", Type::Str),
+                get_meta_data("e", Type::U64),
+            ]
+        );
+    }
+    #[test]
+    fn test_merge_field_meta_data_bitxor() {
+        let field_metadata1 = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: false,
+            stored: false,
+            fast: true,
+        };
+        let field_metadata2 = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: true,
+            stored: false,
+            fast: false,
+        };
+        let field_metadata_expected = FieldMetadata {
+            field_name: "a".to_string(),
+            typ: crate::schema::Type::Str,
+            indexed: true,
+            stored: false,
+            fast: true,
+        };
+        let mut res1 = field_metadata1.clone();
+        res1 |= field_metadata2.clone();
+        let mut res2 = field_metadata2.clone();
+        res2 |= field_metadata1;
+        assert_eq!(res1, field_metadata_expected);
+        assert_eq!(res2, field_metadata_expected);
+    }
 
     #[test]
     fn test_num_alive() -> crate::Result<()> {

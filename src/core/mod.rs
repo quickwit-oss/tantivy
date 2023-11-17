@@ -25,7 +25,7 @@ pub use self::searcher::{Searcher, SearcherGeneration};
 pub use self::segment::Segment;
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;
-pub use self::segment_reader::{FieldMetadata, SegmentReader};
+pub use self::segment_reader::{merge_field_meta_data, FieldMetadata, SegmentReader};
 pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
 
 /// The meta file contains all the information about the list of segments and the schema

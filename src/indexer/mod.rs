@@ -209,15 +209,23 @@ mod tests_mmap {
     }
 
     #[test]
-    fn test_json_fields_metadata_expanded_dots() {
-        test_json_fields_metadata(true);
+    fn test_json_fields_metadata_expanded_dots_one_segment() {
+        test_json_fields_metadata(true, true);
     }
     #[test]
-    fn test_json_fields_metadata_no_expanded_dots() {
-        test_json_fields_metadata(false);
+    fn test_json_fields_metadata_expanded_dots_multi_segment() {
+        test_json_fields_metadata(true, false);
+    }
+    #[test]
+    fn test_json_fields_metadata_no_expanded_dots_one_segment() {
+        test_json_fields_metadata(false, true);
+    }
+    #[test]
+    fn test_json_fields_metadata_no_expanded_dots_multi_segment() {
+        test_json_fields_metadata(false, false);
     }
 
-    fn test_json_fields_metadata(expanded_dots: bool) {
+    fn test_json_fields_metadata(expanded_dots: bool, one_segment: bool) {
         use pretty_assertions::assert_eq;
         let mut schema_builder = Schema::builder();
         let json_options: JsonObjectOptions =
@@ -240,6 +248,9 @@ mod tests_mmap {
         index_writer.add_document(doc!(json_field=>json)).unwrap();
         let json =
             serde_json::json!({"k8s.container.name": "a", "val": "a", "suber": {"a": 1, "b": 1}});
+        if !one_segment {
+            index_writer.commit().unwrap();
+        }
         index_writer.add_document(doc!(json_field=>json)).unwrap();
         let json = serde_json::json!({"k8s.container.name": "a", "k8s.container.name": "a", "val": "a", "suber": {"a": "a", "b": 1}});
         index_writer
@@ -251,8 +262,9 @@ mod tests_mmap {
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 3);
 
-        let reader = &searcher.segment_readers()[0];
-        let fields_metadata = reader.fields_metadata().unwrap();
+        let fields_metadata = index.fields_metadata().unwrap();
+        // let reader = &searcher.segment_readers()[0];
+        // let fields_metadata = reader.fields_metadata().unwrap();
         assert_eq!(
             fields_metadata,
             [
@@ -336,13 +348,6 @@ mod tests_mmap {
                     stored: true,
                     fast: true,
                     typ: Type::I64
-                },
-                FieldMetadata {
-                    field_name: "json.shadow.val".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::Str
                 },
                 FieldMetadata {
                     field_name: "json.shadow.val".to_string(),
