@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use super::{IntermediateExtendedStats, SegmentStatsCollector};
+use super::IntermediateStats;
 
 /// A single-value metric aggregation that sums up numeric values that are
 /// extracted from the aggregated documents.
@@ -46,15 +46,13 @@ impl SumAggregation {
 /// results.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateSum {
-    stats: IntermediateExtendedStats,
+    stats: IntermediateStats,
 }
 
 impl IntermediateSum {
-    /// Creates a new [`IntermediateSum`] instance from a [`SegmentStatsCollector`].
-    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
-        Self {
-            stats: collector.stats,
-        }
+    /// Creates a new [`IntermediateAverage`] instance from a [`IntermediateStats`].
+    pub(crate) fn from_stats(stats: IntermediateStats) -> Self {
+        Self { stats }
     }
     /// Merges the other intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateSum) {

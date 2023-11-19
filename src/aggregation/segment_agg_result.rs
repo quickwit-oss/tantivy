@@ -16,6 +16,9 @@ use super::metric::{
     SumAggregation,
 };
 use crate::aggregation::bucket::TermMissingAgg;
+use crate::aggregation::metric::{
+    IntermediateInnerExtendedStatsCollector, IntermediateInnerStatsCollector,
+};
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
@@ -118,55 +121,51 @@ pub(crate) fn build_single_agg_segment_collector(
         Average(AverageAggregation { missing, .. }) => {
             Ok(Box::new(SegmentStatsCollector::from_req(
                 req.field_type,
-                SegmentStatsType::Average,
+                IntermediateInnerStatsCollector::from(SegmentStatsType::Average),
                 accessor_idx,
                 *missing,
-                None,
             )))
         }
         Count(CountAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
-            SegmentStatsType::Count,
+            IntermediateInnerStatsCollector::from(SegmentStatsType::Count),
             accessor_idx,
             *missing,
-            None,
         ))),
         Max(MaxAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
-            SegmentStatsType::Max,
+            IntermediateInnerStatsCollector::from(SegmentStatsType::Max),
             accessor_idx,
             *missing,
-            None,
         ))),
         Min(MinAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
-            SegmentStatsType::Min,
+            IntermediateInnerStatsCollector::from(SegmentStatsType::Min),
             accessor_idx,
             *missing,
-            None,
         ))),
         Stats(StatsAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
-            SegmentStatsType::Stats,
+            IntermediateInnerStatsCollector::from(SegmentStatsType::Stats),
             accessor_idx,
             *missing,
-            None,
         ))),
         ExtendedStats(ExtendedStatsAggregation { missing, sigma, .. }) => {
             Ok(Box::new(SegmentStatsCollector::from_req(
                 req.field_type,
-                SegmentStatsType::ExtendedStats,
+                IntermediateInnerExtendedStatsCollector::from(
+                    SegmentStatsType::ExtendedStats,
+                    *sigma,
+                ),
                 accessor_idx,
                 *missing,
-                *sigma,
             )))
         }
         Sum(SumAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
             req.field_type,
-            SegmentStatsType::Sum,
+            IntermediateInnerStatsCollector::from(SegmentStatsType::Sum),
             accessor_idx,
             *missing,
-            None,
         ))),
         Percentiles(percentiles_req) => Ok(Box::new(
             SegmentPercentilesCollector::from_req_and_validate(
