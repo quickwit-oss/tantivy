@@ -43,7 +43,6 @@ rustc-hash = "1.1.0"
 thiserror = "1.0.30"
 htmlescape = "0.3.1"
 fail = { version = "0.5.0", optional = true }
-murmurhash32 = "0.3.0"
 time = { version = "0.3.10", features = ["serde-well-known"] }
 smallvec = "1.8.0"
 rayon = "1.5.2"
@@ -51,7 +50,6 @@ lru = "0.12.0"
 fastdivide = "0.4.0"
 itertools = "0.12.0"
 measure_time = "0.8.2"
-async-trait = "0.1.53"
 arc-swap = "1.5.0"
 
 columnar = { version= "0.2", path="./columnar", package ="tantivy-columnar" }
@@ -75,7 +73,6 @@ matches = "0.1.9"
 pretty_assertions = "1.2.1"
 proptest = "1.0.0"
 test-log = "0.2.10"
-env_logger = "0.10.0"
 futures = "0.3.21"
 paste = "1.0.11"
 more-asserts = "0.3.1"
@@ -83,7 +80,6 @@ rand_distr = "0.4.3"
 
 [target.'cfg(not(windows))'.dev-dependencies]
 criterion = { version = "0.5" }
-pprof = { version= "0.13", features = ["flamegraph", "criterion"] }
 
 [dev-dependencies.fail]
 version = "0.5.0"
