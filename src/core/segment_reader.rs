@@ -1,11 +1,10 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::BitOrAssign;
 use std::sync::{Arc, RwLock};
 use std::{fmt, io};
 
 use fnv::FnvHashMap;
-use itertools::{EitherOrBoth, Itertools};
+use itertools::Itertools;
 
 use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::directory::{CompositeFile, FileSlice};
@@ -293,22 +292,20 @@ impl SegmentReader {
     ///
     /// The returned field names can be used in queries.
     ///
-    /// Notice: If your data contains JSON fields this is **very expensive**, as it requires browsing through
-    // the inverted index term dictionary and the columnar field dictionary.
-    /// Disclaimer: Some fields may not be listed here. For instance, if the schema contains a json field that 
-    /// is not indexed nor a fast field but is stored, it is possible for the field to not be listed.
+    /// Notice: If your data contains JSON fields this is **very expensive**, as it requires
+    /// browsing through the inverted index term dictionary and the columnar field dictionary.
+    ///
+    /// Disclaimer: Some fields may not be listed here. For instance, if the schema contains a json
+    /// field that is not indexed nor a fast field but is stored, it is possible for the field
+    /// to not be listed.
     pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
-        let mut indexed_fields: Vec<(String, Type)> = Vec::new();
+        let mut indexed_fields: Vec<FieldMetadata> = Vec::new();
         let mut map_to_canonical = FnvHashMap::default();
         for (field, field_entry) in self.schema().fields() {
             let field_name = field_entry.name().to_string();
             let is_indexed = field_entry.is_indexed();
 
             if is_indexed {
-                indexed_fields.push((
-                    field_name.to_string(),
-                    field_entry.field_type().value_type(),
-                ));
                 let is_json = field_entry.field_type().value_type() == Type::Json;
                 if is_json {
                     let inv_index = self.inverted_index(field)?;
@@ -334,12 +331,27 @@ impl SegmentReader {
                     indexed_fields.extend(
                         encoded_fields_in_index
                             .into_iter()
-                            .map(|(name, typ)| (build_path(&field_name, name), typ)),
+                            .map(|(name, typ)| (build_path(&field_name, name), typ))
+                            .map(|(field_name, typ)| FieldMetadata {
+                                indexed: true,
+                                stored: false,
+                                field_name,
+                                fast: false,
+                                typ,
+                            }),
                     );
+                } else {
+                    indexed_fields.push(FieldMetadata {
+                        indexed: true,
+                        stored: false,
+                        field_name: field_name.to_string(),
+                        fast: false,
+                        typ: field_entry.field_type().value_type(),
+                    });
                 }
             }
         }
-        let mut fast_fields: Vec<(String, Type)> = self
+        let mut fast_fields: Vec<FieldMetadata> = self
             .fast_fields()
             .columnar()
             .iter_columns()?
@@ -351,8 +363,13 @@ impl SegmentReader {
                     .get(&field_name)
                     .unwrap_or(&field_name)
                     .to_string();
-
-                (field_name, Type::from(handle.column_type()))
+                FieldMetadata {
+                    indexed: false,
+                    stored: false,
+                    field_name,
+                    fast: true,
+                    typ: Type::from(handle.column_type()),
+                }
             })
             .collect();
         // Since the type is encoded differently in the fast field and in the inverted index,
@@ -360,42 +377,7 @@ impl SegmentReader {
         // If we are sure that the order is the same, we can remove this sort.
         indexed_fields.sort_unstable();
         fast_fields.sort_unstable();
-
-        // Maybe too slow for the high cardinality case
-        fn is_field_stored(field_name: &str, schema: &Schema) -> bool {
-            schema
-                .find_field(field_name)
-                .map(|(field, _path)| schema.get_field_entry(field).is_stored())
-                .unwrap_or(false)
-        }
-
-        let merged: Vec<FieldMetadata> = indexed_fields
-            .into_iter()
-            .merge_join_by(fast_fields, |i, j| i.cmp(j))
-            .map(|either| match either {
-                EitherOrBoth::Left((field_name, typ)) => FieldMetadata {
-                    indexed: true,
-                    stored: is_field_stored(&field_name, self.schema()),
-                    field_name,
-                    fast: false,
-                    typ,
-                },
-                EitherOrBoth::Right((field_name, typ)) => FieldMetadata {
-                    indexed: false,
-                    stored: is_field_stored(&field_name, self.schema()),
-                    field_name,
-                    fast: true,
-                    typ,
-                },
-                EitherOrBoth::Both((field_name, typ), (_field_name2, _typ2)) => FieldMetadata {
-                    indexed: true,
-                    stored: is_field_stored(&field_name, self.schema()),
-                    field_name,
-                    fast: true,
-                    typ,
-                },
-            })
-            .collect();
+        let merged = merge_field_meta_data(vec![indexed_fields, fast_fields], &self.schema);
 
         Ok(merged)
     }
@@ -450,12 +432,16 @@ impl SegmentReader {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// FieldMetadata
 pub struct FieldMetadata {
     /// The field name
+    // Notice: Don't reorder the declaration of 1.field_name 2.typ, as it is used for ordering by
+    // field_name then typ.
     pub field_name: String,
     /// The field type
+    // Notice: Don't reorder the declaration of 1.field_name 2.typ, as it is used for ordering by
+    // field_name then typ.
     pub typ: Type,
     /// Is the field indexed for search
     pub indexed: bool,
@@ -464,21 +450,6 @@ pub struct FieldMetadata {
     /// Is the field stored in the columnar storage
     pub fast: bool,
 }
-impl PartialOrd for FieldMetadata {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for FieldMetadata {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.field_name.cmp(&other.field_name) {
-            Ordering::Equal => self.typ.cmp(&other.typ),
-            other => other,
-        }
-    }
-}
-
 impl BitOrAssign for FieldMetadata {
     fn bitor_assign(&mut self, rhs: Self) {
         assert!(self.field_name == rhs.field_name);
@@ -502,21 +473,21 @@ pub fn merge_field_meta_data(
             .unwrap_or(false)
     }
 
-    let mut out = Vec::new();
+    let mut merged_field_metadata = Vec::new();
     for (_key, mut group) in &input
         .into_iter()
-        .kmerge_by(|a, b| a < b)
+        .kmerge_by(|left, right| left < right)
         // TODO: Remove allocation
         .group_by(|el| (el.field_name.to_string(), el.typ))
     {
-        let mut merged = group.next().unwrap();
+        let mut merged: FieldMetadata = group.next().unwrap();
         for el in group {
             merged |= el;
         }
         merged.stored = is_field_stored(&merged.field_name, schema);
-        out.push(merged);
+        merged_field_metadata.push(merged);
     }
-    out
+    merged_field_metadata
 }
 
 fn intersect_alive_bitset(

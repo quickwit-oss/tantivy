@@ -263,8 +263,6 @@ mod tests_mmap {
         assert_eq!(searcher.num_docs(), 3);
 
         let fields_metadata = index.fields_metadata().unwrap();
-        // let reader = &searcher.segment_readers()[0];
-        // let fields_metadata = reader.fields_metadata().unwrap();
         assert_eq!(
             fields_metadata,
             [
@@ -274,34 +272,6 @@ mod tests_mmap {
                     stored: true,
                     fast: true,
                     typ: Type::U64
-                },
-                FieldMetadata {
-                    field_name: "empty_json".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: false,
-                    typ: Type::Json
-                },
-                FieldMetadata {
-                    field_name: "json".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: false,
-                    typ: Type::Json
-                },
-                FieldMetadata {
-                    field_name: "json.confusing".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: false,
-                    typ: Type::Json
-                },
-                FieldMetadata {
-                    field_name: "json.shadow".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: false,
-                    typ: Type::Json
                 },
                 FieldMetadata {
                     field_name: if expanded_dots {
