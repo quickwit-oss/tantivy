@@ -293,7 +293,10 @@ impl SegmentReader {
     ///
     /// The returned field names can be used in queries.
     ///
-    /// Notice: If your data contains JSON fields this is **very expensive**.
+    /// Notice: If your data contains JSON fields this is **very expensive**, as it requires browsing through
+    // the inverted index term dictionary and the columnar field dictionary.
+    /// Disclaimer: Some fields may not be listed here. For instance, if the schema contains a json field that 
+    /// is not indexed nor a fast field but is stored, it is possible for the field to not be listed.
     pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
         let mut indexed_fields: Vec<(String, Type)> = Vec::new();
         let mut map_to_canonical = FnvHashMap::default();
