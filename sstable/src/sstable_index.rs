@@ -233,7 +233,7 @@ impl BlockAddrBlockMetadata {
 
         let range_start_addr = num_bits * inner_offset;
         let ordinal_addr = range_start_addr + self.range_start_nbits as usize;
-        let range_end_addr = range_start_addr + num_bits as usize;
+        let range_end_addr = range_start_addr + num_bits;
 
         if (range_end_addr + self.range_start_nbits as usize + 7) / 8 > data.len() {
             return None;
@@ -268,7 +268,7 @@ impl BlockAddrBlockMetadata {
                 data,
                 num_bits * index as usize + range_start_nbits,
                 self.first_ordinal_nbits,
-            ) + self.first_ordinal_slop as u64 * (index + 1) as u64
+            ) + self.first_ordinal_slop as u64 * (index + 1)
         };
 
         let inner_offset = match binary_search(self.block_len as u64, |index| {
@@ -365,7 +365,7 @@ impl BlockAddrStore {
     }
 
     fn get_block_meta(&self, store_block_id: usize) -> Option<BlockAddrBlockMetadata> {
-        let mut block_data: &[u8] = &self
+        let mut block_data: &[u8] = self
             .block_meta_bytes
             .get(store_block_id * BlockAddrBlockMetadata::SIZE_IN_BYTES..)?;
         BlockAddrBlockMetadata::deserialize(&mut block_data).ok()
@@ -460,49 +460,37 @@ impl BlockAddrStoreWriter {
         let mut last_block_addr = self.block_addrs.last().unwrap().clone();
         last_block_addr.byte_range.end -= ref_block_addr.byte_range.start;
 
-        let (range_start_slop, first_ordinal_slop) =
-            self.block_addrs.iter().enumerate().skip(1).fold(
-                (u64::MAX, u64::MAX),
-                |(range_slop, ordinal_slop), (index, block)| {
-                    (
-                        range_slop.min((block.byte_range.start / index) as u64),
-                        ordinal_slop.min(block.first_ordinal / index as u64),
-                    )
-                },
-            );
-        let range_start_slop =
-            range_start_slop.min((last_block_addr.byte_range.end / self.block_addrs.len()) as u64);
-
-        // we need correction to be at least 1 otherwise we may fail to assess the number of
-        // elements in a block if each block is exactly the same size and the same number of
-        // ordinal
-        let (range_max_correction, ordinal_max_correction) =
-            self.block_addrs.iter().enumerate().skip(1).fold(
-                (1, 0),
-                |(range_max_correction, ordinal_max_correction), (index, block)| {
-                    let range_correction =
-                        block.byte_range.start - range_start_slop as usize * index;
-                    let ordinal_correction =
-                        block.first_ordinal - first_ordinal_slop * index as u64;
-                    (
-                        range_max_correction.max(range_correction),
-                        ordinal_max_correction.max(ordinal_correction),
-                    )
-                },
-            );
-
-        let range_max_correction = range_max_correction.max(
-            last_block_addr.byte_range.end - range_start_slop as usize * self.block_addrs.len(),
+        let (range_start_slop, range_max_derivation) = find_best_slop(
+            self.block_addrs
+                .iter()
+                .map(|block| block.byte_range.start as u64)
+                .chain(std::iter::once(last_block_addr.byte_range.end as u64))
+                .enumerate()
+                .skip(1),
         );
 
-        let range_start_nbits = compute_num_bits(range_max_correction as u64);
-        let first_ordinal_nbits = compute_num_bits(ordinal_max_correction);
+        let (first_ordinal_slop, ordinal_max_derivation) = find_best_slop(
+            self.block_addrs
+                .iter()
+                .map(|block| block.first_ordinal)
+                .enumerate()
+                .skip(1),
+        );
+
+        // we need derivation to be at least 1 otherwise we may fail to assess the number of
+        // elements in a block if each element is exactly the same size and the same number of
+        // ordinal
+        let mut range_start_nbits = compute_num_bits(range_max_derivation);
+        let first_ordinal_nbits = compute_num_bits(ordinal_max_derivation);
+        if range_start_nbits + first_ordinal_nbits == 0 {
+            range_start_nbits = 1;
+        }
 
         let block_addr_block_meta = BlockAddrBlockMetadata {
             offset: self.buffer_addrs.len() as u64,
             ref_block_addr: ref_block_addr.to_block_start(),
-            range_start_slop: range_start_slop as u32,
-            first_ordinal_slop: first_ordinal_slop as u32,
+            range_start_slop,
+            first_ordinal_slop,
             range_start_nbits,
             first_ordinal_nbits,
             block_len: self.block_addrs.len() as u16 - 1,
@@ -518,7 +506,7 @@ impl BlockAddrStoreWriter {
                 &mut self.buffer_addrs,
             )?;
             bit_packer.write(
-                block_addr.first_ordinal - first_ordinal_slop * i as u64,
+                block_addr.first_ordinal - first_ordinal_slop as u64 * i as u64,
                 first_ordinal_nbits,
                 &mut self.buffer_addrs,
             )?;
@@ -554,6 +542,23 @@ impl BlockAddrStoreWriter {
         wrt.write_all(&self.buffer_addrs)?;
         Ok(())
     }
+}
+
+fn find_best_slop(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32, u64) {
+    let slop_iterator = elements.clone();
+    let derivation_iterator = elements;
+
+    let final_slop = slop_iterator.fold(u32::MAX, |slop, (index, value)| {
+        slop.min((value / index as u64) as u32)
+    });
+
+    let max_derivation = derivation_iterator.fold(1, |max_derivation, (index, value)| {
+        let derivation = value - final_slop as u64 * index as u64;
+
+        max_derivation.max(derivation)
+    });
+
+    (final_slop, max_derivation)
 }
 
 #[cfg(test)]
