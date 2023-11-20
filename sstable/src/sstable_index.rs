@@ -71,6 +71,30 @@ pub struct BlockAddr {
     pub byte_range: Range<usize>,
 }
 
+impl BlockAddr {
+    fn to_block_start(&self) -> BlockStartAddr {
+        BlockStartAddr {
+            first_ordinal: self.first_ordinal,
+            byte_range_start: self.byte_range.start,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BlockStartAddr {
+    first_ordinal: u64,
+    byte_range_start: usize,
+}
+
+impl BlockStartAddr {
+    fn to_block_addr(&self, byte_range_end: usize) -> BlockAddr {
+        BlockAddr {
+            first_ordinal: self.first_ordinal,
+            byte_range: self.byte_range_start..byte_range_end,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct BlockMeta {
     /// Any byte string that is lexicographically greater or equal to
@@ -80,33 +104,30 @@ pub(crate) struct BlockMeta {
     pub block_addr: BlockAddr,
 }
 
-impl BinarySerializable for BlockAddr {
+impl BinarySerializable for BlockStartAddr {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         self.first_ordinal.serialize(writer)?;
-        let start = self.byte_range.start as u64;
-        start.serialize(writer)?;
-        let end = self.byte_range.end as u64;
-        end.serialize(writer)
+        let start = self.byte_range_start as u64;
+        start.serialize(writer)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let first_ordinal = u64::deserialize(reader)?;
-        let start = u64::deserialize(reader)? as usize;
-        let end = u64::deserialize(reader)? as usize;
-        Ok(BlockAddr {
+        let byte_range_start = u64::deserialize(reader)? as usize;
+        Ok(BlockStartAddr {
             first_ordinal,
-            byte_range: start..end,
+            byte_range_start,
         })
     }
 
     // Provided method
     fn num_bytes(&self) -> u64 {
-        BlockAddr::SIZE_IN_BYTES as u64
+        BlockStartAddr::SIZE_IN_BYTES as u64
     }
 }
 
-impl FixedSize for BlockAddr {
-    const SIZE_IN_BYTES: usize = 3 * u64::SIZE_IN_BYTES;
+impl FixedSize for BlockStartAddr {
+    const SIZE_IN_BYTES: usize = 2 * u64::SIZE_IN_BYTES;
 }
 
 /// Given that left < right,
@@ -184,7 +205,7 @@ const STORE_BLOCK_LEN: usize = 256;
 #[derive(Debug)]
 struct BlockAddrBlockMetadata {
     offset: u64,
-    ref_block_addr: BlockAddr,
+    ref_block_addr: BlockStartAddr,
     range_start_slop: u32,
     first_ordinal_slop: u32,
     range_start_nbits: u8,
@@ -198,6 +219,13 @@ impl BlockAddrBlockMetadata {
     }
 
     fn deserialize_block_addr(&self, data: &[u8], inner_offset: usize) -> Option<BlockAddr> {
+        if inner_offset == 0 {
+            let range_end = self.ref_block_addr.byte_range_start
+                + extract_bits(data, 0, self.range_start_nbits) as usize
+                + self.range_start_slop as usize;
+            return Some(self.ref_block_addr.to_block_addr(range_end));
+        }
+        let inner_offset = inner_offset - 1;
         if inner_offset >= self.block_len as usize {
             return None;
         }
@@ -211,13 +239,13 @@ impl BlockAddrBlockMetadata {
             return None;
         }
 
-        let range_start = self.ref_block_addr.byte_range.start
+        let range_start = self.ref_block_addr.byte_range_start
             + extract_bits(data, range_start_addr, self.range_start_nbits) as usize
             + self.range_start_slop as usize * (inner_offset + 1);
         let first_ordinal = self.ref_block_addr.first_ordinal
             + extract_bits(data, ordinal_addr, self.first_ordinal_nbits)
             + self.first_ordinal_slop as u64 * (inner_offset + 1) as u64;
-        let range_end = self.ref_block_addr.byte_range.start
+        let range_end = self.ref_block_addr.byte_range_start
             + extract_bits(data, range_end_addr, self.range_start_nbits) as usize
             + self.range_start_slop as usize * (inner_offset + 2);
 
@@ -249,15 +277,11 @@ impl BlockAddrBlockMetadata {
             Ok(inner_offset) => inner_offset + 1,
             Err(inner_offset) => inner_offset,
         };
-        if inner_offset == 0 {
-            (0, self.ref_block_addr.clone())
-        } else {
-            (
-                inner_offset,
-                self.deserialize_block_addr(data, inner_offset as usize - 1)
-                    .unwrap(),
-            )
-        }
+        (
+            inner_offset,
+            self.deserialize_block_addr(data, inner_offset as usize)
+                .unwrap(),
+        )
     }
 }
 
@@ -297,7 +321,7 @@ impl BinarySerializable for BlockAddrBlockMetadata {
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let offset = u64::deserialize(reader)?;
-        let ref_block_addr = BlockAddr::deserialize(reader)?;
+        let ref_block_addr = BlockStartAddr::deserialize(reader)?;
         let range_start_slop = u32::deserialize(reader)?;
         let first_ordinal_slop = u32::deserialize(reader)?;
         let mut buffer = [0u8; 2];
@@ -317,7 +341,7 @@ impl BinarySerializable for BlockAddrBlockMetadata {
 
 impl FixedSize for BlockAddrBlockMetadata {
     const SIZE_IN_BYTES: usize = u64::SIZE_IN_BYTES
-        + BlockAddr::SIZE_IN_BYTES
+        + BlockStartAddr::SIZE_IN_BYTES
         + 2 * u32::SIZE_IN_BYTES
         + 2 * u8::SIZE_IN_BYTES
         + u16::SIZE_IN_BYTES;
@@ -351,12 +375,9 @@ impl BlockAddrStore {
         let store_block_id = (block_id as usize) / STORE_BLOCK_LEN;
         let inner_offset = (block_id as usize) % STORE_BLOCK_LEN;
         let block_addr_block_data = self.get_block_meta(store_block_id)?;
-        if inner_offset == 0 {
-            return Some(block_addr_block_data.ref_block_addr);
-        }
         block_addr_block_data.deserialize_block_addr(
             &self.addr_bytes[block_addr_block_data.offset as usize..],
-            inner_offset - 1,
+            inner_offset,
         )
     }
 
@@ -479,7 +500,7 @@ impl BlockAddrStoreWriter {
 
         let block_addr_block_meta = BlockAddrBlockMetadata {
             offset: self.buffer_addrs.len() as u64,
-            ref_block_addr: ref_block_addr.clone(),
+            ref_block_addr: ref_block_addr.to_block_start(),
             range_start_slop: range_start_slop as u32,
             first_ordinal_slop: first_ordinal_slop as u32,
             range_start_nbits,
