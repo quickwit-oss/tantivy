@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::ip_options::IpAddrOptions;
 use super::*;
+use crate::json_utils::split_json_path;
 use crate::schema::bytes_options::BytesOptions;
 use crate::TantivyError;
 
@@ -328,10 +329,17 @@ impl Schema {
         if let Some(field) = self.0.fields_map.get(full_path) {
             return Some((*field, ""));
         }
+
         let mut splitting_period_pos: Vec<usize> = locate_splitting_dots(full_path);
         while let Some(pos) = splitting_period_pos.pop() {
             let (prefix, suffix) = full_path.split_at(pos);
+
             if let Some(field) = self.0.fields_map.get(prefix) {
+                return Some((*field, &suffix[1..]));
+            }
+            // JSON path may contain a dot, for now we try both variants to find the field.
+            let prefix = split_json_path(prefix).join(".");
+            if let Some(field) = self.0.fields_map.get(&prefix) {
                 return Some((*field, &suffix[1..]));
             }
         }
