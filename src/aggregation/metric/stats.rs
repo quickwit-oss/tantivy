@@ -303,13 +303,13 @@ impl IntermediateStats {
         self.count += 1;
 
         // kahan algorithm for sum
-        
+
         let y = value - self.delta;
         let t = self.sum + y;
         self.delta = (t - self.sum) - y;
         self.sum = t;
-        
-        //self.sum+=value;
+
+        // self.sum+=value;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
@@ -398,7 +398,7 @@ impl IntermediateExtendedStats {
                         + other.intermediate_stats.sum as f64)
                         / new_count as f64;
                     self.intermediate_stats.sum += other.intermediate_stats.sum;
-                    //self.intermediate_stats.delta += other.intermediate_stats.delta;
+                    self.intermediate_stats.delta += other.intermediate_stats.delta;
                     self.sum_of_squares_elastic += other.sum_of_squares_elastic;
                     self.delta_sum_for_squares_elastic += other.delta_sum_for_squares_elastic
                 }
@@ -609,8 +609,6 @@ pub(crate) struct SegmentStatsCollector<T: IntermediateInnerCollector> {
     missing: Option<u64>,
     field_type: ColumnType,
     inner_intermediate_collector: T,
-    // pub(crate) collecting_for: SegmentStatsType,
-    // pub(crate) stats: IntermediateStatType,
     pub(crate) accessor_idx: usize,
     val_cache: Vec<u64>,
 }
@@ -624,19 +622,6 @@ impl<T: IntermediateInnerCollector> SegmentStatsCollector<T> {
         missing: Option<f64>,
     ) -> Self {
         let missing = missing.and_then(|val| f64_to_fastfield_u64(val, &field_type));
-        // let stats= match collecting_for {
-        // SegmentStatsType::Average |
-        // SegmentStatsType::Count |
-        // SegmentStatsType::Max |
-        // SegmentStatsType::Min|
-        // SegmentStatsType::Stats |
-        // SegmentStatsType::Sum => {
-        // IntermediateStatType::Stat(IntermediateStats::default())
-        // }
-        // SegmentStatsType::ExtendedStats =>
-        // IntermediateStatType::ExtendedStat(IntermediateExtendedStats::with_sigma(sigma))
-        //
-        // };
         Self {
             field_type,
             inner_intermediate_collector,
@@ -669,37 +654,6 @@ impl<T: IntermediateInnerCollector> SegmentStatsCollector<T> {
             self.inner_intermediate_collector.collect(val1);
         }
     }
-    // fn collect(&mut self, val: f64) {
-    // match &mut self.stats {
-    // IntermediateStatType::Stat(intermediate_stats) => {
-    // intermediate_stats.collect(val);
-    // }
-    // IntermediateStatType::ExtendedStat(intermediate_extended_stats) => {
-    // intermediate_extended_stats.collect(val);
-    // }
-    // }
-    // }
-    //
-    // pub fn stats(self) -> IntermediateStats {
-    // match self.stats {
-    // IntermediateStatType::Stat(intermediate_stats) => {
-    // intermediate_stats
-    // }
-    // IntermediateStatType::ExtendedStat(intermediate_extended_stats) => {
-    // intermediate_extended_stats.intermediate_stats
-    // }
-    // }
-    // }
-    // pub fn extended_stats(self) -> IntermediateExtendedStats {
-    // match self.stats {
-    // IntermediateStatType::ExtendedStat(intermediate_extended_stats) => {
-    // intermediate_extended_stats
-    // }
-    // _ => {
-    // panic!("incompatible values between collecting_for and stats");
-    // }
-    // }
-    // }
 }
 
 impl<T: IntermediateInnerCollector + Debug + Clone + 'static> SegmentAggregationCollector

@@ -1,10 +1,8 @@
-use std::{fmt::Debug, borrow::BorrowMut};
+use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::intermediate_agg_result::IntermediateMetricResult;
-
-use super::{IntermediateStats, IntermediateInnerCollector};
+use super::IntermediateStats;
 
 /// A single-value metric aggregation that computes the minimum of numeric values that are
 /// extracted from the aggregated documents.
@@ -65,48 +63,3 @@ impl IntermediateMin {
         self.stats.finalize().min
     }
 }
-/*
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct IntermediateMin {
-    min: f64,
-    is_some: bool,
-}
-
-impl Default for IntermediateMin {
-    fn default() -> Self {
-        Self {
-            min: f64::MAX,
-            is_some: false,
-        }
-    }
-}
-
-impl IntermediateMin {
-            /// Merges the other intermediate result into self.
-        pub fn merge_fruits(&mut self, other: IntermediateMin) {
-            self.min = self.min.min(other.min);
-        }
-        /// Computes the final minimum value.
-        pub fn finalize(&self) -> Option<f64> {
-            if self.is_some {
-                Some(self.min)
-            } else {
-                None
-            }
-        }
-
-
-}
-
-impl IntermediateInnerCollector for IntermediateMin {
-    #[inline]
-    fn collect(&mut self, value: f64) {
-        self.is_some=true;
-        self.min=self.min.min(value);
-    }
-
-    fn into_intermediate_metric_result(self) -> IntermediateMetricResult {
-        IntermediateMetricResult::Min(self)
-    }
-}
-*/
