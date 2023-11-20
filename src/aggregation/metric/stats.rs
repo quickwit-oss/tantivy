@@ -303,11 +303,13 @@ impl IntermediateStats {
         self.count += 1;
 
         // kahan algorithm for sum
+        
         let y = value - self.delta;
         let t = self.sum + y;
         self.delta = (t - self.sum) - y;
         self.sum = t;
-
+        
+        //self.sum+=value;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
@@ -396,7 +398,7 @@ impl IntermediateExtendedStats {
                         + other.intermediate_stats.sum as f64)
                         / new_count as f64;
                     self.intermediate_stats.sum += other.intermediate_stats.sum;
-                    self.intermediate_stats.delta += other.intermediate_stats.delta;
+                    //self.intermediate_stats.delta += other.intermediate_stats.delta;
                     self.sum_of_squares_elastic += other.sum_of_squares_elastic;
                     self.delta_sum_for_squares_elastic += other.delta_sum_for_squares_elastic
                 }
@@ -545,11 +547,11 @@ impl IntermediateInnerCollector for IntermediateInnerStatsCollector {
                 IntermediateMetricResult::Min(IntermediateMin::from_stats(self.stats))
             }
             SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
-            SegmentStatsType::ExtendedStats => {
-                panic!("cannot create IntermediateMetricResult for ExtendStats from Stats");
-            }
             SegmentStatsType::Sum => {
                 IntermediateMetricResult::Sum(IntermediateSum::from_stats(self.stats))
+            }
+            _ => {
+                panic!("cannot create IntermediateMetricResult for ExtendStats/Min from Stats");
             }
         }
     }

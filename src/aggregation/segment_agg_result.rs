@@ -17,7 +17,7 @@ use super::metric::{
 };
 use crate::aggregation::bucket::TermMissingAgg;
 use crate::aggregation::metric::{
-    IntermediateInnerExtendedStatsCollector, IntermediateInnerStatsCollector,
+    IntermediateInnerExtendedStatsCollector, IntermediateInnerStatsCollector, IntermediateMin,
 };
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
