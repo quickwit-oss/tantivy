@@ -9,8 +9,11 @@ use common::{BinarySerializable, OwnedBytes};
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
+use crate::sstable_index::SSTableIndexV3Empty;
 use crate::streamer::{Streamer, StreamerBuilder};
-use crate::{BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, TermOrdinal, VoidSSTable};
+use crate::{
+    BlockAddr, DeltaReader, Reader, SSTable, SSTableIndex, SSTableIndexV3, TermOrdinal, VoidSSTable,
+};
 
 /// An SSTable is a sorted map that associates sorted `&[u8]` keys
 /// to any kind of typed values.
@@ -197,8 +200,15 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
-        let sstable_index = SSTableIndex::load(sstable_index_bytes, store_offset)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption"))?;
+        let sstable_index = if store_offset != 0 {
+            SSTableIndex::V3(
+                SSTableIndexV3::load(sstable_index_bytes, store_offset).map_err(|_| {
+                    io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
+                })?,
+            )
+        } else {
+            SSTableIndex::V3Empty(SSTableIndexV3Empty::load(index_offset as usize))
+        };
         Ok(Dictionary {
             sstable_slice,
             sstable_index,

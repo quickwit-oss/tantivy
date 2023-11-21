@@ -10,14 +10,74 @@ use tantivy_fst::{IntoStreamer, Map, MapBuilder, Streamer};
 use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
 
 #[derive(Debug, Clone)]
-pub struct SSTableIndex {
+pub enum SSTableIndex {
+    V2,
+    V3(SSTableIndexV3),
+    V3Empty(SSTableIndexV3Empty),
+}
+
+impl SSTableIndex {
+    /// Get the [`BlockAddr`] of the requested block.
+    pub(crate) fn get_block(&self, block_id: u64) -> Option<BlockAddr> {
+        match self {
+            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V3(v3_index) => v3_index.get_block(block_id),
+            SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block(block_id),
+        }
+    }
+
+    /// Get the block id of the block that would contain `key`.
+    ///
+    /// Returns None if `key` is lexicographically after the last key recorded.
+    pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<u64> {
+        match self {
+            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V3(v3_index) => v3_index.locate_with_key(key),
+            SSTableIndex::V3Empty(v3_empty) => v3_empty.locate_with_key(key),
+        }
+    }
+
+    /// Get the [`BlockAddr`] of the block that would contain `key`.
+    ///
+    /// Returns None if `key` is lexicographically after the last key recorded.
+    pub fn get_block_with_key(&self, key: &[u8]) -> Option<BlockAddr> {
+        match self {
+            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V3(v3_index) => v3_index.get_block_with_key(key),
+            SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_key(key),
+        }
+    }
+
+    pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> u64 {
+        match self {
+            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V3(v3_index) => v3_index.locate_with_ord(ord),
+            SSTableIndex::V3Empty(v3_empty) => v3_empty.locate_with_ord(ord),
+        }
+    }
+
+    /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
+    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
+        match self {
+            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V3(v3_index) => v3_index.get_block_with_ord(ord),
+            SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_ord(ord),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SSTableIndexV3 {
     fst_index: Arc<Map<OwnedBytes>>,
     block_addr_store: BlockAddrStore,
 }
 
-impl SSTableIndex {
+impl SSTableIndexV3 {
     /// Load an index from its binary representation
-    pub fn load(data: OwnedBytes, fst_length: u64) -> Result<SSTableIndex, SSTableDataCorruption> {
+    pub fn load(
+        data: OwnedBytes,
+        fst_length: u64,
+    ) -> Result<SSTableIndexV3, SSTableDataCorruption> {
         let (fst_slice, block_addr_store_slice) = data.split(fst_length as usize);
         let fst_index = Fst::new(fst_slice)
             .map_err(|_| SSTableDataCorruption)?
@@ -25,7 +85,7 @@ impl SSTableIndex {
         let block_addr_store =
             BlockAddrStore::open(block_addr_store_slice).map_err(|_| SSTableDataCorruption)?;
 
-        Ok(SSTableIndex {
+        Ok(SSTableIndexV3 {
             fst_index: Arc::new(fst_index),
             block_addr_store,
         })
@@ -65,6 +125,49 @@ impl SSTableIndex {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct SSTableIndexV3Empty {
+    block_addr: BlockAddr,
+}
+
+impl SSTableIndexV3Empty {
+    pub fn load(index_start_pos: usize) -> SSTableIndexV3Empty {
+        SSTableIndexV3Empty {
+            block_addr: BlockAddr {
+                first_ordinal: 0,
+                byte_range: 0..index_start_pos,
+            },
+        }
+    }
+
+    /// Get the [`BlockAddr`] of the requested block.
+    pub(crate) fn get_block(&self, _block_id: u64) -> Option<BlockAddr> {
+        Some(self.block_addr.clone())
+    }
+
+    /// Get the block id of the block that would contain `key`.
+    ///
+    /// Returns None if `key` is lexicographically after the last key recorded.
+    pub(crate) fn locate_with_key(&self, _key: &[u8]) -> Option<u64> {
+        Some(0)
+    }
+
+    /// Get the [`BlockAddr`] of the block that would contain `key`.
+    ///
+    /// Returns None if `key` is lexicographically after the last key recorded.
+    pub fn get_block_with_key(&self, _key: &[u8]) -> Option<BlockAddr> {
+        Some(self.block_addr.clone())
+    }
+
+    pub(crate) fn locate_with_ord(&self, _ord: TermOrdinal) -> u64 {
+        0
+    }
+
+    /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
+    pub(crate) fn get_block_with_ord(&self, _ord: TermOrdinal) -> BlockAddr {
+        self.block_addr.clone()
+    }
+}
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct BlockAddr {
     pub first_ordinal: u64,
@@ -176,6 +279,9 @@ impl SSTableIndexBuilder {
     }
 
     pub fn serialize<W: std::io::Write>(&self, wrt: W) -> io::Result<u64> {
+        if self.blocks.len() <= 1 {
+            return Ok(0);
+        }
         // TODO handle errors
         let counting_writer = common::CountingWriter::wrap(wrt);
         let mut map_builder = MapBuilder::new(counting_writer).unwrap();
@@ -616,7 +722,7 @@ fn find_best_slop(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32,
 mod tests {
     use common::OwnedBytes;
 
-    use super::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
+    use super::{BlockAddr, SSTableIndexBuilder, SSTableIndexV3};
     use crate::SSTableDataCorruption;
 
     #[test]
@@ -629,7 +735,7 @@ mod tests {
         let mut buffer: Vec<u8> = Vec::new();
         let fst_len = sstable_builder.serialize(&mut buffer).unwrap();
         let buffer = OwnedBytes::new(buffer);
-        let sstable_index = SSTableIndex::load(buffer, fst_len).unwrap();
+        let sstable_index = SSTableIndexV3::load(buffer, fst_len).unwrap();
         assert_eq!(
             sstable_index.get_block_with_key(b"bbbde"),
             Some(BlockAddr {
@@ -662,7 +768,7 @@ mod tests {
         let fst_len = sstable_builder.serialize(&mut buffer).unwrap();
         buffer[2] = 9u8;
         let buffer = OwnedBytes::new(buffer);
-        let data_corruption_err = SSTableIndex::load(buffer, fst_len).err().unwrap();
+        let data_corruption_err = SSTableIndexV3::load(buffer, fst_len).err().unwrap();
         assert!(matches!(data_corruption_err, SSTableDataCorruption));
     }
 

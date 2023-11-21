@@ -11,7 +11,7 @@ mod streamer;
 pub mod value;
 
 mod sstable_index;
-pub use sstable_index::{BlockAddr, SSTableIndex, SSTableIndexBuilder};
+pub use sstable_index::{BlockAddr, SSTableIndex, SSTableIndexBuilder, SSTableIndexV3};
 pub(crate) mod vint;
 pub use dictionary::Dictionary;
 pub use streamer::{Streamer, StreamerBuilder};
@@ -28,7 +28,7 @@ use crate::value::{RangeValueReader, RangeValueWriter};
 pub type TermOrdinal = u64;
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
-const SSTABLE_VERSION: u32 = 2;
+const SSTABLE_VERSION: u32 = 3;
 
 /// Given two byte string returns the length of
 /// the longest common prefix.
@@ -387,13 +387,10 @@ mod test {
                 16, 17, 33, 18, 19, 17, 20, // data block
                 0, 0, 0, 0, // no more block
                 // index
-                8, 0, 0, 0, // size of index block
-                0, // compression
-                1, 0, 12, 0, 32, 17, 20, // index block
-                0, 0, 0, 0, // no more index block
+                0, 0, 0, 0, 0, 0, 0, 0, // fst lenght
                 16, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num term
-                2, 0, 0, 0, // version
+                3, 0, 0, 0, // version
             ]
         );
         let buffer = OwnedBytes::new(buffer);

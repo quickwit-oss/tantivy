@@ -95,7 +95,7 @@ Note: as the SSTable does not support redundant keys, there is no ambiguity betw
 ```
 - Fst(Fst): finit state transducer mapping keys to a block number
 - BlockAddrStore(BlockAddrStore): store mapping a block number to its BlockAddr
-- FstLen(u64): Lenght of the Fst
+- StoreOffset(u64): Offset to start of the BlockAddrStore. If zero, see the SingleBlockSStable section
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
 - Version(u32): Currently equal to 3
@@ -146,3 +146,12 @@ range\_derivation := RangeStartDelta - (1 << (RangeStartNBits-1));
 range\_start := range\_prediction + range\_derivation
 
 the same computation can be done for ordinal
+
+
+## SingleBlockSStable
+
+The format used for the index is meant to be compact, however it has a constant cost of arround 70
+bytes, which isn't negligible for a table containing very few keys.
+To limit the impact of that constant cost, single block sstable omit the Fst and BlockAddrStore from
+their index. Instead a block with first ordinal of 0, range start of 0 and range end of IndexOffset
+is implicitly used for every operations.
