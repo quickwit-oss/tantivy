@@ -228,7 +228,7 @@ mod tests {
     }
 
     fn create_random_segment_meta(num_docs: u32) -> SegmentMeta {
-        INVENTORY.new_segment_meta(SegmentId::generate_random(), num_docs)
+        INVENTORY.new_segment_meta(SegmentId::generate_random(), num_docs, None)
     }
 
     #[test]

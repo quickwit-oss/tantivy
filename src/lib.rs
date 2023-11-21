@@ -222,8 +222,8 @@ pub use self::snippet::{Snippet, SnippetGenerator};
 pub use crate::core::json_utils;
 pub use crate::core::{
     Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
-    Order, Searcher, SearcherGeneration, Segment, SegmentComponent, SegmentId, SegmentMeta,
-    SegmentReader, SingleSegmentIndexWriter,
+    Order, Searcher, SearcherGeneration, Segment, SegmentAttributesMerger, SegmentComponent,
+    SegmentId, SegmentMeta, SegmentReader, SingleSegmentIndexWriter,
 };
 pub use crate::directory::Directory;
 pub use crate::indexer::IndexWriter;

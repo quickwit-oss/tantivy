@@ -9,7 +9,8 @@ use super::segment::Segment;
 use super::IndexSettings;
 use crate::core::single_segment_index_writer::SingleSegmentIndexWriter;
 use crate::core::{
-    Executor, IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory, META_FILEPATH,
+    Executor, IndexMeta, SegmentAttributesMerger, SegmentId, SegmentMeta, SegmentMetaInventory,
+    META_FILEPATH,
 };
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
@@ -291,6 +292,7 @@ pub struct Index {
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
+    segment_attributes_merger: Option<Arc<dyn SegmentAttributesMerger>>,
 }
 
 impl Index {
@@ -405,7 +407,21 @@ impl Index {
             fast_field_tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
             inventory,
+            segment_attributes_merger: None,
         }
+    }
+
+    /// Create and set an instance of SegmentAttributes
+    pub fn set_segment_attributes_merger(
+        &mut self,
+        segment_attributes_merger: Arc<dyn SegmentAttributesMerger>,
+    ) {
+        self.segment_attributes_merger = Some(segment_attributes_merger);
+    }
+
+    /// Accessor for SegmentAttributes
+    pub fn segment_attributes_merger(&self) -> Option<&dyn SegmentAttributesMerger> {
+        self.segment_attributes_merger.as_deref()
     }
 
     /// Setter for the tokenizer manager.
@@ -494,8 +510,14 @@ impl Index {
     /// As long as the `SegmentMeta` lives, the files associated with the
     /// `SegmentMeta` are guaranteed to not be garbage collected, regardless of
     /// whether the segment is recorded as part of the index or not.
-    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
-        self.inventory.new_segment_meta(segment_id, max_doc)
+    pub fn new_segment_meta(
+        &self,
+        segment_id: SegmentId,
+        max_doc: u32,
+        segment_attributes: Option<serde_json::Value>,
+    ) -> SegmentMeta {
+        self.inventory
+            .new_segment_meta(segment_id, max_doc, segment_attributes)
     }
 
     /// Open the index using the provided directory
@@ -625,9 +647,13 @@ impl Index {
 
     /// Creates a new segment.
     pub fn new_segment(&self) -> Segment {
-        let segment_meta = self
-            .inventory
-            .new_segment_meta(SegmentId::generate_random(), 0);
+        let segment_meta = self.inventory.new_segment_meta(
+            SegmentId::generate_random(),
+            0,
+            self.segment_attributes_merger
+                .as_ref()
+                .map(|segment_attributes_merger| segment_attributes_merger.default()),
+        );
         self.segment(segment_meta)
     }
 
