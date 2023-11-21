@@ -117,35 +117,32 @@ Fst is in the format of tantivy\_fst
 
 ### BlockAddrBlockMetadata
 
-+--------+--------------+-------------------+-----------------+---------------+
-| Offset | RefBlockAddr | FirstOrdinalNBits | RangeStartNBits | RangeLenNBits |
-+--------+--------------+-------------------+-----------------+---------------+
++--------+------------+---------------+-----------+-------------+-------------------+-----------------+----------+
+| Offset | RangeStart | FirstOrdianal | RangeSlop | OrdinalSlop | FirstOrdinalNBits | RangeStartNBits | BlockLen |
++--------+------------+---------------+-----------+-------------+-------------------+-----------------+----------+
 
 - Offset(u64): offset of the corresponding BlockData in the datastream
-- RefBlockAddr(BlockAddr): reference block for the compacted block data
-- FirstOrdinalNBits(u8): number of bits per ordinal in datastream
-- RangeStartNBits(u8): number of bits per range start in datastream
-- RangeLenNBits(u8): number of bits per range lenght in datastream
-
-### BlockAddr
-
-+--------------+------------+----------+
-| FirstOrdinal | RangeStart | RangeEnd |
-+--------------+------------+----------+
-
-- FirstOrdinal(u64): the first ordinal of this block
-- RangeStart(u64): the start position of the corresponding block in the sstable
-- RangeEnd(u64): the end position of the corresponding block in the sstable
+- RangeStart(u64): the start position of the first block
+- FirstOrdinal(u64): the first ordinal of the first block
+- RangeSlop(u32): slop predicted for start range evolution (see computation in BlockData)
+- OrdinalSlop(u64): slop predicted for first ordinal evolution (see computation in BlockData)
+- FirstOrdinalNBits(u8): number of bits per ordinal in datastream (see computation in BlockData)
+- RangeStartNBits(u8): number of bits per range start in datastream (see computation in BlockData)
 
 ### BlockData
 
-+-------------------+-----------------+----------+
-| FirstOrdinalDelta | RangeStartDelta | RangeEnd |
-+-------------------+-----------------+----------+
-|---------------(255 repetitions)----------------|
++-----------------+-------------------+---------------+
+| RangeStartDelta | FirstOrdinalDelta | FinalRangeEnd |
++-----------------+-------------------+---------------+
+|------(BlockLen repetitions)---------|
 
-- FirstOrdinalDelta(var): FirstOrdinalNBits *bits* of little endian number. Delta between the first
-ordinal for this block, and the reference block
-- RangeStartDelta(var): RangeStartNBits *bits* of little endian number. Delta between the range
-start for this block, and it of the reference block
-- RangeEnd(var): RangeEndNBits *bits* of little endian number. Lenght of the range of this block
+- RangeStartDelta(var): RangeStartNBits *bits* of little endian number. See below for decoding
+- FirstOrdinalDelta(var): FirstOrdinalNBits *bits* of little endian number. See below for decoding
+- FinalRangeEnd(var): RangeStartNBits *bits* of integer. See below for decoding
+
+converting a BlockData of index Index and a BlockAddrBlockMetadata to an actual block address is done as follow:
+range\_prediction := RangeStart + Index * RangeSlop;
+range\_derivation := RangeStartDelta - (1 << (RangeStartNBits-1));
+range\_start := range\_prediction + range\_derivation
+
+the same computation can be done for ordinal

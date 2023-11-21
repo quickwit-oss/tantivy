@@ -106,14 +106,14 @@ pub(crate) struct BlockMeta {
 
 impl BinarySerializable for BlockStartAddr {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        self.first_ordinal.serialize(writer)?;
         let start = self.byte_range_start as u64;
-        start.serialize(writer)
+        start.serialize(writer)?;
+        self.first_ordinal.serialize(writer)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let first_ordinal = u64::deserialize(reader)?;
         let byte_range_start = u64::deserialize(reader)? as usize;
+        let first_ordinal = u64::deserialize(reader)?;
         Ok(BlockStartAddr {
             first_ordinal,
             byte_range_start,
@@ -324,6 +324,7 @@ impl BinarySerializable for BlockAddrBlockMetadata {
         self.first_ordinal_slop.serialize(write)?;
         write.write_all(&[self.first_ordinal_nbits, self.range_start_nbits])?;
         self.block_len.serialize(write)?;
+        self.num_bits();
         Ok(())
     }
 
