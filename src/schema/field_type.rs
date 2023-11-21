@@ -48,7 +48,7 @@ pub enum ValueParsingError {
 ///
 /// Contrary to FieldType, this does
 /// not include the way the field must be indexed.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[repr(u8)]
 pub enum Type {
     /// `&str`
