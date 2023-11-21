@@ -211,6 +211,9 @@ struct BlockAddrBlockMetadata {
     range_start_nbits: u8,
     first_ordinal_nbits: u8,
     block_len: u16,
+    // these fields are computed on deserialization, and not stored
+    range_shift: i64,
+    ordinal_shift: i64,
 }
 
 impl BlockAddrBlockMetadata {
@@ -222,7 +225,8 @@ impl BlockAddrBlockMetadata {
         if inner_offset == 0 {
             let range_end = self.ref_block_addr.byte_range_start
                 + extract_bits(data, 0, self.range_start_nbits) as usize
-                + self.range_start_slop as usize;
+                + self.range_start_slop as usize
+                - self.range_shift as usize;
             return Some(self.ref_block_addr.to_block_addr(range_end));
         }
         let inner_offset = inner_offset - 1;
@@ -241,13 +245,16 @@ impl BlockAddrBlockMetadata {
 
         let range_start = self.ref_block_addr.byte_range_start
             + extract_bits(data, range_start_addr, self.range_start_nbits) as usize
-            + self.range_start_slop as usize * (inner_offset + 1);
+            + self.range_start_slop as usize * (inner_offset + 1)
+            - self.range_shift as usize;
         let first_ordinal = self.ref_block_addr.first_ordinal
             + extract_bits(data, ordinal_addr, self.first_ordinal_nbits)
-            + self.first_ordinal_slop as u64 * (inner_offset + 1) as u64;
+            + self.first_ordinal_slop as u64 * (inner_offset + 1) as u64
+            - self.ordinal_shift as u64;
         let range_end = self.ref_block_addr.byte_range_start
             + extract_bits(data, range_end_addr, self.range_start_nbits) as usize
-            + self.range_start_slop as usize * (inner_offset + 2);
+            + self.range_start_slop as usize * (inner_offset + 2)
+            - self.range_shift as usize;
 
         Some(BlockAddr {
             first_ordinal,
@@ -269,6 +276,7 @@ impl BlockAddrBlockMetadata {
                 num_bits * index as usize + range_start_nbits,
                 self.first_ordinal_nbits,
             ) + self.first_ordinal_slop as u64 * (index + 1)
+                - self.ordinal_shift as u64
         };
 
         let inner_offset = match binary_search(self.block_len as u64, |index| {
@@ -326,15 +334,19 @@ impl BinarySerializable for BlockAddrBlockMetadata {
         let first_ordinal_slop = u32::deserialize(reader)?;
         let mut buffer = [0u8; 2];
         reader.read_exact(&mut buffer)?;
+        let first_ordinal_nbits = buffer[0];
+        let range_start_nbits = buffer[1];
         let block_len = u16::deserialize(reader)?;
         Ok(BlockAddrBlockMetadata {
             offset,
             ref_block_addr,
             range_start_slop,
             first_ordinal_slop,
-            range_start_nbits: buffer[1],
-            first_ordinal_nbits: buffer[0],
+            range_start_nbits,
+            first_ordinal_nbits,
             block_len,
+            range_shift: 1 << (range_start_nbits - 1),
+            ordinal_shift: 1 << (first_ordinal_nbits - 1),
         })
     }
 }
@@ -460,7 +472,7 @@ impl BlockAddrStoreWriter {
         let mut last_block_addr = self.block_addrs.last().unwrap().clone();
         last_block_addr.byte_range.end -= ref_block_addr.byte_range.start;
 
-        let (range_start_slop, range_max_derivation) = find_best_slop(
+        let (range_start_slop, range_start_nbits) = find_best_slop(
             self.block_addrs
                 .iter()
                 .map(|block| block.byte_range.start as u64)
@@ -469,7 +481,7 @@ impl BlockAddrStoreWriter {
                 .skip(1),
         );
 
-        let (first_ordinal_slop, ordinal_max_derivation) = find_best_slop(
+        let (first_ordinal_slop, first_ordinal_nbits) = find_best_slop(
             self.block_addrs
                 .iter()
                 .map(|block| block.first_ordinal)
@@ -477,14 +489,8 @@ impl BlockAddrStoreWriter {
                 .skip(1),
         );
 
-        // we need derivation to be at least 1 otherwise we may fail to assess the number of
-        // elements in a block if each element is exactly the same size and the same number of
-        // ordinal
-        let mut range_start_nbits = compute_num_bits(range_max_derivation);
-        let first_ordinal_nbits = compute_num_bits(ordinal_max_derivation);
-        if range_start_nbits + first_ordinal_nbits == 0 {
-            range_start_nbits = 1;
-        }
+        let range_shift = 1 << (range_start_nbits - 1);
+        let ordinal_shift = 1 << (first_ordinal_nbits - 1);
 
         let block_addr_block_meta = BlockAddrBlockMetadata {
             offset: self.buffer_addrs.len() as u64,
@@ -494,27 +500,31 @@ impl BlockAddrStoreWriter {
             range_start_nbits,
             first_ordinal_nbits,
             block_len: self.block_addrs.len() as u16 - 1,
+            range_shift,
+            ordinal_shift,
         };
         block_addr_block_meta.serialize(&mut self.buffer_block_metas)?;
 
         let mut bit_packer = BitPacker::new();
 
         for (i, block_addr) in self.block_addrs.iter().enumerate().skip(1) {
+            let range_pred = (range_start_slop as usize * i) as i64;
             bit_packer.write(
-                (block_addr.byte_range.start - range_start_slop as usize * i) as u64,
+                (block_addr.byte_range.start as i64 - range_pred + range_shift) as u64,
                 range_start_nbits,
                 &mut self.buffer_addrs,
             )?;
+            let first_ordinal_pred = (first_ordinal_slop as u64 * i as u64) as i64;
             bit_packer.write(
-                block_addr.first_ordinal - first_ordinal_slop as u64 * i as u64,
+                (block_addr.first_ordinal as i64 - first_ordinal_pred + ordinal_shift) as u64,
                 first_ordinal_nbits,
                 &mut self.buffer_addrs,
             )?;
         }
 
+        let range_pred = (range_start_slop as usize * self.block_addrs.len()) as i64;
         bit_packer.write(
-            (last_block_addr.byte_range.end - range_start_slop as usize * self.block_addrs.len())
-                as u64,
+            (last_block_addr.byte_range.end as i64 - range_pred + range_shift) as u64,
             range_start_nbits,
             &mut self.buffer_addrs,
         )?;
@@ -544,21 +554,61 @@ impl BlockAddrStoreWriter {
     }
 }
 
-fn find_best_slop(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32, u64) {
+fn find_best_slop(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32, u8) {
     let slop_iterator = elements.clone();
     let derivation_iterator = elements;
 
-    let final_slop = slop_iterator.fold(u32::MAX, |slop, (index, value)| {
-        slop.min((value / index as u64) as u32)
-    });
+    let mut min_slop_idx = 1;
+    let mut min_slop_val = 0;
+    let mut min_slop = u32::MAX;
+    let mut max_slop_idx = 1;
+    let mut max_slop_val = 0;
+    let mut max_slop = 0;
+    for (index, value) in slop_iterator {
+        let slop = (value / index as u64) as u32;
+        if slop <= min_slop {
+            min_slop = slop;
+            min_slop_idx = index;
+            min_slop_val = value;
+        }
+        if slop >= max_slop {
+            max_slop = slop;
+            max_slop_idx = index;
+            max_slop_val = value;
+        }
+    }
 
-    let max_derivation = derivation_iterator.fold(1, |max_derivation, (index, value)| {
-        let derivation = value - final_slop as u64 * index as u64;
+    // above is an heristic giving the "highest" and "lowest" point. It's imperfect in that in that
+    // a point that appear earlier might have a high slop derivation, but a smaller absolute
+    // derivation than a latter point.
+    // The actual best values can be obtained by using the symplex method, but the improvement is
+    // likely minimal, and computation is way more complexe.
+    //
+    // Assuming these point are the furthest up and down, we find the slop that would cause the same
+    // positive derivation for the highest as negative derivation for the lowest.
+    // A is the optimal slop. B is the derivation to the guess
+    //
+    // 0 = min_slop_val - min_slop_idx * A - B
+    // 0 = max_slop_val - max_slop_idx * A + B
+    //
+    // 0 = min_slop_val + max_slop_val - (min_slop_idx + max_slop_idx) * A
+    // (min_slop_val + max_slop_val) / (min_slop_idx + max_slop_idx) = A
+    //
+    // we actually add some correcting factor to have proper rounding, not truncation.
+
+    let denominator = (min_slop_idx + max_slop_idx) as u64;
+    let final_slop = ((min_slop_val + max_slop_val + denominator / 2) / denominator) as u32;
+
+    // we don't solve for B because our choice of point is suboptimal, so it's actually a lower
+    // bound and we need to iterate to find the actual worst value.
+
+    let max_derivation = derivation_iterator.fold(0, |max_derivation, (index, value)| {
+        let derivation = (value as i64 - final_slop as i64 * index as i64).unsigned_abs();
 
         max_derivation.max(derivation)
     });
 
-    (final_slop, max_derivation)
+    (final_slop, compute_num_bits(max_derivation) + 1)
 }
 
 #[cfg(test)]
