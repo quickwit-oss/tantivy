@@ -12,6 +12,7 @@ pub mod value;
 
 mod sstable_index;
 pub use sstable_index::{BlockAddr, SSTableIndex, SSTableIndexBuilder, SSTableIndexV3};
+mod sstable_index_v2;
 pub(crate) mod vint;
 pub use dictionary::Dictionary;
 pub use streamer::{Streamer, StreamerBuilder};

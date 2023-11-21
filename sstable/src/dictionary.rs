@@ -181,34 +181,44 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
-        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(28);
+        let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(20);
         let mut footer_len_bytes: OwnedBytes = footer_len_slice.read_bytes()?;
-
-        let store_offset = u64::deserialize(&mut footer_len_bytes)?;
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
         let num_terms = u64::deserialize(&mut footer_len_bytes)?;
         let version = u32::deserialize(&mut footer_len_bytes)?;
-        if version != crate::SSTABLE_VERSION {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "Unsuported sstable version, expected {version}, found {}",
-                    crate::SSTABLE_VERSION,
-                ),
-            ));
-        }
-
         let (sstable_slice, index_slice) = main_slice.split(index_offset as usize);
         let sstable_index_bytes = index_slice.read_bytes()?;
-        let sstable_index = if store_offset != 0 {
-            SSTableIndex::V3(
-                SSTableIndexV3::load(sstable_index_bytes, store_offset).map_err(|_| {
+
+        let sstable_index = match version {
+            2 => SSTableIndex::V2(
+                crate::sstable_index_v2::SSTableIndex::load(sstable_index_bytes).map_err(|_| {
                     io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
                 })?,
-            )
-        } else {
-            SSTableIndex::V3Empty(SSTableIndexV3Empty::load(index_offset as usize))
+            ),
+            crate::SSTABLE_VERSION => {
+                let (sstable_index_bytes, mut footerv3_len_bytes) = sstable_index_bytes.rsplit(8);
+                let store_offset = u64::deserialize(&mut footerv3_len_bytes)?;
+                if store_offset != 0 {
+                    SSTableIndex::V3(
+                        SSTableIndexV3::load(sstable_index_bytes, store_offset).map_err(|_| {
+                            io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
+                        })?,
+                    )
+                } else {
+                    SSTableIndex::V3Empty(SSTableIndexV3Empty::load(index_offset as usize))
+                }
+            }
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!(
+                        "Unsuported sstable version, expected {}, found {version}",
+                        crate::SSTABLE_VERSION,
+                    ),
+                ))
+            }
         };
+
         Ok(Dictionary {
             sstable_slice,
             sstable_index,

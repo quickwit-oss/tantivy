@@ -11,7 +11,7 @@ use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
 
 #[derive(Debug, Clone)]
 pub enum SSTableIndex {
-    V2,
+    V2(crate::sstable_index_v2::SSTableIndex),
     V3(SSTableIndexV3),
     V3Empty(SSTableIndexV3Empty),
 }
@@ -20,7 +20,7 @@ impl SSTableIndex {
     /// Get the [`BlockAddr`] of the requested block.
     pub(crate) fn get_block(&self, block_id: u64) -> Option<BlockAddr> {
         match self {
-            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V2(v2_index) => v2_index.get_block(block_id as usize),
             SSTableIndex::V3(v3_index) => v3_index.get_block(block_id),
             SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block(block_id),
         }
@@ -31,7 +31,7 @@ impl SSTableIndex {
     /// Returns None if `key` is lexicographically after the last key recorded.
     pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<u64> {
         match self {
-            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V2(v2_index) => v2_index.locate_with_key(key).map(|i| i as u64),
             SSTableIndex::V3(v3_index) => v3_index.locate_with_key(key),
             SSTableIndex::V3Empty(v3_empty) => v3_empty.locate_with_key(key),
         }
@@ -42,7 +42,7 @@ impl SSTableIndex {
     /// Returns None if `key` is lexicographically after the last key recorded.
     pub fn get_block_with_key(&self, key: &[u8]) -> Option<BlockAddr> {
         match self {
-            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V2(v2_index) => v2_index.get_block_with_key(key),
             SSTableIndex::V3(v3_index) => v3_index.get_block_with_key(key),
             SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_key(key),
         }
@@ -50,7 +50,7 @@ impl SSTableIndex {
 
     pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> u64 {
         match self {
-            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V2(v2_index) => v2_index.locate_with_ord(ord) as u64,
             SSTableIndex::V3(v3_index) => v3_index.locate_with_ord(ord),
             SSTableIndex::V3Empty(v3_empty) => v3_empty.locate_with_ord(ord),
         }
@@ -59,7 +59,7 @@ impl SSTableIndex {
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
     pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
         match self {
-            SSTableIndex::V2 => todo!(),
+            SSTableIndex::V2(v2_index) => v2_index.get_block_with_ord(ord),
             SSTableIndex::V3(v3_index) => v3_index.get_block_with_ord(ord),
             SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_ord(ord),
         }
