@@ -357,6 +357,7 @@ impl Schema {
     pub fn find_field_with_default<'a>(
         &self,
         full_path: &'a str,
+
         default_field_opt: Option<Field>,
     ) -> Option<(Field, &'a str)> {
         let (field, json_path) = self

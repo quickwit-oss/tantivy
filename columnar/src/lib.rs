@@ -1,3 +1,22 @@
+//! # Tantivy-Columnar
+//!
+//! `tantivy-columnar`provides a columnar storage for tantivy.
+//! The crate allows for efficient read operations on specific columns rather than entire records.
+//!
+//! ## Overview
+//!
+//! - **columnar**: Reading, writing, and merging multiple columns:
+//!   - **[ColumnarWriter]**: Makes it possible to create a new columnar.
+//!   - **[ColumnarReader]**: The ColumnarReader makes it possible to access a set of columns
+//!     associated to field names.
+//!   - **[merge_columnar]**: Contains the functionalities to merge multiple ColumnarReader or
+//!     segments into a single one.
+//!
+//! - **column**: A single column, which contains
+//!     - [column_index]: Resolves the rows for a document id. Manages the cardinality of the
+//!       column.
+//!     - [column_values]: Stores the values of a column in a dense format.
+
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 
 #[cfg(test)]

@@ -23,6 +23,7 @@ use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::{merge_field_meta_data, FieldMetadata, SegmentReader};
 
 fn load_metas(
     directory: &dyn Directory,
@@ -487,6 +488,28 @@ impl Index {
     /// operation.
     pub(crate) fn list_all_segment_metas(&self) -> Vec<SegmentMeta> {
         self.inventory.all()
+    }
+
+    /// Returns the list of fields that have been indexed in the Index.
+    /// The field list includes the field defined in the schema as well as the fields
+    /// that have been indexed as a part of a JSON field.
+    /// The returned field name is the full field name, including the name of the JSON field.
+    ///
+    /// The returned field names can be used in queries.
+    ///
+    /// Notice: If your data contains JSON fields this is **very expensive**, as it requires
+    /// browsing through the inverted index term dictionary and the columnar field dictionary.
+    ///
+    /// Disclaimer: Some fields may not be listed here. For instance, if the schema contains a json
+    /// field that is not indexed nor a fast field but is stored, it is possible for the field
+    /// to not be listed.
+    pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
+        let segments = self.searchable_segments()?;
+        let fields_metadata: Vec<Vec<FieldMetadata>> = segments
+            .into_iter()
+            .map(|segment| SegmentReader::open(&segment)?.fields_metadata())
+            .collect::<Result<_, _>>()?;
+        Ok(merge_field_meta_data(fields_metadata, &self.schema()))
     }
 
     /// Creates a new segment_meta (Advanced user only).
