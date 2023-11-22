@@ -15,7 +15,6 @@ fn make_test_sstable(suffix: &str) -> FileSlice {
     }
 
     let table = builder.finish().unwrap();
-    eprintln!("len={}", table.len());
     let table = Arc::new(OwnedBytes::new(table));
     let slice = common::file_slice::FileSlice::new(table.clone());
 

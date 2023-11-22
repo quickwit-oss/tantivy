@@ -299,14 +299,12 @@ impl SSTableIndexBuilder {
             block_store_writer.write_block_meta(block.block_addr.clone())?;
         }
         block_store_writer.serialize(&mut wrt)?;
-        eprintln!("fst len={written_bytes}");
-        eprintln!("store len={}", wrt.written_bytes() - written_bytes);
 
         Ok(written_bytes)
     }
 }
 
-const STORE_BLOCK_LEN: usize = 256;
+const STORE_BLOCK_LEN: usize = 128;
 
 #[derive(Debug)]
 struct BlockAddrBlockMetadata {
