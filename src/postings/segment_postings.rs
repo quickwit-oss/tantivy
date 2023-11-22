@@ -71,7 +71,7 @@ impl SegmentPostings {
         {
             let mut postings_serializer =
                 PostingsSerializer::new(&mut buffer, 0.0, IndexRecordOption::Basic, None);
-            postings_serializer.new_term(docs.len() as u32);
+            postings_serializer.new_term(docs.len() as u32, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
             }
@@ -120,7 +120,7 @@ impl SegmentPostings {
             IndexRecordOption::WithFreqs,
             fieldnorm_reader,
         );
-        postings_serializer.new_term(doc_and_tfs.len() as u32);
+        postings_serializer.new_term(doc_and_tfs.len() as u32, true);
         for &(doc, tf) in doc_and_tfs {
             postings_serializer.write_doc(doc, tf);
         }
@@ -238,14 +238,18 @@ impl Postings for SegmentPostings {
     }
 
     fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
-        let term_freq = self.term_freq() as usize;
+        let term_freq = self.term_freq();
         if let Some(position_reader) = self.position_reader.as_mut() {
+            debug_assert!(
+                !self.block_cursor.freqs().is_empty(),
+                "No positions available"
+            );
             let read_offset = self.block_cursor.position_offset()
                 + (self.block_cursor.freqs()[..self.cur]
                     .iter()
                     .cloned()
                     .sum::<u32>() as u64);
-            output.resize(term_freq, 0u32);
+            output.resize(term_freq as usize, 0u32);
             position_reader.read(read_offset, &mut output[..]);
             let mut cum = offset;
             for output_mut in output.iter_mut() {

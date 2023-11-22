@@ -77,7 +77,7 @@ pub struct Bm25Params {
 /// A struct used for computing BM25 scores.
 #[derive(Clone)]
 pub struct Bm25Weight {
-    idf_explain: Explanation,
+    idf_explain: Option<Explanation>,
     weight: Score,
     cache: [Score; 256],
     average_fieldnorm: Score,
@@ -147,11 +147,30 @@ impl Bm25Weight {
         idf_explain.add_const("N, total number of docs", total_num_docs as Score);
         Bm25Weight::new(idf_explain, avg_fieldnorm)
     }
+    /// Construct a [Bm25Weight] for a single term.
+    /// This method does not carry the [Explanation] for the idf.
+    pub fn for_one_term_without_explain(
+        term_doc_freq: u64,
+        total_num_docs: u64,
+        avg_fieldnorm: Score,
+    ) -> Bm25Weight {
+        let idf = idf(term_doc_freq, total_num_docs);
+        Bm25Weight::new_without_explain(idf, avg_fieldnorm)
+    }
 
     pub(crate) fn new(idf_explain: Explanation, average_fieldnorm: Score) -> Bm25Weight {
         let weight = idf_explain.value() * (1.0 + K1);
         Bm25Weight {
-            idf_explain,
+            idf_explain: Some(idf_explain),
+            weight,
+            cache: compute_tf_cache(average_fieldnorm),
+            average_fieldnorm,
+        }
+    }
+    pub(crate) fn new_without_explain(idf: f32, average_fieldnorm: Score) -> Bm25Weight {
+        let weight = idf * (1.0 + K1);
+        Bm25Weight {
+            idf_explain: None,
             weight,
             cache: compute_tf_cache(average_fieldnorm),
             average_fieldnorm,
@@ -202,7 +221,9 @@ impl Bm25Weight {
 
         let mut explanation = Explanation::new("TermQuery, product of...", score);
         explanation.add_detail(Explanation::new("(K1+1)", K1 + 1.0));
-        explanation.add_detail(self.idf_explain.clone());
+        if let Some(idf_explain) = &self.idf_explain {
+            explanation.add_detail(idf_explain.clone());
+        }
         explanation.add_detail(tf_explanation);
         explanation
     }

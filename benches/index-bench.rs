@@ -1,5 +1,4 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use pprof::criterion::{Output, PProfProfiler};
 use tantivy::schema::{TantivyDocument, FAST, INDEXED, STORED, STRING, TEXT};
 use tantivy::{tokenizer, Index, IndexWriter};
 
@@ -253,12 +252,12 @@ criterion_group! {
 }
 criterion_group! {
     name = gh_benches;
-    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    config = Criterion::default();
     targets = gh_index_benchmark
 }
 criterion_group! {
     name = wiki_benches;
-    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    config = Criterion::default();
     targets = wiki_index_benchmark
 }
 criterion_main!(benches, gh_benches, wiki_benches);

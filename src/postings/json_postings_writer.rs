@@ -11,6 +11,10 @@ use crate::schema::{Field, Type, JSON_END_OF_PATH};
 use crate::tokenizer::TokenStream;
 use crate::{DocId, Term};
 
+/// The `JsonPostingsWriter` is odd in that it relies on a hidden contract:
+///
+/// `subscribe` is called directly to index non-text tokens, while
+/// `index_text` is used to index text.
 #[derive(Default)]
 pub(crate) struct JsonPostingsWriter<Rec: Recorder> {
     str_posting_writer: SpecializedPostingsWriter<Rec>,

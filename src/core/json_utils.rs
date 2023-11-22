@@ -62,6 +62,14 @@ impl IndexingPositionsPerPath {
     }
 }
 
+/// Convert JSON_PATH_SEGMENT_SEP to a dot.
+pub fn json_path_sep_to_dot(path: &mut str) {
+    // This is safe since we are replacing a ASCII character by another ASCII character.
+    unsafe {
+        replace_in_place(JSON_PATH_SEGMENT_SEP, b'.', path.as_bytes_mut());
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn index_json_values<'a, V: Value<'a>>(
     doc: DocId,
@@ -320,7 +328,7 @@ pub struct JsonTermWriter<'a> {
 /// In other words,
 /// - `k8s.node` ends up as `["k8s", "node"]`.
 /// - `k8s\.node` ends up as `["k8s.node"]`.
-fn split_json_path(json_path: &str) -> Vec<String> {
+pub fn split_json_path(json_path: &str) -> Vec<String> {
     let mut escaped_state: bool = false;
     let mut json_path_segments = Vec::new();
     let mut buffer = String::new();

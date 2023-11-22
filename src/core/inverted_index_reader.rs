@@ -75,7 +75,7 @@ impl InvertedIndexReader {
     ///
     /// Notice: This requires a full scan and therefore **very expensive**.
     /// TODO: Move to sstable to use the index.
-    pub fn list_fields(&self) -> io::Result<Vec<(String, Type)>> {
+    pub fn list_encoded_fields(&self) -> io::Result<Vec<(String, Type)>> {
         let mut stream = self.termdict.stream()?;
         let mut fields = Vec::new();
         let mut fields_set = FnvHashSet::default();
