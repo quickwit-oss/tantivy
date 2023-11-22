@@ -282,17 +282,16 @@ impl SSTableIndexBuilder {
         if self.blocks.len() <= 1 {
             return Ok(0);
         }
-        // TODO handle errors
         let counting_writer = common::CountingWriter::wrap(wrt);
-        let mut map_builder = MapBuilder::new(counting_writer).unwrap();
+        let mut map_builder = MapBuilder::new(counting_writer).map_err(fst_error_to_io_error)?;
         for (i, block) in self.blocks.iter().enumerate() {
             map_builder
                 .insert(&block.last_key_or_greater, i as u64)
-                .unwrap();
+                .map_err(fst_error_to_io_error)?;
         }
-        let counting_writer = map_builder.into_inner().unwrap();
+        let counting_writer = map_builder.into_inner().map_err(fst_error_to_io_error)?;
         let written_bytes = counting_writer.written_bytes();
-        let mut wrt = counting_writer;
+        let mut wrt = counting_writer.finish();
 
         let mut block_store_writer = BlockAddrStoreWriter::new();
         for block in &self.blocks {
@@ -301,6 +300,13 @@ impl SSTableIndexBuilder {
         block_store_writer.serialize(&mut wrt)?;
 
         Ok(written_bytes)
+    }
+}
+
+fn fst_error_to_io_error(error: tantivy_fst::Error) -> io::Error {
+    match error {
+        tantivy_fst::Error::Fst(fst_error) => io::Error::new(io::ErrorKind::Other, fst_error),
+        tantivy_fst::Error::Io(ioerror) => ioerror,
     }
 }
 
@@ -366,11 +372,7 @@ impl BlockAddrBlockMetadata {
         })
     }
 
-    // /!\ countrary to deserialize_block_addr() for which inner_offset goes from 0 to
-    // STORE_BLOCK_LEN - 2, this function goes from 1 to STORE_BLOCK_LEN - 1, and 0 marks
-    // we should use ref_block_addr
     fn bissect_for_ord(&self, data: &[u8], target_ord: TermOrdinal) -> (u64, BlockAddr) {
-        // TODO can panic if block has header only
         let inner_target_ord = target_ord - self.ref_block_addr.first_ordinal;
         let num_bits = self.num_bits() as usize;
         let range_start_nbits = self.range_start_nbits as usize;
@@ -389,6 +391,7 @@ impl BlockAddrBlockMetadata {
             Ok(inner_offset) => inner_offset + 1,
             Err(inner_offset) => inner_offset,
         };
+        // we can unwrap because inner_offset <= self.block_len
         (
             inner_offset,
             self.deserialize_block_addr(data, inner_offset as usize)
@@ -502,6 +505,7 @@ impl BlockAddrStore {
         let max_block =
             (self.block_meta_bytes.len() / BlockAddrBlockMetadata::SIZE_IN_BYTES) as u64;
         let get_first_ordinal = |block_id| {
+            // we can unwrap because block_id < max_block
             self.get(block_id * STORE_BLOCK_LEN as u64)
                 .unwrap()
                 .first_ordinal
@@ -511,11 +515,13 @@ impl BlockAddrStore {
         let store_block_id = match store_block_id {
             Ok(store_block_id) => {
                 let block_id = store_block_id * STORE_BLOCK_LEN as u64;
+                // we can unwrap because store_block_id < max_block
                 return (block_id, self.get(block_id).unwrap());
             }
             Err(store_block_id) => store_block_id - 1,
         };
 
+        // we can unwrap because store_block_id < max_block
         let block_addr_block_data = self.get_block_meta(store_block_id as usize).unwrap();
         let (inner_offset, block_addr) = block_addr_block_data.bissect_for_ord(
             &self.addr_bytes[block_addr_block_data.offset as usize..],
@@ -574,6 +580,7 @@ impl BlockAddrStoreWriter {
             block_addr.first_ordinal -= ref_block_addr.first_ordinal;
         }
 
+        // we are only called if block_addrs is not empty
         let mut last_block_addr = self.block_addrs.last().unwrap().clone();
         last_block_addr.byte_range.end -= ref_block_addr.byte_range.start;
 
