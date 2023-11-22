@@ -460,21 +460,21 @@ impl BitOrAssign for FieldMetadata {
     }
 }
 
+// Maybe too slow for the high cardinality case
+fn is_field_stored(field_name: &str, schema: &Schema) -> bool {
+    schema
+        .find_field(field_name)
+        .map(|(field, _path)| schema.get_field_entry(field).is_stored())
+        .unwrap_or(false)
+}
+
 /// Helper to merge the field metadata from multiple segments.
 pub fn merge_field_meta_data(
-    input: Vec<Vec<FieldMetadata>>,
+    field_metadatas: Vec<Vec<FieldMetadata>>,
     schema: &Schema,
 ) -> Vec<FieldMetadata> {
-    // Maybe too slow for the high cardinality case
-    fn is_field_stored(field_name: &str, schema: &Schema) -> bool {
-        schema
-            .find_field(field_name)
-            .map(|(field, _path)| schema.get_field_entry(field).is_stored())
-            .unwrap_or(false)
-    }
-
     let mut merged_field_metadata = Vec::new();
-    for (_key, mut group) in &input
+    for (_key, mut group) in &field_metadatas
         .into_iter()
         .kmerge_by(|left, right| left < right)
         // TODO: Remove allocation
@@ -484,6 +484,7 @@ pub fn merge_field_meta_data(
         for el in group {
             merged |= el;
         }
+        // Currently is_field_stored is maybe too slow for the high cardinality case
         merged.stored = is_field_stored(&merged.field_name, schema);
         merged_field_metadata.push(merged);
     }
