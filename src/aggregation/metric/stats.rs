@@ -407,7 +407,7 @@ impl IntermediateExtendedStats {
     }
 
     /// Computes the final stats value.
-    pub fn finalize(&self) -> ExtendedStats {
+    pub fn finalize(&self) -> Box<ExtendedStats> {
         let min = if self.intermediate_stats.count == 0 {
             None
         } else {
@@ -456,7 +456,7 @@ impl IntermediateExtendedStats {
                 lower_population: lower,
             })
         };
-        ExtendedStats {
+        Box::new(ExtendedStats {
             count: self.intermediate_stats.count,
             sum: self.intermediate_stats.sum,
             min,
@@ -470,17 +470,7 @@ impl IntermediateExtendedStats {
             std_deviation_population: std_deviation,
             std_deviation_sampling,
             std_deviation_bounds,
-        }
-    }
-
-    fn collect(&mut self, value: f64) {
-        self.intermediate_stats.collect(value);
-        // kahan algorithm for sum_of_squares_elastic
-        let y = value * value - self.delta_sum_for_squares_elastic;
-        let t = self.sum_of_squares_elastic + y;
-        self.delta_sum_for_squares_elastic = (t - self.sum_of_squares_elastic) - y;
-        self.sum_of_squares_elastic = t;
-        self.update_variance(value);
+        })
     }
 
     fn update_variance(&mut self, value: f64) {
@@ -494,6 +484,23 @@ impl IntermediateExtendedStats {
         // self.mean += delta / self.count as f64;
         let delta2 = value - self.mean;
         self.sum_of_squares += delta * delta2;
+    }
+}
+
+impl IntermediateInnerCollector for IntermediateExtendedStats {
+    #[inline]
+    fn collect(&mut self, value: f64) {
+        self.intermediate_stats.collect(value);
+        // kahan algorithm for sum_of_squares_elastic
+        let y = value * value - self.delta_sum_for_squares_elastic;
+        let t = self.sum_of_squares_elastic + y;
+        self.delta_sum_for_squares_elastic = (t - self.sum_of_squares_elastic) - y;
+        self.sum_of_squares_elastic = t;
+        self.update_variance(value);
+    }
+
+    fn into_intermediate_metric_result(self) -> IntermediateMetricResult {
+        IntermediateMetricResult::ExtendedStats(self)
     }
 }
 
@@ -518,7 +525,7 @@ pub struct IntermediateInnerStatsCollector {
 }
 
 impl IntermediateInnerStatsCollector {
-    pub(crate) fn from(collecting_for: SegmentStatsType) -> Self {
+    pub(crate) fn for_stat_type(collecting_for: SegmentStatsType) -> Self {
         IntermediateInnerStatsCollector {
             stats: IntermediateStats::default(),
             collecting_for: collecting_for,
@@ -550,45 +557,6 @@ impl IntermediateInnerCollector for IntermediateInnerStatsCollector {
             SegmentStatsType::Sum => {
                 IntermediateMetricResult::Sum(IntermediateSum::from_stats(self.stats))
             }
-            _ => {
-                panic!("cannot create IntermediateMetricResult for ExtendStats/Min from Stats");
-            }
-        }
-    }
-}
-
-/// Intermediate struct used by [SegmentStatsCollector]
-/// for calculating ExtendedStats and creating [IntermediateMetricResult]
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct IntermediateInnerExtendedStatsCollector {
-    stats: IntermediateExtendedStats,
-    collecting_for: SegmentStatsType,
-}
-
-impl IntermediateInnerExtendedStatsCollector {
-    pub fn from(collecting_for: SegmentStatsType, sigma: Option<f64>) -> Self {
-        IntermediateInnerExtendedStatsCollector {
-            stats: IntermediateExtendedStats::with_sigma(sigma),
-            collecting_for,
-        }
-    }
-}
-
-impl IntermediateInnerCollector for IntermediateInnerExtendedStatsCollector {
-    #[inline]
-    fn collect(&mut self, value: f64) {
-        self.stats.collect(value);
-    }
-
-    fn into_intermediate_metric_result(self) -> IntermediateMetricResult {
-        match self.collecting_for {
-            SegmentStatsType::ExtendedStats => IntermediateMetricResult::ExtendedStats(self.stats),
-            _ => {
-                panic!(
-                    "cannot create IntermediateMetricResult for Stats/Min/Avg/Count/Min/Max/Sum \
-                     from ExtendedStats"
-                );
-            }
         }
     }
 }
@@ -600,7 +568,6 @@ pub(crate) enum SegmentStatsType {
     Max,
     Min,
     Stats,
-    ExtendedStats,
     Sum,
 }
 
@@ -724,7 +691,7 @@ mod tests {
 
     use crate::aggregation::agg_req::{Aggregation, Aggregations};
     use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::metric::IntermediateExtendedStats;
+    use crate::aggregation::metric::{IntermediateExtendedStats, IntermediateInnerCollector};
     use crate::aggregation::tests::{
         exec_request_with_query, get_test_index_2_segments, get_test_index_from_values,
     };

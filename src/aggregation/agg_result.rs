@@ -89,7 +89,7 @@ pub enum MetricResult {
     /// Stats metric result.
     Stats(Stats),
     /// ExtendedStats metric result.
-    ExtendedStats(ExtendedStats),
+    ExtendedStats(Box<ExtendedStats>),
     /// Sum metric result.
     Sum(SingleMetricResult),
     /// Sum metric result.
