@@ -722,11 +722,10 @@ fn find_best_slope(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32
     // we don't solve for B because our choice of point is suboptimal, so it's actually a lower
     // bound and we need to iterate to find the actual worst value.
 
-    let max_derivation = derivation_iterator.fold(0, |max_derivation, (index, value)| {
-        let derivation = (value as i64 - final_slope as i64 * index as i64).unsigned_abs();
-
-        max_derivation.max(derivation)
-    });
+    let max_derivation: u64 = derivation_iterator
+        .map(|(index, value)| (value as i64 - final_slope as i64 * index as i64).unsigned_abs())
+        .max()
+        .unwrap_or(0);
 
     (final_slope, compute_num_bits(max_derivation) + 1)
 }
