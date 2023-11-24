@@ -10,7 +10,6 @@ categories = ["database-implementations", "data-structures", "compression"]
 description = "sstables for tantivy"
 
 [dependencies]
-byteorder = "1.4.3"
 common = {version= "0.6", path="../common", package="tantivy-common"}
 tantivy-bitpacker = { version= "0.5", path="../bitpacker" }
 tantivy-fst = "0.5"
