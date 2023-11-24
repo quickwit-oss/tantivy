@@ -401,6 +401,7 @@ impl BlockAddrBlockMetadata {
 }
 
 // TODO move this function to tantivy_common?
+#[inline(always)]
 fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     use byteorder::{ByteOrder, LittleEndian};
     assert!(num_bits <= 56);
@@ -573,6 +574,9 @@ impl BlockAddrStoreWriter {
     }
 
     fn flush_block(&mut self) -> io::Result<()> {
+        if self.block_addrs.is_empty() {
+            return Ok(());
+        }
         let ref_block_addr = self.block_addrs[0].clone();
 
         for block_addr in &mut self.block_addrs {
@@ -584,6 +588,7 @@ impl BlockAddrStoreWriter {
         let mut last_block_addr = self.block_addrs.last().unwrap().clone();
         last_block_addr.byte_range.end -= ref_block_addr.byte_range.start;
 
+        // we skip(1), so we never give an index of 0 to find_best_slope
         let (range_start_slope, range_start_nbits) = find_best_slope(
             self.block_addrs
                 .iter()
@@ -593,6 +598,7 @@ impl BlockAddrStoreWriter {
                 .skip(1),
         );
 
+        // we skip(1), so we never give an index of 0 to find_best_slope
         let (first_ordinal_slope, first_ordinal_nbits) = find_best_slope(
             self.block_addrs
                 .iter()
@@ -655,9 +661,7 @@ impl BlockAddrStoreWriter {
     }
 
     fn serialize<W: std::io::Write>(&mut self, wrt: &mut W) -> io::Result<()> {
-        if !self.block_addrs.is_empty() {
-            self.flush_block()?;
-        }
+        self.flush_block()?;
         let len = self.buffer_block_metas.len() as u64;
         len.serialize(wrt)?;
         wrt.write_all(&self.buffer_block_metas)?;
@@ -666,6 +670,10 @@ impl BlockAddrStoreWriter {
     }
 }
 
+/// Given an iterator over (index, value), returns the slope, and number of bits needed to
+/// represente the error to a prediction made by this slope.
+///
+/// The iterator may be empty, but all indexes in it must be non-zero.
 fn find_best_slope(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32, u8) {
     let slope_iterator = elements.clone();
     let derivation_iterator = elements;
@@ -806,5 +814,14 @@ mod tests {
                 test_find_shorter_str_in_between_aux(&left, &right);
             }
         }
+    }
+
+    #[test]
+    fn test_find_best_slop() {
+        assert_eq!(super::find_best_slope(std::iter::empty()), (0, 1));
+        assert_eq!(
+            super::find_best_slope(std::iter::once((1, 12345))),
+            (12345, 1)
+        );
     }
 }
