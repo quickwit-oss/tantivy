@@ -623,8 +623,8 @@ impl<T: IntermediateInnerCollector> SegmentStatsCollector<T> {
     }
 }
 
-impl<T: IntermediateInnerCollector + Debug + Clone + 'static> SegmentAggregationCollector
-    for SegmentStatsCollector<T>
+impl<T> SegmentAggregationCollector for SegmentStatsCollector<T>
+where T: IntermediateInnerCollector + Debug + Clone + 'static
 {
     #[inline]
     fn add_intermediate_aggregation_result(
