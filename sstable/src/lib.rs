@@ -10,8 +10,8 @@ pub mod merge;
 mod streamer;
 pub mod value;
 
-mod sstable_index;
-pub use sstable_index::{BlockAddr, SSTableIndex, SSTableIndexBuilder, SSTableIndexV3};
+mod sstable_index_v3;
+pub use sstable_index_v3::{BlockAddr, SSTableIndex, SSTableIndexBuilder, SSTableIndexV3};
 mod sstable_index_v2;
 pub(crate) mod vint;
 pub use dictionary::Dictionary;
