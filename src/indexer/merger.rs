@@ -552,7 +552,41 @@ impl IndexMerger {
                 continue;
             }
 
-            field_serializer.new_term(term_bytes, total_doc_freq)?;
+            // This should never happen as we early exited for total_doc_freq == 0.
+            assert!(!segment_postings_containing_the_term.is_empty());
+
+            let has_term_freq = {
+                let has_term_freq = !segment_postings_containing_the_term[0]
+                    .1
+                    .block_cursor
+                    .freqs()
+                    .is_empty();
+                for (_, postings) in &segment_postings_containing_the_term[1..] {
+                    // This may look at a strange way to test whether we have term freq or not.
+                    // With JSON object, the schema is not sufficient to know whether a term
+                    // has its term frequency encoded or not:
+                    // strings may have term frequencies, while number terms never have one.
+                    //
+                    // Ideally, we should have burnt one bit of two in the `TermInfo`.
+                    // However, we preferred not changing the codec too much and detect this
+                    // instead by
+                    // - looking at the size of the skip data for bitpacked blocks
+                    // - observing the absence of remaining data after reading the docs for vint
+                    // blocks.
+                    //
+                    // Overall the reliable way to know if we have actual frequencies loaded or not
+                    // is to check whether the actual decoded array is empty or not.
+                    if has_term_freq != !postings.block_cursor.freqs().is_empty() {
+                        return Err(DataCorruption::comment_only(
+                            "Term freqs are inconsistent across segments",
+                        )
+                        .into());
+                    }
+                }
+                has_term_freq
+            };
+
+            field_serializer.new_term(term_bytes, total_doc_freq, has_term_freq)?;
 
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.
@@ -567,8 +601,13 @@ impl IndexMerger {
                     if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
                         // we make sure to only write the term if
                         // there is at least one document.
-                        let term_freq = segment_postings.term_freq();
-                        segment_postings.positions(&mut positions_buffer);
+                        let term_freq = if has_term_freq {
+                            segment_postings.positions(&mut positions_buffer);
+                            segment_postings.term_freq()
+                        } else {
+                            0u32
+                        };
+
                         // if doc_id_mapping exists, the doc_ids are reordered, they are
                         // not just stacked. The field serializer expects monotonically increasing
                         // doc_ids, so we collect and sort them first, before writing.

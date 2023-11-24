@@ -74,7 +74,8 @@ impl Weight for BoostWeight {
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let underlying_explanation = self.weight.explain(reader, doc)?;
         let score = underlying_explanation.value() * self.boost;
-        let mut explanation = Explanation::new(format!("Boost x{} of ...", self.boost), score);
+        let mut explanation =
+            Explanation::new_with_string(format!("Boost x{} of ...", self.boost), score);
         explanation.add_detail(underlying_explanation);
         Ok(explanation)
     }
@@ -151,7 +152,7 @@ mod tests {
         let explanation = query.explain(&searcher, DocAddress::new(0, 0u32)).unwrap();
         assert_eq!(
             explanation.to_pretty_json(),
-            "{\n  \"value\": 0.2,\n  \"description\": \"Boost x0.2 of ...\",\n  \"details\": [\n    {\n      \"value\": 1.0,\n      \"description\": \"AllQuery\",\n      \"context\": []\n    }\n  ],\n  \"context\": []\n}"
+            "{\n  \"value\": 0.2,\n  \"description\": \"Boost x0.2 of ...\",\n  \"details\": [\n    {\n      \"value\": 1.0,\n      \"description\": \"AllQuery\"\n    }\n  ]\n}"
         );
         Ok(())
     }

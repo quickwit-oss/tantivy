@@ -625,6 +625,65 @@ fn test_aggregation_on_json_object() {
 }
 
 #[test]
+fn test_aggregation_on_nested_json_object() {
+    let mut schema_builder = Schema::builder();
+    let json = schema_builder.add_json_field("json.blub", FAST);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color.dot": "red", "color": {"nested":"red"} })))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color.dot": "blue", "color": {"nested":"blue"} })))
+        .unwrap();
+    index_writer.commit().unwrap();
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+
+    let agg: Aggregations = serde_json::from_value(json!({
+        "jsonagg1": {
+            "terms": {
+                "field": "json\\.blub.color\\.dot",
+            }
+        },
+        "jsonagg2": {
+            "terms": {
+                "field": "json\\.blub.color.nested",
+            }
+        }
+
+    }))
+    .unwrap();
+
+    let aggregation_collector = get_collector(agg);
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!({
+            "jsonagg1": {
+                "buckets": [
+                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 1, "key": "red"}
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            },
+            "jsonagg2": {
+                "buckets": [
+                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 1, "key": "red"}
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            }
+
+        })
+    );
+}
+
+#[test]
 fn test_aggregation_on_json_object_empty_columns() {
     let mut schema_builder = Schema::builder();
     let json = schema_builder.add_json_field("json", FAST);

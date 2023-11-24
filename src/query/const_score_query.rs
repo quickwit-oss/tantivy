@@ -164,11 +164,9 @@ mod tests {
   "details": [
     {
       "value": 1.0,
-      "description": "AllQuery",
-      "context": []
+      "description": "AllQuery"
     }
-  ],
-  "context": []
+  ]
 }"#
         );
         Ok(())

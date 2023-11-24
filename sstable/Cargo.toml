@@ -11,13 +11,13 @@ description = "sstables for tantivy"
 
 [dependencies]
 common = {version= "0.6", path="../common", package="tantivy-common"}
-tantivy-fst = "0.4"
+tantivy-fst = "0.5"
 # experimental gives us access to Decompressor::upper_bound
 zstd = { version = "0.13", features = ["experimental"] }
 
 [dev-dependencies]
 proptest = "1"
-criterion = "0.5"
+criterion = { version = "0.5", default-features = false }
 names = "0.14"
 rand = "0.8"
 

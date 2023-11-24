@@ -8,7 +8,6 @@ license = "MIT"
 columnar = {path="../", package="tantivy-columnar"}
 serde_json = "1"
 serde_json_borrow = {git="https://github.com/PSeitz/serde_json_borrow/"}
-serde = "1"
 
 [workspace]
 members = []

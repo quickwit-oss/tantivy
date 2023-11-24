@@ -63,7 +63,7 @@ pub mod tests {
         let mut segment = index.new_segment();
         let mut posting_serializer = InvertedIndexSerializer::open(&mut segment)?;
         let mut field_serializer = posting_serializer.new_field(text_field, 120 * 4, None)?;
-        field_serializer.new_term("abc".as_bytes(), 12u32)?;
+        field_serializer.new_term("abc".as_bytes(), 12u32, true)?;
         for doc_id in 0u32..120u32 {
             let delta_positions = vec![1, 2, 3, 2];
             field_serializer.write_doc(doc_id, 4, &delta_positions);

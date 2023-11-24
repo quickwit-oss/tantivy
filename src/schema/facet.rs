@@ -131,16 +131,16 @@ impl Facet {
     pub fn from_path<Path>(path: Path) -> Facet
     where
         Path: IntoIterator,
-        Path::Item: ToString,
+        Path::Item: AsRef<str>,
     {
         let mut facet_string: String = String::with_capacity(100);
         let mut step_it = path.into_iter();
         if let Some(step) = step_it.next() {
-            facet_string.push_str(&step.to_string());
+            facet_string.push_str(step.as_ref());
         }
         for step in step_it {
             facet_string.push(FACET_SEP_CHAR);
-            facet_string.push_str(&step.to_string());
+            facet_string.push_str(step.as_ref());
         }
         Facet(facet_string)
     }
