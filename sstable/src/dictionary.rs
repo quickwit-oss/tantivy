@@ -195,7 +195,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                     io::Error::new(io::ErrorKind::InvalidData, "SSTable corruption")
                 })?,
             ),
-            crate::SSTABLE_VERSION => {
+            3 => {
                 let (sstable_index_bytes, mut footerv3_len_bytes) = sstable_index_bytes.rsplit(8);
                 let store_offset = u64::deserialize(&mut footerv3_len_bytes)?;
                 if store_offset != 0 {
@@ -205,16 +205,15 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                         })?,
                     )
                 } else {
+                    // if store_offset is zero, there is no index, so we build a pseudo-index
+                    // assuming a single block of sstable covering everything.
                     SSTableIndex::V3Empty(SSTableIndexV3Empty::load(index_offset as usize))
                 }
             }
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
-                    format!(
-                        "Unsuported sstable version, expected {}, found {version}",
-                        crate::SSTABLE_VERSION,
-                    ),
+                    format!("Unsuported sstable version, expected one of [2, 3], found {version}"),
                 ))
             }
         };

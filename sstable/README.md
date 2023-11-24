@@ -93,7 +93,7 @@ Note: as the SSTable does not support redundant keys, there is no ambiguity betw
 | Fst | BlockAddrStore | StoreOffset | IndexOffset | NumTerm | Version |
 +-----+----------------+-------------+-------------+---------+---------+
 ```
-- Fst(Fst): finit state transducer mapping keys to a block number
+- Fst(Fst): finite state transducer mapping keys to a block number
 - BlockAddrStore(BlockAddrStore): store mapping a block number to its BlockAddr
 - StoreOffset(u64): Offset to start of the BlockAddrStore. If zero, see the SingleBlockSStable section
 - IndexOffset(u64): Offset to the start of the SSTFooter
@@ -111,21 +111,21 @@ Fst is in the format of tantivy\_fst
 +---------+-----------+-----------+-----+-----------+-----------+-----+
           |---------(N blocks)----------|---------(N blocks)----------|
 
-- MetaLen(u64): lenght of the BlockMeta section
+- MetaLen(u64): length of the BlockMeta section
 - BlockMeta(BlockAddrBlockMetadata): metadata to seek through BlockData
 - BlockData(CompactedBlockAddr): bitpacked per block metadata
 
 ### BlockAddrBlockMetadata
 
-+--------+------------+---------------+-----------+-------------+-------------------+-----------------+----------+
-| Offset | RangeStart | FirstOrdianal | RangeSlop | OrdinalSlop | FirstOrdinalNBits | RangeStartNBits | BlockLen |
-+--------+------------+---------------+-----------+-------------+-------------------+-----------------+----------+
++--------+------------+--------------+------------+--------------+-------------------+-----------------+----------+
+| Offset | RangeStart | FirstOrdinal | RangeSlope | OrdinalSlope | FirstOrdinalNBits | RangeStartNBits | BlockLen |
++--------+------------+--------------+------------+--------------+-------------------+-----------------+----------+
 
 - Offset(u64): offset of the corresponding BlockData in the datastream
 - RangeStart(u64): the start position of the first block
 - FirstOrdinal(u64): the first ordinal of the first block
-- RangeSlop(u32): slop predicted for start range evolution (see computation in BlockData)
-- OrdinalSlop(u64): slop predicted for first ordinal evolution (see computation in BlockData)
+- RangeSlope(u32): slope predicted for start range evolution (see computation in BlockData)
+- OrdinalSlope(u64): slope predicted for first ordinal evolution (see computation in BlockData)
 - FirstOrdinalNBits(u8): number of bits per ordinal in datastream (see computation in BlockData)
 - RangeStartNBits(u8): number of bits per range start in datastream (see computation in BlockData)
 
