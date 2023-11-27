@@ -307,6 +307,7 @@ pub mod tests {
     ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         schema_builder.add_date_field("date", FAST);
+        schema_builder.add_json_field("mixed", FAST);
         schema_builder.add_text_field("text", FAST | STRING);
         schema_builder.add_text_field("text2", FAST | STRING);
         let schema = schema_builder.build();

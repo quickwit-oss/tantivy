@@ -13,6 +13,7 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::collector::TopNComputer;
+use crate::schema::term::JSON_PATH_SEGMENT_SEP_STR;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 
@@ -147,11 +148,17 @@ impl RetrievalFields {
                 }
 
                 let pattern = globbed_string_to_regex(&field)?;
-                Ok(reader
+                let fields = reader
                     .iter_columns()?
-                    .filter(|(name, _)| pattern.is_match(name))
-                    .map(|(name, _)| name)
-                    .collect::<Vec<_>>())
+                    .map(|(name, _)| /* normalize path from internal fast field repr */ name.replace(JSON_PATH_SEGMENT_SEP_STR, "."))
+                    .filter(|name| pattern.is_match(name))
+                    .collect::<Vec<_>>();
+                assert!(
+                    !fields.is_empty(),
+                    "No fields matched the glob '{}' in docvalue_fields",
+                    field
+                );
+                Ok(fields)
             })
             .collect::<crate::Result<Vec<_>>>()?
             .into_iter()
@@ -178,7 +185,7 @@ impl RetrievalFields {
 
                 let values: Vec<OwnedValue> = accessors
                     .iter()
-                    .map(|accessor| match accessor {
+                    .flat_map(|accessor| match accessor {
                         DynamicColumn::U64(accessor) => accessor
                             .values_for_doc(doc_id)
                             .map(OwnedValue::U64)
@@ -230,7 +237,6 @@ impl RetrievalFields {
                             .map(OwnedValue::Date)
                             .collect::<Vec<_>>(),
                     })
-                    .flatten()
                     .collect();
 
                 (field.to_owned(), OwnedValue::Array(values))
@@ -749,12 +755,12 @@ mod tests {
     fn test_aggregation_top_hits(merge_segments: bool) -> crate::Result<()> {
         let docs = vec![
             vec![
-                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb" }"#,
-                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd" }"#,
+                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb", "mixed": { "dyn_arr": [1, "2"] } }"#,
+                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd", "mixed": { "dyn_arr": [3, "4"] } }"#,
             ],
             vec![
-                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z" }"#,
-                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z" }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z", "mixed": { "dyn_arr": ["9", 8] } }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z", "mixed": { "dyn_arr": ["7", 6] } }"#,
             ],
         ];
 
@@ -771,6 +777,7 @@ mod tests {
                     "docvalue_fields": [
                         "date",
                         "tex*",
+                        "mixed.*",
                     ],
                 }
         }
@@ -796,6 +803,7 @@ mod tests {
                             "date": [ SchemaValue::Date(DateTime::from_utc(date_2017)) ],
                             "text": [ "ccc" ],
                             "text2": [ "ddd" ],
+                            "mixed.dyn_arr": [ 3, "4" ],
                         }
                     },
                     {
@@ -804,6 +812,7 @@ mod tests {
                             "date": [ SchemaValue::Date(DateTime::from_utc(date_2016)) ],
                             "text": [ "aaa" ],
                             "text2": [ "bbb" ],
+                            "mixed.dyn_arr": [ 6, "7" ],
                         }
                     }
                 ]

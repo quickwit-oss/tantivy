@@ -309,7 +309,7 @@ impl AggregationWithAccessor {
                     .map(|field_name| {
                         Ok((
                             field_name.to_string(),
-                            get_dynamic_column(reader, field_name)?,
+                            get_dynamic_columns(reader, &field_name)?,
                         ))
                     })
                     .collect::<crate::Result<_>>()?;
@@ -395,7 +395,7 @@ fn get_ff_reader(
     Ok(ff_field_with_type)
 }
 
-fn get_dynamic_column(
+fn get_dynamic_columns(
     reader: &SegmentReader,
     field_name: &str,
 ) -> crate::Result<Vec<columnar::DynamicColumn>> {
