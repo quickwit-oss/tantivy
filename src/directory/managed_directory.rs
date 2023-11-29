@@ -160,21 +160,15 @@ impl ManagedDirectory {
                     info!("Deleted {:?}", file_to_delete);
                     deleted_files.push(file_to_delete);
                 }
-                Err(file_error) => {
-                    match file_error {
-                        DeleteError::FileDoesNotExist(_) => {
-                            deleted_files.push(file_to_delete.clone());
-                        }
-                        DeleteError::IoError { .. } => {
-                            failed_to_delete_files.push(file_to_delete.clone());
-                            if !cfg!(target_os = "windows") {
-                                // On windows, delete is expected to fail if the file
-                                // is mmapped.
-                                error!("Failed to delete {:?}", file_to_delete);
-                            }
-                        }
+                Err(file_error) => match file_error {
+                    DeleteError::FileDoesNotExist(_) => {
+                        deleted_files.push(file_to_delete.clone());
                     }
-                }
+                    DeleteError::IoError { .. } => {
+                        failed_to_delete_files.push(file_to_delete.clone());
+                        error!("Failed to delete {:?}", file_to_delete);
+                    }
+                },
             }
         }
 
@@ -399,15 +393,6 @@ mod tests_mmap_specific {
         assert!(managed_directory
             .garbage_collect(|| living_files.clone())
             .is_ok());
-        if cfg!(target_os = "windows") {
-            // On Windows, gc should try and fail the file as it is mmapped.
-            assert!(managed_directory.exists(test_path1).unwrap());
-            // unmap should happen here.
-            drop(_mmap_read);
-            // The file should still be in the list of managed file and
-            // eventually be deleted once mmap is released.
-            assert!(managed_directory.garbage_collect(|| living_files).is_ok());
-        }
         assert!(!managed_directory.exists(test_path1).unwrap());
     }
 }
