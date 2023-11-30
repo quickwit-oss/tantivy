@@ -145,12 +145,14 @@ range\_prediction := RangeStart + Index * RangeSlop;
 range\_derivation := RangeStartDelta - (1 << (RangeStartNBits-1));
 range\_start := range\_prediction + range\_derivation
 
-the same computation can be done for ordinal
+The same computation can be done for ordinal.
+
+Note that `range_derivation` can take negative value. `RangeStartDelta` is just its translation to a positive range.
 
 
 ## SingleBlockSStable
 
-The format used for the index is meant to be compact, however it has a constant cost of arround 70
+The format used for the index is meant to be compact, however it has a constant cost of around 70
 bytes, which isn't negligible for a table containing very few keys.
 To limit the impact of that constant cost, single block sstable omit the Fst and BlockAddrStore from
 their index. Instead a block with first ordinal of 0, range start of 0 and range end of IndexOffset
