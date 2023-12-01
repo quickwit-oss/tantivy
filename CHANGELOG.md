@@ -1,10 +1,3 @@
-Tantivy 0.21.2
-================================
-#### Bugfixes
-- Bugfix: Merge operations would panic for JsonObject with position enabled, when they contain numbers or booleans. [#2251](https://github.com/quickwit-oss/tantivy/issues/2251).
-#### Features/Improvements
-
-
 Tantivy 0.21.1
 ================================
 #### Bugfixes
