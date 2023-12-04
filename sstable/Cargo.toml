@@ -11,6 +11,7 @@ description = "sstables for tantivy"
 
 [dependencies]
 common = {version= "0.6", path="../common", package="tantivy-common"}
+tantivy-bitpacker = { version= "0.5", path="../bitpacker" }
 tantivy-fst = "0.5"
 # experimental gives us access to Decompressor::upper_bound
 zstd = { version = "0.13", features = ["experimental"] }
