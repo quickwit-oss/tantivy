@@ -129,10 +129,7 @@ pub mod tests {
             );
         }
 
-        for (_, doc) in store
-            .iter::<TantivyDocument>(Some(&alive_bitset))
-            .enumerate()
-        {
+        for doc in store.iter::<TantivyDocument>(Some(&alive_bitset)) {
             let doc = doc?;
             let title_content = doc.get_first(field_title).unwrap().as_str().unwrap();
             if !title_content.starts_with("Doc ") {
