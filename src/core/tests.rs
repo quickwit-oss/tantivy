@@ -424,7 +424,7 @@ fn test_non_text_json_term_freq() {
     json_term_writer.set_fast_value(75u64);
     let postings = inv_idx
         .read_postings(
-            &json_term_writer.term(),
+            json_term_writer.term(),
             IndexRecordOption::WithFreqsAndPositions,
         )
         .unwrap()
@@ -462,7 +462,7 @@ fn test_non_text_json_term_freq_bitpacked() {
     json_term_writer.set_fast_value(75u64);
     let mut postings = inv_idx
         .read_postings(
-            &json_term_writer.term(),
+            json_term_writer.term(),
             IndexRecordOption::WithFreqsAndPositions,
         )
         .unwrap()
@@ -473,4 +473,61 @@ fn test_non_text_json_term_freq_bitpacked() {
         assert_eq!(postings.advance(), i);
         assert_eq!(postings.term_freq(), 1u32);
     }
+}
+
+#[cfg(feature = "quickwit")]
+#[test]
+fn test_get_many_docs() -> crate::Result<()> {
+    use futures::executor::block_on;
+    use futures::stream::{FuturesUnordered, StreamExt};
+
+    use crate::schema::{OwnedValue, STORED};
+    use crate::{DocAddress, TantivyError};
+
+    let mut schema_builder = Schema::builder();
+    let num_field = schema_builder.add_u64_field("num", STORED);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer: IndexWriter = index.writer_for_tests()?;
+    index_writer.set_merge_policy(Box::new(NoMergePolicy));
+    for i in 0..10u64 {
+        let doc = doc!(num_field=>i);
+        index_writer.add_document(doc)?;
+    }
+
+    index_writer.commit()?;
+    let segment_ids = index.searchable_segment_ids()?;
+    index_writer.merge(&segment_ids).wait().unwrap();
+
+    let searcher = index.reader()?.searcher();
+    assert_eq!(searcher.num_docs(), 10);
+
+    let doc_addresses = (0..10).map(|i| DocAddress::new(0, i));
+
+    let mut groups: FuturesUnordered<_> = searcher
+        .docs_async::<TantivyDocument>(doc_addresses)?
+        .collect();
+
+    let mut doc_nums = Vec::new();
+
+    block_on(async {
+        while let Some(group) = groups.next().await {
+            for (_doc_address, doc) in group? {
+                let num_value = doc.get_first(num_field).unwrap();
+
+                if let OwnedValue::U64(num) = num_value {
+                    doc_nums.push(*num);
+                } else {
+                    panic!("Expected u64 value");
+                }
+            }
+        }
+
+        Ok::<_, TantivyError>(())
+    })?;
+
+    doc_nums.sort();
+    assert_eq!(doc_nums, (0..10).collect::<Vec<u64>>());
+
+    Ok(())
 }

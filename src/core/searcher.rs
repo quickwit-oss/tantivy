@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+#[cfg(feature = "quickwit")]
+use std::future::Future;
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -110,6 +112,107 @@ impl Searcher {
     ) -> crate::Result<D> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id).await
+    }
+
+    /// Fetches multiple documents in an asynchronous manner.
+    ///
+    /// This method is more efficient than calling [`doc_async`](Self::doc_async) multiple times,
+    /// as it groups overlapping requests to segments and blocks and avoids concurrent requests
+    /// trashing the caches of each other. However, it does so using intermediate data structures
+    /// and independent block caches so it will be slower if documents from very few blocks are
+    /// fetched which would have fit into the global block cache.
+    ///
+    /// The caller is expected to poll these futures concurrently (e.g. using `FuturesUnordered`)
+    /// or in parallel (e.g. using `JoinSet`) as fits best with the given use case, i.e. whether
+    /// it is predominately I/O-bound or rather CPU-bound.
+    ///
+    /// Note that any blocks brought into any of the per-segment-and-block groups will not be pulled
+    /// into the global block cache and hence not be available for subsequent calls.
+    ///
+    /// Note that there is no synchronous variant of this method as the same degree of efficiency
+    /// can be had by accessing documents in address order.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use futures::executor::block_on;
+    /// # use futures::stream::{FuturesUnordered, StreamExt};
+    /// #
+    /// # use tantivy::schema::Schema;
+    /// # use tantivy::{DocAddress, Index, TantivyDocument, TantivyError};
+    /// #
+    /// # let index = Index::create_in_ram(Schema::builder().build());
+    /// # let searcher = index.reader()?.searcher();
+    /// #
+    /// # let doc_addresses = (0..10).map(|_| DocAddress::new(0, 0));
+    /// #
+    /// let mut groups: FuturesUnordered<_> = searcher
+    ///     .docs_async::<TantivyDocument>(doc_addresses)?
+    ///     .collect();
+    ///
+    /// let mut docs = Vec::new();
+    ///
+    /// block_on(async {
+    ///     while let Some(group) = groups.next().await {
+    ///         docs.extend(group?);
+    ///     }
+    ///
+    ///     Ok::<_, TantivyError>(())
+    /// })?;
+    /// #
+    /// # Ok::<_, TantivyError>(())
+    /// ```
+    #[cfg(feature = "quickwit")]
+    pub fn docs_async<D: DocumentDeserialize>(
+        &self,
+        doc_addresses: impl IntoIterator<Item = DocAddress>,
+    ) -> crate::Result<
+        impl Iterator<Item = impl Future<Output = crate::Result<Vec<(DocAddress, D)>>>> + '_,
+    > {
+        use rustc_hash::FxHashMap;
+
+        use crate::store::CacheKey;
+        use crate::{DocId, SegmentOrdinal};
+
+        let mut groups: FxHashMap<(SegmentOrdinal, CacheKey), Vec<DocId>> = Default::default();
+
+        for doc_address in doc_addresses {
+            let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
+            let cache_key = store_reader.cache_key(doc_address.doc_id)?;
+
+            groups
+                .entry((doc_address.segment_ord, cache_key))
+                .or_default()
+                .push(doc_address.doc_id);
+        }
+
+        let futures = groups
+            .into_iter()
+            .map(|((segment_ord, _cache_key), doc_ids)| {
+                // Each group fetches documents from exactly one block and
+                // therefore gets an independent block cache of size one.
+                let store_reader = self.inner.store_readers[segment_ord as usize].fork_cache(1);
+
+                async move {
+                    let mut docs = Vec::new();
+
+                    for doc_id in doc_ids {
+                        let doc = store_reader.get_async(doc_id).await?;
+
+                        docs.push((
+                            DocAddress {
+                                segment_ord,
+                                doc_id,
+                            },
+                            doc,
+                        ));
+                    }
+
+                    Ok(docs)
+                }
+            });
+
+        Ok(futures)
     }
 
     /// Access the schema associated with the index of this searcher.
