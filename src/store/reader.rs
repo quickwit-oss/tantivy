@@ -92,7 +92,7 @@ impl BlockCache {
 
 /// Opaque cache key which indicates which documents are cached together.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CacheKey(usize);
+pub(crate) struct CacheKey(usize);
 
 #[derive(Debug, Default)]
 /// CacheStats for the `StoreReader`.
@@ -148,7 +148,8 @@ impl StoreReader {
     }
 
     /// Clones the given store reader with an independent block cache of the given size.
-    pub fn fork_cache(&self, cache_num_blocks: usize) -> Self {
+    #[cfg(feature = "quickwit")]
+    pub(crate) fn fork_cache(&self, cache_num_blocks: usize) -> Self {
         Self {
             decompressor: self.decompressor,
             data: self.data.clone(),
@@ -180,7 +181,8 @@ impl StoreReader {
     ///
     /// Note that looking up the cache key of a document
     /// will not yet pull anything into the block cache.
-    pub fn cache_key(&self, doc_id: DocId) -> crate::Result<CacheKey> {
+    #[cfg(feature = "quickwit")]
+    pub(crate) fn cache_key(&self, doc_id: DocId) -> crate::Result<CacheKey> {
         let checkpoint = self.block_checkpoint(doc_id)?;
         Ok(CacheKey(checkpoint.byte_range.start))
     }
