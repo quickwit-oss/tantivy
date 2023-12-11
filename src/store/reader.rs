@@ -148,15 +148,26 @@ impl StoreReader {
     }
 
     /// Clones the given store reader with an independent block cache of the given size.
+    ///
+    /// `cache_keys` is used to seed the forked cache from the current cache
+    /// if some blocks are already available.
     #[cfg(feature = "quickwit")]
-    pub(crate) fn fork_cache(&self, cache_num_blocks: usize) -> Self {
-        Self {
+    pub(crate) fn fork_cache(&self, cache_num_blocks: usize, cache_keys: &[CacheKey]) -> Self {
+        let forked = Self {
             decompressor: self.decompressor,
             data: self.data.clone(),
             cache: BlockCache::new(cache_num_blocks),
             skip_index: Arc::clone(&self.skip_index),
             space_usage: self.space_usage.clone(),
+        };
+
+        for &CacheKey(pos) in cache_keys {
+            if let Some(block) = self.cache.get_from_cache(pos) {
+                forked.cache.put_into_cache(pos, block);
+            }
         }
+
+        forked
     }
 
     pub(crate) fn block_checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {

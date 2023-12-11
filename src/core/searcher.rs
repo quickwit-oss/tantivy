@@ -188,10 +188,11 @@ impl Searcher {
 
         let futures = groups
             .into_iter()
-            .map(|((segment_ord, _cache_key), doc_ids)| {
+            .map(|((segment_ord, cache_key), doc_ids)| {
                 // Each group fetches documents from exactly one block and
                 // therefore gets an independent block cache of size one.
-                let store_reader = self.inner.store_readers[segment_ord as usize].fork_cache(1);
+                let store_reader =
+                    self.inner.store_readers[segment_ord as usize].fork_cache(1, &[cache_key]);
 
                 async move {
                     let mut docs = Vec::new();
