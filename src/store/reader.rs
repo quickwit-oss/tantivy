@@ -90,6 +90,10 @@ impl BlockCache {
     }
 }
 
+/// Opaque cache key which indicates which documents are cached together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CacheKey(usize);
+
 #[derive(Debug, Default)]
 /// CacheStats for the `StoreReader`.
 pub struct CacheStats {
@@ -165,6 +169,20 @@ impl StoreReader {
     /// Returns the cache hit and miss statistics of the store reader.
     pub(crate) fn cache_stats(&self) -> CacheStats {
         self.cache.stats()
+    }
+
+    /// Returns the cache key for a given document
+    ///
+    /// These keys are opaque and are not used with the public API,
+    /// but having the same cache key means that the documents
+    /// will only require one I/O and decompression operation
+    /// when retrieve from the same store reader consecutively.
+    ///
+    /// Note that looking up the cache key of a document
+    /// will not yet pull anything into the block cache.
+    pub fn cache_key(&self, doc_id: DocId) -> crate::Result<CacheKey> {
+        let checkpoint = self.block_checkpoint(doc_id)?;
+        Ok(CacheKey(checkpoint.byte_range.start))
     }
 
     /// Get checkpoint for `DocId`. The checkpoint can be used to load a block containing the

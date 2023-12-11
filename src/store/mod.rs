@@ -38,7 +38,7 @@ mod writer;
 pub use self::compressors::{Compressor, ZstdCompressor};
 pub use self::decompressors::Decompressor;
 pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
-pub use self::reader::{CacheStats, StoreReader};
+pub use self::reader::{CacheKey, CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
 mod store_compressor;
 
