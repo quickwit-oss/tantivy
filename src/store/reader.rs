@@ -40,6 +40,15 @@ struct BlockCache {
 }
 
 impl BlockCache {
+    fn new(cache_num_blocks: usize) -> Self {
+        Self {
+            cache: NonZeroUsize::new(cache_num_blocks)
+                .map(|cache_num_blocks| Mutex::new(LruCache::new(cache_num_blocks))),
+            cache_hits: Default::default(),
+            cache_misses: Default::default(),
+        }
+    }
+
     fn get_from_cache(&self, pos: usize) -> Option<Block> {
         if let Some(block) = self
             .cache
@@ -128,15 +137,21 @@ impl StoreReader {
         Ok(StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
-            cache: BlockCache {
-                cache: NonZeroUsize::new(cache_num_blocks)
-                    .map(|cache_num_blocks| Mutex::new(LruCache::new(cache_num_blocks))),
-                cache_hits: Default::default(),
-                cache_misses: Default::default(),
-            },
+            cache: BlockCache::new(cache_num_blocks),
             skip_index: Arc::new(skip_index),
             space_usage,
         })
+    }
+
+    /// Clones the given store reader with an independent block cache of the given size.
+    pub fn fork_cache(&self, cache_num_blocks: usize) -> Self {
+        Self {
+            decompressor: self.decompressor,
+            data: self.data.clone(),
+            cache: BlockCache::new(cache_num_blocks),
+            skip_index: Arc::clone(&self.skip_index),
+            space_usage: self.space_usage.clone(),
+        }
     }
 
     pub(crate) fn block_checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {
