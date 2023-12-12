@@ -108,7 +108,16 @@ impl FieldEntry {
         self.field_type.is_fast()
     }
 
+    /// Returns true if the field has the expand dots option set (for json fields)
+    pub fn is_expand_dots_enabled(&self) -> bool {
+        match self.field_type {
+            FieldType::JsonObject(ref options) => options.is_expand_dots_enabled(),
+            _ => false,
+        }
+    }
+
     /// Returns true if the field is stored
+    #[inline]
     pub fn is_stored(&self) -> bool {
         match self.field_type {
             FieldType::U64(ref options)

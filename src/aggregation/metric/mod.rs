@@ -88,7 +88,7 @@ mod tests {
     use crate::aggregation::AggregationCollector;
     use crate::query::AllQuery;
     use crate::schema::{NumericOptions, Schema};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     #[test]
     fn test_metric_aggregations() {
@@ -96,7 +96,7 @@ mod tests {
         let field_options = NumericOptions::default().set_fast();
         let field = schema_builder.add_f64_field("price", field_options);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
 
         for i in 0..3 {
             index_writer

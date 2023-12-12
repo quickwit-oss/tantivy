@@ -1,3 +1,8 @@
+//! # `column_index`
+//!
+//! `column_index` provides rank and select operations to associate positions when not all
+//! documents have exactly one element.
+
 mod merge;
 mod multivalued_index;
 mod optional_index;
@@ -41,10 +46,10 @@ impl ColumnIndex {
     pub fn is_multivalue(&self) -> bool {
         matches!(self, ColumnIndex::Multivalued(_))
     }
-    // Returns the cardinality of the column index.
-    //
-    // By convention, if the column contains no docs, we consider that it is
-    // full.
+    /// Returns the cardinality of the column index.
+    ///
+    /// By convention, if the column contains no docs, we consider that it is
+    /// full.
     #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
         match self {

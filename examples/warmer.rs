@@ -6,8 +6,8 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, TEXT};
 use tantivy::{
-    doc, DocAddress, DocId, Index, Opstamp, Searcher, SearcherGeneration, SegmentId, SegmentReader,
-    Warmer,
+    doc, DocAddress, DocId, Index, IndexWriter, Opstamp, Searcher, SearcherGeneration, SegmentId,
+    SegmentReader, Warmer,
 };
 
 // This example shows how warmers can be used to
@@ -143,7 +143,7 @@ fn main() -> tantivy::Result<()> {
     const SNEAKERS: ProductId = 23222;
 
     let index = Index::create_in_ram(schema);
-    let mut writer = index.writer_with_num_threads(1, 15_000_000)?;
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000)?;
     writer.add_document(doc!(product_id=>OLIVE_OIL, text=>"cooking olive oil from greece"))?;
     writer.add_document(doc!(product_id=>GLOVES, text=>"kitchen gloves, perfect for cooking"))?;
     writer.add_document(doc!(product_id=>SNEAKERS, text=>"uber sweet sneakers"))?;

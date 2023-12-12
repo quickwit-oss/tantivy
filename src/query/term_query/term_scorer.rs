@@ -93,7 +93,7 @@ impl TermScorer {
     }
 
     pub fn last_doc_in_block(&self) -> DocId {
-        self.postings.block_cursor.skip_reader.last_doc_in_block()
+        self.postings.block_cursor.skip_reader().last_doc_in_block()
     }
 }
 
@@ -127,13 +127,15 @@ impl Scorer for TermScorer {
 mod tests {
     use proptest::prelude::*;
 
+    use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::merge_policy::NoMergePolicy;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::term_query::TermScorer;
     use crate::query::{Bm25Weight, EnableScoring, Scorer, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TEXT};
     use crate::{
-        assert_nearly_equals, DocId, DocSet, Index, Score, Searcher, SegmentId, Term, TERMINATED,
+        assert_nearly_equals, DocId, DocSet, Index, IndexWriter, Score, Searcher, SegmentId, Term,
+        TERMINATED,
     };
 
     #[test]
@@ -295,7 +297,8 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer = index.writer_with_num_threads(3, 30_000_000)?;
+        let mut writer: IndexWriter =
+            index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
         use rand::Rng;
         let mut rng = rand::thread_rng();
         writer.set_merge_policy(Box::new(NoMergePolicy));

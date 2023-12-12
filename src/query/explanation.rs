@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 
 use serde::Serialize;
@@ -16,12 +17,12 @@ pub(crate) fn does_not_match(doc: DocId) -> TantivyError {
 #[derive(Clone, Serialize)]
 pub struct Explanation {
     value: Score,
-    description: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    details: Vec<Explanation>,
-    context: Vec<String>,
+    description: Cow<'static, str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<Vec<Explanation>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context: Option<Vec<String>>,
 }
-
 impl fmt::Debug for Explanation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Explanation({})", self.to_pretty_json())
@@ -30,12 +31,21 @@ impl fmt::Debug for Explanation {
 
 impl Explanation {
     /// Creates a new explanation object.
-    pub fn new<T: ToString>(description: T, value: Score) -> Explanation {
+    pub fn new_with_string(description: String, value: Score) -> Explanation {
         Explanation {
             value,
-            description: description.to_string(),
-            details: vec![],
-            context: vec![],
+            description: Cow::Owned(description),
+            details: None,
+            context: None,
+        }
+    }
+    /// Creates a new explanation object.
+    pub fn new(description: &'static str, value: Score) -> Explanation {
+        Explanation {
+            value,
+            description: Cow::Borrowed(description),
+            details: None,
+            context: None,
         }
     }
 
@@ -48,17 +58,21 @@ impl Explanation {
     ///
     /// Details are treated as child of the current node.
     pub fn add_detail(&mut self, child_explanation: Explanation) {
-        self.details.push(child_explanation);
+        self.details
+            .get_or_insert_with(Vec::new)
+            .push(child_explanation);
     }
 
     /// Adds some extra context to the explanation.
     pub fn add_context(&mut self, context: String) {
-        self.context.push(context);
+        self.context.get_or_insert_with(Vec::new).push(context);
     }
 
     /// Shortcut for `self.details.push(Explanation::new(name, value));`
-    pub fn add_const<T: ToString>(&mut self, name: T, value: Score) {
-        self.details.push(Explanation::new(name, value));
+    pub fn add_const(&mut self, name: &'static str, value: Score) {
+        self.details
+            .get_or_insert_with(Vec::new)
+            .push(Explanation::new(name, value));
     }
 
     /// Returns an indented json representation of the explanation tree for debug usage.

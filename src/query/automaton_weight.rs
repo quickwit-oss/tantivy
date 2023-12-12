@@ -131,13 +131,13 @@ mod tests {
     use crate::docset::TERMINATED;
     use crate::query::Weight;
     use crate::schema::{Schema, STRING};
-    use crate::Index;
+    use crate::{Index, IndexWriter};
 
     fn create_index() -> crate::Result<Index> {
         let mut schema = Schema::builder();
         let title = schema.add_text_field("title", STRING);
         let index = Index::create_in_ram(schema.build());
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(title=>"abc"))?;
         index_writer.add_document(doc!(title=>"bcd"))?;
         index_writer.add_document(doc!(title=>"abcd"))?;

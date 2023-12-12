@@ -26,7 +26,7 @@ fn test_dataframe_writer_str() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 87);
+    assert_eq!(cols[0].num_bytes(), 73);
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_dataframe_writer_bytes() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 87);
+    assert_eq!(cols[0].num_bytes(), 73);
 }
 
 #[test]
@@ -330,9 +330,9 @@ fn bytes_strategy() -> impl Strategy<Value = &'static [u8]> {
 // A random column value
 fn column_value_strategy() -> impl Strategy<Value = ColumnValue> {
     prop_oneof![
-        10 => string_strategy().prop_map(|s| ColumnValue::Str(s)),
-        1 => bytes_strategy().prop_map(|b| ColumnValue::Bytes(b)),
-        40 => num_strategy().prop_map(|n| ColumnValue::Numerical(n)),
+        10 => string_strategy().prop_map(ColumnValue::Str),
+        1 => bytes_strategy().prop_map(ColumnValue::Bytes),
+        40 => num_strategy().prop_map(ColumnValue::Numerical),
         1 => (1u16..3u16).prop_map(|ip_addr_byte| ColumnValue::IpAddr(Ipv6Addr::new(
             127,
             0,
@@ -343,7 +343,7 @@ fn column_value_strategy() -> impl Strategy<Value = ColumnValue> {
             0,
             ip_addr_byte
         ))),
-        1 => any::<bool>().prop_map(|b| ColumnValue::Bool(b)),
+        1 => any::<bool>().prop_map(ColumnValue::Bool),
         1 => (0_679_723_993i64..1_679_723_995i64)
             .prop_map(|val| { ColumnValue::DateTime(DateTime::from_timestamp_secs(val)) })
     ]
@@ -419,8 +419,8 @@ fn build_columnar_with_mapping(
     columnar_writer
         .serialize(num_docs, old_to_new_row_ids_opt, &mut buffer)
         .unwrap();
-    let columnar_reader = ColumnarReader::open(buffer).unwrap();
-    columnar_reader
+
+    ColumnarReader::open(buffer).unwrap()
 }
 
 fn build_columnar(docs: &[Vec<(&'static str, ColumnValue)>]) -> ColumnarReader {
@@ -746,7 +746,7 @@ proptest! {
         let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]).into();
         crate::merge_columnar(&columnar_readers_arr[..], &[], stack_merge_order, &mut output).unwrap();
         let merged_columnar = ColumnarReader::open(output).unwrap();
-        let concat_rows: Vec<Vec<(&'static str, ColumnValue)>> = columnar_docs.iter().cloned().flatten().collect();
+        let concat_rows: Vec<Vec<(&'static str, ColumnValue)>> = columnar_docs.iter().flatten().cloned().collect();
         let expected_merged_columnar = build_columnar(&concat_rows[..]);
         assert_columnar_eq_strict(&merged_columnar, &expected_merged_columnar);
     }
@@ -772,7 +772,7 @@ fn test_columnar_merging_empty_columnar() {
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
     let concat_rows: Vec<Vec<(&'static str, ColumnValue)>> =
-        columnar_docs.iter().cloned().flatten().collect();
+        columnar_docs.iter().flatten().cloned().collect();
     let expected_merged_columnar = build_columnar(&concat_rows[..]);
     assert_columnar_eq_strict(&merged_columnar, &expected_merged_columnar);
 }
@@ -809,7 +809,7 @@ fn test_columnar_merging_number_columns() {
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
     let concat_rows: Vec<Vec<(&'static str, ColumnValue)>> =
-        columnar_docs.iter().cloned().flatten().collect();
+        columnar_docs.iter().flatten().cloned().collect();
     let expected_merged_columnar = build_columnar(&concat_rows[..]);
     assert_columnar_eq_strict(&merged_columnar, &expected_merged_columnar);
 }

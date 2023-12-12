@@ -76,12 +76,14 @@ impl Weight for FastFieldRangeWeight {
         else {
             return Ok(Box::new(EmptyScorer));
         };
+        #[allow(clippy::reversed_empty_ranges)]
         let value_range = bound_to_value_range(
             &self.lower_bound,
             &self.upper_bound,
             column.min_value(),
             column.max_value(),
-        );
+        )
+        .unwrap_or(1..=0); // empty range
         if value_range.is_empty() {
             return Ok(Box::new(EmptyScorer));
         }
@@ -102,15 +104,17 @@ impl Weight for FastFieldRangeWeight {
     }
 }
 
+// Returns None, if the range cannot be converted to a inclusive range (which equals to a empty
+// range).
 fn bound_to_value_range<T: MonotonicallyMappableToU64>(
     lower_bound: &Bound<T>,
     upper_bound: &Bound<T>,
     min_value: T,
     max_value: T,
-) -> RangeInclusive<T> {
+) -> Option<RangeInclusive<T>> {
     let mut start_value = match lower_bound {
         Bound::Included(val) => *val,
-        Bound::Excluded(val) => T::from_u64(val.to_u64() + 1),
+        Bound::Excluded(val) => T::from_u64(val.to_u64().checked_add(1)?),
         Bound::Unbounded => min_value,
     };
     if start_value.partial_cmp(&min_value) == Some(std::cmp::Ordering::Less) {
@@ -118,10 +122,10 @@ fn bound_to_value_range<T: MonotonicallyMappableToU64>(
     }
     let end_value = match upper_bound {
         Bound::Included(val) => *val,
-        Bound::Excluded(val) => T::from_u64(val.to_u64() - 1),
+        Bound::Excluded(val) => T::from_u64(val.to_u64().checked_sub(1)?),
         Bound::Unbounded => max_value,
     };
-    start_value..=end_value
+    Some(start_value..=end_value)
 }
 
 #[cfg(test)]
@@ -137,7 +141,7 @@ pub mod tests {
     use crate::query::range_query::range_query_u64_fastfield::FastFieldRangeWeight;
     use crate::query::{QueryParser, Weight};
     use crate::schema::{NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING};
-    use crate::{Index, TERMINATED};
+    use crate::{Index, IndexWriter, TERMINATED};
 
     #[derive(Clone, Debug)]
     pub struct Doc {
@@ -205,7 +209,7 @@ pub mod tests {
         let field = schema_builder.add_u64_field("test_field", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer = index.writer_for_tests().unwrap();
+        let mut writer: IndexWriter = index.writer_for_tests().unwrap();
         writer.add_document(doc!(field=>52_000u64)).unwrap();
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
@@ -295,6 +299,9 @@ pub mod tests {
         let gen_query_inclusive = |field: &str, range: RangeInclusive<u64>| {
             format!("{}:[{} TO {}]", field, range.start(), range.end())
         };
+        let gen_query_exclusive = |field: &str, range: RangeInclusive<u64>| {
+            format!("{}:{{{} TO {}}}", field, range.start(), range.end())
+        };
 
         let test_sample = |sample_docs: Vec<Doc>| {
             let mut ids: Vec<u64> = sample_docs.iter().map(|doc| doc.id).collect();
@@ -308,6 +315,20 @@ pub mod tests {
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
             let query = gen_query_inclusive("ids", ids[0]..=ids[1]);
+            assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+
+            // Exclusive range
+            let expected_num_hits = docs
+                .iter()
+                .filter(|doc| {
+                    (ids[0].saturating_add(1)..=ids[1].saturating_sub(1)).contains(&doc.id)
+                })
+                .count();
+
+            let query = gen_query_exclusive("id", ids[0]..=ids[1]);
+            assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+
+            let query = gen_query_exclusive("ids", ids[0]..=ids[1]);
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
 
             // Intersection search

@@ -1,5 +1,7 @@
 use stacker::{ArenaHashMap, MemoryArena};
 
+use crate::indexer::path_to_unordered_id::PathToUnorderedId;
+
 /// IndexingContext contains all of the transient memory arenas
 /// required for building the inverted index.
 pub(crate) struct IndexingContext {
@@ -8,6 +10,7 @@ pub(crate) struct IndexingContext {
     pub term_index: ArenaHashMap,
     /// Arena is a memory arena that stores posting lists / term frequencies / positions.
     pub arena: MemoryArena,
+    pub path_to_unordered_id: PathToUnorderedId,
 }
 
 impl IndexingContext {
@@ -17,6 +20,7 @@ impl IndexingContext {
         IndexingContext {
             arena: MemoryArena::default(),
             term_index,
+            path_to_unordered_id: PathToUnorderedId::default(),
         }
     }
 

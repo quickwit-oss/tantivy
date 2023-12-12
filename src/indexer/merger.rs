@@ -552,7 +552,41 @@ impl IndexMerger {
                 continue;
             }
 
-            field_serializer.new_term(term_bytes, total_doc_freq)?;
+            // This should never happen as we early exited for total_doc_freq == 0.
+            assert!(!segment_postings_containing_the_term.is_empty());
+
+            let has_term_freq = {
+                let has_term_freq = !segment_postings_containing_the_term[0]
+                    .1
+                    .block_cursor
+                    .freqs()
+                    .is_empty();
+                for (_, postings) in &segment_postings_containing_the_term[1..] {
+                    // This may look at a strange way to test whether we have term freq or not.
+                    // With JSON object, the schema is not sufficient to know whether a term
+                    // has its term frequency encoded or not:
+                    // strings may have term frequencies, while number terms never have one.
+                    //
+                    // Ideally, we should have burnt one bit of two in the `TermInfo`.
+                    // However, we preferred not changing the codec too much and detect this
+                    // instead by
+                    // - looking at the size of the skip data for bitpacked blocks
+                    // - observing the absence of remaining data after reading the docs for vint
+                    // blocks.
+                    //
+                    // Overall the reliable way to know if we have actual frequencies loaded or not
+                    // is to check whether the actual decoded array is empty or not.
+                    if has_term_freq != !postings.block_cursor.freqs().is_empty() {
+                        return Err(DataCorruption::comment_only(
+                            "Term freqs are inconsistent across segments",
+                        )
+                        .into());
+                    }
+                }
+                has_term_freq
+            };
+
+            field_serializer.new_term(term_bytes, total_doc_freq, has_term_freq)?;
 
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.
@@ -567,8 +601,13 @@ impl IndexMerger {
                     if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
                         // we make sure to only write the term if
                         // there is at least one document.
-                        let term_freq = segment_postings.term_freq();
-                        segment_postings.positions(&mut positions_buffer);
+                        let term_freq = if has_term_freq {
+                            segment_postings.positions(&mut positions_buffer);
+                            segment_postings.term_freq()
+                        } else {
+                            0u32
+                        };
+
                         // if doc_id_mapping exists, the doc_ids are reordered, they are
                         // not just stacked. The field serializer expects monotonically increasing
                         // doc_ids, so we collect and sort them first, before writing.
@@ -753,9 +792,10 @@ mod tests {
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
+    use crate::schema::document::Value;
     use crate::schema::{
-        Document, Facet, FacetOptions, IndexRecordOption, NumericOptions, Term, TextFieldIndexing,
-        INDEXED, TEXT,
+        Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
+        TextFieldIndexing, INDEXED, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{
@@ -817,7 +857,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
@@ -866,30 +906,24 @@ mod tests {
                 );
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 0))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("af b"));
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 1))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("a b c"));
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 2))?;
-                assert_eq!(
-                    doc.get_first(text_field).unwrap().as_text(),
-                    Some("a b c d")
-                );
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c d"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 3))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_text(), Some("af b"));
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 3))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress::new(0, 4))?;
-                assert_eq!(
-                    doc.get_first(text_field).unwrap().as_text(),
-                    Some("a b c g")
-                );
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 4))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c g"));
             }
 
             {
@@ -1300,10 +1334,10 @@ mod tests {
         let reader = index.reader().unwrap();
         let mut int_val = 0;
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let index_doc =
                 |index_writer: &mut IndexWriter, doc_facets: &[&str], int_val: &mut u64| {
-                    let mut doc = Document::default();
+                    let mut doc = TantivyDocument::default();
                     for facet in doc_facets {
                         doc.add_facet(facet_field, Facet::from(facet));
                     }
@@ -1384,7 +1418,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             index_writer
                 .merge(&segment_ids)
                 .wait()
@@ -1406,7 +1440,7 @@ mod tests {
 
         // Deleting one term
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let facet = Facet::from_path(vec!["top", "a", "firstdoc"]);
             let facet_term = Term::from_facet(facet_field, &facet);
             index_writer.delete_term(facet_term);
@@ -1431,7 +1465,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let int_field = schema_builder.add_u64_field("intvals", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(int_field => 1u64))?;
         index_writer.commit().expect("commit failed");
         index_writer.add_document(doc!(int_field => 1u64))?;
@@ -1460,7 +1494,7 @@ mod tests {
         let reader = index.reader()?;
         {
             let mut index_writer = index.writer_for_tests()?;
-            let mut doc = Document::default();
+            let mut doc = TantivyDocument::default();
             doc.add_u64(int_field, 1);
             index_writer.add_document(doc.clone())?;
             index_writer.commit()?;
@@ -1503,7 +1537,7 @@ mod tests {
         {
             let mut index_writer = index.writer_for_tests()?;
             let index_doc = |index_writer: &mut IndexWriter, int_vals: &[u64]| {
-                let mut doc = Document::default();
+                let mut doc = TantivyDocument::default();
                 for &val in int_vals {
                     doc.add_u64(int_field, val);
                 }
@@ -1566,7 +1600,7 @@ mod tests {
         // Merging the segments
         {
             let segment_ids = index.searchable_segment_ids()?;
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.merge(&segment_ids).wait()?;
             index_writer.wait_merging_threads()?;
         }
@@ -1613,7 +1647,7 @@ mod tests {
         writer.set_merge_policy(Box::new(policy));
 
         for i in 0..100 {
-            let mut doc = Document::new();
+            let mut doc = TantivyDocument::new();
             doc.add_f64(field, 42.0);
             doc.add_f64(multi_field, 0.24);
             doc.add_f64(multi_field, 0.27);

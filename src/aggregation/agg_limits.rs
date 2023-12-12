@@ -73,9 +73,9 @@ impl AggregationLimits {
     /// Create a new ResourceLimitGuard, that will release the memory when dropped.
     pub fn new_guard(&self) -> ResourceLimitGuard {
         ResourceLimitGuard {
-            /// The counter which is shared between the aggregations for one request.
+            // The counter which is shared between the aggregations for one request.
             memory_consumption: Arc::clone(&self.memory_consumption),
-            /// The memory_limit in bytes
+            // The memory_limit in bytes
             memory_limit: self.memory_limit,
             allocated_with_the_guard: 0,
         }
@@ -132,5 +132,144 @@ impl Drop for ResourceLimitGuard {
     fn drop(&mut self) {
         self.memory_consumption
             .fetch_sub(self.allocated_with_the_guard, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::aggregation::tests::exec_request_with_query;
+
+    // https://github.com/quickwit-oss/quickwit/issues/3837
+    #[test]
+    fn test_agg_limits_with_empty_merge() {
+        use crate::aggregation::agg_req::Aggregations;
+        use crate::aggregation::bucket::tests::get_test_index_from_docs;
+
+        let docs = vec![
+            vec![r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb" }"#],
+            vec![r#"{ "text": "aaa", "text2": "bbb" }"#],
+        ];
+        let index = get_test_index_from_docs(false, &docs).unwrap();
+
+        {
+            let elasticsearch_compatible_json = json!(
+                {
+                    "1": {
+                        "terms": {"field": "text2", "min_doc_count": 0},
+                        "aggs": {
+                            "2":{
+                                "date_histogram": {
+                                    "field": "date",
+                                    "fixed_interval": "1d",
+                                    "extended_bounds": {
+                                        "min": "2015-01-01T00:00:00Z",
+                                        "max": "2015-01-10T00:00:00Z"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request_with_query(agg_req, &index, Some(("text", "bbb"))).unwrap();
+            let expected_res = json!({
+             "1": {
+                "buckets": [
+                  {
+                    "2": {
+                      "buckets": [
+                        { "doc_count": 0, "key": 1420070400000.0, "key_as_string": "2015-01-01T00:00:00Z" },
+                        { "doc_count": 1, "key": 1420156800000.0, "key_as_string": "2015-01-02T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420243200000.0, "key_as_string": "2015-01-03T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420329600000.0, "key_as_string": "2015-01-04T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420416000000.0, "key_as_string": "2015-01-05T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420502400000.0, "key_as_string": "2015-01-06T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420588800000.0, "key_as_string": "2015-01-07T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420675200000.0, "key_as_string": "2015-01-08T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420761600000.0, "key_as_string": "2015-01-09T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420848000000.0, "key_as_string": "2015-01-10T00:00:00Z" }
+                      ]
+                    },
+                    "doc_count": 1,
+                    "key": "bbb"
+                  }
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+              }
+            });
+            assert_eq!(res, expected_res);
+        }
+    }
+
+    // https://github.com/quickwit-oss/quickwit/issues/3837
+    #[test]
+    fn test_agg_limits_with_empty_data() {
+        use crate::aggregation::agg_req::Aggregations;
+        use crate::aggregation::bucket::tests::get_test_index_from_docs;
+
+        let docs = vec![vec![r#"{ "text": "aaa", "text2": "bbb" }"#]];
+        let index = get_test_index_from_docs(false, &docs).unwrap();
+
+        {
+            // Empty result since there is no doc with dates
+            let elasticsearch_compatible_json = json!(
+                {
+                    "1": {
+                        "terms": {"field": "text2", "min_doc_count": 0},
+                        "aggs": {
+                            "2":{
+                                "date_histogram": {
+                                    "field": "date",
+                                    "fixed_interval": "1d",
+                                    "extended_bounds": {
+                                        "min": "2015-01-01T00:00:00Z",
+                                        "max": "2015-01-10T00:00:00Z"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            );
+
+            let agg_req: Aggregations = serde_json::from_str(
+                &serde_json::to_string(&elasticsearch_compatible_json).unwrap(),
+            )
+            .unwrap();
+            let res = exec_request_with_query(agg_req, &index, Some(("text", "bbb"))).unwrap();
+            let expected_res = json!({
+             "1": {
+                "buckets": [
+                  {
+                    "2": {
+                      "buckets": [
+                        { "doc_count": 0, "key": 1420070400000.0, "key_as_string": "2015-01-01T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420156800000.0, "key_as_string": "2015-01-02T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420243200000.0, "key_as_string": "2015-01-03T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420329600000.0, "key_as_string": "2015-01-04T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420416000000.0, "key_as_string": "2015-01-05T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420502400000.0, "key_as_string": "2015-01-06T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420588800000.0, "key_as_string": "2015-01-07T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420675200000.0, "key_as_string": "2015-01-08T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420761600000.0, "key_as_string": "2015-01-09T00:00:00Z" },
+                        { "doc_count": 0, "key": 1420848000000.0, "key_as_string": "2015-01-10T00:00:00Z" }
+                      ]
+                    },
+                    "doc_count": 0,
+                    "key": "bbb"
+                  }
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+              }
+            });
+            assert_eq!(res, expected_res);
+        }
     }
 }

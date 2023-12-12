@@ -12,8 +12,7 @@ use std::marker::PhantomData;
 use columnar::{BytesColumn, Column, DynamicColumn, HasAssociatedColumnType};
 
 use crate::collector::{Collector, SegmentCollector};
-use crate::schema::Field;
-use crate::{DocId, Score, SegmentReader, TantivyError};
+use crate::{DocId, Score, SegmentReader};
 
 /// The `FilterCollector` filters docs using a fast field value and a predicate.
 ///
@@ -50,13 +49,13 @@ use crate::{DocId, Score, SegmentReader, TantivyError};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary")?;
-/// let no_filter_collector = FilterCollector::new(price, |value: u64| value > 20_120u64, TopDocs::with_limit(2));
+/// let no_filter_collector = FilterCollector::new("price".to_string(), |value: u64| value > 20_120u64, TopDocs::with_limit(2));
 /// let top_docs = searcher.search(&query, &no_filter_collector)?;
 ///
 /// assert_eq!(top_docs.len(), 1);
 /// assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
 ///
-/// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new(price, |value| value < 5u64, TopDocs::with_limit(2));
+/// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new("price".to_string(), |value| value < 5u64, TopDocs::with_limit(2));
 /// let filtered_top_docs = searcher.search(&query, &filter_all_collector)?;
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
@@ -70,7 +69,7 @@ use crate::{DocId, Score, SegmentReader, TantivyError};
 pub struct FilterCollector<TCollector, TPredicate, TPredicateValue>
 where TPredicate: 'static + Clone
 {
-    field: Field,
+    field: String,
     collector: TCollector,
     predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,
@@ -83,7 +82,7 @@ where
     TPredicate: Fn(TPredicateValue) -> bool + Send + Sync + Clone,
 {
     /// Create a new `FilterCollector`.
-    pub fn new(field: Field, predicate: TPredicate, collector: TCollector) -> Self {
+    pub fn new(field: String, predicate: TPredicate, collector: TCollector) -> Self {
         Self {
             field,
             predicate,
@@ -110,18 +109,7 @@ where
         segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let schema = segment_reader.schema();
-        let field_entry = schema.get_field_entry(self.field);
-        if !field_entry.is_fast() {
-            return Err(TantivyError::SchemaError(format!(
-                "Field {:?} is not a fast field.",
-                field_entry.name()
-            )));
-        }
-
-        let column_opt = segment_reader
-            .fast_fields()
-            .column_opt(field_entry.name())?;
+        let column_opt = segment_reader.fast_fields().column_opt(&self.field)?;
 
         let segment_collector = self
             .collector
@@ -229,7 +217,7 @@ where
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary")?;
-/// let filter_collector = BytesFilterCollector::new(barcode, |bytes: &[u8]| bytes.starts_with(b"01"), TopDocs::with_limit(2));
+/// let filter_collector = BytesFilterCollector::new("barcode".to_string(), |bytes: &[u8]| bytes.starts_with(b"01"), TopDocs::with_limit(2));
 /// let top_docs = searcher.search(&query, &filter_collector)?;
 ///
 /// assert_eq!(top_docs.len(), 1);
@@ -240,7 +228,7 @@ where
 pub struct BytesFilterCollector<TCollector, TPredicate>
 where TPredicate: 'static + Clone
 {
-    field: Field,
+    field: String,
     collector: TCollector,
     predicate: TPredicate,
 }
@@ -251,7 +239,7 @@ where
     TPredicate: Fn(&[u8]) -> bool + Send + Sync + Clone,
 {
     /// Create a new `BytesFilterCollector`.
-    pub fn new(field: Field, predicate: TPredicate, collector: TCollector) -> Self {
+    pub fn new(field: String, predicate: TPredicate, collector: TCollector) -> Self {
         Self {
             field,
             predicate,
@@ -274,10 +262,7 @@ where
         segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let schema = segment_reader.schema();
-        let field_name = schema.get_field_name(self.field);
-
-        let column_opt = segment_reader.fast_fields().bytes(field_name)?;
+        let column_opt = segment_reader.fast_fields().bytes(&self.field)?;
 
         let segment_collector = self
             .collector

@@ -74,7 +74,8 @@ impl Weight for BoostWeight {
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let underlying_explanation = self.weight.explain(reader, doc)?;
         let score = underlying_explanation.value() * self.boost;
-        let mut explanation = Explanation::new(format!("Boost x{} of ...", self.boost), score);
+        let mut explanation =
+            Explanation::new_with_string(format!("Boost x{} of ...", self.boost), score);
         explanation.add_detail(underlying_explanation);
         Ok(explanation)
     }
@@ -136,14 +137,14 @@ mod tests {
     use super::BoostQuery;
     use crate::query::{AllQuery, Query};
     use crate::schema::Schema;
-    use crate::{DocAddress, Document, Index};
+    use crate::{DocAddress, Index, IndexWriter, TantivyDocument};
 
     #[test]
     fn test_boost_query_explain() -> crate::Result<()> {
         let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(Document::new())?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.add_document(TantivyDocument::new())?;
         index_writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -151,7 +152,7 @@ mod tests {
         let explanation = query.explain(&searcher, DocAddress::new(0, 0u32)).unwrap();
         assert_eq!(
             explanation.to_pretty_json(),
-            "{\n  \"value\": 0.2,\n  \"description\": \"Boost x0.2 of ...\",\n  \"details\": [\n    {\n      \"value\": 1.0,\n      \"description\": \"AllQuery\",\n      \"context\": []\n    }\n  ],\n  \"context\": []\n}"
+            "{\n  \"value\": 0.2,\n  \"description\": \"Boost x0.2 of ...\",\n  \"details\": [\n    {\n      \"value\": 1.0,\n      \"description\": \"AllQuery\"\n    }\n  ]\n}"
         );
         Ok(())
     }

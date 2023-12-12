@@ -1,12 +1,12 @@
 use std::io;
 
 use columnar::{ColumnarWriter, NumericalValue};
-use common::replace_in_place;
+use common::JsonPathWriter;
 use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
-use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
-use crate::schema::{value_type_to_column_type, Document, FieldType, Schema, Type, Value};
+use crate::schema::document::{Document, ReferenceValue, ReferenceValueLeaf, Value};
+use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::{DateTimePrecision, DocId, TantivyError};
 
@@ -23,7 +23,7 @@ pub struct FastFieldsWriter {
     expand_dots: Vec<bool>,
     num_docs: DocId,
     // Buffer that we recycle to avoid allocation.
-    json_path_buffer: String,
+    json_path_buffer: JsonPathWriter,
 }
 
 impl FastFieldsWriter {
@@ -97,7 +97,7 @@ impl FastFieldsWriter {
             num_docs: 0u32,
             date_precisions,
             expand_dots,
-            json_path_buffer: String::new(),
+            json_path_buffer: JsonPathWriter::default(),
         })
     }
 
@@ -117,111 +117,118 @@ impl FastFieldsWriter {
     }
 
     /// Indexes all of the fastfields of a new document.
-    pub fn add_document(&mut self, doc: &Document) -> crate::Result<()> {
+    pub fn add_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.num_docs;
-        for field_value in doc.field_values() {
-            if let Some(field_name) =
-                &self.fast_field_names[field_value.field().field_id() as usize]
-            {
-                match &field_value.value {
-                    Value::U64(u64_val) => {
-                        self.columnar_writer.record_numerical(
-                            doc_id,
-                            field_name.as_str(),
-                            NumericalValue::from(*u64_val),
-                        );
-                    }
-                    Value::I64(i64_val) => {
-                        self.columnar_writer.record_numerical(
-                            doc_id,
-                            field_name.as_str(),
-                            NumericalValue::from(*i64_val),
-                        );
-                    }
-                    Value::F64(f64_val) => {
-                        self.columnar_writer.record_numerical(
-                            doc_id,
-                            field_name.as_str(),
-                            NumericalValue::from(*f64_val),
-                        );
-                    }
-                    Value::Str(text_val) => {
-                        if let Some(tokenizer) =
-                            &mut self.per_field_tokenizer[field_value.field().field_id() as usize]
-                        {
-                            let mut token_stream = tokenizer.token_stream(text_val);
-                            token_stream.process(&mut |token: &Token| {
-                                self.columnar_writer.record_str(
-                                    doc_id,
-                                    field_name.as_str(),
-                                    &token.text,
-                                );
-                            })
-                        } else {
-                            self.columnar_writer
-                                .record_str(doc_id, field_name.as_str(), text_val);
-                        }
-                    }
-                    Value::Bytes(bytes_val) => {
-                        self.columnar_writer
-                            .record_bytes(doc_id, field_name.as_str(), bytes_val);
-                    }
-                    Value::PreTokStr(pre_tok) => {
-                        for token in &pre_tok.tokens {
-                            self.columnar_writer.record_str(
-                                doc_id,
-                                field_name.as_str(),
-                                &token.text,
-                            );
-                        }
-                    }
-                    Value::Bool(bool_val) => {
-                        self.columnar_writer
-                            .record_bool(doc_id, field_name.as_str(), *bool_val);
-                    }
-                    Value::Date(datetime) => {
-                        let date_precision =
-                            self.date_precisions[field_value.field().field_id() as usize];
-                        let truncated_datetime = datetime.truncate(date_precision);
-                        self.columnar_writer.record_datetime(
-                            doc_id,
-                            field_name.as_str(),
-                            truncated_datetime,
-                        );
-                    }
-                    Value::Facet(facet) => {
-                        self.columnar_writer.record_str(
-                            doc_id,
-                            field_name.as_str(),
-                            facet.encoded_str(),
-                        );
-                    }
-                    Value::JsonObject(json_obj) => {
-                        let expand_dots = self.expand_dots[field_value.field().field_id() as usize];
-                        self.json_path_buffer.clear();
-                        self.json_path_buffer.push_str(field_name);
+        for (field, value) in doc.iter_fields_and_values() {
+            let value_access = value as D::Value<'_>;
 
-                        let text_analyzer =
-                            &mut self.per_field_tokenizer[field_value.field().field_id() as usize];
-
-                        record_json_obj_to_columnar_writer(
-                            doc_id,
-                            json_obj,
-                            expand_dots,
-                            JSON_DEPTH_LIMIT,
-                            &mut self.json_path_buffer,
-                            &mut self.columnar_writer,
-                            text_analyzer,
-                        );
-                    }
-                    Value::IpAddr(ip_addr) => {
-                        self.columnar_writer
-                            .record_ip_addr(doc_id, field_name.as_str(), *ip_addr);
-                    }
-                }
-            }
+            self.add_doc_value(doc_id, field, value_access)?;
         }
         self.num_docs += 1;
+        Ok(())
+    }
+
+    fn add_doc_value<'a, V: Value<'a>>(
+        &mut self,
+        doc_id: DocId,
+        field: Field,
+        value: V,
+    ) -> crate::Result<()> {
+        let field_name = match &self.fast_field_names[field.field_id() as usize] {
+            None => return Ok(()),
+            Some(name) => name,
+        };
+
+        match value.as_value() {
+            ReferenceValue::Leaf(leaf) => match leaf {
+                ReferenceValueLeaf::Null => {}
+                ReferenceValueLeaf::Str(val) => {
+                    if let Some(tokenizer) =
+                        &mut self.per_field_tokenizer[field.field_id() as usize]
+                    {
+                        let mut token_stream = tokenizer.token_stream(val);
+                        token_stream.process(&mut |token: &Token| {
+                            self.columnar_writer
+                                .record_str(doc_id, field_name, &token.text);
+                        })
+                    } else {
+                        self.columnar_writer.record_str(doc_id, field_name, val);
+                    }
+                }
+                ReferenceValueLeaf::U64(val) => {
+                    self.columnar_writer.record_numerical(
+                        doc_id,
+                        field_name,
+                        NumericalValue::from(val),
+                    );
+                }
+                ReferenceValueLeaf::I64(val) => {
+                    self.columnar_writer.record_numerical(
+                        doc_id,
+                        field_name,
+                        NumericalValue::from(val),
+                    );
+                }
+                ReferenceValueLeaf::F64(val) => {
+                    self.columnar_writer.record_numerical(
+                        doc_id,
+                        field_name,
+                        NumericalValue::from(val),
+                    );
+                }
+                ReferenceValueLeaf::Date(val) => {
+                    let date_precision = self.date_precisions[field.field_id() as usize];
+                    let truncated_datetime = val.truncate(date_precision);
+                    self.columnar_writer
+                        .record_datetime(doc_id, field_name, truncated_datetime);
+                }
+                ReferenceValueLeaf::Facet(val) => {
+                    self.columnar_writer
+                        .record_str(doc_id, field_name, val.encoded_str());
+                }
+                ReferenceValueLeaf::Bytes(val) => {
+                    self.columnar_writer.record_bytes(doc_id, field_name, val);
+                }
+                ReferenceValueLeaf::IpAddr(val) => {
+                    self.columnar_writer.record_ip_addr(doc_id, field_name, val);
+                }
+                ReferenceValueLeaf::Bool(val) => {
+                    self.columnar_writer.record_bool(doc_id, field_name, val);
+                }
+                ReferenceValueLeaf::PreTokStr(val) => {
+                    for token in &val.tokens {
+                        self.columnar_writer
+                            .record_str(doc_id, field_name, &token.text);
+                    }
+                }
+            },
+            ReferenceValue::Array(val) => {
+                // TODO: Check this is the correct behaviour we want.
+                for value in val {
+                    self.add_doc_value(doc_id, field, value)?;
+                }
+            }
+            ReferenceValue::Object(val) => {
+                let expand_dots = self.expand_dots[field.field_id() as usize];
+                self.json_path_buffer.clear();
+                // First field should not be expanded.
+                self.json_path_buffer.set_expand_dots(false);
+                self.json_path_buffer.push(field_name);
+                self.json_path_buffer.set_expand_dots(expand_dots);
+
+                let text_analyzer = &mut self.per_field_tokenizer[field.field_id() as usize];
+
+                record_json_obj_to_columnar_writer::<V>(
+                    doc_id,
+                    val,
+                    JSON_DEPTH_LIMIT,
+                    &mut self.json_path_buffer,
+                    &mut self.columnar_writer,
+                    text_analyzer,
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -241,66 +248,33 @@ impl FastFieldsWriter {
     }
 }
 
-#[inline]
-fn columnar_numerical_value(json_number: &serde_json::Number) -> Option<NumericalValue> {
-    if let Some(num_i64) = json_number.as_i64() {
-        return Some(num_i64.into());
-    }
-    if let Some(num_u64) = json_number.as_u64() {
-        return Some(num_u64.into());
-    }
-    if let Some(num_f64) = json_number.as_f64() {
-        return Some(num_f64.into());
-    }
-    // This can happen with arbitrary precision.... but we do not handle it.
-    None
-}
-
-fn record_json_obj_to_columnar_writer(
+fn record_json_obj_to_columnar_writer<'a, V: Value<'a>>(
     doc: DocId,
-    json_obj: &serde_json::Map<String, serde_json::Value>,
-    expand_dots: bool,
+    json_visitor: V::ObjectIter,
     remaining_depth_limit: usize,
-    json_path_buffer: &mut String,
+    json_path_buffer: &mut JsonPathWriter,
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
 ) {
-    for (key, child) in json_obj {
-        let len_path = json_path_buffer.len();
-        if !json_path_buffer.is_empty() {
-            json_path_buffer.push_str(JSON_PATH_SEGMENT_SEP_STR);
-        }
-        json_path_buffer.push_str(key);
-        if expand_dots {
-            // This might include the separation byte, which is ok because it is not a dot.
-            let appended_segment = &mut json_path_buffer[len_path..];
-            // The unsafe below is safe as long as b'.' and JSON_PATH_SEGMENT_SEP are
-            // valid single byte ut8 strings.
-            // By utf-8 design, they cannot be part of another codepoint.
-            replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, unsafe {
-                appended_segment.as_bytes_mut()
-            });
-        }
+    for (key, child) in json_visitor {
+        json_path_buffer.push(key);
         record_json_value_to_columnar_writer(
             doc,
             child,
-            expand_dots,
             remaining_depth_limit,
             json_path_buffer,
             columnar_writer,
             tokenizer,
         );
-        // popping our sub path.
-        json_path_buffer.truncate(len_path);
+        json_path_buffer.pop();
     }
 }
 
-fn record_json_value_to_columnar_writer(
+fn record_json_value_to_columnar_writer<'a, V: Value<'a>>(
     doc: DocId,
-    json_val: &serde_json::Value,
-    expand_dots: bool,
+    json_val: V,
     mut remaining_depth_limit: usize,
-    json_path_writer: &mut String,
+    json_path_writer: &mut JsonPathWriter,
     columnar_writer: &mut columnar::ColumnarWriter,
     tokenizer: &mut Option<TextAnalyzer>,
 ) {
@@ -308,34 +282,69 @@ fn record_json_value_to_columnar_writer(
         return;
     }
     remaining_depth_limit -= 1;
-    match json_val {
-        serde_json::Value::Null => {
-            // TODO handle null
-        }
-        serde_json::Value::Bool(bool_val) => {
-            columnar_writer.record_bool(doc, json_path_writer, *bool_val);
-        }
-        serde_json::Value::Number(json_number) => {
-            if let Some(numerical_value) = columnar_numerical_value(json_number) {
-                columnar_writer.record_numerical(doc, json_path_writer.as_str(), numerical_value);
+
+    match json_val.as_value() {
+        ReferenceValue::Leaf(leaf) => match leaf {
+            ReferenceValueLeaf::Null => {} // TODO: Handle null
+            ReferenceValueLeaf::Str(val) => {
+                if let Some(text_analyzer) = tokenizer.as_mut() {
+                    let mut token_stream = text_analyzer.token_stream(val);
+                    token_stream.process(&mut |token| {
+                        columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
+                    })
+                } else {
+                    columnar_writer.record_str(doc, json_path_writer.as_str(), val);
+                }
             }
-        }
-        serde_json::Value::String(text) => {
-            if let Some(text_analyzer) = tokenizer.as_mut() {
-                let mut token_stream = text_analyzer.token_stream(text);
-                token_stream.process(&mut |token| {
-                    columnar_writer.record_str(doc, json_path_writer.as_str(), &token.text);
-                })
-            } else {
-                columnar_writer.record_str(doc, json_path_writer.as_str(), text);
+            ReferenceValueLeaf::U64(val) => {
+                columnar_writer.record_numerical(
+                    doc,
+                    json_path_writer.as_str(),
+                    NumericalValue::from(val),
+                );
             }
-        }
-        serde_json::Value::Array(arr) => {
-            for el in arr {
+            ReferenceValueLeaf::I64(val) => {
+                columnar_writer.record_numerical(
+                    doc,
+                    json_path_writer.as_str(),
+                    NumericalValue::from(val),
+                );
+            }
+            ReferenceValueLeaf::F64(val) => {
+                columnar_writer.record_numerical(
+                    doc,
+                    json_path_writer.as_str(),
+                    NumericalValue::from(val),
+                );
+            }
+            ReferenceValueLeaf::Bool(val) => {
+                columnar_writer.record_bool(doc, json_path_writer.as_str(), val);
+            }
+            ReferenceValueLeaf::Date(val) => {
+                columnar_writer.record_datetime(doc, json_path_writer.as_str(), val);
+            }
+            ReferenceValueLeaf::Facet(_) => {
+                unimplemented!("Facet support in dynamic fields is not yet implemented")
+            }
+            ReferenceValueLeaf::Bytes(_) => {
+                // TODO: This can be re added once it is added to the JSON Utils section as well.
+                // columnar_writer.record_bytes(doc, json_path_writer.as_str(), val);
+                unimplemented!("Bytes support in dynamic fields is not yet implemented")
+            }
+            ReferenceValueLeaf::IpAddr(_) => {
+                unimplemented!("IP address support in dynamic fields is not yet implemented")
+            }
+            ReferenceValueLeaf::PreTokStr(_) => {
+                unimplemented!(
+                    "Pre-tokenized string support in dynamic fields is not yet implemented"
+                )
+            }
+        },
+        ReferenceValue::Array(elements) => {
+            for el in elements {
                 record_json_value_to_columnar_writer(
                     doc,
                     el,
-                    expand_dots,
                     remaining_depth_limit,
                     json_path_writer,
                     columnar_writer,
@@ -343,11 +352,10 @@ fn record_json_value_to_columnar_writer(
                 );
             }
         }
-        serde_json::Value::Object(json_obj) => {
-            record_json_obj_to_columnar_writer(
+        ReferenceValue::Object(object) => {
+            record_json_obj_to_columnar_writer::<V>(
                 doc,
-                json_obj,
-                expand_dots,
+                object,
                 remaining_depth_limit,
                 json_path_writer,
                 columnar_writer,
@@ -360,6 +368,7 @@ fn record_json_value_to_columnar_writer(
 #[cfg(test)]
 mod tests {
     use columnar::{Column, ColumnarReader, ColumnarWriter, StrColumn};
+    use common::JsonPathWriter;
 
     use super::record_json_value_to_columnar_writer;
     use crate::fastfield::writer::JSON_DEPTH_LIMIT;
@@ -370,12 +379,12 @@ mod tests {
         expand_dots: bool,
     ) -> ColumnarReader {
         let mut columnar_writer = ColumnarWriter::default();
-        let mut json_path = String::new();
+        let mut json_path = JsonPathWriter::default();
+        json_path.set_expand_dots(expand_dots);
         for (doc, json_doc) in json_docs.iter().enumerate() {
             record_json_value_to_columnar_writer(
                 doc as u32,
                 json_doc,
-                expand_dots,
                 JSON_DEPTH_LIMIT,
                 &mut json_path,
                 &mut columnar_writer,

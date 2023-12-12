@@ -4,8 +4,6 @@ mod term_weight;
 
 pub use self::term_query::TermQuery;
 pub use self::term_scorer::TermScorer;
-pub use self::term_weight::TermWeight;
-
 #[cfg(test)]
 mod tests {
 
@@ -14,7 +12,7 @@ mod tests {
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::{EnableScoring, Query, QueryParser, Scorer, TermQuery};
     use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
-    use crate::{assert_nearly_equals, DocAddress, Index, Term, TERMINATED};
+    use crate::{assert_nearly_equals, DocAddress, Index, IndexWriter, Term, TERMINATED};
 
     #[test]
     pub fn test_term_query_no_freq() -> crate::Result<()> {
@@ -24,7 +22,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             let doc = doc!(text_field => "a");
             index_writer.add_document(doc)?;
             index_writer.commit()?;
@@ -50,7 +48,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             for _ in 0..COMPRESSION_BLOCK_SIZE {
                 let doc = doc!(text_field => "a");
                 index_writer.add_document(doc)?;
@@ -86,7 +84,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(
                 left_field => "left1 left2 left2 left2f2 left2f2 left3 abcde abcde abcde abcde abcde abcde abcde abcde abcde abcewde abcde abcde",
                 right_field => "right1 right2",
@@ -133,7 +131,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"a b"))?;
         index_writer.add_document(doc!(text_field=>"a c"))?;
         index_writer.delete_term(Term::from_field_text(text_field, "b"));
@@ -151,7 +149,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"a"))?;
         index_writer.add_document(doc!(text_field=>"a"))?;
         index_writer.commit()?;
@@ -185,7 +183,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"b"))?;
         index_writer.add_document(doc!(text_field=>"a"))?;
         index_writer.add_document(doc!(text_field=>"a"))?;

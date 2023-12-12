@@ -132,6 +132,7 @@ impl DateHistogramAggregationReq {
             hard_bounds: self.hard_bounds,
             extended_bounds: self.extended_bounds,
             keyed: self.keyed,
+            is_normalized_to_ns: false,
         })
     }
 
@@ -243,15 +244,15 @@ fn parse_into_milliseconds(input: &str) -> Result<i64, AggregationError> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::exec_request;
     use crate::indexer::NoMergePolicy;
-    use crate::schema::{Schema, FAST};
-    use crate::Index;
+    use crate::schema::{Schema, FAST, STRING};
+    use crate::{Index, IndexWriter, TantivyDocument};
 
     #[test]
     fn test_parse_into_millisecs() {
@@ -306,7 +307,8 @@ mod tests {
     ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         schema_builder.add_date_field("date", FAST);
-        schema_builder.add_text_field("text", FAST);
+        schema_builder.add_text_field("text", FAST | STRING);
+        schema_builder.add_text_field("text2", FAST | STRING);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
         {
@@ -314,7 +316,7 @@ mod tests {
             index_writer.set_merge_policy(Box::new(NoMergePolicy));
             for values in segment_and_docs {
                 for doc_str in values {
-                    let doc = schema.parse_document(doc_str)?;
+                    let doc = TantivyDocument::parse_json(&schema, doc_str)?;
                     index_writer.add_document(doc)?;
                 }
                 // writing the segment
@@ -326,7 +328,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             if segment_ids.len() > 1 {
-                let mut index_writer = index.writer_for_tests()?;
+                let mut index_writer: IndexWriter = index.writer_for_tests()?;
                 index_writer.merge(&segment_ids).wait()?;
                 index_writer.wait_merging_threads()?;
             }

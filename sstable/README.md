@@ -89,33 +89,71 @@ Note: as the SSTable does not support redundant keys, there is no ambiguity betw
 
 ### SSTFooter
 ```
-+-------+-------+-----+-------------+---------+---------+
-| Block | Block | ... | IndexOffset | NumTerm | Version |
-+-------+-------+-----+-------------+---------+---------+
-|----( # of blocks)---|
++-----+----------------+-------------+-------------+---------+---------+
+| Fst | BlockAddrStore | StoreOffset | IndexOffset | NumTerm | Version |
++-----+----------------+-------------+-------------+---------+---------+
 ```
-- Block(SSTBlock): uses IndexValue for its Values format
+- Fst(Fst): finite state transducer mapping keys to a block number
+- BlockAddrStore(BlockAddrStore): store mapping a block number to its BlockAddr
+- StoreOffset(u64): Offset to start of the BlockAddrStore. If zero, see the SingleBlockSStable section
 - IndexOffset(u64): Offset to the start of the SSTFooter
 - NumTerm(u64): number of terms in the sstable
-- Version(u32): Currently equal to 2
+- Version(u32): Currently equal to 3
 
-### IndexValue
-```
-+------------+----------+-------+-------+-----+
-| EntryCount | StartPos | Entry | Entry | ... |
-+------------+----------+-------+-------+-----+
-                        |---( # of entries)---|
-```
+### Fst
 
-- EntryCount(VInt): number of entries
-- StartPos(VInt): the start pos of the first (data) block referenced by this (index) block
-- Entry (IndexEntry)
+Fst is in the format of tantivy\_fst
 
-### Entry
-```
-+----------+--------------+
-| BlockLen | FirstOrdinal |
-+----------+--------------+
-```
-- BlockLen(VInt): length of the block
-- FirstOrdinal(VInt): ordinal of the first element in the given block
+### BlockAddrStore
+
++---------+-----------+-----------+-----+-----------+-----------+-----+
+| MetaLen | BlockMeta | BlockMeta | ... | BlockData | BlockData | ... |
++---------+-----------+-----------+-----+-----------+-----------+-----+
+          |---------(N blocks)----------|---------(N blocks)----------|
+
+- MetaLen(u64): length of the BlockMeta section
+- BlockMeta(BlockAddrBlockMetadata): metadata to seek through BlockData
+- BlockData(CompactedBlockAddr): bitpacked per block metadata
+
+### BlockAddrBlockMetadata
+
++--------+------------+--------------+------------+--------------+-------------------+-----------------+----------+
+| Offset | RangeStart | FirstOrdinal | RangeSlope | OrdinalSlope | FirstOrdinalNBits | RangeStartNBits | BlockLen |
++--------+------------+--------------+------------+--------------+-------------------+-----------------+----------+
+
+- Offset(u64): offset of the corresponding BlockData in the datastream
+- RangeStart(u64): the start position of the first block
+- FirstOrdinal(u64): the first ordinal of the first block
+- RangeSlope(u32): slope predicted for start range evolution (see computation in BlockData)
+- OrdinalSlope(u64): slope predicted for first ordinal evolution (see computation in BlockData)
+- FirstOrdinalNBits(u8): number of bits per ordinal in datastream (see computation in BlockData)
+- RangeStartNBits(u8): number of bits per range start in datastream (see computation in BlockData)
+
+### BlockData
+
++-----------------+-------------------+---------------+
+| RangeStartDelta | FirstOrdinalDelta | FinalRangeEnd |
++-----------------+-------------------+---------------+
+|------(BlockLen repetitions)---------|
+
+- RangeStartDelta(var): RangeStartNBits *bits* of little endian number. See below for decoding
+- FirstOrdinalDelta(var): FirstOrdinalNBits *bits* of little endian number. See below for decoding
+- FinalRangeEnd(var): RangeStartNBits *bits* of integer. See below for decoding
+
+converting a BlockData of index Index and a BlockAddrBlockMetadata to an actual block address is done as follow:
+range\_prediction := RangeStart + Index * RangeSlop;
+range\_derivation := RangeStartDelta - (1 << (RangeStartNBits-1));
+range\_start := range\_prediction + range\_derivation
+
+The same computation can be done for ordinal.
+
+Note that `range_derivation` can take negative value. `RangeStartDelta` is just its translation to a positive range.
+
+
+## SingleBlockSStable
+
+The format used for the index is meant to be compact, however it has a constant cost of around 70
+bytes, which isn't negligible for a table containing very few keys.
+To limit the impact of that constant cost, single block sstable omit the Fst and BlockAddrStore from
+their index. Instead a block with first ordinal of 0, range start of 0 and range end of IndexOffset
+is implicitly used for every operations.

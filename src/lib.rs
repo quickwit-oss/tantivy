@@ -21,7 +21,7 @@
 //! # use tantivy::collector::TopDocs;
 //! # use tantivy::query::QueryParser;
 //! # use tantivy::schema::*;
-//! # use tantivy::{doc, DocAddress, Index, Score};
+//! # use tantivy::{doc, DocAddress, Index, IndexWriter, Score};
 //! #
 //! # fn main() {
 //! #     // Let's create a temporary directory for the
@@ -53,7 +53,7 @@
 //!
 //! // Here we use a buffer of 100MB that will be split
 //! // between indexing threads.
-//! let mut index_writer = index.writer(100_000_000)?;
+//! let mut index_writer: IndexWriter = index.writer(100_000_000)?;
 //!
 //! // Let's index one documents!
 //! index_writer.add_document(doc!(
@@ -89,8 +89,8 @@
 //!
 //! for (_score, doc_address) in top_docs {
 //!     // Retrieve the actual content of documents given its `doc_address`.
-//!     let retrieved_doc = searcher.doc(doc_address)?;
-//!     println!("{}", schema.to_json(&retrieved_doc));
+//!     let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
+//!     println!("{}", retrieved_doc.to_json(&schema));
 //! }
 //!
 //! # Ok(())
@@ -103,7 +103,48 @@
 //! the example code (
 //! [literate programming](https://tantivy-search.github.io/examples/basic_search.html) /
 //! [source code](https://github.com/quickwit-oss/tantivy/blob/main/examples/basic_search.rs))
-
+//!
+//! # Tantivy Architecture Overview
+//!
+//! Tantivy is inspired by Lucene, the Architecture is very similar.
+//!
+//! ## Core Concepts
+//!
+//! - **[Index]**: A collection of segments. The top level entry point for tantivy users to search
+//!   and index data.
+//!
+//! - **[Segment]**: At the heart of Tantivy's indexing structure is the [Segment]. It contains
+//!   documents and indices and is the atomic unit of indexing and search.
+//!
+//! - **[Schema](schema)**: A schema is a set of fields in an index. Each field has a specific data
+//!   type and set of attributes.
+//!
+//! - **[IndexWriter]**: Responsible creating and merging segments. It executes the indexing
+//!   pipeline including tokenization, creating indices, and storing the index in the
+//!   [Directory](directory).
+//!
+//! - **Searching**: [Searcher] searches the segments with anything that implements
+//!   [Query](query::Query) and merges the results. The list of [supported
+//! queries](query::Query#implementors). Custom Queries are supported by implementing the
+//! [Query](query::Query) trait.
+//!
+//! - **[Directory](directory)**: Abstraction over the storage where the index data is stored.
+//!
+//! - **[Tokenizer](tokenizer)**: Breaks down text into individual tokens. Users can implement or
+//!   use provided tokenizers.
+//!
+//! ## Architecture Flow
+//!
+//! 1. **Document Addition**: Users create documents according to the defined schema. The documents
+//!    fields are tokenized, processed, and added to the current segment. See
+//!    [Document](schema::document) for the structure and usage.
+//!
+//! 2. **Segment Creation**: Once the memory limit threshold is reached or a commit is called, the
+//!    segment is written to the Directory. Documents are searchable after `commit`.
+//!
+//! 3. **Merging**: To optimize space and search speed, segments might be merged. This operation is
+//!    performed in the background. Customize the merge behaviour via
+//!    [IndexWriter::set_merge_policy].
 #[cfg_attr(test, macro_use)]
 extern crate serde_json;
 #[macro_use]
@@ -137,7 +178,7 @@ pub use crate::future_result::FutureResult;
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
 mod core;
-mod indexer;
+pub mod indexer;
 
 #[allow(unused_doc_comments)]
 pub mod error;
@@ -161,8 +202,7 @@ pub mod termdict;
 mod reader;
 
 pub use self::reader::{IndexReader, IndexReaderBuilder, ReloadPolicy, Warmer};
-mod snippet;
-pub use self::snippet::{Snippet, SnippetGenerator};
+pub mod snippet;
 
 mod docset;
 use std::fmt;
@@ -173,26 +213,34 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 pub use self::docset::{DocSet, TERMINATED};
+#[deprecated(
+    since = "0.22.0",
+    note = "Will be removed in tantivy 0.23. Use export from snippet module instead"
+)]
+pub use self::snippet::{Snippet, SnippetGenerator};
 #[doc(hidden)]
 pub use crate::core::json_utils;
 pub use crate::core::{
-    Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
-    Order, Searcher, SearcherGeneration, Segment, SegmentComponent, SegmentId, SegmentMeta,
-    SegmentReader, SingleSegmentIndexWriter,
+    merge_field_meta_data, Executor, FieldMetadata, Index, IndexBuilder, IndexMeta, IndexSettings,
+    IndexSortByField, InvertedIndexReader, Order, Searcher, SearcherGeneration, Segment,
+    SegmentComponent, SegmentId, SegmentMeta, SegmentReader, SingleSegmentIndexWriter,
 };
 pub use crate::directory::Directory;
-pub use crate::indexer::operation::UserOperation;
-pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
+pub use crate::indexer::IndexWriter;
+#[deprecated(
+    since = "0.22.0",
+    note = "Will be removed in tantivy 0.23. Use export from indexer module instead"
+)]
+pub use crate::indexer::{merge_filtered_segments, merge_indices, PreparedCommit};
 pub use crate::postings::Postings;
 #[allow(deprecated)]
 pub use crate::schema::DatePrecision;
-pub use crate::schema::{DateOptions, DateTimePrecision, Document, Term};
+pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 5;
-
-#[cfg(all(feature = "mmap", unix))]
-pub use memmap2::Advice;
+const INDEX_FORMAT_VERSION: u32 = 6;
+/// Oldest index format version this tantivy version can read.
+const INDEX_FORMAT_OLDEST_SUPPORTED_VERSION: u32 = 4;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -342,8 +390,9 @@ pub mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
+    use crate::schema::document::Value;
     use crate::schema::*;
-    use crate::{DateTime, DocAddress, Index, Postings, ReloadPolicy};
+    use crate::{DateTime, DocAddress, Index, IndexWriter, Postings, ReloadPolicy};
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
@@ -414,7 +463,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_from_tempdir(schema)?;
         // writing the segment
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         {
             let doc = doc!(text_field=>"af b");
             index_writer.add_document(doc)?;
@@ -436,7 +485,7 @@ pub mod tests {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"a b c"))?;
         index_writer.commit()?;
         index_writer.add_document(doc!(text_field=>"a"))?;
@@ -463,7 +512,7 @@ pub mod tests {
         let title_field = schema_builder.add_text_field("title", TEXT);
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"a b c"))?;
         index_writer.commit()?;
         let index_reader = index.reader()?;
@@ -485,7 +534,7 @@ pub mod tests {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"a b c"))?;
         index_writer.add_document(doc!())?;
         index_writer.add_document(doc!(text_field=>"a b"))?;
@@ -528,7 +577,7 @@ pub mod tests {
             .unwrap();
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             // 0
             index_writer.add_document(doc!(text_field=>"a b"))?;
             // 1
@@ -575,7 +624,7 @@ pub mod tests {
         }
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             // 0
             index_writer.add_document(doc!(text_field=>"a b"))?;
             // 1
@@ -612,7 +661,7 @@ pub mod tests {
         }
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field=>"a b"))?;
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.rollback()?;
@@ -662,7 +711,7 @@ pub mod tests {
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(field=>1u64))?;
         index_writer.commit()?;
         let reader = index.reader()?;
@@ -685,7 +734,7 @@ pub mod tests {
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         let negative_val = -1i64;
         index_writer.add_document(doc!(value_field => negative_val))?;
         index_writer.commit()?;
@@ -709,7 +758,7 @@ pub mod tests {
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         let val = std::f64::consts::PI;
         index_writer.add_document(doc!(value_field => val))?;
         index_writer.commit()?;
@@ -733,7 +782,7 @@ pub mod tests {
         let absent_field = schema_builder.add_text_field("absent_text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"a"))?;
         assert!(index_writer.commit().is_ok());
         let reader = index.reader()?;
@@ -756,7 +805,7 @@ pub mod tests {
             .try_into()?;
 
         // writing the segment
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"63"))?;
         index_writer.add_document(doc!(text_field=>"70"))?;
         index_writer.add_document(doc!(text_field=>"34"))?;
@@ -781,7 +830,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field=>"af af af bc bc"))?;
             index_writer.commit()?;
         }
@@ -813,7 +862,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema);
         let reader = index.reader()?;
         // writing the segment
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"af af af b"))?;
         index_writer.add_document(doc!(text_field=>"a b c"))?;
         index_writer.add_document(doc!(text_field=>"a b c d"))?;
@@ -877,7 +926,7 @@ pub mod tests {
             .try_into()?;
         assert_eq!(reader.searcher().num_docs(), 0u64);
         // writing the segment
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text_field=>"af b"))?;
         index_writer.add_document(doc!(text_field=>"a b c"))?;
         index_writer.add_document(doc!(text_field=>"a b c d"))?;
@@ -985,13 +1034,13 @@ pub mod tests {
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);
-        let values: Vec<&Value> = document.get_all(text_field).collect();
+        let values: Vec<&OwnedValue> = document.get_all(text_field).collect();
         assert_eq!(values.len(), 2);
-        assert_eq!(values[0].as_text(), Some("tantivy"));
-        assert_eq!(values[1].as_text(), Some("some other value"));
-        let values: Vec<&Value> = document.get_all(other_text_field).collect();
+        assert_eq!(values[0].as_str(), Some("tantivy"));
+        assert_eq!(values[1].as_str(), Some("some other value"));
+        let values: Vec<&OwnedValue> = document.get_all(other_text_field).collect();
         assert_eq!(values.len(), 1);
-        assert_eq!(values[0].as_text(), Some("short"));
+        assert_eq!(values[0].as_str(), Some("short"));
     }
 
     #[test]
@@ -1005,7 +1054,7 @@ pub mod tests {
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         {
             let document =
                 doc!(fast_field_unsigned => 4u64, fast_field_signed=>4i64, fast_field_float=>4f64);
@@ -1071,7 +1120,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema);
         let index_reader = index.reader()?;
 
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
         for doc_id in 0u64..DOC_COUNT {
@@ -1124,7 +1173,7 @@ pub mod tests {
         let body = builder.add_text_field("body", TEXT | STORED);
         let schema = builder.build();
         let index = Index::create_in_dir(&index_path, schema)?;
-        let mut writer = index.writer(50_000_000)?;
+        let mut writer: IndexWriter = index.writer(50_000_000)?;
         writer.set_merge_policy(Box::new(NoMergePolicy));
         for _ in 0..5000 {
             writer.add_document(doc!(body => "foo"))?;

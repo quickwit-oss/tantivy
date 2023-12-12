@@ -1,3 +1,59 @@
+//! [`SnippetGenerator`]
+//! Generates a text snippet for a given document, and some highlighted parts inside it.
+//! Imagine you doing a text search in a document
+//! and want to show a preview of where in the document the search terms occur,
+//! along with some surrounding text to give context, and the search terms highlighted.
+//!
+//! [`SnippetGenerator`] serves this purpose.
+//! It scans a document and constructs a snippet, which consists of sections where the search terms
+//! have been found, stitched together with "..." in between sections if necessary.
+//!
+//! ## Example
+//!
+//! ```rust
+//! # use tantivy::query::QueryParser;
+//! # use tantivy::schema::{Schema, TEXT};
+//! # use tantivy::{doc, Index};
+//! use tantivy::snippet::SnippetGenerator;
+//!
+//! # fn main() -> tantivy::Result<()> {
+//! #    let mut schema_builder = Schema::builder();
+//! #    let text_field = schema_builder.add_text_field("text", TEXT);
+//! #    let schema = schema_builder.build();
+//! #    let index = Index::create_in_ram(schema);
+//! #    let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+//! #    let doc = doc!(text_field => r#"Comme je descendais des Fleuves impassibles,
+//! #   Je ne me sentis plus guidé par les haleurs :
+//! #  Des Peaux-Rouges criards les avaient pris pour cibles,
+//! #  Les ayant cloués nus aux poteaux de couleurs.
+//! #
+//! #  J'étais insoucieux de tous les équipages,
+//! #  Porteur de blés flamands ou de cotons anglais.
+//! #  Quand avec mes haleurs ont fini ces tapages,
+//! #  Les Fleuves m'ont laissé descendre où je voulais.
+//! #  "#);
+//! #    index_writer.add_document(doc.clone())?;
+//! #    index_writer.commit()?;
+//! #    let query_parser = QueryParser::for_index(&index, vec![text_field]);
+//! // ...
+//! let query = query_parser.parse_query("haleurs flamands").unwrap();
+//! # let reader = index.reader()?;
+//! # let searcher = reader.searcher();
+//! let mut snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
+//! snippet_generator.set_max_num_chars(100);
+//! let snippet = snippet_generator.snippet_from_doc(&doc);
+//! let snippet_html: String = snippet.to_html();
+//! assert_eq!(snippet_html, "Comme je descendais des Fleuves impassibles,\n  Je ne me sentis plus guidé par les <b>haleurs</b> :\n Des");
+//! #    Ok(())
+//! # }
+//! ```
+//!
+//! You can also specify the maximum number of characters for the snippets generated with the
+//! `set_max_num_chars` method. By default, this limit is set to 150.
+//!
+//! SnippetGenerator needs to be created from the `Searcher` and the query, and the field on which
+//! the `SnippetGenerator` should generate the snippets.
+
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
@@ -5,9 +61,10 @@ use std::ops::Range;
 use htmlescape::encode_minimal;
 
 use crate::query::Query;
-use crate::schema::{Field, Value};
+use crate::schema::document::{Document, Value};
+use crate::schema::Field;
 use crate::tokenizer::{TextAnalyzer, Token};
-use crate::{Document, Score, Searcher, Term};
+use crate::{Score, Searcher, Term};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
@@ -15,7 +72,7 @@ const DEFAULT_SNIPPET_PREFIX: &str = "<b>";
 const DEFAULT_SNIPPET_POSTFIX: &str = "</b>";
 
 #[derive(Debug)]
-pub struct FragmentCandidate {
+pub(crate) struct FragmentCandidate {
     score: Score,
     start_offset: usize,
     stop_offset: usize,
@@ -255,7 +312,7 @@ fn is_sorted(mut it: impl Iterator<Item = usize>) -> bool {
 /// # use tantivy::query::QueryParser;
 /// # use tantivy::schema::{Schema, TEXT};
 /// # use tantivy::{doc, Index};
-/// use tantivy::SnippetGenerator;
+/// use tantivy::snippet::SnippetGenerator;
 ///
 /// # fn main() -> tantivy::Result<()> {
 /// #    let mut schema_builder = Schema::builder();
@@ -345,7 +402,7 @@ impl SnippetGenerator {
         })
     }
 
-    /// Sets a maximum number of chars.
+    /// Sets a maximum number of chars. Default is 150.
     pub fn set_max_num_chars(&mut self, max_num_chars: usize) {
         self.max_num_chars = max_num_chars;
     }
@@ -359,13 +416,21 @@ impl SnippetGenerator {
     ///
     /// This method extract the text associated with the `SnippetGenerator`'s field
     /// and computes a snippet.
-    pub fn snippet_from_doc(&self, doc: &Document) -> Snippet {
-        let text: String = doc
-            .get_all(self.field)
-            .flat_map(Value::as_text)
-            .collect::<Vec<&str>>()
-            .join(" ");
-        self.snippet(&text)
+    pub fn snippet_from_doc<D: Document>(&self, doc: &D) -> Snippet {
+        let mut text = String::new();
+        for (field, value) in doc.iter_fields_and_values() {
+            let value = value as D::Value<'_>;
+            if field != self.field {
+                continue;
+            }
+
+            if let Some(val) = value.as_str() {
+                text.push(' ');
+                text.push_str(val);
+            }
+        }
+
+        self.snippet(text.trim())
     }
 
     /// Generates a snippet for the given text.
@@ -389,8 +454,9 @@ mod tests {
     use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination};
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
+    use crate::snippet::SnippetGenerator;
     use crate::tokenizer::{NgramTokenizer, SimpleTokenizer};
-    use crate::{Index, SnippetGenerator};
+    use crate::Index;
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
 Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and

@@ -12,7 +12,7 @@ use tantivy::aggregation::agg_result::AggregationResults;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::{self, IndexRecordOption, Schema, TextFieldIndexing, FAST};
-use tantivy::Index;
+use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
     // # Create Schema
@@ -132,10 +132,10 @@ fn main() -> tantivy::Result<()> {
 
     let stream = Deserializer::from_str(data).into_iter::<Value>();
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     let mut num_indexed = 0;
     for value in stream {
-        let doc = schema.parse_document(&serde_json::to_string(&value.unwrap())?)?;
+        let doc = TantivyDocument::parse_json(&schema, &serde_json::to_string(&value.unwrap())?)?;
         index_writer.add_document(doc)?;
         num_indexed += 1;
         if num_indexed > 4 {

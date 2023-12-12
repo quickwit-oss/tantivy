@@ -16,12 +16,14 @@ use crate::directory::error::OpenReadError;
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
-use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
+use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
+use crate::indexer::IndexWriter;
 use crate::reader::{IndexReader, IndexReaderBuilder};
+use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::IndexWriter;
+use crate::{merge_field_meta_data, FieldMetadata, SegmentReader};
 
 fn load_metas(
     directory: &dyn Directory,
@@ -184,11 +186,11 @@ impl IndexBuilder {
     ///
     /// It expects an originally empty directory, and will not run any GC operation.
     #[doc(hidden)]
-    pub fn single_segment_index_writer(
+    pub fn single_segment_index_writer<D: Document>(
         self,
         dir: impl Into<Box<dyn Directory>>,
         mem_budget: usize,
-    ) -> crate::Result<SingleSegmentIndexWriter> {
+    ) -> crate::Result<SingleSegmentIndexWriter<D>> {
         let index = self.create(dir)?;
         let index_simple_writer = SingleSegmentIndexWriter::new(index, mem_budget)?;
         Ok(index_simple_writer)
@@ -488,6 +490,28 @@ impl Index {
         self.inventory.all()
     }
 
+    /// Returns the list of fields that have been indexed in the Index.
+    /// The field list includes the field defined in the schema as well as the fields
+    /// that have been indexed as a part of a JSON field.
+    /// The returned field name is the full field name, including the name of the JSON field.
+    ///
+    /// The returned field names can be used in queries.
+    ///
+    /// Notice: If your data contains JSON fields this is **very expensive**, as it requires
+    /// browsing through the inverted index term dictionary and the columnar field dictionary.
+    ///
+    /// Disclaimer: Some fields may not be listed here. For instance, if the schema contains a json
+    /// field that is not indexed nor a fast field but is stored, it is possible for the field
+    /// to not be listed.
+    pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
+        let segments = self.searchable_segments()?;
+        let fields_metadata: Vec<Vec<FieldMetadata>> = segments
+            .into_iter()
+            .map(|segment| SegmentReader::open(&segment)?.fields_metadata())
+            .collect::<Result<_, _>>()?;
+        Ok(merge_field_meta_data(fields_metadata, &self.schema()))
+    }
+
     /// Creates a new segment_meta (Advanced user only).
     ///
     /// As long as the `SegmentMeta` lives, the files associated with the
@@ -523,19 +547,19 @@ impl Index {
     /// - `num_threads` defines the number of indexing workers that
     /// should work at the same time.
     ///
-    /// - `overall_memory_arena_in_bytes` sets the amount of memory
+    /// - `overall_memory_budget_in_bytes` sets the amount of memory
     /// allocated for all indexing thread.
-    /// Each thread will receive a budget of  `overall_memory_arena_in_bytes / num_threads`.
+    /// Each thread will receive a budget of  `overall_memory_budget_in_bytes / num_threads`.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer_with_num_threads(
+    pub fn writer_with_num_threads<D: Document>(
         &self,
         num_threads: usize,
-        overall_memory_arena_in_bytes: usize,
-    ) -> crate::Result<IndexWriter> {
+        overall_memory_budget_in_bytes: usize,
+    ) -> crate::Result<IndexWriter<D>> {
         let directory_lock = self
             .directory
             .acquire_lock(&INDEX_WRITER_LOCK)
@@ -550,7 +574,7 @@ impl Index {
                     ),
                 )
             })?;
-        let memory_arena_in_bytes_per_thread = overall_memory_arena_in_bytes / num_threads;
+        let memory_arena_in_bytes_per_thread = overall_memory_budget_in_bytes / num_threads;
         IndexWriter::new(
             self,
             num_threads,
@@ -561,11 +585,11 @@ impl Index {
 
     /// Helper to create an index writer for tests.
     ///
-    /// That index writer only simply has a single thread and a memory arena of 10 MB.
+    /// That index writer only simply has a single thread and a memory budget of 15 MB.
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
-    pub fn writer_for_tests(&self) -> crate::Result<IndexWriter> {
-        self.writer_with_num_threads(1, 15_000_000)
+    pub fn writer_for_tests<D: Document>(&self) -> crate::Result<IndexWriter<D>> {
+        self.writer_with_num_threads(1, MEMORY_BUDGET_NUM_BYTES_MIN)
     }
 
     /// Creates a multithreaded writer
@@ -579,13 +603,16 @@ impl Index {
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer(&self, memory_arena_num_bytes: usize) -> crate::Result<IndexWriter> {
+    pub fn writer<D: Document>(
+        &self,
+        memory_budget_in_bytes: usize,
+    ) -> crate::Result<IndexWriter<D>> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
-        let memory_arena_num_bytes_per_thread = memory_arena_num_bytes / num_threads;
-        if memory_arena_num_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
-            num_threads = (memory_arena_num_bytes / MEMORY_ARENA_NUM_BYTES_MIN).max(1);
+        let memory_budget_num_bytes_per_thread = memory_budget_in_bytes / num_threads;
+        if memory_budget_num_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
+            num_threads = (memory_budget_in_bytes / MEMORY_BUDGET_NUM_BYTES_MIN).max(1);
         }
-        self.writer_with_num_threads(num_threads, memory_arena_num_bytes)
+        self.writer_with_num_threads(num_threads, memory_budget_in_bytes)
     }
 
     /// Accessor to the index settings

@@ -6,20 +6,23 @@ use stacker::Addr;
 
 use crate::fieldnorm::FieldNormReaders;
 use crate::indexer::doc_id_mapping::DocIdMapping;
+use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::recorder::{BufferLender, Recorder};
 use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
 };
-use crate::schema::{Field, Term};
+use crate::schema::{Field, Schema, Term, Type};
 use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
 use crate::DocId;
 
 const POSITION_GAP: u32 = 1;
 
-fn make_field_partition(term_offsets: &[(Term<&[u8]>, Addr)]) -> Vec<(Field, Range<usize>)> {
+fn make_field_partition(
+    term_offsets: &[(Field, OrderedPathId, &[u8], Addr)],
+) -> Vec<(Field, Range<usize>)> {
     let term_offsets_it = term_offsets
         .iter()
-        .map(|(term, _)| term.field())
+        .map(|(field, _, _, _)| *field)
         .enumerate();
     let mut prev_field_opt = None;
     let mut fields = vec![];
@@ -44,19 +47,36 @@ fn make_field_partition(term_offsets: &[(Term<&[u8]>, Addr)]) -> Vec<(Field, Ran
 /// postings serializer.
 pub(crate) fn serialize_postings(
     ctx: IndexingContext,
+    schema: Schema,
     per_field_postings_writers: &PerFieldPostingsWriter,
     fieldnorm_readers: FieldNormReaders,
     doc_id_map: Option<&DocIdMapping>,
     serializer: &mut InvertedIndexSerializer,
 ) -> crate::Result<()> {
-    let mut term_offsets: Vec<(Term<&[u8]>, Addr)> = Vec::with_capacity(ctx.term_index.len());
-    term_offsets.extend(
-        ctx.term_index
-            .iter()
-            .map(|(bytes, addr, _unordered_id)| (Term::wrap(bytes), addr)),
-    );
-    term_offsets.sort_unstable_by_key(|(k, _)| k.clone());
+    // Replace unordered ids by ordered ids to be able to sort
+    let unordered_id_to_ordered_id: Vec<OrderedPathId> =
+        ctx.path_to_unordered_id.unordered_id_to_ordered_id();
 
+    let mut term_offsets: Vec<(Field, OrderedPathId, &[u8], Addr)> =
+        Vec::with_capacity(ctx.term_index.len());
+    term_offsets.extend(ctx.term_index.iter().map(|(key, addr)| {
+        let field = Term::wrap(key).field();
+        if schema.get_field_entry(field).field_type().value_type() == Type::Json {
+            let byte_range_path = 5..5 + 4;
+            let unordered_id = u32::from_be_bytes(key[byte_range_path.clone()].try_into().unwrap());
+            let path_id = unordered_id_to_ordered_id[unordered_id as usize];
+            (field, path_id, &key[byte_range_path.end..], addr)
+        } else {
+            (field, 0.into(), &key[5..], addr)
+        }
+    }));
+    // Sort by field, path, and term
+    term_offsets.sort_unstable_by(
+        |(field1, path_id1, bytes1, _), (field2, path_id2, bytes2, _)| {
+            (field1, path_id1, bytes1).cmp(&(field2, path_id2, bytes2))
+        },
+    );
+    let ordered_id_to_path = ctx.path_to_unordered_id.ordered_id_to_path();
     let field_offsets = make_field_partition(&term_offsets);
     for (field, byte_offsets) in field_offsets {
         let postings_writer = per_field_postings_writers.get_for_field(field);
@@ -65,12 +85,14 @@ pub(crate) fn serialize_postings(
             serializer.new_field(field, postings_writer.total_num_tokens(), fieldnorm_reader)?;
         postings_writer.serialize(
             &term_offsets[byte_offsets],
+            &ordered_id_to_path,
             doc_id_map,
             &ctx,
             &mut field_serializer,
         )?;
         field_serializer.close()?;
     }
+
     Ok(())
 }
 
@@ -98,7 +120,8 @@ pub(crate) trait PostingsWriter: Send + Sync {
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(
         &self,
-        term_addrs: &[(Term<&[u8]>, Addr)],
+        term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
+        ordered_id_to_path: &[&str],
         doc_id_map: Option<&DocIdMapping>,
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
@@ -162,7 +185,7 @@ impl<Rec: Recorder> From<SpecializedPostingsWriter<Rec>> for Box<dyn PostingsWri
 impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
     #[inline]
     pub(crate) fn serialize_one_term(
-        term: &Term<&[u8]>,
+        term: &[u8],
         addr: Addr,
         doc_id_map: Option<&DocIdMapping>,
         buffer_lender: &mut BufferLender,
@@ -171,7 +194,7 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
     ) -> io::Result<()> {
         let recorder: Rec = ctx.term_index.read(addr);
         let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
-        serializer.new_term(term.serialized_value_bytes(), term_doc_freq)?;
+        serializer.new_term(term, term_doc_freq, recorder.has_term_freq())?;
         recorder.serialize(&ctx.arena, doc_id_map, serializer, buffer_lender);
         serializer.close_term()?;
         Ok(())
@@ -204,13 +227,14 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
 
     fn serialize(
         &self,
-        term_addrs: &[(Term<&[u8]>, Addr)],
+        term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
+        _ordered_id_to_path: &[&str],
         doc_id_map: Option<&DocIdMapping>,
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
-        for (term, addr) in term_addrs {
+        for (_field, _path_id, term, addr) in term_addrs {
             Self::serialize_one_term(term, *addr, doc_id_map, &mut buffer_lender, ctx, serializer)?;
         }
         Ok(())

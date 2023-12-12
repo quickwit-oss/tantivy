@@ -1,11 +1,11 @@
 use columnar::MonotonicallyMappableToU64;
-use common::replace_in_place;
-use murmurhash32::murmurhash2;
+use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
 use crate::fastfield::FastValue;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::term::{JSON_PATH_SEGMENT_SEP, JSON_PATH_SEGMENT_SEP_STR};
+use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
+use crate::schema::term::JSON_PATH_SEGMENT_SEP;
 use crate::schema::{Field, Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
@@ -57,31 +57,41 @@ struct IndexingPositionsPerPath {
 }
 
 impl IndexingPositionsPerPath {
-    fn get_position(&mut self, term: &Term) -> &mut IndexingPosition {
-        self.positions_per_path
-            .entry(murmurhash2(term.serialized_term()))
-            .or_default()
+    fn get_position_from_id(&mut self, id: u32) -> &mut IndexingPosition {
+        self.positions_per_path.entry(id).or_default()
     }
 }
 
-pub(crate) fn index_json_values<'a>(
+/// Convert JSON_PATH_SEGMENT_SEP to a dot.
+pub fn json_path_sep_to_dot(path: &mut str) {
+    // This is safe since we are replacing a ASCII character by another ASCII character.
+    unsafe {
+        replace_in_place(JSON_PATH_SEGMENT_SEP, b'.', path.as_bytes_mut());
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn index_json_values<'a, V: Value<'a>>(
     doc: DocId,
-    json_values: impl Iterator<Item = crate::Result<&'a serde_json::Map<String, serde_json::Value>>>,
+    json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
     text_analyzer: &mut TextAnalyzer,
     expand_dots_enabled: bool,
     term_buffer: &mut Term,
     postings_writer: &mut dyn PostingsWriter,
+    json_path_writer: &mut JsonPathWriter,
     ctx: &mut IndexingContext,
 ) -> crate::Result<()> {
-    let mut json_term_writer = JsonTermWriter::wrap(term_buffer, expand_dots_enabled);
+    json_path_writer.clear();
+    json_path_writer.set_expand_dots(expand_dots_enabled);
     let mut positions_per_path: IndexingPositionsPerPath = Default::default();
-    for json_value_res in json_values {
-        let json_value = json_value_res?;
-        index_json_object(
+    for json_visitor_res in json_visitors {
+        let json_visitor = json_visitor_res?;
+        index_json_object::<V>(
             doc,
-            json_value,
+            json_visitor,
             text_analyzer,
-            &mut json_term_writer,
+            term_buffer,
+            json_path_writer,
             postings_writer,
             ctx,
             &mut positions_per_path,
@@ -90,113 +100,159 @@ pub(crate) fn index_json_values<'a>(
     Ok(())
 }
 
-fn index_json_object(
+#[allow(clippy::too_many_arguments)]
+fn index_json_object<'a, V: Value<'a>>(
     doc: DocId,
-    json_value: &serde_json::Map<String, serde_json::Value>,
+    json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
-    json_term_writer: &mut JsonTermWriter,
+    term_buffer: &mut Term,
+    json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    for (json_path_segment, json_value) in json_value {
-        json_term_writer.push_path_segment(json_path_segment);
+    for (json_path_segment, json_value_visitor) in json_visitor {
+        json_path_writer.push(json_path_segment);
         index_json_value(
             doc,
-            json_value,
+            json_value_visitor,
             text_analyzer,
-            json_term_writer,
+            term_buffer,
+            json_path_writer,
             postings_writer,
             ctx,
             positions_per_path,
         );
-        json_term_writer.pop_path_segment();
+        json_path_writer.pop();
     }
 }
 
-fn index_json_value(
+#[allow(clippy::too_many_arguments)]
+fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
-    json_value: &serde_json::Value,
+    json_value: V,
     text_analyzer: &mut TextAnalyzer,
-    json_term_writer: &mut JsonTermWriter,
+    term_buffer: &mut Term,
+    json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    match json_value {
-        serde_json::Value::Null => {}
-        serde_json::Value::Bool(val_bool) => {
-            json_term_writer.set_fast_value(*val_bool);
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        serde_json::Value::Number(number) => {
-            if let Some(number_i64) = number.as_i64() {
-                json_term_writer.set_fast_value(number_i64);
-            } else if let Some(number_u64) = number.as_u64() {
-                json_term_writer.set_fast_value(number_u64);
-            } else if let Some(number_f64) = number.as_f64() {
-                json_term_writer.set_fast_value(number_f64);
-            }
-            postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
-        }
-        serde_json::Value::String(text) => match infer_type_from_str(text) {
-            TextOrDateTime::Text(text) => {
-                let mut token_stream = text_analyzer.token_stream(text);
-                // TODO make sure the chain position works out.
-                json_term_writer.close_path_and_set_type(Type::Str);
-                let indexing_position = positions_per_path.get_position(json_term_writer.term());
+    let set_path_id = |term_buffer: &mut Term, unordered_id: u32| {
+        term_buffer.truncate_value_bytes(0);
+        term_buffer.append_bytes(&unordered_id.to_be_bytes());
+    };
+    let set_type = |term_buffer: &mut Term, typ: Type| {
+        term_buffer.append_bytes(&[typ.to_code()]);
+    };
+
+    match json_value.as_value() {
+        ReferenceValue::Leaf(leaf) => match leaf {
+            ReferenceValueLeaf::Null => {}
+            ReferenceValueLeaf::Str(val) => {
+                let mut token_stream = text_analyzer.token_stream(val);
+                let unordered_id = ctx
+                    .path_to_unordered_id
+                    .get_or_allocate_unordered_id(json_path_writer.as_str());
+
+                // TODO: make sure the chain position works out.
+                set_path_id(term_buffer, unordered_id);
+                set_type(term_buffer, Type::Str);
+                let indexing_position = positions_per_path.get_position_from_id(unordered_id);
                 postings_writer.index_text(
                     doc,
                     &mut *token_stream,
-                    json_term_writer.term_buffer,
+                    term_buffer,
                     ctx,
                     indexing_position,
                 );
             }
-            TextOrDateTime::DateTime(dt) => {
-                json_term_writer.set_fast_value(DateTime::from_utc(dt));
-                postings_writer.subscribe(doc, 0u32, json_term_writer.term(), ctx);
+            ReferenceValueLeaf::U64(val) => {
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
+            }
+            ReferenceValueLeaf::I64(val) => {
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
+            }
+            ReferenceValueLeaf::F64(val) => {
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
+            }
+            ReferenceValueLeaf::Bool(val) => {
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
+            }
+            ReferenceValueLeaf::Date(val) => {
+                set_path_id(
+                    term_buffer,
+                    ctx.path_to_unordered_id
+                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                );
+                term_buffer.append_type_and_fast_value(val);
+                postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
+            }
+            ReferenceValueLeaf::PreTokStr(_) => {
+                unimplemented!(
+                    "Pre-tokenized string support in dynamic fields is not yet implemented"
+                )
+            }
+            ReferenceValueLeaf::Bytes(_) => {
+                unimplemented!("Bytes support in dynamic fields is not yet implemented")
+            }
+            ReferenceValueLeaf::Facet(_) => {
+                unimplemented!("Facet support in dynamic fields is not yet implemented")
+            }
+            ReferenceValueLeaf::IpAddr(_) => {
+                unimplemented!("IP address support in dynamic fields is not yet implemented")
             }
         },
-        serde_json::Value::Array(arr) => {
-            for val in arr {
+        ReferenceValue::Array(elements) => {
+            for val in elements {
                 index_json_value(
                     doc,
                     val,
                     text_analyzer,
-                    json_term_writer,
+                    term_buffer,
+                    json_path_writer,
                     postings_writer,
                     ctx,
                     positions_per_path,
                 );
             }
         }
-        serde_json::Value::Object(map) => {
-            index_json_object(
+        ReferenceValue::Object(object) => {
+            index_json_object::<V>(
                 doc,
-                map,
+                object,
                 text_analyzer,
-                json_term_writer,
+                term_buffer,
+                json_path_writer,
                 postings_writer,
                 ctx,
                 positions_per_path,
             );
         }
-    }
-}
-
-enum TextOrDateTime<'a> {
-    Text(&'a str),
-    DateTime(OffsetDateTime),
-}
-
-fn infer_type_from_str(text: &str) -> TextOrDateTime {
-    match OffsetDateTime::parse(text, &Rfc3339) {
-        Ok(dt) => {
-            let dt_utc = dt.to_offset(UtcOffset::UTC);
-            TextOrDateTime::DateTime(dt_utc)
-        }
-        Err(_) => TextOrDateTime::Text(text),
     }
 }
 
@@ -272,7 +328,7 @@ pub struct JsonTermWriter<'a> {
 /// In other words,
 /// - `k8s.node` ends up as `["k8s", "node"]`.
 /// - `k8s\.node` ends up as `["k8s.node"]`.
-fn split_json_path(json_path: &str) -> Vec<String> {
+pub fn split_json_path(json_path: &str) -> Vec<String> {
     let mut escaped_state: bool = false;
     let mut json_path_segments = Vec::new();
     let mut buffer = String::new();
@@ -312,17 +368,13 @@ pub(crate) fn encode_column_name(
     json_path: &str,
     expand_dots_enabled: bool,
 ) -> String {
-    let mut column_key: String = String::with_capacity(field_name.len() + json_path.len() + 1);
-    column_key.push_str(field_name);
-    for mut segment in split_json_path(json_path) {
-        column_key.push_str(JSON_PATH_SEGMENT_SEP_STR);
-        if expand_dots_enabled {
-            // We need to replace `.` by JSON_PATH_SEGMENT_SEP.
-            unsafe { replace_in_place(b'.', JSON_PATH_SEGMENT_SEP, segment.as_bytes_mut()) };
-        }
-        column_key.push_str(&segment);
+    let mut path = JsonPathWriter::default();
+    path.push(field_name);
+    path.set_expand_dots(expand_dots_enabled);
+    for segment in split_json_path(json_path) {
+        path.push(&segment);
     }
-    column_key
+    path.into()
 }
 
 impl<'a> JsonTermWriter<'a> {
@@ -362,6 +414,7 @@ impl<'a> JsonTermWriter<'a> {
         self.term_buffer.append_bytes(&[typ.to_code()]);
     }
 
+    // TODO: Remove this function and use JsonPathWriter instead.
     pub fn push_path_segment(&mut self, segment: &str) {
         // the path stack should never be empty.
         self.trim_to_end_of_path();

@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::{fmt, str};
 
-use columnar::MonotonicallyMappableToU128;
+use columnar::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 
 use super::date_time_options::DATE_TIME_PRECISION_INDEXED;
 use super::Field;
@@ -168,6 +168,18 @@ impl Term {
 
     fn set_fast_value<T: FastValue>(&mut self, val: T) {
         self.set_bytes(val.to_u64().to_be_bytes().as_ref());
+    }
+
+    pub(crate) fn append_type_and_fast_value<T: FastValue>(&mut self, val: T) {
+        self.0.push(T::to_type().to_code());
+        let value = if T::to_type() == Type::Date {
+            DateTime::from_u64(val.to_u64())
+                .truncate(DATE_TIME_PRECISION_INDEXED)
+                .to_u64()
+        } else {
+            val.to_u64()
+        };
+        self.0.extend(value.to_be_bytes().as_ref());
     }
 
     /// Sets a `Ipv6Addr` value in the term.
@@ -419,7 +431,7 @@ where B: AsRef<[u8]>
         let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
         // split at pos + 1, so that json_path_bytes includes the JSON_END_OF_PATH byte.
         let (json_path_bytes, term) = bytes.split_at(pos + 1);
-        Some((json_path_bytes, ValueBytes::wrap(&term)))
+        Some((json_path_bytes, ValueBytes::wrap(term)))
     }
 
     /// Returns the encoded ValueBytes after the json path.

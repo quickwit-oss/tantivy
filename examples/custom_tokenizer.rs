@@ -6,7 +6,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::NgramTokenizer;
-use tantivy::{doc, Index};
+use tantivy::{doc, Index, IndexWriter};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -62,7 +62,7 @@ fn main() -> tantivy::Result<()> {
     //
     // Here we use a buffer of 50MB per thread. Using a bigger
     // memory arena for the indexer can increase its throughput.
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
     index_writer.add_document(doc!(
     title => "The Old Man and the Sea",
     body => "He was an old man who fished alone in a skiff in the Gulf Stream and \
@@ -103,8 +103,8 @@ fn main() -> tantivy::Result<()> {
     let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     for (_, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
-        println!("{}", schema.to_json(&retrieved_doc));
+        let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
+        println!("{}", retrieved_doc.to_json(&schema));
     }
 
     Ok(())

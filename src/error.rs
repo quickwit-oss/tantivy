@@ -11,6 +11,7 @@ use crate::directory::error::{
     Incompatibility, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::fastfield::FastFieldNotAvailableError;
+use crate::schema::document::DeserializeError;
 use crate::{query, schema};
 
 /// Represents a `DataCorruption` error.
@@ -106,6 +107,9 @@ pub enum TantivyError {
     /// e.g. a datastructure is incorrectly inititalized.
     #[error("Internal error: '{0}'")]
     InternalError(String),
+    #[error("Deserialize error: {0}")]
+    /// An error occurred while attempting to deserialize a document.
+    DeserializeError(DeserializeError),
 }
 
 impl From<io::Error> for TantivyError {
@@ -174,5 +178,11 @@ impl From<serde_json::Error> for TantivyError {
 impl From<rayon::ThreadPoolBuildError> for TantivyError {
     fn from(error: rayon::ThreadPoolBuildError) -> TantivyError {
         TantivyError::SystemError(error.to_string())
+    }
+}
+
+impl From<DeserializeError> for TantivyError {
+    fn from(error: DeserializeError) -> TantivyError {
+        TantivyError::DeserializeError(error)
     }
 }

@@ -38,7 +38,7 @@ impl Automaton for DfaWrapper {
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::FuzzyTermQuery;
 /// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{doc, Index, Term};
+/// use tantivy::{doc, Index, IndexWriter, Term};
 ///
 /// fn example() -> tantivy::Result<()> {
 ///     let mut schema_builder = Schema::builder();
@@ -46,7 +46,7 @@ impl Automaton for DfaWrapper {
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
 ///     {
-///         let mut index_writer = index.writer(3_000_000)?;
+///         let mut index_writer: IndexWriter = index.writer(15_000_000)?;
 ///         index_writer.add_document(doc!(
 ///             title => "The Name of the Wind",
 ///         ))?;
@@ -188,7 +188,7 @@ mod test {
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::{Schema, STORED, TEXT};
-    use crate::{assert_nearly_equals, Index, Term};
+    use crate::{assert_nearly_equals, Index, IndexWriter, TantivyDocument, Term};
 
     #[test]
     pub fn test_fuzzy_json_path() -> crate::Result<()> {
@@ -202,7 +202,8 @@ mod test {
 
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        let doc = schema.parse_document(
+        let doc = TantivyDocument::parse_json(
+            &schema,
             r#"{
             "attributes": {
                 "a": "japan"
@@ -210,7 +211,8 @@ mod test {
         }"#,
         )?;
         index_writer.add_document(doc)?;
-        let doc = schema.parse_document(
+        let doc = TantivyDocument::parse_json(
+            &schema,
             r#"{
             "attributes": {
                 "aa": "japan"
@@ -275,7 +277,7 @@ mod test {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(
                 country_field => "japan",
             ))?;
@@ -324,7 +326,7 @@ mod test {
         let country_field = schema_builder.add_text_field("country", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(country_field => "japan"))?;
         index_writer.commit()?;
         let reader = index.reader()?;

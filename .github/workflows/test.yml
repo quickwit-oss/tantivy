@@ -39,6 +39,13 @@ jobs:
 
     - name: Check Formatting
       run: cargo +nightly fmt --all -- --check
+    
+    - name: Check Stable Compilation
+      run: cargo build --all-features
+
+    
+    - name: Check Bench Compilation
+      run: cargo +nightly bench --no-run --profile=dev --all-features
 
     - uses: actions-rs/clippy-check@v1
       with:

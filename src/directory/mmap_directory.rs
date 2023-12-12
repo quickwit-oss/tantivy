@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufWriter, Read, Seek, Write};
+use std::io::{self, BufWriter, Read, Write};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 
 use common::StableDeref;
 use fs4::FileExt;
+#[cfg(all(feature = "mmap", unix))]
+pub use memmap2::Advice;
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
@@ -21,8 +23,6 @@ use crate::directory::{
     AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
     WatchCallback, WatchHandle, WritePtr,
 };
-#[cfg(unix)]
-use crate::Advice;
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -328,12 +328,6 @@ impl Write for SafeFileWriter {
     }
 }
 
-impl Seek for SafeFileWriter {
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.0.seek(pos)
-    }
-}
-
 impl TerminatingWrite for SafeFileWriter {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         self.0.flush()?;
@@ -539,7 +533,7 @@ mod tests {
     use super::*;
     use crate::indexer::LogMergePolicy;
     use crate::schema::{Schema, SchemaBuilder, TEXT};
-    use crate::{Index, IndexSettings, ReloadPolicy};
+    use crate::{Index, IndexSettings, IndexWriter, ReloadPolicy};
 
     #[test]
     fn test_open_non_existent_path() {
@@ -651,7 +645,7 @@ mod tests {
             let index =
                 Index::create(mmap_directory.clone(), schema, IndexSettings::default()).unwrap();
 
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             let mut log_merge_policy = LogMergePolicy::default();
             log_merge_policy.set_min_num_segments(3);
             index_writer.set_merge_policy(Box::new(log_merge_policy));

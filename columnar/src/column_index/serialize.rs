@@ -30,6 +30,7 @@ impl<'a> SerializableColumnIndex<'a> {
     }
 }
 
+/// Serialize a column index.
 pub fn serialize_column_index(
     column_index: SerializableColumnIndex,
     output: &mut impl Write,
@@ -51,6 +52,7 @@ pub fn serialize_column_index(
     Ok(column_index_num_bytes)
 }
 
+/// Open a serialized column index.
 pub fn open_column_index(mut bytes: OwnedBytes) -> io::Result<ColumnIndex> {
     if bytes.is_empty() {
         return Err(io::Error::new(

@@ -1,20 +1,16 @@
-use std::io::{self, Read, Write};
-
-use common::BinarySerializable;
-
-use crate::schema::{Field, Value};
+use crate::schema::{Field, OwnedValue};
 
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FieldValue {
     pub field: Field,
-    pub value: Value,
+    pub value: OwnedValue,
 }
 
 impl FieldValue {
     /// Constructor
-    pub fn new(field: Field, value: Value) -> FieldValue {
+    pub fn new(field: Field, value: OwnedValue) -> FieldValue {
         FieldValue { field, value }
     }
 
@@ -24,26 +20,27 @@ impl FieldValue {
     }
 
     /// Value accessor
-    pub fn value(&self) -> &Value {
+    pub fn value(&self) -> &OwnedValue {
         &self.value
     }
 }
 
-impl From<FieldValue> for Value {
+impl From<FieldValue> for OwnedValue {
     fn from(field_value: FieldValue) -> Self {
         field_value.value
     }
 }
 
-impl BinarySerializable for FieldValue {
-    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        self.field.serialize(writer)?;
-        self.value.serialize(writer)
-    }
+/// A helper wrapper for creating standard iterators
+/// out of the fields iterator trait.
+pub struct FieldValueIter<'a>(pub(crate) std::slice::Iter<'a, FieldValue>);
 
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let field = Field::deserialize(reader)?;
-        let value = Value::deserialize(reader)?;
-        Ok(FieldValue { field, value })
+impl<'a> Iterator for FieldValueIter<'a> {
+    type Item = (Field, &'a OwnedValue);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0
+            .next()
+            .map(|field_value| (field_value.field, &field_value.value))
     }
 }

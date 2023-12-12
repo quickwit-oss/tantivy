@@ -46,17 +46,20 @@ pub struct JsonObjectOptions {
 
 impl JsonObjectOptions {
     /// Returns `true` if the json object should be stored.
+    #[inline]
     pub fn is_stored(&self) -> bool {
         self.stored
     }
 
     /// Returns `true` iff the json object should be indexed.
+    #[inline]
     pub fn is_indexed(&self) -> bool {
         self.indexing.is_some()
     }
 
     /// Returns true if and only if the json object fields are
     /// to be treated as fast fields.
+    #[inline]
     pub fn is_fast(&self) -> bool {
         matches!(self.fast, FastFieldTextOptions::IsEnabled(true))
             || matches!(
@@ -66,6 +69,7 @@ impl JsonObjectOptions {
     }
 
     /// Returns true if and only if the value is a fast field.
+    #[inline]
     pub fn get_fast_field_tokenizer_name(&self) -> Option<&str> {
         match &self.fast {
             FastFieldTextOptions::IsEnabled(true) | FastFieldTextOptions::IsEnabled(false) => None,
@@ -87,6 +91,7 @@ impl JsonObjectOptions {
     ///
     /// If disabled, the "." needs to be escaped:
     /// `k8s\.node\.id:5`.
+    #[inline]
     pub fn is_expand_dots_enabled(&self) -> bool {
         self.expand_dots_enabled
     }
@@ -103,6 +108,7 @@ impl JsonObjectOptions {
     /// If set to `Some` then both int and str values will be indexed.
     /// The inner `TextFieldIndexing` will however, only apply to the str values
     /// in the json object.
+    #[inline]
     pub fn get_text_indexing_options(&self) -> Option<&TextFieldIndexing> {
         self.indexing.as_ref()
     }

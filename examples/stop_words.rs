@@ -15,7 +15,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::*;
-use tantivy::{doc, Index};
+use tantivy::{doc, Index, IndexWriter};
 
 fn main() -> tantivy::Result<()> {
     // this example assumes you understand the content in `basic_search`
@@ -60,7 +60,7 @@ fn main() -> tantivy::Result<()> {
 
     index.tokenizers().register("stoppy", tokenizer);
 
-    let mut index_writer = index.writer(50_000_000)?;
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
 
     let title = schema.get_field("title").unwrap();
     let body = schema.get_field("body").unwrap();
@@ -105,9 +105,9 @@ fn main() -> tantivy::Result<()> {
     let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     for (score, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
+        let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
         println!("\n==\nDocument score {score}:");
-        println!("{}", schema.to_json(&retrieved_doc));
+        println!("{}", retrieved_doc.to_json(&schema));
     }
 
     Ok(())

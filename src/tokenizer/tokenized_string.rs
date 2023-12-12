@@ -1,11 +1,13 @@
 use std::cmp::Ordering;
+use std::io;
+use std::io::{Read, Write};
 
-use serde::{Deserialize, Serialize};
+use common::BinarySerializable;
 
 use crate::tokenizer::{Token, TokenStream};
 
 /// Struct representing pre-tokenized text
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub struct PreTokenizedString {
     /// Original text
     pub text: String,
@@ -22,6 +24,32 @@ impl Ord for PreTokenizedString {
 impl PartialOrd for PreTokenizedString {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl BinarySerializable for PreTokenizedString {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        if let Ok(text) = serde_json::to_string(self) {
+            <String as BinarySerializable>::serialize(&text, writer)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to dump PreTokenizedString to json.",
+            ))
+        }
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let json_text = <String as BinarySerializable>::deserialize(reader)?;
+
+        if let Ok(value) = serde_json::from_str(&json_text) {
+            Ok(value)
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Failed to parse string data as PreTokenizedString.",
+            ))
+        }
     }
 }
 

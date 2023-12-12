@@ -338,7 +338,7 @@ impl ColumnarWriter {
         let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
             .numerical_field_hash_map
             .iter()
-            .map(|(column_name, addr, _)| {
+            .map(|(column_name, addr)| {
                 let numerical_column_writer: NumericalColumnWriter =
                     self.numerical_field_hash_map.read(addr);
                 let column_type = numerical_column_writer.numerical_type().into();
@@ -348,27 +348,27 @@ impl ColumnarWriter {
         columns.extend(
             self.bytes_field_hash_map
                 .iter()
-                .map(|(term, addr, _)| (term, ColumnType::Bytes, addr)),
+                .map(|(term, addr)| (term, ColumnType::Bytes, addr)),
         );
         columns.extend(
             self.str_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::Str, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::Str, addr)),
         );
         columns.extend(
             self.bool_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::Bool, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::Bool, addr)),
         );
         columns.extend(
             self.ip_addr_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::IpAddr, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::IpAddr, addr)),
         );
         columns.extend(
             self.datetime_field_hash_map
                 .iter()
-                .map(|(column_name, addr, _)| (column_name, ColumnType::DateTime, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::DateTime, addr)),
         );
         columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
 
@@ -437,6 +437,7 @@ impl ColumnarWriter {
                             &mut symbol_byte_buffer,
                         ),
                         buffers,
+                        &self.arena,
                         &mut column_serializer,
                     )?;
                     column_serializer.finalize()?;
@@ -490,6 +491,7 @@ impl ColumnarWriter {
 
 // Serialize [Dictionary, Column, dictionary num bytes U32::LE]
 // Column: [Column Index, Column Values, column index num bytes U32::LE]
+#[allow(clippy::too_many_arguments)]
 fn serialize_bytes_or_str_column(
     cardinality: Cardinality,
     num_docs: RowId,
@@ -497,6 +499,7 @@ fn serialize_bytes_or_str_column(
     dictionary_builder: &DictionaryBuilder,
     operation_it: impl Iterator<Item = ColumnOperation<UnorderedId>>,
     buffers: &mut SpareBuffers,
+    arena: &MemoryArena,
     wrt: impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
@@ -505,7 +508,8 @@ fn serialize_bytes_or_str_column(
         ..
     } = buffers;
     let mut counting_writer = CountingWriter::wrap(wrt);
-    let term_id_mapping: TermIdMapping = dictionary_builder.serialize(&mut counting_writer)?;
+    let term_id_mapping: TermIdMapping =
+        dictionary_builder.serialize(arena, &mut counting_writer)?;
     let dictionary_num_bytes: u32 = counting_writer.written_bytes() as u32;
     let mut wrt = counting_writer.finish();
     let operation_iterator = operation_it.map(|symbol: ColumnOperation<UnorderedId>| {

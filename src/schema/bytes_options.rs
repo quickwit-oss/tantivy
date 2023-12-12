@@ -40,21 +40,25 @@ impl From<BytesOptionsDeser> for BytesOptions {
 
 impl BytesOptions {
     /// Returns true if the value is indexed.
+    #[inline]
     pub fn is_indexed(&self) -> bool {
         self.indexed
     }
 
     /// Returns true if and only if the value is normed.
+    #[inline]
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms
     }
 
     /// Returns true if the value is a fast field.
+    #[inline]
     pub fn is_fast(&self) -> bool {
         self.fast
     }
 
     /// Returns true if the value is stored.
+    #[inline]
     pub fn is_stored(&self) -> bool {
         self.stored
     }

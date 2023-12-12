@@ -19,7 +19,7 @@ mod tests {
         TermQuery,
     };
     use crate::schema::*;
-    use crate::{assert_nearly_equals, DocAddress, DocId, Index, Score};
+    use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
 
     fn aux_test_helper() -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();
@@ -28,7 +28,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field => "a b c"))?;
             index_writer.add_document(doc!(text_field => "a c"))?;
             index_writer.add_document(doc!(text_field => "b c"))?;
@@ -224,7 +224,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests()?;
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
             index_writer.add_document(doc!(text_field => "a b c"))?;
             index_writer.add_document(doc!(text_field => "a c"))?;
             index_writer.add_document(doc!(text_field => "b c"))?;
@@ -297,7 +297,7 @@ mod tests {
         let text = schema_builder.add_text_field("text", STRING);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 5_000_000)?;
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
         index_writer.add_document(doc!(text=>"a"))?;
         index_writer.add_document(doc!(text=>"b"))?;
         index_writer.commit()?;
