@@ -333,7 +333,7 @@ impl ColumnarWriter {
         num_docs: RowId,
         old_to_new_row_ids: Option<&[RowId]>,
         wrt: &mut dyn io::Write,
-    ) -> io::Result<()> {
+    ) -> io::Result<Vec<(String, ColumnType)>> {
         let mut serializer = ColumnarSerializer::new(wrt);
         let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
             .numerical_field_hash_map
@@ -374,7 +374,9 @@ impl ColumnarWriter {
 
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
-        for (column_name, column_type, addr) in columns {
+        for (column_name, column_type, addr) in columns.iter() {
+            let column_type = *column_type;
+            let addr = *addr;
             match column_type {
                 ColumnType::Bool => {
                     let column_writer: ColumnWriter = self.bool_field_hash_map.read(addr);
@@ -485,7 +487,15 @@ impl ColumnarWriter {
             };
         }
         serializer.finalize(num_docs)?;
-        Ok(())
+        Ok(columns
+            .into_iter()
+            .map(|(column_name, column_type, _)| {
+                (
+                    String::from_utf8_lossy(column_name).to_string(),
+                    column_type,
+                )
+            })
+            .collect())
     }
 }
 

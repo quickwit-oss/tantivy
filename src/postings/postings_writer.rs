@@ -2,6 +2,7 @@ use std::io;
 use std::marker::PhantomData;
 use std::ops::Range;
 
+use common::TinySet;
 use stacker::Addr;
 
 use crate::fieldnorm::FieldNormReaders;
@@ -46,37 +47,38 @@ fn make_field_partition(
 /// It pushes all term, one field at a time, towards the
 /// postings serializer.
 pub(crate) fn serialize_postings(
-    ctx: IndexingContext,
+    ctx: &IndexingContext,
     schema: Schema,
     per_field_postings_writers: &PerFieldPostingsWriter,
     fieldnorm_readers: FieldNormReaders,
     doc_id_map: Option<&DocIdMapping>,
+    unordered_id_to_ordered_id: &[(OrderedPathId, TinySet)],
     serializer: &mut InvertedIndexSerializer,
 ) -> crate::Result<()> {
     // Replace unordered ids by ordered ids to be able to sort
-    let unordered_id_to_ordered_id: Vec<OrderedPathId> =
-        ctx.path_to_unordered_id.unordered_id_to_ordered_id();
+    let ordered_id_to_path = ctx.path_to_unordered_id.ordered_id_to_path();
 
     let mut term_offsets: Vec<(Field, OrderedPathId, &[u8], Addr)> =
         Vec::with_capacity(ctx.term_index.len());
-    term_offsets.extend(ctx.term_index.iter().map(|(key, addr)| {
+    for (key, addr) in ctx.term_index.iter() {
         let field = Term::wrap(key).field();
-        if schema.get_field_entry(field).field_type().value_type() == Type::Json {
-            let byte_range_path = 5..5 + 4;
-            let unordered_id = u32::from_be_bytes(key[byte_range_path.clone()].try_into().unwrap());
-            let path_id = unordered_id_to_ordered_id[unordered_id as usize];
-            (field, path_id, &key[byte_range_path.end..], addr)
+        let field_entry = schema.get_field_entry(field);
+        if field_entry.field_type().value_type() == Type::Json {
+            let byte_range_unordered_id = 5..5 + 4;
+            let unordered_id =
+                u32::from_be_bytes(key[byte_range_unordered_id.clone()].try_into().unwrap());
+            let (path_id, _typ_code_bitvec) = unordered_id_to_ordered_id[unordered_id as usize];
+            term_offsets.push((field, path_id, &key[byte_range_unordered_id.end..], addr));
         } else {
-            (field, 0.into(), &key[5..], addr)
+            term_offsets.push((field, 0.into(), &key[5..], addr));
         }
-    }));
+    }
     // Sort by field, path, and term
     term_offsets.sort_unstable_by(
         |(field1, path_id1, bytes1, _), (field2, path_id2, bytes2, _)| {
             (field1, path_id1, bytes1).cmp(&(field2, path_id2, bytes2))
         },
     );
-    let ordered_id_to_path = ctx.path_to_unordered_id.ordered_id_to_path();
     let field_offsets = make_field_partition(&term_offsets);
     for (field, byte_offsets) in field_offsets {
         let postings_writer = per_field_postings_writers.get_for_field(field);
@@ -87,7 +89,7 @@ pub(crate) fn serialize_postings(
             &term_offsets[byte_offsets],
             &ordered_id_to_path,
             doc_id_map,
-            &ctx,
+            ctx,
             &mut field_serializer,
         )?;
         field_serializer.close()?;

@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::sync::Arc;
 
 use columnar::{
@@ -13,6 +14,7 @@ use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{AliveBitSet, FastFieldNotAvailableError};
+use crate::field_list::serialize_split_fields;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
@@ -21,8 +23,8 @@ use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{
-    DocAddress, DocId, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
-    SegmentComponent, SegmentOrdinal,
+    merge_field_meta_data, DocAddress, DocId, FieldMetadata, IndexSettings, IndexSortByField,
+    InvertedIndexReader, Order, SegmentComponent, SegmentOrdinal,
 };
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
@@ -252,6 +254,19 @@ impl IndexMerger {
             fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
         }
         fieldnorms_serializer.close()?;
+        Ok(())
+    }
+
+    fn write_field_list(&self, list_field_wrt: &mut WritePtr) -> crate::Result<()> {
+        let field_metadatas: Vec<Vec<FieldMetadata>> = self
+            .readers
+            .iter()
+            .map(|reader| reader.fields_metadata())
+            .collect::<crate::Result<Vec<_>>>()?;
+        let merged = merge_field_meta_data(field_metadatas, &self.schema);
+        let out = serialize_split_fields(&merged);
+        list_field_wrt.write_all(&out)?;
+
         Ok(())
     }
 
@@ -773,6 +788,7 @@ impl IndexMerger {
         self.write_storable_fields(serializer.get_store_writer(), &doc_id_mapping)?;
         debug!("write-fastfields");
         self.write_fast_fields(serializer.get_fast_field_write(), doc_id_mapping)?;
+        self.write_field_list(serializer.get_field_list_write())?;
 
         debug!("close-serializer");
         serializer.close()?;

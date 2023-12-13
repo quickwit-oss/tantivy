@@ -6,7 +6,7 @@ use ownedbytes::OwnedBytes;
 
 use crate::ByteCount;
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
 pub struct TinySet(u64);
 
 impl fmt::Debug for TinySet {

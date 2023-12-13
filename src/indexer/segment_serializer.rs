@@ -12,6 +12,7 @@ pub struct SegmentSerializer {
     segment: Segment,
     pub(crate) store_writer: StoreWriter,
     fast_field_write: WritePtr,
+    field_list_write: WritePtr,
     fieldnorms_serializer: Option<FieldNormsSerializer>,
     postings_serializer: InvertedIndexSerializer,
 }
@@ -49,6 +50,7 @@ impl SegmentSerializer {
         };
 
         let fast_field_write = segment.open_write(SegmentComponent::FastFields)?;
+        let field_list_write = segment.open_write(SegmentComponent::FieldList)?;
 
         let fieldnorms_write = segment.open_write(SegmentComponent::FieldNorms)?;
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
@@ -58,6 +60,7 @@ impl SegmentSerializer {
             segment,
             store_writer,
             fast_field_write,
+            field_list_write,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,
         })
@@ -79,6 +82,11 @@ impl SegmentSerializer {
     /// Accessor to the `PostingsSerializer`.
     pub fn get_postings_serializer(&mut self) -> &mut InvertedIndexSerializer {
         &mut self.postings_serializer
+    }
+
+    /// Accessor to the ``.
+    pub fn get_field_list_write(&mut self) -> &mut WritePtr {
+        &mut self.field_list_write
     }
 
     /// Accessor to the `FastFieldSerializer`.
@@ -104,6 +112,7 @@ impl SegmentSerializer {
             fieldnorms_serializer.close()?;
         }
         self.fast_field_write.terminate()?;
+        self.field_list_write.terminate()?;
         self.postings_serializer.close()?;
         self.store_writer.close()?;
         Ok(())
