@@ -1,7 +1,7 @@
 use std::io;
 
 use common::BinarySerializable;
-use fnv::FnvHashSet;
+use rustc_hash::FxHashSet;
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
@@ -78,7 +78,7 @@ impl InvertedIndexReader {
     pub fn list_encoded_fields(&self) -> io::Result<Vec<(String, Type)>> {
         let mut stream = self.termdict.stream()?;
         let mut fields = Vec::new();
-        let mut fields_set = FnvHashSet::default();
+        let mut fields_set = FxHashSet::default();
         while let Some((term, _term_info)) = stream.next() {
             if let Some(index) = term.iter().position(|&byte| byte == JSON_END_OF_PATH) {
                 if !fields_set.contains(&term[..index + 2]) {

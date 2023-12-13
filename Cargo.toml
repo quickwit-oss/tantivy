@@ -61,7 +61,6 @@ common = { version= "0.6", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version= "0.2", path="./tokenizer-api", package="tantivy-tokenizer-api" }
 sketches-ddsketch = { version = "0.2.1", features = ["use_serde"] }
 futures-util = { version = "0.3.28", optional = true }
-fnv = "1.0.7"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

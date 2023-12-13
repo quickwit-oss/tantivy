@@ -3,8 +3,8 @@ use std::ops::BitOrAssign;
 use std::sync::{Arc, RwLock};
 use std::{fmt, io};
 
-use fnv::FnvHashMap;
 use itertools::Itertools;
+use rustc_hash::FxHashMap;
 
 use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::directory::{CompositeFile, FileSlice};
@@ -300,7 +300,7 @@ impl SegmentReader {
     /// to not be listed.
     pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
         let mut indexed_fields: Vec<FieldMetadata> = Vec::new();
-        let mut map_to_canonical = FnvHashMap::default();
+        let mut map_to_canonical = FxHashMap::default();
         for (field, field_entry) in self.schema().fields() {
             let field_name = field_entry.name().to_string();
             let is_indexed = field_entry.is_indexed();

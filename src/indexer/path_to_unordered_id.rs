@@ -1,4 +1,4 @@
-use fnv::FnvHashMap;
+use rustc_hash::FxHashMap;
 
 /// `Field` is represented by an unsigned 32-bit integer type.
 /// The schema holds the mapping between field names and `Field` objects.
@@ -24,7 +24,7 @@ impl From<u32> for OrderedPathId {
 
 #[derive(Default)]
 pub(crate) struct PathToUnorderedId {
-    map: FnvHashMap<String, u32>,
+    map: FxHashMap<String, u32>,
 }
 
 impl PathToUnorderedId {
