@@ -307,7 +307,7 @@ impl TopDocs {
     ///
     /// To comfortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
     /// the [.order_by_fast_field(...)](TopDocs::order_by_fast_field) method.
-    fn order_by_u64_field(
+    pub fn order_by_u64_field(
         self,
         field: impl ToString,
         order: Order,
