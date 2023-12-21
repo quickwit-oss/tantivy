@@ -605,6 +605,10 @@ impl IndexMerger {
                             segment_postings.positions(&mut positions_buffer);
                             segment_postings.term_freq()
                         } else {
+                            // The positions_buffer may contain positions from the previous term
+                            // Existence of positions depend on the value type in JSON fields.
+                            // https://github.com/quickwit-oss/tantivy/issues/2283
+                            positions_buffer.clear();
                             0u32
                         };
 

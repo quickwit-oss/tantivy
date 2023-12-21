@@ -1651,6 +1651,7 @@ mod tests {
         force_end_merge: bool,
     ) -> crate::Result<Index> {
         let mut schema_builder = schema::Schema::builder();
+        let json_field = schema_builder.add_json_field("json", FAST | TEXT | STORED);
         let ip_field = schema_builder.add_ip_addr_field("ip", FAST | INDEXED | STORED);
         let ips_field = schema_builder
             .add_ip_addr_field("ips", IpAddrOptions::default().set_fast().set_indexed());
@@ -1729,7 +1730,9 @@ mod tests {
                             id_field=>id,
                         ))?;
                     } else {
+                        let json = json!({"date1": format!("2022-{id}-01T00:00:01Z"), "date2": format!("{id}-05-01T00:00:01Z"), "id": id, "ip": ip.to_string()});
                         index_writer.add_document(doc!(id_field=>id,
+                                json_field=>json,
                                 bytes_field => id.to_le_bytes().as_slice(),
                                 id_opt_field => id,
                                 ip_field => ip,
