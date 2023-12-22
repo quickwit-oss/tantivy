@@ -63,7 +63,7 @@ impl RegexQuery {
     /// Creates a new RegexQuery from a given pattern
     pub fn from_pattern(regex_pattern: &str, field: Field) -> crate::Result<Self> {
         let regex = Regex::new(regex_pattern)
-            .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_string()))?;
+            .map_err(|err| TantivyError::InvalidArgument(format!("RegexQueryError: {err}")))?;
         Ok(RegexQuery::from_regex(regex, field))
     }
 
@@ -175,5 +175,17 @@ mod test {
 
         verify_regex_query(matching_one, matching_zero, reader);
         Ok(())
+    }
+
+    #[test]
+    pub fn test_pattern_error() {
+        let (_reader, field) = build_test_index().unwrap();
+
+        match RegexQuery::from_pattern(r"(foo", field) {
+            Err(crate::TantivyError::InvalidArgument(msg)) => {
+                assert!(msg.contains("error: unclosed group"))
+            }
+            res => panic!("unexpected result: {:?}", res),
+        }
     }
 }
