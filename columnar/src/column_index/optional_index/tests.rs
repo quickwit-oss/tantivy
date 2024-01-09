@@ -3,6 +3,30 @@ use proptest::strategy::Strategy;
 use proptest::{prop_oneof, proptest};
 
 use super::*;
+use crate::{ColumnarReader, ColumnarWriter, DynamicColumnHandle};
+
+#[test]
+fn test_optional_index_bug_2293() {
+    // tests for panic in docid_range_to_rowids for docid == num_docs
+    test_optional_index_with_num_docs(ELEMENTS_PER_BLOCK - 1);
+    test_optional_index_with_num_docs(ELEMENTS_PER_BLOCK);
+    test_optional_index_with_num_docs(ELEMENTS_PER_BLOCK + 1);
+}
+fn test_optional_index_with_num_docs(num_docs: u32) {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_numerical(100, "score", 80i64);
+    let mut buffer: Vec<u8> = Vec::new();
+    dataframe_writer
+        .serialize(num_docs, None, &mut buffer)
+        .unwrap();
+    let columnar = ColumnarReader::open(buffer).unwrap();
+    assert_eq!(columnar.num_columns(), 1);
+    let cols: Vec<DynamicColumnHandle> = columnar.read_columns("score").unwrap();
+    assert_eq!(cols.len(), 1);
+
+    let col = cols[0].open().unwrap();
+    col.column_index().docid_range_to_rowids(0..num_docs);
+}
 
 #[test]
 fn test_dense_block_threshold() {
@@ -35,7 +59,7 @@ proptest! {
 
 #[test]
 fn test_with_random_sets_simple() {
-    let vals = 10..BLOCK_SIZE * 2;
+    let vals = 10..ELEMENTS_PER_BLOCK * 2;
     let mut out: Vec<u8> = Vec::new();
     serialize_optional_index(&vals, 100, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
@@ -171,7 +195,7 @@ fn test_optional_index_rank() {
     test_optional_index_rank_aux(&[0u32, 1u32]);
     let mut block = Vec::new();
     block.push(3u32);
-    block.extend((0..BLOCK_SIZE).map(|i| i + BLOCK_SIZE + 1));
+    block.extend((0..ELEMENTS_PER_BLOCK).map(|i| i + ELEMENTS_PER_BLOCK + 1));
     test_optional_index_rank_aux(&block);
 }
 
@@ -185,8 +209,8 @@ fn test_optional_index_iter_empty_one() {
 fn test_optional_index_iter_dense_block() {
     let mut block = Vec::new();
     block.push(3u32);
-    block.extend((0..BLOCK_SIZE).map(|i| i + BLOCK_SIZE + 1));
-    test_optional_index_iter_aux(&block, 3 * BLOCK_SIZE);
+    block.extend((0..ELEMENTS_PER_BLOCK).map(|i| i + ELEMENTS_PER_BLOCK + 1));
+    test_optional_index_iter_aux(&block, 3 * ELEMENTS_PER_BLOCK);
 }
 
 #[test]

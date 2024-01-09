@@ -21,8 +21,6 @@ const DENSE_BLOCK_THRESHOLD: u32 =
 
 const ELEMENTS_PER_BLOCK: u32 = u16::MAX as u32 + 1;
 
-const BLOCK_SIZE: RowId = 1 << 16;
-
 #[derive(Copy, Clone, Debug)]
 struct BlockMeta {
     non_null_rows_before_block: u32,
@@ -109,8 +107,8 @@ struct RowAddr {
 #[inline(always)]
 fn row_addr_from_row_id(row_id: RowId) -> RowAddr {
     RowAddr {
-        block_id: (row_id / BLOCK_SIZE) as u16,
-        in_block_row_id: (row_id % BLOCK_SIZE) as u16,
+        block_id: (row_id / ELEMENTS_PER_BLOCK) as u16,
+        in_block_row_id: (row_id % ELEMENTS_PER_BLOCK) as u16,
     }
 }
 
@@ -498,7 +496,7 @@ fn deserialize_optional_index_block_metadatas(
         non_null_rows_before_block += num_non_null_rows;
     }
     block_metas.resize(
-        ((num_rows + BLOCK_SIZE - 1) / BLOCK_SIZE) as usize,
+        ((num_rows + ELEMENTS_PER_BLOCK - 1) / ELEMENTS_PER_BLOCK) as usize,
         BlockMeta {
             non_null_rows_before_block,
             start_byte_offset,
