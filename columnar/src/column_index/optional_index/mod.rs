@@ -185,8 +185,13 @@ impl Set<RowId> for OptionalIndex {
         }
     }
 
+    /// Any value doc_id is allowed.
+    /// In particular, doc_id = num_rows.
     #[inline]
     fn rank(&self, doc_id: DocId) -> RowId {
+        if doc_id >= self.num_docs() {
+            return self.num_non_nulls();
+        }
         let RowAddr {
             block_id,
             in_block_row_id,
@@ -200,13 +205,15 @@ impl Set<RowId> for OptionalIndex {
         block_meta.non_null_rows_before_block + block_offset_row_id
     }
 
+    /// Any value doc_id is allowed.
+    /// In particular, doc_id = num_rows.
     #[inline]
     fn rank_if_exists(&self, doc_id: DocId) -> Option<RowId> {
         let RowAddr {
             block_id,
             in_block_row_id,
         } = row_addr_from_row_id(doc_id);
-        let block_meta = self.block_metas[block_id as usize];
+        let block_meta = *self.block_metas.get(block_id as usize)?;
         let block = self.block(block_meta);
         let block_offset_row_id = match block {
             Block::Dense(dense_block) => dense_block.rank_if_exists(in_block_row_id),

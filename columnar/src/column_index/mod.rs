@@ -126,18 +126,18 @@ impl ColumnIndex {
         }
     }
 
-    pub fn docid_range_to_rowids(&self, doc_id: Range<DocId>) -> Range<RowId> {
+    pub fn docid_range_to_rowids(&self, doc_id_range: Range<DocId>) -> Range<RowId> {
         match self {
             ColumnIndex::Empty { .. } => 0..0,
-            ColumnIndex::Full => doc_id,
+            ColumnIndex::Full => doc_id_range,
             ColumnIndex::Optional(optional_index) => {
-                let row_start = optional_index.rank(doc_id.start);
-                let row_end = optional_index.rank(doc_id.end);
+                let row_start = optional_index.rank(doc_id_range.start);
+                let row_end = optional_index.rank(doc_id_range.end);
                 row_start..row_end
             }
             ColumnIndex::Multivalued(multivalued_index) => {
-                let end_docid = doc_id.end.min(multivalued_index.num_docs() - 1) + 1;
-                let start_docid = doc_id.start.min(end_docid);
+                let end_docid = doc_id_range.end.min(multivalued_index.num_docs() - 1) + 1;
+                let start_docid = doc_id_range.start.min(end_docid);
 
                 let row_start = multivalued_index.start_index_column.get_val(start_docid);
                 let row_end = multivalued_index.start_index_column.get_val(end_docid);
