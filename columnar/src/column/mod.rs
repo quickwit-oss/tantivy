@@ -110,6 +110,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     }
 
     /// Get the docids of values which are in the provided value range.
+    ///
+    /// # Panic
+    /// Panics if a value in the selected_docid_range range is larger than the number of documents.
     #[inline]
     pub fn get_docids_for_value_range(
         &self,

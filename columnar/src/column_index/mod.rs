@@ -126,6 +126,8 @@ impl ColumnIndex {
         }
     }
 
+    /// # Panic
+    /// Panics if a value in the doc_id range is larger than the number of documents.
     pub fn docid_range_to_rowids(&self, doc_id: Range<DocId>) -> Range<RowId> {
         match self {
             ColumnIndex::Empty { .. } => 0..0,
