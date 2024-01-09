@@ -39,7 +39,8 @@ pub trait Set<T> {
     ///
     /// # Panics
     ///
-    /// May panic if rank is greater than the number of elements in the Set.
+    /// May panic if rank is greater or equal to the number of
+    /// elements in the Set.
     fn select(&self, rank: T) -> T;
 
     /// Creates a brand new select cursor.

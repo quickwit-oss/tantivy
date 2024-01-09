@@ -101,7 +101,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         row_id_hits: &mut Vec<RowId>,
     ) {
         let row_id_range = row_id_range.start..row_id_range.end.min(self.num_vals());
-        for idx in row_id_range.start..row_id_range.end {
+        for idx in row_id_range {
             let val = self.get_val(idx);
             if value_range.contains(&val) {
                 row_id_hits.push(idx);
