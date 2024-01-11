@@ -238,6 +238,7 @@ impl Page {
 mod tests {
 
     use super::MemoryArena;
+    use crate::memory_arena::PAGE_SIZE;
 
     #[test]
     fn test_arena_allocate_slice() {
@@ -253,6 +254,31 @@ mod tests {
 
         assert_eq!(arena.slice(addr_a, a.len()), a);
         assert_eq!(arena.slice(addr_b, b.len()), b);
+    }
+
+    #[test]
+    fn test_arena_allocate_end_of_page() {
+        let mut arena = MemoryArena::default();
+
+        // A big block
+        let len_a = PAGE_SIZE - 2;
+        let addr_a = arena.allocate_space(len_a);
+        *arena.slice_mut(addr_a, len_a).last_mut().unwrap() = 1;
+
+        // Single bytes
+        let addr_b = arena.allocate_space(1);
+        arena.slice_mut(addr_b, 1)[0] = 2;
+
+        let addr_c = arena.allocate_space(1);
+        arena.slice_mut(addr_c, 1)[0] = 3;
+
+        let addr_d = arena.allocate_space(1);
+        arena.slice_mut(addr_d, 1)[0] = 4;
+
+        assert_eq!(arena.slice(addr_a, len_a)[len_a - 1], 1);
+        assert_eq!(arena.slice(addr_b, 1)[0], 2);
+        assert_eq!(arena.slice(addr_c, 1)[0], 3);
+        assert_eq!(arena.slice(addr_d, 1)[0], 4);
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
