@@ -189,6 +189,10 @@ struct Page {
 
 impl Page {
     fn new(page_id: usize) -> Page {
+        // We use 32-bits addresses.
+        // - 20 bits for the in-page addressing
+        // - 12 bits for the page id.
+        // This limits us to 2^12 - 1=4095 for the page id.
         assert!(page_id < 4096);
         Page {
             page_id,
