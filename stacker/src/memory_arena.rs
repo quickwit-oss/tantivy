@@ -189,6 +189,7 @@ struct Page {
 
 impl Page {
     fn new(page_id: usize) -> Page {
+        assert!(page_id < 4096);
         Page {
             page_id,
             len: 0,
