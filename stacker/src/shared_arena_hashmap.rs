@@ -295,6 +295,8 @@ impl SharedArenaHashMap {
     /// will be in charge of returning a default value.
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
+    ///
+    /// The key will be truncated to u16::MAX bytes.
     #[inline]
     pub fn mutate_or_create<V>(
         &mut self,
@@ -308,6 +310,8 @@ impl SharedArenaHashMap {
         if self.is_saturated() {
             self.resize();
         }
+        // Limit the key size to u16::MAX
+        let key = &key[..std::cmp::min(key.len(), u16::MAX as usize)];
         let hash = self.get_hash(key);
         let mut probe = self.probe(hash);
         let mut bucket = probe.next_probe();
@@ -379,6 +383,36 @@ mod tests {
         }
         assert_eq!(vanilla_hash_map.len(), 2);
     }
+
+    #[test]
+    fn test_long_key_truncation() {
+        // Keys longer than u16::MAX are truncated.
+        let mut memory_arena = MemoryArena::default();
+        let mut hash_map: SharedArenaHashMap = SharedArenaHashMap::default();
+        let key1 = (0..u16::MAX as usize).map(|i| i as u8).collect::<Vec<_>>();
+        hash_map.mutate_or_create(&key1, &mut memory_arena, |opt_val: Option<u32>| {
+            assert_eq!(opt_val, None);
+            4u32
+        });
+        // Due to truncation, this key is the same as key1
+        let key2 = (0..u16::MAX as usize + 1)
+            .map(|i| i as u8)
+            .collect::<Vec<_>>();
+        hash_map.mutate_or_create(&key2, &mut memory_arena, |opt_val: Option<u32>| {
+            assert_eq!(opt_val, Some(4));
+            3u32
+        });
+        let mut vanilla_hash_map = HashMap::new();
+        let iter_values = hash_map.iter(&memory_arena);
+        for (key, addr) in iter_values {
+            let val: u32 = memory_arena.read(addr);
+            vanilla_hash_map.insert(key.to_owned(), val);
+            assert_eq!(key.len(), key1[..].len());
+            assert_eq!(key, &key1[..])
+        }
+        assert_eq!(vanilla_hash_map.len(), 1); // Both map to the same key
+    }
+
     #[test]
     fn test_empty_hashmap() {
         let memory_arena = MemoryArena::default();
