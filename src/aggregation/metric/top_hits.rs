@@ -127,7 +127,7 @@ impl RetrievalFields {
         self.doc_value_fields.iter().map(|s| s.as_str()).collect()
     }
 
-    fn resolve_field_names(self, reader: &ColumnarReader) -> crate::Result<Self> {
+    fn resolve_field_names(&mut self, reader: &ColumnarReader) -> crate::Result<()> {
         // Tranform a glob (`pattern*`, for example) into a regex::Regex (`^pattern.*$`)
         let globbed_string_to_regex = |glob: &str| {
             // Replace `*` glob with `.*` regex
@@ -139,18 +139,25 @@ impl RetrievalFields {
                 ))
             })
         };
-        let resolved_fields = self
+        self.doc_value_fields = self
             .doc_value_fields
-            .into_iter()
+            .iter()
             .map(|field| {
-                if !field.contains('*') && reader.iter_columns()?.any(|(name, _)| name == field) {
-                    return Ok(vec![field]);
+                if !field.contains('*')
+                    && reader
+                        .iter_columns()?
+                        .any(|(name, _)| name.as_str() == field)
+                {
+                    return Ok(vec![field.to_owned()]);
                 }
 
                 let pattern = globbed_string_to_regex(&field)?;
                 let fields = reader
                     .iter_columns()?
-                    .map(|(name, _)| /* normalize path from internal fast field repr */ name.replace(JSON_PATH_SEGMENT_SEP_STR, "."))
+                    .map(|(name, _)| {
+                        // normalize path from internal fast field repr
+                        name.replace(JSON_PATH_SEGMENT_SEP_STR, ".")
+                    })
                     .filter(|name| pattern.is_match(name))
                     .collect::<Vec<_>>();
                 assert!(
@@ -165,9 +172,7 @@ impl RetrievalFields {
             .flatten()
             .collect();
 
-        Ok(Self {
-            doc_value_fields: resolved_fields,
-        })
+        Ok(())
     }
 
     fn get_document_field_data(
@@ -181,7 +186,7 @@ impl RetrievalFields {
             .map(|field| {
                 let accessors = accessors
                     .get(field)
-                    .expect("could not find field in accessors");
+                    .unwrap_or_else(|| panic!("field '{}' not found in accessors", field));
 
                 let values: Vec<OwnedValue> = accessors
                     .iter()
@@ -281,10 +286,8 @@ impl<'de> Deserialize<'de> for KeyOrder {
 
 impl TopHitsAggregation {
     /// Validate and resolve field retrieval parameters
-    pub fn validate_and_resolve(&self, reader: &ColumnarReader) -> crate::Result<Self> {
-        let cf = self.clone(); // :(
-        let retrieval = cf.retrieval.resolve_field_names(reader)?;
-        Ok(Self { retrieval, ..cf })
+    pub fn validate_and_resolve(&mut self, reader: &ColumnarReader) -> crate::Result<()> {
+        self.retrieval.resolve_field_names(reader)
     }
 
     /// Return fields accessed by the aggregator, in order.

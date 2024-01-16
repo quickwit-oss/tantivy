@@ -70,7 +70,10 @@ impl AggregationWithAccessor {
         segment_id: SegmentOrdinal,
         limits: AggregationLimits,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
-        let add_agg_with_accessor = |accessor: Column<u64>,
+        let mut agg = agg.clone();
+
+        let add_agg_with_accessor = |agg: &Aggregation,
+                                     accessor: Column<u64>,
                                      column_type: ColumnType,
                                      aggs: &mut Vec<AggregationWithAccessor>|
          -> crate::Result<()> {
@@ -96,17 +99,12 @@ impl AggregationWithAccessor {
             Ok(())
         };
 
-        let add_agg_with_accessors = |accessors: Vec<(Column<u64>, ColumnType)>,
+        let add_agg_with_accessors = |agg: &Aggregation,
+                                      accessors: Vec<(Column<u64>, ColumnType)>,
                                       aggs: &mut Vec<AggregationWithAccessor>,
-                                      value_accessors: HashMap<String, Vec<DynamicColumn>>,
-                                      agg_override: Option<&Aggregation>|
+                                      value_accessors: HashMap<String, Vec<DynamicColumn>>|
          -> crate::Result<()> {
-            let agg = if let Some(agg_override) = agg_override {
-                agg_override
-            } else {
-                agg
-            };
-            let (accessor, field_type) = accessors.get(0).expect("at least one accessor");
+            let (accessor, field_type) = accessors.first().expect("at least one accessor");
             let res = AggregationWithAccessor {
                 segment_id,
                 // TODO: We should do away with the `accessor` field altogether
@@ -132,32 +130,36 @@ impl AggregationWithAccessor {
 
         let mut res: Vec<AggregationWithAccessor> = Vec::new();
         use AggregationVariants::*;
-        match &agg.agg {
+
+        match agg.agg {
             Range(RangeAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_with_accessor(accessor, column_type, &mut res)?;
+                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Histogram(HistogramAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_with_accessor(accessor, column_type, &mut res)?;
+                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
             DateHistogram(DateHistogramAggregationReq {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             }) => {
                 let (accessor, column_type) =
                     // Only DateTime is supported for DateHistogram
                     get_ff_reader(reader, field_name, Some(&[ColumnType::DateTime]))?;
-                add_agg_with_accessor(accessor, column_type, &mut res)?;
+                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Terms(TermsAggregation {
-                field: field_name,
-                missing,
+                field: ref field_name,
+                ref missing,
                 ..
             }) => {
                 let str_dict_column = reader.fast_fields().str(field_name)?;
@@ -194,7 +196,7 @@ impl AggregationWithAccessor {
                         .map(|m| matches!(m, Key::Str(_)))
                         .unwrap_or(false);
 
-                // Actually we could convert the text to a number and have the fast path, if it is
+                // Actually we could convert the text to a number and have the fast path, if it
                 // provided in Rfc3339 format. But this use case is probably common
                 // enough to justify the effort.
                 let text_on_date_col = column_and_types.len() == 1
@@ -214,7 +216,7 @@ impl AggregationWithAccessor {
                         .iter()
                         .map(|c_t| (c_t.0.clone(), c_t.1))
                         .collect();
-                    add_agg_with_accessors(accessors, &mut res, Default::default(), None)?;
+                    add_agg_with_accessors(&agg, accessors, &mut res, Default::default())?;
                 }
 
                 for (accessor, column_type) in column_and_types {
@@ -254,47 +256,43 @@ impl AggregationWithAccessor {
                 }
             }
             Average(AverageAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             })
             | Count(CountAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             })
             | Max(MaxAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             })
             | Min(MinAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             })
             | Stats(StatsAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             })
             | Sum(SumAggregation {
-                field: field_name, ..
+                field: ref field_name,
+                ..
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_with_accessor(accessor, column_type, &mut res)?;
+                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
-            Percentiles(percentiles) => {
+            Percentiles(ref percentiles) => {
                 let (accessor, column_type) = get_ff_reader(
                     reader,
                     percentiles.field_name(),
                     Some(get_numeric_or_date_column_types()),
                 )?;
-                add_agg_with_accessor(accessor, column_type, &mut res)?;
+                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
-            TopHits(top_hits) => {
-                let (agg, top_hits) = {
-                    let top_hits =
-                        top_hits.validate_and_resolve(reader.fast_fields().columnar())?;
-                    (
-                        Aggregation {
-                            agg: AggregationVariants::TopHits(top_hits.clone()),
-                            sub_aggregation: agg.sub_aggregation().clone(),
-                        },
-                        top_hits,
-                    )
-                };
+            TopHits(ref mut top_hits) => {
+                top_hits.validate_and_resolve(reader.fast_fields().columnar())?;
                 let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
                     .field_names()
                     .iter()
@@ -309,12 +307,12 @@ impl AggregationWithAccessor {
                     .map(|field_name| {
                         Ok((
                             field_name.to_string(),
-                            get_dynamic_columns(reader, &field_name)?,
+                            get_dynamic_columns(reader, field_name)?,
                         ))
                     })
                     .collect::<crate::Result<_>>()?;
 
-                add_agg_with_accessors(accessors, &mut res, value_accessors, Some(&agg))?;
+                add_agg_with_accessors(&agg, accessors, &mut res, value_accessors)?;
             }
         };
 
