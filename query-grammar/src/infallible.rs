@@ -81,8 +81,8 @@ where
     T: InputTakeAtPosition + Clone,
     <T as InputTakeAtPosition>::Item: AsChar + Clone,
 {
-    opt_i(nom::character::complete::space0)(input)
-        .map(|(left, (spaces, errors))| (left, (spaces.expect("space0 can't fail"), errors)))
+    opt_i(nom::character::complete::multispace0)(input)
+        .map(|(left, (spaces, errors))| (left, (spaces.expect("multispace0 can't fail"), errors)))
 }
 
 pub(crate) fn space1_infallible<T>(input: T) -> JResult<T, Option<T>>
@@ -90,7 +90,7 @@ where
     T: InputTakeAtPosition + Clone + InputLength,
     <T as InputTakeAtPosition>::Item: AsChar + Clone,
 {
-    opt_i(nom::character::complete::space1)(input).map(|(left, (spaces, mut errors))| {
+    opt_i(nom::character::complete::multispace1)(input).map(|(left, (spaces, mut errors))| {
         if spaces.is_none() {
             errors.push(LenientErrorInternal {
                 pos: left.input_len(),
