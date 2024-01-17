@@ -3,7 +3,7 @@ use std::iter::once;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{
-    anychar, char, digit1, none_of, one_of, satisfy, space0, space1, u32,
+    anychar, char, digit1, multispace0, multispace1, none_of, one_of, satisfy, u32,
 };
 use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
 use nom::error::{Error, ErrorKind};
@@ -65,7 +65,7 @@ fn word_infallible(delimiter: &str) -> impl Fn(&str) -> JResult<&str, Option<&st
     |inp| {
         opt_i_err(
             preceded(
-                space0,
+                multispace0,
                 recognize(many1(satisfy(|c| {
                     !c.is_whitespace() && !delimiter.contains(c)
                 }))),
@@ -225,10 +225,10 @@ fn term_group(inp: &str) -> IResult<&str, UserInputAst> {
 
     map(
         tuple((
-            terminated(field_name, space0),
+            terminated(field_name, multispace0),
             delimited(
-                tuple((char('('), space0)),
-                separated_list0(space1, tuple((opt(occur_symbol), term_or_phrase))),
+                tuple((char('('), multispace0)),
+                separated_list0(multispace1, tuple((opt(occur_symbol), term_or_phrase))),
                 char(')'),
             ),
         )),
@@ -250,7 +250,7 @@ fn term_group_precond(inp: &str) -> IResult<&str, (), ()> {
         (),
         peek(tuple((
             field_name,
-            space0,
+            multispace0,
             char('('), // when we are here, we know it can't be anything but a term group
         ))),
     )(inp)
@@ -259,7 +259,7 @@ fn term_group_precond(inp: &str) -> IResult<&str, (), ()> {
 
 fn term_group_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     let (mut inp, (field_name, _, _, _)) =
-        tuple((field_name, space0, char('('), space0))(inp).expect("precondition failed");
+        tuple((field_name, multispace0, char('('), multispace0))(inp).expect("precondition failed");
 
     let mut terms = Vec::new();
     let mut errs = Vec::new();
@@ -305,7 +305,7 @@ fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
         UserInputLeaf::Exists {
             field: String::new(),
         },
-        tuple((space0, char('*'))),
+        tuple((multispace0, char('*'))),
     )(inp)
 }
 
@@ -314,7 +314,7 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
         (),
         peek(tuple((
             field_name,
-            space0,
+            multispace0,
             char('*'), // when we are here, we know it can't be anything but a exists
         ))),
     )(inp)
@@ -323,7 +323,7 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
 
 fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     let (inp, (field_name, _, _)) =
-        tuple((field_name, space0, char('*')))(inp).expect("precondition failed");
+        tuple((field_name, multispace0, char('*')))(inp).expect("precondition failed");
 
     let exists = UserInputLeaf::Exists { field: field_name }.into();
     Ok((inp, (exists, Vec::new())))
@@ -349,7 +349,7 @@ fn literal_no_group_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>>
             alt_infallible(
                 (
                     (
-                        value((), tuple((tag("IN"), space0, char('[')))),
+                        value((), tuple((tag("IN"), multispace0, char('[')))),
                         map(set_infallible, |(set, errs)| (Some(set), errs)),
                     ),
                     (
@@ -430,8 +430,8 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
     // check for unbounded range in the form of <5, <=10, >5, >=5
     let elastic_unbounded_range = map(
         tuple((
-            preceded(space0, alt((tag(">="), tag("<="), tag("<"), tag(">")))),
-            preceded(space0, range_term_val()),
+            preceded(multispace0, alt((tag(">="), tag("<="), tag("<"), tag(">")))),
+            preceded(multispace0, range_term_val()),
         )),
         |(comparison_sign, bound)| match comparison_sign {
             ">=" => (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
@@ -444,7 +444,7 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
     );
 
     let lower_bound = map(
-        separated_pair(one_of("{["), space0, range_term_val()),
+        separated_pair(one_of("{["), multispace0, range_term_val()),
         |(boundary_char, lower_bound)| {
             if lower_bound == "*" {
                 UserInputBound::Unbounded
@@ -457,7 +457,7 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
     );
 
     let upper_bound = map(
-        separated_pair(range_term_val(), space0, one_of("}]")),
+        separated_pair(range_term_val(), multispace0, one_of("}]")),
         |(upper_bound, boundary_char)| {
             if upper_bound == "*" {
                 UserInputBound::Unbounded
@@ -469,8 +469,11 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
         },
     );
 
-    let lower_to_upper =
-        separated_pair(lower_bound, tuple((space1, tag("TO"), space1)), upper_bound);
+    let lower_to_upper = separated_pair(
+        lower_bound,
+        tuple((multispace1, tag("TO"), multispace1)),
+        upper_bound,
+    );
 
     map(
         alt((elastic_unbounded_range, lower_to_upper)),
@@ -490,13 +493,16 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
             word_infallible("]}"),
             space1_infallible,
             opt_i_err(
-                terminated(tag("TO"), alt((value((), space1), value((), eof)))),
+                terminated(tag("TO"), alt((value((), multispace1), value((), eof)))),
                 "missing keyword TO",
             ),
             word_infallible("]}"),
             opt_i_err(one_of("]}"), "missing range delimiter"),
         )),
-        |((lower_bound_kind, _space0, lower, _space1, to, upper, upper_bound_kind), errs)| {
+        |(
+            (lower_bound_kind, _multispace0, lower, _multispace1, to, upper, upper_bound_kind),
+            errs,
+        )| {
             let lower_bound = match (lower_bound_kind, lower) {
                 (_, Some("*")) => UserInputBound::Unbounded,
                 (_, None) => UserInputBound::Unbounded,
@@ -596,10 +602,10 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
 fn set(inp: &str) -> IResult<&str, UserInputLeaf> {
     map(
         preceded(
-            tuple((space0, tag("IN"), space1)),
+            tuple((multispace0, tag("IN"), multispace1)),
             delimited(
-                tuple((char('['), space0)),
-                separated_list0(space1, map(simple_term, |(_, term)| term)),
+                tuple((char('['), multispace0)),
+                separated_list0(multispace1, map(simple_term, |(_, term)| term)),
                 char(']'),
             ),
         ),
@@ -667,7 +673,7 @@ fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
     alt((
         delimited(char('('), ast, char(')')),
         map(char('*'), |_| UserInputAst::from(UserInputLeaf::All)),
-        map(preceded(tuple((tag("NOT"), space1)), leaf), negate),
+        map(preceded(tuple((tag("NOT"), multispace1)), leaf), negate),
         literal,
     ))(inp)
 }
@@ -919,17 +925,17 @@ fn aggregate_infallible_expressions(
 
 fn operand_leaf(inp: &str) -> IResult<&str, (BinaryOperand, UserInputAst)> {
     tuple((
-        terminated(binary_operand, space0),
-        terminated(boosted_leaf, space0),
+        terminated(binary_operand, multispace0),
+        terminated(boosted_leaf, multispace0),
     ))(inp)
 }
 
 fn ast(inp: &str) -> IResult<&str, UserInputAst> {
     let boolean_expr = map(
-        separated_pair(boosted_leaf, space1, many1(operand_leaf)),
+        separated_pair(boosted_leaf, multispace1, many1(operand_leaf)),
         |(left, right)| aggregate_binary_expressions(left, right),
     );
-    let whitespace_separated_leaves = map(separated_list1(space1, occur_leaf), |subqueries| {
+    let whitespace_separated_leaves = map(separated_list1(multispace1, occur_leaf), |subqueries| {
         if subqueries.len() == 1 {
             let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
             match occur_opt.unwrap_or(Occur::Should) {
@@ -942,9 +948,9 @@ fn ast(inp: &str) -> IResult<&str, UserInputAst> {
     });
 
     delimited(
-        space0,
+        multispace0,
         alt((boolean_expr, whitespace_separated_leaves)),
-        space0,
+        multispace0,
     )(inp)
 }
 
@@ -969,7 +975,7 @@ fn ast_infallible(inp: &str) -> JResult<&str, UserInputAst> {
 }
 
 pub fn parse_to_ast(inp: &str) -> IResult<&str, UserInputAst> {
-    map(delimited(space0, opt(ast), eof), |opt_ast| {
+    map(delimited(multispace0, opt(ast), eof), |opt_ast| {
         rewrite_ast(opt_ast.unwrap_or_else(UserInputAst::empty_query))
     })(inp)
 }
@@ -1145,6 +1151,7 @@ mod test {
     #[test]
     fn test_parse_query_to_ast_binary_op() {
         test_parse_query_to_ast_helper("a AND b", "(+a +b)");
+        test_parse_query_to_ast_helper("a\nAND b", "(+a +b)");
         test_parse_query_to_ast_helper("a OR b", "(?a ?b)");
         test_parse_query_to_ast_helper("a OR b AND c", "(?a ?(+b +c))");
         test_parse_query_to_ast_helper("a AND b         AND c", "(+a +b +c)");
