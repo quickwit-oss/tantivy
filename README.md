@@ -5,9 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
-<p>
-  <img src="https://tantivy-search.github.io/logo/tantivy-logo.png" alt="Tantivy, the fastest full-text search engine library written in Rust" height="250">
-</p>
+<img src="https://tantivy-search.github.io/logo/tantivy-logo.png" alt="Tantivy, the fastest full-text search engine library written in Rust" height="250">
 
 ## Fast full-text search engine library written in Rust
 
