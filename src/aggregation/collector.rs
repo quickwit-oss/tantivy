@@ -145,11 +145,11 @@ impl AggregationSegmentCollector {
     pub fn from_agg_req_and_reader(
         agg: &Aggregations,
         reader: &SegmentReader,
-        segment_local_id: SegmentOrdinal,
+        segment_ordinal: SegmentOrdinal,
         limits: &AggregationLimits,
     ) -> crate::Result<Self> {
         let mut aggs_with_accessor =
-            get_aggs_with_segment_accessor_and_validate(agg, reader, segment_local_id, limits)?;
+            get_aggs_with_segment_accessor_and_validate(agg, reader, segment_ordinal, limits)?;
         let result =
             BufAggregationCollector::new(build_segment_agg_collector(&mut aggs_with_accessor)?);
         Ok(AggregationSegmentCollector {

@@ -35,7 +35,7 @@ impl AggregationsWithAccessor {
 }
 
 pub struct AggregationWithAccessor {
-    pub(crate) segment_id: SegmentOrdinal,
+    pub(crate) segment_ordinal: SegmentOrdinal,
     /// In general there can be buckets without fast field access, e.g. buckets that are created
     /// based on search terms. That is not that case currently, but eventually this needs to be
     /// Option or moved.
@@ -67,7 +67,7 @@ impl AggregationWithAccessor {
         agg: &Aggregation,
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
-        segment_id: SegmentOrdinal,
+        segment_ordinal: SegmentOrdinal,
         limits: AggregationLimits,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
         let mut agg = agg.clone();
@@ -78,7 +78,7 @@ impl AggregationWithAccessor {
                                      aggs: &mut Vec<AggregationWithAccessor>|
          -> crate::Result<()> {
             let res = AggregationWithAccessor {
-                segment_id,
+                segment_ordinal,
                 accessor,
                 accessors: Default::default(),
                 value_accessors: Default::default(),
@@ -86,7 +86,7 @@ impl AggregationWithAccessor {
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
                     reader,
-                    segment_id,
+                    segment_ordinal,
                     &limits,
                 )?,
                 agg: agg.clone(),
@@ -106,7 +106,7 @@ impl AggregationWithAccessor {
          -> crate::Result<()> {
             let (accessor, field_type) = accessors.first().expect("at least one accessor");
             let res = AggregationWithAccessor {
-                segment_id,
+                segment_ordinal,
                 // TODO: We should do away with the `accessor` field altogether
                 accessor: accessor.clone(),
                 value_accessors,
@@ -115,7 +115,7 @@ impl AggregationWithAccessor {
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
                     reader,
-                    segment_id,
+                    segment_ordinal,
                     &limits,
                 )?,
                 agg: agg.clone(),
@@ -235,7 +235,7 @@ impl AggregationWithAccessor {
                     };
 
                     let agg = AggregationWithAccessor {
-                        segment_id,
+                        segment_ordinal,
                         missing_value_for_accessor,
                         accessor,
                         accessors: Default::default(),
@@ -244,7 +244,7 @@ impl AggregationWithAccessor {
                         sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                             sub_aggregation,
                             reader,
-                            segment_id,
+                            segment_ordinal,
                             &limits,
                         )?,
                         agg: agg.clone(),
@@ -354,7 +354,7 @@ fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
 pub(crate) fn get_aggs_with_segment_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
-    segment_id: SegmentOrdinal,
+    segment_ordinal: SegmentOrdinal,
     limits: &AggregationLimits,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut aggss = Vec::new();
@@ -363,7 +363,7 @@ pub(crate) fn get_aggs_with_segment_accessor_and_validate(
             agg,
             agg.sub_aggregation(),
             reader,
-            segment_id,
+            segment_ordinal,
             limits.clone(),
         )?;
         for agg in aggs {

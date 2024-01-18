@@ -438,7 +438,7 @@ impl TopHitsCollector {
 
 #[derive(Clone)]
 pub(crate) struct SegmentTopHitsCollector {
-    segment_id: SegmentOrdinal,
+    segment_ordinal: SegmentOrdinal,
     accessor_idx: usize,
     inner_collector: TopHitsCollector,
 }
@@ -447,14 +447,14 @@ impl SegmentTopHitsCollector {
     pub fn from_req(
         req: &TopHitsAggregation,
         accessor_idx: usize,
-        segment_id: SegmentOrdinal,
+        segment_ordinal: SegmentOrdinal,
     ) -> Self {
         Self {
             inner_collector: TopHitsCollector {
                 req: req.clone(),
                 top_n: TopNComputer::new(req.size + req.from.unwrap_or(0)),
             },
-            segment_id,
+            segment_ordinal,
             accessor_idx,
         }
     }
@@ -463,7 +463,7 @@ impl SegmentTopHitsCollector {
 impl std::fmt::Debug for SegmentTopHitsCollector {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentTopHitsCollector")
-            .field("segment_id", &self.segment_id)
+            .field("segment_id", &self.segment_ordinal)
             .field("accessor_idx", &self.accessor_idx)
             .field("inner_collector", &self.inner_collector)
             .finish()
@@ -518,7 +518,7 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
         self.inner_collector.collect(
             ComparableDocFeatures(features, retrieval_result),
             DocAddress {
-                segment_ord: self.segment_id,
+                segment_ord: self.segment_ordinal,
                 doc_id,
             },
         );
