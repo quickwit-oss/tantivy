@@ -123,6 +123,7 @@
 //! ```
 mod alphanum_only;
 mod ascii_folding_filter;
+mod chain;
 mod empty_tokenizer;
 mod facet_tokenizer;
 mod lower_caser;
@@ -143,6 +144,7 @@ pub use tokenizer_api::{BoxTokenStream, Token, TokenFilter, TokenStream, Tokeniz
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
+pub use self::chain::{ChainTokenizer, ChainTokenizerExt};
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
