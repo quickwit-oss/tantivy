@@ -5,19 +5,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
-![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
+<p>
+  <img src="https://tantivy-search.github.io/logo/tantivy-logo.png" alt="Tantivy, the fastest full-text search engine library written in Rust" height="250">
+</p>
 
-**Tantivy** is a **full-text search engine library** written in Rust.
+## Fast full-text search engine library written in Rust
 
-It is closer to [Apache Lucene](https://lucene.apache.org/) than to [Elasticsearch](https://www.elastic.co/products/elasticsearch) or [Apache Solr](https://lucene.apache.org/solr/) in the sense it is not
-an off-the-shelf search engine server, but rather a crate that can be used
-to build such a search engine.
+**If you are looking for an alternative to Elasticsearch or Apache Solr, check out [Quickwit](https://github.com/quickwit-oss/quickwit).**
+
+Tantivy is closer to [Apache Lucene](https://lucene.apache.org/) than to [Elasticsearch](https://www.elastic.co/products/elasticsearch) or [Apache Solr](https://lucene.apache.org/solr/) in the sense it is not
+an off-the-shelf search engine server, but rather a crate that can be used to build such a search engine.
 
 Tantivy is, in fact, strongly inspired by Lucene's design.
 
-If you are looking for an alternative to Elasticsearch or Apache Solr, check out [Quickwit](https://github.com/quickwit-oss/quickwit), our search engine built on top of Tantivy.
-
-# Benchmark
+## Benchmark
 
 The following [benchmark](https://tantivy-search.github.io/bench/) breakdowns
 performance for different types of queries/collections.
@@ -28,7 +29,7 @@ Your mileage WILL vary depending on the nature of queries and their load.
 
 Details about the benchmark can be found at this [repository](https://github.com/quickwit-oss/search-benchmark-game).
 
-# Features
+## Features
 
 - Full-text search
 - Configurable tokenizer (stemming available for 17 Latin languages) with third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)), Japanese ([lindera](https://github.com/lindera-morphology/lindera-tantivy), [Vaporetto](https://crates.io/crates/vaporetto_tantivy), and [tantivy-tokenizer-tiny-segmenter](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)) and Korean ([lindera](https://github.com/lindera-morphology/lindera-tantivy) + [lindera-ko-dic-builder](https://github.com/lindera-morphology/lindera-ko-dic-builder))
@@ -54,11 +55,11 @@ Details about the benchmark can be found at this [repository](https://github.com
 - Searcher Warmer API
 - Cheesy logo with a horse
 
-## Non-features
+### Non-features
 
 Distributed search is out of the scope of Tantivy, but if you are looking for this feature, check out [Quickwit](https://github.com/quickwit-oss/quickwit/).
 
-# Getting started
+## Getting started
 
 Tantivy works on stable Rust and supports Linux, macOS, and Windows.
 
@@ -68,7 +69,7 @@ index documents, and search via the CLI or a small server with a REST API.
 It walks you through getting a Wikipedia search engine up and running in a few minutes.
 - [Reference doc for the last released version](https://docs.rs/tantivy/)
 
-# How can I support this project?
+## How can I support this project?
 
 There are many ways to support this project.
 
@@ -79,16 +80,16 @@ There are many ways to support this project.
 - Contribute code (you can join [our Discord server](https://discord.gg/MT27AG5EVE))
 - Talk about Tantivy around you
 
-# Contributing code
+## Contributing code
 
 We use the GitHub Pull Request workflow: reference a GitHub ticket and/or include a comprehensive commit message when opening a PR.
 Feel free to update CHANGELOG.md with your contribution.
 
-## Tokenizer
+### Tokenizer
 
 When implementing a tokenizer for tantivy depend on the `tantivy-tokenizer-api` crate.
 
-## Clone and build locally
+### Clone and build locally
 
 Tantivy compiles on stable Rust.
 To check out and run tests, you can simply run:
@@ -99,7 +100,7 @@ cd tantivy
 cargo test
 ```
 
-# Companies Using Tantivy
+## Companies Using Tantivy
 
 <p align="left">
 <img align="center" src="doc/assets/images/etsy.png" alt="Etsy" height="25" width="auto" />&nbsp;
@@ -111,7 +112,7 @@ cargo test
 <img align="center" src="doc/assets/images/element-dark-theme.png#gh-dark-mode-only" alt="Element.io" height="25" width="auto" />
 </p>
 
-# FAQ
+## FAQ
 
 ### Can I use Tantivy in other languages?
 
