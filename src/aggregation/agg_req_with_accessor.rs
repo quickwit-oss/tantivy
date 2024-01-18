@@ -196,7 +196,7 @@ impl AggregationWithAccessor {
                         .map(|m| matches!(m, Key::Str(_)))
                         .unwrap_or(false);
 
-                // Actually we could convert the text to a number and have the fast path, if it
+                // Actually we could convert the text to a number and have the fast path, if it is
                 // provided in Rfc3339 format. But this use case is probably common
                 // enough to justify the effort.
                 let text_on_date_col = column_and_types.len() == 1
