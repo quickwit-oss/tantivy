@@ -144,7 +144,7 @@ pub use tokenizer_api::{BoxTokenStream, Token, TokenFilter, TokenStream, Tokeniz
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
-pub use self::chain::{ChainTokenizer, ChainTokenizerExt};
+pub use self::chain::ChainTokenizer;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
@@ -166,6 +166,18 @@ pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 /// Currently, if a faulty tokenizer implementation emits tokens with a length larger than
 /// `2^16 - 1 - 5`, the token will simply be ignored downstream.
 pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;
+
+/// A trait to extend [`Tokenizer`]s with additional functionality.
+pub trait TokenizerExt: Sized {
+    /// Produce a [`Tokenizer`] which runs through the first tokenizer, and then through the second.
+    fn chain<T: Tokenizer>(self, next: T) -> ChainTokenizer<Self, T>;
+}
+
+impl<F: Tokenizer> TokenizerExt for F {
+    fn chain<T: Tokenizer>(self, second: T) -> ChainTokenizer<Self, T> {
+        ChainTokenizer::new(self, second)
+    }
+}
 
 #[cfg(test)]
 pub mod tests {
