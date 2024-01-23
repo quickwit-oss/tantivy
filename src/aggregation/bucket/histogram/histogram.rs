@@ -596,10 +596,13 @@ mod tests {
 
     use super::*;
     use crate::aggregation::agg_req::Aggregations;
+    use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_2_segments, get_test_index_from_values, get_test_index_with_num_docs,
     };
+    use crate::aggregation::AggregationCollector;
+    use crate::query::AllQuery;
 
     #[test]
     fn histogram_test_crooked_values() -> crate::Result<()> {
@@ -1350,6 +1353,35 @@ mod tests {
                 }
             })
         );
+
+        Ok(())
+    }
+    #[test]
+    fn test_aggregation_histogram_empty_index() -> crate::Result<()> {
+        // test index without segments
+        let values = vec![];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "myhisto": {
+                "histogram": {
+                    "field": "score",
+                    "interval": 10.0
+                },
+            }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        // Make sure the result structure is correct
+        assert_eq!(res["myhisto"]["buckets"].as_array().unwrap().len(), 0);
 
         Ok(())
     }
