@@ -80,7 +80,7 @@ mod tests {
 
     use super::*;
     use crate::tokenizer::empty_tokenizer::EmptyTokenizer;
-    use crate::tokenizer::{LowerCaser, RawTokenizer, SimpleTokenizer};
+    use crate::tokenizer::{LowerCaser, RawTokenizer, SimpleTokenizer, TokenizerExt};
 
     fn assert_chain<'a>(
         first: impl Tokenizer,
