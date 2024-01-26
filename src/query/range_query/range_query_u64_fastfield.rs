@@ -2,6 +2,7 @@
 //! We use this variant only if the fastfield exists, otherwise the default in `range_query` is
 //! used, which uses the term dictionary + postings.
 
+use std::borrow::Cow;
 use std::ops::{Bound, RangeInclusive};
 
 use columnar::{ColumnType, HasAssociatedColumnType, MonotonicallyMappableToU64};
@@ -14,7 +15,7 @@ use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 /// `FastFieldRangeWeight` uses the fast field to execute range queries.
 #[derive(Clone, Debug)]
 pub struct FastFieldRangeWeight {
-    field: String,
+    field: Cow<'static, str>,
     lower_bound: Bound<u64>,
     upper_bound: Bound<u64>,
     column_type_opt: Option<ColumnType>,
@@ -23,7 +24,7 @@ pub struct FastFieldRangeWeight {
 impl FastFieldRangeWeight {
     /// Create a new FastFieldRangeWeight, using the u64 representation of any fast field.
     pub(crate) fn new_u64_lenient(
-        field: String,
+        field: Cow<'static, str>,
         lower_bound: Bound<u64>,
         upper_bound: Bound<u64>,
     ) -> Self {
@@ -39,7 +40,7 @@ impl FastFieldRangeWeight {
 
     /// Create a new `FastFieldRangeWeight` for a range of a u64-mappable type .
     pub fn new<T: HasAssociatedColumnType + MonotonicallyMappableToU64>(
-        field: String,
+        field: Cow<'static, str>,
         lower_bound: Bound<T>,
         upper_bound: Bound<T>,
     ) -> Self {
@@ -130,6 +131,7 @@ fn bound_to_value_range<T: MonotonicallyMappableToU64>(
 
 #[cfg(test)]
 pub mod tests {
+    use std::borrow::Cow;
     use std::ops::{Bound, RangeInclusive};
 
     use proptest::prelude::*;
@@ -214,7 +216,7 @@ pub mod tests {
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let range_query = FastFieldRangeWeight::new_u64_lenient(
-            "test_field".to_string(),
+            Cow::Borrowed("test_field"),
             Bound::Included(50_000),
             Bound::Included(50_002),
         );
