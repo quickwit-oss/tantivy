@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use super::{IntermediateStats, SegmentStatsCollector};
+use super::IntermediateStats;
 
 /// A single-value metric aggregation that computes the average of numeric values that are
 /// extracted from the aggregated documents.
@@ -50,11 +50,9 @@ pub struct IntermediateAverage {
 }
 
 impl IntermediateAverage {
-    /// Creates a new [`IntermediateAverage`] instance from a [`SegmentStatsCollector`].
-    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
-        Self {
-            stats: collector.stats,
-        }
+    /// Creates a new [`IntermediateAverage`] instance from a [`IntermediateStats`].
+    pub(crate) fn from_stats(stats: IntermediateStats) -> Self {
+        Self { stats }
     }
     /// Merges the other intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateAverage) {
