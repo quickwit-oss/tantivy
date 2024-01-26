@@ -19,7 +19,7 @@ use super::bucket::{
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
-    IntermediateSum, PercentilesCollector,
+    IntermediateSum, PercentilesCollector, TopHitsCollector,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::{format_date, AggregationError, Key, SerializedKey};
@@ -205,6 +205,9 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Percentiles(_) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::Percentiles(PercentilesCollector::default()),
         ),
+        TopHits(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::TopHits(
+            TopHitsCollector::default(),
+        )),
     }
 }
 
@@ -265,6 +268,8 @@ pub enum IntermediateMetricResult {
     Stats(IntermediateStats),
     /// Intermediate sum result.
     Sum(IntermediateSum),
+    /// Intermediate top_hits result
+    TopHits(TopHitsCollector),
 }
 
 impl IntermediateMetricResult {
@@ -292,9 +297,13 @@ impl IntermediateMetricResult {
                 percentiles
                     .into_final_result(req.agg.as_percentile().expect("unexpected metric type")),
             ),
+            IntermediateMetricResult::TopHits(top_hits) => {
+                MetricResult::TopHits(top_hits.finalize())
+            }
         }
     }
 
+    // TODO: this is our top-of-the-chain fruit merge mech
     fn merge_fruits(&mut self, other: IntermediateMetricResult) -> crate::Result<()> {
         match (self, other) {
             (
@@ -328,6 +337,9 @@ impl IntermediateMetricResult {
                 IntermediateMetricResult::Percentiles(left),
                 IntermediateMetricResult::Percentiles(right),
             ) => {
+                left.merge_fruits(right)?;
+            }
+            (IntermediateMetricResult::TopHits(left), IntermediateMetricResult::TopHits(right)) => {
                 left.merge_fruits(right)?;
             }
             _ => {

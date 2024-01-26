@@ -338,7 +338,7 @@ impl DocAddress {
 ///
 /// The id used for the segment is actually an ordinal
 /// in the list of `Segment`s held by a `Searcher`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DocAddress {
     /// The segment ordinal id that identifies the segment
     /// hosting the document in the `Searcher` it is called from.

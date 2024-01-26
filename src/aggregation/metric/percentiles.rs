@@ -133,7 +133,6 @@ pub(crate) struct SegmentPercentilesCollector {
     field_type: ColumnType,
     pub(crate) percentiles: PercentilesCollector,
     pub(crate) accessor_idx: usize,
-    val_cache: Vec<u64>,
     missing: Option<u64>,
 }
 
@@ -243,7 +242,6 @@ impl SegmentPercentilesCollector {
             field_type,
             percentiles: PercentilesCollector::new(),
             accessor_idx,
-            val_cache: Default::default(),
             missing,
         })
     }

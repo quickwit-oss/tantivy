@@ -110,7 +110,7 @@ pub struct TermsAggregation {
     #[serde(alias = "shard_size")]
     pub split_size: Option<u32>,
 
-    /// The get more accurate results, we fetch more than `size` from each segment.
+    /// To get more accurate results, we fetch more than `size` from each segment.
     ///
     /// Increasing this value is will increase the cost for more accuracy.
     ///
