@@ -266,7 +266,9 @@ impl InvertedIndexReader {
 
     /// Warmup a block postings given a `Term`.
     /// This method is for an advanced usage only.
-    pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<()> {
+    ///
+    /// returns a boolean, whether the term was found in the dictionary
+    pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<bool> {
         let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
         if let Some(term_info) = term_info_opt {
             let postings = self
@@ -280,23 +282,27 @@ impl InvertedIndexReader {
             } else {
                 postings.await?;
             }
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     /// Warmup a block postings given a range of `Term`s.
     /// This method is for an advanced usage only.
+    ///
+    /// returns a boolean, whether a term matching the range was found in the dictionary
     pub async fn warm_postings_range(
         &self,
         terms: impl std::ops::RangeBounds<Term>,
         limit: Option<u64>,
         with_positions: bool,
-    ) -> io::Result<()> {
+    ) -> io::Result<bool> {
         let mut term_info = self.get_term_range_async(terms, limit).await?;
 
         let Some(first_terminfo) = term_info.next() else {
             // no key matches, nothing more to load
-            return Ok(());
+            return Ok(false);
         };
 
         let last_terminfo = term_info.last().unwrap_or_else(|| first_terminfo.clone());
@@ -316,7 +322,7 @@ impl InvertedIndexReader {
         } else {
             postings.await?;
         }
-        Ok(())
+        Ok(true)
     }
 
     /// Warmup the block postings for all terms.
