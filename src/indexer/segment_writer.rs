@@ -496,14 +496,14 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::collector::{Count, TopDocs};
-    use crate::core::json_utils::JsonTermWriter;
     use crate::directory::RamDirectory;
+    use crate::fastfield::FastValue;
+    use crate::json_utils::term_from_json_paths;
     use crate::postings::TermInfo;
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::document::Value;
     use crate::schema::{
-        Document, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Type, STORED, STRING,
-        TEXT,
+        Document, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, STRING, TEXT,
     };
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
@@ -645,115 +645,117 @@ mod tests {
         let inv_idx = segment_reader.inverted_index(json_field).unwrap();
         let term_dict = inv_idx.terms();
 
-        let mut term = Term::with_type_and_field(Type::Json, json_field);
         let mut term_stream = term_dict.stream().unwrap();
 
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
+        let term_from_path = |paths: &[&str]| -> Term {
+            term_from_json_paths(json_field, paths.iter().cloned(), false)
+        };
 
-        json_term_writer.push_path_segment("bool");
-        json_term_writer.set_fast_value(true);
+        fn set_fast_val<T: FastValue>(val: T, mut term: Term) -> Term {
+            term.append_type_and_fast_value(val);
+            term
+        }
+        fn set_str(val: &str, mut term: Term) -> Term {
+            term.append_type_and_str(val);
+            term
+        }
+
+        let term = term_from_path(&["bool"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(true, term).serialized_value_bytes()
         );
 
-        json_term_writer.pop_path_segment();
-        json_term_writer.push_path_segment("complexobject");
-        json_term_writer.push_path_segment("field.with.dot");
-        json_term_writer.set_fast_value(1i64);
+        let term = term_from_path(&["complexobject", "field.with.dot"]);
+
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(1i64, term).serialized_value_bytes()
         );
 
-        json_term_writer.pop_path_segment();
-        json_term_writer.pop_path_segment();
-        json_term_writer.push_path_segment("date");
-        json_term_writer.set_fast_value(DateTime::from_utc(
-            OffsetDateTime::parse("1985-04-12T23:20:50.52Z", &Rfc3339).unwrap(),
-        ));
+        // Date
+        let term = term_from_path(&["date"]);
+
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(
+                DateTime::from_utc(
+                    OffsetDateTime::parse("1985-04-12T23:20:50.52Z", &Rfc3339).unwrap(),
+                ),
+                term
+            )
+            .serialized_value_bytes()
         );
 
-        json_term_writer.pop_path_segment();
-        json_term_writer.push_path_segment("float");
-        json_term_writer.set_fast_value(-0.2f64);
+        // Float
+        let term = term_from_path(&["float"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(-0.2f64, term).serialized_value_bytes()
         );
 
-        json_term_writer.pop_path_segment();
-        json_term_writer.push_path_segment("my_arr");
-        json_term_writer.set_fast_value(2i64);
+        // Number In Array
+        let term = term_from_path(&["my_arr"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(2i64, term).serialized_value_bytes()
         );
 
-        json_term_writer.set_fast_value(3i64);
+        let term = term_from_path(&["my_arr"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(3i64, term).serialized_value_bytes()
         );
 
-        json_term_writer.set_fast_value(4i64);
+        let term = term_from_path(&["my_arr"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(4i64, term).serialized_value_bytes()
         );
 
-        json_term_writer.push_path_segment("my_key");
-        json_term_writer.set_str("tokens");
+        // El in Array
+        let term = term_from_path(&["my_arr", "my_key"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_str("tokens", term).serialized_value_bytes()
         );
-
-        json_term_writer.set_str("two");
+        let term = term_from_path(&["my_arr", "my_key"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_str("two", term).serialized_value_bytes()
         );
 
-        json_term_writer.pop_path_segment();
-        json_term_writer.pop_path_segment();
-        json_term_writer.push_path_segment("signed");
-        json_term_writer.set_fast_value(-2i64);
+        // Signed
+        let term = term_from_path(&["signed"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(-2i64, term).serialized_value_bytes()
         );
 
-        json_term_writer.pop_path_segment();
-        json_term_writer.push_path_segment("toto");
-        json_term_writer.set_str("titi");
+        let term = term_from_path(&["toto"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_str("titi", term).serialized_value_bytes()
         );
-
-        json_term_writer.pop_path_segment();
-        json_term_writer.push_path_segment("unsigned");
-        json_term_writer.set_fast_value(1i64);
+        // Unsigned
+        let term = term_from_path(&["unsigned"]);
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
-            json_term_writer.term().serialized_value_bytes()
+            set_fast_val(1i64, term).serialized_value_bytes()
         );
+
         assert!(!term_stream.advance());
     }
 
@@ -774,14 +776,9 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
-        let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
-        json_term_writer.push_path_segment("mykey");
-        json_term_writer.set_str("token");
-        let term_info = inv_index
-            .get_term_info(json_term_writer.term())
-            .unwrap()
-            .unwrap();
+        let mut term = term_from_json_paths(json_field, ["mykey"].into_iter(), false);
+        term.append_type_and_str("token");
+        let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
         assert_eq!(
             term_info,
             TermInfo {
@@ -818,14 +815,9 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
-        let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
-        json_term_writer.push_path_segment("mykey");
-        json_term_writer.set_str("two tokens");
-        let term_info = inv_index
-            .get_term_info(json_term_writer.term())
-            .unwrap()
-            .unwrap();
+        let mut term = term_from_json_paths(json_field, ["mykey"].into_iter(), false);
+        term.append_type_and_str("two tokens");
+        let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
         assert_eq!(
             term_info,
             TermInfo {
@@ -863,16 +855,18 @@ mod tests {
         writer.commit().unwrap();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-        let mut term = Term::with_type_and_field(Type::Json, json_field);
-        let mut json_term_writer = JsonTermWriter::wrap(&mut term, false);
-        json_term_writer.push_path_segment("mykey");
-        json_term_writer.push_path_segment("field");
-        json_term_writer.set_str("hello");
-        let hello_term = json_term_writer.term().clone();
-        json_term_writer.set_str("nothello");
-        let nothello_term = json_term_writer.term().clone();
-        json_term_writer.set_str("happy");
-        let happy_term = json_term_writer.term().clone();
+
+        let term = term_from_json_paths(json_field, ["mykey", "field"].into_iter(), false);
+
+        let mut hello_term = term.clone();
+        hello_term.append_type_and_str("hello");
+
+        let mut nothello_term = term.clone();
+        nothello_term.append_type_and_str("nothello");
+
+        let mut happy_term = term.clone();
+        happy_term.append_type_and_str("happy");
+
         let phrase_query = PhraseQuery::new(vec![hello_term, happy_term.clone()]);
         assert_eq!(searcher.search(&phrase_query, &Count).unwrap(), 1);
         let phrase_query = PhraseQuery::new(vec![nothello_term, happy_term]);

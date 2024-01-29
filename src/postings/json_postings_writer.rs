@@ -1,5 +1,6 @@
 use std::io;
 
+use common::json_path_writer::JSON_END_OF_PATH;
 use stacker::Addr;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -7,7 +8,7 @@ use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
 use crate::postings::{FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::{Field, Type, JSON_END_OF_PATH};
+use crate::schema::{Field, Type};
 use crate::tokenizer::TokenStream;
 use crate::{DocId, Term};
 
