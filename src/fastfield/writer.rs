@@ -238,13 +238,17 @@ impl FastFieldsWriter {
         mut self,
         wrt: &mut dyn io::Write,
         doc_id_map_opt: Option<&DocIdMapping>,
-    ) -> io::Result<()> {
+    ) -> io::Result<Vec<(String, Type)>> {
         let num_docs = self.num_docs;
         let old_to_new_row_ids =
             doc_id_map_opt.map(|doc_id_mapping| doc_id_mapping.old_to_new_ids());
-        self.columnar_writer
+        let columns = self
+            .columnar_writer
             .serialize(num_docs, old_to_new_row_ids, wrt)?;
-        Ok(())
+        Ok(columns
+            .into_iter()
+            .map(|(field_name, column)| (field_name.to_string(), column.into()))
+            .collect())
     }
 }
 

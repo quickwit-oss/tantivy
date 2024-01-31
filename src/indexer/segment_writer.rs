@@ -8,6 +8,7 @@ use super::operation::AddOperation;
 use crate::core::json_utils::index_json_values;
 use crate::core::Segment;
 use crate::fastfield::FastFieldsWriter;
+use crate::field_list::serialize_segment_fields;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::{
@@ -443,16 +444,29 @@ fn remap_and_write(
         .segment()
         .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
+
+    let unordered_id_to_ordered_id = ctx.path_to_unordered_id.unordered_id_to_ordered_id();
+
     serialize_postings(
-        ctx,
-        schema,
+        &ctx,
+        schema.clone(),
         per_field_postings_writers,
         fieldnorm_readers,
         doc_id_map,
+        &unordered_id_to_ordered_id,
         serializer.get_postings_serializer(),
     )?;
     debug!("fastfield-serialize");
-    fast_field_writers.serialize(serializer.get_fast_field_write(), doc_id_map)?;
+    let columns = fast_field_writers.serialize(serializer.get_fast_field_write(), doc_id_map)?;
+
+    let field_list_serializer = serializer.get_field_list_write();
+    serialize_segment_fields(
+        ctx,
+        field_list_serializer,
+        &schema,
+        &unordered_id_to_ordered_id,
+        columns,
+    )?;
 
     // finalize temp docstore and create version, which reflects the doc_id_map
     if let Some(doc_id_map) = doc_id_map {

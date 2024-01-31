@@ -188,6 +188,7 @@ pub mod aggregation;
 pub mod collector;
 pub mod directory;
 pub mod fastfield;
+pub mod field_list;
 pub mod fieldnorm;
 pub mod positions;
 pub mod postings;
@@ -238,7 +239,9 @@ pub use crate::schema::DatePrecision;
 pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 6;
+///
+/// Version 7: Add `.fieldlist` file containing the list of fields in a segment.
+const INDEX_FORMAT_VERSION: u32 = 7;
 /// Oldest index format version this tantivy version can read.
 const INDEX_FORMAT_OLDEST_SUPPORTED_VERSION: u32 = 4;
 

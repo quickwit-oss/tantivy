@@ -117,6 +117,7 @@ impl SegmentSpaceUsage {
         use self::ComponentSpaceUsage::*;
         use crate::SegmentComponent::*;
         match component {
+            FieldList => ComponentSpaceUsage::Basic(ByteCount::from(0u64)),
             Postings => PerField(self.postings().clone()),
             Positions => PerField(self.positions().clone()),
             FastFields => PerField(self.fast_fields().clone()),

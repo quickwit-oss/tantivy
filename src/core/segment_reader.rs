@@ -3,15 +3,14 @@ use std::ops::BitOrAssign;
 use std::sync::{Arc, RwLock};
 use std::{fmt, io};
 
-use fnv::FnvHashMap;
 use itertools::Itertools;
 
 use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
+use crate::field_list::read_split_fields;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
@@ -44,6 +43,7 @@ pub struct SegmentReader {
     fast_fields_readers: FastFieldReaders,
     fieldnorm_readers: FieldNormReaders,
 
+    list_fields_file: Option<FileSlice>, // Optional field list file for backwards compatibility
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
     schema: Schema,
@@ -153,6 +153,7 @@ impl SegmentReader {
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
         let store_file = segment.open_read(SegmentComponent::Store)?;
+        let list_fields_file = segment.open_read(SegmentComponent::FieldList).ok();
 
         crate::fail_point!("SegmentReader::open#middle");
 
@@ -201,6 +202,7 @@ impl SegmentReader {
             segment_id: segment.id(),
             delete_opstamp: segment.meta().delete_opstamp(),
             store_file,
+            list_fields_file,
             alive_bitset_opt,
             positions_composite,
             schema,
@@ -299,87 +301,25 @@ impl SegmentReader {
     /// field that is not indexed nor a fast field but is stored, it is possible for the field
     /// to not be listed.
     pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
-        let mut indexed_fields: Vec<FieldMetadata> = Vec::new();
-        let mut map_to_canonical = FnvHashMap::default();
-        for (field, field_entry) in self.schema().fields() {
-            let field_name = field_entry.name().to_string();
-            let is_indexed = field_entry.is_indexed();
-
-            if is_indexed {
-                let is_json = field_entry.field_type().value_type() == Type::Json;
-                if is_json {
-                    let inv_index = self.inverted_index(field)?;
-                    let encoded_fields_in_index = inv_index.list_encoded_fields()?;
-                    let mut build_path = |field_name: &str, mut json_path: String| {
-                        // In this case we need to map the potential fast field to the field name
-                        // accepted by the query parser.
-                        let create_canonical =
-                            !field_entry.is_expand_dots_enabled() && json_path.contains('.');
-                        if create_canonical {
-                            // Without expand dots enabled dots need to be escaped.
-                            let escaped_json_path = json_path.replace('.', "\\.");
-                            let full_path = format!("{}.{}", field_name, escaped_json_path);
-                            let full_path_unescaped = format!("{}.{}", field_name, &json_path);
-                            map_to_canonical.insert(full_path_unescaped, full_path.to_string());
-                            full_path
-                        } else {
-                            // With expand dots enabled, we can use '.' instead of '\u{1}'.
-                            json_path_sep_to_dot(&mut json_path);
-                            format!("{}.{}", field_name, json_path)
-                        }
-                    };
-                    indexed_fields.extend(
-                        encoded_fields_in_index
-                            .into_iter()
-                            .map(|(name, typ)| (build_path(&field_name, name), typ))
-                            .map(|(field_name, typ)| FieldMetadata {
-                                indexed: true,
-                                stored: false,
-                                field_name,
-                                fast: false,
-                                typ,
-                            }),
-                    );
-                } else {
-                    indexed_fields.push(FieldMetadata {
-                        indexed: true,
-                        stored: false,
-                        field_name: field_name.to_string(),
-                        fast: false,
-                        typ: field_entry.field_type().value_type(),
-                    });
-                }
-            }
+        if let Some(list_fields_file) = self.list_fields_file.as_ref() {
+            let file = list_fields_file.read_bytes()?;
+            let fields_metadata =
+                read_split_fields(file)?.collect::<io::Result<Vec<FieldMetadata>>>();
+            fields_metadata.map_err(|e| e.into())
+        } else {
+            // Schema fallback
+            Ok(self
+                .schema()
+                .fields()
+                .map(|(_field, entry)| FieldMetadata {
+                    field_name: entry.name().to_string(),
+                    typ: entry.field_type().value_type(),
+                    indexed: entry.is_indexed(),
+                    stored: entry.is_stored(),
+                    fast: entry.is_fast(),
+                })
+                .collect())
         }
-        let mut fast_fields: Vec<FieldMetadata> = self
-            .fast_fields()
-            .columnar()
-            .iter_columns()?
-            .map(|(mut field_name, handle)| {
-                json_path_sep_to_dot(&mut field_name);
-                // map to canonical path, to avoid similar but different entries.
-                // Eventually we should just accept '.' seperated for all cases.
-                let field_name = map_to_canonical
-                    .get(&field_name)
-                    .unwrap_or(&field_name)
-                    .to_string();
-                FieldMetadata {
-                    indexed: false,
-                    stored: false,
-                    field_name,
-                    fast: true,
-                    typ: Type::from(handle.column_type()),
-                }
-            })
-            .collect();
-        // Since the type is encoded differently in the fast field and in the inverted index,
-        // the order of the fields is not guaranteed to be the same. Therefore, we sort the fields.
-        // If we are sure that the order is the same, we can remove this sort.
-        indexed_fields.sort_unstable();
-        fast_fields.sort_unstable();
-        let merged = merge_field_meta_data(vec![indexed_fields, fast_fields], &self.schema);
-
-        Ok(merged)
     }
 
     /// Returns the segment id

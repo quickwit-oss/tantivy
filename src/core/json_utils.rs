@@ -1,4 +1,4 @@
-use columnar::MonotonicallyMappableToU64;
+use columnar::{ColumnType, MonotonicallyMappableToU64};
 use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
@@ -153,7 +153,7 @@ fn index_json_value<'a, V: Value<'a>>(
                 let mut token_stream = text_analyzer.token_stream(val);
                 let unordered_id = ctx
                     .path_to_unordered_id
-                    .get_or_allocate_unordered_id(json_path_writer.as_str());
+                    .get_or_allocate_unordered_id(json_path_writer.as_str(), ColumnType::Str);
 
                 // TODO: make sure the chain position works out.
                 set_path_id(term_buffer, unordered_id);
@@ -171,7 +171,7 @@ fn index_json_value<'a, V: Value<'a>>(
                 set_path_id(
                     term_buffer,
                     ctx.path_to_unordered_id
-                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                        .get_or_allocate_unordered_id(json_path_writer.as_str(), ColumnType::U64),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -180,7 +180,7 @@ fn index_json_value<'a, V: Value<'a>>(
                 set_path_id(
                     term_buffer,
                     ctx.path_to_unordered_id
-                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                        .get_or_allocate_unordered_id(json_path_writer.as_str(), ColumnType::I64),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -189,7 +189,7 @@ fn index_json_value<'a, V: Value<'a>>(
                 set_path_id(
                     term_buffer,
                     ctx.path_to_unordered_id
-                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                        .get_or_allocate_unordered_id(json_path_writer.as_str(), ColumnType::F64),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -198,7 +198,7 @@ fn index_json_value<'a, V: Value<'a>>(
                 set_path_id(
                     term_buffer,
                     ctx.path_to_unordered_id
-                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                        .get_or_allocate_unordered_id(json_path_writer.as_str(), ColumnType::Bool),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
@@ -206,8 +206,10 @@ fn index_json_value<'a, V: Value<'a>>(
             ReferenceValueLeaf::Date(val) => {
                 set_path_id(
                     term_buffer,
-                    ctx.path_to_unordered_id
-                        .get_or_allocate_unordered_id(json_path_writer.as_str()),
+                    ctx.path_to_unordered_id.get_or_allocate_unordered_id(
+                        json_path_writer.as_str(),
+                        ColumnType::DateTime,
+                    ),
                 );
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
