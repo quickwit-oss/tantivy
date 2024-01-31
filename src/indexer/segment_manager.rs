@@ -3,8 +3,8 @@ use std::fmt::{self, Debug, Formatter};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use super::segment_register::SegmentRegister;
-use crate::core::{SegmentId, SegmentMeta};
 use crate::error::TantivyError;
+use crate::index::{SegmentId, SegmentMeta};
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
 

@@ -3,8 +3,8 @@ use core::fmt::Debug;
 use columnar::{ColumnIndex, DynamicColumn};
 
 use super::{ConstScorer, EmptyScorer};
-use crate::core::SegmentReader;
 use crate::docset::{DocSet, TERMINATED};
+use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, Score, TantivyError};

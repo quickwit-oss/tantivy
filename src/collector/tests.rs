@@ -2,7 +2,7 @@ use columnar::{BytesColumn, Column};
 
 use super::*;
 use crate::collector::{Count, FilterCollector, TopDocs};
-use crate::core::SegmentReader;
+use crate::index::SegmentReader;
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;

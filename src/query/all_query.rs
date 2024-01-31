@@ -1,5 +1,5 @@
-use crate::core::SegmentReader;
 use crate::docset::{DocSet, BUFFER_LEN, TERMINATED};
+use crate::index::SegmentReader;
 use crate::query::boost_query::BoostScorer;
 use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};

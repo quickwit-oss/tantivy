@@ -1,6 +1,6 @@
 use super::Scorer;
-use crate::core::SegmentReader;
 use crate::docset::BUFFER_LEN;
+use crate::index::SegmentReader;
 use crate::query::Explanation;
 use crate::{DocId, DocSet, Score, TERMINATED};
 

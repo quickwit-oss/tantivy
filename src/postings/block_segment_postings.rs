@@ -383,8 +383,8 @@ mod tests {
     use common::HasLen;
 
     use super::BlockSegmentPostings;
-    use crate::core::Index;
     use crate::docset::{DocSet, TERMINATED};
+    use crate::index::Index;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::postings::postings::Postings;
     use crate::postings::SegmentPostings;

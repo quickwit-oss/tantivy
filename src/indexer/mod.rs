@@ -25,6 +25,7 @@ mod segment_register;
 pub(crate) mod segment_serializer;
 pub(crate) mod segment_updater;
 pub(crate) mod segment_writer;
+pub(crate) mod single_segment_index_writer;
 mod stamper;
 
 use crossbeam_channel as channel;
@@ -34,13 +35,14 @@ pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
+use self::operation::AddOperation;
 pub use self::operation::UserOperation;
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub(crate) use self::segment_serializer::SegmentSerializer;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
-use crate::indexer::operation::AddOperation;
+pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;
@@ -63,9 +65,10 @@ mod tests_mmap {
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::AggregationCollector;
     use crate::collector::{Count, TopDocs};
+    use crate::index::FieldMetadata;
     use crate::query::{AllQuery, QueryParser};
     use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
-    use crate::{FieldMetadata, Index, IndexWriter, Term};
+    use crate::{Index, IndexWriter, Term};
 
     #[test]
     fn test_advance_delete_bug() -> crate::Result<()> {

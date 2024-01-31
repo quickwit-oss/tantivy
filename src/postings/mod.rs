@@ -42,9 +42,9 @@ pub mod tests {
     use std::mem;
 
     use super::{InvertedIndexSerializer, Postings};
-    use crate::core::{Index, SegmentComponent, SegmentReader};
     use crate::docset::{DocSet, TERMINATED};
     use crate::fieldnorm::FieldNormReader;
+    use crate::index::{Index, SegmentComponent, SegmentReader};
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
     use crate::query::Scorer;

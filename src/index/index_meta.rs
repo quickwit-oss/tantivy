@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::SegmentComponent;
-use crate::core::SegmentId;
+use crate::index::SegmentId;
 use crate::schema::Schema;
 use crate::store::Compressor;
 use crate::{Inventory, Opstamp, TrackedObject};
@@ -19,7 +19,7 @@ struct DeleteMeta {
 }
 
 #[derive(Clone, Default)]
-pub struct SegmentMetaInventory {
+pub(crate) struct SegmentMetaInventory {
     inventory: Inventory<InnerSegmentMeta>,
 }
 
@@ -408,7 +408,7 @@ impl fmt::Debug for IndexMeta {
 mod tests {
 
     use super::IndexMeta;
-    use crate::core::index_meta::UntrackedIndexMeta;
+    use crate::index::index_meta::UntrackedIndexMeta;
     use crate::schema::{Schema, TEXT};
     use crate::store::Compressor;
     #[cfg(feature = "zstd-compression")]

@@ -14,7 +14,7 @@ pub mod tests {
 
     use super::*;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
-    use crate::core::Index;
+    use crate::index::Index;
     use crate::query::{EnableScoring, QueryParser, Weight};
     use crate::schema::{Schema, Term, TEXT};
     use crate::{assert_nearly_equals, DocAddress, DocId, IndexWriter, TERMINATED};

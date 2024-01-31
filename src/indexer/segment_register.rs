@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Debug, Display, Formatter};
 
-use crate::core::{SegmentId, SegmentMeta};
+use crate::index::{SegmentId, SegmentMeta};
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::segment_entry::SegmentEntry;
 
@@ -103,7 +103,7 @@ impl SegmentRegister {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{SegmentId, SegmentMetaInventory};
+    use crate::index::{SegmentId, SegmentMetaInventory};
     use crate::indexer::delete_queue::*;
 
     fn segment_ids(segment_register: &SegmentRegister) -> Vec<SegmentId> {
