@@ -111,10 +111,7 @@ fn stack_multivalued_indexes<'a>(
     let mut last_row_id = 0;
     let mut current_it = multivalued_indexes.next();
     Box::new(std::iter::from_fn(move || loop {
-        let Some(multivalued_index) = current_it.as_mut() else {
-            return None;
-        };
-        if let Some(row_id) = multivalued_index.next() {
+        if let Some(row_id) = current_it.as_mut()?.next() {
             last_row_id = offset + row_id;
             return Some(last_row_id);
         }

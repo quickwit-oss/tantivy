@@ -424,7 +424,7 @@ fn test_non_text_json_term_freq() {
     json_term_writer.set_fast_value(75u64);
     let postings = inv_idx
         .read_postings(
-            &json_term_writer.term(),
+            json_term_writer.term(),
             IndexRecordOption::WithFreqsAndPositions,
         )
         .unwrap()
@@ -462,7 +462,7 @@ fn test_non_text_json_term_freq_bitpacked() {
     json_term_writer.set_fast_value(75u64);
     let mut postings = inv_idx
         .read_postings(
-            &json_term_writer.term(),
+            json_term_writer.term(),
             IndexRecordOption::WithFreqsAndPositions,
         )
         .unwrap()
