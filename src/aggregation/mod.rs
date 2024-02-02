@@ -145,6 +145,8 @@ mod agg_tests;
 
 mod agg_bench;
 
+use core::fmt;
+
 pub use agg_limits::AggregationLimits;
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
@@ -154,7 +156,108 @@ use columnar::{ColumnType, MonotonicallyMappableToU64};
 pub(crate) use date::format_date;
 pub use error::AggregationError;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// deserialize Option<f64> from string or float
+pub(crate) fn deserialize_option_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where D: Deserializer<'de> {
+    struct StringOrFloatVisitor;
+
+    impl<'de> Visitor<'de> for StringOrFloatVisitor {
+        type Value = Option<f64>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or a float")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where E: de::Error {
+            value.parse::<f64>().map(Some).map_err(|_err| {
+                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
+            })
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where E: de::Error {
+            value.parse::<f64>().map(Some).map_err(|_err| {
+                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
+            })
+        }
+
+        fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(Some(value))
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(Some(value as f64))
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(Some(value as f64))
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_any(StringOrFloatVisitor)
+}
+
+/// deserialize f64 from string or float
+pub(crate) fn deserialize_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where D: Deserializer<'de> {
+    struct StringOrFloatVisitor;
+
+    impl<'de> Visitor<'de> for StringOrFloatVisitor {
+        type Value = f64;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or a float")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where E: de::Error {
+            value.parse::<f64>().map_err(|_err| {
+                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
+            })
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where E: de::Error {
+            value.parse::<f64>().map_err(|_err| {
+                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
+            })
+        }
+
+        fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(value)
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(value as f64)
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where E: de::Error {
+            Ok(value as f64)
+        }
+    }
+
+    deserializer.deserialize_any(StringOrFloatVisitor)
+}
 
 /// Represents an associative array `(key => values)` in a very efficient manner.
 #[derive(PartialEq, Serialize, Deserialize)]

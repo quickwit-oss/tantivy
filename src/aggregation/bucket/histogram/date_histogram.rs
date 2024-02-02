@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{HistogramAggregation, HistogramBounds};
-use crate::aggregation::AggregationError;
+use crate::aggregation::*;
 
 /// DateHistogramAggregation is similar to `HistogramAggregation`, but it can only be used with date
 /// type.

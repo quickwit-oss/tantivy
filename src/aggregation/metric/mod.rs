@@ -24,6 +24,7 @@ mod percentiles;
 mod stats;
 mod sum;
 mod top_hits;
+
 pub use average::*;
 pub use count::*;
 pub use max::*;

@@ -2,7 +2,8 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use super::{IntermediateStats, SegmentStatsCollector};
+use super::*;
+use crate::aggregation::*;
 
 /// A single-value metric aggregation that computes the maximum of numeric values that are
 /// extracted from the aggregated documents.
@@ -24,7 +25,7 @@ pub struct MaxAggregation {
     /// By default they will be ignored but it is also possible to treat them as if they had a
     /// value. Examples in JSON format:
     /// { "field": "my_numbers", "missing": "10.0" }
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_option_f64")]
     pub missing: Option<f64>,
 }
 

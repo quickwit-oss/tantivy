@@ -20,7 +20,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, format_date};
+use crate::aggregation::*;
 use crate::TantivyError;
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -73,6 +73,7 @@ pub struct HistogramAggregation {
     pub field: String,
     /// The interval to chunk your data range. Each bucket spans a value range of [0..interval).
     /// Must be a positive value.
+    #[serde(deserialize_with = "deserialize_f64")]
     pub interval: f64,
     /// Intervals implicitly defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
@@ -85,6 +86,7 @@ pub struct HistogramAggregation {
     /// fall into the buckets with the key 0 and 10.
     /// With offset 5 and interval 10, they would both fall into the bucket with they key 5 and the
     /// range [5..15)
+    #[serde(default, deserialize_with = "deserialize_option_f64")]
     pub offset: Option<f64>,
     /// The minimum number of documents in a bucket to be returned. Defaults to 0.
     pub min_doc_count: Option<u64>,
