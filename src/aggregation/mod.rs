@@ -178,13 +178,6 @@ where D: Deserializer<'de> {
             })
         }
 
-        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-        where E: de::Error {
-            value.parse::<f64>().map(Some).map_err(|_err| {
-                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
-            })
-        }
-
         fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
         where E: de::Error {
             Ok(Some(value))
@@ -227,13 +220,6 @@ where D: Deserializer<'de> {
         }
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where E: de::Error {
-            value.parse::<f64>().map_err(|_err| {
-                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
-            })
-        }
-
-        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
         where E: de::Error {
             value.parse::<f64>().map_err(|_err| {
                 de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
