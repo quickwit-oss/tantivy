@@ -151,7 +151,7 @@ impl RetrievalFields {
                     return Ok(vec![field.to_owned()]);
                 }
 
-                let pattern = globbed_string_to_regex(&field)?;
+                let pattern = globbed_string_to_regex(field)?;
                 let fields = reader
                     .iter_columns()?
                     .map(|(name, _)| {

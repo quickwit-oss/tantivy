@@ -730,7 +730,7 @@ pub struct TopNComputer<Score, D, const REVERSE_ORDER: bool = true> {
 }
 // Intermediate struct for TopNComputer for deserialization, to fix vec capacity
 #[derive(Deserialize)]
-pub struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool = true> {
+struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool> {
     buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
     top_n: usize,
     threshold: Option<Score>,
