@@ -3,9 +3,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use columnar::ColumnValues;
-use serde::de::{self, DeserializeOwned, SeqAccess, Visitor};
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use super::Collector;
 use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
@@ -722,67 +721,37 @@ impl SegmentCollector for TopScoreSegmentCollector {
 ///
 /// For TopN == 0, it will be relative expensive.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TopNComputer<Score, D: Serialize + DeserializeOwned, const REVERSE_ORDER: bool = true> {
+#[serde(from = "TopNComputerDeser<Score, D, REVERSE_ORDER>")]
+pub struct TopNComputer<Score, D, const REVERSE_ORDER: bool = true> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
-    #[serde(
-        serialize_with = "serialize_with_capacity",
-        deserialize_with = "deserialize_with_capacity"
-    )]
     buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
     top_n: usize,
     pub(crate) threshold: Option<Score>,
 }
-
-// Custom serialization function that includes Vec's capacity
-fn serialize_with_capacity<S, T>(vec: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-    T: Serialize,
-{
-    let mut seq = serializer.serialize_seq(Some(vec.len() + 1))?;
-    seq.serialize_element(&vec.capacity())?;
-    for element in vec {
-        seq.serialize_element(element)?;
-    }
-    seq.end()
+// Intermediate struct for TopNComputer for deserialization, to fix vec capacity
+#[derive(Deserialize)]
+pub struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool = true> {
+    buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
+    top_n: usize,
+    threshold: Option<Score>,
 }
 
-// Custom deserialization function that reconstructs Vec with specified capacity
-fn deserialize_with_capacity<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    struct VecWithCapacityVisitor<T> {
-        marker: std::marker::PhantomData<T>,
-    }
-
-    impl<'de, T> Visitor<'de> for VecWithCapacityVisitor<T>
-    where T: Deserialize<'de>
-    {
-        type Value = Vec<T>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a sequence with capacity and elements")
+impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNComputer<Score, D, R> {
+    fn from(mut value: TopNComputerDeser<Score, D, R>) -> Self {
+        let expected_cap = value.top_n.max(1) * 2;
+        let current_cap = value.buffer.capacity();
+        if current_cap < expected_cap {
+            value.buffer.reserve_exact(expected_cap - current_cap);
+        } else {
+            value.buffer.shrink_to(expected_cap);
         }
 
-        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where A: SeqAccess<'de> {
-            let capacity: usize = seq
-                .next_element()?
-                .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-            let mut vec = Vec::with_capacity(capacity);
-            while let Some(element) = seq.next_element()? {
-                vec.push(element);
-            }
-            Ok(vec)
+        TopNComputer {
+            buffer: value.buffer,
+            top_n: value.top_n,
+            threshold: value.threshold,
         }
     }
-
-    let visitor = VecWithCapacityVisitor {
-        marker: std::marker::PhantomData,
-    };
-    deserializer.deserialize_seq(visitor)
 }
 
 impl<Score, D, const R: bool> TopNComputer<Score, D, R>
@@ -893,11 +862,7 @@ mod tests {
     }
     #[test]
     fn test_topn_computer_serde() {
-        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(1);
-
-        computer.push(1u32, 1u32);
-        computer.push(1u32, 2u32);
-        computer.push(1u32, 3u32);
+        let computer: TopNComputer<u32, u32> = TopNComputer::new(1);
 
         let computer_ser = serde_json::to_string(&computer).unwrap();
         let mut computer: TopNComputer<u32, u32> = serde_json::from_str(&computer_ser).unwrap();
