@@ -323,7 +323,10 @@ impl Index {
     }
 
     /// Custom thread pool by a outer thread pool.
-    pub fn set_shared_multithread_executor(&mut self, shared_thread_pool: Arc<Executor>) -> crate::Result<()> {
+    pub fn set_shared_multithread_executor(
+        &mut self,
+        shared_thread_pool: Arc<Executor>,
+    ) -> crate::Result<()> {
         self.executor = shared_thread_pool.clone();
         Ok(())
     }

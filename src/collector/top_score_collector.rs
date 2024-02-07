@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use columnar::ColumnValues;
-use serde::{Deserialize, Serialize};
+use serde::de::{self, DeserializeOwned, SeqAccess, Visitor};
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::Collector;
 use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
@@ -720,17 +722,73 @@ impl SegmentCollector for TopScoreSegmentCollector {
 ///
 /// For TopN == 0, it will be relative expensive.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct TopNComputer<Score, DocId, const REVERSE_ORDER: bool = true> {
+pub struct TopNComputer<Score, D: Serialize + DeserializeOwned, const REVERSE_ORDER: bool = true> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
-    buffer: Vec<ComparableDoc<Score, DocId, REVERSE_ORDER>>,
+    #[serde(
+        serialize_with = "serialize_with_capacity",
+        deserialize_with = "deserialize_with_capacity"
+    )]
+    buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
     top_n: usize,
     pub(crate) threshold: Option<Score>,
 }
 
-impl<Score, DocId, const R: bool> TopNComputer<Score, DocId, R>
+// Custom serialization function that includes Vec's capacity
+fn serialize_with_capacity<S, T>(vec: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    T: Serialize,
+{
+    let mut seq = serializer.serialize_seq(Some(vec.len() + 1))?;
+    seq.serialize_element(&vec.capacity())?;
+    for element in vec {
+        seq.serialize_element(element)?;
+    }
+    seq.end()
+}
+
+// Custom deserialization function that reconstructs Vec with specified capacity
+fn deserialize_with_capacity<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    struct VecWithCapacityVisitor<T> {
+        marker: std::marker::PhantomData<T>,
+    }
+
+    impl<'de, T> Visitor<'de> for VecWithCapacityVisitor<T>
+    where T: Deserialize<'de>
+    {
+        type Value = Vec<T>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence with capacity and elements")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where A: SeqAccess<'de> {
+            let capacity: usize = seq
+                .next_element()?
+                .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+            let mut vec = Vec::with_capacity(capacity);
+            while let Some(element) = seq.next_element()? {
+                vec.push(element);
+            }
+            Ok(vec)
+        }
+    }
+
+    let visitor = VecWithCapacityVisitor {
+        marker: std::marker::PhantomData,
+    };
+    deserializer.deserialize_seq(visitor)
+}
+
+impl<Score, D, const R: bool> TopNComputer<Score, D, R>
 where
     Score: PartialOrd + Clone,
-    DocId: Ord + Clone,
+    D: Serialize + DeserializeOwned + Ord + Clone,
 {
     /// Create a new `TopNComputer`.
     /// Internally it will allocate a buffer of size `2 * top_n`.
@@ -746,7 +804,7 @@ where
     /// Push a new document to the top n.
     /// If the document is below the current threshold, it will be ignored.
     #[inline]
-    pub fn push(&mut self, feature: Score, doc: DocId) {
+    pub fn push(&mut self, feature: Score, doc: D) {
         if let Some(last_median) = self.threshold.clone() {
             if feature < last_median {
                 return;
@@ -783,7 +841,7 @@ where
     }
 
     /// Returns the top n elements in sorted order.
-    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, DocId, R>> {
+    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -794,7 +852,7 @@ where
     /// Returns the top n elements in stored order.
     /// Useful if you do not need the elements in sorted order,
     /// for example when merging the results of multiple segments.
-    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, DocId, R>> {
+    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -832,6 +890,29 @@ mod tests {
             assert_eq!(result.1, expected.1);
             crate::assert_nearly_equals!(result.0, expected.0);
         }
+    }
+    #[test]
+    fn test_topn_computer_serde() {
+        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(1);
+
+        computer.push(1u32, 1u32);
+        computer.push(1u32, 2u32);
+        computer.push(1u32, 3u32);
+
+        let computer_ser = serde_json::to_string(&computer).unwrap();
+        let mut computer: TopNComputer<u32, u32> = serde_json::from_str(&computer_ser).unwrap();
+
+        computer.push(1u32, 5u32);
+        computer.push(1u32, 0u32);
+        computer.push(1u32, 7u32);
+
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[ComparableDoc {
+                feature: 1u32,
+                doc: 0u32,
+            },]
+        );
     }
 
     #[test]
