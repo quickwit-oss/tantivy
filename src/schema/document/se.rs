@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_array_serialize() {
-        let elements = vec![serde_json::Value::Null, serde_json::Value::Null];
+        let elements = [serde_json::Value::Null, serde_json::Value::Null];
         let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let expected = binary_repr!(
             collection type_codes::ARRAY_CODE,
@@ -466,7 +466,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let elements = vec![
+        let elements = [
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::String("Some demo".into()),
         ];
@@ -482,7 +482,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let elements = vec![];
+        let elements = [];
         let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let expected = binary_repr!(
             collection type_codes::ARRAY_CODE,
@@ -493,7 +493,7 @@ mod tests {
             "Expected serialized value to match the binary representation"
         );
 
-        let elements = vec![
+        let elements = [
             serde_json::Value::Null,
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::Number(12345.into()),

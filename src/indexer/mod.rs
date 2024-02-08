@@ -406,11 +406,10 @@ mod tests_mmap {
 
         let searcher = reader.searcher();
 
-        let fields_and_vals = vec![
-            // Only way to address or it gets shadowed by `json.shadow` field
+        let fields_and_vals = [
             ("json.shadow\u{1}val".to_string(), "a"), // Succeeds
             //("json.shadow.val".to_string(), "a"),   // Fails
-            ("json.shadow.val".to_string(), "b"), // Succeeds
+            ("json.shadow.val".to_string(), "b"),
         ];
 
         let query_parser = QueryParser::for_index(&index, vec![]);

@@ -479,6 +479,7 @@ impl Directory for MmapDirectory {
         let file: File = OpenOptions::new()
             .write(true)
             .create(true) //< if the file does not exist yet, create it.
+            .truncate(false)
             .open(full_path)
             .map_err(LockError::wrap_io_error)?;
         if lock.is_blocking {
