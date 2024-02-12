@@ -720,7 +720,7 @@ impl SegmentCollector for TopScoreSegmentCollector {
 /// Fast TopN Computation
 ///
 /// For TopN == 0, it will be relative expensive.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(from = "TopNComputerDeser<Score, D, REVERSE_ORDER>")]
 pub struct TopNComputer<Score, D, const REVERSE_ORDER: bool = true> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
@@ -734,6 +734,22 @@ struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool> {
     buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
     top_n: usize,
     threshold: Option<Score>,
+}
+
+// Custom clone to keep capacity
+impl<Score: Clone, D: Clone, const REVERSE_ORDER: bool> Clone
+    for TopNComputer<Score, D, REVERSE_ORDER>
+{
+    fn clone(&self) -> Self {
+        let mut buffer_clone = Vec::with_capacity(self.buffer.capacity());
+        buffer_clone.extend(self.buffer.iter().cloned());
+
+        TopNComputer {
+            buffer: buffer_clone,
+            top_n: self.top_n,
+            threshold: self.threshold.clone(),
+        }
+    }
 }
 
 impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNComputer<Score, D, R> {
