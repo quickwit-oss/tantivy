@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_array_serialize() {
-        let elements = vec![serde_json::Value::Null, serde_json::Value::Null];
+        let elements = [serde_json::Value::Null, serde_json::Value::Null];
         let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(
@@ -900,7 +900,7 @@ mod tests {
             ]),
         );
 
-        let elements = vec![
+        let elements = [
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::String("Some demo".into()),
         ];
@@ -914,12 +914,12 @@ mod tests {
             ]),
         );
 
-        let elements = vec![];
+        let elements = [];
         let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(value, crate::schema::OwnedValue::Array(vec![]));
 
-        let elements = vec![
+        let elements = [
             serde_json::Value::Null,
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::Number(12345.into()),
