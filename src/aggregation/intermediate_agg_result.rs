@@ -166,9 +166,10 @@ impl IntermediateAggregationResults {
 pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult {
     use AggregationVariants::*;
     match req.agg {
-        Terms(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms(
-            Default::default(),
-        )),
+        Terms(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms {
+            buckets: Default::default(),
+            column_type: None,
+        }),
         Range(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
             Default::default(),
         )),
@@ -367,7 +368,12 @@ pub enum IntermediateBucketResult {
         buckets: Vec<IntermediateHistogramBucketEntry>,
     },
     /// Term aggregation
-    Terms(IntermediateTermBucketResult),
+    Terms {
+        /// The column_type of the underlying `Column`
+        column_type: Option<ColumnType>,
+        /// The term buckets
+        buckets: IntermediateTermBucketResult,
+    },
 }
 
 impl IntermediateBucketResult {
@@ -444,11 +450,15 @@ impl IntermediateBucketResult {
                 };
                 Ok(BucketResult::Histogram { buckets })
             }
-            IntermediateBucketResult::Terms(terms) => terms.into_final_result(
+            IntermediateBucketResult::Terms {
+                buckets: terms,
+                column_type,
+            } => terms.into_final_result(
                 req.agg
                     .as_term()
                     .expect("unexpected aggregation, expected term aggregation"),
                 req.sub_aggregation(),
+                column_type,
                 limits,
             ),
         }
@@ -457,8 +467,14 @@ impl IntermediateBucketResult {
     fn merge_fruits(&mut self, other: IntermediateBucketResult) -> crate::Result<()> {
         match (self, other) {
             (
-                IntermediateBucketResult::Terms(term_res_left),
-                IntermediateBucketResult::Terms(term_res_right),
+                IntermediateBucketResult::Terms {
+                    buckets: term_res_left,
+                    ..
+                },
+                IntermediateBucketResult::Terms {
+                    buckets: term_res_right,
+                    ..
+                },
             ) => {
                 merge_maps(&mut term_res_left.entries, term_res_right.entries)?;
                 term_res_left.sum_other_doc_count += term_res_right.sum_other_doc_count;
@@ -534,6 +550,7 @@ impl IntermediateTermBucketResult {
         self,
         req: &TermsAggregation,
         sub_aggregation_req: &Aggregations,
+        column_type: Option<ColumnType>,
         limits: &AggregationLimits,
     ) -> crate::Result<BucketResult> {
         let req = TermsAggregationInternal::from_req(req);
@@ -542,8 +559,16 @@ impl IntermediateTermBucketResult {
             .into_iter()
             .filter(|bucket| bucket.1.doc_count as u64 >= req.min_doc_count)
             .map(|(key, entry)| {
+                let key_as_string = match column_type {
+                    Some(ColumnType::Bool) => match key {
+                        IntermediateKey::F64(key) if key == 0.0 => Some("false".to_string()),
+                        IntermediateKey::F64(_) => Some("true".to_string()),
+                        _ => None,
+                    },
+                    _ => None,
+                };
                 Ok(BucketEntry {
-                    key_as_string: None,
+                    key_as_string,
                     key: key.into(),
                     doc_count: entry.doc_count as u64,
                     sub_aggregation: entry
