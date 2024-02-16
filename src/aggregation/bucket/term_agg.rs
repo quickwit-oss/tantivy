@@ -538,6 +538,12 @@ impl SegmentTermCollector {
                 let date = format_date(val)?;
                 dict.insert(IntermediateKey::Str(date), intermediate_entry);
             }
+        } else if self.column_type == ColumnType::Bool {
+            for (val, doc_count) in entries {
+                let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
+                let val = bool::from_u64(val);
+                dict.insert(IntermediateKey::Bool(val), intermediate_entry);
+            }
         } else {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
@@ -552,7 +558,6 @@ impl SegmentTermCollector {
                 sum_other_doc_count,
                 doc_count_error_upper_bound: term_doc_count_before_cutoff,
             },
-            column_type: Some(self.column_type),
         })
     }
 }
@@ -1366,7 +1371,7 @@ mod tests {
 
     #[test]
     fn terms_aggregation_different_tokenizer_on_ff_test() -> crate::Result<()> {
-        let terms = vec!["Hello Hello", "Hallo Hallo"];
+        let terms = vec!["Hello Hello", "Hallo Hallo", "Hallo Hallo"];
 
         let index = get_test_index_from_terms(true, &[terms])?;
 
@@ -1384,7 +1389,7 @@ mod tests {
         println!("{}", serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "Hallo Hallo");
-        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 1);
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
 
         assert_eq!(res["my_texts"]["buckets"][1]["key"], "Hello Hello");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 1);

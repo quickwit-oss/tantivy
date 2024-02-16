@@ -41,6 +41,8 @@ pub struct IntermediateAggregationResults {
 /// This might seem redundant with `Key`, but the point is to have a different
 /// Serialize implementation.
 pub enum IntermediateKey {
+    /// Bool key
+    Bool(bool),
     /// String key
     Str(String),
     /// `f64` key
@@ -59,6 +61,7 @@ impl From<IntermediateKey> for Key {
         match value {
             IntermediateKey::Str(s) => Self::Str(s),
             IntermediateKey::F64(f) => Self::F64(f),
+            IntermediateKey::Bool(f) => Self::F64(f as u64 as f64),
         }
     }
 }
@@ -71,6 +74,7 @@ impl std::hash::Hash for IntermediateKey {
         match self {
             IntermediateKey::Str(text) => text.hash(state),
             IntermediateKey::F64(val) => val.to_bits().hash(state),
+            IntermediateKey::Bool(val) => val.hash(state),
         }
     }
 }
@@ -168,7 +172,6 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
     match req.agg {
         Terms(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms {
             buckets: Default::default(),
-            column_type: None,
         }),
         Range(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
             Default::default(),
@@ -364,13 +367,11 @@ pub enum IntermediateBucketResult {
     Histogram {
         /// The column_type of the underlying `Column` is DateTime
         is_date_agg: bool,
-        /// The buckets
+        /// The histogram buckets
         buckets: Vec<IntermediateHistogramBucketEntry>,
     },
     /// Term aggregation
     Terms {
-        /// The column_type of the underlying `Column`
-        column_type: Option<ColumnType>,
         /// The term buckets
         buckets: IntermediateTermBucketResult,
     },
@@ -450,15 +451,11 @@ impl IntermediateBucketResult {
                 };
                 Ok(BucketResult::Histogram { buckets })
             }
-            IntermediateBucketResult::Terms {
-                buckets: terms,
-                column_type,
-            } => terms.into_final_result(
+            IntermediateBucketResult::Terms { buckets: terms } => terms.into_final_result(
                 req.agg
                     .as_term()
                     .expect("unexpected aggregation, expected term aggregation"),
                 req.sub_aggregation(),
-                column_type,
                 limits,
             ),
         }
@@ -469,11 +466,9 @@ impl IntermediateBucketResult {
             (
                 IntermediateBucketResult::Terms {
                     buckets: term_res_left,
-                    ..
                 },
                 IntermediateBucketResult::Terms {
                     buckets: term_res_right,
-                    ..
                 },
             ) => {
                 merge_maps(&mut term_res_left.entries, term_res_right.entries)?;
@@ -550,7 +545,6 @@ impl IntermediateTermBucketResult {
         self,
         req: &TermsAggregation,
         sub_aggregation_req: &Aggregations,
-        column_type: Option<ColumnType>,
         limits: &AggregationLimits,
     ) -> crate::Result<BucketResult> {
         let req = TermsAggregationInternal::from_req(req);
@@ -559,12 +553,11 @@ impl IntermediateTermBucketResult {
             .into_iter()
             .filter(|bucket| bucket.1.doc_count as u64 >= req.min_doc_count)
             .map(|(key, entry)| {
-                let key_as_string = match column_type {
-                    Some(ColumnType::Bool) => match key {
-                        IntermediateKey::F64(key) if key == 0.0 => Some("false".to_string()),
-                        IntermediateKey::F64(_) => Some("true".to_string()),
-                        _ => None,
-                    },
+                let key_as_string = match key {
+                    IntermediateKey::Bool(key) => {
+                        let val = if key { "true" } else { "false" };
+                        Some(val.to_string())
+                    }
                     _ => None,
                 };
                 Ok(BucketEntry {

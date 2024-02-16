@@ -79,7 +79,6 @@ impl SegmentAggregationCollector for TermMissingAgg {
                 sum_other_doc_count: 0,
                 doc_count_error_upper_bound: 0,
             },
-            column_type: None,
         };
 
         results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
