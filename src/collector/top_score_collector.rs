@@ -719,6 +719,10 @@ impl SegmentCollector for TopScoreSegmentCollector {
 
 /// Fast TopN Computation
 ///
+/// Capacity of the vec is 2 * top_n.
+/// The buffer is truncated to the top_n elements when it reaches the capacity of the Vec.
+/// That means capacity has special meaning and should be carried over when cloning or serializing.
+///
 /// For TopN == 0, it will be relative expensive.
 #[derive(Serialize, Deserialize)]
 #[serde(from = "TopNComputerDeser<Score, D, REVERSE_ORDER>")]
@@ -728,7 +732,7 @@ pub struct TopNComputer<Score, D, const REVERSE_ORDER: bool = true> {
     top_n: usize,
     pub(crate) threshold: Option<Score>,
 }
-// Intermediate struct for TopNComputer for deserialization, to fix vec capacity
+// Intermediate struct for TopNComputer for deserialization, to keep vec capacity
 #[derive(Deserialize)]
 struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool> {
     buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
