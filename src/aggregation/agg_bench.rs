@@ -290,6 +290,41 @@ mod bench {
         });
     }
 
+    bench_all_cardinalities!(bench_aggregation_terms_many_with_top_hits_agg);
+
+    fn bench_aggregation_terms_many_with_top_hits_agg_card(
+        b: &mut Bencher,
+        cardinality: Cardinality,
+    ) {
+        let index = get_test_index_bench(cardinality).unwrap();
+        let reader = index.reader().unwrap();
+
+        b.iter(|| {
+            let agg_req: Aggregations = serde_json::from_value(json!({
+                "my_texts": {
+                    "terms": { "field": "text_many_terms" },
+                    "aggs": {
+                        "top_hits": { "top_hits":
+                            {
+                                "sort": [
+                                    { "score": "desc" }
+                                ],
+                                "size": 2,
+                                "doc_value_fields": ["score_f64"]
+                            }
+                        }
+                    }
+                },
+            }))
+            .unwrap();
+
+            let collector = get_collector(agg_req);
+
+            let searcher = reader.searcher();
+            searcher.search(&AllQuery, &collector).unwrap()
+        });
+    }
+
     bench_all_cardinalities!(bench_aggregation_terms_many_with_sub_agg);
 
     fn bench_aggregation_terms_many_with_sub_agg_card(b: &mut Bencher, cardinality: Cardinality) {
