@@ -591,6 +591,9 @@ fn test_aggregation_on_json_object() {
         .add_document(doc!(json => json!({"color": "red"})))
         .unwrap();
     index_writer
+        .add_document(doc!(json => json!({"color": "red"})))
+        .unwrap();
+    index_writer
         .add_document(doc!(json => json!({"color": "blue"})))
         .unwrap();
     index_writer.commit().unwrap();
@@ -614,8 +617,8 @@ fn test_aggregation_on_json_object() {
         &serde_json::json!({
             "jsonagg": {
                 "buckets": [
+                    {"doc_count": 2, "key": "red"},
                     {"doc_count": 1, "key": "blue"},
-                    {"doc_count": 1, "key": "red"}
                 ],
                 "doc_count_error_upper_bound": 0,
                 "sum_other_doc_count": 0
@@ -633,6 +636,9 @@ fn test_aggregation_on_nested_json_object() {
     let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
     index_writer
         .add_document(doc!(json => json!({"color.dot": "red", "color": {"nested":"red"} })))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color.dot": "blue", "color": {"nested":"blue"} })))
         .unwrap();
     index_writer
         .add_document(doc!(json => json!({"color.dot": "blue", "color": {"nested":"blue"} })))
@@ -664,7 +670,7 @@ fn test_aggregation_on_nested_json_object() {
         &serde_json::json!({
             "jsonagg1": {
                 "buckets": [
-                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 2, "key": "blue"},
                     {"doc_count": 1, "key": "red"}
                 ],
                 "doc_count_error_upper_bound": 0,
@@ -672,7 +678,7 @@ fn test_aggregation_on_nested_json_object() {
             },
             "jsonagg2": {
                 "buckets": [
-                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 2, "key": "blue"},
                     {"doc_count": 1, "key": "red"}
                 ],
                 "doc_count_error_upper_bound": 0,
@@ -817,6 +823,12 @@ fn test_aggregation_on_json_object_mixed_types() {
     index_writer
         .add_document(doc!(json => json!({"mixed_type": "blue"})))
         .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": "blue"})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": "blue"})))
+        .unwrap();
     index_writer.commit().unwrap();
     // => Segment with all boolen
     index_writer
@@ -825,6 +837,9 @@ fn test_aggregation_on_json_object_mixed_types() {
     index_writer.commit().unwrap();
 
     // => Segment with mixed values
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": "red"})))
+        .unwrap();
     index_writer
         .add_document(doc!(json => json!({"mixed_type": "red"})))
         .unwrap();
@@ -870,6 +885,8 @@ fn test_aggregation_on_json_object_mixed_types() {
 
     let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
     let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    // pretty print as json
+    use pretty_assertions::assert_eq;
     assert_eq!(
         &aggregation_res_json,
         &serde_json::json!({
@@ -885,9 +902,9 @@ fn test_aggregation_on_json_object_mixed_types() {
             "buckets": [
               { "doc_count": 1, "key": 10.0, "min_price": { "value": 10.0 } },
               { "doc_count": 1, "key": -20.5, "min_price": { "value": -20.5 } },
-              // TODO bool is also not yet handled in aggregation
-              { "doc_count": 1, "key": "blue", "min_price": { "value": null } },
-              { "doc_count": 1, "key": "red", "min_price": { "value": null } },
+              { "doc_count": 2, "key": "red", "min_price": { "value": null } },
+              { "doc_count": 2, "key": 1.0, "key_as_string": "true", "min_price": { "value": null } },
+              { "doc_count": 3, "key": "blue", "min_price": { "value": null } },
             ],
             "sum_other_doc_count": 0
           }

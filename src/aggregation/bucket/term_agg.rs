@@ -256,7 +256,7 @@ pub struct SegmentTermCollector {
     term_buckets: TermBuckets,
     req: TermsAggregationInternal,
     blueprint: Option<Box<dyn SegmentAggregationCollector>>,
-    field_type: ColumnType,
+    column_type: ColumnType,
     accessor_idx: usize,
 }
 
@@ -355,7 +355,7 @@ impl SegmentTermCollector {
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
-        if field_type == ColumnType::Bytes || field_type == ColumnType::Bool {
+        if field_type == ColumnType::Bytes {
             return Err(TantivyError::InvalidArgument(format!(
                 "terms aggregation is not supported for column type {:?}",
                 field_type
@@ -389,7 +389,7 @@ impl SegmentTermCollector {
             req: TermsAggregationInternal::from_req(req),
             term_buckets,
             blueprint,
-            field_type,
+            column_type: field_type,
             accessor_idx,
         })
     }
@@ -466,7 +466,7 @@ impl SegmentTermCollector {
                 Ok(intermediate_entry)
             };
 
-        if self.field_type == ColumnType::Str {
+        if self.column_type == ColumnType::Str {
             let term_dict = agg_with_accessor
                 .str_dict_column
                 .as_ref()
@@ -531,28 +531,34 @@ impl SegmentTermCollector {
                         });
                 }
             }
-        } else if self.field_type == ColumnType::DateTime {
+        } else if self.column_type == ColumnType::DateTime {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
                 let val = i64::from_u64(val);
                 let date = format_date(val)?;
                 dict.insert(IntermediateKey::Str(date), intermediate_entry);
             }
+        } else if self.column_type == ColumnType::Bool {
+            for (val, doc_count) in entries {
+                let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
+                let val = bool::from_u64(val);
+                dict.insert(IntermediateKey::Bool(val), intermediate_entry);
+            }
         } else {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
-                let val = f64_from_fastfield_u64(val, &self.field_type);
+                let val = f64_from_fastfield_u64(val, &self.column_type);
                 dict.insert(IntermediateKey::F64(val), intermediate_entry);
             }
         };
 
-        Ok(IntermediateBucketResult::Terms(
-            IntermediateTermBucketResult {
+        Ok(IntermediateBucketResult::Terms {
+            buckets: IntermediateTermBucketResult {
                 entries: dict,
                 sum_other_doc_count,
                 doc_count_error_upper_bound: term_doc_count_before_cutoff,
             },
-        ))
+        })
     }
 }
 
@@ -1365,7 +1371,7 @@ mod tests {
 
     #[test]
     fn terms_aggregation_different_tokenizer_on_ff_test() -> crate::Result<()> {
-        let terms = vec!["Hello Hello", "Hallo Hallo"];
+        let terms = vec!["Hello Hello", "Hallo Hallo", "Hallo Hallo"];
 
         let index = get_test_index_from_terms(true, &[terms])?;
 
@@ -1383,7 +1389,7 @@ mod tests {
         println!("{}", serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "Hallo Hallo");
-        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 1);
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
 
         assert_eq!(res["my_texts"]["buckets"][1]["key"], "Hello Hello");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 1);
@@ -1891,6 +1897,42 @@ mod tests {
         assert_eq!(res["my_date"]["buckets"][1]["key"], "1983-09-27T00:00:00Z");
         assert_eq!(res["my_date"]["buckets"][1]["doc_count"], 1);
         assert_eq!(res["my_date"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_bool() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_bool_field("bool_field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer = index.writer_with_num_threads(1, 15_000_000)?;
+            writer.add_document(doc!(field=>true))?;
+            writer.add_document(doc!(field=>false))?;
+            writer.add_document(doc!(field=>true))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_bool": {
+                "terms": {
+                    "field": "bool_field"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(res["my_bool"]["buckets"][0]["key"], 1.0);
+        assert_eq!(res["my_bool"]["buckets"][0]["key_as_string"], "true");
+        assert_eq!(res["my_bool"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_bool"]["buckets"][1]["key"], 0.0);
+        assert_eq!(res["my_bool"]["buckets"][1]["key_as_string"], "false");
+        assert_eq!(res["my_bool"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_bool"]["buckets"][2]["key"], serde_json::Value::Null);
 
         Ok(())
     }

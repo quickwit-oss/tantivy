@@ -169,8 +169,8 @@ impl AggregationWithAccessor {
                     ColumnType::F64,
                     ColumnType::Str,
                     ColumnType::DateTime,
+                    ColumnType::Bool,
                     // ColumnType::Bytes Unsupported
-                    // ColumnType::Bool Unsupported
                     // ColumnType::IpAddr Unsupported
                 ];
 

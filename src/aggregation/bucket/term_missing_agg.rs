@@ -73,11 +73,13 @@ impl SegmentAggregationCollector for TermMissingAgg {
 
         entries.insert(missing.into(), missing_entry);
 
-        let bucket = IntermediateBucketResult::Terms(IntermediateTermBucketResult {
-            entries,
-            sum_other_doc_count: 0,
-            doc_count_error_upper_bound: 0,
-        });
+        let bucket = IntermediateBucketResult::Terms {
+            buckets: IntermediateTermBucketResult {
+                entries,
+                sum_other_doc_count: 0,
+                doc_count_error_upper_bound: 0,
+            },
+        };
 
         results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
 
