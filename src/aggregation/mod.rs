@@ -159,6 +159,22 @@ use itertools::Itertools;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
+fn parse_str_into_f64<E: de::Error>(value: &str) -> Result<f64, E> {
+    let parsed = value.parse::<f64>().map_err(|_err| {
+        de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
+    })?;
+
+    // Check if the parsed value is NaN or infinity
+    if parsed.is_nan() || parsed.is_infinite() {
+        Err(de::Error::custom(format!(
+            "Value is not a valid f64 (NaN or Infinity): {:?}",
+            value
+        )))
+    } else {
+        Ok(parsed)
+    }
+}
+
 /// deserialize Option<f64> from string or float
 pub(crate) fn deserialize_option_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where D: Deserializer<'de> {
@@ -173,9 +189,7 @@ where D: Deserializer<'de> {
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: de::Error {
-            value.parse::<f64>().map(Some).map_err(|_err| {
-                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
-            })
+            parse_str_into_f64(value).map(Some)
         }
 
         fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
@@ -221,9 +235,7 @@ where D: Deserializer<'de> {
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
         where E: de::Error {
-            value.parse::<f64>().map_err(|_err| {
-                de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
-            })
+            parse_str_into_f64(value)
         }
 
         fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>

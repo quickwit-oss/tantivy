@@ -123,5 +123,14 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Failed to parse f64 from string: \"a\""));
+
+        // Disallow NaN
+        let json = r#"{
+            "field": "score",
+            "missing": "NaN"
+        }"#;
+        let avg: Result<AverageAggregation, _> = serde_json::from_str(json);
+        assert!(avg.is_err());
+        assert!(avg.unwrap_err().to_string().contains("NaN"));
     }
 }
