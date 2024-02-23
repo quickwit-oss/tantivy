@@ -9,7 +9,7 @@ use std::sync::Arc;
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
 pub use serialize::{
-    open_column_bytes, open_column_str, open_column_u128, open_column_u64,
+    open_column_bytes, open_column_str, open_column_u128, open_column_u128_as_u64, open_column_u64,
     serialize_column_mappable_to_u128, serialize_column_mappable_to_u64,
 };
 
@@ -176,6 +176,7 @@ struct FirstValueWithDefault<T: Copy> {
 impl<T: PartialOrd + Debug + Send + Sync + Copy + 'static> ColumnValues<T>
     for FirstValueWithDefault<T>
 {
+    #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.column.first(idx).unwrap_or(self.default_value)
     }

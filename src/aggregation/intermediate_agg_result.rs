@@ -5,6 +5,7 @@
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
+use std::net::Ipv6Addr;
 
 use columnar::ColumnType;
 use itertools::Itertools;
@@ -41,6 +42,8 @@ pub struct IntermediateAggregationResults {
 /// This might seem redundant with `Key`, but the point is to have a different
 /// Serialize implementation.
 pub enum IntermediateKey {
+    /// Ip Addr key
+    IpAddr(Ipv6Addr),
     /// Bool key
     Bool(bool),
     /// String key
@@ -60,6 +63,14 @@ impl From<IntermediateKey> for Key {
     fn from(value: IntermediateKey) -> Self {
         match value {
             IntermediateKey::Str(s) => Self::Str(s),
+            IntermediateKey::IpAddr(s) => {
+                // Prefer to use the IPv4 representation if possible
+                if let Some(ip) = s.to_ipv4_mapped() {
+                    Self::Str(ip.to_string())
+                } else {
+                    Self::Str(s.to_string())
+                }
+            }
             IntermediateKey::F64(f) => Self::F64(f),
             IntermediateKey::Bool(f) => Self::F64(f as u64 as f64),
         }
@@ -75,6 +86,7 @@ impl std::hash::Hash for IntermediateKey {
             IntermediateKey::Str(text) => text.hash(state),
             IntermediateKey::F64(val) => val.to_bits().hash(state),
             IntermediateKey::Bool(val) => val.hash(state),
+            IntermediateKey::IpAddr(val) => val.hash(state),
         }
     }
 }

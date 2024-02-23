@@ -76,6 +76,26 @@ pub fn open_column_u128<T: MonotonicallyMappableToU128>(
     })
 }
 
+/// Open the column as u64.
+///
+/// See [`open_u128_as_u64`] for more details.
+pub fn open_column_u128_as_u64(bytes: OwnedBytes) -> io::Result<Column<u64>> {
+    let (body, column_index_num_bytes_payload) = bytes.rsplit(4);
+    let column_index_num_bytes = u32::from_le_bytes(
+        column_index_num_bytes_payload
+            .as_slice()
+            .try_into()
+            .unwrap(),
+    );
+    let (column_index_data, column_values_data) = body.split(column_index_num_bytes as usize);
+    let column_index = crate::column_index::open_column_index(column_index_data)?;
+    let column_values = crate::column_values::open_u128_as_u64(column_values_data)?;
+    Ok(Column {
+        index: column_index,
+        values: column_values,
+    })
+}
+
 pub fn open_column_bytes(data: OwnedBytes) -> io::Result<BytesColumn> {
     let (body, dictionary_len_bytes) = data.rsplit(4);
     let dictionary_len = u32::from_le_bytes(dictionary_len_bytes.as_slice().try_into().unwrap());

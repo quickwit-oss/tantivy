@@ -17,6 +17,7 @@ sstable = { version= "0.2", path = "../sstable", package = "tantivy-sstable" }
 common = { version= "0.6", path = "../common", package = "tantivy-common" }
 tantivy-bitpacker = { version= "0.5", path = "../bitpacker/" }
 serde = "1.0.152"
+downcast-rs = "1.2.0"
 
 [dev-dependencies]
 proptest = "1"

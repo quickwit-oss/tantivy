@@ -1,6 +1,10 @@
 use std::fmt::Debug;
+use std::net::Ipv6Addr;
 
-use columnar::{BytesColumn, ColumnType, MonotonicallyMappableToU64, StrColumn};
+use columnar::column_values::CompactSpaceU64Accessor;
+use columnar::{
+    BytesColumn, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, StrColumn,
+};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -544,6 +548,27 @@ impl SegmentTermCollector {
                 let val = bool::from_u64(val);
                 dict.insert(IntermediateKey::Bool(val), intermediate_entry);
             }
+        } else if self.column_type == ColumnType::IpAddr {
+            let arc_inner = agg_with_accessor
+                .accessor
+                .values
+                .clone()
+                .downcast_arc::<CompactSpaceU64Accessor>()
+                .map_err(|_| {
+                    TantivyError::AggregationError(
+                        crate::aggregation::AggregationError::InternalError(
+                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
+                                .to_string(),
+                        ),
+                    )
+                })?;
+
+            for (val, doc_count) in entries {
+                let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
+                let val: u128 = arc_inner.compact_to_u128(val as u32);
+                let val = Ipv6Addr::from_u128(val);
+                dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
+            }
         } else {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
@@ -596,6 +621,9 @@ pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
 
 #[cfg(test)]
 mod tests {
+    use std::net::IpAddr;
+    use std::str::FromStr;
+
     use common::DateTime;
     use time::{Date, Month};
 
@@ -606,7 +634,7 @@ mod tests {
     };
     use crate::aggregation::AggregationLimits;
     use crate::indexer::NoMergePolicy;
-    use crate::schema::{Schema, FAST, STRING};
+    use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
     use crate::{Index, IndexWriter};
 
     #[test]
@@ -1188,9 +1216,9 @@ mod tests {
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
-        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termc");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 0);
-        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termc");
         assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 0);
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
         assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
@@ -1931,6 +1959,46 @@ mod tests {
         assert_eq!(res["my_bool"]["buckets"][0]["doc_count"], 2);
         assert_eq!(res["my_bool"]["buckets"][1]["key"], 0.0);
         assert_eq!(res["my_bool"]["buckets"][1]["key_as_string"], "false");
+        assert_eq!(res["my_bool"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_bool"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_ip_addr() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_ip_addr_field("ip_field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer = index.writer_with_num_threads(1, 15_000_000)?;
+            // IpV6 loopback
+            writer.add_document(doc!(field=>IpAddr::from_str("::1").unwrap().into_ipv6_addr()))?;
+            writer.add_document(doc!(field=>IpAddr::from_str("::1").unwrap().into_ipv6_addr()))?;
+            // IpV4
+            writer.add_document(
+                doc!(field=>IpAddr::from_str("127.0.0.1").unwrap().into_ipv6_addr()),
+            )?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_bool": {
+                "terms": {
+                    "field": "ip_field"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+        // print as json
+        // println!("{}", serde_json::to_string_pretty(&res).unwrap());
+
+        assert_eq!(res["my_bool"]["buckets"][0]["key"], "::1");
+        assert_eq!(res["my_bool"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_bool"]["buckets"][1]["key"], "127.0.0.1");
         assert_eq!(res["my_bool"]["buckets"][1]["doc_count"], 1);
         assert_eq!(res["my_bool"]["buckets"][2]["key"], serde_json::Value::Null);
 
