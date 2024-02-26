@@ -120,7 +120,7 @@ pub fn open_u128_mapped<T: MonotonicallyMappableToU128 + Debug>(
 /// # Notice
 /// In case there are new codecs added, check for usages of `CompactSpaceDecompressorU64` and
 /// also handle the new codecs.
-pub fn open_u128_as_u64(mut bytes: OwnedBytes) -> io::Result<Arc<dyn ColumnValues<u64>>> {
+pub fn open_u128_as_compact_u64(mut bytes: OwnedBytes) -> io::Result<Arc<dyn ColumnValues<u64>>> {
     let header = U128Header::deserialize(&mut bytes)?;
     assert_eq!(header.codec_type, U128FastFieldCodecType::CompactSpace);
     let reader = CompactSpaceU64Accessor::open(bytes)?;

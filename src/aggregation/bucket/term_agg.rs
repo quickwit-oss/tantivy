@@ -549,7 +549,7 @@ impl SegmentTermCollector {
                 dict.insert(IntermediateKey::Bool(val), intermediate_entry);
             }
         } else if self.column_type == ColumnType::IpAddr {
-            let arc_inner = agg_with_accessor
+            let compact_space_accessor = agg_with_accessor
                 .accessor
                 .values
                 .clone()
@@ -565,7 +565,7 @@ impl SegmentTermCollector {
 
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
-                let val: u128 = arc_inner.compact_to_u128(val as u32);
+                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
                 let val = Ipv6Addr::from_u128(val);
                 dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
             }

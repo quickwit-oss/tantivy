@@ -264,7 +264,7 @@ impl DynamicColumnHandle {
                 Ok(Some(column.term_ord_column))
             }
             ColumnType::IpAddr => {
-                let column = crate::column::open_column_u128_as_u64(column_bytes)?;
+                let column = crate::column::open_column_u128_as_compact_u64(column_bytes)?;
                 Ok(Some(column))
             }
             ColumnType::Bool
