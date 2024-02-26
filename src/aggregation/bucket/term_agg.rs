@@ -99,24 +99,15 @@ pub struct TermsAggregation {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub size: Option<u32>,
 
-    /// Unused by tantivy.
-    ///
-    /// Since tantivy doesn't know shards, this parameter is merely there to be used by consumers
-    /// of tantivy. shard_size is the number of terms returned by each shard.
-    /// The default value in elasticsearch is size * 1.5 + 10.
-    ///
-    /// Should never be smaller than size.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    #[serde(alias = "shard_size")]
-    pub split_size: Option<u32>,
-
     /// To get more accurate results, we fetch more than `size` from each segment.
     ///
     /// Increasing this value is will increase the cost for more accuracy.
     ///
     /// Defaults to 10 * size.
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub segment_size: Option<u32>,
+    #[serde(alias = "segment_size")]
+    #[serde(alias = "split_size")]
+    pub shard_size: Option<u32>,
 
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
     /// include doc_count_error_upper_bound, which is an upper bound to the error on the
@@ -205,7 +196,7 @@ impl TermsAggregationInternal {
     pub(crate) fn from_req(req: &TermsAggregation) -> Self {
         let size = req.size.unwrap_or(10);
 
-        let mut segment_size = req.segment_size.unwrap_or(size * 10);
+        let mut segment_size = req.shard_size.unwrap_or(size * 10);
 
         let order = req.order.clone().unwrap_or_default();
         segment_size = segment_size.max(size);
