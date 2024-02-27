@@ -410,6 +410,7 @@ impl SegmentCollector for FacetSegmentCollector {
 
 /// Intermediary result of the `FacetCollector` that stores
 /// the facet counts for all the segments.
+#[derive(Default, Clone)]
 pub struct FacetCounts {
     facet_counts: BTreeMap<Facet, u64>,
 }
