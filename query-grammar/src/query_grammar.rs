@@ -786,28 +786,19 @@ fn binary_operand(inp: &str) -> IResult<&str, BinaryOperand> {
 }
 
 fn aggregate_binary_expressions(
-    left: UserInputAst,
-    others: Vec<(BinaryOperand, UserInputAst)>,
+    left: (Option<Occur>, UserInputAst),
+    others: Vec<(BinaryOperand, Option<Occur>, UserInputAst)>,
 ) -> UserInputAst {
-    let mut dnf: Vec<Vec<UserInputAst>> = vec![vec![left]];
-    for (operator, operand_ast) in others {
-        match operator {
-            BinaryOperand::And => {
-                if let Some(last) = dnf.last_mut() {
-                    last.push(operand_ast);
-                }
-            }
-            BinaryOperand::Or => {
-                dnf.push(vec![operand_ast]);
-            }
-        }
-    }
-    if dnf.len() == 1 {
-        UserInputAst::and(dnf.into_iter().next().unwrap()) //< safe
-    } else {
-        let conjunctions = dnf.into_iter().map(UserInputAst::and).collect();
-        UserInputAst::or(conjunctions)
-    }
+    let mut leafs = Vec::with_capacity(others.len() + 1);
+    leafs.push((None, left.0, Some(left.1)));
+    leafs.extend(
+        others
+            .into_iter()
+            .map(|(operand, occur, ast)| (Some(operand), occur, Some(ast))),
+    );
+    // we ignore errors as the parameters we pass statically guarantee none can happen
+    // (a BinaryOperand is provided between each leaf, and no prefix BinaryOperand is provided)
+    aggregate_infallible_expressions(leafs).0
 }
 
 fn aggregate_infallible_expressions(
@@ -831,14 +822,6 @@ fn aggregate_infallible_expressions(
         .iter()
         .take(1)
         .all(|(operand, _, _)| operand.is_some());
-    let use_occur = leafs.iter().any(|(_, occur, _)| occur.is_some());
-
-    if use_operand && use_occur {
-        err.push(LenientErrorInternal {
-            pos: 0,
-            message: "Use of mixed occur and boolean operator".to_string(),
-        });
-    }
 
     if use_operand && !all_operand {
         err.push(LenientErrorInternal {
@@ -872,7 +855,15 @@ fn aggregate_infallible_expressions(
                     Some(BinaryOperand::And) => Some(Occur::Must),
                     _ => Some(Occur::Should),
                 };
-                clauses.push(vec![(occur.or(default_op), ast.clone())]);
+                if occur == &Some(Occur::MustNot) && default_op == Some(Occur::Should) {
+                    // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                    clauses.push(vec![(
+                        Some(Occur::Should),
+                        ast.clone().unary(Occur::MustNot),
+                    )])
+                } else {
+                    clauses.push(vec![(occur.or(default_op), ast.clone())]);
+                }
             }
             None => {
                 let default_op = match next_operator {
@@ -880,7 +871,15 @@ fn aggregate_infallible_expressions(
                     Some(BinaryOperand::Or) => Some(Occur::Should),
                     None => None,
                 };
-                clauses.push(vec![(occur.or(default_op), ast.clone())])
+                if occur == &Some(Occur::MustNot) && default_op == Some(Occur::Should) {
+                    // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                    clauses.push(vec![(
+                        Some(Occur::Should),
+                        ast.clone().unary(Occur::MustNot),
+                    )])
+                } else {
+                    clauses.push(vec![(occur.or(default_op), ast.clone())])
+                }
             }
         }
     }
@@ -897,7 +896,12 @@ fn aggregate_infallible_expressions(
             }
         }
         Some(BinaryOperand::Or) => {
-            clauses.push(vec![(last_occur.or(Some(Occur::Should)), last_ast)]);
+            if last_occur == Some(Occur::MustNot) {
+                // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                clauses.push(vec![(Some(Occur::Should), last_ast.unary(Occur::MustNot))]);
+            } else {
+                clauses.push(vec![(last_occur.or(Some(Occur::Should)), last_ast)]);
+            }
         }
         None => clauses.push(vec![(last_occur, last_ast)]),
     }
@@ -923,16 +927,19 @@ fn aggregate_infallible_expressions(
     }
 }
 
-fn operand_leaf(inp: &str) -> IResult<&str, (BinaryOperand, UserInputAst)> {
-    tuple((
-        terminated(binary_operand, multispace0),
-        terminated(boosted_leaf, multispace0),
-    ))(inp)
+fn operand_leaf(inp: &str) -> IResult<&str, (BinaryOperand, Option<Occur>, UserInputAst)> {
+    map(
+        tuple((
+            terminated(binary_operand, multispace0),
+            terminated(occur_leaf, multispace0),
+        )),
+        |(operand, (occur, ast))| (operand, occur, ast),
+    )(inp)
 }
 
 fn ast(inp: &str) -> IResult<&str, UserInputAst> {
     let boolean_expr = map(
-        separated_pair(boosted_leaf, multispace1, many1(operand_leaf)),
+        separated_pair(occur_leaf, multispace1, many1(operand_leaf)),
         |(left, right)| aggregate_binary_expressions(left, right),
     );
     let whitespace_separated_leaves = map(separated_list1(multispace1, occur_leaf), |subqueries| {
@@ -1165,11 +1172,29 @@ mod test {
 
     #[test]
     fn test_parse_mixed_bool_occur() {
+        test_parse_query_to_ast_helper("+a OR +b", "(+a +b)");
+
+        test_parse_query_to_ast_helper("a AND -b", "(+a -b)");
+        test_parse_query_to_ast_helper("-a AND b", "(-a +b)");
+        test_parse_query_to_ast_helper("a AND NOT b", "(+a +(-b))");
+        test_parse_query_to_ast_helper("NOT a AND b", "(+(-a) +b)");
+
+        test_parse_query_to_ast_helper("a AND NOT b AND c", "(+a +(-b) +c)");
+        test_parse_query_to_ast_helper("a AND -b AND c", "(+a -b +c)");
+
+        test_parse_query_to_ast_helper("a OR -b", "(?a ?(-b))");
+        test_parse_query_to_ast_helper("-a OR b", "(?(-a) ?b)");
+        test_parse_query_to_ast_helper("a OR NOT b", "(?a ?(-b))");
+        test_parse_query_to_ast_helper("NOT a OR b", "(?(-a) ?b)");
+
+        test_parse_query_to_ast_helper("a OR NOT b OR c", "(?a ?(-b) ?c)");
+        test_parse_query_to_ast_helper("a OR -b OR c", "(?a ?(-b) ?c)");
+
         test_is_parse_err("a OR b +aaa", "(?a ?b +aaa)");
         test_is_parse_err("a AND b -aaa", "(?(+a +b) -aaa)");
         test_is_parse_err("+a OR +b aaa", "(+a +b *aaa)");
         test_is_parse_err("-a AND -b aaa", "(?(-a -b) *aaa)");
-        test_is_parse_err("-aaa +ccc -a OR b ", "(-aaa +ccc -a ?b)");
+        test_is_parse_err("-aaa +ccc -a OR b ", "(-aaa +ccc ?(-a) ?b)");
     }
 
     #[test]
