@@ -7,7 +7,7 @@ use nom::character::complete::{
 };
 use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
 use nom::error::{Error, ErrorKind};
-use nom::multi::{many0, many1, separated_list0, separated_list1};
+use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
@@ -787,17 +787,17 @@ fn binary_operand(inp: &str) -> IResult<&str, BinaryOperand> {
 
 fn aggregate_binary_expressions(
     left: (Option<Occur>, UserInputAst),
-    others: Vec<(BinaryOperand, Option<Occur>, UserInputAst)>,
+    others: Vec<(Option<BinaryOperand>, Option<Occur>, UserInputAst)>,
 ) -> UserInputAst {
     let mut leafs = Vec::with_capacity(others.len() + 1);
     leafs.push((None, left.0, Some(left.1)));
     leafs.extend(
         others
             .into_iter()
-            .map(|(operand, occur, ast)| (Some(operand), occur, Some(ast))),
+            .map(|(operand, occur, ast)| (operand, occur, Some(ast))),
     );
     // we ignore errors as the parameters we pass statically guarantee none can happen
-    // (a BinaryOperand is provided between each leaf, and no prefix BinaryOperand is provided)
+    // (no prefix BinaryOperand is provided)
     aggregate_infallible_expressions(leafs).0
 }
 
@@ -813,22 +813,10 @@ fn aggregate_infallible_expressions(
         return (UserInputAst::empty_query(), err);
     }
 
-    let use_operand = leafs.iter().any(|(operand, _, _)| operand.is_some());
-    let all_operand = leafs
-        .iter()
-        .skip(1)
-        .all(|(operand, _, _)| operand.is_some());
     let early_operand = leafs
         .iter()
         .take(1)
         .all(|(operand, _, _)| operand.is_some());
-
-    if use_operand && !all_operand {
-        err.push(LenientErrorInternal {
-            pos: 0,
-            message: "Missing boolean operator".to_string(),
-        });
-    }
 
     if early_operand {
         err.push(LenientErrorInternal {
@@ -927,10 +915,10 @@ fn aggregate_infallible_expressions(
     }
 }
 
-fn operand_leaf(inp: &str) -> IResult<&str, (BinaryOperand, Option<Occur>, UserInputAst)> {
+fn operand_leaf(inp: &str) -> IResult<&str, (Option<BinaryOperand>, Option<Occur>, UserInputAst)> {
     map(
         tuple((
-            terminated(binary_operand, multispace0),
+            terminated(opt(binary_operand), multispace0),
             terminated(occur_leaf, multispace0),
         )),
         |(operand, (occur, ast))| (operand, occur, ast),
@@ -942,23 +930,14 @@ fn ast(inp: &str) -> IResult<&str, UserInputAst> {
         separated_pair(occur_leaf, multispace1, many1(operand_leaf)),
         |(left, right)| aggregate_binary_expressions(left, right),
     );
-    let whitespace_separated_leaves = map(separated_list1(multispace1, occur_leaf), |subqueries| {
-        if subqueries.len() == 1 {
-            let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
-            match occur_opt.unwrap_or(Occur::Should) {
-                Occur::Must | Occur::Should => ast,
-                Occur::MustNot => UserInputAst::Clause(vec![(Some(Occur::MustNot), ast)]),
-            }
+    let single_leaf = map(occur_leaf, |(occur, ast)| {
+        if occur == Some(Occur::MustNot) {
+            ast.unary(Occur::MustNot)
         } else {
-            UserInputAst::Clause(subqueries.into_iter().collect())
+            ast
         }
     });
-
-    delimited(
-        multispace0,
-        alt((boolean_expr, whitespace_separated_leaves)),
-        multispace0,
-    )(inp)
+    delimited(multispace0, alt((boolean_expr, single_leaf)), multispace0)(inp)
 }
 
 fn ast_infallible(inp: &str) -> JResult<&str, UserInputAst> {
@@ -1162,12 +1141,12 @@ mod test {
         test_parse_query_to_ast_helper("a OR b", "(?a ?b)");
         test_parse_query_to_ast_helper("a OR b AND c", "(?a ?(+b +c))");
         test_parse_query_to_ast_helper("a AND b         AND c", "(+a +b +c)");
-        test_is_parse_err("a OR b aaa", "(?a ?b *aaa)");
-        test_is_parse_err("a AND b aaa", "(?(+a +b) *aaa)");
-        test_is_parse_err("aaa a OR b ", "(*aaa ?a ?b)");
-        test_is_parse_err("aaa ccc a OR b ", "(*aaa *ccc ?a ?b)");
-        test_is_parse_err("aaa a AND b ", "(*aaa ?(+a +b))");
-        test_is_parse_err("aaa ccc a AND b ", "(*aaa *ccc ?(+a +b))");
+        test_parse_query_to_ast_helper("a OR b aaa", "(?a ?b *aaa)");
+        test_parse_query_to_ast_helper("a AND b aaa", "(?(+a +b) *aaa)");
+        test_parse_query_to_ast_helper("aaa a OR b ", "(*aaa ?a ?b)");
+        test_parse_query_to_ast_helper("aaa ccc a OR b ", "(*aaa *ccc ?a ?b)");
+        test_parse_query_to_ast_helper("aaa a AND b ", "(*aaa ?(+a +b))");
+        test_parse_query_to_ast_helper("aaa ccc a AND b ", "(*aaa *ccc ?(+a +b))");
     }
 
     #[test]
@@ -1190,11 +1169,11 @@ mod test {
         test_parse_query_to_ast_helper("a OR NOT b OR c", "(?a ?(-b) ?c)");
         test_parse_query_to_ast_helper("a OR -b OR c", "(?a ?(-b) ?c)");
 
-        test_is_parse_err("a OR b +aaa", "(?a ?b +aaa)");
-        test_is_parse_err("a AND b -aaa", "(?(+a +b) -aaa)");
-        test_is_parse_err("+a OR +b aaa", "(+a +b *aaa)");
-        test_is_parse_err("-a AND -b aaa", "(?(-a -b) *aaa)");
-        test_is_parse_err("-aaa +ccc -a OR b ", "(-aaa +ccc ?(-a) ?b)");
+        test_parse_query_to_ast_helper("a OR b +aaa", "(?a ?b +aaa)");
+        test_parse_query_to_ast_helper("a AND b -aaa", "(?(+a +b) -aaa)");
+        test_parse_query_to_ast_helper("+a OR +b aaa", "(+a +b *aaa)");
+        test_parse_query_to_ast_helper("-a AND -b aaa", "(?(-a -b) *aaa)");
+        test_parse_query_to_ast_helper("-aaa +ccc -a OR b ", "(-aaa +ccc ?(-a) ?b)");
     }
 
     #[test]
