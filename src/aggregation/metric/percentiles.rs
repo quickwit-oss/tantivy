@@ -11,7 +11,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64, AggregationError};
+use crate::aggregation::*;
 use crate::{DocId, TantivyError};
 
 /// # Percentiles
@@ -84,7 +84,11 @@ pub struct PercentilesAggregationReq {
     /// By default they will be ignored but it is also possible to treat them as if they had a
     /// value. Examples in JSON format:
     /// { "field": "my_numbers", "missing": "10.0" }
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_option_f64"
+    )]
     pub missing: Option<f64>,
 }
 fn default_percentiles() -> &'static [f64] {

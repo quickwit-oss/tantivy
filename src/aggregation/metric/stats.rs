@@ -9,7 +9,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::{f64_from_fastfield_u64, f64_to_fastfield_u64};
+use crate::aggregation::*;
 use crate::{DocId, TantivyError};
 
 /// A multi-value metric aggregation that computes a collection of statistics on numeric values that
@@ -33,7 +33,7 @@ pub struct StatsAggregation {
     /// By default they will be ignored but it is also possible to treat them as if they had a
     /// value. Examples in JSON format:
     /// { "field": "my_numbers", "missing": "10.0" }
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_option_f64")]
     pub missing: Option<f64>,
 }
 
@@ -562,6 +562,30 @@ mod tests {
                 "stats": {
                     "field": "json.partially_empty",
                     "missing": 0.0
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(
+            res["my_stats"],
+            json!({
+                "avg":  2.5,
+                "count": 4,
+                "max": 10.0,
+                "min": 0.0,
+                "sum": 10.0
+            })
+        );
+
+        // From string
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_stats": {
+                "stats": {
+                    "field": "json.partially_empty",
+                    "missing": "0.0"
                 },
             }
         }))

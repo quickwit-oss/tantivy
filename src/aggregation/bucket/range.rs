@@ -14,9 +14,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{
-    f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey,
-};
+use crate::aggregation::*;
 use crate::TantivyError;
 
 /// Provide user-defined buckets to aggregate on.
@@ -72,11 +70,19 @@ pub struct RangeAggregationRange {
     pub key: Option<String>,
     /// The from range value, which is inclusive in the range.
     /// `None` equals to an open ended interval.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_option_f64"
+    )]
     pub from: Option<f64>,
     /// The to range value, which is not inclusive in the range.
     /// `None` equals to an open ended interval.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_option_f64"
+    )]
     pub to: Option<f64>,
 }
 
