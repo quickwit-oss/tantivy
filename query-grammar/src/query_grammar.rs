@@ -788,7 +788,7 @@ fn binary_operand(inp: &str) -> IResult<&str, BinaryOperand> {
 fn aggregate_binary_expressions(
     left: (Option<Occur>, UserInputAst),
     others: Vec<(Option<BinaryOperand>, Option<Occur>, UserInputAst)>,
-) -> UserInputAst {
+) -> Result<UserInputAst, LenientErrorInternal> {
     let mut leafs = Vec::with_capacity(others.len() + 1);
     leafs.push((None, left.0, Some(left.1)));
     leafs.extend(
@@ -796,9 +796,14 @@ fn aggregate_binary_expressions(
             .into_iter()
             .map(|(operand, occur, ast)| (operand, occur, Some(ast))),
     );
-    // we ignore errors as the parameters we pass statically guarantee none can happen
+    // the parameters we pass should statically guarantee we can't get errors
     // (no prefix BinaryOperand is provided)
-    aggregate_infallible_expressions(leafs).0
+    let (res, mut errors) = aggregate_infallible_expressions(leafs);
+    if errors.is_empty() {
+        Ok(res)
+    } else {
+        Err(errors.swap_remove(0))
+    }
 }
 
 fn aggregate_infallible_expressions(
@@ -926,7 +931,7 @@ fn operand_leaf(inp: &str) -> IResult<&str, (Option<BinaryOperand>, Option<Occur
 }
 
 fn ast(inp: &str) -> IResult<&str, UserInputAst> {
-    let boolean_expr = map(
+    let boolean_expr = map_res(
         separated_pair(occur_leaf, multispace1, many1(operand_leaf)),
         |(left, right)| aggregate_binary_expressions(left, right),
     );
