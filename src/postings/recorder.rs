@@ -213,7 +213,7 @@ impl Recorder for TermFrequencyRecorder {
             doc_id_and_tf.sort_unstable_by_key(|&(doc_id, _)| doc_id);
 
             for (doc_id, tf) in doc_id_and_tf {
-                serializer.write_doc(doc_id, tf, &[][..]);
+                serializer.write_doc(doc_id, 0, &[][..]);
             }
         } else {
             let mut prev_doc = 0;
@@ -221,7 +221,7 @@ impl Recorder for TermFrequencyRecorder {
                 let doc_id = prev_doc + delta_doc_id;
                 prev_doc = doc_id;
                 let term_freq = u32_it.next().unwrap_or(self.current_tf);
-                serializer.write_doc(doc_id, term_freq, &[][..]);
+                serializer.write_doc(doc_id, 0, &[][..]);
             }
         }
     }
