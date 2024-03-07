@@ -40,6 +40,15 @@ struct BlockCache {
 }
 
 impl BlockCache {
+    fn new(cache_num_blocks: usize) -> Self {
+        Self {
+            cache: NonZeroUsize::new(cache_num_blocks)
+                .map(|cache_num_blocks| Mutex::new(LruCache::new(cache_num_blocks))),
+            cache_hits: Default::default(),
+            cache_misses: Default::default(),
+        }
+    }
+
     fn get_from_cache(&self, pos: usize) -> Option<Block> {
         if let Some(block) = self
             .cache
@@ -80,6 +89,10 @@ impl BlockCache {
             .and_then(|cache| cache.lock().unwrap().peek_lru().map(|(&k, _)| k))
     }
 }
+
+/// Opaque cache key which indicates which documents are cached together.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct CacheKey(usize);
 
 #[derive(Debug, Default)]
 /// CacheStats for the `StoreReader`.
@@ -128,15 +141,33 @@ impl StoreReader {
         Ok(StoreReader {
             decompressor: footer.decompressor,
             data: data_file,
-            cache: BlockCache {
-                cache: NonZeroUsize::new(cache_num_blocks)
-                    .map(|cache_num_blocks| Mutex::new(LruCache::new(cache_num_blocks))),
-                cache_hits: Default::default(),
-                cache_misses: Default::default(),
-            },
+            cache: BlockCache::new(cache_num_blocks),
             skip_index: Arc::new(skip_index),
             space_usage,
         })
+    }
+
+    /// Clones the given store reader with an independent block cache of the given size.
+    ///
+    /// `cache_keys` is used to seed the forked cache from the current cache
+    /// if some blocks are already available.
+    #[cfg(feature = "quickwit")]
+    pub(crate) fn fork_cache(&self, cache_num_blocks: usize, cache_keys: &[CacheKey]) -> Self {
+        let forked = Self {
+            decompressor: self.decompressor,
+            data: self.data.clone(),
+            cache: BlockCache::new(cache_num_blocks),
+            skip_index: Arc::clone(&self.skip_index),
+            space_usage: self.space_usage.clone(),
+        };
+
+        for &CacheKey(pos) in cache_keys {
+            if let Some(block) = self.cache.get_from_cache(pos) {
+                forked.cache.put_into_cache(pos, block);
+            }
+        }
+
+        forked
     }
 
     pub(crate) fn block_checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {
@@ -150,6 +181,21 @@ impl StoreReader {
     /// Returns the cache hit and miss statistics of the store reader.
     pub(crate) fn cache_stats(&self) -> CacheStats {
         self.cache.stats()
+    }
+
+    /// Returns the cache key for a given document
+    ///
+    /// These keys are opaque and are not used with the public API,
+    /// but having the same cache key means that the documents
+    /// will only require one I/O and decompression operation
+    /// when retrieve from the same store reader consecutively.
+    ///
+    /// Note that looking up the cache key of a document
+    /// will not yet pull anything into the block cache.
+    #[cfg(feature = "quickwit")]
+    pub(crate) fn cache_key(&self, doc_id: DocId) -> crate::Result<CacheKey> {
+        let checkpoint = self.block_checkpoint(doc_id)?;
+        Ok(CacheKey(checkpoint.byte_range.start))
     }
 
     /// Get checkpoint for `DocId`. The checkpoint can be used to load a block containing the

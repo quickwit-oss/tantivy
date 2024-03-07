@@ -37,6 +37,8 @@ mod reader;
 mod writer;
 pub use self::compressors::{Compressor, ZstdCompressor};
 pub use self::decompressors::Decompressor;
+#[cfg(feature = "quickwit")]
+pub(crate) use self::reader::CacheKey;
 pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
 pub use self::reader::{CacheStats, StoreReader};
 pub use self::writer::StoreWriter;
