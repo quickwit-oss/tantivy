@@ -1,8 +1,10 @@
-use std::borrow::Cow;
 use std::mem;
+use std::{borrow::Cow, str::FromStr};
 
 use rust_stemmers::{self, Algorithm};
 use serde::{Deserialize, Serialize};
+
+use crate::TantivyError;
 
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
@@ -28,6 +30,36 @@ pub enum Language {
     Swedish,
     Tamil,
     Turkish,
+}
+
+impl FromStr for Language {
+    type Err = TantivyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "arabic" => Ok(Language::Arabic),
+            "danish" => Ok(Language::Danish),
+            "dutch" => Ok(Language::Dutch),
+            "english" => Ok(Language::English),
+            "finnish" => Ok(Language::Finnish),
+            "french" => Ok(Language::French),
+            "german" => Ok(Language::German),
+            "greek" => Ok(Language::Greek),
+            "hungarian" => Ok(Language::Hungarian),
+            "italian" => Ok(Language::Italian),
+            "norwegian" => Ok(Language::Norwegian),
+            "portuguese" => Ok(Language::Portuguese),
+            "romanian" => Ok(Language::Romanian),
+            "russian" => Ok(Language::Russian),
+            "spanish" => Ok(Language::Spanish),
+            "swedish" => Ok(Language::Swedish),
+            "tamil" => Ok(Language::Tamil),
+            "turkish" => Ok(Language::Turkish),
+            _ => Err(TantivyError::InvalidArgument(
+                "Unsupported language".to_string(),
+            )),
+        }
+    }
 }
 
 impl Language {
