@@ -1,12 +1,12 @@
+use std::borrow::Cow;
 use std::mem;
-use std::{borrow::Cow, str::FromStr};
+use std::str::FromStr;
 
 use rust_stemmers::{self, Algorithm};
 use serde::{Deserialize, Serialize};
 
-use crate::TantivyError;
-
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
+use crate::TantivyError;
 
 /// Available stemmer languages.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
