@@ -125,6 +125,8 @@ impl BitUnpacker {
 
     // Decodes the range of bitpacked `u32` values with idx
     // in [start_idx, start_idx + output.len()).
+    // It is guaranteed to completely fill `output` and not read from it, so passing a vector with
+    // un-initialized values is safe.
     //
     // #Panics
     //
@@ -237,7 +239,19 @@ impl BitUnpacker {
         data: &[u8],
         positions: &mut Vec<u32>,
     ) {
-        positions.resize(id_range.len(), 0u32);
+        // We use the code below instead of positions.resize(id_range.len(), 0u32) for performance
+        // reasons: on some queries, the CPU cost of memsetting the array and of using a bigger
+        // vector than necessary is noticeable (~5%).
+        // In particular, searches are a few percent faster when using reserve_exact() as below
+        // instead of reserve().
+        // The un-initialized values are safe as get_batch_u32s() completely fills `positions`
+        // and does not read from it.
+        positions.clear();
+        positions.reserve_exact(id_range.len());
+        #[allow(clippy::uninit_vec)]
+        unsafe {
+            positions.set_len(id_range.len());
+        }
         self.get_batch_u32s(id_range.start, data, positions);
         crate::filter_vec::filter_vec_in_place(value_range, id_range.start, positions)
     }
