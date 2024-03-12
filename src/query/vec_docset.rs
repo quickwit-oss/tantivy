@@ -53,7 +53,7 @@ impl HasLen for VecDocSet {
 pub mod tests {
 
     use super::*;
-    use crate::docset::{DocSet, BUFFER_LEN};
+    use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
     use crate::DocId;
 
     #[test]
@@ -72,16 +72,16 @@ pub mod tests {
 
     #[test]
     pub fn test_fill_buffer() {
-        let doc_ids: Vec<DocId> = (1u32..=(BUFFER_LEN as u32 * 2 + 9)).collect();
+        let doc_ids: Vec<DocId> = (1u32..=(COLLECT_BLOCK_BUFFER_LEN as u32 * 2 + 9)).collect();
         let mut postings = VecDocSet::from(doc_ids);
-        let mut buffer = [0u32; BUFFER_LEN];
-        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
-        for i in 0u32..BUFFER_LEN as u32 {
+        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
+        assert_eq!(postings.fill_buffer(&mut buffer), COLLECT_BLOCK_BUFFER_LEN);
+        for i in 0u32..COLLECT_BLOCK_BUFFER_LEN as u32 {
             assert_eq!(buffer[i as usize], i + 1);
         }
-        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
-        for i in 0u32..BUFFER_LEN as u32 {
-            assert_eq!(buffer[i as usize], i + 1 + BUFFER_LEN as u32);
+        assert_eq!(postings.fill_buffer(&mut buffer), COLLECT_BLOCK_BUFFER_LEN);
+        for i in 0u32..COLLECT_BLOCK_BUFFER_LEN as u32 {
+            assert_eq!(buffer[i as usize], i + 1 + COLLECT_BLOCK_BUFFER_LEN as u32);
         }
         assert_eq!(postings.fill_buffer(&mut buffer), 9);
     }
