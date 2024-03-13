@@ -236,7 +236,10 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
             .column_block_accessor
             .fetch_block(docs, &bucket_agg_accessor.accessor);
 
-        for (doc, val) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
+        for (doc, val) in bucket_agg_accessor
+            .column_block_accessor
+            .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+        {
             let bucket_pos = self.get_bucket_pos(val);
 
             let bucket = &mut self.buckets[bucket_pos];
