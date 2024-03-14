@@ -306,7 +306,10 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         }
         // has subagg
         if let Some(blueprint) = self.blueprint.as_ref() {
-            for (doc, term_id) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
+            for (doc, term_id) in bucket_agg_accessor
+                .column_block_accessor
+                .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+            {
                 let sub_aggregations = self
                     .term_buckets
                     .sub_aggs

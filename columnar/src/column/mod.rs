@@ -3,7 +3,7 @@ mod serialize;
 
 use std::fmt::{self, Debug};
 use std::io::Write;
-use std::ops::{Deref, Range, RangeInclusive};
+use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
 use common::BinarySerializable;
@@ -105,7 +105,8 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     }
 
     pub fn values_for_doc(&self, doc_id: DocId) -> impl Iterator<Item = T> + '_ {
-        self.value_row_ids(doc_id)
+        self.index
+            .value_row_ids(doc_id)
             .map(|value_row_id: RowId| self.values.get_val(value_row_id))
     }
 
@@ -144,14 +145,6 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
             column: self,
             default_value,
         })
-    }
-}
-
-impl<T> Deref for Column<T> {
-    type Target = ColumnIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.index
     }
 }
 

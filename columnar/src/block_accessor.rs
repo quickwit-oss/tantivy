@@ -14,20 +14,32 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     ColumnBlockAccessor<T>
 {
     #[inline]
-    pub fn fetch_block(&mut self, docs: &[u32], accessor: &Column<T>) {
-        self.docid_cache.clear();
-        self.row_id_cache.clear();
-        accessor.row_ids_for_docs(docs, &mut self.docid_cache, &mut self.row_id_cache);
-        self.val_cache.resize(self.row_id_cache.len(), T::default());
-        accessor
-            .values
-            .get_vals(&self.row_id_cache, &mut self.val_cache);
+    pub fn fetch_block<'a>(&'a mut self, docs: &'a [u32], accessor: &Column<T>) {
+        if accessor.index.get_cardinality().is_full() {
+            self.val_cache.resize(docs.len(), T::default());
+            accessor.values.get_vals(docs, &mut self.val_cache);
+        } else {
+            self.docid_cache.clear();
+            self.row_id_cache.clear();
+            accessor.row_ids_for_docs(docs, &mut self.docid_cache, &mut self.row_id_cache);
+            self.val_cache.resize(self.row_id_cache.len(), T::default());
+            accessor
+                .values
+                .get_vals(&self.row_id_cache, &mut self.val_cache);
+        }
     }
     #[inline]
     pub fn fetch_block_with_missing(&mut self, docs: &[u32], accessor: &Column<T>, missing: T) {
         self.fetch_block(docs, accessor);
-        // We can compare docid_cache with docs to find missing docs
-        if docs.len() != self.docid_cache.len() || accessor.index.is_multivalue() {
+        // no missing values
+        if accessor.index.get_cardinality().is_full() {
+            return;
+        }
+
+        // We can compare docid_cache length with docs to find missing docs
+        // For multi value columns we can't rely on the length and always need to scan
+        if accessor.index.get_cardinality().is_multivalue() || docs.len() != self.docid_cache.len()
+        {
             self.missing_docids_cache.clear();
             find_missing_docs(docs, &self.docid_cache, |doc| {
                 self.missing_docids_cache.push(doc);
@@ -44,11 +56,25 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     }
 
     #[inline]
-    pub fn iter_docid_vals(&self) -> impl Iterator<Item = (DocId, T)> + '_ {
-        self.docid_cache
-            .iter()
-            .cloned()
-            .zip(self.val_cache.iter().cloned())
+    /// Returns an iterator over the docids and values
+    /// The passed in `docs` slice needs to be the same slice that was passed to `fetch_block` or
+    /// `fetch_block_with_missing`.
+    ///
+    /// The docs is used if the column is full (each docs has exactly one value), otherwise the
+    /// internal docid vec is used for the iterator, which e.g. may contain duplicate docs.
+    pub fn iter_docid_vals<'a>(
+        &'a self,
+        docs: &'a [u32],
+        accessor: &Column<T>,
+    ) -> impl Iterator<Item = (DocId, T)> + '_ {
+        if accessor.index.get_cardinality().is_full() {
+            docs.iter().cloned().zip(self.val_cache.iter().cloned())
+        } else {
+            self.docid_cache
+                .iter()
+                .cloned()
+                .zip(self.val_cache.iter().cloned())
+        }
     }
 }
 
