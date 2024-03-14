@@ -63,7 +63,6 @@ impl ColumnValues for BitpackedReader {
     fn get_val(&self, doc: u32) -> u64 {
         self.stats.min_value + self.stats.gcd.get() * self.bit_unpacker.get(doc, &self.data)
     }
-
     #[inline]
     fn min_value(&self) -> u64 {
         self.stats.min_value

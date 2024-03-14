@@ -13,9 +13,7 @@ pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
 use crate::column_index::SerializableColumnIndex;
-use crate::column_values::{
-    ColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64, VecColumn,
-};
+use crate::column_values::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use crate::columnar::column_type::ColumnType;
 use crate::columnar::writer::column_writers::{
     ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
@@ -645,10 +643,7 @@ fn send_to_serialize_column_mappable_to_u128<
     value_index_builders: &mut PreallocatedIndexBuilders,
     values: &mut Vec<T>,
     mut wrt: impl io::Write,
-) -> io::Result<()>
-where
-    for<'a> VecColumn<'a, T>: ColumnValues<T>,
-{
+) -> io::Result<()> {
     values.clear();
     // TODO: split index and values
     let serializable_column_index = match cardinality {
@@ -701,10 +696,7 @@ fn send_to_serialize_column_mappable_to_u64(
     value_index_builders: &mut PreallocatedIndexBuilders,
     values: &mut Vec<u64>,
     mut wrt: impl io::Write,
-) -> io::Result<()>
-where
-    for<'a> VecColumn<'a, u64>: ColumnValues<u64>,
-{
+) -> io::Result<()> {
     values.clear();
     let serializable_column_index = match cardinality {
         Cardinality::Full => {

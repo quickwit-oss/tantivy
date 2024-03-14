@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
+use downcast_rs::DowncastSync;
 pub use monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
 pub use monotonic_mapping_u128::MonotonicallyMappableToU128;
 
@@ -25,7 +26,10 @@ mod monotonic_column;
 
 pub(crate) use merge::MergedColumnValues;
 pub use stats::ColumnStats;
-pub use u128_based::{open_u128_mapped, serialize_column_values_u128};
+pub use u128_based::{
+    open_u128_as_compact_u64, open_u128_mapped, serialize_column_values_u128,
+    CompactSpaceU64Accessor,
+};
 pub use u64_based::{
     load_u64_based_column_values, serialize_and_load_u64_based_column_values,
     serialize_u64_based_column_values, CodecType, ALL_U64_CODEC_TYPES,
@@ -41,7 +45,7 @@ use crate::RowId;
 ///
 /// Any methods with a default and specialized implementation need to be called in the
 /// wrappers that implement the trait: Arc and MonotonicMappingColumn
-pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
+pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// Return the value associated with the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -139,6 +143,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
     }
 }
+downcast_rs::impl_downcast!(sync ColumnValues<T> where T: PartialOrd);
 
 /// Empty column of values.
 pub struct EmptyColumnValues;
@@ -161,7 +166,7 @@ impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
     }
 }
 
-impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
+impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
     #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.as_ref().get_val(idx)

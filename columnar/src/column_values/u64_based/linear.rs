@@ -173,7 +173,9 @@ impl LinearCodecEstimator {
     fn collect_before_line_estimation(&mut self, value: u64) {
         self.block.push(value);
         if self.block.len() == LINE_ESTIMATION_BLOCK_LEN {
-            let line = Line::train(&VecColumn::from(&self.block));
+            let column = VecColumn::from(std::mem::take(&mut self.block));
+            let line = Line::train(&column);
+            self.block = column.into();
             let block = std::mem::take(&mut self.block);
             for val in block {
                 self.collect_after_line_estimation(&line, val);

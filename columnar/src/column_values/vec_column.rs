@@ -4,14 +4,14 @@ use tantivy_bitpacker::minmax;
 
 use crate::ColumnValues;
 
-/// VecColumn provides `Column` over a slice.
-pub struct VecColumn<'a, T = u64> {
-    pub(crate) values: &'a [T],
+/// VecColumn provides `Column` over a `Vec<T>`.
+pub struct VecColumn<T = u64> {
+    pub(crate) values: Vec<T>,
     pub(crate) min_value: T,
     pub(crate) max_value: T,
 }
 
-impl<'a, T: Copy + PartialOrd + Send + Sync + Debug> ColumnValues<T> for VecColumn<'a, T> {
+impl<T: Copy + PartialOrd + Send + Sync + Debug + 'static> ColumnValues<T> for VecColumn<T> {
     fn get_val(&self, position: u32) -> T {
         self.values[position as usize]
     }
@@ -37,16 +37,18 @@ impl<'a, T: Copy + PartialOrd + Send + Sync + Debug> ColumnValues<T> for VecColu
     }
 }
 
-impl<'a, T: Copy + PartialOrd + Default, V> From<&'a V> for VecColumn<'a, T>
-where V: AsRef<[T]> + ?Sized
-{
-    fn from(values: &'a V) -> Self {
-        let values = values.as_ref();
+impl<T: Copy + PartialOrd + Default> From<Vec<T>> for VecColumn<T> {
+    fn from(values: Vec<T>) -> Self {
         let (min_value, max_value) = minmax(values.iter().copied()).unwrap_or_default();
         Self {
             values,
             min_value,
             max_value,
         }
+    }
+}
+impl From<VecColumn> for Vec<u64> {
+    fn from(column: VecColumn) -> Self {
+        column.values
     }
 }

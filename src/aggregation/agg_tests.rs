@@ -816,38 +816,38 @@ fn test_aggregation_on_json_object_mixed_types() {
     let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
     // => Segment with all values numeric
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": 10.0})))
+        .add_document(doc!(json => json!({"mixed_type": 10.0, "mixed_price": 10.0})))
         .unwrap();
     index_writer.commit().unwrap();
     // => Segment with all values text
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": "blue"})))
+        .add_document(doc!(json => json!({"mixed_type": "blue", "mixed_price": 5.0})))
         .unwrap();
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": "blue"})))
+        .add_document(doc!(json => json!({"mixed_type": "blue", "mixed_price": 5.0})))
         .unwrap();
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": "blue"})))
+        .add_document(doc!(json => json!({"mixed_type": "blue", "mixed_price": 5.0})))
         .unwrap();
     index_writer.commit().unwrap();
     // => Segment with all boolen
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": true})))
+        .add_document(doc!(json => json!({"mixed_type": true, "mixed_price": "no_price"})))
         .unwrap();
     index_writer.commit().unwrap();
 
     // => Segment with mixed values
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": "red"})))
+        .add_document(doc!(json => json!({"mixed_type": "red", "mixed_price": 1.0})))
         .unwrap();
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": "red"})))
+        .add_document(doc!(json => json!({"mixed_type": "red", "mixed_price": 1.0})))
         .unwrap();
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": -20.5})))
+        .add_document(doc!(json => json!({"mixed_type": -20.5, "mixed_price": -20.5})))
         .unwrap();
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": true})))
+        .add_document(doc!(json => json!({"mixed_type": true, "mixed_price": "no_price"})))
         .unwrap();
 
     index_writer.commit().unwrap();
@@ -861,7 +861,7 @@ fn test_aggregation_on_json_object_mixed_types() {
                 "order": { "min_price": "desc" }
             },
             "aggs": {
-                "min_price": { "min": { "field": "json.mixed_type" } }
+                "min_price": { "min": { "field": "json.mixed_price" } }
             }
         },
         "rangeagg": {
@@ -885,7 +885,6 @@ fn test_aggregation_on_json_object_mixed_types() {
 
     let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
     let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
-    // pretty print as json
     use pretty_assertions::assert_eq;
     assert_eq!(
         &aggregation_res_json,
@@ -901,10 +900,10 @@ fn test_aggregation_on_json_object_mixed_types() {
           "termagg": {
             "buckets": [
               { "doc_count": 1, "key": 10.0, "min_price": { "value": 10.0 } },
+              { "doc_count": 3, "key": "blue", "min_price": { "value": 5.0 } },
+              { "doc_count": 2, "key": "red", "min_price": { "value": 1.0 } },
               { "doc_count": 1, "key": -20.5, "min_price": { "value": -20.5 } },
-              { "doc_count": 2, "key": "red", "min_price": { "value": null } },
               { "doc_count": 2, "key": 1.0, "key_as_string": "true", "min_price": { "value": null } },
-              { "doc_count": 3, "key": "blue", "min_price": { "value": null } },
             ],
             "sum_other_doc_count": 0
           }

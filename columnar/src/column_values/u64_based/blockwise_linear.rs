@@ -63,7 +63,10 @@ impl BlockwiseLinearEstimator {
         if self.block.is_empty() {
             return;
         }
-        let line = Line::train(&VecColumn::from(&self.block));
+        let column = VecColumn::from(std::mem::take(&mut self.block));
+        let line = Line::train(&column);
+        self.block = column.into();
+
         let mut max_value = 0u64;
         for (i, buffer_val) in self.block.iter().enumerate() {
             let interpolated_val = line.eval(i as u32);
@@ -125,7 +128,7 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
                 *buffer_val = gcd_divider.divide(*buffer_val - stats.min_value);
             }
 
-            let line = Line::train(&VecColumn::from(&buffer));
+            let line = Line::train(&VecColumn::from(buffer.to_vec()));
 
             assert!(!buffer.is_empty());
 

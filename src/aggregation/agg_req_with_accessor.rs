@@ -170,8 +170,8 @@ impl AggregationWithAccessor {
                     ColumnType::Str,
                     ColumnType::DateTime,
                     ColumnType::Bool,
+                    ColumnType::IpAddr,
                     // ColumnType::Bytes Unsupported
-                    // ColumnType::IpAddr Unsupported
                 ];
 
                 // In case the column is empty we want the shim column to match the missing type
