@@ -109,9 +109,9 @@ pub struct TermsAggregation {
     ///
     /// Defaults to 10 * size.
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    #[serde(alias = "segment_size")]
+    #[serde(alias = "shard_size")]
     #[serde(alias = "split_size")]
-    pub shard_size: Option<u32>,
+    pub segment_size: Option<u32>,
 
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
     /// include doc_count_error_upper_bound, which is an upper bound to the error on the
@@ -200,7 +200,7 @@ impl TermsAggregationInternal {
     pub(crate) fn from_req(req: &TermsAggregation) -> Self {
         let size = req.size.unwrap_or(10);
 
-        let mut segment_size = req.shard_size.unwrap_or(size * 10);
+        let mut segment_size = req.segment_size.unwrap_or(size * 10);
 
         let order = req.order.clone().unwrap_or_default();
         segment_size = segment_size.max(size);

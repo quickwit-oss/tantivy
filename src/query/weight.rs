@@ -1,5 +1,5 @@
 use super::Scorer;
-use crate::docset::BUFFER_LEN;
+use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::index::SegmentReader;
 use crate::query::Explanation;
 use crate::{DocId, DocSet, Score, TERMINATED};
@@ -22,7 +22,7 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
 #[inline]
 pub(crate) fn for_each_docset_buffered<T: DocSet + ?Sized>(
     docset: &mut T,
-    buffer: &mut [DocId; BUFFER_LEN],
+    buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN],
     mut callback: impl FnMut(&[DocId]),
 ) {
     loop {
@@ -105,7 +105,7 @@ pub trait Weight: Send + Sync + 'static {
     ) -> crate::Result<()> {
         let mut docset = self.scorer(reader, 1.0)?;
 
-        let mut buffer = [0u32; BUFFER_LEN];
+        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
         for_each_docset_buffered(&mut docset, &mut buffer, callback);
         Ok(())
     }

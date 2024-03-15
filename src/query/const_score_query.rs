@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::docset::BUFFER_LEN;
+use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
 
@@ -119,7 +119,7 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
         self.docset.seek(target)
     }
 
-    fn fill_buffer(&mut self, buffer: &mut [DocId; BUFFER_LEN]) -> usize {
+    fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
         self.docset.fill_buffer(buffer)
     }
 

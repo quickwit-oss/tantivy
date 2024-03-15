@@ -213,7 +213,7 @@ pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, HasLen};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-pub use self::docset::{DocSet, TERMINATED};
+pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 #[deprecated(
     since = "0.22.0",
     note = "Will be removed in tantivy 0.23. Use export from snippet module instead"
