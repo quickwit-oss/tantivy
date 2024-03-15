@@ -288,7 +288,6 @@ impl TermInfoStoreWriter {
 #[cfg(test)]
 mod tests {
 
-    use common;
     use common::BinarySerializable;
     use tantivy_bitpacker::{compute_num_bits, BitPacker};
 

@@ -103,7 +103,7 @@ impl SegmentRegister {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::index::{SegmentId, SegmentMetaInventory};
+    use crate::index::SegmentMetaInventory;
     use crate::indexer::delete_queue::*;
 
     fn segment_ids(segment_register: &SegmentRegister) -> Vec<SegmentId> {

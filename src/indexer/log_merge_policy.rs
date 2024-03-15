@@ -144,10 +144,10 @@ mod tests {
     use once_cell::sync::Lazy;
 
     use super::*;
-    use crate::index::{SegmentId, SegmentMeta, SegmentMetaInventory};
+    use crate::index::SegmentMetaInventory;
     use crate::indexer::merge_policy::MergePolicy;
-    use crate::schema;
     use crate::schema::INDEXED;
+    use crate::{schema, SegmentId};
 
     static INVENTORY: Lazy<SegmentMetaInventory> = Lazy::new(SegmentMetaInventory::default);
 

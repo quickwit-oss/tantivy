@@ -96,7 +96,6 @@ impl<'a, W: io::Write> io::Write for ColumnSerializer<'a, W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columnar::column_type::ColumnType;
 
     #[test]
     fn test_prepare_key_bytes() {

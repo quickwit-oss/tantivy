@@ -80,6 +80,32 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         }
     }
 
+    /// Allows to push down multiple fetch calls, to avoid dynamic dispatch overhead.
+    /// The slightly weird `Option<T>` in output allows pushdown to full columns.
+    ///
+    /// idx and output should have the same length
+    ///
+    /// # Panics
+    ///
+    /// May panic if `idx` is greater than the column length.
+    fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
+        assert!(indexes.len() == output.len());
+        let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
+        for (out_x4, idx_x4) in out_and_idx_chunks {
+            out_x4[0] = Some(self.get_val(idx_x4[0]));
+            out_x4[1] = Some(self.get_val(idx_x4[1]));
+            out_x4[2] = Some(self.get_val(idx_x4[2]));
+            out_x4[3] = Some(self.get_val(idx_x4[3]));
+        }
+
+        let step_size = 4;
+        let cutoff = indexes.len() - indexes.len() % step_size;
+
+        for idx in cutoff..indexes.len() {
+            output[idx] = Some(self.get_val(indexes[idx]));
+        }
+    }
+
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.
@@ -170,6 +196,11 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.as_ref().get_val(idx)
+    }
+
+    #[inline(always)]
+    fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
+        self.as_ref().get_vals_opt(indexes, output)
     }
 
     #[inline(always)]

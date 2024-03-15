@@ -806,7 +806,6 @@ mod tests {
     use columnar::{Cardinality, Column, MonotonicallyMappableToU128};
     use itertools::Itertools;
     use proptest::prop_oneof;
-    use proptest::strategy::Strategy;
 
     use super::super::operation::UserOperation;
     use crate::collector::TopDocs;
