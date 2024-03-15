@@ -72,11 +72,13 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
             out_x4[3] = self.get_val(idx_x4[3]);
         }
 
-        let step_size = 4;
-        let cutoff = indexes.len() - indexes.len() % step_size;
-
-        for idx in cutoff..indexes.len() {
-            output[idx] = self.get_val(indexes[idx]);
+        let out_and_idx_chunks = output
+            .chunks_exact_mut(4)
+            .into_remainder()
+            .into_iter()
+            .zip(indexes.chunks_exact(4).remainder());
+        for (out, idx) in out_and_idx_chunks {
+            *out = self.get_val(*idx);
         }
     }
 
@@ -97,12 +99,13 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
             out_x4[2] = Some(self.get_val(idx_x4[2]));
             out_x4[3] = Some(self.get_val(idx_x4[3]));
         }
-
-        let step_size = 4;
-        let cutoff = indexes.len() - indexes.len() % step_size;
-
-        for idx in cutoff..indexes.len() {
-            output[idx] = Some(self.get_val(indexes[idx]));
+        let out_and_idx_chunks = output
+            .chunks_exact_mut(4)
+            .into_remainder()
+            .into_iter()
+            .zip(indexes.chunks_exact(4).remainder());
+        for (out, idx) in out_and_idx_chunks {
+            *out = Some(self.get_val(*idx));
         }
     }
 
