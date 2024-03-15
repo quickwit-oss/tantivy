@@ -1,5 +1,4 @@
-use proptest::prelude::{any, prop, *};
-use proptest::strategy::Strategy;
+use proptest::prelude::*;
 use proptest::{prop_oneof, proptest};
 
 use super::*;

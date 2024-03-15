@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::mem;
 
-use rust_stemmers::{self, Algorithm};
+use rust_stemmers::Algorithm;
 use serde::{Deserialize, Serialize};
 
 use super::{Token, TokenFilter, TokenStream, Tokenizer};

@@ -391,7 +391,6 @@ pub mod tests {
     use crate::index::SegmentReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
-    use crate::schema::document::Value;
     use crate::schema::*;
     use crate::{DateTime, DocAddress, Index, IndexWriter, Postings, ReloadPolicy};
 

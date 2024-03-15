@@ -95,7 +95,6 @@ impl TokenStream for PreTokenizedStream {
 mod tests {
 
     use super::*;
-    use crate::tokenizer::Token;
 
     #[test]
     fn test_tokenized_stream() {

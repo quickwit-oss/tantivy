@@ -16,14 +16,6 @@ fn generate_permutation() -> Vec<u64> {
     permutation
 }
 
-fn generate_random() -> Vec<u64> {
-    let mut permutation: Vec<u64> = (0u64..100_000u64)
-        .map(|el| el + random::<u16>() as u64)
-        .collect();
-    permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
-    permutation
-}
-
 // Warning: this generates the same permutation at each call
 fn generate_permutation_gcd() -> Vec<u64> {
     let mut permutation: Vec<u64> = (1u64..100_000u64).map(|el| el * 1000).collect();

@@ -137,7 +137,6 @@ mod mmap_specific {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::Directory;
 
     #[test]
     fn test_index_on_commit_reload_policy_mmap() -> crate::Result<()> {
