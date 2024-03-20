@@ -1,6 +1,9 @@
+#![feature(stdarch_x86_avx512)]
+#![feature(avx512_target_feature)]
+
 mod bitpacker;
 mod blocked_bitpacker;
-mod filter_vec;
+pub mod filter_vec;
 
 use std::cmp::Ordering;
 

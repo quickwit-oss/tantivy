@@ -8,6 +8,7 @@ mod tests {
     use rand::thread_rng;
     use tantivy_bitpacker::{BitPacker, BitUnpacker, BlockedBitpacker};
     use test::Bencher;
+    use tantivy_bitpacker::filter_vec;
 
     #[inline(never)]
     fn create_bitpacked_data(bit_width: u8, num_els: u32) -> Vec<u8> {
@@ -62,4 +63,40 @@ mod tests {
             blocked_bitpacker
         });
     }
+
+    fn bench_filter_vec(//values: Vec<u32>,
+                        filter_impl: filter_vec::FilterImplPerInstructionSet) -> u32{
+        let mut values = vec![0u32; 1_000_000];
+        //let mut values = values;
+        filter_impl.filter_vec_in_place(0..=10, 0, &mut values);
+        values[0]
+    }
+    #[bench]
+    fn bench_filter_vec_avx512(b: &mut Bencher) {
+        //let values = vec![0u32; 1_000_000];
+        if filter_vec::FilterImplPerInstructionSet::AVX512.is_available() {
+            b.iter(|| {
+                bench_filter_vec(filter_vec::FilterImplPerInstructionSet::AVX512)
+            });
+        }
+    }
+    #[bench]
+    fn bench_filter_vec_avx2(b: &mut Bencher) {
+        //let values = vec![0u32; 1_000_000];
+        if filter_vec::FilterImplPerInstructionSet::AVX2.is_available() {
+            b.iter(|| {
+                bench_filter_vec(filter_vec::FilterImplPerInstructionSet::AVX2)
+            });
+        }
+    }
+    #[bench]
+    fn bench_filter_vec_scalar(b: &mut Bencher) {
+        //let values = vec![0u32; 1_000_000];
+        if filter_vec::FilterImplPerInstructionSet::Scalar.is_available() {
+            b.iter(|| {
+                bench_filter_vec(filter_vec::FilterImplPerInstructionSet::Scalar)
+            });
+        }
+    }
+
 }
