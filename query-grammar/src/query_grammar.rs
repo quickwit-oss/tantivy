@@ -218,27 +218,14 @@ fn term_or_phrase_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> 
 }
 
 fn term_group(inp: &str) -> IResult<&str, UserInputAst> {
-    let occur_symbol = alt((
-        value(Occur::MustNot, char('-')),
-        value(Occur::Must, char('+')),
-    ));
-
     map(
         tuple((
             terminated(field_name, multispace0),
-            delimited(
-                tuple((char('('), multispace0)),
-                separated_list0(multispace1, tuple((opt(occur_symbol), term_or_phrase))),
-                char(')'),
-            ),
+            delimited(tuple((char('('), multispace0)), ast, char(')')),
         )),
-        |(field_name, terms)| {
-            UserInputAst::Clause(
-                terms
-                    .into_iter()
-                    .map(|(occur, leaf)| (occur, leaf.set_field(Some(field_name.clone())).into()))
-                    .collect(),
-            )
+        |(field_name, mut ast)| {
+            ast.set_default_field(field_name);
+            ast
         },
     )(inp)
 }
@@ -258,46 +245,18 @@ fn term_group_precond(inp: &str) -> IResult<&str, (), ()> {
 }
 
 fn term_group_infallible(inp: &str) -> JResult<&str, UserInputAst> {
-    let (mut inp, (field_name, _, _, _)) =
+    let (inp, (field_name, _, _, _)) =
         tuple((field_name, multispace0, char('('), multispace0))(inp).expect("precondition failed");
 
-    let mut terms = Vec::new();
-    let mut errs = Vec::new();
-
-    let mut first_round = true;
-    loop {
-        let mut space_error = if first_round {
-            first_round = false;
-            Vec::new()
-        } else {
-            let (rest, (_, err)) = space1_infallible(inp)?;
-            inp = rest;
-            err
-        };
-        if inp.is_empty() {
-            errs.push(LenientErrorInternal {
-                pos: inp.len(),
-                message: "missing )".to_string(),
-            });
-            break Ok((inp, (UserInputAst::Clause(terms), errs)));
-        }
-        if let Some(inp) = inp.strip_prefix(')') {
-            break Ok((inp, (UserInputAst::Clause(terms), errs)));
-        }
-        // only append missing space error if we did not reach the end of group
-        errs.append(&mut space_error);
-
-        // here we do the assumption term_or_phrase_infallible always consume something if the
-        // first byte is not `)` or ' '. If it did not, we would end up looping.
-
-        let (rest, ((occur, leaf), mut err)) =
-            tuple_infallible((occur_symbol, term_or_phrase_infallible))(inp)?;
-        errs.append(&mut err);
-        if let Some(leaf) = leaf {
-            terms.push((occur, leaf.set_field(Some(field_name.clone())).into()));
-        }
-        inp = rest;
-    }
+    let res = delimited_infallible(
+        nothing,
+        map(ast_infallible, |(mut ast, errors)| {
+            ast.set_default_field(field_name.to_string());
+            (ast, errors)
+        }),
+        opt_i_err(char(')'), "expected ')'"),
+    )(inp);
+    res
 }
 
 fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
@@ -1468,8 +1427,18 @@ mod test {
 
     #[test]
     fn test_parse_query_term_group() {
-        test_parse_query_to_ast_helper(r#"field:(abc)"#, r#"(*"field":abc)"#);
+        test_parse_query_to_ast_helper(r#"field:(abc)"#, r#""field":abc"#);
         test_parse_query_to_ast_helper(r#"field:(+a -"b c")"#, r#"(+"field":a -"field":"b c")"#);
+        test_parse_query_to_ast_helper(r#"field:(a AND "b c")"#, r#"(+"field":a +"field":"b c")"#);
+        test_parse_query_to_ast_helper(r#"field:(a OR "b c")"#, r#"(?"field":a ?"field":"b c")"#);
+        test_parse_query_to_ast_helper(
+            r#"field:(a OR (b AND c))"#,
+            r#"(?"field":a ?(+"field":b +"field":c))"#,
+        );
+        test_parse_query_to_ast_helper(
+            r#"field:(a [b TO c])"#,
+            r#"(*"field":a *"field":["b" TO "c"])"#,
+        );
 
         test_is_parse_err(r#"field:(+a -"b c""#, r#"(+"field":a -"field":"b c")"#);
     }
