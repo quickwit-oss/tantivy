@@ -226,7 +226,7 @@ impl UserInputAst {
         UserInputAst::compose(Occur::Should, asts)
     }
 
-    pub fn set_default_field(&mut self, field: String) {
+    pub(crate) fn set_default_field(&mut self, field: String) {
         match self {
             UserInputAst::Clause(clauses) => clauses
                 .iter_mut()
