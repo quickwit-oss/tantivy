@@ -1,6 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::{fmt, io};
+
+#[cfg(feature = "quickwit")]
+use futures_util::StreamExt;
 
 use crate::collector::Collector;
 use crate::core::Executor;
@@ -90,6 +93,23 @@ impl Searcher {
         store_reader.get(doc_address.doc_id)
     }
 
+    /// Fetches documents from tantivy's store given a list of [`DocAddress`].
+    ///
+    /// This method is more efficient than calling [`doc`](Self::doc) multiple times, as it batches
+    /// overlapping requests to segments and blocks.
+    pub fn docs<D: DocumentDeserialize>(
+        &self,
+        doc_addresses: &BTreeSet<DocAddress>,
+    ) -> crate::Result<HashMap<DocAddress, D>> {
+        // This implementation assumes that the `BlockCache` inside the `StoreReader` has non-zero
+        // capacity. This, combined with the fact that iteration of `doc_addresses` is ordered,
+        // allows for blocks to be re-used.
+        doc_addresses
+            .iter()
+            .map(|doc_address| Ok((*doc_address, self.doc(*doc_address)?)))
+            .collect()
+    }
+
     /// The cache stats for the underlying store reader.
     ///
     /// Aggregates the sum for each segment store reader.
@@ -111,6 +131,72 @@ impl Searcher {
     ) -> crate::Result<D> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id).await
+    }
+
+    /// Fetches a set of documents in an asynchronous manner.
+    ///
+    /// This method is more efficient than calling [`doc_async`](Self::doc_async) multiple times, as
+    /// it batches overlapping requests to segments and blocks.
+    #[cfg(feature = "quickwit")]
+    pub async fn docs_async<D: DocumentDeserialize>(
+        &self,
+        doc_addresses: &BTreeSet<DocAddress>,
+    ) -> crate::Result<HashMap<DocAddress, D>> {
+        let mut segment_ord_set = Vec::<&DocAddress>::new();
+        let mut futures = futures_util::stream::FuturesUnordered::new();
+
+        // Helper function that creates a future to fetch the docs for a set of `DocAddress`es that
+        // all have the same segment ordinal.
+        let get_docs_for_segment_ord_set = |doc_addrs: &mut Vec<&DocAddress>| {
+            let segment_ord = doc_addrs.first().unwrap().segment_ord;
+            let store_reader = &self.inner.store_readers[segment_ord as usize];
+
+            let doc_ids = std::mem::take(doc_addrs)
+                .into_iter()
+                .map(|doc_address| doc_address.doc_id)
+                .collect();
+
+            let get_docs_future = || async move {
+                let docs = store_reader.get_many_async(doc_ids).await?;
+                Ok::<_, crate::TantivyError>(docs.into_iter().map(move |(doc_id, doc)| {
+                    (
+                        DocAddress {
+                            segment_ord,
+                            doc_id,
+                        },
+                        doc,
+                    )
+                }))
+            };
+
+            futures.push(get_docs_future());
+        };
+
+        for doc_addr in doc_addresses {
+            if let Some(cur_set_doc_addr) = segment_ord_set.first() {
+                if doc_addr.segment_ord != cur_set_doc_addr.segment_ord {
+                    // The new `doc_addr`'s segment ordinal doesn't match that of the current set,
+                    // so grab the set's docs and then start a new set.
+                    get_docs_for_segment_ord_set(&mut segment_ord_set);
+                }
+            }
+
+            segment_ord_set.push(doc_addr);
+        }
+
+        if !segment_ord_set.is_empty() {
+            get_docs_for_segment_ord_set(&mut segment_ord_set);
+        }
+
+        // Debug assert to ensure that all `DocAddress`es were processed.
+        debug_assert!(segment_ord_set.is_empty());
+
+        let mut results = HashMap::<DocAddress, D>::with_capacity(doc_addresses.len());
+        while let Some(docs_result) = futures.next().await {
+            results.extend(docs_result?);
+        }
+
+        Ok(results)
     }
 
     /// Access the schema associated with the index of this searcher.
