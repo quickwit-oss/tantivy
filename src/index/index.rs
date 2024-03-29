@@ -251,7 +251,7 @@ impl IndexBuilder {
                         sort_by_field.field
                     )));
                 }
-                let supported_field_types = vec![Type::I64, Type::U64, Type::F64, Type::Date];
+                let supported_field_types = [Type::I64, Type::U64, Type::F64, Type::Date];
                 let field_type = entry.field_type().value_type();
                 if !supported_field_types.contains(&field_type) {
                     return Err(TantivyError::InvalidArgument(format!(
