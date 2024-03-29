@@ -20,7 +20,7 @@ use crate::indexer::segment_updater::save_metas;
 use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
-use crate::schema::{Field, FieldType, Schema};
+use crate::schema::{Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
 
@@ -249,6 +249,15 @@ impl IndexBuilder {
                         "Field {} is no fast field. Field needs to be a single value fast field \
                          to be used to sort an index",
                         sort_by_field.field
+                    )));
+                }
+                let supported_field_types = vec![Type::I64, Type::U64, Type::F64, Type::Date];
+                let field_type = entry.field_type().value_type();
+                if !supported_field_types.contains(&field_type) {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Unsupported field type in sort_by_field: {:?}. Supported field types: \
+                         {:?} ",
+                        field_type, supported_field_types,
                     )));
                 }
             }

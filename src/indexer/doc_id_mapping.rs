@@ -159,7 +159,7 @@ mod tests_indexsorting {
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::*;
-    use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order};
+    use crate::{DocAddress, Index, IndexBuilder, IndexSettings, IndexSortByField, Order};
 
     fn create_test_index(
         index_settings: Option<IndexSettings>,
@@ -556,5 +556,29 @@ mod tests_indexsorting {
             &doc_mapping.remap(&[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000]),
             &[2000, 8000, 3000]
         );
+    }
+
+    #[test]
+    fn test_text_sort() -> crate::Result<()> {
+        let mut schema_builder = SchemaBuilder::new();
+        schema_builder.add_text_field("id", STRING | FAST | STORED);
+        schema_builder.add_text_field("name", TEXT | STORED);
+
+        let resp = IndexBuilder::new()
+            .schema(schema_builder.build())
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "id".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram();
+        assert!(resp
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported field type"));
+
+        Ok(())
     }
 }
