@@ -63,6 +63,7 @@ impl CardinalityAggregationReq {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentCardinalityCollector {
+    cardinality: CardinalityCollector,
     entries: FxHashSet<u64>,
     column_type: ColumnType,
     accessor_idx: usize,
@@ -72,6 +73,7 @@ pub(crate) struct SegmentCardinalityCollector {
 impl SegmentCardinalityCollector {
     pub fn from_req(column_type: ColumnType, accessor_idx: usize, missing: &Option<Key>) -> Self {
         Self {
+            cardinality: CardinalityCollector::new(),
             entries: Default::default(),
             column_type,
             accessor_idx,
@@ -79,14 +81,31 @@ impl SegmentCardinalityCollector {
         }
     }
 
+    fn collect_block_with_field(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_accessor: &mut AggregationWithAccessor,
+    ) {
+        if let Some(missing) = agg_accessor.missing_value_for_accessor {
+            agg_accessor.column_block_accessor.fetch_block_with_missing(
+                docs,
+                &agg_accessor.accessor,
+                missing,
+            );
+        } else {
+            agg_accessor
+                .column_block_accessor
+                .fetch_block(docs, &agg_accessor.accessor);
+        }
+    }
+
     fn into_intermediate_metric_result(
-        self,
+        mut self,
         agg_with_accessor: &AggregationWithAccessor,
     ) -> crate::Result<IntermediateMetricResult> {
-        let mut collector = CardinalityCollector::new();
-        let entries: Vec<u64> = self.entries.into_iter().collect();
-        let mut buffer = String::new();
         if self.column_type == ColumnType::Str {
+            let mut buffer = String::new();
+            let entries: Vec<u64> = self.entries.into_iter().collect();
             let term_dict = agg_with_accessor.str_dict_column.as_ref().cloned().unwrap();
             for term_id in entries {
                 if term_id == u64::MAX {
@@ -96,11 +115,11 @@ impl SegmentCardinalityCollector {
                         .expect("Found placeholder term_id but `missing` is None");
                     match missing_key {
                         Key::Str(missing) => {
-                            collector.sketch.insert_any(&missing);
+                            self.cardinality.sketch.insert_any(&missing);
                         }
                         Key::F64(val) => {
                             let val = f64_to_u64(*val);
-                            collector.sketch.insert_any(&val);
+                            self.cardinality.sketch.insert_any(&val);
                         }
                     }
                 } else {
@@ -109,34 +128,12 @@ impl SegmentCardinalityCollector {
                             "Couldn't find term_id {term_id} in dict"
                         )));
                     }
-                    collector.sketch.insert_any(&buffer);
+                    self.cardinality.sketch.insert_any(&buffer);
                 }
-            }
-        } else if self.column_type == ColumnType::IpAddr {
-            let compact_space_accessor = agg_with_accessor
-                .accessor
-                .values
-                .clone()
-                .downcast_arc::<CompactSpaceU64Accessor>()
-                .map_err(|_| {
-                    TantivyError::AggregationError(
-                        crate::aggregation::AggregationError::InternalError(
-                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
-                                .to_string(),
-                        ),
-                    )
-                })?;
-            for val in entries {
-                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
-                collector.sketch.insert_any(&val);
-            }
-        } else {
-            for val in entries {
-                collector.sketch.insert_any(&val);
             }
         }
 
-        Ok(IntermediateMetricResult::Cardinality(collector))
+        Ok(IntermediateMetricResult::Cardinality(self.cardinality))
     }
 }
 
@@ -172,19 +169,35 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        if let Some(missing) = bucket_agg_accessor.missing_value_for_accessor {
-            bucket_agg_accessor
-                .column_block_accessor
-                .fetch_block_with_missing(docs, &bucket_agg_accessor.accessor, missing);
-        } else {
-            bucket_agg_accessor
-                .column_block_accessor
-                .fetch_block(docs, &bucket_agg_accessor.accessor);
-        }
+        self.collect_block_with_field(docs, bucket_agg_accessor);
 
-        for term_id in bucket_agg_accessor.column_block_accessor.iter_vals() {
-            println!("term_id: {:?}", term_id);
-            self.entries.insert(term_id);
+        let col_block_accessor = &bucket_agg_accessor.column_block_accessor;
+        if self.column_type == ColumnType::Str {
+            for term_id in col_block_accessor.iter_vals() {
+                self.entries.insert(term_id);
+            }
+        } else if self.column_type == ColumnType::IpAddr {
+            let compact_space_accessor = bucket_agg_accessor
+                .accessor
+                .values
+                .clone()
+                .downcast_arc::<CompactSpaceU64Accessor>()
+                .map_err(|_| {
+                    TantivyError::AggregationError(
+                        crate::aggregation::AggregationError::InternalError(
+                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
+                                .to_string(),
+                        ),
+                    )
+                })?;
+            for val in col_block_accessor.iter_vals() {
+                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
+                self.cardinality.sketch.insert_any(&val);
+            }
+        } else {
+            for val in col_block_accessor.iter_vals() {
+                self.cardinality.sketch.insert_any(&val);
+            }
         }
 
         Ok(())
