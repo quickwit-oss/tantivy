@@ -16,7 +16,9 @@ use super::metric::{
     SumAggregation,
 };
 use crate::aggregation::bucket::TermMissingAgg;
-use crate::aggregation::metric::{SegmentExtendedStatsCollector, TopHitsSegmentCollector};
+use crate::aggregation::metric::{
+    SegmentCardinalityCollector, SegmentExtendedStatsCollector, TopHitsSegmentCollector,
+};
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
@@ -49,7 +51,8 @@ pub(crate) trait CollectorClone {
 }
 
 impl<T> CollectorClone for T
-where T: 'static + SegmentAggregationCollector + Clone
+where
+    T: 'static + SegmentAggregationCollector + Clone,
 {
     fn clone_box(&self) -> Box<dyn SegmentAggregationCollector> {
         Box::new(self.clone())
@@ -168,6 +171,10 @@ pub(crate) fn build_single_agg_segment_collector(
             top_hits_req,
             accessor_idx,
             req.segment_ordinal,
+        ))),
+        Cardinality(_) => Ok(Box::new(SegmentCardinalityCollector::from_req(
+            req.field_type,
+            accessor_idx,
         ))),
     }
 }

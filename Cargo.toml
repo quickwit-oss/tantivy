@@ -64,6 +64,7 @@ tantivy-bitpacker = { version = "0.6", path = "./bitpacker" }
 common = { version = "0.7", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version = "0.3", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
 sketches-ddsketch = { version = "0.3.0", features = ["use_serde"] }
+hyperloglogplus = { version = "0.4.1", features = ["const-loop"] }
 futures-util = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 

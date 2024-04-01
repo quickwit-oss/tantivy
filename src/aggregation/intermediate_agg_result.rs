@@ -26,6 +26,7 @@ use super::segment_agg_result::AggregationLimits;
 use super::{format_date, AggregationError, Key, SerializedKey};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
+use crate::aggregation::metric::CardinalityCollector;
 use crate::TantivyError;
 
 /// Contains the intermediate aggregation result, which is optimized to be merged with other
@@ -227,6 +228,9 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         TopHits(ref req) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::TopHits(TopHitsTopNComputer::new(req)),
         ),
+        Cardinality(_) => IntermediateAggregationResult::Metric(
+            IntermediateMetricResult::Cardinality(CardinalityCollector::default()),
+        ),
     }
 }
 
@@ -291,6 +295,8 @@ pub enum IntermediateMetricResult {
     Sum(IntermediateSum),
     /// Intermediate top_hits result
     TopHits(TopHitsTopNComputer),
+    /// Intermediate cardinality result
+    Cardinality(CardinalityCollector),
 }
 
 impl IntermediateMetricResult {
@@ -323,6 +329,9 @@ impl IntermediateMetricResult {
             ),
             IntermediateMetricResult::TopHits(top_hits) => {
                 MetricResult::TopHits(top_hits.into_final_result())
+            }
+            IntermediateMetricResult::Cardinality(cardinality) => {
+                MetricResult::Cardinality(cardinality.finalize().into())
             }
         }
     }
@@ -370,6 +379,12 @@ impl IntermediateMetricResult {
                 left.merge_fruits(right)?;
             }
             (IntermediateMetricResult::TopHits(left), IntermediateMetricResult::TopHits(right)) => {
+                left.merge_fruits(right)?;
+            }
+            (
+                IntermediateMetricResult::Cardinality(left),
+                IntermediateMetricResult::Cardinality(right),
+            ) => {
                 left.merge_fruits(right)?;
             }
             _ => {

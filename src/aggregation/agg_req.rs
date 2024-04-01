@@ -34,8 +34,9 @@ use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    AverageAggregation, CountAggregation, ExtendedStatsAggregation, MaxAggregation, MinAggregation,
-    PercentilesAggregationReq, StatsAggregation, SumAggregation, TopHitsAggregation,
+    AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
+    MaxAggregation, MinAggregation, PercentilesAggregationReq, StatsAggregation, SumAggregation,
+    TopHitsAggregation,
 };
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
@@ -160,6 +161,9 @@ pub enum AggregationVariants {
     /// Finds the top k values matching some order
     #[serde(rename = "top_hits")]
     TopHits(TopHitsAggregation),
+    /// Computes an estimate of the number of unique values
+    #[serde(rename = "cardinality")]
+    Cardinality(CardinalityAggregationReq),
 }
 
 impl AggregationVariants {
@@ -179,6 +183,7 @@ impl AggregationVariants {
             AggregationVariants::Sum(sum) => vec![sum.field_name()],
             AggregationVariants::Percentiles(per) => vec![per.field_name()],
             AggregationVariants::TopHits(top_hits) => top_hits.field_names(),
+            AggregationVariants::Cardinality(per) => vec![per.field_name()],
         }
     }
 

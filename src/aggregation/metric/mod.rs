@@ -17,6 +17,7 @@
 //! - [Percentiles](PercentilesAggregationReq)
 
 mod average;
+mod cardinality;
 mod count;
 mod extended_stats;
 mod max;
@@ -29,6 +30,7 @@ mod top_hits;
 use std::collections::HashMap;
 
 pub use average::*;
+pub use cardinality::*;
 pub use count::*;
 pub use extended_stats::*;
 pub use max::*;
