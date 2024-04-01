@@ -3,6 +3,7 @@ use std::hash::BuildHasher;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
@@ -12,6 +13,7 @@ use crate::aggregation::*;
 
 use crate::TantivyError;
 
+use self::agg_req_with_accessor::AggregationWithAccessor;
 use self::intermediate_agg_result::IntermediateAggregationResult;
 use self::intermediate_agg_result::IntermediateMetricResult;
 
@@ -60,8 +62,7 @@ impl CardinalityAggregationReq {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentCardinalityCollector {
-    // field_type: ColumnType,
-    cardinality: CardinalityCollector,
+    entries: FxHashSet<u64>,
     column_type: ColumnType,
     accessor_idx: usize,
 }
@@ -69,10 +70,55 @@ pub(crate) struct SegmentCardinalityCollector {
 impl SegmentCardinalityCollector {
     pub fn from_req(column_type: ColumnType, accessor_idx: usize) -> Self {
         Self {
-            cardinality: CardinalityCollector::new(),
+            entries: Default::default(),
             column_type,
             accessor_idx,
         }
+    }
+
+    fn into_intermediate_metric_result(
+        self,
+        agg_with_accessor: &AggregationWithAccessor,
+    ) -> crate::Result<IntermediateMetricResult> {
+        let mut collector = CardinalityCollector::new();
+        let entries: Vec<u64> = self.entries.into_iter().collect();
+        if self.column_type == ColumnType::Str {
+            // TODO: better error handling
+            let term_dict = agg_with_accessor.str_dict_column.as_ref().cloned().unwrap();
+            for term_id in entries {
+                let mut buffer = String::new();
+                if !term_dict.ord_to_str(term_id, &mut buffer)? {
+                    return Err(TantivyError::InternalError(format!(
+                        "Couldn't find term_id {term_id} in dict"
+                    )));
+                }
+                collector.sketch.insert_any(&buffer);
+            }
+        } else if self.column_type == ColumnType::IpAddr {
+            let compact_space_accessor = agg_with_accessor
+                .accessor
+                .values
+                .clone()
+                .downcast_arc::<CompactSpaceU64Accessor>()
+                .map_err(|_| {
+                    TantivyError::AggregationError(
+                        crate::aggregation::AggregationError::InternalError(
+                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
+                                .to_string(),
+                        ),
+                    )
+                })?;
+            for val in entries {
+                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
+                collector.sketch.insert_any(&val);
+            }
+        } else {
+            for val in entries {
+                collector.sketch.insert_any(&val);
+            }
+        }
+
+        Ok(IntermediateMetricResult::Cardinality(collector))
     }
 }
 
@@ -83,11 +129,12 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
-        let intermediate_metric_result = IntermediateMetricResult::Cardinality(self.cardinality);
+        let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
 
+        let intermediate_result = self.into_intermediate_metric_result(agg_with_accessor)?;
         results.push(
             name,
-            IntermediateAggregationResult::Metric(intermediate_metric_result),
+            IntermediateAggregationResult::Metric(intermediate_result),
         )?;
 
         Ok(())
@@ -111,47 +158,8 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
             .column_block_accessor
             .fetch_block(docs, &bucket_agg_accessor.accessor);
 
-        println!("column_type: {:?}", self.column_type);
-        if self.column_type == ColumnType::Str {
-            let term_dict = bucket_agg_accessor
-                .str_dict_column
-                .as_ref()
-                .cloned()
-                .unwrap();
-
-            for term_id in bucket_agg_accessor.column_block_accessor.iter_vals() {
-                let mut buffer = String::new();
-                if !term_dict.ord_to_str(term_id, &mut buffer)? {
-                    return Err(TantivyError::InternalError(format!(
-                        "Couldn't find term_id {term_id} in dict"
-                    )));
-                }
-                self.cardinality.sketch.insert_any(&buffer);
-            }
-        } else if self.column_type == ColumnType::IpAddr {
-            let compact_space_accessor = bucket_agg_accessor
-                .accessor
-                .values
-                .clone()
-                .downcast_arc::<CompactSpaceU64Accessor>()
-                .map_err(|_| {
-                    TantivyError::AggregationError(
-                        crate::aggregation::AggregationError::InternalError(
-                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
-                                .to_string(),
-                        ),
-                    )
-                })?;
-
-            for val in bucket_agg_accessor.column_block_accessor.iter_vals() {
-                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
-                self.cardinality.sketch.insert_any(&val);
-            }
-        } else {
-            println!("iterate through values:");
-            for val in bucket_agg_accessor.column_block_accessor.iter_vals() {
-                self.cardinality.sketch.insert_any(&val);
-            }
+        for term_id in bucket_agg_accessor.column_block_accessor.iter_vals() {
+            self.entries.insert(term_id);
         }
 
         Ok(())
