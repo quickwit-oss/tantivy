@@ -2,6 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::BuildHasher;
 
 use columnar::column_values::CompactSpaceU64Accessor;
+use common::f64_to_u64;
 use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
@@ -65,14 +66,16 @@ pub(crate) struct SegmentCardinalityCollector {
     entries: FxHashSet<u64>,
     column_type: ColumnType,
     accessor_idx: usize,
+    missing: Option<Key>,
 }
 
 impl SegmentCardinalityCollector {
-    pub fn from_req(column_type: ColumnType, accessor_idx: usize) -> Self {
+    pub fn from_req(column_type: ColumnType, accessor_idx: usize, missing: &Option<Key>) -> Self {
         Self {
             entries: Default::default(),
             column_type,
             accessor_idx,
+            missing: missing.clone(),
         }
     }
 
@@ -82,17 +85,32 @@ impl SegmentCardinalityCollector {
     ) -> crate::Result<IntermediateMetricResult> {
         let mut collector = CardinalityCollector::new();
         let entries: Vec<u64> = self.entries.into_iter().collect();
+        let mut buffer = String::new();
         if self.column_type == ColumnType::Str {
-            // TODO: better error handling
             let term_dict = agg_with_accessor.str_dict_column.as_ref().cloned().unwrap();
             for term_id in entries {
-                let mut buffer = String::new();
-                if !term_dict.ord_to_str(term_id, &mut buffer)? {
-                    return Err(TantivyError::InternalError(format!(
-                        "Couldn't find term_id {term_id} in dict"
-                    )));
+                if term_id == u64::MAX {
+                    let missing_key = self
+                        .missing
+                        .as_ref()
+                        .expect("Found placeholder term_id but `missing` is None");
+                    match missing_key {
+                        Key::Str(missing) => {
+                            collector.sketch.insert_any(&missing);
+                        }
+                        Key::F64(val) => {
+                            let val = f64_to_u64(*val);
+                            collector.sketch.insert_any(&val);
+                        }
+                    }
+                } else {
+                    if !term_dict.ord_to_str(term_id, &mut buffer)? {
+                        return Err(TantivyError::InternalError(format!(
+                            "Couldn't find term_id {term_id} in dict"
+                        )));
+                    }
+                    collector.sketch.insert_any(&buffer);
                 }
-                collector.sketch.insert_any(&buffer);
             }
         } else if self.column_type == ColumnType::IpAddr {
             let compact_space_accessor = agg_with_accessor
@@ -154,11 +172,18 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        bucket_agg_accessor
-            .column_block_accessor
-            .fetch_block(docs, &bucket_agg_accessor.accessor);
+        if let Some(missing) = bucket_agg_accessor.missing_value_for_accessor {
+            bucket_agg_accessor
+                .column_block_accessor
+                .fetch_block_with_missing(docs, &bucket_agg_accessor.accessor, missing);
+        } else {
+            bucket_agg_accessor
+                .column_block_accessor
+                .fetch_block(docs, &bucket_agg_accessor.accessor);
+        }
 
         for term_id in bucket_agg_accessor.column_block_accessor.iter_vals() {
+            println!("term_id: {:?}", term_id);
             self.entries.insert(term_id);
         }
 
@@ -214,9 +239,7 @@ mod tests {
     use std::str::FromStr;
 
     use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::tests::{
-        exec_request, exec_request_with_query, get_test_index_from_terms,
-    };
+    use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
 
     use crate::indexer::NoMergePolicy;
     use crate::schema::{IntoIpv6Addr, Schema, FAST};
@@ -285,31 +308,27 @@ mod tests {
         let id_field = schema_builder.add_u64_field("id", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
-            index_writer.set_merge_policy(Box::new(NoMergePolicy));
-            index_writer.add_document(doc!(
-                id_field => 1u64,
-            ))?;
-            index_writer.add_document(doc!(
-                id_field => 2u64,
-            ))?;
-            index_writer.add_document(doc!(
-                id_field => 3u64,
-            ))?;
-            index_writer.commit()?;
+            let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
+            writer.set_merge_policy(Box::new(NoMergePolicy));
+            writer.add_document(doc!(id_field => 1u64))?;
+            writer.add_document(doc!(id_field => 2u64))?;
+            writer.add_document(doc!(id_field => 3u64))?;
+            writer.add_document(doc!())?;
+            writer.commit()?;
         }
 
         let agg_req: Aggregations = serde_json::from_value(json!({
             "cardinality": {
                 "cardinality": {
-                    "field": "id"
+                    "field": "id",
+                    "missing": 0u64
                 },
             }
         }))
         .unwrap();
 
-        let res = exec_request_with_query(agg_req, &index, None)?;
-        assert_eq!(res["cardinality"]["value"], 3.0);
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], 4.0);
 
         Ok(())
     }
@@ -341,7 +360,7 @@ mod tests {
         }))
         .unwrap();
 
-        let res = exec_request_with_query(agg_req, &index, None)?;
+        let res = exec_request(agg_req, &index)?;
         assert_eq!(res["cardinality"]["value"], 2.0);
 
         Ok(())
