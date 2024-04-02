@@ -105,30 +105,33 @@ impl SegmentCardinalityCollector {
     ) -> crate::Result<IntermediateMetricResult> {
         if self.column_type == ColumnType::Str {
             let mut buffer = String::new();
-            let entries: Vec<u64> = self.entries.into_iter().collect();
             let term_dict = agg_with_accessor.str_dict_column.as_ref().cloned().unwrap();
-            for term_id in entries {
-                if term_id == u64::MAX {
-                    let missing_key = self
-                        .missing
-                        .as_ref()
-                        .expect("Found placeholder term_id but `missing` is None");
-                    match missing_key {
-                        Key::Str(missing) => {
-                            self.cardinality.sketch.insert_any(&missing);
-                        }
-                        Key::F64(val) => {
-                            let val = f64_to_u64(*val);
-                            self.cardinality.sketch.insert_any(&val);
-                        }
-                    }
+            let mut has_missing = false;
+            for term_ord in self.entries.into_iter() {
+                if term_ord == u64::MAX {
+                    has_missing = true;
                 } else {
-                    if !term_dict.ord_to_str(term_id, &mut buffer)? {
+                    if !term_dict.ord_to_str(term_ord, &mut buffer)? {
                         return Err(TantivyError::InternalError(format!(
-                            "Couldn't find term_id {term_id} in dict"
+                            "Couldn't find term_ord {term_ord} in dict"
                         )));
                     }
                     self.cardinality.sketch.insert_any(&buffer);
+                }
+            }
+            if has_missing {
+                let missing_key = self
+                    .missing
+                    .as_ref()
+                    .expect("Found placeholder term_ord but `missing` is None");
+                match missing_key {
+                    Key::Str(missing) => {
+                        self.cardinality.sketch.insert_any(&missing);
+                    }
+                    Key::F64(val) => {
+                        let val = f64_to_u64(*val);
+                        self.cardinality.sketch.insert_any(&val);
+                    }
                 }
             }
         }
@@ -173,8 +176,8 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
 
         let col_block_accessor = &bucket_agg_accessor.column_block_accessor;
         if self.column_type == ColumnType::Str {
-            for term_id in col_block_accessor.iter_vals() {
-                self.entries.insert(term_id);
+            for term_ord in col_block_accessor.iter_vals() {
+                self.entries.insert(term_ord);
             }
         } else if self.column_type == ColumnType::IpAddr {
             let compact_space_accessor = bucket_agg_accessor
@@ -207,7 +210,6 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 /// The percentiles collector used during segment collection and for merging results.
 pub struct CardinalityCollector {
-    // TODO
     sketch: HyperLogLogPlus<u64, DefaultBuildHasher>,
 }
 impl Default for CardinalityCollector {
