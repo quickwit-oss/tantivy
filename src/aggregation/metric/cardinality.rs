@@ -1,5 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
-use std::hash::BuildHasher;
+use std::hash::{BuildHasher, Hasher};
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use common::f64_to_u64;
@@ -7,25 +7,30 @@ use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
-use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
+use crate::aggregation::agg_req_with_accessor::{
+    AggregationWithAccessor, AggregationsWithAccessor,
+};
+use crate::aggregation::intermediate_agg_result::{
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
+};
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 
 use crate::TantivyError;
 
-use self::agg_req_with_accessor::AggregationWithAccessor;
-use self::intermediate_agg_result::IntermediateAggregationResult;
-use self::intermediate_agg_result::IntermediateMetricResult;
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct DefaultBuildHasher;
+struct BuildSaltedHasher {
+    salt: u8,
+}
 
-impl BuildHasher for DefaultBuildHasher {
+impl BuildHasher for BuildSaltedHasher {
     type Hasher = DefaultHasher;
 
     fn build_hasher(&self) -> Self::Hasher {
-        DefaultHasher::new()
+        let mut hasher = DefaultHasher::new();
+        hasher.write_u8(self.salt);
+
+        hasher
     }
 }
 
@@ -73,7 +78,7 @@ pub(crate) struct SegmentCardinalityCollector {
 impl SegmentCardinalityCollector {
     pub fn from_req(column_type: ColumnType, accessor_idx: usize, missing: &Option<Key>) -> Self {
         Self {
-            cardinality: CardinalityCollector::new(),
+            cardinality: CardinalityCollector::new(column_type as u8),
             entries: Default::default(),
             column_type,
             accessor_idx,
@@ -210,11 +215,11 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 /// The percentiles collector used during segment collection and for merging results.
 pub struct CardinalityCollector {
-    sketch: HyperLogLogPlus<u64, DefaultBuildHasher>,
+    sketch: HyperLogLogPlus<u64, BuildSaltedHasher>,
 }
 impl Default for CardinalityCollector {
     fn default() -> Self {
-        Self::new()
+        Self::new(0)
     }
 }
 
@@ -230,9 +235,9 @@ impl CardinalityCollector {
         Some(self.sketch.clone().count().trunc())
     }
 
-    fn new() -> Self {
+    fn new(salt: u8) -> Self {
         Self {
-            sketch: HyperLogLogPlus::new(16, DefaultBuildHasher {}).unwrap(),
+            sketch: HyperLogLogPlus::new(16, BuildSaltedHasher { salt }).unwrap(),
         }
     }
 
@@ -255,17 +260,15 @@ mod tests {
 
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
+    use columnar::MonotonicallyMappableToU64;
 
-    use crate::indexer::NoMergePolicy;
     use crate::schema::{IntoIpv6Addr, Schema, FAST};
     use crate::Index;
 
     #[test]
     fn cardinality_aggregation_test_empty_index() -> crate::Result<()> {
-        // test index without segments
         let values = vec![];
         let index = get_test_index_from_terms(false, &values)?;
-
         let agg_req: Aggregations = serde_json::from_value(json!({
             "cardinality": {
                 "cardinality": {
@@ -301,7 +304,6 @@ mod tests {
             vec!["terma"],
         ];
         let index = get_test_index_from_terms(merge_segments, &segment_and_terms)?;
-
         let agg_req: Aggregations = serde_json::from_value(json!({
             "cardinality": {
                 "cardinality": {
@@ -323,8 +325,7 @@ mod tests {
         let id_field = schema_builder.add_u64_field("id", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
-            writer.set_merge_policy(Box::new(NoMergePolicy));
+            let mut writer = index.writer_for_tests()?;
             writer.add_document(doc!(id_field => 1u64))?;
             writer.add_document(doc!(id_field => 2u64))?;
             writer.add_document(doc!(id_field => 3u64))?;
@@ -354,8 +355,7 @@ mod tests {
         let field = schema_builder.add_ip_addr_field("ip_field", FAST);
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut writer = index.writer_with_num_threads(1, 20_000_000)?;
-            writer.set_merge_policy(Box::new(NoMergePolicy));
+            let mut writer = index.writer_for_tests()?;
             // IpV6 loopback
             writer.add_document(doc!(field=>IpAddr::from_str("::1").unwrap().into_ipv6_addr()))?;
             writer.add_document(doc!(field=>IpAddr::from_str("::1").unwrap().into_ipv6_addr()))?;
@@ -377,6 +377,35 @@ mod tests {
 
         let res = exec_request(agg_req, &index)?;
         assert_eq!(res["cardinality"]["value"], 2.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn cardinality_aggregation_json() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            writer.add_document(doc!(field => json!({"value": false})))?;
+            writer.add_document(doc!(field => json!({"value": true})))?;
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(0u64)})))?;
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(1u64)})))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": {
+                    "field": "json.value"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], 4.0);
 
         Ok(())
     }
