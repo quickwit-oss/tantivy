@@ -1573,20 +1573,53 @@ mod tests {
         Ok(())
     }
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone)]
     enum IndexingOp {
-        AddDoc { id: u64 },
+        AddDoc { id: u64, value: IndexValue },
         DeleteDoc { id: u64 },
         DeleteDocQuery { id: u64 },
         Commit,
         Merge,
+    }
+    impl IndexingOp {
+        fn add(id: u64) -> Self {
+            IndexingOp::AddDoc {
+                id,
+                value: IndexValue::F64(id as f64),
+            }
+        }
+    }
+
+    use serde::Serialize;
+    #[derive(Debug, Clone, Serialize)]
+    #[serde(untagged)]
+    enum IndexValue {
+        Str(String),
+        F64(f64),
+        U64(u64),
+        I64(i64),
+    }
+    impl Default for IndexValue {
+        fn default() -> Self {
+            IndexValue::F64(0.0)
+        }
+    }
+
+    fn value_strategy() -> impl Strategy<Value = IndexValue> {
+        prop_oneof![
+            any::<f64>().prop_map(IndexValue::F64),
+            any::<u64>().prop_map(IndexValue::U64),
+            any::<i64>().prop_map(IndexValue::I64),
+            any::<String>().prop_map(IndexValue::Str),
+        ]
     }
 
     fn balanced_operation_strategy() -> impl Strategy<Value = IndexingOp> {
         prop_oneof![
             (0u64..20u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
             (0u64..20u64).prop_map(|id| IndexingOp::DeleteDocQuery { id }),
-            (0u64..20u64).prop_map(|id| IndexingOp::AddDoc { id }),
+            (0u64..20u64, value_strategy())
+                .prop_map(move |(id, value)| IndexingOp::AddDoc { id, value }),
             (0u64..1u64).prop_map(|_| IndexingOp::Commit),
             (0u64..1u64).prop_map(|_| IndexingOp::Merge),
         ]
@@ -1596,7 +1629,8 @@ mod tests {
         prop_oneof![
             5 => (0u64..100u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
             5 => (0u64..100u64).prop_map(|id| IndexingOp::DeleteDocQuery { id }),
-            50 => (0u64..100u64).prop_map(|id| IndexingOp::AddDoc { id }),
+            50 => (0u64..100u64, value_strategy())
+                .prop_map(move |(id, value)| IndexingOp::AddDoc { id, value }),
             2 => (0u64..1u64).prop_map(|_| IndexingOp::Commit),
             1 => (0u64..1u64).prop_map(|_| IndexingOp::Merge),
         ]
@@ -1605,19 +1639,19 @@ mod tests {
     fn expected_ids(ops: &[IndexingOp]) -> (HashMap<u64, u64>, HashSet<u64>) {
         let mut existing_ids = HashMap::new();
         let mut deleted_ids = HashSet::new();
-        for &op in ops {
+        for op in ops {
             match op {
-                IndexingOp::AddDoc { id } => {
-                    *existing_ids.entry(id).or_insert(0) += 1;
-                    deleted_ids.remove(&id);
+                IndexingOp::AddDoc { id, value: _ } => {
+                    *existing_ids.entry(*id).or_insert(0) += 1;
+                    deleted_ids.remove(id);
                 }
                 IndexingOp::DeleteDoc { id } => {
                     existing_ids.remove(&id);
-                    deleted_ids.insert(id);
+                    deleted_ids.insert(*id);
                 }
                 IndexingOp::DeleteDocQuery { id } => {
                     existing_ids.remove(&id);
-                    deleted_ids.insert(id);
+                    deleted_ids.insert(*id);
                 }
                 _ => {}
             }
@@ -1627,16 +1661,16 @@ mod tests {
 
     fn get_id_list(ops: &[IndexingOp]) -> Vec<u64> {
         let mut id_list = Vec::new();
-        for &op in ops {
+        for op in ops {
             match op {
-                IndexingOp::AddDoc { id } => {
-                    id_list.push(id);
+                IndexingOp::AddDoc { id, value: _ } => {
+                    id_list.push(*id);
                 }
                 IndexingOp::DeleteDoc { id } => {
-                    id_list.retain(|el| *el != id);
+                    id_list.retain(|el| el != id);
                 }
                 IndexingOp::DeleteDocQuery { id } => {
-                    id_list.retain(|el| *el != id);
+                    id_list.retain(|el| el != id);
                 }
                 _ => {}
             }
@@ -1717,9 +1751,9 @@ mod tests {
 
         let ip_from_id = |id| Ipv6Addr::from_u128(id as u128);
 
-        for &op in ops {
-            match op {
-                IndexingOp::AddDoc { id } => {
+        for op in ops {
+            match op.clone() {
+                IndexingOp::AddDoc { id, value } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
                     let ip = ip_from_id(id);
 
@@ -1729,7 +1763,7 @@ mod tests {
                             id_field=>id,
                         ))?;
                     } else {
-                        let json = json!({"date1": format!("2022-{id}-01T00:00:01Z"), "date2": format!("{id}-05-01T00:00:01Z"), "id": id, "ip": ip.to_string()});
+                        let json = json!({"date1": format!("2022-{id}-01T00:00:01Z"), "date2": format!("{id}-05-01T00:00:01Z"), "id": id, "ip": ip.to_string(), "val": value});
                         index_writer.add_document(doc!(id_field=>id,
                                 json_field=>json,
                                 bytes_field => id.to_le_bytes().as_slice(),
@@ -2252,7 +2286,7 @@ mod tests {
 
     #[test]
     fn test_fast_field_range() {
-        let ops: Vec<_> = (0..1000).map(|id| IndexingOp::AddDoc { id }).collect();
+        let ops: Vec<_> = (0..1000).map(|id| IndexingOp::add(id)).collect();
         assert!(test_operation_strategy(&ops, false, true).is_ok());
     }
 
@@ -2260,8 +2294,8 @@ mod tests {
     fn test_sort_index_on_opt_field_regression() {
         assert!(test_operation_strategy(
             &[
-                IndexingOp::AddDoc { id: 81 },
-                IndexingOp::AddDoc { id: 70 },
+                IndexingOp::add(81),
+                IndexingOp::add(70),
                 IndexingOp::DeleteDoc { id: 70 }
             ],
             true,
@@ -2274,10 +2308,10 @@ mod tests {
     fn test_ip_range_query_multivalue_bug() {
         assert!(test_operation_strategy(
             &[
-                IndexingOp::AddDoc { id: 2 },
+                IndexingOp::add(2),
                 IndexingOp::Commit,
-                IndexingOp::AddDoc { id: 1 },
-                IndexingOp::AddDoc { id: 1 },
+                IndexingOp::add(1),
+                IndexingOp::add(1),
                 IndexingOp::Commit,
                 IndexingOp::Merge
             ],
@@ -2291,11 +2325,11 @@ mod tests {
     fn test_ff_num_ips_regression() {
         assert!(test_operation_strategy(
             &[
-                IndexingOp::AddDoc { id: 13 },
-                IndexingOp::AddDoc { id: 1 },
+                IndexingOp::add(13),
+                IndexingOp::add(1),
                 IndexingOp::Commit,
                 IndexingOp::DeleteDocQuery { id: 13 },
-                IndexingOp::AddDoc { id: 1 },
+                IndexingOp::add(1),
                 IndexingOp::Commit,
             ],
             false,
@@ -2307,7 +2341,7 @@ mod tests {
     #[test]
     fn test_minimal_sort_force_end_merge() {
         assert!(test_operation_strategy(
-            &[IndexingOp::AddDoc { id: 23 }, IndexingOp::AddDoc { id: 13 },],
+            &[IndexingOp::add(23), IndexingOp::add(13),],
             false,
             false
         )
@@ -2368,8 +2402,8 @@ mod tests {
     fn test_minimal_sort_force_end_merge_with_delete() {
         assert!(test_operation_strategy(
             &[
-                IndexingOp::AddDoc { id: 23 },
-                IndexingOp::AddDoc { id: 13 },
+                IndexingOp::add(23),
+                IndexingOp::add(13),
                 IndexingOp::DeleteDoc { id: 13 }
             ],
             true,
@@ -2382,8 +2416,8 @@ mod tests {
     fn test_minimal_no_sort_no_force_end_merge() {
         assert!(test_operation_strategy(
             &[
-                IndexingOp::AddDoc { id: 23 },
-                IndexingOp::AddDoc { id: 13 },
+                IndexingOp::add(23),
+                IndexingOp::add(13),
                 IndexingOp::DeleteDoc { id: 13 }
             ],
             false,
@@ -2394,7 +2428,7 @@ mod tests {
 
     #[test]
     fn test_minimal_sort_merge() {
-        assert!(test_operation_strategy(&[IndexingOp::AddDoc { id: 3 },], true, true).is_ok());
+        assert!(test_operation_strategy(&[IndexingOp::add(3),], true, true).is_ok());
     }
 
     use proptest::prelude::*;
@@ -2490,14 +2524,14 @@ mod tests {
     fn test_delete_bug_reproduction_ip_addr() {
         use IndexingOp::*;
         let ops = &[
-            AddDoc { id: 1 },
-            AddDoc { id: 2 },
+            IndexingOp::add(1),
+            IndexingOp::add(2),
             Commit,
-            AddDoc { id: 3 },
+            IndexingOp::add(3),
             DeleteDoc { id: 1 },
             Commit,
             Merge,
-            AddDoc { id: 4 },
+            IndexingOp::add(4),
             Commit,
         ];
         test_operation_strategy(&ops[..], false, true).unwrap();
@@ -2506,7 +2540,13 @@ mod tests {
     #[test]
     fn test_merge_regression_1() {
         use IndexingOp::*;
-        let ops = &[AddDoc { id: 15 }, Commit, AddDoc { id: 9 }, Commit, Merge];
+        let ops = &[
+            IndexingOp::add(15),
+            Commit,
+            IndexingOp::add(9),
+            Commit,
+            Merge,
+        ];
         test_operation_strategy(&ops[..], false, true).unwrap();
     }
 
@@ -2514,9 +2554,9 @@ mod tests {
     fn test_range_query_bug_1() {
         use IndexingOp::*;
         let ops = &[
-            AddDoc { id: 9 },
-            AddDoc { id: 0 },
-            AddDoc { id: 13 },
+            IndexingOp::add(9),
+            IndexingOp::add(0),
+            IndexingOp::add(13),
             Commit,
         ];
         test_operation_strategy(&ops[..], false, true).unwrap();
@@ -2524,12 +2564,11 @@ mod tests {
 
     #[test]
     fn test_range_query_bug_2() {
-        use IndexingOp::*;
         let ops = &[
-            AddDoc { id: 3 },
-            AddDoc { id: 6 },
-            AddDoc { id: 9 },
-            AddDoc { id: 10 },
+            IndexingOp::add(3),
+            IndexingOp::add(6),
+            IndexingOp::add(9),
+            IndexingOp::add(10),
         ];
         test_operation_strategy(&ops[..], false, false).unwrap();
     }
@@ -2551,7 +2590,7 @@ mod tests {
         assert!(test_operation_strategy(
             &[
                 IndexingOp::DeleteDoc { id: 0 },
-                IndexingOp::AddDoc { id: 6 },
+                IndexingOp::add(6),
                 IndexingOp::DeleteDocQuery { id: 11 },
                 IndexingOp::Commit,
                 IndexingOp::Merge,
@@ -2568,10 +2607,13 @@ mod tests {
     fn test_bug_1617_2() {
         assert!(test_operation_strategy(
             &[
-                IndexingOp::AddDoc { id: 13 },
+                IndexingOp::AddDoc {
+                    id: 13,
+                    value: Default::default()
+                },
                 IndexingOp::DeleteDoc { id: 13 },
                 IndexingOp::Commit,
-                IndexingOp::AddDoc { id: 30 },
+                IndexingOp::add(30),
                 IndexingOp::Commit,
                 IndexingOp::Merge,
             ],
