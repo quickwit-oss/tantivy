@@ -18,6 +18,7 @@ pub struct ColumnarSerializer<W: io::Write> {
 /// code.
 fn prepare_key(key: &[u8], column_type: ColumnType, buffer: &mut Vec<u8>) {
     buffer.clear();
+    // Convert 0 bytes to '0' string, as 0 bytes are reserved for the end of the path.
     if key.contains(&0) {
         buffer.extend(key.iter().map(|&b| if b == 0 { b'0' } else { b }));
     } else {
