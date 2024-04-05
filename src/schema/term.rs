@@ -224,7 +224,7 @@ impl Term {
     #[inline]
     pub fn append_path(&mut self, bytes: &[u8]) -> &mut [u8] {
         let len_before = self.0.len();
-        if bytes.contains(&0) {
+        if bytes.contains(&0u8) {
             self.0
                 .extend(bytes.iter().map(|&b| if b == 0 { b'0' } else { b }));
         } else {
