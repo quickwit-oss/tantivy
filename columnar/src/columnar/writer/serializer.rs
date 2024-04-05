@@ -18,7 +18,11 @@ pub struct ColumnarSerializer<W: io::Write> {
 /// code.
 fn prepare_key(key: &[u8], column_type: ColumnType, buffer: &mut Vec<u8>) {
     buffer.clear();
-    buffer.extend_from_slice(key);
+    if key.contains(&0) {
+        buffer.extend(key.iter().map(|&b| if b == 0 { b'0' } else { b }));
+    } else {
+        buffer.extend_from_slice(key);
+    }
     buffer.push(0u8);
     buffer.push(column_type.to_code());
 }

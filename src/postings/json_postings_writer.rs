@@ -69,7 +69,7 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
         let mut buffer_lender = BufferLender::default();
         for (_field, path_id, term, addr) in term_addrs {
             term_buffer.clear_with_field_and_type(Type::Json, Field::from_field_id(0));
-            term_buffer.append_bytes(ordered_id_to_path[path_id.path_id() as usize].as_bytes());
+            term_buffer.append_path(ordered_id_to_path[path_id.path_id() as usize].as_bytes());
             term_buffer.append_bytes(&[JSON_END_OF_PATH]);
             term_buffer.append_bytes(term);
             if let Some(json_value) = term_buffer.value().as_json_value_bytes() {
