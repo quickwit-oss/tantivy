@@ -218,6 +218,23 @@ impl Term {
         &mut self.0[len_before..]
     }
 
+    /// Appends json path bytes to the Term.
+    /// If the path contains 0 bytes, they are replaced by a "0" string.
+    /// The 0 byte is used to mark the end of the path.
+    ///
+    /// This function returns the segment that has just been added.
+    #[inline]
+    pub fn append_path(&mut self, bytes: &[u8]) -> &mut [u8] {
+        let len_before = self.0.len();
+        if bytes.contains(&0u8) {
+            self.0
+                .extend(bytes.iter().map(|&b| if b == 0 { b'0' } else { b }));
+        } else {
+            self.0.extend_from_slice(bytes);
+        }
+        &mut self.0[len_before..]
+    }
+
     /// Appends a JSON_PATH_SEGMENT_SEP to the term.
     /// Only used for JSON type.
     #[inline]
