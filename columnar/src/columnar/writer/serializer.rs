@@ -107,7 +107,7 @@ mod tests {
         let mut buffer: Vec<u8> = b"somegarbage".to_vec();
         prepare_key(b"root\0child", ColumnType::Str, &mut buffer);
         assert_eq!(buffer.len(), 12);
-        assert_eq!(&buffer[..10], b"root\0child");
+        assert_eq!(&buffer[..10], b"root0child");
         assert_eq!(buffer[10], 0u8);
         assert_eq!(buffer[11], ColumnType::Str.to_code());
     }
