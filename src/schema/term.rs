@@ -219,6 +219,8 @@ impl Term {
     }
 
     /// Appends json path bytes to the Term.
+    /// If the path contains 0 bytes, they are replaced by a "0" string.
+    /// The 0 byte is used to mark the end of the path.
     ///
     /// This function returns the segment that has just been added.
     #[inline]
