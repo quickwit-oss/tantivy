@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_merge_column_index_optional_shuffle() {
         let optional_index: ColumnIndex = OptionalIndex::for_test(2, &[0]).into();
-        let column_indexes = vec![optional_index, ColumnIndex::Full];
+        let column_indexes = [optional_index, ColumnIndex::Full];
         let row_addrs = vec![
             RowAddr {
                 segment_ord: 0u32,

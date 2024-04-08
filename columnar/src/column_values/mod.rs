@@ -75,7 +75,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         let out_and_idx_chunks = output
             .chunks_exact_mut(4)
             .into_remainder()
-            .into_iter()
+            .iter_mut()
             .zip(indexes.chunks_exact(4).remainder());
         for (out, idx) in out_and_idx_chunks {
             *out = self.get_val(*idx);
@@ -102,7 +102,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         let out_and_idx_chunks = output
             .chunks_exact_mut(4)
             .into_remainder()
-            .into_iter()
+            .iter_mut()
             .zip(indexes.chunks_exact(4).remainder());
         for (out, idx) in out_and_idx_chunks {
             *out = Some(self.get_val(*idx));
