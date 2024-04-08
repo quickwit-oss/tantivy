@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::fmt::Formatter;
+use std::net::Ipv6Addr;
 
 use columnar::{ColumnarReader, DynamicColumn};
+use common::DateTime;
 use regex::Regex;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -92,42 +94,59 @@ pub struct TopHitsAggregation {
     size: usize,
     from: Option<usize>,
 
-    #[serde(flatten)]
-    retrieval: RetrievalFields,
-}
-
-const fn default_doc_value_fields() -> Vec<String> {
-    Vec::new()
-}
-
-/// Search query spec for each matched document
-/// TODO: move this to a common module
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-pub struct RetrievalFields {
-    /// The fast fields to return for each hit.
-    /// This is the only variant supported for now.
-    /// TODO: support the {field, format} variant for custom formatting.
     #[serde(rename = "docvalue_fields")]
-    #[serde(default = "default_doc_value_fields")]
-    pub doc_value_fields: Vec<String>,
+    #[serde(default)]
+    doc_value_fields: Vec<String>,
 }
 
-/// Search query result for each matched document
-/// TODO: move this to a common module
+/// Intermediate Search query result for each matched document
+///
+/// Unlike the final result, this struct is postcard compatible.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-pub struct FieldRetrivalResult {
+pub struct IntermediateFieldRetrivalResult {
     /// The fast fields returned for each hit.
     #[serde(rename = "docvalue_fields")]
     #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub doc_value_fields: HashMap<String, OwnedValue>,
+    pub doc_value_fields: HashMap<String, RetrievedValue>,
 }
 
-impl RetrievalFields {
-    fn get_field_names(&self) -> Vec<&str> {
-        self.doc_value_fields.iter().map(|s| s.as_str()).collect()
-    }
+#[derive(Debug, Clone, PartialEq, Default)]
+struct KeyOrder {
+    field: String,
+    order: Order,
+}
 
-    fn resolve_field_names(&mut self, reader: &ColumnarReader) -> crate::Result<()> {
+impl Serialize for KeyOrder {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let KeyOrder { field, order } = self;
+        let mut map = serializer.serialize_map(Some(1))?;
+        map.serialize_entry(field, order)?;
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for KeyOrder {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: Deserializer<'de> {
+        let mut k_o = <HashMap<String, Order>>::deserialize(deserializer)?.into_iter();
+        let (k, v) = k_o.next().ok_or(serde::de::Error::custom(
+            "Expected exactly one key-value pair in KeyOrder, found none",
+        ))?;
+        if k_o.next().is_some() {
+            return Err(serde::de::Error::custom(
+                "Expected exactly one key-value pair in KeyOrder, found more",
+            ));
+        }
+        Ok(Self { field: k, order: v })
+    }
+}
+
+impl TopHitsAggregation {
+    /// Validate and resolve field retrieval parameters
+    pub fn validate_and_resolve_field_names(
+        &mut self,
+        reader: &ColumnarReader,
+    ) -> crate::Result<()> {
         // Tranform a glob (`pattern*`, for example) into a regex::Regex (`^pattern.*$`)
         let globbed_string_to_regex = |glob: &str| {
             // Replace `*` glob with `.*` regex
@@ -175,11 +194,24 @@ impl RetrievalFields {
         Ok(())
     }
 
+    /// Return fields accessed by the aggregator, in order.
+    pub fn field_names(&self) -> Vec<&str> {
+        self.sort
+            .iter()
+            .map(|KeyOrder { field, .. }| field.as_str())
+            .collect()
+    }
+
+    /// Return fields accessed by the aggregator's value retrieval.
+    pub fn value_field_names(&self) -> Vec<&str> {
+        self.doc_value_fields.iter().map(|s| s.as_str()).collect()
+    }
+
     fn get_document_field_data(
         &self,
         accessors: &HashMap<String, Vec<DynamicColumn>>,
         doc_id: DocId,
-    ) -> FieldRetrivalResult {
+    ) -> IntermediateFieldRetrivalResult {
         let dvf = self
             .doc_value_fields
             .iter()
@@ -188,20 +220,20 @@ impl RetrievalFields {
                     .get(field)
                     .unwrap_or_else(|| panic!("field '{}' not found in accessors", field));
 
-                let values: Vec<OwnedValue> = accessors
+                let values: Vec<RetrievedValue> = accessors
                     .iter()
                     .flat_map(|accessor| match accessor {
                         DynamicColumn::U64(accessor) => accessor
                             .values_for_doc(doc_id)
-                            .map(OwnedValue::U64)
+                            .map(RetrievedValue::U64)
                             .collect::<Vec<_>>(),
                         DynamicColumn::I64(accessor) => accessor
                             .values_for_doc(doc_id)
-                            .map(OwnedValue::I64)
+                            .map(RetrievedValue::I64)
                             .collect::<Vec<_>>(),
                         DynamicColumn::F64(accessor) => accessor
                             .values_for_doc(doc_id)
-                            .map(OwnedValue::F64)
+                            .map(RetrievedValue::F64)
                             .collect::<Vec<_>>(),
                         DynamicColumn::Bytes(accessor) => accessor
                             .term_ords(doc_id)
@@ -213,7 +245,7 @@ impl RetrievalFields {
                                         .expect("could not read term dictionary"),
                                     "term corresponding to term_ord does not exist"
                                 );
-                                OwnedValue::Bytes(buffer)
+                                RetrievedValue::Bytes(buffer)
                             })
                             .collect::<Vec<_>>(),
                         DynamicColumn::Str(accessor) => accessor
@@ -226,81 +258,71 @@ impl RetrievalFields {
                                         .expect("could not read term dictionary"),
                                     "term corresponding to term_ord does not exist"
                                 );
-                                OwnedValue::Str(String::from_utf8(buffer).unwrap())
+                                RetrievedValue::Str(String::from_utf8(buffer).unwrap())
                             })
                             .collect::<Vec<_>>(),
                         DynamicColumn::Bool(accessor) => accessor
                             .values_for_doc(doc_id)
-                            .map(OwnedValue::Bool)
+                            .map(RetrievedValue::Bool)
                             .collect::<Vec<_>>(),
                         DynamicColumn::IpAddr(accessor) => accessor
                             .values_for_doc(doc_id)
-                            .map(OwnedValue::IpAddr)
+                            .map(RetrievedValue::IpAddr)
                             .collect::<Vec<_>>(),
                         DynamicColumn::DateTime(accessor) => accessor
                             .values_for_doc(doc_id)
-                            .map(OwnedValue::Date)
+                            .map(RetrievedValue::Date)
                             .collect::<Vec<_>>(),
                     })
                     .collect();
 
-                (field.to_owned(), OwnedValue::Array(values))
+                (field.to_owned(), RetrievedValue::Array(values))
             })
             .collect();
-        FieldRetrivalResult {
+        IntermediateFieldRetrivalResult {
             doc_value_fields: dvf,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
-struct KeyOrder {
-    field: String,
-    order: Order,
+/// A retrieved value from a fast field.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum RetrievedValue {
+    /// The str type is used for any text information.
+    Str(String),
+    /// Unsigned 64-bits Integer `u64`
+    U64(u64),
+    /// Signed 64-bits Integer `i64`
+    I64(i64),
+    /// 64-bits Float `f64`
+    F64(f64),
+    /// Bool value
+    Bool(bool),
+    /// Date/time with nanoseconds precision
+    Date(DateTime),
+    /// Arbitrarily sized byte array
+    Bytes(Vec<u8>),
+    /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
+    IpAddr(Ipv6Addr),
+    /// A list of values.
+    Array(Vec<Self>),
 }
 
-impl Serialize for KeyOrder {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let KeyOrder { field, order } = self;
-        let mut map = serializer.serialize_map(Some(1))?;
-        map.serialize_entry(field, order)?;
-        map.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for KeyOrder {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
-        let mut k_o = <HashMap<String, Order>>::deserialize(deserializer)?.into_iter();
-        let (k, v) = k_o.next().ok_or(serde::de::Error::custom(
-            "Expected exactly one key-value pair in KeyOrder, found none",
-        ))?;
-        if k_o.next().is_some() {
-            return Err(serde::de::Error::custom(
-                "Expected exactly one key-value pair in KeyOrder, found more",
-            ));
+impl From<RetrievedValue> for OwnedValue {
+    fn from(value: RetrievedValue) -> Self {
+        match value {
+            RetrievedValue::Str(s) => OwnedValue::Str(s),
+            RetrievedValue::U64(u) => OwnedValue::U64(u),
+            RetrievedValue::I64(i) => OwnedValue::I64(i),
+            RetrievedValue::F64(f) => OwnedValue::F64(f),
+            RetrievedValue::Bool(b) => OwnedValue::Bool(b),
+            RetrievedValue::Date(d) => OwnedValue::Date(d),
+            RetrievedValue::Bytes(b) => OwnedValue::Bytes(b),
+            RetrievedValue::IpAddr(ip) => OwnedValue::IpAddr(ip),
+            RetrievedValue::Array(a) => {
+                OwnedValue::Array(a.into_iter().map(OwnedValue::from).collect())
+            }
         }
-        Ok(Self { field: k, order: v })
-    }
-}
-
-impl TopHitsAggregation {
-    /// Validate and resolve field retrieval parameters
-    pub fn validate_and_resolve(&mut self, reader: &ColumnarReader) -> crate::Result<()> {
-        self.retrieval.resolve_field_names(reader)
-    }
-
-    /// Return fields accessed by the aggregator, in order.
-    pub fn field_names(&self) -> Vec<&str> {
-        self.sort
-            .iter()
-            .map(|KeyOrder { field, .. }| field.as_str())
-            .collect()
-    }
-
-    /// Return fields accessed by the aggregator's value retrieval.
-    pub fn value_field_names(&self) -> Vec<&str> {
-        self.retrieval.get_field_names()
     }
 }
 
@@ -344,7 +366,7 @@ impl PartialEq for ComparableDocFeature {
 impl Eq for ComparableDocFeature {}
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct ComparableDocFeatures(Vec<ComparableDocFeature>, FieldRetrivalResult);
+struct ComparableDocFeatures(Vec<ComparableDocFeature>, IntermediateFieldRetrivalResult);
 
 impl Ord for ComparableDocFeatures {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -416,14 +438,20 @@ impl TopHitsCollector {
     }
 
     /// Finalize by converting self into the final result form
-    pub fn finalize(self) -> TopHitsMetricResult {
+    pub fn into_final_result(self) -> TopHitsMetricResult {
         let mut hits: Vec<TopHitsVecEntry> = self
             .top_n
             .into_sorted_vec()
             .into_iter()
             .map(|doc| TopHitsVecEntry {
                 sort: doc.feature.0.iter().map(|f| f.value).collect(),
-                search_results: doc.feature.1,
+                doc_value_fields: doc
+                    .feature
+                    .1
+                    .doc_value_fields
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into()))
+                    .collect(),
             })
             .collect();
 
@@ -512,7 +540,6 @@ impl SegmentAggregationCollector for SegmentTopHitsCollector {
         let retrieval_result = self
             .inner_collector
             .req
-            .retrieval
             .get_document_field_data(value_accessors, doc_id);
 
         self.inner_collector.collect(
@@ -730,7 +757,7 @@ mod tests {
             collector.collect(doc.feature, doc.doc);
         }
 
-        let res = collector.finalize();
+        let res = collector.into_final_result();
 
         assert_eq!(
             res,
@@ -738,15 +765,15 @@ mod tests {
                 hits: vec![
                     super::TopHitsVecEntry {
                         sort: vec![docs[0].feature.0[0].value],
-                        search_results: Default::default(),
+                        doc_value_fields: Default::default(),
                     },
                     super::TopHitsVecEntry {
                         sort: vec![docs[1].feature.0[0].value],
-                        search_results: Default::default(),
+                        doc_value_fields: Default::default(),
                     },
                     super::TopHitsVecEntry {
                         sort: vec![docs[2].feature.0[0].value],
-                        search_results: Default::default(),
+                        doc_value_fields: Default::default(),
                     },
                 ]
             }

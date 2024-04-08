@@ -292,7 +292,7 @@ impl AggregationWithAccessor {
                 add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
             TopHits(ref mut top_hits) => {
-                top_hits.validate_and_resolve(reader.fast_fields().columnar())?;
+                top_hits.validate_and_resolve_field_names(reader.fast_fields().columnar())?;
                 let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
                     .field_names()
                     .iter()

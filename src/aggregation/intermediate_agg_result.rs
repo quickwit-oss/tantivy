@@ -314,7 +314,7 @@ impl IntermediateMetricResult {
                     .into_final_result(req.agg.as_percentile().expect("unexpected metric type")),
             ),
             IntermediateMetricResult::TopHits(top_hits) => {
-                MetricResult::TopHits(top_hits.finalize())
+                MetricResult::TopHits(top_hits.into_final_result())
             }
         }
     }

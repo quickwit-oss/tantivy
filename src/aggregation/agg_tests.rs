@@ -4,6 +4,7 @@ use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
+use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
 use crate::aggregation::segment_agg_result::AggregationLimits;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
@@ -66,6 +67,22 @@ fn test_aggregation_flushing(
             }
         }
     },
+    "top_hits_test":{
+        "terms": {
+            "field": "string_id"
+        },
+        "aggs": {
+            "bucketsL2": {
+                "top_hits": {
+                    "size": 2,
+                    "sort": [
+                        { "score": "asc" }
+                    ],
+                    "docvalue_fields": ["score"]
+                }
+            }
+        }
+    },
     "histogram_test":{
         "histogram": {
             "field": "score",
@@ -108,6 +125,16 @@ fn test_aggregation_flushing(
 
         let searcher = reader.searcher();
         let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
+
+        // Test postcard roundtrip serialization
+        let intermediate_agg_result_bytes = postcard::to_allocvec(&intermediate_agg_result).expect(
+            "Postcard Serialization failed, flatten etc. is not supported in the intermediate \
+             result",
+        );
+        let intermediate_agg_result: IntermediateAggregationResults =
+            postcard::from_bytes(&intermediate_agg_result_bytes)
+                .expect("Post deserialization failed");
+
         intermediate_agg_result
             .into_final_result(agg_req, &Default::default())
             .unwrap()
