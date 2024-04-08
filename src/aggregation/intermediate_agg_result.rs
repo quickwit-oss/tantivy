@@ -20,7 +20,7 @@ use super::bucket::{
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
-    IntermediateSum, PercentilesCollector, TopHitsCollector,
+    IntermediateSum, PercentilesCollector, TopHitsTopNComputer,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::{format_date, AggregationError, Key, SerializedKey};
@@ -221,9 +221,9 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Percentiles(_) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::Percentiles(PercentilesCollector::default()),
         ),
-        TopHits(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::TopHits(
-            TopHitsCollector::default(),
-        )),
+        TopHits(ref req) => IntermediateAggregationResult::Metric(
+            IntermediateMetricResult::TopHits(TopHitsTopNComputer::new(req.clone())),
+        ),
     }
 }
 
@@ -285,7 +285,7 @@ pub enum IntermediateMetricResult {
     /// Intermediate sum result.
     Sum(IntermediateSum),
     /// Intermediate top_hits result
-    TopHits(TopHitsCollector),
+    TopHits(TopHitsTopNComputer),
 }
 
 impl IntermediateMetricResult {

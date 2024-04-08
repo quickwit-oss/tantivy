@@ -732,6 +732,19 @@ pub struct TopNComputer<Score, D, const REVERSE_ORDER: bool = true> {
     top_n: usize,
     pub(crate) threshold: Option<Score>,
 }
+
+impl<Score: std::fmt::Debug, D, const REVERSE_ORDER: bool> std::fmt::Debug
+    for TopNComputer<Score, D, REVERSE_ORDER>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TopNComputer")
+            .field("buffer_len", &self.buffer.len())
+            .field("top_n", &self.top_n)
+            .field("current_threshold", &self.threshold)
+            .finish()
+    }
+}
+
 // Intermediate struct for TopNComputer for deserialization, to keep vec capacity
 #[derive(Deserialize)]
 struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool> {
