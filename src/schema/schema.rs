@@ -6,10 +6,8 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::ip_options::IpAddrOptions;
 use super::*;
 use crate::json_utils::split_json_path;
-use crate::schema::bytes_options::BytesOptions;
 use crate::TantivyError;
 
 /// Tantivy has a very strict schema.

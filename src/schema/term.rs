@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::{fmt, str};

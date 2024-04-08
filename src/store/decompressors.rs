@@ -4,12 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use super::Compressor;
 
-pub trait StoreCompressor {
-    fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>;
-    fn decompress(&self, compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()>;
-    fn get_compressor_id() -> u8;
-}
-
 /// Decompressor is deserialized from the doc store footer, when opening an index.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Decompressor {
@@ -86,7 +80,6 @@ impl Decompressor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::Compressor;
 
     #[test]
     fn compressor_decompressor_id_test() {
