@@ -40,7 +40,7 @@ pub type DatePrecision = DateTimePrecision;
 /// All constructors and conversions are provided as explicit
 /// functions and not by implementing any `From`/`Into` traits
 /// to prevent unintended usage.
-#[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DateTime {
     // Timestamp in nanoseconds.
     pub(crate) timestamp_nanos: i64,

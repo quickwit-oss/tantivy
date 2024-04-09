@@ -25,6 +25,8 @@ mod stats;
 mod sum;
 mod top_hits;
 
+use std::collections::HashMap;
+
 pub use average::*;
 pub use count::*;
 pub use max::*;
@@ -35,6 +37,8 @@ use serde::{Deserialize, Serialize};
 pub use stats::*;
 pub use sum::*;
 pub use top_hits::*;
+
+use crate::schema::OwnedValue;
 
 /// Single-metric aggregations use this common result structure.
 ///
@@ -92,8 +96,9 @@ pub struct TopHitsVecEntry {
 
     /// Search results, for queries that include field retrieval requests
     /// (`docvalue_fields`).
-    #[serde(flatten)]
-    pub search_results: FieldRetrivalResult,
+    #[serde(rename = "docvalue_fields")]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub doc_value_fields: HashMap<String, OwnedValue>,
 }
 
 /// The top_hits metric aggregation results a list of top hits by sort criteria.

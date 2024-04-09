@@ -16,7 +16,7 @@ use super::metric::{
     SumAggregation,
 };
 use crate::aggregation::bucket::TermMissingAgg;
-use crate::aggregation::metric::SegmentTopHitsCollector;
+use crate::aggregation::metric::TopHitsSegmentCollector;
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
@@ -161,7 +161,7 @@ pub(crate) fn build_single_agg_segment_collector(
                 accessor_idx,
             )?,
         )),
-        TopHits(top_hits_req) => Ok(Box::new(SegmentTopHitsCollector::from_req(
+        TopHits(top_hits_req) => Ok(Box::new(TopHitsSegmentCollector::from_req(
             top_hits_req,
             accessor_idx,
             req.segment_ordinal,
