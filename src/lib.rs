@@ -9,6 +9,7 @@
     clippy::needless_range_loop,
     clippy::bool_assert_comparison
 )]
+#![allow(deprecated)]
 
 //! # `tantivy`
 //!
