@@ -290,8 +290,7 @@ impl<'a> BinarySerializable for Cow<'a, [u8]> {
 #[cfg(test)]
 pub mod test {
 
-    use super::{VInt, *};
-    use crate::serialize::BinarySerializable;
+    use super::*;
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
         O::default().serialize(&mut buffer).unwrap();

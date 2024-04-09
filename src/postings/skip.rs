@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use crate::directory::OwnedBytes;
 use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
 use crate::query::Bm25Weight;

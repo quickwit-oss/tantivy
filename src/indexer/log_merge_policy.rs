@@ -145,7 +145,6 @@ mod tests {
 
     use super::*;
     use crate::index::SegmentMetaInventory;
-    use crate::indexer::merge_policy::MergePolicy;
     use crate::schema::INDEXED;
     use crate::{schema, SegmentId};
 

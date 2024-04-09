@@ -1,4 +1,3 @@
-use core::convert::TryInto;
 use std::io::{self};
 use std::mem;
 

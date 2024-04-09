@@ -5,7 +5,7 @@ use common::file_slice::FileSlice;
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use tantivy_sstable::{self, Dictionary, MonotonicU64SSTable};
+use tantivy_sstable::{Dictionary, MonotonicU64SSTable};
 
 const CHARSET: &'static [u8] = b"abcdefghij";
 

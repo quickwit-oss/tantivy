@@ -2,12 +2,6 @@ use std::io;
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub trait StoreCompressor {
-    fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>;
-    fn decompress(&self, compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()>;
-    fn get_compressor_id() -> u8;
-}
-
 /// Compressor can be used on `IndexSettings` to choose
 /// the compressor used to compress the doc store.
 ///

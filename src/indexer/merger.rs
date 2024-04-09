@@ -576,7 +576,7 @@ impl IndexMerger {
                     //
                     // Overall the reliable way to know if we have actual frequencies loaded or not
                     // is to check whether the actual decoded array is empty or not.
-                    if has_term_freq != !postings.block_cursor.freqs().is_empty() {
+                    if has_term_freq == postings.block_cursor.freqs().is_empty() {
                         return Err(DataCorruption::comment_only(
                             "Term freqs are inconsistent across segments",
                         )

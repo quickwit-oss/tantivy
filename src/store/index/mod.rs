@@ -41,7 +41,7 @@ mod tests {
 
     use std::io;
 
-    use proptest::strategy::{BoxedStrategy, Strategy};
+    use proptest::prelude::*;
 
     use super::{SkipIndex, SkipIndexBuilder};
     use crate::directory::OwnedBytes;
@@ -226,8 +226,6 @@ mod tests {
             assert!(skip_index.seek(last_checkpoint.doc_range.end).is_none());
         }
     }
-
-    use proptest::prelude::*;
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]

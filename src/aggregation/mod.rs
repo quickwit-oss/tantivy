@@ -417,7 +417,6 @@ mod tests {
     use time::OffsetDateTime;
 
     use super::agg_req::Aggregations;
-    use super::segment_agg_result::AggregationLimits;
     use super::*;
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, TermQuery};

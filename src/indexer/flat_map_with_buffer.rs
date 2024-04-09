@@ -22,6 +22,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 pub trait FlatMapWithBufferIter: Iterator {
     /// Function similar to `flat_map`, but allows reusing a shared `Vec`.
     fn flat_map_with_buffer<F, T>(self, fill_buffer: F) -> FlatMapWithBuffer<T, F, Self>

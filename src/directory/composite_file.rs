@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
-use std::iter::ExactSizeIterator;
 use std::ops::Range;
 
 use common::{BinarySerializable, CountingWriter, HasLen, VInt};

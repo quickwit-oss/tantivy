@@ -149,7 +149,7 @@ mod tests {
     use crate::query::exist_query::ExistsQuery;
     use crate::query::{BooleanQuery, RangeQuery};
     use crate::schema::{Facet, FacetOptions, Schema, FAST, INDEXED, STRING, TEXT};
-    use crate::{doc, Index, Searcher};
+    use crate::{Index, Searcher};
 
     #[test]
     fn test_exists_query_simple() -> crate::Result<()> {

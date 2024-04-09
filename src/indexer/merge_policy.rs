@@ -39,7 +39,6 @@ impl MergePolicy for NoMergePolicy {
 pub mod tests {
 
     use super::*;
-    use crate::index::{SegmentId, SegmentMeta};
 
     /// `MergePolicy` useful for test purposes.
     ///

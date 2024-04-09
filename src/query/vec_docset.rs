@@ -53,8 +53,7 @@ impl HasLen for VecDocSet {
 pub mod tests {
 
     use super::*;
-    use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
-    use crate::DocId;
+    use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 
     #[test]
     pub fn test_vec_postings() {

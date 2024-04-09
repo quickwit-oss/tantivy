@@ -1,4 +1,4 @@
-use std::cmp::{Ord, Ordering};
+use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;

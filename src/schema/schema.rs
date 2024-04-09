@@ -6,10 +6,8 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::ip_options::IpAddrOptions;
 use super::*;
 use crate::json_utils::split_json_path;
-use crate::schema::bytes_options::BytesOptions;
 use crate::TantivyError;
 
 /// Tantivy has a very strict schema.
@@ -421,9 +419,7 @@ mod tests {
 
     use matches::{assert_matches, matches};
     use pretty_assertions::assert_eq;
-    use serde_json;
 
-    use crate::schema::document::Value;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;

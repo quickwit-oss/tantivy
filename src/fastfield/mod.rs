@@ -79,7 +79,7 @@ mod tests {
     use std::ops::{Range, RangeInclusive};
     use std::path::Path;
 
-    use columnar::{Column, MonotonicallyMappableToU64, StrColumn};
+    use columnar::StrColumn;
     use common::{ByteCount, HasLen, TerminatingWrite};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;

@@ -84,7 +84,7 @@ pub struct FuzzyTermQuery {
     distance: u8,
     /// Should a transposition cost 1 or 2?
     transposition_cost_one: bool,
-    ///
+    /// is a starts with query
     prefix: bool,
 }
 
