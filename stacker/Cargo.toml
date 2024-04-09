@@ -10,7 +10,7 @@ description = "term hashmap used for indexing"
 [dependencies]
 murmurhash32 = "0.3"
 common = { version = "0.6", path = "../common/", package = "tantivy-common" }
-ahash = { version = "0.8.3", default-features = false, optional = true }
+ahash = { version = "0.8.11", default-features = false, optional = true }
 rand_distr = "0.4.3"
 
 [[bench]]
