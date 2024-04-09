@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Formatter;
 use std::net::Ipv6Addr;
 
 use columnar::{ColumnarReader, DynamicColumn};
