@@ -256,7 +256,6 @@ impl DocParsingError {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::document::default_document::TantivyDocument;
     use crate::schema::*;
 
     #[test]

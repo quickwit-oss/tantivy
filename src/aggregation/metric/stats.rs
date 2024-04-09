@@ -1,4 +1,3 @@
-use columnar::ColumnType;
 use serde::{Deserialize, Serialize};
 
 use super::*;

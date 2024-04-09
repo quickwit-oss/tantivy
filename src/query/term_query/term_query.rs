@@ -139,7 +139,7 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::query::{Query, QueryParser, TermQuery};
     use crate::schema::{IndexRecordOption, IntoIpv6Addr, Schema, INDEXED, STORED};
-    use crate::{doc, Index, IndexWriter, Term};
+    use crate::{Index, IndexWriter, Term};
 
     #[test]
     fn search_ip_test() {

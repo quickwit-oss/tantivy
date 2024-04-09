@@ -516,8 +516,8 @@ impl fmt::Debug for SegmentReader {
 mod test {
     use super::*;
     use crate::index::Index;
-    use crate::schema::{Schema, SchemaBuilder, Term, STORED, TEXT};
-    use crate::{DocId, IndexWriter};
+    use crate::schema::{SchemaBuilder, Term, STORED, TEXT};
+    use crate::IndexWriter;
 
     #[test]
     fn test_merge_field_meta_data_same() {

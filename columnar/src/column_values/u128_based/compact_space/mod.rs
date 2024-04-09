@@ -146,6 +146,8 @@ impl CompactSpace {
         let pos = self
             .ranges_mapping
             .binary_search_by_key(&compact, |range_mapping| range_mapping.compact_start)
+            // Correctness: Overflow. The first range starts at compact space 0, the error from
+            // binary search can never be 0
             .unwrap_or_else(|e| e - 1);
 
         let range_mapping = &self.ranges_mapping[pos];

@@ -1,7 +1,5 @@
 use std::cmp::Ordering;
 
-use columnar::ColumnType;
-use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
@@ -17,7 +15,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
+    build_segment_agg_collector, SegmentAggregationCollector,
 };
 use crate::aggregation::*;
 use crate::TantivyError;

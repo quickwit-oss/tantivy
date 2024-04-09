@@ -419,9 +419,7 @@ mod tests {
 
     use matches::{assert_matches, matches};
     use pretty_assertions::assert_eq;
-    use serde_json;
 
-    use crate::schema::document::Value;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::schema::DocParsingError::InvalidJson;
     use crate::schema::*;

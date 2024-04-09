@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use columnar::{ColumnType, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -450,7 +449,6 @@ pub(crate) fn range_to_key(range: &Range<u64>, field_type: &ColumnType) -> crate
 #[cfg(test)]
 mod tests {
 
-    use columnar::MonotonicallyMappableToU64;
     use serde_json::Value;
 
     use super::*;
@@ -459,7 +457,6 @@ mod tests {
         exec_request, exec_request_with_query, get_test_index_2_segments,
         get_test_index_with_num_docs,
     };
-    use crate::aggregation::AggregationLimits;
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,

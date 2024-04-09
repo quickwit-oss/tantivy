@@ -819,7 +819,6 @@ mod tests {
     use crate::schema::document::existing_type_impls::JsonObjectIter;
     use crate::schema::document::se::BinaryValueSerializer;
     use crate::schema::document::{ReferenceValue, ReferenceValueLeaf};
-    use crate::schema::OwnedValue;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
         let mut writer = Vec::new();

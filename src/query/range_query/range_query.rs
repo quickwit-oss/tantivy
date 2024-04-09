@@ -477,7 +477,7 @@ mod tests {
     use crate::schema::{
         Field, IntoIpv6Addr, Schema, TantivyDocument, FAST, INDEXED, STORED, TEXT,
     };
-    use crate::{doc, Index, IndexWriter};
+    use crate::{Index, IndexWriter};
 
     #[test]
     fn test_range_query_simple() -> crate::Result<()> {

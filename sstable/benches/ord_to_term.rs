@@ -3,7 +3,7 @@ use std::sync::Arc;
 use common::file_slice::FileSlice;
 use common::OwnedBytes;
 use criterion::{criterion_group, criterion_main, Criterion};
-use tantivy_sstable::{self, Dictionary, MonotonicU64SSTable};
+use tantivy_sstable::{Dictionary, MonotonicU64SSTable};
 
 fn make_test_sstable(suffix: &str) -> FileSlice {
     let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
