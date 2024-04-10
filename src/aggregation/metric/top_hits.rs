@@ -13,6 +13,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::AggregationError;
 use crate::collector::TopNComputer;
 use crate::schema::term::JSON_PATH_SEGMENT_SEP_STR;
 use crate::schema::OwnedValue;
@@ -96,6 +97,14 @@ pub struct TopHitsAggregation {
     #[serde(rename = "docvalue_fields")]
     #[serde(default)]
     doc_value_fields: Vec<String>,
+
+    // Not supported
+    _source: Option<serde_json::Value>,
+    fields: Option<serde_json::Value>,
+    script_fields: Option<serde_json::Value>,
+    highlight: Option<serde_json::Value>,
+    explain: Option<serde_json::Value>,
+    version: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -142,12 +151,49 @@ fn globbed_string_to_regex(glob: &str) -> Result<Regex, crate::TantivyError> {
     })
 }
 
+fn use_doc_value_fields_err(parameter: &str) -> crate::Result<()> {
+    Err(crate::TantivyError::AggregationError(
+        AggregationError::InvalidRequest(format!(
+            "The `{}` parameter is not supported, only `docvalue_fields` is supported in \
+             `top_hits` aggregation",
+            parameter
+        )),
+    ))
+}
+fn unsupported_err(parameter: &str) -> crate::Result<()> {
+    Err(crate::TantivyError::AggregationError(
+        AggregationError::InvalidRequest(format!(
+            "The `{}` parameter is not supported in the `top_hits` aggregation",
+            parameter
+        )),
+    ))
+}
+
 impl TopHitsAggregation {
     /// Validate and resolve field retrieval parameters
     pub fn validate_and_resolve_field_names(
         &mut self,
         reader: &ColumnarReader,
     ) -> crate::Result<()> {
+        if self._source.is_some() {
+            use_doc_value_fields_err("_source")?;
+        }
+        if self.fields.is_some() {
+            use_doc_value_fields_err("fields")?;
+        }
+        if self.script_fields.is_some() {
+            use_doc_value_fields_err("script_fields")?;
+        }
+        if self.explain.is_some() {
+            unsupported_err("explain")?;
+        }
+        if self.highlight.is_some() {
+            unsupported_err("highlight")?;
+        }
+        if self.version.is_some() {
+            unsupported_err("version")?;
+        }
+
         self.doc_value_fields = self
             .doc_value_fields
             .iter()
