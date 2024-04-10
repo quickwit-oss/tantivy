@@ -1,3 +1,65 @@
+Tantivy 0.22 (unreleased)
+================================
+
+Tantivy 0.22 will be able to read indices created with Tantivy 0.21.
+
+#### Bugfixes
+- Fix null byte handling in JSON paths (null bytes in json keys caused panic during indexing) [#2345](https://github.com/quickwit-oss/tantivy/pull/2345)(@PSeitz)
+- Fix bug that can cause `get_docids_for_value_range` to panic. [#2295](https://github.com/quickwit-oss/tantivy/pull/2295)(@fulmicoton)
+- Avoid 1 document indices by increase min memory to 15MB for indexing [#2176](https://github.com/quickwit-oss/tantivy/pull/2176)(@PSeitz)
+- Fix merge panic for JSON fields [#2284](https://github.com/quickwit-oss/tantivy/pull/2284)(@PSeitz)
+- Fix bug occuring when merging JSON object indexed with positions. [#2253](https://github.com/quickwit-oss/tantivy/pull/2253)(@fulmicoton)
+- Fix empty DateHistogram gap bug [#2183](https://github.com/quickwit-oss/tantivy/pull/2183)(@PSeitz)
+- Fix range query end check (fields with less than 1 value per doc are affected) [#2226](https://github.com/quickwit-oss/tantivy/pull/2226)(@PSeitz)
+- Handle exclusive out of bounds ranges on fastfield range queries [#2174](https://github.com/quickwit-oss/tantivy/pull/2174)(@PSeitz)
+
+#### Breaking API Changes
+- rename ReloadPolicy onCommit to onCommitWithDelay [#2235](https://github.com/quickwit-oss/tantivy/pull/2235)(@giovannicuccu)
+- Move exports from the root into modules [#2220](https://github.com/quickwit-oss/tantivy/pull/2220)(@PSeitz)
+- Accept field name instead of `Field` in FilterCollector [#2196](https://github.com/quickwit-oss/tantivy/pull/2196)(@PSeitz)
+- remove deprecated IntOptions and DateTime [#2353](https://github.com/quickwit-oss/tantivy/pull/2353)(@PSeitz)
+
+#### Features/Improvements
+- Tantivy documents as a trait: Index data directly without converting to tantivy types first [#2071](https://github.com/quickwit-oss/tantivy/pull/2071)(@ChillFish8)
+- encode some part of posting list as -1 instead of direct values (smaller inverted indices) [#2185](https://github.com/quickwit-oss/tantivy/pull/2185)(@trinity-1686a)
+- **Aggregation**
+  - Support to deserialize f64 from string [#2311](https://github.com/quickwit-oss/tantivy/pull/2311)(@PSeitz)
+  - Add a top_hits aggregator [#2198](https://github.com/quickwit-oss/tantivy/pull/2198)(@ditsuke)
+  - Support bool type in term aggregation [#2318](https://github.com/quickwit-oss/tantivy/pull/2318)(@PSeitz)
+  - Support ip adresses in term aggregation [#2319](https://github.com/quickwit-oss/tantivy/pull/2319)(@PSeitz)
+  - Support date type in term aggregation [#2172](https://github.com/quickwit-oss/tantivy/pull/2172)(@PSeitz)
+  - Support escaped dot when addressing field [#2250](https://github.com/quickwit-oss/tantivy/pull/2250)(@PSeitz)
+
+- Add ExistsQuery to check documents that have a value [#2160](https://github.com/quickwit-oss/tantivy/pull/2160)(@imotov)
+- Expose TopDocs::order_by_u64_field again [#2282](https://github.com/quickwit-oss/tantivy/pull/2282)(@ditsuke)
+
+- **Memory/Performance**
+  - Faster TopN: replace BinaryHeap with TopNComputer [#2186](https://github.com/quickwit-oss/tantivy/pull/2186)(@PSeitz)
+  - reduce number of allocations during indexing [#2257](https://github.com/quickwit-oss/tantivy/pull/2257)(@PSeitz)
+  - Less Memory while indexing: docid deltas while indexing [#2249](https://github.com/quickwit-oss/tantivy/pull/2249)(@PSeitz)
+  - Faster indexing: use term hashmap in fastfield [#2243](https://github.com/quickwit-oss/tantivy/pull/2243)(@PSeitz)
+  - term hashmap remove copy in is_empty, unused unordered_id [#2229](https://github.com/quickwit-oss/tantivy/pull/2229)(@PSeitz)
+  - add method to fetch block of first values in columnar [#2330](https://github.com/quickwit-oss/tantivy/pull/2330)(@PSeitz)
+  - Faster aggregations: add fast path for full columns in fetch_block [#2328](https://github.com/quickwit-oss/tantivy/pull/2328)(@PSeitz)
+  - Faster sstable loading: use fst for sstable index [#2268](https://github.com/quickwit-oss/tantivy/pull/2268)(@trinity-1686a)
+
+- **QueryParser**
+  - allow newline where we allow space in query parser [#2302](https://github.com/quickwit-oss/tantivy/pull/2302)(@trinity-1686a)
+  - allow some mixing of occur and bool in strict query parser [#2323](https://github.com/quickwit-oss/tantivy/pull/2323)(@trinity-1686a)
+  - handle * inside term in lenient query parser [#2228](https://github.com/quickwit-oss/tantivy/pull/2228)(@trinity-1686a)
+  - add support for exists query syntax in query parser [#2170](https://github.com/quickwit-oss/tantivy/pull/2170)(@trinity-1686a)
+- Add shared search executor [#2312](https://github.com/quickwit-oss/tantivy/pull/2312)(@MochiXu)
+- Truncate keys to u16::MAX in term hashmap [#2299](https://github.com/quickwit-oss/tantivy/pull/2299)(@PSeitz)
+- report if a term matched when warming up posting list [#2309](https://github.com/quickwit-oss/tantivy/pull/2309)(@trinity-1686a)
+- Support json fields in FuzzyTermQuery [#2173](https://github.com/quickwit-oss/tantivy/pull/2173)(@PingXia-at)
+- Read list of fields encoded in term dictionary for JSON fields [#2184](https://github.com/quickwit-oss/tantivy/pull/2184)(@PSeitz)
+- add collect_block to BoxableSegmentCollector [#2331](https://github.com/quickwit-oss/tantivy/pull/2331)(@PSeitz)
+- expose collect_block buffer size [#2326](https://github.com/quickwit-oss/tantivy/pull/2326)(@PSeitz)
+- Forward regex parser errors [#2288](https://github.com/quickwit-oss/tantivy/pull/2288)(@adamreichold)
+- Make FacetCounts defaultable and cloneable. [#2322](https://github.com/quickwit-oss/tantivy/pull/2322)(@adamreichold)
+- Derive Debug for SchemaBuilder [#2254](https://github.com/quickwit-oss/tantivy/pull/2254)(@GodTamIt)
+- add missing inlines to tantivy options [#2245](https://github.com/quickwit-oss/tantivy/pull/2245)(@PSeitz)
+
 Tantivy 0.21.1
 ================================
 #### Bugfixes
