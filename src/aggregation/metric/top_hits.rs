@@ -151,21 +151,30 @@ fn globbed_string_to_regex(glob: &str) -> Result<Regex, crate::TantivyError> {
     })
 }
 
+fn use_doc_value_fields_err(parameter: &str) -> crate::Result<()> {
+    Err(crate::TantivyError::AggregationError(
+        AggregationError::InvalidRequest(format!(
+            "The `{}` parameter is not supported, only `docvalue_fields` is supported in \
+             `top_hits` aggregation",
+            parameter
+        )),
+    ))
+}
+fn unsupported_err(parameter: &str) -> crate::Result<()> {
+    Err(crate::TantivyError::AggregationError(
+        AggregationError::InvalidRequest(format!(
+            "The `{}` parameter is not supported in the `top_hits` aggregation",
+            parameter
+        )),
+    ))
+}
+
 impl TopHitsAggregation {
     /// Validate and resolve field retrieval parameters
     pub fn validate_and_resolve_field_names(
         &mut self,
         reader: &ColumnarReader,
     ) -> crate::Result<()> {
-        let use_doc_value_fields_err = |parameter: &str| {
-            Err(crate::TantivyError::AggregationError(
-                AggregationError::InvalidRequest(format!(
-                    "The `{}` parameter is not supported, only `docvalue_fields` is supported in \
-                     `top_hits` aggregation",
-                    parameter
-                )),
-            ))
-        };
         if self._source.is_some() {
             use_doc_value_fields_err("_source")?;
         }
@@ -175,14 +184,6 @@ impl TopHitsAggregation {
         if self.script_fields.is_some() {
             use_doc_value_fields_err("script_fields")?;
         }
-        let unsupported_err = |parameter: &str| {
-            Err(crate::TantivyError::AggregationError(
-                AggregationError::InvalidRequest(format!(
-                    "The `{}` parameter is not supported in the `top_hits` aggregation",
-                    parameter
-                )),
-            ))
-        };
         if self.explain.is_some() {
             unsupported_err("explain")?;
         }
