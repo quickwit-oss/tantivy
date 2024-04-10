@@ -5,10 +5,6 @@ use serde::{Deserialize, Serialize};
 use super::flags::CoerceFlag;
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
-#[deprecated(since = "0.17.0", note = "Use NumericOptions instead.")]
-/// Deprecated use [`NumericOptions`] instead.
-pub type IntOptions = NumericOptions;
-
 /// Define how an `u64`, `i64`, or `f64` field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(from = "NumericOptionsDeser")]

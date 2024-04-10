@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 use std::fmt;
 use std::io::{Read, Write};
 
@@ -26,9 +24,6 @@ pub enum DateTimePrecision {
     /// Nanosecond precision.
     Nanoseconds,
 }
-
-#[deprecated(since = "0.20.0", note = "Use `DateTimePrecision` instead")]
-pub type DatePrecision = DateTimePrecision;
 
 /// A date/time value with nanoseconds precision.
 ///
