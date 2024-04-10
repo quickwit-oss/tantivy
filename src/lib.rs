@@ -178,6 +178,7 @@ pub use crate::future_result::FutureResult;
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
 mod core;
+#[allow(deprecated)] // Remove with index sorting
 pub mod indexer;
 
 #[allow(unused_doc_comments)]
@@ -189,6 +190,7 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
+#[allow(deprecated)] // Remove with index sorting
 pub mod index;
 pub mod positions;
 pub mod postings;
@@ -223,6 +225,7 @@ pub use self::snippet::{Snippet, SnippetGenerator};
 pub use crate::core::json_utils;
 pub use crate::core::{Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
+#[allow(deprecated)] // Remove with index sorting
 pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
     Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader,
@@ -234,8 +237,6 @@ pub use crate::index::{
 pub use crate::indexer::PreparedCommit;
 pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::postings::Postings;
-#[allow(deprecated)]
-pub use crate::schema::DatePrecision;
 pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
 
 /// Index format version.

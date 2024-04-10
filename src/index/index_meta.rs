@@ -288,6 +288,10 @@ impl Default for IndexSettings {
 /// Presorting documents can greatly improve performance
 /// in some scenarios, by applying top n
 /// optimizations.
+#[deprecated(
+    since = "0.22.0",
+    note = "We plan to remove index sorting in `0.23`. If you need index sorting, please comment on the related issue https://github.com/quickwit-oss/tantivy/issues/2352 and explain your use case."
+)]
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSortByField {
     /// The field to sort the documents by

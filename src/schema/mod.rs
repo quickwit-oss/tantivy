@@ -130,8 +130,6 @@ mod text_options;
 use columnar::ColumnType;
 
 pub use self::bytes_options::BytesOptions;
-#[allow(deprecated)]
-pub use self::date_time_options::DatePrecision;
 pub use self::date_time_options::{DateOptions, DateTimePrecision, DATE_TIME_PRECISION_INDEXED};
 pub use self::document::{DocParsingError, Document, OwnedValue, TantivyDocument, Value};
 pub(crate) use self::facet::FACET_SEP_BYTE;
@@ -146,8 +144,6 @@ pub use self::index_record_option::IndexRecordOption;
 pub use self::ip_options::{IntoIpv6Addr, IpAddrOptions};
 pub use self::json_object_options::JsonObjectOptions;
 pub use self::named_field_document::NamedFieldDocument;
-#[allow(deprecated)]
-pub use self::numeric_options::IntOptions;
 pub use self::numeric_options::NumericOptions;
 pub use self::schema::{Schema, SchemaBuilder};
 pub use self::term::{Term, ValueBytes, JSON_END_OF_PATH};

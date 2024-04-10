@@ -160,7 +160,7 @@ pub enum ValueType {
     /// A dynamic object value.
     Object,
     /// A JSON object value. Deprecated.
-    #[deprecated]
+    #[deprecated(note = "We keep this for backwards compatibility, use Object instead")]
     JSONObject,
 }
 

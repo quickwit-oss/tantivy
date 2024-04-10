@@ -1,7 +1,5 @@
 use std::ops::BitOr;
 
-#[allow(deprecated)]
-pub use common::DatePrecision;
 pub use common::DateTimePrecision;
 use serde::{Deserialize, Serialize};
 
