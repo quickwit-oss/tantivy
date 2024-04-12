@@ -1,4 +1,4 @@
-Tantivy 0.22 (unreleased)
+Tantivy 0.22
 ================================
 
 Tantivy 0.22 will be able to read indices created with Tantivy 0.21.
