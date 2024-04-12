@@ -15,7 +15,6 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
-
 use crate::TantivyError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -39,7 +38,6 @@ impl BuildHasher for BuildSaltedHasher {
 /// The cardinality aggregation allows for computing an estimate
 /// of the number of different values in a data set based on the
 /// HyperLogLog++ alogrithm.
-///
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CardinalityAggregationReq {
     /// The field name to compute the percentiles on.
@@ -258,10 +256,10 @@ mod tests {
     use std::net::IpAddr;
     use std::str::FromStr;
 
-    use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
     use columnar::MonotonicallyMappableToU64;
 
+    use crate::aggregation::agg_req::Aggregations;
+    use crate::aggregation::tests::{exec_request, get_test_index_from_terms};
     use crate::schema::{IntoIpv6Addr, Schema, FAST};
     use crate::Index;
 
