@@ -255,7 +255,7 @@ pub struct Version {
 
 impl fmt::Debug for Version {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -266,9 +266,10 @@ static VERSION: Lazy<Version> = Lazy::new(|| Version {
     index_format_version: INDEX_FORMAT_VERSION,
 });
 
-impl ToString for Version {
-    fn to_string(&self) -> String {
-        format!(
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
             "tantivy v{}.{}.{}, index_format v{}",
             self.major, self.minor, self.patch, self.index_format_version
         )

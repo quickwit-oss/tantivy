@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::{fmt, io, u64};
+use std::{fmt, io};
 
 use ownedbytes::OwnedBytes;
 

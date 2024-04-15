@@ -28,6 +28,7 @@ mod term_agg;
 mod term_missing_agg;
 
 use std::collections::HashMap;
+use std::fmt;
 
 pub use histogram::*;
 pub use range::*;
@@ -72,12 +73,12 @@ impl From<&str> for OrderTarget {
     }
 }
 
-impl ToString for OrderTarget {
-    fn to_string(&self) -> String {
+impl fmt::Display for OrderTarget {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            OrderTarget::Key => "_key".to_string(),
-            OrderTarget::Count => "_count".to_string(),
-            OrderTarget::SubAggregation(agg) => agg.to_string(),
+            OrderTarget::Key => f.write_str("_key"),
+            OrderTarget::Count => f.write_str("_count"),
+            OrderTarget::SubAggregation(agg) => agg.fmt(f),
         }
     }
 }
