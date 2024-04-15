@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -6,7 +7,7 @@ use crate::collector::Collector;
 use crate::core::Executor;
 use crate::index::{SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
-use crate::schema::document::DocumentDeserialize;
+use crate::schema::document::{DocumentDeserialize, DocumentDeserializeSeed};
 use crate::schema::{Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
@@ -86,8 +87,17 @@ impl Searcher {
     /// The searcher uses the segment ordinal to route the
     /// request to the right `Segment`.
     pub fn doc<D: DocumentDeserialize>(&self, doc_address: DocAddress) -> crate::Result<D> {
+        self.doc_seed(doc_address, PhantomData)
+    }
+
+    /// A stateful variant of [`doc`][Self::doc].`
+    pub fn doc_seed<T: DocumentDeserializeSeed>(
+        &self,
+        doc_address: DocAddress,
+        seed: T,
+    ) -> crate::Result<T::Value> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
-        store_reader.get(doc_address.doc_id)
+        store_reader.get_seed(doc_address.doc_id, seed)
     }
 
     /// The cache stats for the underlying store reader.
@@ -109,9 +119,21 @@ impl Searcher {
         &self,
         doc_address: DocAddress,
     ) -> crate::Result<D> {
+        self.doc_async_seed(doc_address, PhantomData).await
+    }
+
+    #[cfg(feature = "quickwit")]
+    /// A stateful variant of [`doc_async`][Self::doc_async].
+    pub async fn doc_async_seed<T: DocumentDeserializeSeed>(
+        &self,
+        doc_address: DocAddress,
+        seed: T,
+    ) -> crate::Result<T::Value> {
         let executor = self.inner.index.search_executor();
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
-        store_reader.get_async(doc_address.doc_id, executor).await
+        store_reader
+            .get_async_seed(doc_address.doc_id, executor, seed)
+            .await
     }
 
     /// Access the schema associated with the index of this searcher.

@@ -169,8 +169,9 @@ use std::mem;
 
 pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
-    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
-    ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
+    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializeSeed,
+    DocumentDeserializer, ObjectAccess, ValueDeserialize, ValueDeserializer, ValueType,
+    ValueVisitor,
 };
 pub use self::default_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,

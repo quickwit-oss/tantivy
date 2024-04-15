@@ -603,7 +603,7 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
             container: self.container,
             value,
         };
-        return Some((key, value));
+        Some((key, value))
     }
 }
 
@@ -637,7 +637,7 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
             container: self.container,
             value,
         };
-        return Some(value);
+        Some(value)
     }
 }
 

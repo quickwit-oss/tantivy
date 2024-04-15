@@ -69,6 +69,28 @@ pub trait DocumentDeserialize: Sized {
     where D: DocumentDeserializer<'de>;
 }
 
+/// A stateful extension of [`DocumentDeserialize`].
+pub trait DocumentDeserializeSeed: Sized {
+    /// The type produced by using this seed.
+    type Value;
+
+    /// Attempts to deserialize `Self::Value` from the given `seed` and `deserializer`.
+    fn deserialize<'de, D>(self, deserializer: D) -> Result<Self::Value, DeserializeError>
+    where D: DocumentDeserializer<'de>;
+}
+
+impl<T> DocumentDeserializeSeed for PhantomData<T>
+where T: DocumentDeserialize
+{
+    /// The type produced by using this seed.
+    type Value = T;
+
+    fn deserialize<'de, D>(self, deserializer: D) -> Result<Self::Value, DeserializeError>
+    where D: DocumentDeserializer<'de> {
+        <T as DocumentDeserialize>::deserialize(deserializer)
+    }
+}
+
 /// A deserializer that can walk through each entry in the document.
 pub trait DocumentDeserializer<'de> {
     /// A indicator as to how many values are in the document.
