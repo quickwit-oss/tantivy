@@ -696,7 +696,7 @@ impl IndexMerger {
             for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
                 let doc_bytes_it = &mut document_iterators[old_doc_addr.segment_ord as usize];
                 if let Some(doc_bytes_res) = doc_bytes_it.next() {
-                    let doc_bytes = doc_bytes_res?;
+                    let (_, doc_bytes) = doc_bytes_res?;
                     store_writer.store_bytes(&doc_bytes)?;
                 } else {
                     return Err(DataCorruption::comment_only(format!(
@@ -728,7 +728,7 @@ impl IndexMerger {
                     || store_reader.decompressor() != store_writer.compressor().into()
                 {
                     for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
-                        let doc_bytes = doc_bytes_res?;
+                        let (_, doc_bytes) = doc_bytes_res?;
                         store_writer.store_bytes(&doc_bytes)?;
                     }
                 } else {

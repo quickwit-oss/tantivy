@@ -241,12 +241,23 @@ impl StoreReader {
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<D>> + 'b {
+        self.enumerate(alive_bitset)
+            .map(|res| res.map(|(_, doc)| doc))
+    }
+
+    /// A variant of [`iter`][Self::iter] which also yields document ID.
+    pub fn enumerate<'a: 'b, 'b, D: DocumentDeserialize>(
+        &'b self,
+        alive_bitset: Option<&'a AliveBitSet>,
+    ) -> impl Iterator<Item = crate::Result<(DocId, D)>> + 'b {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
-            let mut doc_bytes = doc_bytes_res?;
+            let (doc_id, mut doc_bytes) = doc_bytes_res?;
 
             let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
                 .map_err(crate::TantivyError::from)?;
-            D::deserialize(deserializer).map_err(crate::TantivyError::from)
+            let doc = D::deserialize(deserializer).map_err(crate::TantivyError::from)?;
+
+            Ok((doc_id, doc))
         })
     }
 
@@ -256,7 +267,7 @@ impl StoreReader {
     pub(crate) fn iter_raw<'a: 'b, 'b>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
-    ) -> impl Iterator<Item = crate::Result<OwnedBytes>> + 'b {
+    ) -> impl Iterator<Item = crate::Result<(DocId, OwnedBytes)>> + 'b {
         let last_doc_id = self
             .block_checkpoints()
             .last()
@@ -284,14 +295,14 @@ impl StoreReader {
 
                 let alive = alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
                 let res = if alive {
-                    Some((curr_block.clone(), doc_pos))
+                    Some((doc_id, curr_block.clone(), doc_pos))
                 } else {
                     None
                 };
                 doc_pos += 1;
                 res
             })
-            .map(move |(block, doc_pos)| {
+            .map(move |(doc_id, block, doc_pos)| {
                 let block = block
                     .ok_or_else(|| {
                         DataCorruption::comment_only(
@@ -304,7 +315,7 @@ impl StoreReader {
                     })?;
 
                 let range = block_read_index(&block, doc_pos)?;
-                Ok(block.slice(range))
+                Ok((doc_id, block.slice(range)))
             })
     }
 
