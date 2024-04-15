@@ -406,7 +406,7 @@ impl SegmentReader {
     }
 
     /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + '_> {
+    pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_> {
         if let Some(alive_bitset) = &self.alive_bitset_opt {
             Box::new(alive_bitset.iter_alive())
         } else {
