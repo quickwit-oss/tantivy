@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::{btree_map, BTreeMap, BTreeSet, BinaryHeap};
+use std::io;
 use std::ops::Bound;
-use std::{io, u64, usize};
 
 use crate::collector::{Collector, SegmentCollector};
 use crate::fastfield::FacetReader;
