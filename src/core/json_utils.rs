@@ -1,4 +1,5 @@
-use common::JsonPathWriter;
+use common::json_path_writer::JSON_PATH_SEGMENT_SEP;
+use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};

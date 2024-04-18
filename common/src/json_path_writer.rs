@@ -53,7 +53,7 @@ impl JsonPathWriter {
     pub fn push(&mut self, segment: &str) {
         let len_path = self.path.len();
         self.indices.push(len_path);
-        if !self.path.is_empty() {
+        if self.indices.len() > 1 {
             self.path.push(JSON_PATH_SEGMENT_SEP as char);
         }
         self.path.push_str(segment);

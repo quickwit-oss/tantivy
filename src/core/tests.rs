@@ -421,10 +421,7 @@ fn test_non_text_json_term_freq() {
     term.append_type_and_fast_value(75u64);
 
     let postings = inv_idx
-        .read_postings(
-            &json_term_writer.term(),
-            IndexRecordOption::WithFreqsAndPositions,
-        )
+        .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
         .unwrap()
         .unwrap();
     assert_eq!(postings.doc(), 0);
@@ -458,10 +455,7 @@ fn test_non_text_json_term_freq_bitpacked() {
     term.append_type_and_fast_value(75u64);
 
     let mut postings = inv_idx
-        .read_postings(
-            &json_term_writer.term(),
-            IndexRecordOption::WithFreqsAndPositions,
-        )
+        .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
         .unwrap()
         .unwrap();
     assert_eq!(postings.doc(), 0);

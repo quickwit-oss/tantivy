@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::net::Ipv6Addr;
 
 use columnar::{ColumnarReader, DynamicColumn};
+use common::json_path_writer::JSON_PATH_SEGMENT_SEP_STR;
 use common::DateTime;
 use regex::Regex;
 use serde::ser::SerializeMap;
@@ -15,7 +16,6 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::AggregationError;
 use crate::collector::TopNComputer;
-use crate::schema::term::JSON_PATH_SEGMENT_SEP_STR;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 
