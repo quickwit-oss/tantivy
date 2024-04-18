@@ -20,7 +20,8 @@ use crate::DateTime;
 /// The serialized value `ValueBytes` is considered everything after the 4 first bytes (term id).
 #[derive(Clone)]
 pub struct Term<B = Vec<u8>>(B)
-where B: AsRef<[u8]>;
+where
+    B: AsRef<[u8]>;
 
 /// The number of bytes used as metadata by `Term`.
 const TERM_METADATA_LENGTH: usize = 5;
@@ -115,12 +116,6 @@ impl Term {
         Term::with_bytes_and_field_and_payload(Type::Bytes, field, bytes)
     }
 
-    /// Removes the value_bytes and set the field and type code.
-    pub(crate) fn clear_with_field_and_type(&mut self, typ: Type, field: Field) {
-        self.truncate_value_bytes(0);
-        self.set_field_and_type(field, typ);
-    }
-
     /// Removes the value_bytes and set the type code.
     pub fn clear_with_type(&mut self, typ: Type) {
         self.truncate_value_bytes(0);
@@ -202,11 +197,6 @@ impl Term {
         self.0.truncate(len + TERM_METADATA_LENGTH);
     }
 
-    /// The length of the bytes.
-    pub fn len_bytes(&self) -> usize {
-        self.0.len() - TERM_METADATA_LENGTH
-    }
-
     /// Appends value bytes to the Term.
     ///
     /// This function returns the segment that has just been added.
@@ -216,27 +206,11 @@ impl Term {
         self.0.extend_from_slice(bytes);
         &mut self.0[len_before..]
     }
-
-    /// Appends json path bytes to the Term.
-    /// If the path contains 0 bytes, they are replaced by a "0" string.
-    /// The 0 byte is used to mark the end of the path.
-    ///
-    /// This function returns the segment that has just been added.
-    #[inline]
-    pub fn append_path(&mut self, bytes: &[u8]) -> &mut [u8] {
-        let len_before = self.0.len();
-        if bytes.contains(&0u8) {
-            self.0
-                .extend(bytes.iter().map(|&b| if b == 0 { b'0' } else { b }));
-        } else {
-            self.0.extend_from_slice(bytes);
-        }
-        &mut self.0[len_before..]
-    }
 }
 
 impl<B> Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {
@@ -260,7 +234,7 @@ where B: AsRef<[u8]>
     /// If the term is a string, its value is utf-8 encoded.
     /// If the term is a u64, its value is encoded according
     /// to `byteorder::BigEndian`.
-    pub fn serialized_value_bytes(&self) -> &[u8] {
+    pub(crate) fn serialized_value_bytes(&self) -> &[u8] {
         &self.0.as_ref()[TERM_METADATA_LENGTH..]
     }
 
@@ -294,10 +268,12 @@ where B: AsRef<[u8]>
 /// The nested ValueBytes in JSON is never of type JSON. (there's no recursion)
 #[derive(Clone)]
 pub struct ValueBytes<B>(B)
-where B: AsRef<[u8]>;
+where
+    B: AsRef<[u8]>;
 
 impl<B> ValueBytes<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> ValueBytes<B> {
@@ -503,7 +479,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> Ord for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.serialized_term().cmp(other.serialized_term())
@@ -511,7 +488,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> PartialOrd for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -519,7 +497,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> PartialEq for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.serialized_term() == other.serialized_term()
@@ -529,7 +508,8 @@ where B: AsRef<[u8]>
 impl<B> Eq for Term<B> where B: AsRef<[u8]> {}
 
 impl<B> Hash for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.as_ref().hash(state)
@@ -544,7 +524,8 @@ fn write_opt<T: std::fmt::Debug>(f: &mut fmt::Formatter, val_opt: Option<T>) -> 
 }
 
 impl<B> fmt::Debug for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let field_id = self.field().field_id();

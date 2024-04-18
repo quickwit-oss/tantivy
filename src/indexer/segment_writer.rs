@@ -15,7 +15,8 @@ use crate::postings::{
     PerFieldPostingsWriter, PostingsWriter,
 };
 use crate::schema::document::{Document, ReferenceValue, Value};
-use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::indexing_term::IndexingTerm;
+use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, SegmentComponent, TantivyError};
@@ -70,7 +71,7 @@ pub struct SegmentWriter {
     pub(crate) json_path_writer: JsonPathWriter,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     per_field_text_analyzers: Vec<TextAnalyzer>,
-    term_buffer: Term,
+    term_buffer: IndexingTerm,
     schema: Schema,
 }
 
@@ -126,7 +127,7 @@ impl SegmentWriter {
             )?,
             doc_opstamps: Vec::with_capacity(1_000),
             per_field_text_analyzers,
-            term_buffer: Term::with_capacity(16),
+            term_buffer: IndexingTerm::with_capacity(16),
             schema,
         })
     }

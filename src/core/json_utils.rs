@@ -4,6 +4,7 @@ use rustc_hash::FxHashMap;
 
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
+use crate::schema::indexing_term::IndexingTerm;
 use crate::schema::{Field, Type};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
@@ -74,7 +75,7 @@ pub(crate) fn index_json_values<'a, V: Value<'a>>(
     json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
     text_analyzer: &mut TextAnalyzer,
     expand_dots_enabled: bool,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     postings_writer: &mut dyn PostingsWriter,
     json_path_writer: &mut JsonPathWriter,
     ctx: &mut IndexingContext,
@@ -103,7 +104,7 @@ fn index_json_object<'a, V: Value<'a>>(
     doc: DocId,
     json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
@@ -130,17 +131,17 @@ fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    let set_path_id = |term_buffer: &mut Term, unordered_id: u32| {
+    let set_path_id = |term_buffer: &mut IndexingTerm, unordered_id: u32| {
         term_buffer.truncate_value_bytes(0);
         term_buffer.append_bytes(&unordered_id.to_be_bytes());
     };
-    let set_type = |term_buffer: &mut Term, typ: Type| {
+    let set_type = |term_buffer: &mut IndexingTerm, typ: Type| {
         term_buffer.append_bytes(&[typ.to_code()]);
     };
 
@@ -211,18 +212,16 @@ fn index_json_value<'a, V: Value<'a>>(
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::PreTokStr(_) => {
-                unimplemented!(
-                    "Pre-tokenized string support in dynamic fields is not yet implemented"
-                )
+                unimplemented!("Pre-tokenized string support in JSON fields is not yet implemented")
             }
             ReferenceValueLeaf::Bytes(_) => {
-                unimplemented!("Bytes support in dynamic fields is not yet implemented")
+                unimplemented!("Bytes support in JSON fields is not yet implemented")
             }
             ReferenceValueLeaf::Facet(_) => {
-                unimplemented!("Facet support in dynamic fields is not yet implemented")
+                unimplemented!("Facet support in JSON fields is not yet implemented")
             }
             ReferenceValueLeaf::IpAddr(_) => {
-                unimplemented!("IP address support in dynamic fields is not yet implemented")
+                unimplemented!("IP address support in JSON fields is not yet implemented")
             }
         },
         ReferenceValue::Array(elements) => {

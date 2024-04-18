@@ -109,6 +109,7 @@
 pub mod document;
 mod facet;
 mod facet_options;
+pub(crate) mod indexing_term;
 mod schema;
 pub(crate) mod term;
 
