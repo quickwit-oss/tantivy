@@ -156,13 +156,21 @@ mod tests_mmap {
     }
     #[test]
     fn test_json_field_1byte() {
-        // Test when field name contains a 1 byte, which has special meaning in tantivy.
+        // Test when field name contains a '1' byte, which has special meaning in tantivy.
+        // The 1 byte can be addressed as '1' byte or '.'.
         let field_name_in = "\u{0001}";
         let field_name_out = "\u{0001}";
         test_json_field_name(field_name_in, field_name_out);
 
-        // Test when field name contains a 1 byte, which has special meaning in tantivy.
+        // Test when field name contains a '1' byte, which has special meaning in tantivy.
         let field_name_in = "\u{0001}";
+        let field_name_out = ".";
+        test_json_field_name(field_name_in, field_name_out);
+    }
+    #[test]
+    fn test_json_field_dot() {
+        // Test when field name contains a '.'
+        let field_name_in = ".";
         let field_name_out = ".";
         test_json_field_name(field_name_in, field_name_out);
     }
@@ -205,10 +213,10 @@ mod tests_mmap {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let parse_query = QueryParser::for_index(&index, Vec::new());
-        let test_query = |field_name: &str| {
-            let query = parse_query.parse_query(field_name).unwrap();
+        let test_query = |query_str: &str| {
+            let query = parse_query.parse_query(query_str).unwrap();
             let num_docs = searcher.search(&query, &Count).unwrap();
-            assert_eq!(num_docs, 1);
+            assert_eq!(num_docs, 1, "{}", query_str);
         };
         test_query(format!("json.{field_name_out}:test1").as_str());
         test_query(format!("json.a{field_name_out}:test2").as_str());

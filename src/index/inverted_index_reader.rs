@@ -1,12 +1,13 @@
 use std::io;
 
+use common::json_path_writer::JSON_END_OF_PATH;
 use common::BinarySerializable;
 use fnv::FnvHashSet;
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
-use crate::schema::{IndexRecordOption, Term, Type, JSON_END_OF_PATH};
+use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
