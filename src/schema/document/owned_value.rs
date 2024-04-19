@@ -1,4 +1,4 @@
-use std::collections::{btree_map, BTreeMap};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -45,7 +45,7 @@ pub enum OwnedValue {
     /// A set of values.
     Array(Vec<Self>),
     /// Dynamic object value.
-    Object(BTreeMap<String, Self>),
+    Object(Vec<(String, Self)>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
 }
@@ -148,10 +148,10 @@ impl ValueDeserialize for OwnedValue {
 
             fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
             where A: ObjectAccess<'de> {
-                let mut elements = BTreeMap::new();
+                let mut elements = Vec::new();
 
                 while let Some((key, value)) = access.next_entry()? {
-                    elements.insert(key, value);
+                    elements.push((key, value));
                 }
 
                 Ok(OwnedValue::Object(elements))
@@ -248,12 +248,13 @@ impl<'de> serde::Deserialize<'de> for OwnedValue {
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where A: MapAccess<'de> {
-                let mut object = BTreeMap::new();
-
+                let mut object =
+                    map.size_hint()
+                       .map(Vec::with_capacity)
+                       .unwrap_or_default();
                 while let Some((key, value)) = map.next_entry()? {
-                    object.insert(key, value);
+                    object.push((key, value));
                 }
-
                 Ok(OwnedValue::Object(object))
             }
         }
@@ -363,7 +364,8 @@ impl From<PreTokenizedString> for OwnedValue {
 
 impl From<BTreeMap<String, OwnedValue>> for OwnedValue {
     fn from(object: BTreeMap<String, OwnedValue>) -> OwnedValue {
-        OwnedValue::Object(object)
+        let key_values = object.into_iter().collect();
+        OwnedValue::Object(key_values)
     }
 }
 
@@ -417,18 +419,15 @@ impl From<serde_json::Value> for OwnedValue {
 
 impl From<serde_json::Map<String, serde_json::Value>> for OwnedValue {
     fn from(map: serde_json::Map<String, serde_json::Value>) -> Self {
-        let mut object = BTreeMap::new();
-
-        for (key, value) in map {
-            object.insert(key, OwnedValue::from(value));
-        }
-
+        let object: Vec<(String, OwnedValue)> = map.into_iter()
+            .map(|(key, value)| (key, OwnedValue::from(value)))
+            .collect();
         OwnedValue::Object(object)
     }
 }
 
 /// A wrapper type for iterating over a serde_json object producing reference values.
-pub struct ObjectMapIter<'a>(btree_map::Iter<'a, String, OwnedValue>);
+pub struct ObjectMapIter<'a>(std::slice::Iter<'a, (String, OwnedValue)>);
 
 impl<'a> Iterator for ObjectMapIter<'a> {
     type Item = (&'a str, &'a OwnedValue);
