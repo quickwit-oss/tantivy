@@ -248,10 +248,7 @@ impl<'de> serde::Deserialize<'de> for OwnedValue {
 
             fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
             where A: MapAccess<'de> {
-                let mut object =
-                    map.size_hint()
-                       .map(Vec::with_capacity)
-                       .unwrap_or_default();
+                let mut object = map.size_hint().map(Vec::with_capacity).unwrap_or_default();
                 while let Some((key, value)) = map.next_entry()? {
                     object.push((key, value));
                 }
@@ -419,7 +416,8 @@ impl From<serde_json::Value> for OwnedValue {
 
 impl From<serde_json::Map<String, serde_json::Value>> for OwnedValue {
     fn from(map: serde_json::Map<String, serde_json::Value>) -> Self {
-        let object: Vec<(String, OwnedValue)> = map.into_iter()
+        let object: Vec<(String, OwnedValue)> = map
+            .into_iter()
             .map(|(key, value)| (key, OwnedValue::from(value)))
             .collect();
         OwnedValue::Object(object)
