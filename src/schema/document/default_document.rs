@@ -1,15 +1,16 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::net::Ipv6Addr;
 
-use common::DateTime;
+use common::{BinarySerializable, DateTime, VInt};
 use serde_json::Map;
 
+use crate::schema::document::se::BinaryValueSerializer;
 use crate::schema::document::{
-    DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
+    BinaryDocumentDeserializer, BinaryDocumentSerializer, DeserializeError, Document, DocumentDeserialize, DocumentDeserializer, ReferenceValue, ReferenceValueLeaf
 };
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::field_value::FieldValueIter;
-use crate::schema::{Facet, Field, FieldValue, NamedFieldDocument, OwnedValue, Schema};
+use crate::schema::{Facet, Field, FieldValue, NamedFieldDocument, OwnedValue, Schema, Value};
 use crate::tokenizer::PreTokenizedString;
 
 /// TantivyDocument provides a default implementation of the `Document` trait.
@@ -85,6 +86,36 @@ impl IntoIterator for TantivyDocument {
 }
 
 impl TantivyDocument {
+
+    pub fn to_bytes(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        buffer.clear();
+        let num_field_values = self.field_values.len();
+
+        VInt(num_field_values as u64).serialize(buffer)?;
+        for (field, value_access) in self.iter_fields_and_values() {
+            field.serialize(buffer)?;
+            let mut serializer = BinaryValueSerializer::new(buffer);
+            match value_access.as_value() {
+                ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(pre_tokenized_text)) => {
+                    serializer.serialize_value(ReferenceValue::Leaf::<&'_ OwnedValue>(
+                        ReferenceValueLeaf::Str(&pre_tokenized_text.text),
+                    ))?;
+                }
+                _ => {
+                    serializer.serialize_value(value_access.as_value())?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+
+    pub fn from_bytes(mut payload: &[u8]) -> Self {
+        let deserializer = BinaryDocumentDeserializer::from_reader(&mut payload).unwrap();
+        Self::deserialize(deserializer).unwrap()
+
+    }
+
     /// Creates a new, empty document object
     pub fn new() -> TantivyDocument {
         TantivyDocument::default()
