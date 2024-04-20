@@ -11,7 +11,7 @@ use crate::postings::recorder::{BufferLender, Recorder};
 use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
 };
-use crate::schema::indexing_term::IndexingTerm;
+use crate::schema::indexing_term::{get_field_from_indexing_term, IndexingTerm};
 use crate::schema::{Field, Schema, Type};
 use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
 use crate::DocId;
@@ -61,14 +61,14 @@ pub(crate) fn serialize_postings(
     let mut term_offsets: Vec<(Field, OrderedPathId, &[u8], Addr)> =
         Vec::with_capacity(ctx.term_index.len());
     term_offsets.extend(ctx.term_index.iter().map(|(key, addr)| {
-        let field = IndexingTerm::wrap(key).field();
+        let field = get_field_from_indexing_term(key);
         if schema.get_field_entry(field).field_type().value_type() == Type::Json {
-            let byte_range_path = 5..5 + 4;
+            let byte_range_path = 4..4 + 4;
             let unordered_id = u32::from_be_bytes(key[byte_range_path.clone()].try_into().unwrap());
             let path_id = unordered_id_to_ordered_id[unordered_id as usize];
             (field, path_id, &key[byte_range_path.end..], addr)
         } else {
-            (field, 0.into(), &key[5..], addr)
+            (field, 0.into(), &key[4..], addr)
         }
     }));
     // Sort by field, path, and term
@@ -211,25 +211,28 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
         term: &IndexingTerm,
         ctx: &mut IndexingContext,
     ) {
-        debug_assert!(term.serialized_term().len() >= 4);
+        debug_assert!(term.serialized_for_hashmap().len() >= 4);
         self.total_num_tokens += 1;
         let (term_index, arena) = (&mut ctx.term_index, &mut ctx.arena);
-        term_index.mutate_or_create(term.serialized_term(), |opt_recorder: Option<Rec>| {
-            if let Some(mut recorder) = opt_recorder {
-                let current_doc = recorder.current_doc();
-                if current_doc != doc {
-                    recorder.close_doc(arena);
+        term_index.mutate_or_create(
+            term.serialized_for_hashmap(),
+            |opt_recorder: Option<Rec>| {
+                if let Some(mut recorder) = opt_recorder {
+                    let current_doc = recorder.current_doc();
+                    if current_doc != doc {
+                        recorder.close_doc(arena);
+                        recorder.new_doc(doc, arena);
+                    }
+                    recorder.record_position(position, arena);
+                    recorder
+                } else {
+                    let mut recorder = Rec::default();
                     recorder.new_doc(doc, arena);
+                    recorder.record_position(position, arena);
+                    recorder
                 }
-                recorder.record_position(position, arena);
-                recorder
-            } else {
-                let mut recorder = Rec::default();
-                recorder.new_doc(doc, arena);
-                recorder.record_position(position, arena);
-                recorder
-            }
-        });
+            },
+        );
     }
 
     fn serialize(

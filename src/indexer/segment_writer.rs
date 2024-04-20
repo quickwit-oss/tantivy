@@ -127,7 +127,7 @@ impl SegmentWriter {
             )?,
             doc_opstamps: Vec::with_capacity(1_000),
             per_field_text_analyzers,
-            term_buffer: IndexingTerm::with_capacity(16),
+            term_buffer: IndexingTerm::new(),
             schema,
         })
     }
@@ -196,7 +196,7 @@ impl SegmentWriter {
             let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
             let postings_writer: &mut dyn PostingsWriter =
                 self.per_field_postings_writers.get_for_field_mut(field);
-            term_buffer.clear_with_field_and_type(field_entry.field_type().value_type(), field);
+            term_buffer.clear_with_field(field);
 
             match field_entry.field_type() {
                 FieldType::Facet(_) => {
@@ -272,8 +272,7 @@ impl SegmentWriter {
 
                         num_vals += 1;
                         let date_val = value.as_datetime().ok_or_else(make_schema_error)?;
-                        term_buffer
-                            .set_u64(date_val.truncate(DATE_TIME_PRECISION_INDEXED).to_u64());
+                        term_buffer.set_date(date_val);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                     if field_entry.has_fieldnorms() {
@@ -333,7 +332,7 @@ impl SegmentWriter {
 
                         num_vals += 1;
                         let bytes = value.as_bytes().ok_or_else(make_schema_error)?;
-                        term_buffer.set_bytes(bytes);
+                        term_buffer.set_value_bytes(bytes);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
                     if field_entry.has_fieldnorms() {

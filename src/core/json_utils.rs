@@ -141,9 +141,6 @@ fn index_json_value<'a, V: Value<'a>>(
         term_buffer.truncate_value_bytes(0);
         term_buffer.append_bytes(&unordered_id.to_be_bytes());
     };
-    let set_type = |term_buffer: &mut IndexingTerm, typ: Type| {
-        term_buffer.append_bytes(&[typ.to_code()]);
-    };
 
     match json_value.as_value() {
         ReferenceValue::Leaf(leaf) => match leaf {
@@ -156,7 +153,7 @@ fn index_json_value<'a, V: Value<'a>>(
 
                 // TODO: make sure the chain position works out.
                 set_path_id(term_buffer, unordered_id);
-                set_type(term_buffer, Type::Str);
+                term_buffer.append_bytes(&[Type::Str.to_code()]);
                 let indexing_position = positions_per_path.get_position_from_id(unordered_id);
                 postings_writer.index_text(
                     doc,
@@ -262,8 +259,9 @@ pub(crate) fn convert_to_fast_value_and_append_to_json_term(
 ) -> Option<Term> {
     assert_eq!(
         term.value()
-            .as_json_value_bytes()
+            .as_json()
             .expect("expecting a Term with a json type and json path")
+            .1
             .as_serialized()
             .len(),
         0,
@@ -409,8 +407,8 @@ mod tests {
         term.append_type_and_fast_value(-4i64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc"
+            term.value().as_serialized(),
+            b"jcolor\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc"
         )
     }
 
@@ -421,8 +419,8 @@ mod tests {
         term.append_type_and_fast_value(4u64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00u\x00\x00\x00\x00\x00\x00\x00\x04"
+            term.value().as_serialized(),
+            b"jcolor\x00u\x00\x00\x00\x00\x00\x00\x00\x04"
         )
     }
 
@@ -432,8 +430,8 @@ mod tests {
         let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
         term.append_type_and_fast_value(4.0f64);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00f\xc0\x10\x00\x00\x00\x00\x00\x00"
+            term.value().as_serialized(),
+            b"jcolor\x00f\xc0\x10\x00\x00\x00\x00\x00\x00"
         )
     }
 
@@ -443,8 +441,8 @@ mod tests {
         let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
         term.append_type_and_fast_value(true);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
+            term.value().as_serialized(),
+            b"jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
         )
     }
 

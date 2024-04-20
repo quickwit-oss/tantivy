@@ -3,7 +3,7 @@ use once_cell::sync::OnceCell;
 use tantivy_fst::Automaton;
 
 use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
-use crate::schema::{Term, Type};
+use crate::schema::Term;
 use crate::TantivyError::InvalidArgument;
 
 pub(crate) struct DfaWrapper(pub DFA);
@@ -133,40 +133,33 @@ impl FuzzyTermQuery {
 
         let term_value = self.term.value();
 
-        let term_text = if term_value.typ() == Type::Json {
-            if let Some(json_path_type) = term_value.json_path_type() {
-                if json_path_type != Type::Str {
-                    return Err(InvalidArgument(format!(
-                        "The fuzzy term query requires a string path type for a json term. Found \
-                         {:?}",
-                        json_path_type
-                    )));
-                }
+        let get_automaton = |term_text: &str| {
+            if self.prefix {
+                automaton_builder.build_prefix_dfa(term_text)
+            } else {
+                automaton_builder.build_dfa(term_text)
             }
-
-            std::str::from_utf8(self.term.serialized_value_bytes()).map_err(|_| {
-                InvalidArgument(
-                    "Failed to convert json term value bytes to utf8 string.".to_string(),
-                )
-            })?
-        } else {
-            term_value.as_str().ok_or_else(|| {
-                InvalidArgument("The fuzzy term query requires a string term.".to_string())
-            })?
-        };
-        let automaton = if self.prefix {
-            automaton_builder.build_prefix_dfa(term_text)
-        } else {
-            automaton_builder.build_dfa(term_text)
         };
 
-        if let Some((json_path_bytes, _)) = term_value.as_json() {
+        if let Some((json_path_bytes, _term_value)) = term_value.as_json() {
+            let term_text =
+                std::str::from_utf8(self.term.serialized_value_bytes()).map_err(|_| {
+                    InvalidArgument(
+                        "Failed to convert json term value bytes to utf8 string.".to_string(),
+                    )
+                })?;
+
+            let automaton = get_automaton(term_text);
             Ok(AutomatonWeight::new_for_json_path(
                 self.term.field(),
                 DfaWrapper(automaton),
                 json_path_bytes,
             ))
         } else {
+            let term_text = term_value.as_str().ok_or_else(|| {
+                InvalidArgument("The fuzzy term query requires a string term.".to_string())
+            })?;
+            let automaton = get_automaton(term_text);
             Ok(AutomatonWeight::new(
                 self.term.field(),
                 DfaWrapper(automaton),
