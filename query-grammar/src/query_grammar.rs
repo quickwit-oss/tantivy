@@ -3,11 +3,11 @@ use std::iter::once;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{
-    anychar, char, digit1, none_of, one_of, satisfy, space0, space1, u32,
+    anychar, char, digit1, multispace0, multispace1, none_of, one_of, satisfy, u32,
 };
 use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
 use nom::error::{Error, ErrorKind};
-use nom::multi::{many0, many1, separated_list0, separated_list1};
+use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
@@ -65,7 +65,7 @@ fn word_infallible(delimiter: &str) -> impl Fn(&str) -> JResult<&str, Option<&st
     |inp| {
         opt_i_err(
             preceded(
-                space0,
+                multispace0,
                 recognize(many1(satisfy(|c| {
                     !c.is_whitespace() && !delimiter.contains(c)
                 }))),
@@ -218,27 +218,14 @@ fn term_or_phrase_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> 
 }
 
 fn term_group(inp: &str) -> IResult<&str, UserInputAst> {
-    let occur_symbol = alt((
-        value(Occur::MustNot, char('-')),
-        value(Occur::Must, char('+')),
-    ));
-
     map(
         tuple((
-            terminated(field_name, space0),
-            delimited(
-                tuple((char('('), space0)),
-                separated_list0(space1, tuple((opt(occur_symbol), term_or_phrase))),
-                char(')'),
-            ),
+            terminated(field_name, multispace0),
+            delimited(tuple((char('('), multispace0)), ast, char(')')),
         )),
-        |(field_name, terms)| {
-            UserInputAst::Clause(
-                terms
-                    .into_iter()
-                    .map(|(occur, leaf)| (occur, leaf.set_field(Some(field_name.clone())).into()))
-                    .collect(),
-            )
+        |(field_name, mut ast)| {
+            ast.set_default_field(field_name);
+            ast
         },
     )(inp)
 }
@@ -250,7 +237,7 @@ fn term_group_precond(inp: &str) -> IResult<&str, (), ()> {
         (),
         peek(tuple((
             field_name,
-            space0,
+            multispace0,
             char('('), // when we are here, we know it can't be anything but a term group
         ))),
     )(inp)
@@ -258,46 +245,18 @@ fn term_group_precond(inp: &str) -> IResult<&str, (), ()> {
 }
 
 fn term_group_infallible(inp: &str) -> JResult<&str, UserInputAst> {
-    let (mut inp, (field_name, _, _, _)) =
-        tuple((field_name, space0, char('('), space0))(inp).expect("precondition failed");
+    let (inp, (field_name, _, _, _)) =
+        tuple((field_name, multispace0, char('('), multispace0))(inp).expect("precondition failed");
 
-    let mut terms = Vec::new();
-    let mut errs = Vec::new();
-
-    let mut first_round = true;
-    loop {
-        let mut space_error = if first_round {
-            first_round = false;
-            Vec::new()
-        } else {
-            let (rest, (_, err)) = space1_infallible(inp)?;
-            inp = rest;
-            err
-        };
-        if inp.is_empty() {
-            errs.push(LenientErrorInternal {
-                pos: inp.len(),
-                message: "missing )".to_string(),
-            });
-            break Ok((inp, (UserInputAst::Clause(terms), errs)));
-        }
-        if let Some(inp) = inp.strip_prefix(')') {
-            break Ok((inp, (UserInputAst::Clause(terms), errs)));
-        }
-        // only append missing space error if we did not reach the end of group
-        errs.append(&mut space_error);
-
-        // here we do the assumption term_or_phrase_infallible always consume something if the
-        // first byte is not `)` or ' '. If it did not, we would end up looping.
-
-        let (rest, ((occur, leaf), mut err)) =
-            tuple_infallible((occur_symbol, term_or_phrase_infallible))(inp)?;
-        errs.append(&mut err);
-        if let Some(leaf) = leaf {
-            terms.push((occur, leaf.set_field(Some(field_name.clone())).into()));
-        }
-        inp = rest;
-    }
+    let res = delimited_infallible(
+        nothing,
+        map(ast_infallible, |(mut ast, errors)| {
+            ast.set_default_field(field_name.to_string());
+            (ast, errors)
+        }),
+        opt_i_err(char(')'), "expected ')'"),
+    )(inp);
+    res
 }
 
 fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
@@ -305,7 +264,7 @@ fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
         UserInputLeaf::Exists {
             field: String::new(),
         },
-        tuple((space0, char('*'))),
+        tuple((multispace0, char('*'))),
     )(inp)
 }
 
@@ -314,7 +273,7 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
         (),
         peek(tuple((
             field_name,
-            space0,
+            multispace0,
             char('*'), // when we are here, we know it can't be anything but a exists
         ))),
     )(inp)
@@ -323,7 +282,7 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
 
 fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     let (inp, (field_name, _, _)) =
-        tuple((field_name, space0, char('*')))(inp).expect("precondition failed");
+        tuple((field_name, multispace0, char('*')))(inp).expect("precondition failed");
 
     let exists = UserInputLeaf::Exists { field: field_name }.into();
     Ok((inp, (exists, Vec::new())))
@@ -349,7 +308,7 @@ fn literal_no_group_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>>
             alt_infallible(
                 (
                     (
-                        value((), tuple((tag("IN"), space0, char('[')))),
+                        value((), tuple((tag("IN"), multispace0, char('[')))),
                         map(set_infallible, |(set, errs)| (Some(set), errs)),
                     ),
                     (
@@ -430,8 +389,8 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
     // check for unbounded range in the form of <5, <=10, >5, >=5
     let elastic_unbounded_range = map(
         tuple((
-            preceded(space0, alt((tag(">="), tag("<="), tag("<"), tag(">")))),
-            preceded(space0, range_term_val()),
+            preceded(multispace0, alt((tag(">="), tag("<="), tag("<"), tag(">")))),
+            preceded(multispace0, range_term_val()),
         )),
         |(comparison_sign, bound)| match comparison_sign {
             ">=" => (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
@@ -444,7 +403,7 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
     );
 
     let lower_bound = map(
-        separated_pair(one_of("{["), space0, range_term_val()),
+        separated_pair(one_of("{["), multispace0, range_term_val()),
         |(boundary_char, lower_bound)| {
             if lower_bound == "*" {
                 UserInputBound::Unbounded
@@ -457,7 +416,7 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
     );
 
     let upper_bound = map(
-        separated_pair(range_term_val(), space0, one_of("}]")),
+        separated_pair(range_term_val(), multispace0, one_of("}]")),
         |(upper_bound, boundary_char)| {
             if upper_bound == "*" {
                 UserInputBound::Unbounded
@@ -469,8 +428,11 @@ fn range(inp: &str) -> IResult<&str, UserInputLeaf> {
         },
     );
 
-    let lower_to_upper =
-        separated_pair(lower_bound, tuple((space1, tag("TO"), space1)), upper_bound);
+    let lower_to_upper = separated_pair(
+        lower_bound,
+        tuple((multispace1, tag("TO"), multispace1)),
+        upper_bound,
+    );
 
     map(
         alt((elastic_unbounded_range, lower_to_upper)),
@@ -490,13 +452,16 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
             word_infallible("]}"),
             space1_infallible,
             opt_i_err(
-                terminated(tag("TO"), alt((value((), space1), value((), eof)))),
+                terminated(tag("TO"), alt((value((), multispace1), value((), eof)))),
                 "missing keyword TO",
             ),
             word_infallible("]}"),
             opt_i_err(one_of("]}"), "missing range delimiter"),
         )),
-        |((lower_bound_kind, _space0, lower, _space1, to, upper, upper_bound_kind), errs)| {
+        |(
+            (lower_bound_kind, _multispace0, lower, _multispace1, to, upper, upper_bound_kind),
+            errs,
+        )| {
             let lower_bound = match (lower_bound_kind, lower) {
                 (_, Some("*")) => UserInputBound::Unbounded,
                 (_, None) => UserInputBound::Unbounded,
@@ -596,10 +561,10 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
 fn set(inp: &str) -> IResult<&str, UserInputLeaf> {
     map(
         preceded(
-            tuple((space0, tag("IN"), space1)),
+            tuple((multispace0, tag("IN"), multispace1)),
             delimited(
-                tuple((char('['), space0)),
-                separated_list0(space1, map(simple_term, |(_, term)| term)),
+                tuple((char('['), multispace0)),
+                separated_list0(multispace1, map(simple_term, |(_, term)| term)),
                 char(']'),
             ),
         ),
@@ -667,7 +632,7 @@ fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
     alt((
         delimited(char('('), ast, char(')')),
         map(char('*'), |_| UserInputAst::from(UserInputLeaf::All)),
-        map(preceded(tuple((tag("NOT"), space1)), leaf), negate),
+        map(preceded(tuple((tag("NOT"), multispace1)), leaf), negate),
         literal,
     ))(inp)
 }
@@ -780,27 +745,23 @@ fn binary_operand(inp: &str) -> IResult<&str, BinaryOperand> {
 }
 
 fn aggregate_binary_expressions(
-    left: UserInputAst,
-    others: Vec<(BinaryOperand, UserInputAst)>,
-) -> UserInputAst {
-    let mut dnf: Vec<Vec<UserInputAst>> = vec![vec![left]];
-    for (operator, operand_ast) in others {
-        match operator {
-            BinaryOperand::And => {
-                if let Some(last) = dnf.last_mut() {
-                    last.push(operand_ast);
-                }
-            }
-            BinaryOperand::Or => {
-                dnf.push(vec![operand_ast]);
-            }
-        }
-    }
-    if dnf.len() == 1 {
-        UserInputAst::and(dnf.into_iter().next().unwrap()) //< safe
+    left: (Option<Occur>, UserInputAst),
+    others: Vec<(Option<BinaryOperand>, Option<Occur>, UserInputAst)>,
+) -> Result<UserInputAst, LenientErrorInternal> {
+    let mut leafs = Vec::with_capacity(others.len() + 1);
+    leafs.push((None, left.0, Some(left.1)));
+    leafs.extend(
+        others
+            .into_iter()
+            .map(|(operand, occur, ast)| (operand, occur, Some(ast))),
+    );
+    // the parameters we pass should statically guarantee we can't get errors
+    // (no prefix BinaryOperand is provided)
+    let (res, mut errors) = aggregate_infallible_expressions(leafs);
+    if errors.is_empty() {
+        Ok(res)
     } else {
-        let conjunctions = dnf.into_iter().map(UserInputAst::and).collect();
-        UserInputAst::or(conjunctions)
+        Err(errors.swap_remove(0))
     }
 }
 
@@ -816,30 +777,10 @@ fn aggregate_infallible_expressions(
         return (UserInputAst::empty_query(), err);
     }
 
-    let use_operand = leafs.iter().any(|(operand, _, _)| operand.is_some());
-    let all_operand = leafs
-        .iter()
-        .skip(1)
-        .all(|(operand, _, _)| operand.is_some());
     let early_operand = leafs
         .iter()
         .take(1)
         .all(|(operand, _, _)| operand.is_some());
-    let use_occur = leafs.iter().any(|(_, occur, _)| occur.is_some());
-
-    if use_operand && use_occur {
-        err.push(LenientErrorInternal {
-            pos: 0,
-            message: "Use of mixed occur and boolean operator".to_string(),
-        });
-    }
-
-    if use_operand && !all_operand {
-        err.push(LenientErrorInternal {
-            pos: 0,
-            message: "Missing boolean operator".to_string(),
-        });
-    }
 
     if early_operand {
         err.push(LenientErrorInternal {
@@ -866,7 +807,15 @@ fn aggregate_infallible_expressions(
                     Some(BinaryOperand::And) => Some(Occur::Must),
                     _ => Some(Occur::Should),
                 };
-                clauses.push(vec![(occur.or(default_op), ast.clone())]);
+                if occur == &Some(Occur::MustNot) && default_op == Some(Occur::Should) {
+                    // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                    clauses.push(vec![(
+                        Some(Occur::Should),
+                        ast.clone().unary(Occur::MustNot),
+                    )])
+                } else {
+                    clauses.push(vec![(occur.or(default_op), ast.clone())]);
+                }
             }
             None => {
                 let default_op = match next_operator {
@@ -874,7 +823,15 @@ fn aggregate_infallible_expressions(
                     Some(BinaryOperand::Or) => Some(Occur::Should),
                     None => None,
                 };
-                clauses.push(vec![(occur.or(default_op), ast.clone())])
+                if occur == &Some(Occur::MustNot) && default_op == Some(Occur::Should) {
+                    // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                    clauses.push(vec![(
+                        Some(Occur::Should),
+                        ast.clone().unary(Occur::MustNot),
+                    )])
+                } else {
+                    clauses.push(vec![(occur.or(default_op), ast.clone())])
+                }
             }
         }
     }
@@ -891,7 +848,12 @@ fn aggregate_infallible_expressions(
             }
         }
         Some(BinaryOperand::Or) => {
-            clauses.push(vec![(last_occur.or(Some(Occur::Should)), last_ast)]);
+            if last_occur == Some(Occur::MustNot) {
+                // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                clauses.push(vec![(Some(Occur::Should), last_ast.unary(Occur::MustNot))]);
+            } else {
+                clauses.push(vec![(last_occur.or(Some(Occur::Should)), last_ast)]);
+            }
         }
         None => clauses.push(vec![(last_occur, last_ast)]),
     }
@@ -917,35 +879,29 @@ fn aggregate_infallible_expressions(
     }
 }
 
-fn operand_leaf(inp: &str) -> IResult<&str, (BinaryOperand, UserInputAst)> {
-    tuple((
-        terminated(binary_operand, space0),
-        terminated(boosted_leaf, space0),
-    ))(inp)
+fn operand_leaf(inp: &str) -> IResult<&str, (Option<BinaryOperand>, Option<Occur>, UserInputAst)> {
+    map(
+        tuple((
+            terminated(opt(binary_operand), multispace0),
+            terminated(occur_leaf, multispace0),
+        )),
+        |(operand, (occur, ast))| (operand, occur, ast),
+    )(inp)
 }
 
 fn ast(inp: &str) -> IResult<&str, UserInputAst> {
-    let boolean_expr = map(
-        separated_pair(boosted_leaf, space1, many1(operand_leaf)),
+    let boolean_expr = map_res(
+        separated_pair(occur_leaf, multispace1, many1(operand_leaf)),
         |(left, right)| aggregate_binary_expressions(left, right),
     );
-    let whitespace_separated_leaves = map(separated_list1(space1, occur_leaf), |subqueries| {
-        if subqueries.len() == 1 {
-            let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
-            match occur_opt.unwrap_or(Occur::Should) {
-                Occur::Must | Occur::Should => ast,
-                Occur::MustNot => UserInputAst::Clause(vec![(Some(Occur::MustNot), ast)]),
-            }
+    let single_leaf = map(occur_leaf, |(occur, ast)| {
+        if occur == Some(Occur::MustNot) {
+            ast.unary(Occur::MustNot)
         } else {
-            UserInputAst::Clause(subqueries.into_iter().collect())
+            ast
         }
     });
-
-    delimited(
-        space0,
-        alt((boolean_expr, whitespace_separated_leaves)),
-        space0,
-    )(inp)
+    delimited(multispace0, alt((boolean_expr, single_leaf)), multispace0)(inp)
 }
 
 fn ast_infallible(inp: &str) -> JResult<&str, UserInputAst> {
@@ -969,7 +925,7 @@ fn ast_infallible(inp: &str) -> JResult<&str, UserInputAst> {
 }
 
 pub fn parse_to_ast(inp: &str) -> IResult<&str, UserInputAst> {
-    map(delimited(space0, opt(ast), eof), |opt_ast| {
+    map(delimited(multispace0, opt(ast), eof), |opt_ast| {
         rewrite_ast(opt_ast.unwrap_or_else(UserInputAst::empty_query))
     })(inp)
 }
@@ -1145,24 +1101,43 @@ mod test {
     #[test]
     fn test_parse_query_to_ast_binary_op() {
         test_parse_query_to_ast_helper("a AND b", "(+a +b)");
+        test_parse_query_to_ast_helper("a\nAND b", "(+a +b)");
         test_parse_query_to_ast_helper("a OR b", "(?a ?b)");
         test_parse_query_to_ast_helper("a OR b AND c", "(?a ?(+b +c))");
         test_parse_query_to_ast_helper("a AND b         AND c", "(+a +b +c)");
-        test_is_parse_err("a OR b aaa", "(?a ?b *aaa)");
-        test_is_parse_err("a AND b aaa", "(?(+a +b) *aaa)");
-        test_is_parse_err("aaa a OR b ", "(*aaa ?a ?b)");
-        test_is_parse_err("aaa ccc a OR b ", "(*aaa *ccc ?a ?b)");
-        test_is_parse_err("aaa a AND b ", "(*aaa ?(+a +b))");
-        test_is_parse_err("aaa ccc a AND b ", "(*aaa *ccc ?(+a +b))");
+        test_parse_query_to_ast_helper("a OR b aaa", "(?a ?b *aaa)");
+        test_parse_query_to_ast_helper("a AND b aaa", "(?(+a +b) *aaa)");
+        test_parse_query_to_ast_helper("aaa a OR b ", "(*aaa ?a ?b)");
+        test_parse_query_to_ast_helper("aaa ccc a OR b ", "(*aaa *ccc ?a ?b)");
+        test_parse_query_to_ast_helper("aaa a AND b ", "(*aaa ?(+a +b))");
+        test_parse_query_to_ast_helper("aaa ccc a AND b ", "(*aaa *ccc ?(+a +b))");
     }
 
     #[test]
     fn test_parse_mixed_bool_occur() {
-        test_is_parse_err("a OR b +aaa", "(?a ?b +aaa)");
-        test_is_parse_err("a AND b -aaa", "(?(+a +b) -aaa)");
-        test_is_parse_err("+a OR +b aaa", "(+a +b *aaa)");
-        test_is_parse_err("-a AND -b aaa", "(?(-a -b) *aaa)");
-        test_is_parse_err("-aaa +ccc -a OR b ", "(-aaa +ccc -a ?b)");
+        test_parse_query_to_ast_helper("+a OR +b", "(+a +b)");
+
+        test_parse_query_to_ast_helper("a AND -b", "(+a -b)");
+        test_parse_query_to_ast_helper("-a AND b", "(-a +b)");
+        test_parse_query_to_ast_helper("a AND NOT b", "(+a +(-b))");
+        test_parse_query_to_ast_helper("NOT a AND b", "(+(-a) +b)");
+
+        test_parse_query_to_ast_helper("a AND NOT b AND c", "(+a +(-b) +c)");
+        test_parse_query_to_ast_helper("a AND -b AND c", "(+a -b +c)");
+
+        test_parse_query_to_ast_helper("a OR -b", "(?a ?(-b))");
+        test_parse_query_to_ast_helper("-a OR b", "(?(-a) ?b)");
+        test_parse_query_to_ast_helper("a OR NOT b", "(?a ?(-b))");
+        test_parse_query_to_ast_helper("NOT a OR b", "(?(-a) ?b)");
+
+        test_parse_query_to_ast_helper("a OR NOT b OR c", "(?a ?(-b) ?c)");
+        test_parse_query_to_ast_helper("a OR -b OR c", "(?a ?(-b) ?c)");
+
+        test_parse_query_to_ast_helper("a OR b +aaa", "(?a ?b +aaa)");
+        test_parse_query_to_ast_helper("a AND b -aaa", "(?(+a +b) -aaa)");
+        test_parse_query_to_ast_helper("+a OR +b aaa", "(+a +b *aaa)");
+        test_parse_query_to_ast_helper("-a AND -b aaa", "(?(-a -b) *aaa)");
+        test_parse_query_to_ast_helper("-aaa +ccc -a OR b ", "(-aaa +ccc ?(-a) ?b)");
     }
 
     #[test]
@@ -1452,8 +1427,18 @@ mod test {
 
     #[test]
     fn test_parse_query_term_group() {
-        test_parse_query_to_ast_helper(r#"field:(abc)"#, r#"(*"field":abc)"#);
+        test_parse_query_to_ast_helper(r#"field:(abc)"#, r#""field":abc"#);
         test_parse_query_to_ast_helper(r#"field:(+a -"b c")"#, r#"(+"field":a -"field":"b c")"#);
+        test_parse_query_to_ast_helper(r#"field:(a AND "b c")"#, r#"(+"field":a +"field":"b c")"#);
+        test_parse_query_to_ast_helper(r#"field:(a OR "b c")"#, r#"(?"field":a ?"field":"b c")"#);
+        test_parse_query_to_ast_helper(
+            r#"field:(a OR (b AND c))"#,
+            r#"(?"field":a ?(+"field":b +"field":c))"#,
+        );
+        test_parse_query_to_ast_helper(
+            r#"field:(a [b TO c])"#,
+            r#"(*"field":a *"field":["b" TO "c"])"#,
+        );
 
         test_is_parse_err(r#"field:(+a -"b c""#, r#"(+"field":a -"field":"b c")"#);
     }

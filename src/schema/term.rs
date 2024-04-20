@@ -1,24 +1,15 @@
-use std::convert::TryInto;
 use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::{fmt, str};
 
 use columnar::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP_STR};
 
 use super::date_time_options::DATE_TIME_PRECISION_INDEXED;
 use super::Field;
 use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
 use crate::DateTime;
-
-/// Separates the different segments of a json path.
-pub const JSON_PATH_SEGMENT_SEP: u8 = 1u8;
-pub const JSON_PATH_SEGMENT_SEP_STR: &str =
-    unsafe { std::str::from_utf8_unchecked(&[JSON_PATH_SEGMENT_SEP]) };
-
-/// Separates the json path and the value in
-/// a JSON term binary representation.
-pub const JSON_END_OF_PATH: u8 = 0u8;
 
 /// Term represents the value that the token can take.
 /// It's a serialized representation over different types.
@@ -170,6 +161,10 @@ impl Term {
         self.set_bytes(val.to_u64().to_be_bytes().as_ref());
     }
 
+    /// Append a type marker + fast value to a term.
+    /// This is used in JSON type to append a fast value after the path.
+    ///
+    /// It will not clear existing bytes.
     pub(crate) fn append_type_and_fast_value<T: FastValue>(&mut self, val: T) {
         self.0.push(T::to_type().to_code());
         let value = if T::to_type() == Type::Date {
@@ -182,6 +177,15 @@ impl Term {
         self.0.extend(value.to_be_bytes().as_ref());
     }
 
+    /// Append a string type marker + string to a term.
+    /// This is used in JSON type to append a str after the path.
+    ///
+    /// It will not clear existing bytes.
+    pub(crate) fn append_type_and_str(&mut self, val: &str) {
+        self.0.push(Type::Str.to_code());
+        self.0.extend(val.as_bytes().as_ref());
+    }
+
     /// Sets a `Ipv6Addr` value in the term.
     pub fn set_ip_addr(&mut self, val: Ipv6Addr) {
         self.set_bytes(val.to_u128().to_be_bytes().as_ref());
@@ -191,11 +195,6 @@ impl Term {
     pub fn set_bytes(&mut self, bytes: &[u8]) {
         self.truncate_value_bytes(0);
         self.0.extend(bytes);
-    }
-
-    /// Set the texts only, keeping the field untouched.
-    pub fn set_text(&mut self, text: &str) {
-        self.set_bytes(text.as_bytes());
     }
 
     /// Truncates the value bytes of the term. Value and field type stays the same.
@@ -218,25 +217,21 @@ impl Term {
         &mut self.0[len_before..]
     }
 
-    /// Appends a JSON_PATH_SEGMENT_SEP to the term.
-    /// Only used for JSON type.
+    /// Appends json path bytes to the Term.
+    /// If the path contains 0 bytes, they are replaced by a "0" string.
+    /// The 0 byte is used to mark the end of the path.
+    ///
+    /// This function returns the segment that has just been added.
     #[inline]
-    pub fn add_json_path_separator(&mut self) {
-        self.0.push(JSON_PATH_SEGMENT_SEP);
-    }
-    /// Sets the current end to JSON_END_OF_PATH.
-    /// Only used for JSON type.
-    #[inline]
-    pub fn set_json_path_end(&mut self) {
-        let buffer_len = self.0.len();
-        self.0[buffer_len - 1] = JSON_END_OF_PATH;
-    }
-    /// Sets the current end to JSON_PATH_SEGMENT_SEP.
-    /// Only used for JSON type.
-    #[inline]
-    pub fn set_json_path_separator(&mut self) {
-        let buffer_len = self.0.len();
-        self.0[buffer_len - 1] = JSON_PATH_SEGMENT_SEP;
+    pub fn append_path(&mut self, bytes: &[u8]) -> &mut [u8] {
+        let len_before = self.0.len();
+        if bytes.contains(&0u8) {
+            self.0
+                .extend(bytes.iter().map(|&b| if b == 0 { b'0' } else { b }));
+        } else {
+            self.0.extend_from_slice(bytes);
+        }
+        &mut self.0[len_before..]
     }
 }
 

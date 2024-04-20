@@ -23,6 +23,10 @@ mod min;
 mod percentiles;
 mod stats;
 mod sum;
+mod top_hits;
+
+use std::collections::HashMap;
+
 pub use average::*;
 pub use count::*;
 pub use max::*;
@@ -32,6 +36,9 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 pub use stats::*;
 pub use sum::*;
+pub use top_hits::*;
+
+use crate::schema::OwnedValue;
 
 /// Single-metric aggregations use this common result structure.
 ///
@@ -79,6 +86,28 @@ pub struct PercentileValuesVecEntry {
 pub struct PercentilesMetricResult {
     /// The result of the percentile metric.
     pub values: PercentileValues,
+}
+
+/// The top_hits metric results entry
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TopHitsVecEntry {
+    /// The sort values of the document, depending on the sort criteria in the request.
+    pub sort: Vec<Option<u64>>,
+
+    /// Search results, for queries that include field retrieval requests
+    /// (`docvalue_fields`).
+    #[serde(rename = "docvalue_fields")]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub doc_value_fields: HashMap<String, OwnedValue>,
+}
+
+/// The top_hits metric aggregation results a list of top hits by sort criteria.
+///
+/// The main reason for wrapping it in `hits` is to match elasticsearch output structure.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TopHitsMetricResult {
+    /// The result of the top_hits metric.
+    pub hits: Vec<TopHitsVecEntry>,
 }
 
 #[cfg(test)]

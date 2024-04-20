@@ -4,6 +4,7 @@ use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
+use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
 use crate::aggregation::segment_agg_result::AggregationLimits;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
@@ -66,6 +67,22 @@ fn test_aggregation_flushing(
             }
         }
     },
+    "top_hits_test":{
+        "terms": {
+            "field": "string_id"
+        },
+        "aggs": {
+            "bucketsL2": {
+                "top_hits": {
+                    "size": 2,
+                    "sort": [
+                        { "score": "asc" }
+                    ],
+                    "docvalue_fields": ["score"]
+                }
+            }
+        }
+    },
     "histogram_test":{
         "histogram": {
             "field": "score",
@@ -108,6 +125,16 @@ fn test_aggregation_flushing(
 
         let searcher = reader.searcher();
         let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();
+
+        // Test postcard roundtrip serialization
+        let intermediate_agg_result_bytes = postcard::to_allocvec(&intermediate_agg_result).expect(
+            "Postcard Serialization failed, flatten etc. is not supported in the intermediate \
+             result",
+        );
+        let intermediate_agg_result: IntermediateAggregationResults =
+            postcard::from_bytes(&intermediate_agg_result_bytes)
+                .expect("Post deserialization failed");
+
         intermediate_agg_result
             .into_final_result(agg_req, &Default::default())
             .unwrap()
@@ -591,6 +618,9 @@ fn test_aggregation_on_json_object() {
         .add_document(doc!(json => json!({"color": "red"})))
         .unwrap();
     index_writer
+        .add_document(doc!(json => json!({"color": "red"})))
+        .unwrap();
+    index_writer
         .add_document(doc!(json => json!({"color": "blue"})))
         .unwrap();
     index_writer.commit().unwrap();
@@ -614,8 +644,8 @@ fn test_aggregation_on_json_object() {
         &serde_json::json!({
             "jsonagg": {
                 "buckets": [
+                    {"doc_count": 2, "key": "red"},
                     {"doc_count": 1, "key": "blue"},
-                    {"doc_count": 1, "key": "red"}
                 ],
                 "doc_count_error_upper_bound": 0,
                 "sum_other_doc_count": 0
@@ -633,6 +663,9 @@ fn test_aggregation_on_nested_json_object() {
     let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
     index_writer
         .add_document(doc!(json => json!({"color.dot": "red", "color": {"nested":"red"} })))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"color.dot": "blue", "color": {"nested":"blue"} })))
         .unwrap();
     index_writer
         .add_document(doc!(json => json!({"color.dot": "blue", "color": {"nested":"blue"} })))
@@ -664,7 +697,7 @@ fn test_aggregation_on_nested_json_object() {
         &serde_json::json!({
             "jsonagg1": {
                 "buckets": [
-                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 2, "key": "blue"},
                     {"doc_count": 1, "key": "red"}
                 ],
                 "doc_count_error_upper_bound": 0,
@@ -672,7 +705,7 @@ fn test_aggregation_on_nested_json_object() {
             },
             "jsonagg2": {
                 "buckets": [
-                    {"doc_count": 1, "key": "blue"},
+                    {"doc_count": 2, "key": "blue"},
                     {"doc_count": 1, "key": "red"}
                 ],
                 "doc_count_error_upper_bound": 0,
@@ -810,29 +843,38 @@ fn test_aggregation_on_json_object_mixed_types() {
     let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
     // => Segment with all values numeric
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": 10.0})))
+        .add_document(doc!(json => json!({"mixed_type": 10.0, "mixed_price": 10.0})))
         .unwrap();
     index_writer.commit().unwrap();
     // => Segment with all values text
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": "blue"})))
+        .add_document(doc!(json => json!({"mixed_type": "blue", "mixed_price": 5.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": "blue", "mixed_price": 5.0})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": "blue", "mixed_price": 5.0})))
         .unwrap();
     index_writer.commit().unwrap();
     // => Segment with all boolen
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": true})))
+        .add_document(doc!(json => json!({"mixed_type": true, "mixed_price": "no_price"})))
         .unwrap();
     index_writer.commit().unwrap();
 
     // => Segment with mixed values
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": "red"})))
+        .add_document(doc!(json => json!({"mixed_type": "red", "mixed_price": 1.0})))
         .unwrap();
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": -20.5})))
+        .add_document(doc!(json => json!({"mixed_type": "red", "mixed_price": 1.0})))
         .unwrap();
     index_writer
-        .add_document(doc!(json => json!({"mixed_type": true})))
+        .add_document(doc!(json => json!({"mixed_type": -20.5, "mixed_price": -20.5})))
+        .unwrap();
+    index_writer
+        .add_document(doc!(json => json!({"mixed_type": true, "mixed_price": "no_price"})))
         .unwrap();
 
     index_writer.commit().unwrap();
@@ -846,7 +888,7 @@ fn test_aggregation_on_json_object_mixed_types() {
                 "order": { "min_price": "desc" }
             },
             "aggs": {
-                "min_price": { "min": { "field": "json.mixed_type" } }
+                "min_price": { "min": { "field": "json.mixed_price" } }
             }
         },
         "rangeagg": {
@@ -870,6 +912,7 @@ fn test_aggregation_on_json_object_mixed_types() {
 
     let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
     let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    use pretty_assertions::assert_eq;
     assert_eq!(
         &aggregation_res_json,
         &serde_json::json!({
@@ -884,10 +927,10 @@ fn test_aggregation_on_json_object_mixed_types() {
           "termagg": {
             "buckets": [
               { "doc_count": 1, "key": 10.0, "min_price": { "value": 10.0 } },
+              { "doc_count": 3, "key": "blue", "min_price": { "value": 5.0 } },
+              { "doc_count": 2, "key": "red", "min_price": { "value": 1.0 } },
               { "doc_count": 1, "key": -20.5, "min_price": { "value": -20.5 } },
-              // TODO bool is also not yet handled in aggregation
-              { "doc_count": 1, "key": "blue", "min_price": { "value": null } },
-              { "doc_count": 1, "key": "red", "min_price": { "value": null } },
+              { "doc_count": 2, "key": 1.0, "key_as_string": "true", "min_price": { "value": null } },
             ],
             "sum_other_doc_count": 0
           }

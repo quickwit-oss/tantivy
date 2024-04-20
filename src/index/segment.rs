@@ -2,9 +2,9 @@ use std::fmt;
 use std::path::PathBuf;
 
 use super::SegmentComponent;
-use crate::core::{Index, SegmentId, SegmentMeta};
 use crate::directory::error::{OpenReadError, OpenWriteError};
 use crate::directory::{Directory, FileSlice, WritePtr};
+use crate::index::{Index, SegmentId, SegmentMeta};
 use crate::schema::Schema;
 use crate::Opstamp;
 

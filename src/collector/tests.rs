@@ -1,15 +1,11 @@
 use columnar::{BytesColumn, Column};
 
 use super::*;
-use crate::collector::{Count, FilterCollector, TopDocs};
-use crate::core::SegmentReader;
 use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Schema, FAST, TEXT};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
-use crate::{
-    doc, DateTime, DocAddress, DocId, Index, Score, Searcher, SegmentOrdinal, TantivyDocument,
-};
+use crate::{DateTime, DocAddress, Index, Searcher, TantivyDocument};
 
 pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {
     compute_score: true,

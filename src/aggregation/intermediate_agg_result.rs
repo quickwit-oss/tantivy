@@ -5,6 +5,7 @@
 use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
+use std::net::Ipv6Addr;
 
 use columnar::ColumnType;
 use itertools::Itertools;
@@ -19,7 +20,7 @@ use super::bucket::{
 };
 use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateExtendedStats, IntermediateMax,
-    IntermediateMin, IntermediateStats, IntermediateSum, PercentilesCollector,
+    IntermediateMin, IntermediateStats, IntermediateSum, PercentilesCollector, TopHitsTopNComputer,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::{format_date, AggregationError, Key, SerializedKey};
@@ -41,6 +42,10 @@ pub struct IntermediateAggregationResults {
 /// This might seem redundant with `Key`, but the point is to have a different
 /// Serialize implementation.
 pub enum IntermediateKey {
+    /// Ip Addr key
+    IpAddr(Ipv6Addr),
+    /// Bool key
+    Bool(bool),
     /// String key
     Str(String),
     /// `f64` key
@@ -58,7 +63,16 @@ impl From<IntermediateKey> for Key {
     fn from(value: IntermediateKey) -> Self {
         match value {
             IntermediateKey::Str(s) => Self::Str(s),
+            IntermediateKey::IpAddr(s) => {
+                // Prefer to use the IPv4 representation if possible
+                if let Some(ip) = s.to_ipv4_mapped() {
+                    Self::Str(ip.to_string())
+                } else {
+                    Self::Str(s.to_string())
+                }
+            }
             IntermediateKey::F64(f) => Self::F64(f),
+            IntermediateKey::Bool(f) => Self::F64(f as u64 as f64),
         }
     }
 }
@@ -71,6 +85,8 @@ impl std::hash::Hash for IntermediateKey {
         match self {
             IntermediateKey::Str(text) => text.hash(state),
             IntermediateKey::F64(val) => val.to_bits().hash(state),
+            IntermediateKey::Bool(val) => val.hash(state),
+            IntermediateKey::IpAddr(val) => val.hash(state),
         }
     }
 }
@@ -166,9 +182,9 @@ impl IntermediateAggregationResults {
 pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult {
     use AggregationVariants::*;
     match req.agg {
-        Terms(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms(
-            Default::default(),
-        )),
+        Terms(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Terms {
+            buckets: Default::default(),
+        }),
         Range(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Range(
             Default::default(),
         )),
@@ -207,6 +223,9 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         )),
         Percentiles(_) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::Percentiles(PercentilesCollector::default()),
+        ),
+        TopHits(ref req) => IntermediateAggregationResult::Metric(
+            IntermediateMetricResult::TopHits(TopHitsTopNComputer::new(req.clone())),
         ),
     }
 }
@@ -270,6 +289,8 @@ pub enum IntermediateMetricResult {
     ExtendedStats(IntermediateExtendedStats),
     /// Intermediate sum result.
     Sum(IntermediateSum),
+    /// Intermediate top_hits result
+    TopHits(TopHitsTopNComputer),
 }
 
 impl IntermediateMetricResult {
@@ -300,9 +321,13 @@ impl IntermediateMetricResult {
                 percentiles
                     .into_final_result(req.agg.as_percentile().expect("unexpected metric type")),
             ),
+            IntermediateMetricResult::TopHits(top_hits) => {
+                MetricResult::TopHits(top_hits.into_final_result())
+            }
         }
     }
 
+    // TODO: this is our top-of-the-chain fruit merge mech
     fn merge_fruits(&mut self, other: IntermediateMetricResult) -> crate::Result<()> {
         match (self, other) {
             (
@@ -344,6 +369,9 @@ impl IntermediateMetricResult {
             ) => {
                 left.merge_fruits(right)?;
             }
+            (IntermediateMetricResult::TopHits(left), IntermediateMetricResult::TopHits(right)) => {
+                left.merge_fruits(right)?;
+            }
             _ => {
                 panic!("incompatible fruit types in tree or missing merge_fruits handler");
             }
@@ -365,11 +393,14 @@ pub enum IntermediateBucketResult {
     Histogram {
         /// The column_type of the underlying `Column` is DateTime
         is_date_agg: bool,
-        /// The buckets
+        /// The histogram buckets
         buckets: Vec<IntermediateHistogramBucketEntry>,
     },
     /// Term aggregation
-    Terms(IntermediateTermBucketResult),
+    Terms {
+        /// The term buckets
+        buckets: IntermediateTermBucketResult,
+    },
 }
 
 impl IntermediateBucketResult {
@@ -446,7 +477,7 @@ impl IntermediateBucketResult {
                 };
                 Ok(BucketResult::Histogram { buckets })
             }
-            IntermediateBucketResult::Terms(terms) => terms.into_final_result(
+            IntermediateBucketResult::Terms { buckets: terms } => terms.into_final_result(
                 req.agg
                     .as_term()
                     .expect("unexpected aggregation, expected term aggregation"),
@@ -459,8 +490,12 @@ impl IntermediateBucketResult {
     fn merge_fruits(&mut self, other: IntermediateBucketResult) -> crate::Result<()> {
         match (self, other) {
             (
-                IntermediateBucketResult::Terms(term_res_left),
-                IntermediateBucketResult::Terms(term_res_right),
+                IntermediateBucketResult::Terms {
+                    buckets: term_res_left,
+                },
+                IntermediateBucketResult::Terms {
+                    buckets: term_res_right,
+                },
             ) => {
                 merge_maps(&mut term_res_left.entries, term_res_right.entries)?;
                 term_res_left.sum_other_doc_count += term_res_right.sum_other_doc_count;
@@ -544,8 +579,15 @@ impl IntermediateTermBucketResult {
             .into_iter()
             .filter(|bucket| bucket.1.doc_count as u64 >= req.min_doc_count)
             .map(|(key, entry)| {
+                let key_as_string = match key {
+                    IntermediateKey::Bool(key) => {
+                        let val = if key { "true" } else { "false" };
+                        Some(val.to_string())
+                    }
+                    _ => None,
+                };
                 Ok(BucketEntry {
-                    key_as_string: None,
+                    key_as_string,
                     key: key.into(),
                     doc_count: entry.doc_count as u64,
                     sub_aggregation: entry

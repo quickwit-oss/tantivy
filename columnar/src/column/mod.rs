@@ -3,17 +3,17 @@ mod serialize;
 
 use std::fmt::{self, Debug};
 use std::io::Write;
-use std::ops::{Deref, Range, RangeInclusive};
+use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
 pub use serialize::{
-    open_column_bytes, open_column_str, open_column_u128, open_column_u64,
-    serialize_column_mappable_to_u128, serialize_column_mappable_to_u64,
+    open_column_bytes, open_column_str, open_column_u128, open_column_u128_as_compact_u64,
+    open_column_u64, serialize_column_mappable_to_u128, serialize_column_mappable_to_u64,
 };
 
-use crate::column_index::ColumnIndex;
+use crate::column_index::{ColumnIndex, Set};
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
 use crate::column_values::{monotonic_map_column, ColumnValues};
 use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, RowId};
@@ -83,8 +83,34 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.values.max_value()
     }
 
+    #[inline]
     pub fn first(&self, row_id: RowId) -> Option<T> {
         self.values_for_doc(row_id).next()
+    }
+
+    /// Load the first value for each docid in the provided slice.
+    #[inline]
+    pub fn first_vals(&self, docids: &[DocId], output: &mut [Option<T>]) {
+        match &self.index {
+            ColumnIndex::Empty { .. } => {}
+            ColumnIndex::Full => self.values.get_vals_opt(docids, output),
+            ColumnIndex::Optional(optional_index) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    output[i] = optional_index
+                        .rank_if_exists(*docid)
+                        .map(|rowid| self.values.get_val(rowid));
+                }
+            }
+            ColumnIndex::Multivalued(multivalued_index) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    let range = multivalued_index.range(*docid);
+                    let is_empty = range.start == range.end;
+                    if !is_empty {
+                        output[i] = Some(self.values.get_val(range.start));
+                    }
+                }
+            }
+        }
     }
 
     /// Translates a block of docis to row_ids.
@@ -105,7 +131,8 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     }
 
     pub fn values_for_doc(&self, doc_id: DocId) -> impl Iterator<Item = T> + '_ {
-        self.value_row_ids(doc_id)
+        self.index
+            .value_row_ids(doc_id)
             .map(|value_row_id: RowId| self.values.get_val(value_row_id))
     }
 
@@ -147,14 +174,6 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     }
 }
 
-impl<T> Deref for Column<T> {
-    type Target = ColumnIndex;
-
-    fn deref(&self) -> &Self::Target {
-        &self.index
-    }
-}
-
 impl BinarySerializable for Cardinality {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> std::io::Result<()> {
         self.to_code().serialize(writer)
@@ -176,6 +195,7 @@ struct FirstValueWithDefault<T: Copy> {
 impl<T: PartialOrd + Debug + Send + Sync + Copy + 'static> ColumnValues<T>
     for FirstValueWithDefault<T>
 {
+    #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.column.first(idx).unwrap_or(self.default_value)
     }

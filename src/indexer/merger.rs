@@ -8,12 +8,12 @@ use common::ReadOnlyBitSet;
 use itertools::Itertools;
 use measure_time::debug_time;
 
-use crate::core::{Segment, SegmentReader};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{AliveBitSet, FastFieldNotAvailableError};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
+use crate::index::{Segment, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
@@ -576,7 +576,7 @@ impl IndexMerger {
                     //
                     // Overall the reliable way to know if we have actual frequencies loaded or not
                     // is to check whether the actual decoded array is empty or not.
-                    if has_term_freq != !postings.block_cursor.freqs().is_empty() {
+                    if has_term_freq == postings.block_cursor.freqs().is_empty() {
                         return Err(DataCorruption::comment_only(
                             "Term freqs are inconsistent across segments",
                         )
@@ -605,6 +605,10 @@ impl IndexMerger {
                             segment_postings.positions(&mut positions_buffer);
                             segment_postings.term_freq()
                         } else {
+                            // The positions_buffer may contain positions from the previous term
+                            // Existence of positions depend on the value type in JSON fields.
+                            // https://github.com/quickwit-oss/tantivy/issues/2283
+                            positions_buffer.clear();
                             0u32
                         };
 
@@ -790,7 +794,7 @@ mod tests {
         BytesFastFieldTestCollector, FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
     };
     use crate::collector::{Count, FacetCollector};
-    use crate::core::Index;
+    use crate::index::Index;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::document::Value;
     use crate::schema::{

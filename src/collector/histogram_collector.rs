@@ -160,7 +160,7 @@ mod tests {
     use super::{add_vecs, HistogramCollector, HistogramComputer};
     use crate::schema::{Schema, FAST};
     use crate::time::{Date, Month};
-    use crate::{doc, query, DateTime, Index};
+    use crate::{query, DateTime, Index};
 
     #[test]
     fn test_add_histograms_simple() {

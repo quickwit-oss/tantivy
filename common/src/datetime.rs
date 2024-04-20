@@ -1,5 +1,3 @@
-#![allow(deprecated)]
-
 use std::fmt;
 use std::io::{Read, Write};
 
@@ -27,9 +25,6 @@ pub enum DateTimePrecision {
     Nanoseconds,
 }
 
-#[deprecated(since = "0.20.0", note = "Use `DateTimePrecision` instead")]
-pub type DatePrecision = DateTimePrecision;
-
 /// A date/time value with nanoseconds precision.
 ///
 /// This timestamp does not carry any explicit time zone information.
@@ -40,7 +35,7 @@ pub type DatePrecision = DateTimePrecision;
 /// All constructors and conversions are provided as explicit
 /// functions and not by implementing any `From`/`Into` traits
 /// to prevent unintended usage.
-#[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Default, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DateTime {
     // Timestamp in nanoseconds.
     pub(crate) timestamp_nanos: i64,

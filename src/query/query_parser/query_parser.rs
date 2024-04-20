@@ -10,10 +10,10 @@ use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLitera
 use rustc_hash::FxHashMap;
 
 use super::logical_ast::*;
-use crate::core::json_utils::{
-    convert_to_fast_value_and_get_term, set_string_and_get_terms, JsonTermWriter,
+use crate::index::Index;
+use crate::json_utils::{
+    convert_to_fast_value_and_append_to_json_term, split_json_path, term_from_json_paths,
 };
-use crate::core::Index;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
@@ -965,20 +965,33 @@ fn generate_literals_for_json_object(
         })?;
     let index_record_option = text_options.index_option();
     let mut logical_literals = Vec::new();
-    let mut term = Term::with_capacity(100);
-    let mut json_term_writer = JsonTermWriter::from_field_and_json_path(
-        field,
-        json_path,
-        json_options.is_expand_dots_enabled(),
-        &mut term,
-    );
-    if let Some(term) = convert_to_fast_value_and_get_term(&mut json_term_writer, phrase) {
+
+    let paths = split_json_path(json_path);
+    let get_term_with_path = || {
+        term_from_json_paths(
+            field,
+            paths.iter().map(|el| el.as_str()),
+            json_options.is_expand_dots_enabled(),
+        )
+    };
+
+    // Try to convert the phrase to a fast value
+    if let Some(term) = convert_to_fast_value_and_append_to_json_term(get_term_with_path(), phrase)
+    {
         logical_literals.push(LogicalLiteral::Term(term));
     }
-    let terms = set_string_and_get_terms(&mut json_term_writer, phrase, &mut text_analyzer);
-    drop(json_term_writer);
-    if terms.len() <= 1 {
-        for (_, term) in terms {
+
+    // Try to tokenize the phrase and create Terms.
+    let mut positions_and_terms = Vec::<(usize, Term)>::new();
+    let mut token_stream = text_analyzer.token_stream(phrase);
+    token_stream.process(&mut |token| {
+        let mut term = get_term_with_path();
+        term.append_type_and_str(&token.text);
+        positions_and_terms.push((token.position, term.clone()));
+    });
+
+    if positions_and_terms.len() <= 1 {
+        for (_, term) in positions_and_terms {
             logical_literals.push(LogicalLiteral::Term(term));
         }
         return Ok(logical_literals);
@@ -989,7 +1002,7 @@ fn generate_literals_for_json_object(
         ));
     }
     logical_literals.push(LogicalLiteral::Phrase {
-        terms,
+        terms: positions_and_terms,
         slop: 0,
         prefix: false,
     });

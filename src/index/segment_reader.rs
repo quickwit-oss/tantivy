@@ -6,11 +6,11 @@ use std::{fmt, io};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 
-use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
+use crate::index::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
@@ -406,7 +406,7 @@ impl SegmentReader {
     }
 
     /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + '_> {
+    pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_> {
         if let Some(alive_bitset) = &self.alive_bitset_opt {
             Box::new(alive_bitset.iter_alive())
         } else {
@@ -515,9 +515,9 @@ impl fmt::Debug for SegmentReader {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::core::Index;
-    use crate::schema::{Schema, SchemaBuilder, Term, STORED, TEXT};
-    use crate::{DocId, FieldMetadata, IndexWriter};
+    use crate::index::Index;
+    use crate::schema::{SchemaBuilder, Term, STORED, TEXT};
+    use crate::IndexWriter;
 
     #[test]
     fn test_merge_field_meta_data_same() {

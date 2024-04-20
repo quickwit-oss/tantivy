@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use std::ops::{Range, RangeInclusive};
 use std::sync::Arc;
 
+use downcast_rs::DowncastSync;
 pub use monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
 pub use monotonic_mapping_u128::MonotonicallyMappableToU128;
 
@@ -25,7 +26,10 @@ mod monotonic_column;
 
 pub(crate) use merge::MergedColumnValues;
 pub use stats::ColumnStats;
-pub use u128_based::{open_u128_mapped, serialize_column_values_u128};
+pub use u128_based::{
+    open_u128_as_compact_u64, open_u128_mapped, serialize_column_values_u128,
+    CompactSpaceU64Accessor,
+};
 pub use u64_based::{
     load_u64_based_column_values, serialize_and_load_u64_based_column_values,
     serialize_u64_based_column_values, CodecType, ALL_U64_CODEC_TYPES,
@@ -41,7 +45,7 @@ use crate::RowId;
 ///
 /// Any methods with a default and specialized implementation need to be called in the
 /// wrappers that implement the trait: Arc and MonotonicMappingColumn
-pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
+pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// Return the value associated with the given idx.
     ///
     /// This accessor should return as fast as possible.
@@ -68,11 +72,40 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
             out_x4[3] = self.get_val(idx_x4[3]);
         }
 
-        let step_size = 4;
-        let cutoff = indexes.len() - indexes.len() % step_size;
+        let out_and_idx_chunks = output
+            .chunks_exact_mut(4)
+            .into_remainder()
+            .iter_mut()
+            .zip(indexes.chunks_exact(4).remainder());
+        for (out, idx) in out_and_idx_chunks {
+            *out = self.get_val(*idx);
+        }
+    }
 
-        for idx in cutoff..indexes.len() {
-            output[idx] = self.get_val(indexes[idx]);
+    /// Allows to push down multiple fetch calls, to avoid dynamic dispatch overhead.
+    /// The slightly weird `Option<T>` in output allows pushdown to full columns.
+    ///
+    /// idx and output should have the same length
+    ///
+    /// # Panics
+    ///
+    /// May panic if `idx` is greater than the column length.
+    fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
+        assert!(indexes.len() == output.len());
+        let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
+        for (out_x4, idx_x4) in out_and_idx_chunks {
+            out_x4[0] = Some(self.get_val(idx_x4[0]));
+            out_x4[1] = Some(self.get_val(idx_x4[1]));
+            out_x4[2] = Some(self.get_val(idx_x4[2]));
+            out_x4[3] = Some(self.get_val(idx_x4[3]));
+        }
+        let out_and_idx_chunks = output
+            .chunks_exact_mut(4)
+            .into_remainder()
+            .iter_mut()
+            .zip(indexes.chunks_exact(4).remainder());
+        for (out, idx) in out_and_idx_chunks {
+            *out = Some(self.get_val(*idx));
         }
     }
 
@@ -101,7 +134,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         row_id_hits: &mut Vec<RowId>,
     ) {
         let row_id_range = row_id_range.start..row_id_range.end.min(self.num_vals());
-        for idx in row_id_range.start..row_id_range.end {
+        for idx in row_id_range {
             let val = self.get_val(idx);
             if value_range.contains(&val) {
                 row_id_hits.push(idx);
@@ -139,6 +172,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync {
         Box::new((0..self.num_vals()).map(|idx| self.get_val(idx)))
     }
 }
+downcast_rs::impl_downcast!(sync ColumnValues<T> where T: PartialOrd);
 
 /// Empty column of values.
 pub struct EmptyColumnValues;
@@ -161,10 +195,15 @@ impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
     }
 }
 
-impl<T: Copy + PartialOrd + Debug> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
+impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
     #[inline(always)]
     fn get_val(&self, idx: u32) -> T {
         self.as_ref().get_val(idx)
+    }
+
+    #[inline(always)]
+    fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
+        self.as_ref().get_vals_opt(indexes, output)
     }
 
     #[inline(always)]

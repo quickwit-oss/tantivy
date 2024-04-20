@@ -1,7 +1,3 @@
-use std::collections::BTreeMap;
-
-use itertools::Itertools;
-
 use super::*;
 use crate::{Cardinality, ColumnarWriter, HasAssociatedColumnType, RowId};
 

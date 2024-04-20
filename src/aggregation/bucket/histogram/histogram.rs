@@ -1,8 +1,5 @@
 use std::cmp::Ordering;
-use std::fmt::Display;
 
-use columnar::ColumnType;
-use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
@@ -18,9 +15,9 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateHistogramBucketEntry,
 };
 use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, AggregationLimits, SegmentAggregationCollector,
+    build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, format_date};
+use crate::aggregation::*;
 use crate::TantivyError;
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
@@ -73,6 +70,7 @@ pub struct HistogramAggregation {
     pub field: String,
     /// The interval to chunk your data range. Each bucket spans a value range of [0..interval).
     /// Must be a positive value.
+    #[serde(deserialize_with = "deserialize_f64")]
     pub interval: f64,
     /// Intervals implicitly defines an absolute grid of buckets `[interval * k, interval * (k +
     /// 1))`.
@@ -85,6 +83,7 @@ pub struct HistogramAggregation {
     /// fall into the buckets with the key 0 and 10.
     /// With offset 5 and interval 10, they would both fall into the bucket with they key 5 and the
     /// range [5..15)
+    #[serde(default, deserialize_with = "deserialize_option_f64")]
     pub offset: Option<f64>,
     /// The minimum number of documents in a bucket to be returned. Defaults to 0.
     pub min_doc_count: Option<u64>,
@@ -308,7 +307,10 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
             .column_block_accessor
             .fetch_block(docs, &bucket_agg_accessor.accessor);
 
-        for (doc, val) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
+        for (doc, val) in bucket_agg_accessor
+            .column_block_accessor
+            .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+        {
             let val = self.f64_from_fastfield_u64(val);
 
             let bucket_pos = get_bucket_pos(val);
@@ -595,11 +597,12 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::aggregation::agg_req::Aggregations;
+    use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_2_segments, get_test_index_from_values, get_test_index_with_num_docs,
     };
+    use crate::query::AllQuery;
 
     #[test]
     fn histogram_test_crooked_values() -> crate::Result<()> {
@@ -1350,6 +1353,35 @@ mod tests {
                 }
             })
         );
+
+        Ok(())
+    }
+    #[test]
+    fn test_aggregation_histogram_empty_index() -> crate::Result<()> {
+        // test index without segments
+        let values = vec![];
+
+        let index = get_test_index_from_values(false, &values)?;
+
+        let agg_req_1: Aggregations = serde_json::from_value(json!({
+            "myhisto": {
+                "histogram": {
+                    "field": "score",
+                    "interval": 10.0
+                },
+            }
+        }))
+        .unwrap();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1, Default::default());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+
+        let res: Value = serde_json::from_str(&serde_json::to_string(&agg_res)?)?;
+        // Make sure the result structure is correct
+        assert_eq!(res["myhisto"]["buckets"].as_array().unwrap().len(), 0);
 
         Ok(())
     }

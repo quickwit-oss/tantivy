@@ -1,6 +1,6 @@
 use std::io::Write;
 use std::mem;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::Arc;

@@ -1,7 +1,7 @@
 use super::term_scorer::TermScorer;
-use crate::core::SegmentReader;
-use crate::docset::{DocSet, BUFFER_LEN};
+use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
+use crate::index::SegmentReader;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
@@ -64,7 +64,7 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
-        let mut buffer = [0u32; BUFFER_LEN];
+        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
         for_each_docset_buffered(&mut scorer, &mut buffer, callback);
         Ok(())
     }

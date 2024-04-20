@@ -443,9 +443,7 @@ impl<'a> Iterator for ObjectMapIter<'a> {
 mod tests {
     use super::*;
     use crate::schema::{BytesOptions, Schema};
-    use crate::time::format_description::well_known::Rfc3339;
-    use crate::time::OffsetDateTime;
-    use crate::{DateTime, Document, TantivyDocument};
+    use crate::{Document, TantivyDocument};
 
     #[test]
     fn test_parse_bytes_doc() {

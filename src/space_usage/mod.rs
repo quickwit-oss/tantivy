@@ -290,7 +290,7 @@ impl FieldUsage {
 
 #[cfg(test)]
 mod test {
-    use crate::core::Index;
+    use crate::index::Index;
     use crate::schema::{Field, Schema, FAST, INDEXED, STORED, TEXT};
     use crate::space_usage::PerFieldSpaceUsage;
     use crate::{IndexWriter, Term};

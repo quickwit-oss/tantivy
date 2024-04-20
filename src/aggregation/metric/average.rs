@@ -24,7 +24,7 @@ pub struct AverageAggregation {
     /// By default they will be ignored but it is also possible to treat them as if they had a
     /// value. Examples in JSON format:
     /// { "field": "my_numbers", "missing": "10.0" }
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_option_f64")]
     pub missing: Option<f64>,
 }
 
@@ -61,5 +61,73 @@ impl IntermediateAverage {
     /// Computes the final average value.
     pub fn finalize(&self) -> Option<f64> {
         self.stats.finalize().avg
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserialization_with_missing_test1() {
+        let json = r#"{
+            "field": "score",
+            "missing": "10.0"
+        }"#;
+        let avg: AverageAggregation = serde_json::from_str(json).unwrap();
+        assert_eq!(avg.field, "score");
+        assert_eq!(avg.missing, Some(10.0));
+        // no dot
+        let json = r#"{
+            "field": "score",
+            "missing": "10"
+        }"#;
+        let avg: AverageAggregation = serde_json::from_str(json).unwrap();
+        assert_eq!(avg.field, "score");
+        assert_eq!(avg.missing, Some(10.0));
+
+        // from value
+        let avg: AverageAggregation = serde_json::from_value(json!({
+            "field": "score_f64",
+            "missing": 10u64,
+        }))
+        .unwrap();
+        assert_eq!(avg.missing, Some(10.0));
+        // from value
+        let avg: AverageAggregation = serde_json::from_value(json!({
+            "field": "score_f64",
+            "missing": 10u32,
+        }))
+        .unwrap();
+        assert_eq!(avg.missing, Some(10.0));
+        let avg: AverageAggregation = serde_json::from_value(json!({
+            "field": "score_f64",
+            "missing": 10i8,
+        }))
+        .unwrap();
+        assert_eq!(avg.missing, Some(10.0));
+    }
+
+    #[test]
+    fn deserialization_with_missing_test_fail() {
+        let json = r#"{
+            "field": "score",
+            "missing": "a"
+        }"#;
+        let avg: Result<AverageAggregation, _> = serde_json::from_str(json);
+        assert!(avg.is_err());
+        assert!(avg
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to parse f64 from string: \"a\""));
+
+        // Disallow NaN
+        let json = r#"{
+            "field": "score",
+            "missing": "NaN"
+        }"#;
+        let avg: Result<AverageAggregation, _> = serde_json::from_str(json);
+        assert!(avg.is_err());
+        assert!(avg.unwrap_err().to_string().contains("NaN"));
     }
 }

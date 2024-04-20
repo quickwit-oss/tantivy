@@ -1,5 +1,4 @@
 use std::io::Write;
-use std::marker::{Send, Sync};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,6 +39,7 @@ impl RetryPolicy {
 /// The `DirectoryLock` is an object that represents a file lock.
 ///
 /// It is associated with a lock file, that gets deleted on `Drop.`
+#[allow(dead_code)]
 pub struct DirectoryLock(Box<dyn Send + Sync + 'static>);
 
 struct DirectoryLockGuard {

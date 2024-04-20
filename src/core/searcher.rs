@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use crate::collector::Collector;
-use crate::core::{Executor, SegmentReader};
+use crate::core::Executor;
+use crate::index::SegmentReader;
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
 use crate::schema::document::DocumentDeserialize;
 use crate::schema::{Schema, Term};

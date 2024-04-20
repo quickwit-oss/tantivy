@@ -97,6 +97,7 @@ pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 mod top_collector;
 
 mod top_score_collector;
+pub use self::top_collector::ComparableDoc;
 pub use self::top_score_collector::{TopDocs, TopNComputer};
 
 mod custom_score_top_collector;
@@ -273,6 +274,10 @@ pub trait SegmentCollector: 'static {
     fn collect(&mut self, doc: DocId, score: Score);
 
     /// The query pushes the scored document to the collector via this method.
+    /// This method is used when the collector does not require scoring.
+    ///
+    /// See [`COLLECT_BLOCK_BUFFER_LEN`](crate::COLLECT_BLOCK_BUFFER_LEN) for the
+    /// buffer size passed to the collector.
     fn collect_block(&mut self, docs: &[DocId]) {
         for doc in docs {
             self.collect(*doc, 0.0);

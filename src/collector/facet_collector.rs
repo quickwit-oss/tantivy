@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::{btree_map, BTreeMap, BTreeSet, BinaryHeap};
+use std::io;
 use std::ops::Bound;
-use std::{io, u64, usize};
 
 use crate::collector::{Collector, SegmentCollector};
 use crate::fastfield::FacetReader;
@@ -410,6 +410,7 @@ impl SegmentCollector for FacetSegmentCollector {
 
 /// Intermediary result of the `FacetCollector` that stores
 /// the facet counts for all the segments.
+#[derive(Default, Clone)]
 pub struct FacetCounts {
     facet_counts: BTreeMap<Facet, u64>,
 }
@@ -493,7 +494,7 @@ mod tests {
     use super::{FacetCollector, FacetCounts};
     use crate::collector::facet_collector::compress_mapping;
     use crate::collector::Count;
-    use crate::core::Index;
+    use crate::index::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
     use crate::schema::{Facet, FacetOptions, IndexRecordOption, Schema, TantivyDocument};
     use crate::{IndexWriter, Term};

@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use columnar::{ColumnType, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -14,9 +13,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{
-    f64_from_fastfield_u64, f64_to_fastfield_u64, format_date, Key, SerializedKey,
-};
+use crate::aggregation::*;
 use crate::TantivyError;
 
 /// Provide user-defined buckets to aggregate on.
@@ -72,11 +69,19 @@ pub struct RangeAggregationRange {
     pub key: Option<String>,
     /// The from range value, which is inclusive in the range.
     /// `None` equals to an open ended interval.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_option_f64"
+    )]
     pub from: Option<f64>,
     /// The to range value, which is not inclusive in the range.
     /// `None` equals to an open ended interval.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_option_f64"
+    )]
     pub to: Option<f64>,
 }
 
@@ -230,7 +235,10 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
             .column_block_accessor
             .fetch_block(docs, &bucket_agg_accessor.accessor);
 
-        for (doc, val) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
+        for (doc, val) in bucket_agg_accessor
+            .column_block_accessor
+            .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+        {
             let bucket_pos = self.get_bucket_pos(val);
 
             let bucket = &mut self.buckets[bucket_pos];
@@ -441,7 +449,6 @@ pub(crate) fn range_to_key(range: &Range<u64>, field_type: &ColumnType) -> crate
 #[cfg(test)]
 mod tests {
 
-    use columnar::MonotonicallyMappableToU64;
     use serde_json::Value;
 
     use super::*;
@@ -450,7 +457,6 @@ mod tests {
         exec_request, exec_request_with_query, get_test_index_2_segments,
         get_test_index_with_num_docs,
     };
-    use crate::aggregation::AggregationLimits;
 
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,

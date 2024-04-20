@@ -479,6 +479,7 @@ impl Directory for MmapDirectory {
         let file: File = OpenOptions::new()
             .write(true)
             .create(true) //< if the file does not exist yet, create it.
+            .truncate(false)
             .open(full_path)
             .map_err(LockError::wrap_io_error)?;
         if lock.is_blocking {
@@ -673,7 +674,7 @@ mod tests {
             let num_segments = reader.searcher().segment_readers().len();
             assert!(num_segments <= 4);
             let num_components_except_deletes_and_tempstore =
-                crate::core::SegmentComponent::iterator().len() - 2;
+                crate::index::SegmentComponent::iterator().len() - 2;
             let max_num_mmapped = num_components_except_deletes_and_tempstore * num_segments;
             assert_eventually(|| {
                 let num_mmapped = mmap_directory.get_cache_info().mmapped.len();

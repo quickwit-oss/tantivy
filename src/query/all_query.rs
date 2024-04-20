@@ -1,5 +1,5 @@
-use crate::core::SegmentReader;
-use crate::docset::{DocSet, BUFFER_LEN, TERMINATED};
+use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
+use crate::index::SegmentReader;
 use crate::query::boost_query::BoostScorer;
 use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
@@ -54,7 +54,7 @@ impl DocSet for AllScorer {
         self.doc
     }
 
-    fn fill_buffer(&mut self, buffer: &mut [DocId; BUFFER_LEN]) -> usize {
+    fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
         if self.doc() == TERMINATED {
             return 0;
         }
@@ -96,7 +96,7 @@ impl Scorer for AllScorer {
 #[cfg(test)]
 mod tests {
     use super::AllQuery;
-    use crate::docset::{DocSet, BUFFER_LEN, TERMINATED};
+    use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
     use crate::query::{AllScorer, EnableScoring, Query};
     use crate::schema::{Schema, TEXT};
     use crate::{Index, IndexWriter};
@@ -162,16 +162,16 @@ mod tests {
     pub fn test_fill_buffer() {
         let mut postings = AllScorer {
             doc: 0u32,
-            max_doc: BUFFER_LEN as u32 * 2 + 9,
+            max_doc: COLLECT_BLOCK_BUFFER_LEN as u32 * 2 + 9,
         };
-        let mut buffer = [0u32; BUFFER_LEN];
-        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
-        for i in 0u32..BUFFER_LEN as u32 {
+        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
+        assert_eq!(postings.fill_buffer(&mut buffer), COLLECT_BLOCK_BUFFER_LEN);
+        for i in 0u32..COLLECT_BLOCK_BUFFER_LEN as u32 {
             assert_eq!(buffer[i as usize], i);
         }
-        assert_eq!(postings.fill_buffer(&mut buffer), BUFFER_LEN);
-        for i in 0u32..BUFFER_LEN as u32 {
-            assert_eq!(buffer[i as usize], i + BUFFER_LEN as u32);
+        assert_eq!(postings.fill_buffer(&mut buffer), COLLECT_BLOCK_BUFFER_LEN);
+        for i in 0u32..COLLECT_BLOCK_BUFFER_LEN as u32 {
+            assert_eq!(buffer[i as usize], i + COLLECT_BLOCK_BUFFER_LEN as u32);
         }
         assert_eq!(postings.fill_buffer(&mut buffer), 9);
     }

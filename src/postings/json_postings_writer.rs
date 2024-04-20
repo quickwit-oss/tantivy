@@ -1,5 +1,6 @@
 use std::io;
 
+use common::json_path_writer::JSON_END_OF_PATH;
 use stacker::Addr;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
@@ -7,7 +8,7 @@ use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
 use crate::postings::{FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::{Field, Type, JSON_END_OF_PATH};
+use crate::schema::{Field, Type};
 use crate::tokenizer::TokenStream;
 use crate::{DocId, Term};
 
@@ -67,10 +68,18 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
     ) -> io::Result<()> {
         let mut term_buffer = Term::with_capacity(48);
         let mut buffer_lender = BufferLender::default();
+        term_buffer.clear_with_field_and_type(Type::Json, Field::from_field_id(0));
+        let mut prev_term_id = u32::MAX;
+        let mut term_path_len = 0; // this will be set in the first iteration
         for (_field, path_id, term, addr) in term_addrs {
-            term_buffer.clear_with_field_and_type(Type::Json, Field::from_field_id(0));
-            term_buffer.append_bytes(ordered_id_to_path[path_id.path_id() as usize].as_bytes());
-            term_buffer.append_bytes(&[JSON_END_OF_PATH]);
+            if prev_term_id != path_id.path_id() {
+                term_buffer.truncate_value_bytes(0);
+                term_buffer.append_path(ordered_id_to_path[path_id.path_id() as usize].as_bytes());
+                term_buffer.append_bytes(&[JSON_END_OF_PATH]);
+                term_path_len = term_buffer.len_bytes();
+                prev_term_id = path_id.path_id();
+            }
+            term_buffer.truncate_value_bytes(term_path_len);
             term_buffer.append_bytes(term);
             if let Some(json_value) = term_buffer.value().as_json_value_bytes() {
                 let typ = json_value.typ();

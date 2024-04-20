@@ -9,10 +9,10 @@ use smallvec::smallvec;
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::{AddBatch, AddBatchReceiver, AddBatchSender, PreparedCommit};
-use crate::core::{Index, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader};
 use crate::directory::{DirectoryLock, GarbageCollectionResult, TerminatingWrite};
 use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
+use crate::index::{Index, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader};
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::index_writer_status::IndexWriterStatus;
@@ -806,7 +806,6 @@ mod tests {
     use columnar::{Cardinality, Column, MonotonicallyMappableToU128};
     use itertools::Itertools;
     use proptest::prop_oneof;
-    use proptest::strategy::Strategy;
 
     use super::super::operation::UserOperation;
     use crate::collector::TopDocs;
@@ -1651,6 +1650,7 @@ mod tests {
         force_end_merge: bool,
     ) -> crate::Result<Index> {
         let mut schema_builder = schema::Schema::builder();
+        let json_field = schema_builder.add_json_field("json", FAST | TEXT | STORED);
         let ip_field = schema_builder.add_ip_addr_field("ip", FAST | INDEXED | STORED);
         let ips_field = schema_builder
             .add_ip_addr_field("ips", IpAddrOptions::default().set_fast().set_indexed());
@@ -1729,7 +1729,9 @@ mod tests {
                             id_field=>id,
                         ))?;
                     } else {
+                        let json = json!({"date1": format!("2022-{id}-01T00:00:01Z"), "date2": format!("{id}-05-01T00:00:01Z"), "id": id, "ip": ip.to_string()});
                         index_writer.add_document(doc!(id_field=>id,
+                                json_field=>json,
                                 bytes_field => id.to_le_bytes().as_slice(),
                                 id_opt_field => id,
                                 ip_field => ip,

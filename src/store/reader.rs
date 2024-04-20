@@ -14,7 +14,7 @@ use super::Decompressor;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
-use crate::schema::document::{BinaryDocumentDeserializer, Document, DocumentDeserialize};
+use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserialize};
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
@@ -235,7 +235,7 @@ impl StoreReader {
     /// Iterator over all Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
     /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.
-    pub fn iter<'a: 'b, 'b, D: Document + DocumentDeserialize>(
+    pub fn iter<'a: 'b, 'b, D: DocumentDeserialize>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<D>> + 'b {

@@ -151,7 +151,6 @@ impl ExpUnrolledLinkedList {
 mod tests {
     use common::{read_u32_vint, write_u32_vint};
 
-    use super::super::MemoryArena;
     use super::*;
 
     #[test]

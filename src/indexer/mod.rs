@@ -25,6 +25,7 @@ mod segment_register;
 pub(crate) mod segment_serializer;
 pub(crate) mod segment_updater;
 pub(crate) mod segment_writer;
+pub(crate) mod single_segment_index_writer;
 mod stamper;
 
 use crossbeam_channel as channel;
@@ -34,13 +35,14 @@ pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
+use self::operation::AddOperation;
 pub use self::operation::UserOperation;
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub(crate) use self::segment_serializer::SegmentSerializer;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
-use crate::indexer::operation::AddOperation;
+pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;
@@ -63,9 +65,10 @@ mod tests_mmap {
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::AggregationCollector;
     use crate::collector::{Count, TopDocs};
+    use crate::index::FieldMetadata;
     use crate::query::{AllQuery, QueryParser};
     use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
-    use crate::{FieldMetadata, Index, IndexWriter, Term};
+    use crate::{Index, IndexWriter, Term};
 
     #[test]
     fn test_advance_delete_bug() -> crate::Result<()> {
@@ -140,6 +143,123 @@ mod tests_mmap {
             let num_docs = searcher.search(&query, &Count).unwrap();
             assert_eq!(num_docs, 256);
         }
+    }
+    #[test]
+    fn test_json_field_null_byte() {
+        // Test when field name contains a zero byte, which has special meaning in tantivy.
+        // As a workaround, we convert the zero byte to the ASCII character '0'.
+        // https://github.com/quickwit-oss/tantivy/issues/2340
+        // https://github.com/quickwit-oss/tantivy/issues/2193
+        let field_name_in = "\u{0000}";
+        let field_name_out = "0";
+        test_json_field_name(field_name_in, field_name_out);
+    }
+    #[test]
+    fn test_json_field_1byte() {
+        // Test when field name contains a '1' byte, which has special meaning in tantivy.
+        // The 1 byte can be addressed as '1' byte or '.'.
+        let field_name_in = "\u{0001}";
+        let field_name_out = "\u{0001}";
+        test_json_field_name(field_name_in, field_name_out);
+
+        // Test when field name contains a '1' byte, which has special meaning in tantivy.
+        let field_name_in = "\u{0001}";
+        let field_name_out = ".";
+        test_json_field_name(field_name_in, field_name_out);
+    }
+    #[test]
+    fn test_json_field_dot() {
+        // Test when field name contains a '.'
+        let field_name_in = ".";
+        let field_name_out = ".";
+        test_json_field_name(field_name_in, field_name_out);
+    }
+    fn test_json_field_name(field_name_in: &str, field_name_out: &str) {
+        let mut schema_builder = Schema::builder();
+
+        let options = JsonObjectOptions::from(TEXT | FAST).set_expand_dots_enabled();
+        let field = schema_builder.add_json_field("json", options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(field=>json!({format!("{field_name_in}"): "test1"})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(field=>json!({format!("a{field_name_in}"): "test2"})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(field=>json!({format!("a{field_name_in}a"): "test3"})))
+            .unwrap();
+        index_writer
+            .add_document(
+                doc!(field=>json!({format!("a{field_name_in}a{field_name_in}"): "test4"})),
+            )
+            .unwrap();
+        index_writer
+            .add_document(
+                doc!(field=>json!({format!("a{field_name_in}.ab{field_name_in}"): "test5"})),
+            )
+            .unwrap();
+        index_writer
+            .add_document(
+                doc!(field=>json!({format!("a{field_name_in}"): json!({format!("a{field_name_in}"): "test6"}) })),
+            )
+            .unwrap();
+        index_writer
+            .add_document(doc!(field=>json!({format!("{field_name_in}a" ): "test7"})))
+            .unwrap();
+
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let parse_query = QueryParser::for_index(&index, Vec::new());
+        let test_query = |query_str: &str| {
+            let query = parse_query.parse_query(query_str).unwrap();
+            let num_docs = searcher.search(&query, &Count).unwrap();
+            assert_eq!(num_docs, 1, "{}", query_str);
+        };
+        test_query(format!("json.{field_name_out}:test1").as_str());
+        test_query(format!("json.a{field_name_out}:test2").as_str());
+        test_query(format!("json.a{field_name_out}a:test3").as_str());
+        test_query(format!("json.a{field_name_out}a{field_name_out}:test4").as_str());
+        test_query(format!("json.a{field_name_out}.ab{field_name_out}:test5").as_str());
+        test_query(format!("json.a{field_name_out}.a{field_name_out}:test6").as_str());
+        test_query(format!("json.{field_name_out}a:test7").as_str());
+
+        let test_agg = |field_name: &str, expected: &str| {
+            let agg_req_str = json!(
+            {
+              "termagg": {
+                "terms": {
+                  "field": field_name,
+                }
+              }
+            });
+
+            let agg_req: Aggregations = serde_json::from_value(agg_req_str).unwrap();
+            let collector = AggregationCollector::from_aggs(agg_req, Default::default());
+            let agg_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+            let res = serde_json::to_value(agg_res).unwrap();
+            assert_eq!(res["termagg"]["buckets"][0]["doc_count"], 1);
+            assert_eq!(res["termagg"]["buckets"][0]["key"], expected);
+        };
+
+        test_agg(format!("json.{field_name_out}").as_str(), "test1");
+        test_agg(format!("json.a{field_name_out}").as_str(), "test2");
+        test_agg(format!("json.a{field_name_out}a").as_str(), "test3");
+        test_agg(
+            format!("json.a{field_name_out}a{field_name_out}").as_str(),
+            "test4",
+        );
+        test_agg(
+            format!("json.a{field_name_out}.ab{field_name_out}").as_str(),
+            "test5",
+        );
+        test_agg(
+            format!("json.a{field_name_out}.a{field_name_out}").as_str(),
+            "test6",
+        );
+        test_agg(format!("json.{field_name_out}a").as_str(), "test7");
     }
 
     #[test]
@@ -403,11 +523,10 @@ mod tests_mmap {
 
         let searcher = reader.searcher();
 
-        let fields_and_vals = vec![
-            // Only way to address or it gets shadowed by `json.shadow` field
+        let fields_and_vals = [
             ("json.shadow\u{1}val".to_string(), "a"), // Succeeds
             //("json.shadow.val".to_string(), "a"),   // Fails
-            ("json.shadow.val".to_string(), "b"), // Succeeds
+            ("json.shadow.val".to_string(), "b"),
         ];
 
         let query_parser = QueryParser::for_index(&index, vec![]);

@@ -1,6 +1,10 @@
 # configuration file for git-cliff{ pattern = "foo", replace = "bar"}
 # see https://github.com/orhun/git-cliff#configuration-file
 
+[remote.github]
+owner = "quickwit-oss"
+repo = "tantivy"
+
 [changelog]
 # changelog header
 header = """
@@ -8,15 +12,43 @@ header = """
 # template for the changelog body
 # https://tera.netlify.app/docs/#introduction
 body = """
-{% if version %}\
-    {{ version | trim_start_matches(pat="v") }} ({{ timestamp | date(format="%Y-%m-%d") }})
-    ==================
-{% else %}\
-    ## [unreleased]
-{% endif %}\
+## What's Changed
+
+{%- if version %} in {{ version }}{%- endif -%}
 {% for commit in commits %}
-    - {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message | split(pat="\n") | first | trim | upper_first }}(@{{ commit.author.name }})\
-{% endfor %}
+  {% if commit.github.pr_title -%}
+    {%- set commit_message = commit.github.pr_title -%}
+  {%- else -%}
+    {%- set commit_message = commit.message -%}
+  {%- endif -%}
+  - {{ commit_message | split(pat="\n") | first | trim }}\
+    {% if commit.github.pr_number %} \
+      [#{{ commit.github.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.github.pr_number }}){% if commit.github.username %}(@{{ commit.github.username }}){%- endif -%} \
+    {%- endif %}
+{%- endfor -%}
+
+{% if github.contributors | filter(attribute="is_first_time", value=true) | length != 0 %}
+  {% raw %}\n{% endraw -%}
+  ## New Contributors
+{%- endif %}\
+{% for contributor in github.contributors | filter(attribute="is_first_time", value=true) %}
+  * @{{ contributor.username }} made their first contribution
+    {%- if contributor.pr_number %} in \
+      [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}) \
+    {%- endif %}
+{%- endfor -%}
+
+{% if version %}
+    {% if previous.version %}
+      **Full Changelog**: {{ self::remote_url() }}/compare/{{ previous.version }}...{{ version }}
+    {% endif %}
+{% else -%}
+  {% raw %}\n{% endraw %}
+{% endif %}
+
+{%- macro remote_url() -%}
+  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+{%- endmacro -%}
 """
 # remove the leading and trailing whitespace from the template
 trim = true
@@ -25,53 +57,24 @@ footer = """
 """
 
 postprocessors = [
-    { pattern = 'Paul Masurel', replace = "fulmicoton"}, # replace with github user
-    { pattern = 'PSeitz', replace = "PSeitz"}, # replace with github user
-    { pattern = 'Adam Reichold', replace = "adamreichold"}, # replace with github user
-    { pattern = 'trinity-1686a', replace = "trinity-1686a"}, # replace with github user
-    { pattern = 'Michael Kleen', replace = "mkleen"}, # replace with github user
-    { pattern = 'Adrien Guillo', replace = "guilload"}, # replace with github user
-    { pattern = 'François Massot', replace = "fmassot"}, # replace with github user
-    { pattern = 'Naveen Aiathurai', replace = "naveenann"}, # replace with github user
-    { pattern = '', replace = ""}, # replace with github user
 ]
 
 [git]
 # parse the commits based on https://www.conventionalcommits.org
 # This is required or commit.message contains the whole commit message and not just the title
-conventional_commits = true
+conventional_commits = false
 # filter out the commits that are not conventional
-filter_unconventional = false
+filter_unconventional = true
 # process each line of a commit as an individual commit
 split_commits = false
 # regex for preprocessing the commit messages
 commit_preprocessors = [
-    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "[#${2}](https://github.com/quickwit-oss/tantivy/issues/${2})"}, # replace issue numbers
+    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = ""},
 ]
 #link_parsers = [
     #{ pattern = "#(\\d+)", href = "https://github.com/quickwit-oss/tantivy/pulls/$1"},
 #]
 # regex for parsing and grouping commits
-commit_parsers = [
-    { message = "^feat", group = "Features"},
-    { message = "^fix", group = "Bug Fixes"},
-    { message = "^doc", group = "Documentation"},
-    { message = "^perf", group = "Performance"},
-    { message = "^refactor", group = "Refactor"},
-    { message = "^style", group = "Styling"},
-    { message = "^test", group = "Testing"},
-    { message = "^chore\\(release\\): prepare for", skip = true},
-    { message = "(?i)clippy", skip = true},
-    { message = "(?i)dependabot", skip = true},
-    { message = "(?i)fmt", skip = true},
-    { message = "(?i)bump", skip = true},
-    { message = "(?i)readme", skip = true},
-    { message = "(?i)comment", skip = true},
-    { message = "(?i)spelling", skip = true},
-    { message = "^chore", group = "Miscellaneous Tasks"},
-    { body = ".*security", group = "Security"},
-    { message = ".*", group = "Other", default_scope = "other"},
-]
 # protect breaking changes from being skipped due to matching a skipping commit_parser
 protect_breaking_commits = false
 # filter out the commits that are not matched by commit parsers

@@ -6,24 +6,23 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::segment::Segment;
-use super::IndexSettings;
-use crate::core::single_segment_index_writer::SingleSegmentIndexWriter;
-use crate::core::{
-    Executor, IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory, META_FILEPATH,
-};
+use super::segment_reader::merge_field_meta_data;
+use super::{FieldMetadata, IndexSettings};
+use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
+use crate::index::{IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory};
 use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_metas;
-use crate::indexer::IndexWriter;
+use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
-use crate::schema::{Field, FieldType, Schema};
+use crate::schema::{Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{merge_field_meta_data, FieldMetadata, SegmentReader};
+use crate::SegmentReader;
 
 fn load_metas(
     directory: &dyn Directory,
@@ -84,7 +83,7 @@ fn save_new_metas(
 ///
 /// ```
 /// use tantivy::schema::*;
-/// use tantivy::{Index, IndexSettings, IndexSortByField, Order};
+/// use tantivy::{Index, IndexSettings};
 ///
 /// let mut schema_builder = Schema::builder();
 /// let id_field = schema_builder.add_text_field("id", STRING);
@@ -97,10 +96,7 @@ fn save_new_metas(
 ///
 /// let schema = schema_builder.build();
 /// let settings = IndexSettings{
-///     sort_by_field: Some(IndexSortByField{
-///         field: "number".to_string(),
-///         order: Order::Asc
-///     }),
+///     docstore_blocksize: 100_000,
 ///     ..Default::default()
 /// };
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
@@ -252,6 +248,15 @@ impl IndexBuilder {
                         sort_by_field.field
                     )));
                 }
+                let supported_field_types = [Type::I64, Type::U64, Type::F64, Type::Date];
+                let field_type = entry.field_type().value_type();
+                if !supported_field_types.contains(&field_type) {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Unsupported field type in sort_by_field: {:?}. Supported field types: \
+                         {:?} ",
+                        field_type, supported_field_types,
+                    )));
+                }
             }
             Ok(())
         } else {
@@ -320,6 +325,15 @@ impl Index {
     /// by a thread pool with a given number of threads.
     pub fn set_multithread_executor(&mut self, num_threads: usize) -> crate::Result<()> {
         self.executor = Arc::new(Executor::multi_thread(num_threads, "tantivy-search-")?);
+        Ok(())
+    }
+
+    /// Custom thread pool by a outer thread pool.
+    pub fn set_shared_multithread_executor(
+        &mut self,
+        shared_thread_pool: Arc<Executor>,
+    ) -> crate::Result<()> {
+        self.executor = shared_thread_pool.clone();
         Ok(())
     }
 

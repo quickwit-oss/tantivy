@@ -9,14 +9,12 @@ mod byte_count;
 mod datetime;
 pub mod file_slice;
 mod group_by;
-mod json_path_writer;
+pub mod json_path_writer;
 mod serialize;
 mod vint;
 mod writer;
 pub use bitset::*;
 pub use byte_count::ByteCount;
-#[allow(deprecated)]
-pub use datetime::DatePrecision;
 pub use datetime::{DateTime, DateTimePrecision};
 pub use group_by::GroupByIteratorExtended;
 pub use json_path_writer::JsonPathWriter;

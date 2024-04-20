@@ -1,5 +1,4 @@
 use std::io;
-use std::iter::ExactSizeIterator;
 use std::ops::Range;
 
 use common::{BinarySerializable, FixedSize};

@@ -160,7 +160,7 @@ pub enum ValueType {
     /// A dynamic object value.
     Object,
     /// A JSON object value. Deprecated.
-    #[deprecated]
+    #[deprecated(note = "We keep this for backwards compatibility, use Object instead")]
     JSONObject,
 }
 
@@ -819,7 +819,6 @@ mod tests {
     use crate::schema::document::existing_type_impls::JsonObjectIter;
     use crate::schema::document::se::BinaryValueSerializer;
     use crate::schema::document::{ReferenceValue, ReferenceValueLeaf};
-    use crate::schema::OwnedValue;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
         let mut writer = Vec::new();
@@ -889,7 +888,7 @@ mod tests {
 
     #[test]
     fn test_array_serialize() {
-        let elements = vec![serde_json::Value::Null, serde_json::Value::Null];
+        let elements = [serde_json::Value::Null, serde_json::Value::Null];
         let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(
@@ -900,7 +899,7 @@ mod tests {
             ]),
         );
 
-        let elements = vec![
+        let elements = [
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::String("Some demo".into()),
         ];
@@ -914,12 +913,12 @@ mod tests {
             ]),
         );
 
-        let elements = vec![];
+        let elements = [];
         let result = serialize_value(ReferenceValue::Array(elements.iter()));
         let value = deserialize_value(result);
         assert_eq!(value, crate::schema::OwnedValue::Array(vec![]));
 
-        let elements = vec![
+        let elements = [
             serde_json::Value::Null,
             serde_json::Value::String("Hello, world".into()),
             serde_json::Value::Number(12345.into()),

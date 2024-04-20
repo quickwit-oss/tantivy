@@ -113,6 +113,9 @@ impl Cardinality {
     pub fn is_multivalue(&self) -> bool {
         matches!(self, Cardinality::Multivalued)
     }
+    pub fn is_full(&self) -> bool {
+        matches!(self, Cardinality::Full)
+    }
     pub(crate) fn to_code(self) -> u8 {
         self as u8
     }

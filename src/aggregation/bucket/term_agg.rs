@@ -1,6 +1,10 @@
 use std::fmt::Debug;
+use std::net::Ipv6Addr;
 
-use columnar::{BytesColumn, ColumnType, MonotonicallyMappableToU64, StrColumn};
+use columnar::column_values::CompactSpaceU64Accessor;
+use columnar::{
+    BytesColumn, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, StrColumn,
+};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -99,23 +103,14 @@ pub struct TermsAggregation {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub size: Option<u32>,
 
-    /// Unused by tantivy.
-    ///
-    /// Since tantivy doesn't know shards, this parameter is merely there to be used by consumers
-    /// of tantivy. shard_size is the number of terms returned by each shard.
-    /// The default value in elasticsearch is size * 1.5 + 10.
-    ///
-    /// Should never be smaller than size.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    #[serde(alias = "shard_size")]
-    pub split_size: Option<u32>,
-
-    /// The get more accurate results, we fetch more than `size` from each segment.
+    /// To get more accurate results, we fetch more than `size` from each segment.
     ///
     /// Increasing this value is will increase the cost for more accuracy.
     ///
     /// Defaults to 10 * size.
     #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[serde(alias = "shard_size")]
+    #[serde(alias = "split_size")]
     pub segment_size: Option<u32>,
 
     /// If you set the `show_term_doc_count_error` parameter to true, the terms aggregation will
@@ -256,7 +251,7 @@ pub struct SegmentTermCollector {
     term_buckets: TermBuckets,
     req: TermsAggregationInternal,
     blueprint: Option<Box<dyn SegmentAggregationCollector>>,
-    field_type: ColumnType,
+    column_type: ColumnType,
     accessor_idx: usize,
 }
 
@@ -315,7 +310,10 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         }
         // has subagg
         if let Some(blueprint) = self.blueprint.as_ref() {
-            for (doc, term_id) in bucket_agg_accessor.column_block_accessor.iter_docid_vals() {
+            for (doc, term_id) in bucket_agg_accessor
+                .column_block_accessor
+                .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+            {
                 let sub_aggregations = self
                     .term_buckets
                     .sub_aggs
@@ -355,7 +353,7 @@ impl SegmentTermCollector {
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
-        if field_type == ColumnType::Bytes || field_type == ColumnType::Bool {
+        if field_type == ColumnType::Bytes {
             return Err(TantivyError::InvalidArgument(format!(
                 "terms aggregation is not supported for column type {:?}",
                 field_type
@@ -389,7 +387,7 @@ impl SegmentTermCollector {
             req: TermsAggregationInternal::from_req(req),
             term_buckets,
             blueprint,
-            field_type,
+            column_type: field_type,
             accessor_idx,
         })
     }
@@ -466,7 +464,7 @@ impl SegmentTermCollector {
                 Ok(intermediate_entry)
             };
 
-        if self.field_type == ColumnType::Str {
+        if self.column_type == ColumnType::Str {
             let term_dict = agg_with_accessor
                 .str_dict_column
                 .as_ref()
@@ -531,28 +529,55 @@ impl SegmentTermCollector {
                         });
                 }
             }
-        } else if self.field_type == ColumnType::DateTime {
+        } else if self.column_type == ColumnType::DateTime {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
                 let val = i64::from_u64(val);
                 let date = format_date(val)?;
                 dict.insert(IntermediateKey::Str(date), intermediate_entry);
             }
+        } else if self.column_type == ColumnType::Bool {
+            for (val, doc_count) in entries {
+                let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
+                let val = bool::from_u64(val);
+                dict.insert(IntermediateKey::Bool(val), intermediate_entry);
+            }
+        } else if self.column_type == ColumnType::IpAddr {
+            let compact_space_accessor = agg_with_accessor
+                .accessor
+                .values
+                .clone()
+                .downcast_arc::<CompactSpaceU64Accessor>()
+                .map_err(|_| {
+                    TantivyError::AggregationError(
+                        crate::aggregation::AggregationError::InternalError(
+                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
+                                .to_string(),
+                        ),
+                    )
+                })?;
+
+            for (val, doc_count) in entries {
+                let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
+                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
+                let val = Ipv6Addr::from_u128(val);
+                dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
+            }
         } else {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
-                let val = f64_from_fastfield_u64(val, &self.field_type);
+                let val = f64_from_fastfield_u64(val, &self.column_type);
                 dict.insert(IntermediateKey::F64(val), intermediate_entry);
             }
         };
 
-        Ok(IntermediateBucketResult::Terms(
-            IntermediateTermBucketResult {
+        Ok(IntermediateBucketResult::Terms {
+            buckets: IntermediateTermBucketResult {
                 entries: dict,
                 sum_other_doc_count,
                 doc_count_error_upper_bound: term_doc_count_before_cutoff,
             },
-        ))
+        })
     }
 }
 
@@ -590,6 +615,9 @@ pub(crate) fn cut_off_buckets<T: GetDocCount + Debug>(
 
 #[cfg(test)]
 mod tests {
+    use std::net::IpAddr;
+    use std::str::FromStr;
+
     use common::DateTime;
     use time::{Date, Month};
 
@@ -600,7 +628,7 @@ mod tests {
     };
     use crate::aggregation::AggregationLimits;
     use crate::indexer::NoMergePolicy;
-    use crate::schema::{Schema, FAST, STRING};
+    use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
     use crate::{Index, IndexWriter};
 
     #[test]
@@ -1182,9 +1210,9 @@ mod tests {
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
-        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termc");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 0);
-        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termc");
         assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 0);
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
         assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
@@ -1365,7 +1393,7 @@ mod tests {
 
     #[test]
     fn terms_aggregation_different_tokenizer_on_ff_test() -> crate::Result<()> {
-        let terms = vec!["Hello Hello", "Hallo Hallo"];
+        let terms = vec!["Hello Hello", "Hallo Hallo", "Hallo Hallo"];
 
         let index = get_test_index_from_terms(true, &[terms])?;
 
@@ -1383,7 +1411,7 @@ mod tests {
         println!("{}", serde_json::to_string_pretty(&res).unwrap());
 
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "Hallo Hallo");
-        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 1);
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
 
         assert_eq!(res["my_texts"]["buckets"][1]["key"], "Hello Hello");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 1);
@@ -1891,6 +1919,82 @@ mod tests {
         assert_eq!(res["my_date"]["buckets"][1]["key"], "1983-09-27T00:00:00Z");
         assert_eq!(res["my_date"]["buckets"][1]["doc_count"], 1);
         assert_eq!(res["my_date"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_bool() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_bool_field("bool_field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer = index.writer_with_num_threads(1, 15_000_000)?;
+            writer.add_document(doc!(field=>true))?;
+            writer.add_document(doc!(field=>false))?;
+            writer.add_document(doc!(field=>true))?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_bool": {
+                "terms": {
+                    "field": "bool_field"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        assert_eq!(res["my_bool"]["buckets"][0]["key"], 1.0);
+        assert_eq!(res["my_bool"]["buckets"][0]["key_as_string"], "true");
+        assert_eq!(res["my_bool"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_bool"]["buckets"][1]["key"], 0.0);
+        assert_eq!(res["my_bool"]["buckets"][1]["key_as_string"], "false");
+        assert_eq!(res["my_bool"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_bool"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_ip_addr() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_ip_addr_field("ip_field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut writer = index.writer_with_num_threads(1, 15_000_000)?;
+            // IpV6 loopback
+            writer.add_document(doc!(field=>IpAddr::from_str("::1").unwrap().into_ipv6_addr()))?;
+            writer.add_document(doc!(field=>IpAddr::from_str("::1").unwrap().into_ipv6_addr()))?;
+            // IpV4
+            writer.add_document(
+                doc!(field=>IpAddr::from_str("127.0.0.1").unwrap().into_ipv6_addr()),
+            )?;
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_bool": {
+                "terms": {
+                    "field": "ip_field"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+        // print as json
+        // println!("{}", serde_json::to_string_pretty(&res).unwrap());
+
+        assert_eq!(res["my_bool"]["buckets"][0]["key"], "::1");
+        assert_eq!(res["my_bool"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_bool"]["buckets"][1]["key"], "127.0.0.1");
+        assert_eq!(res["my_bool"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_bool"]["buckets"][2]["key"], serde_json::Value::Null);
 
         Ok(())
     }

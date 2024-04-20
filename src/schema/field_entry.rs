@@ -136,7 +136,6 @@ impl FieldEntry {
 
 #[cfg(test)]
 mod tests {
-    use serde_json;
 
     use super::*;
     use crate::schema::{Schema, TextFieldIndexing, TEXT};

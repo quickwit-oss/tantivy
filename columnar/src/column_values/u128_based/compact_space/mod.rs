@@ -22,7 +22,7 @@ mod build_compact_space;
 
 use build_compact_space::get_compact_space;
 use common::{BinarySerializable, CountingWriter, OwnedBytes, VInt, VIntU128};
-use tantivy_bitpacker::{self, BitPacker, BitUnpacker};
+use tantivy_bitpacker::{BitPacker, BitUnpacker};
 
 use crate::column_values::ColumnValues;
 use crate::RowId;
@@ -148,7 +148,7 @@ impl CompactSpace {
             .binary_search_by_key(&compact, |range_mapping| range_mapping.compact_start)
             // Correctness: Overflow. The first range starts at compact space 0, the error from
             // binary search can never be 0
-            .map_or_else(|e| e - 1, |v| v);
+            .unwrap_or_else(|e| e - 1);
 
         let range_mapping = &self.ranges_mapping[pos];
         let diff = compact - range_mapping.compact_start;
@@ -292,6 +292,63 @@ impl BinarySerializable for IPCodecParams {
     }
 }
 
+/// Exposes the compact space compressed values as u64.
+///
+/// This allows faster access to the values, as u64 is faster to work with than u128.
+/// It also allows to handle u128 values like u64, via the `open_u64_lenient` as a uniform
+/// access interface.
+///
+/// When converting from the internal u64 to u128 `compact_to_u128` can be used.
+pub struct CompactSpaceU64Accessor(CompactSpaceDecompressor);
+impl CompactSpaceU64Accessor {
+    pub(crate) fn open(data: OwnedBytes) -> io::Result<CompactSpaceU64Accessor> {
+        let decompressor = CompactSpaceU64Accessor(CompactSpaceDecompressor::open(data)?);
+        Ok(decompressor)
+    }
+    /// Convert a compact space value to u128
+    pub fn compact_to_u128(&self, compact: u32) -> u128 {
+        self.0.compact_to_u128(compact)
+    }
+}
+
+impl ColumnValues<u64> for CompactSpaceU64Accessor {
+    #[inline]
+    fn get_val(&self, doc: u32) -> u64 {
+        let compact = self.0.get_compact(doc);
+        compact as u64
+    }
+
+    fn min_value(&self) -> u64 {
+        self.0.u128_to_compact(self.0.min_value()).unwrap() as u64
+    }
+
+    fn max_value(&self) -> u64 {
+        self.0.u128_to_compact(self.0.max_value()).unwrap() as u64
+    }
+
+    fn num_vals(&self) -> u32 {
+        self.0.params.num_vals
+    }
+
+    #[inline]
+    fn iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
+        Box::new(self.0.iter_compact().map(|el| el as u64))
+    }
+
+    #[inline]
+    fn get_row_ids_for_value_range(
+        &self,
+        value_range: RangeInclusive<u64>,
+        position_range: Range<u32>,
+        positions: &mut Vec<u32>,
+    ) {
+        let value_range = self.0.compact_to_u128(*value_range.start() as u32)
+            ..=self.0.compact_to_u128(*value_range.end() as u32);
+        self.0
+            .get_row_ids_for_value_range(value_range, position_range, positions)
+    }
+}
+
 impl ColumnValues<u128> for CompactSpaceDecompressor {
     #[inline]
     fn get_val(&self, doc: u32) -> u128 {
@@ -403,8 +460,13 @@ impl CompactSpaceDecompressor {
     }
 
     #[inline]
+    pub fn get_compact(&self, idx: u32) -> u32 {
+        self.params.bit_unpacker.get(idx, &self.data) as u32
+    }
+
+    #[inline]
     pub fn get(&self, idx: u32) -> u128 {
-        let compact = self.params.bit_unpacker.get(idx, &self.data) as u32;
+        let compact = self.get_compact(idx);
         self.compact_to_u128(compact)
     }
 

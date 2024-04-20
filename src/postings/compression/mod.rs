@@ -14,7 +14,6 @@ pub fn compressed_block_size(num_bits: u8) -> usize {
 pub struct BlockEncoder {
     bitpacker: BitPacker4x,
     pub output: [u8; COMPRESSED_BLOCK_MAX_SIZE],
-    pub output_len: usize,
 }
 
 impl Default for BlockEncoder {
@@ -28,7 +27,6 @@ impl BlockEncoder {
         BlockEncoder {
             bitpacker: BitPacker4x::new(),
             output: [0u8; COMPRESSED_BLOCK_MAX_SIZE],
-            output_len: 0,
         }
     }
 

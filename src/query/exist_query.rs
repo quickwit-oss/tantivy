@@ -3,8 +3,8 @@ use core::fmt::Debug;
 use columnar::{ColumnIndex, DynamicColumn};
 
 use super::{ConstScorer, EmptyScorer};
-use crate::core::SegmentReader;
 use crate::docset::{DocSet, TERMINATED};
+use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, Score, TantivyError};
@@ -149,7 +149,7 @@ mod tests {
     use crate::query::exist_query::ExistsQuery;
     use crate::query::{BooleanQuery, RangeQuery};
     use crate::schema::{Facet, FacetOptions, Schema, FAST, INDEXED, STRING, TEXT};
-    use crate::{doc, Index, Searcher};
+    use crate::{Index, Searcher};
 
     #[test]
     fn test_exists_query_simple() -> crate::Result<()> {

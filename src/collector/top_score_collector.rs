@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use columnar::ColumnValues;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use super::Collector;
 use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
@@ -309,7 +311,7 @@ impl TopDocs {
     ///
     /// To comfortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
     /// the [.order_by_fast_field(...)](TopDocs::order_by_fast_field) method.
-    fn order_by_u64_field(
+    pub fn order_by_u64_field(
         self,
         field: impl ToString,
         order: Order,
@@ -663,7 +665,7 @@ impl Collector for TopDocs {
         reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let heap_len = self.0.limit + self.0.offset;
-        let mut top_n = TopNComputer::new(heap_len);
+        let mut top_n: TopNComputer<_, _> = TopNComputer::new(heap_len);
 
         if let Some(alive_bitset) = reader.alive_bitset() {
             let mut threshold = Score::MIN;
@@ -672,21 +674,13 @@ impl Collector for TopDocs {
                 if alive_bitset.is_deleted(doc) {
                     return threshold;
                 }
-                let doc = ComparableDoc {
-                    feature: score,
-                    doc,
-                };
-                top_n.push(doc);
+                top_n.push(score, doc);
                 threshold = top_n.threshold.unwrap_or(Score::MIN);
                 threshold
             })?;
         } else {
             weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
-                let doc = ComparableDoc {
-                    feature: score,
-                    doc,
-                };
-                top_n.push(doc);
+                top_n.push(score, doc);
                 top_n.threshold.unwrap_or(Score::MIN)
             })?;
         }
@@ -725,17 +719,78 @@ impl SegmentCollector for TopScoreSegmentCollector {
 
 /// Fast TopN Computation
 ///
+/// Capacity of the vec is 2 * top_n.
+/// The buffer is truncated to the top_n elements when it reaches the capacity of the Vec.
+/// That means capacity has special meaning and should be carried over when cloning or serializing.
+///
 /// For TopN == 0, it will be relative expensive.
-pub struct TopNComputer<Score, DocId> {
-    buffer: Vec<ComparableDoc<Score, DocId>>,
+#[derive(Serialize, Deserialize)]
+#[serde(from = "TopNComputerDeser<Score, D, REVERSE_ORDER>")]
+pub struct TopNComputer<Score, D, const REVERSE_ORDER: bool = true> {
+    /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
+    buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
     top_n: usize,
     pub(crate) threshold: Option<Score>,
 }
 
-impl<Score, DocId> TopNComputer<Score, DocId>
+impl<Score: std::fmt::Debug, D, const REVERSE_ORDER: bool> std::fmt::Debug
+    for TopNComputer<Score, D, REVERSE_ORDER>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TopNComputer")
+            .field("buffer_len", &self.buffer.len())
+            .field("top_n", &self.top_n)
+            .field("current_threshold", &self.threshold)
+            .finish()
+    }
+}
+
+// Intermediate struct for TopNComputer for deserialization, to keep vec capacity
+#[derive(Deserialize)]
+struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool> {
+    buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
+    top_n: usize,
+    threshold: Option<Score>,
+}
+
+// Custom clone to keep capacity
+impl<Score: Clone, D: Clone, const REVERSE_ORDER: bool> Clone
+    for TopNComputer<Score, D, REVERSE_ORDER>
+{
+    fn clone(&self) -> Self {
+        let mut buffer_clone = Vec::with_capacity(self.buffer.capacity());
+        buffer_clone.extend(self.buffer.iter().cloned());
+
+        TopNComputer {
+            buffer: buffer_clone,
+            top_n: self.top_n,
+            threshold: self.threshold.clone(),
+        }
+    }
+}
+
+impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNComputer<Score, D, R> {
+    fn from(mut value: TopNComputerDeser<Score, D, R>) -> Self {
+        let expected_cap = value.top_n.max(1) * 2;
+        let current_cap = value.buffer.capacity();
+        if current_cap < expected_cap {
+            value.buffer.reserve_exact(expected_cap - current_cap);
+        } else {
+            value.buffer.shrink_to(expected_cap);
+        }
+
+        TopNComputer {
+            buffer: value.buffer,
+            top_n: value.top_n,
+            threshold: value.threshold,
+        }
+    }
+}
+
+impl<Score, D, const R: bool> TopNComputer<Score, D, R>
 where
     Score: PartialOrd + Clone,
-    DocId: Ord + Clone,
+    D: Serialize + DeserializeOwned + Ord + Clone,
 {
     /// Create a new `TopNComputer`.
     /// Internally it will allocate a buffer of size `2 * top_n`.
@@ -748,10 +803,12 @@ where
         }
     }
 
+    /// Push a new document to the top n.
+    /// If the document is below the current threshold, it will be ignored.
     #[inline]
-    pub(crate) fn push(&mut self, doc: ComparableDoc<Score, DocId>) {
+    pub fn push(&mut self, feature: Score, doc: D) {
         if let Some(last_median) = self.threshold.clone() {
-            if doc.feature < last_median {
+            if feature < last_median {
                 return;
             }
         }
@@ -766,7 +823,7 @@ where
         let uninit = self.buffer.spare_capacity_mut();
         // This cannot panic, because we truncate_median will at least remove one element, since
         // the min capacity is 2.
-        uninit[0].write(doc);
+        uninit[0].write(ComparableDoc { doc, feature });
         // This is safe because it would panic in the line above
         unsafe {
             self.buffer.set_len(self.buffer.len() + 1);
@@ -785,11 +842,22 @@ where
         median_score
     }
 
-    pub(crate) fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, DocId>> {
+    /// Returns the top n elements in sorted order.
+    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
         self.buffer.sort_unstable();
+        self.buffer
+    }
+
+    /// Returns the top n elements in stored order.
+    /// Useful if you do not need the elements in sorted order,
+    /// for example when merging the results of multiple segments.
+    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
+        if self.buffer.len() > self.top_n {
+            self.truncate_top_n();
+        }
         self.buffer
     }
 }
@@ -825,49 +893,44 @@ mod tests {
             crate::assert_nearly_equals!(result.0, expected.0);
         }
     }
+    #[test]
+    fn test_topn_computer_serde() {
+        let computer: TopNComputer<u32, u32> = TopNComputer::new(1);
+
+        let computer_ser = serde_json::to_string(&computer).unwrap();
+        let mut computer: TopNComputer<u32, u32> = serde_json::from_str(&computer_ser).unwrap();
+
+        computer.push(1u32, 5u32);
+        computer.push(1u32, 0u32);
+        computer.push(1u32, 7u32);
+
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[ComparableDoc {
+                feature: 1u32,
+                doc: 0u32,
+            },]
+        );
+    }
 
     #[test]
     fn test_empty_topn_computer() {
         let mut computer: TopNComputer<u32, u32> = TopNComputer::new(0);
 
-        computer.push(ComparableDoc {
-            feature: 1u32,
-            doc: 1u32,
-        });
-        computer.push(ComparableDoc {
-            feature: 1u32,
-            doc: 2u32,
-        });
-        computer.push(ComparableDoc {
-            feature: 1u32,
-            doc: 3u32,
-        });
+        computer.push(1u32, 1u32);
+        computer.push(1u32, 2u32);
+        computer.push(1u32, 3u32);
         assert!(computer.into_sorted_vec().is_empty());
     }
     #[test]
     fn test_topn_computer() {
         let mut computer: TopNComputer<u32, u32> = TopNComputer::new(2);
 
-        computer.push(ComparableDoc {
-            feature: 1u32,
-            doc: 1u32,
-        });
-        computer.push(ComparableDoc {
-            feature: 2u32,
-            doc: 2u32,
-        });
-        computer.push(ComparableDoc {
-            feature: 3u32,
-            doc: 3u32,
-        });
-        computer.push(ComparableDoc {
-            feature: 2u32,
-            doc: 4u32,
-        });
-        computer.push(ComparableDoc {
-            feature: 1u32,
-            doc: 5u32,
-        });
+        computer.push(1u32, 1u32);
+        computer.push(2u32, 2u32);
+        computer.push(3u32, 3u32);
+        computer.push(2u32, 4u32);
+        computer.push(1u32, 5u32);
         assert_eq!(
             computer.into_sorted_vec(),
             &[
@@ -889,10 +952,7 @@ mod tests {
             let mut computer: TopNComputer<u32, u32> = TopNComputer::new(top_n);
 
             for _ in 0..1 + top_n * 2 {
-                computer.push(ComparableDoc {
-                    feature: 1u32,
-                    doc: 1u32,
-                });
+                computer.push(1u32, 1u32);
             }
             let _vals = computer.into_sorted_vec();
         }

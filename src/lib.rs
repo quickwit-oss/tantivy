@@ -178,6 +178,7 @@ pub use crate::future_result::FutureResult;
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
 mod core;
+#[allow(deprecated)] // Remove with index sorting
 pub mod indexer;
 
 #[allow(unused_doc_comments)]
@@ -189,6 +190,8 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
+#[allow(deprecated)] // Remove with index sorting
+pub mod index;
 pub mod positions;
 pub mod postings;
 
@@ -212,7 +215,7 @@ pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, HasLen};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-pub use self::docset::{DocSet, TERMINATED};
+pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 #[deprecated(
     since = "0.22.0",
     note = "Will be removed in tantivy 0.23. Use export from snippet module instead"
@@ -220,21 +223,20 @@ pub use self::docset::{DocSet, TERMINATED};
 pub use self::snippet::{Snippet, SnippetGenerator};
 #[doc(hidden)]
 pub use crate::core::json_utils;
-pub use crate::core::{
-    merge_field_meta_data, Executor, FieldMetadata, Index, IndexBuilder, IndexMeta, IndexSettings,
-    IndexSortByField, InvertedIndexReader, Order, Searcher, SearcherGeneration, Segment,
-    SegmentComponent, SegmentId, SegmentMeta, SegmentReader, SingleSegmentIndexWriter,
-};
+pub use crate::core::{Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
-pub use crate::indexer::IndexWriter;
+#[allow(deprecated)] // Remove with index sorting
+pub use crate::index::{
+    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
+    Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader,
+};
 #[deprecated(
     since = "0.22.0",
     note = "Will be removed in tantivy 0.23. Use export from indexer module instead"
 )]
-pub use crate::indexer::{merge_filtered_segments, merge_indices, PreparedCommit};
+pub use crate::indexer::PreparedCommit;
+pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::postings::Postings;
-#[allow(deprecated)]
-pub use crate::schema::DatePrecision;
 pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
 
 /// Index format version.
@@ -253,7 +255,7 @@ pub struct Version {
 
 impl fmt::Debug for Version {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -264,9 +266,10 @@ static VERSION: Lazy<Version> = Lazy::new(|| Version {
     index_format_version: INDEX_FORMAT_VERSION,
 });
 
-impl ToString for Version {
-    fn to_string(&self) -> String {
-        format!(
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
             "tantivy v{}.{}.{}, index_format v{}",
             self.major, self.minor, self.patch, self.index_format_version
         )
@@ -338,7 +341,7 @@ impl DocAddress {
 ///
 /// The id used for the segment is actually an ordinal
 /// in the list of `Segment`s held by a `Searcher`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DocAddress {
     /// The segment ordinal id that identifies the segment
     /// hosting the document in the `Searcher` it is called from.
@@ -386,11 +389,10 @@ pub mod tests {
     use time::OffsetDateTime;
 
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
-    use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
+    use crate::index::SegmentReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::query::BooleanQuery;
-    use crate::schema::document::Value;
     use crate::schema::*;
     use crate::{DateTime, DocAddress, Index, IndexWriter, Postings, ReloadPolicy};
 

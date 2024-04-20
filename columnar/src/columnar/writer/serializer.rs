@@ -18,7 +18,12 @@ pub struct ColumnarSerializer<W: io::Write> {
 /// code.
 fn prepare_key(key: &[u8], column_type: ColumnType, buffer: &mut Vec<u8>) {
     buffer.clear();
-    buffer.extend_from_slice(key);
+    // Convert 0 bytes to '0' string, as 0 bytes are reserved for the end of the path.
+    if key.contains(&0u8) {
+        buffer.extend(key.iter().map(|&b| if b == 0 { b'0' } else { b }));
+    } else {
+        buffer.extend_from_slice(key);
+    }
     buffer.push(0u8);
     buffer.push(column_type.to_code());
 }
@@ -96,14 +101,13 @@ impl<'a, W: io::Write> io::Write for ColumnSerializer<'a, W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::columnar::column_type::ColumnType;
 
     #[test]
     fn test_prepare_key_bytes() {
         let mut buffer: Vec<u8> = b"somegarbage".to_vec();
         prepare_key(b"root\0child", ColumnType::Str, &mut buffer);
         assert_eq!(buffer.len(), 12);
-        assert_eq!(&buffer[..10], b"root\0child");
+        assert_eq!(&buffer[..10], b"root0child");
         assert_eq!(buffer[10], 0u8);
         assert_eq!(buffer[11], ColumnType::Str.to_code());
     }

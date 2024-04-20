@@ -44,6 +44,26 @@ impl UserInputLeaf {
             },
         }
     }
+
+    pub(crate) fn set_default_field(&mut self, default_field: String) {
+        match self {
+            UserInputLeaf::Literal(ref mut literal) if literal.field_name.is_none() => {
+                literal.field_name = Some(default_field)
+            }
+            UserInputLeaf::All => {
+                *self = UserInputLeaf::Exists {
+                    field: default_field,
+                }
+            }
+            UserInputLeaf::Range { ref mut field, .. } if field.is_none() => {
+                *field = Some(default_field)
+            }
+            UserInputLeaf::Set { ref mut field, .. } if field.is_none() => {
+                *field = Some(default_field)
+            }
+            _ => (), // field was already set, do nothing
+        }
+    }
 }
 
 impl Debug for UserInputLeaf {
@@ -204,6 +224,16 @@ impl UserInputAst {
 
     pub fn or(asts: Vec<UserInputAst>) -> UserInputAst {
         UserInputAst::compose(Occur::Should, asts)
+    }
+
+    pub(crate) fn set_default_field(&mut self, field: String) {
+        match self {
+            UserInputAst::Clause(clauses) => clauses
+                .iter_mut()
+                .for_each(|(_, ast)| ast.set_default_field(field.clone())),
+            UserInputAst::Leaf(leaf) => leaf.set_default_field(field),
+            UserInputAst::Boost(ref mut ast, _) => ast.set_default_field(field),
+        }
     }
 }
 
