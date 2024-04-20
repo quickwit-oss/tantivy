@@ -1,4 +1,3 @@
-use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 
 use columnar::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
@@ -128,23 +127,6 @@ impl IndexingTerm {
         self.0.extend_from_slice(bytes);
         &mut self.0[len_before..]
     }
-
-    /// Appends json path bytes to the Term.
-    /// If the path contains 0 bytes, they are replaced by a "0" string.
-    /// The 0 byte is used to mark the end of the path.
-    ///
-    /// This function returns the segment that has just been added.
-    #[inline]
-    pub fn append_path(&mut self, bytes: &[u8]) -> &mut [u8] {
-        let len_before = self.0.len();
-        if bytes.contains(&0u8) {
-            self.0
-                .extend(bytes.iter().map(|&b| if b == 0 { b'0' } else { b }));
-        } else {
-            self.0.extend_from_slice(bytes);
-        }
-        &mut self.0[len_before..]
-    }
 }
 
 impl<B> IndexingTerm<B>
@@ -162,16 +144,6 @@ where
         Field::from_field_id(u32::from_be_bytes(field_id_bytes))
     }
 
-    /// Returns the serialized representation of the value.
-    /// (this does neither include the field id nor the value type.)
-    ///
-    /// If the term is a string, its value is utf-8 encoded.
-    /// If the term is a u64, its value is encoded according
-    /// to `byteorder::BigEndian`.
-    pub fn serialized_value_bytes(&self) -> &[u8] {
-        &self.0.as_ref()[TERM_METADATA_LENGTH..]
-    }
-
     /// Returns the serialized representation of Term.
     /// This includes field_id, value type and value.
     ///
@@ -180,78 +152,5 @@ where
     #[inline]
     pub fn serialized_term(&self) -> &[u8] {
         self.0.as_ref()
-    }
-}
-
-/// ValueBytes represents a serialized value.
-/// The value can be of any type of [`Type`] (e.g. string, u64, f64, bool, date, JSON).
-/// The serialized representation matches the lexographical order of the type.
-///
-/// The `ValueBytes` format is as follow:
-/// `[type code: u8][serialized value]`
-///
-/// For JSON `ValueBytes` equals to:
-/// `[type code=JSON][JSON path][JSON_END_OF_PATH][ValueBytes]`
-///
-/// The nested ValueBytes in JSON is never of type JSON. (there's no recursion)
-#[derive(Clone)]
-pub struct ValueBytes<B>(B)
-where
-    B: AsRef<[u8]>;
-
-impl<B> ValueBytes<B>
-where
-    B: AsRef<[u8]>,
-{
-    /// Wraps a object holding bytes
-    pub fn wrap(data: B) -> ValueBytes<B> {
-        ValueBytes(data)
-    }
-
-    fn typ_code(&self) -> u8 {
-        self.0.as_ref()[0]
-    }
-
-    /// Return the type of the term.
-    pub fn typ(&self) -> Type {
-        Type::from_code(self.typ_code()).expect("The term has an invalid type code")
-    }
-}
-
-impl<B> Ord for IndexingTerm<B>
-where
-    B: AsRef<[u8]>,
-{
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.serialized_term().cmp(other.serialized_term())
-    }
-}
-
-impl<B> PartialOrd for IndexingTerm<B>
-where
-    B: AsRef<[u8]>,
-{
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<B> PartialEq for IndexingTerm<B>
-where
-    B: AsRef<[u8]>,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.serialized_term() == other.serialized_term()
-    }
-}
-
-impl<B> Eq for IndexingTerm<B> where B: AsRef<[u8]> {}
-
-impl<B> Hash for IndexingTerm<B>
-where
-    B: AsRef<[u8]>,
-{
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.as_ref().hash(state)
     }
 }
