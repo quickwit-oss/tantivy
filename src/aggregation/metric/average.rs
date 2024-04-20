@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use super::IntermediateStats;
-
+use crate::aggregation::*;
 /// A single-value metric aggregation that computes the average of numeric values that are
 /// extracted from the aggregated documents.
 /// See [super::SingleMetricResult] for return value.
