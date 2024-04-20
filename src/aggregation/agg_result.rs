@@ -8,7 +8,9 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::bucket::GetDocCount;
-use super::metric::{ExtendedStats, PercentilesMetricResult, SingleMetricResult, Stats, TopHitsMetricResult};
+use super::metric::{
+    ExtendedStats, PercentilesMetricResult, SingleMetricResult, Stats, TopHitsMetricResult,
+};
 use super::{AggregationError, Key};
 use crate::TantivyError;
 

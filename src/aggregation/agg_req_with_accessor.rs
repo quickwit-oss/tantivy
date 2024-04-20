@@ -276,7 +276,8 @@ impl AggregationWithAccessor {
                 ..
             })
             | ExtendedStats(ExtendedStatsAggregation {
-                field: ref field_name, ..
+                field: ref field_name,
+                ..
             })
             | Sum(SumAggregation {
                 field: ref field_name,

@@ -16,8 +16,9 @@ use super::metric::{
     SumAggregation,
 };
 use crate::aggregation::bucket::TermMissingAgg;
-use crate::aggregation::metric::TopHitsSegmentCollector;
-use crate::aggregation::metric::{IntermediateExtendedStats, IntermediateInnerStatsCollector};
+use crate::aggregation::metric::{
+    IntermediateExtendedStats, IntermediateInnerStatsCollector, TopHitsSegmentCollector,
+};
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
