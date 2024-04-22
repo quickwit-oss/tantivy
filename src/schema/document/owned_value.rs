@@ -183,7 +183,7 @@ impl serde::Serialize for OwnedValue {
             OwnedValue::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
             OwnedValue::Object(ref obj) => {
                 let mut map = serializer.serialize_map(Some(obj.len()))?;
-                for &(ref k, ref v) in obj {
+                for (k, v) in obj {
                     map.serialize_entry(k, v)?;
                 }
                 map.end()
