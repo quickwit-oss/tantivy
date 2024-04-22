@@ -253,10 +253,7 @@ fn index_json_value<'a, V: Value<'a>>(
 /// Tries to infer a JSON type from a string and append it to the term.
 ///
 /// The term must be json + JSON path.
-pub(crate) fn convert_to_fast_value_and_append_to_json_term(
-    mut term: Term,
-    phrase: &str,
-) -> Option<Term> {
+pub fn convert_to_fast_value_and_append_to_json_term(mut term: Term, phrase: &str) -> Option<Term> {
     assert_eq!(
         term.value()
             .as_json()
