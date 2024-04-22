@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
-use crate::schema::{Field, Type};
+use crate::schema::Type;
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
@@ -349,44 +349,24 @@ pub(crate) fn encode_column_name(
     path.into()
 }
 
-pub fn term_from_json_paths<'a>(
-    json_field: Field,
-    paths: impl Iterator<Item = &'a str>,
-    expand_dots_enabled: bool,
-) -> Term {
-    let mut json_path = JsonPathWriter::with_expand_dots(expand_dots_enabled);
-    for path in paths {
-        json_path.push(path);
-    }
-    json_path.set_end();
-    let mut term = Term::with_type_and_field(Type::Json, json_field);
-
-    term.append_bytes(json_path.as_str().as_bytes());
-    term
-}
-
 #[cfg(test)]
 mod tests {
     use super::split_json_path;
-    use crate::json_utils::term_from_json_paths;
     use crate::schema::Field;
+    use crate::Term;
 
     #[test]
     fn test_json_writer() {
         let field = Field::from_field_id(1);
 
-        let mut term = term_from_json_paths(field, ["attributes", "color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "attributes.color", false);
         term.append_type_and_str("red");
         assert_eq!(
             format!("{:?}", term),
             "Term(field=1, type=Json, path=attributes.color, type=Str, \"red\")"
         );
 
-        let mut term = term_from_json_paths(
-            field,
-            ["attributes", "dimensions", "width"].into_iter(),
-            false,
-        );
+        let mut term = Term::from_field_json_path(field, "attributes.dimensions.width", false);
         term.append_type_and_fast_value(400i64);
         assert_eq!(
             format!("{:?}", term),
@@ -397,7 +377,7 @@ mod tests {
     #[test]
     fn test_string_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_str("red");
 
         assert_eq!(term.serialized_term(), b"\x00\x00\x00\x01jcolor\x00sred")
@@ -406,7 +386,7 @@ mod tests {
     #[test]
     fn test_i64_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(-4i64);
 
         assert_eq!(
@@ -418,7 +398,7 @@ mod tests {
     #[test]
     fn test_u64_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(4u64);
 
         assert_eq!(
@@ -430,7 +410,7 @@ mod tests {
     #[test]
     fn test_f64_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(4.0f64);
         assert_eq!(
             term.serialized_term(),
@@ -441,7 +421,7 @@ mod tests {
     #[test]
     fn test_bool_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(true);
         assert_eq!(
             term.serialized_term(),
