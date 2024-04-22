@@ -960,13 +960,19 @@ mod tests {
             "my-third-key".to_string(),
             crate::schema::OwnedValue::F64(123.0),
         );
-        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
+        assert_eq!(
+            value,
+            crate::schema::OwnedValue::Object(expected_object.into_iter().collect())
+        );
 
         let object = serde_json::Map::new();
         let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
         let value = deserialize_value(result);
         let expected_object = BTreeMap::new();
-        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
+        assert_eq!(
+            value,
+            crate::schema::OwnedValue::Object(expected_object.into_iter().collect())
+        );
 
         let mut object = serde_json::Map::new();
         object.insert("my-first-key".into(), serde_json::Value::Null);
@@ -978,7 +984,10 @@ mod tests {
         expected_object.insert("my-first-key".to_string(), crate::schema::OwnedValue::Null);
         expected_object.insert("my-second-key".to_string(), crate::schema::OwnedValue::Null);
         expected_object.insert("my-third-key".to_string(), crate::schema::OwnedValue::Null);
-        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
+        assert_eq!(
+            value,
+            crate::schema::OwnedValue::Object(expected_object.into_iter().collect())
+        );
     }
 
     #[test]
@@ -1055,7 +1064,10 @@ mod tests {
                 .collect(),
             ),
         );
-        assert_eq!(value, crate::schema::OwnedValue::Object(expected_object));
+        assert_eq!(
+            value,
+            crate::schema::OwnedValue::Object(expected_object.into_iter().collect())
+        );
 
         // Some more extreme nesting that might behave weirdly
         let mut object = serde_json::Map::new();
@@ -1077,6 +1089,9 @@ mod tests {
                 OwnedValue::Array(vec![OwnedValue::Null]),
             ])]),
         );
-        assert_eq!(value, OwnedValue::Object(expected_object));
+        assert_eq!(
+            value,
+            OwnedValue::Object(expected_object.into_iter().collect())
+        );
     }
 }
