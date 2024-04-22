@@ -4,10 +4,12 @@ use std::{fmt, str};
 
 use columnar::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP_STR};
+use common::JsonPathWriter;
 
 use super::date_time_options::DATE_TIME_PRECISION_INDEXED;
 use super::Field;
 use crate::fastfield::FastValue;
+use crate::json_utils::split_json_path;
 use crate::schema::{Facet, Type};
 use crate::DateTime;
 
@@ -31,6 +33,28 @@ impl Term {
         let mut data = Vec::with_capacity(TERM_METADATA_LENGTH + capacity);
         data.resize(TERM_METADATA_LENGTH, 0u8);
         Term(data)
+    }
+
+    /// Creates a term from a json path.
+    ///
+    /// The json path can address a nested value in a JSON object.
+    /// e.g. `{"k8s": {"node": {"id": 5}}}` can be addressed via `k8s.node.id`.
+    ///
+    /// In case there are dots in the field name, and the `expand_dots_enabled` parameter is not
+    /// set they need to be escaped with a backslash.
+    /// e.g. `{"k8s.node": {"id": 5}}` can be addressed via `k8s\.node.id`.
+    pub fn from_field_json_path(field: Field, json_path: &str, expand_dots_enabled: bool) -> Term {
+        let paths = split_json_path(json_path);
+        let mut json_path = JsonPathWriter::with_expand_dots(expand_dots_enabled);
+        for path in paths {
+            json_path.push(&path);
+        }
+        json_path.set_end();
+        let mut term = Term::with_type_and_field(Type::Json, field);
+
+        term.append_bytes(json_path.as_str().as_bytes());
+
+        term
     }
 
     pub(crate) fn with_type_and_field(typ: Type, field: Field) -> Term {
@@ -165,7 +189,7 @@ impl Term {
     /// This is used in JSON type to append a fast value after the path.
     ///
     /// It will not clear existing bytes.
-    pub(crate) fn append_type_and_fast_value<T: FastValue>(&mut self, val: T) {
+    pub fn append_type_and_fast_value<T: FastValue>(&mut self, val: T) {
         self.0.push(T::to_type().to_code());
         let value = if T::to_type() == Type::Date {
             DateTime::from_u64(val.to_u64())
@@ -181,7 +205,7 @@ impl Term {
     /// This is used in JSON type to append a str after the path.
     ///
     /// It will not clear existing bytes.
-    pub(crate) fn append_type_and_str(&mut self, val: &str) {
+    pub fn append_type_and_str(&mut self, val: &str) {
         self.0.push(Type::Str.to_code());
         self.0.extend(val.as_bytes().as_ref());
     }

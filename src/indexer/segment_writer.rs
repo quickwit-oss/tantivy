@@ -498,7 +498,6 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::directory::RamDirectory;
     use crate::fastfield::FastValue;
-    use crate::json_utils::term_from_json_paths;
     use crate::postings::TermInfo;
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::document::Value;
@@ -647,9 +646,8 @@ mod tests {
 
         let mut term_stream = term_dict.stream().unwrap();
 
-        let term_from_path = |paths: &[&str]| -> Term {
-            term_from_json_paths(json_field, paths.iter().cloned(), false)
-        };
+        let term_from_path =
+            |path: &str| -> Term { Term::from_field_json_path(json_field, path, false) };
 
         fn set_fast_val<T: FastValue>(val: T, mut term: Term) -> Term {
             term.append_type_and_fast_value(val);
@@ -660,15 +658,14 @@ mod tests {
             term
         }
 
-        let term = term_from_path(&["bool"]);
+        let term = term_from_path("bool");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(true, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["complexobject", "field.with.dot"]);
-
+        let term = term_from_path("complexobject.field\\.with\\.dot");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -676,7 +673,7 @@ mod tests {
         );
 
         // Date
-        let term = term_from_path(&["date"]);
+        let term = term_from_path("date");
 
         assert!(term_stream.advance());
         assert_eq!(
@@ -691,7 +688,7 @@ mod tests {
         );
 
         // Float
-        let term = term_from_path(&["float"]);
+        let term = term_from_path("float");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -699,21 +696,21 @@ mod tests {
         );
 
         // Number In Array
-        let term = term_from_path(&["my_arr"]);
+        let term = term_from_path("my_arr");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(2i64, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["my_arr"]);
+        let term = term_from_path("my_arr");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(3i64, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["my_arr"]);
+        let term = term_from_path("my_arr");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -721,13 +718,13 @@ mod tests {
         );
 
         // El in Array
-        let term = term_from_path(&["my_arr", "my_key"]);
+        let term = term_from_path("my_arr.my_key");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_str("tokens", term).serialized_value_bytes()
         );
-        let term = term_from_path(&["my_arr", "my_key"]);
+        let term = term_from_path("my_arr.my_key");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -735,21 +732,21 @@ mod tests {
         );
 
         // Signed
-        let term = term_from_path(&["signed"]);
+        let term = term_from_path("signed");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(-2i64, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["toto"]);
+        let term = term_from_path("toto");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_str("titi", term).serialized_value_bytes()
         );
         // Unsigned
-        let term = term_from_path(&["unsigned"]);
+        let term = term_from_path("unsigned");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -776,7 +773,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
-        let mut term = term_from_json_paths(json_field, ["mykey"].into_iter(), false);
+        let mut term = Term::from_field_json_path(json_field, "mykey", false);
         term.append_type_and_str("token");
         let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
         assert_eq!(
@@ -815,7 +812,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
-        let mut term = term_from_json_paths(json_field, ["mykey"].into_iter(), false);
+        let mut term = Term::from_field_json_path(json_field, "mykey", false);
         term.append_type_and_str("two tokens");
         let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
         assert_eq!(
@@ -856,7 +853,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
 
-        let term = term_from_json_paths(json_field, ["mykey", "field"].into_iter(), false);
+        let term = Term::from_field_json_path(json_field, "mykey.field", false);
 
         let mut hello_term = term.clone();
         hello_term.append_type_and_str("hello");
