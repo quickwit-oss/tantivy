@@ -167,6 +167,7 @@ impl Eq for OwnedValue {}
 impl serde::Serialize for OwnedValue {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
+        use serde::ser::SerializeMap;
         match *self {
             OwnedValue::Null => serializer.serialize_unit(),
             OwnedValue::Str(ref v) => serializer.serialize_str(v),
@@ -180,7 +181,13 @@ impl serde::Serialize for OwnedValue {
             }
             OwnedValue::Facet(ref facet) => facet.serialize(serializer),
             OwnedValue::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
-            OwnedValue::Object(ref obj) => obj.serialize(serializer),
+            OwnedValue::Object(ref obj) => {
+                let mut map = serializer.serialize_map(Some(obj.len()))?;
+                for &(ref k, ref v) in obj {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
             OwnedValue::IpAddr(ref ip_v6) => {
                 // Ensure IpV4 addresses get serialized as IpV4, but excluding IpV6 loopback.
                 if let Some(ip_v4) = ip_v6.to_ipv4_mapped() {
