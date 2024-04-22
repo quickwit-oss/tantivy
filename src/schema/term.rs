@@ -20,6 +20,11 @@ use crate::DateTime;
 /// The serialized value `ValueBytes` is considered everything after the 4 first bytes (term id).
 #[derive(Clone, Hash, PartialEq, Ord, PartialOrd, Eq)]
 pub struct Term(Vec<u8>);
+impl Default for Term {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// The number of bytes used as metadata by `Term`.
 const TERM_METADATA_LENGTH: usize = 5;

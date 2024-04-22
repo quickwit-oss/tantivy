@@ -1,4 +1,3 @@
-use columnar::MonotonicallyMappableToU64;
 use common::JsonPathWriter;
 use itertools::Itertools;
 use tokenizer_api::BoxTokenStream;
@@ -16,7 +15,7 @@ use crate::postings::{
 };
 use crate::schema::document::{Document, ReferenceValue, Value};
 use crate::schema::indexing_term::IndexingTerm;
-use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::{FieldEntry, FieldType, Schema};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, SegmentComponent, TantivyError};
