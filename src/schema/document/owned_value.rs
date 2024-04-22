@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::net::Ipv6Addr;
 
@@ -369,10 +368,9 @@ impl From<PreTokenizedString> for OwnedValue {
     }
 }
 
-impl From<BTreeMap<String, OwnedValue>> for OwnedValue {
-    fn from(object: BTreeMap<String, OwnedValue>) -> OwnedValue {
-        let key_values = object.into_iter().collect();
-        OwnedValue::Object(key_values)
+impl From<Vec<(String, OwnedValue)>> for OwnedValue {
+    fn from(object: Vec<(String, OwnedValue)>) -> OwnedValue {
+        OwnedValue::Object(object)
     }
 }
 

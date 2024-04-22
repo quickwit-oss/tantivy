@@ -173,7 +173,8 @@ pub use self::de::{
     ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
 };
 pub use self::default_document::{
-    CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
+    CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, FlatObject,
+    TantivyDocument,
 };
 pub use self::owned_value::OwnedValue;
 pub(crate) use self::se::BinaryDocumentSerializer;

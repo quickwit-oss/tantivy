@@ -1,6 +1,7 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::net::Ipv6Addr;
+use std::{fmt, iter};
 
 use columnar::MonotonicallyMappableToU128;
 use common::{read_u32_vint_no_advance, serialize_vint_u32, BinarySerializable, DateTime, VInt};
@@ -119,8 +120,8 @@ impl CompactDoc {
     }
 
     /// Add a dynamic object field
-    pub fn add_object(&mut self, field: Field, object: BTreeMap<String, OwnedValue>) {
-        self.add_field_value(field, &OwnedValue::from(object));
+    pub fn add_object(&mut self, field: Field, FlatObject(object): FlatObject) {
+        self.add_field_value(field, &OwnedValue::Object(object));
     }
 
     /// Add a (field, value) to the document.
@@ -675,6 +676,33 @@ impl<'a> Iterator for FieldValueIterRef<'a> {
     }
 }
 
+/// A wrapper to deserialize a map as a sequennce of key-value pairs.
+pub struct FlatObject(pub Vec<(String, OwnedValue)>);
+
+impl<'de> serde::de::Deserialize<'de> for FlatObject {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::de::Deserializer<'de> {
+        struct MapVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for MapVisitor {
+            type Value = FlatObject;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a map")
+            }
+
+            fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+            where M: serde::de::MapAccess<'de> {
+                iter::from_fn(|| access.next_entry().transpose())
+                    .collect::<Result<_, _>>()
+                    .map(FlatObject)
+            }
+        }
+
+        deserializer.deserialize_map(MapVisitor)
+    }
+}
+
 /// Error that may happen when deserializing
 /// a document from JSON.
 #[derive(Debug, Error, PartialEq)]
@@ -726,8 +754,7 @@ mod tests {
             "date": "1985-04-12T23:20:50.52Z",
             "my_arr": [2, 3, {"my_key": "two tokens"}, 4, {"nested_array": [2, 5, 6, [7, 8, {"a": [{"d": {"e":[99]}}, 9000]}, 9, 10], [5, 5]]}]
         }"#;
-        let json_val: std::collections::BTreeMap<String, OwnedValue> =
-            serde_json::from_str(json_str).unwrap();
+        let json_val: FlatObject = serde_json::from_str(json_str).unwrap();
 
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", TEXT);

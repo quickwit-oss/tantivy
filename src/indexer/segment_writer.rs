@@ -489,7 +489,6 @@ fn remap_and_write(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
     use std::path::{Path, PathBuf};
 
     use tempfile::TempDir;
@@ -799,8 +798,7 @@ mod tests {
         let json_field = schema_builder.add_json_field("json", STORED | TEXT);
         let schema = schema_builder.build();
         let mut doc = TantivyDocument::default();
-        let json_val: BTreeMap<String, crate::schema::OwnedValue> =
-            serde_json::from_str(r#"{"mykey": "repeated token token"}"#).unwrap();
+        let json_val = serde_json::from_str(r#"{"mykey": "repeated token token"}"#).unwrap();
         doc.add_object(json_field, json_val);
         let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
