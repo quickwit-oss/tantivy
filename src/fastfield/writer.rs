@@ -183,8 +183,7 @@ impl FastFieldsWriter {
                         .record_datetime(doc_id, field_name, truncated_datetime);
                 }
                 ReferenceValueLeaf::Facet(val) => {
-                    self.columnar_writer
-                        .record_str(doc_id, field_name, val.encoded_str());
+                    self.columnar_writer.record_str(doc_id, field_name, val);
                 }
                 ReferenceValueLeaf::Bytes(val) => {
                     self.columnar_writer.record_bytes(doc_id, field_name, val);

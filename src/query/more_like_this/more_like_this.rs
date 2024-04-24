@@ -180,7 +180,7 @@ impl MoreLikeThis {
                 let facets: Vec<&str> = values
                     .iter()
                     .map(|value| {
-                        value.as_facet().map(|f| f.encoded_str()).ok_or_else(|| {
+                        value.as_facet().ok_or_else(|| {
                             TantivyError::InvalidArgument("invalid field value".to_string())
                         })
                     })
@@ -220,7 +220,7 @@ impl MoreLikeThis {
                         let mut token_stream = tokenizer.token_stream(text);
                         token_stream.process(sink);
                     } else if let Some(tok_str) = value.as_pre_tokenized_text() {
-                        let mut token_stream = PreTokenizedStream::from(tok_str.clone());
+                        let mut token_stream = PreTokenizedStream::from(*tok_str.clone());
                         token_stream.process(sink);
                     }
                 }
