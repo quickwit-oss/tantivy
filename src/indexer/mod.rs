@@ -182,7 +182,7 @@ mod tests_mmap {
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer
-            .add_document(doc!(field=>json!({format!("{field_name_in}"): "test1"})))
+            .add_document(doc!(field=>json!({format!("{field_name_in}"): "test1", format!("num{field_name_in}"): 10})))
             .unwrap();
         index_writer
             .add_document(doc!(field=>json!({format!("a{field_name_in}"): "test2"})))
@@ -260,6 +260,64 @@ mod tests_mmap {
             "test6",
         );
         test_agg(format!("json.{field_name_out}a").as_str(), "test7");
+
+        // `.` is stored as `\u{0001}` internally in tantivy
+        let field_name_out_internal = if field_name_out == "." {
+            "\u{0001}"
+        } else {
+            field_name_out
+        };
+
+        let mut fields = reader.searcher().segment_readers()[0]
+            .inverted_index(field)
+            .unwrap()
+            .list_encoded_fields()
+            .unwrap();
+        assert_eq!(fields.len(), 8);
+        fields.sort();
+        let mut expected_fields = vec![
+            (format!("a{field_name_out_internal}"), Type::Str),
+            (format!("a{field_name_out_internal}a"), Type::Str),
+            (
+                format!("a{field_name_out_internal}a{field_name_out_internal}"),
+                Type::Str,
+            ),
+            (
+                format!("a{field_name_out_internal}\u{1}ab{field_name_out_internal}"),
+                Type::Str,
+            ),
+            (
+                format!("a{field_name_out_internal}\u{1}a{field_name_out_internal}"),
+                Type::Str,
+            ),
+            (format!("{field_name_out_internal}a"), Type::Str),
+            (format!("{field_name_out_internal}"), Type::Str),
+            (format!("num{field_name_out_internal}"), Type::I64),
+        ];
+        expected_fields.sort();
+        assert_eq!(fields, expected_fields);
+        // Check columnar reader
+        let mut columns = reader.searcher().segment_readers()[0]
+            .fast_fields()
+            .columnar()
+            .list_columns()
+            .unwrap()
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect::<Vec<_>>();
+        let mut expected_columns = vec![
+            format!("json\u{1}{field_name_out_internal}"),
+            format!("json\u{1}{field_name_out_internal}a"),
+            format!("json\u{1}a{field_name_out_internal}"),
+            format!("json\u{1}a{field_name_out_internal}a"),
+            format!("json\u{1}a{field_name_out_internal}a{field_name_out_internal}"),
+            format!("json\u{1}a{field_name_out_internal}\u{1}ab{field_name_out_internal}"),
+            format!("json\u{1}a{field_name_out_internal}\u{1}a{field_name_out_internal}"),
+            format!("json\u{1}num{field_name_out_internal}"),
+        ];
+        columns.sort();
+        expected_columns.sort();
+        assert_eq!(columns, expected_columns);
     }
 
     #[test]
