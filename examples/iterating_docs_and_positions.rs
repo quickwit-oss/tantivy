@@ -7,10 +7,11 @@
 // the list of documents containing a term, getting
 // its term frequency, and accessing its positions.
 
+use tantivy::postings::Postings;
 // ---
 // Importing tantivy...
 use tantivy::schema::*;
-use tantivy::{doc, DocSet, Index, IndexWriter, Postings, TERMINATED};
+use tantivy::{doc, DocSet, Index, IndexWriter, TERMINATED};
 
 fn main() -> tantivy::Result<()> {
     // We first create a schema for the sake of the

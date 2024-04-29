@@ -1,14 +1,14 @@
 use std::io;
 
 use columnar::{ColumnarWriter, NumericalValue};
-use common::JsonPathWriter;
+use common::{DateTimePrecision, JsonPathWriter};
 use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::document::{Document, ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{DateTimePrecision, DocId, TantivyError};
+use crate::{DocId, TantivyError};
 
 /// Only index JSON down to a depth of 20.
 /// This is mostly to guard us from a stack overflow triggered by malicious input.

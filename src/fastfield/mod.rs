@@ -80,7 +80,7 @@ mod tests {
     use std::path::Path;
 
     use columnar::StrColumn;
-    use common::{ByteCount, HasLen, TerminatingWrite};
+    use common::{ByteCount, DateTimePrecision, HasLen, TerminatingWrite};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
@@ -88,14 +88,15 @@ mod tests {
 
     use super::*;
     use crate::directory::{Directory, RamDirectory, WritePtr};
+    use crate::index::SegmentId;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::{
-        Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder, TantivyDocument,
-        TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        DateOptions, Facet, FacetOptions, Field, JsonObjectOptions, Schema, SchemaBuilder,
+        TantivyDocument, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager};
-    use crate::{DateOptions, DateTimePrecision, Index, IndexWriter, SegmentId, SegmentReader};
+    use crate::{Index, IndexWriter, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();

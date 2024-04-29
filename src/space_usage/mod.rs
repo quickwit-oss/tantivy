@@ -12,8 +12,8 @@ use std::collections::HashMap;
 use common::ByteCount;
 use serde::{Deserialize, Serialize};
 
+use crate::index::SegmentComponent;
 use crate::schema::Field;
-use crate::SegmentComponent;
 
 /// Enum containing any of the possible space usage results for segment components.
 pub enum ComponentSpaceUsage {
@@ -115,7 +115,7 @@ impl SegmentSpaceUsage {
     /// Use the components directly if this is somehow in performance critical code.
     pub fn component(&self, component: SegmentComponent) -> ComponentSpaceUsage {
         use self::ComponentSpaceUsage::*;
-        use crate::SegmentComponent::*;
+        use crate::index::SegmentComponent::*;
         match component {
             Postings => PerField(self.postings().clone()),
             Positions => PerField(self.positions().clone()),

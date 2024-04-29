@@ -11,9 +11,10 @@ use columnar::Column;
 // ---
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
+use tantivy::index::SegmentReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
-use tantivy::{doc, Index, IndexWriter, Score, SegmentReader};
+use tantivy::{doc, Index, IndexWriter, Score};
 
 #[derive(Default)]
 struct Stats {

@@ -13,7 +13,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::{AliveBitSet, FastFieldNotAvailableError};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
-use crate::index::{Segment, SegmentReader};
+use crate::index::{Segment, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
@@ -21,8 +21,7 @@ use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{
-    DocAddress, DocId, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
-    SegmentComponent, SegmentOrdinal,
+    DocAddress, DocId, IndexSettings, IndexSortByField, InvertedIndexReader, Order, SegmentOrdinal,
 };
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
@@ -794,7 +793,7 @@ mod tests {
         BytesFastFieldTestCollector, FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
     };
     use crate::collector::{Count, FacetCollector};
-    use crate::index::Index;
+    use crate::index::{Index, SegmentId};
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::document::Value;
     use crate::schema::{
@@ -804,7 +803,7 @@ mod tests {
     use crate::time::OffsetDateTime;
     use crate::{
         assert_nearly_equals, schema, DateTime, DocAddress, DocId, DocSet, IndexSettings,
-        IndexSortByField, IndexWriter, Order, Searcher, SegmentId,
+        IndexSortByField, IndexWriter, Order, Searcher,
     };
 
     #[test]
