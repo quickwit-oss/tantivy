@@ -145,7 +145,8 @@ pub enum ReferenceValueLeaf<'a> {
     F64(f64),
     /// Date/time with nanoseconds precision
     Date(DateTime),
-    /// Facet, needs to match the format of [Facet].
+    /// Facet string needs to match the format of
+    /// [Facet::encoded_str](crate::schema::Facet::encoded_str).
     Facet(&'a str),
     /// Arbitrarily sized byte array
     Bytes(&'a [u8]),
