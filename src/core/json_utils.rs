@@ -31,7 +31,7 @@ use crate::{DateTime, DocId, Term};
 /// position 1.
 /// As a result, with lemmatization, "The Smiths" will match our object.
 ///
-/// Worse, if a same term is appears in the second object, a non increasing value would be pushed
+/// Worse, if a same term appears in the second object, a non increasing value would be pushed
 /// to the position recorder probably provoking a panic.
 ///
 /// This problem is solved for regular multivalued object by offsetting the position
@@ -50,13 +50,16 @@ use crate::{DateTime, DocId, Term};
 /// We can therefore afford working with a map that is not imperfect. It is fine if several
 /// path map to the same index position as long as the probability is relatively low.
 #[derive(Default)]
-struct IndexingPositionsPerPath {
+pub(crate) struct IndexingPositionsPerPath {
     positions_per_path: FxHashMap<u32, IndexingPosition>,
 }
 
 impl IndexingPositionsPerPath {
     fn get_position_from_id(&mut self, id: u32) -> &mut IndexingPosition {
         self.positions_per_path.entry(id).or_default()
+    }
+    pub fn clear(&mut self) {
+        self.positions_per_path.clear();
     }
 }
 
@@ -66,36 +69,6 @@ pub fn json_path_sep_to_dot(path: &mut str) {
     unsafe {
         replace_in_place(JSON_PATH_SEGMENT_SEP, b'.', path.as_bytes_mut());
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn index_json_values<'a, V: Value<'a>>(
-    doc: DocId,
-    json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
-    text_analyzer: &mut TextAnalyzer,
-    expand_dots_enabled: bool,
-    term_buffer: &mut Term,
-    postings_writer: &mut dyn PostingsWriter,
-    json_path_writer: &mut JsonPathWriter,
-    ctx: &mut IndexingContext,
-) -> crate::Result<()> {
-    json_path_writer.clear();
-    json_path_writer.set_expand_dots(expand_dots_enabled);
-    let mut positions_per_path: IndexingPositionsPerPath = Default::default();
-    for json_visitor_res in json_visitors {
-        let json_visitor = json_visitor_res?;
-        index_json_object::<V>(
-            doc,
-            json_visitor,
-            text_analyzer,
-            term_buffer,
-            json_path_writer,
-            postings_writer,
-            ctx,
-            &mut positions_per_path,
-        );
-    }
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -126,7 +99,7 @@ fn index_json_object<'a, V: Value<'a>>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn index_json_value<'a, V: Value<'a>>(
+pub(crate) fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,
@@ -166,12 +139,18 @@ fn index_json_value<'a, V: Value<'a>>(
                 );
             }
             ReferenceValueLeaf::U64(val) => {
+                // try to parse to i64, since when querying we will apply the same logic and prefer
+                // i64 values
                 set_path_id(
                     term_buffer,
                     ctx.path_to_unordered_id
                         .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
-                term_buffer.append_type_and_fast_value(val);
+                if let Ok(i64_val) = val.try_into() {
+                    term_buffer.append_type_and_fast_value::<i64>(i64_val);
+                } else {
+                    term_buffer.append_type_and_fast_value(val);
+                }
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::I64(val) => {
