@@ -195,6 +195,31 @@ mod bench {
         });
     }
 
+    bench_all_cardinalities!(bench_aggregation_extendedstats_f64);
+
+    fn bench_aggregation_extendedstats_f64_card(b: &mut Bencher, cardinality: Cardinality) {
+        let index = get_test_index_bench(cardinality).unwrap();
+        let reader = index.reader().unwrap();
+        let text_field = reader.searcher().schema().get_field("text").unwrap();
+
+        b.iter(|| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, "cool"),
+                IndexRecordOption::Basic,
+            );
+
+            let agg_req_1: Aggregations = serde_json::from_value(json!({
+                "extstat_f64": { "extended_stats": { "field": "score_f64", } }
+            }))
+            .unwrap();
+
+            let collector = get_collector(agg_req_1);
+
+            let searcher = reader.searcher();
+            searcher.search(&term_query, &collector).unwrap()
+        });
+    }
+
     bench_all_cardinalities!(bench_aggregation_average_f64);
 
     fn bench_aggregation_average_f64_card(b: &mut Bencher, cardinality: Cardinality) {
