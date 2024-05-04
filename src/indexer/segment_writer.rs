@@ -5,16 +5,16 @@ use tokenizer_api::BoxTokenStream;
 
 use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
-use crate::core::json_utils::index_json_values;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::index::Segment;
 use crate::indexer::segment_serializer::SegmentSerializer;
+use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
     PerFieldPostingsWriter, PostingsWriter,
 };
-use crate::schema::document::{Document, ReferenceValue, Value};
+use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
@@ -68,6 +68,7 @@ pub struct SegmentWriter {
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
     pub(crate) json_path_writer: JsonPathWriter,
+    pub(crate) json_positions_per_path: IndexingPositionsPerPath,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     per_field_text_analyzers: Vec<TextAnalyzer>,
     term_buffer: Term,
@@ -119,6 +120,7 @@ impl SegmentWriter {
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
             json_path_writer: JsonPathWriter::default(),
+            json_positions_per_path: IndexingPositionsPerPath::default(),
             segment_serializer,
             fast_field_writers: FastFieldsWriter::from_schema_and_tokenizer_manager(
                 &schema,
@@ -342,26 +344,24 @@ impl SegmentWriter {
                 FieldType::JsonObject(json_options) => {
                     let text_analyzer =
                         &mut self.per_field_text_analyzers[field.field_id() as usize];
-                    let json_values_it = values.map(|value_access| {
-                        // Used to help with linting and type checking.
-                        let value_access = value_access as D::Value<'_>;
-                        let value = value_access.as_value();
 
-                        match value {
-                            ReferenceValue::Object(object_iter) => Ok(object_iter),
-                            _ => Err(make_schema_error()),
-                        }
-                    });
-                    index_json_values::<D::Value<'_>>(
-                        doc_id,
-                        json_values_it,
-                        text_analyzer,
-                        json_options.is_expand_dots_enabled(),
-                        term_buffer,
-                        postings_writer,
-                        &mut self.json_path_writer,
-                        ctx,
-                    )?;
+                    self.json_positions_per_path.clear();
+                    self.json_path_writer
+                        .set_expand_dots(json_options.is_expand_dots_enabled());
+                    for json_value in values {
+                        self.json_path_writer.clear();
+
+                        index_json_value(
+                            doc_id,
+                            json_value,
+                            text_analyzer,
+                            term_buffer,
+                            &mut self.json_path_writer,
+                            postings_writer,
+                            ctx,
+                            &mut self.json_positions_per_path,
+                        );
+                    }
                 }
                 FieldType::IpAddr(_) => {
                     let mut num_vals = 0;
@@ -498,12 +498,12 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::directory::RamDirectory;
     use crate::fastfield::FastValue;
-    use crate::json_utils::term_from_json_paths;
     use crate::postings::TermInfo;
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::document::Value;
     use crate::schema::{
-        Document, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, STRING, TEXT,
+        Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, STORED,
+        STRING, TEXT,
     };
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
@@ -599,6 +599,45 @@ mod tests {
     }
 
     #[test]
+    fn test_flat_json_indexing() {
+        // A JSON Object that contains mixed values on the first level
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", STORED | STRING);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer_for_tests().unwrap();
+        // Text, i64, u64
+        writer.add_document(doc!(json_field=>"b")).unwrap();
+        writer
+            .add_document(doc!(json_field=>OwnedValue::I64(10i64)))
+            .unwrap();
+        writer
+            .add_document(doc!(json_field=>OwnedValue::U64(55u64)))
+            .unwrap();
+        writer
+            .add_document(doc!(json_field=>json!({"my_field": "a"})))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let search_and_expect = |query| {
+            let query_parser = QueryParser::for_index(&index, vec![json_field]);
+            let text_query = query_parser.parse_query(query).unwrap();
+            let score_docs: Vec<(_, DocAddress)> = index
+                .reader()
+                .unwrap()
+                .searcher()
+                .search(&text_query, &TopDocs::with_limit(4))
+                .unwrap();
+            assert_eq!(score_docs.len(), 1);
+        };
+
+        search_and_expect("my_field:a");
+        search_and_expect("b");
+        search_and_expect("10");
+        search_and_expect("55");
+    }
+
+    #[test]
     fn test_json_indexing() {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", STORED | TEXT);
@@ -647,9 +686,8 @@ mod tests {
 
         let mut term_stream = term_dict.stream().unwrap();
 
-        let term_from_path = |paths: &[&str]| -> Term {
-            term_from_json_paths(json_field, paths.iter().cloned(), false)
-        };
+        let term_from_path =
+            |path: &str| -> Term { Term::from_field_json_path(json_field, path, false) };
 
         fn set_fast_val<T: FastValue>(val: T, mut term: Term) -> Term {
             term.append_type_and_fast_value(val);
@@ -660,15 +698,14 @@ mod tests {
             term
         }
 
-        let term = term_from_path(&["bool"]);
+        let term = term_from_path("bool");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(true, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["complexobject", "field.with.dot"]);
-
+        let term = term_from_path("complexobject.field\\.with\\.dot");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -676,7 +713,7 @@ mod tests {
         );
 
         // Date
-        let term = term_from_path(&["date"]);
+        let term = term_from_path("date");
 
         assert!(term_stream.advance());
         assert_eq!(
@@ -691,7 +728,7 @@ mod tests {
         );
 
         // Float
-        let term = term_from_path(&["float"]);
+        let term = term_from_path("float");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -699,21 +736,21 @@ mod tests {
         );
 
         // Number In Array
-        let term = term_from_path(&["my_arr"]);
+        let term = term_from_path("my_arr");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(2i64, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["my_arr"]);
+        let term = term_from_path("my_arr");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(3i64, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["my_arr"]);
+        let term = term_from_path("my_arr");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -721,13 +758,13 @@ mod tests {
         );
 
         // El in Array
-        let term = term_from_path(&["my_arr", "my_key"]);
+        let term = term_from_path("my_arr.my_key");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_str("tokens", term).serialized_value_bytes()
         );
-        let term = term_from_path(&["my_arr", "my_key"]);
+        let term = term_from_path("my_arr.my_key");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -735,21 +772,21 @@ mod tests {
         );
 
         // Signed
-        let term = term_from_path(&["signed"]);
+        let term = term_from_path("signed");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_fast_val(-2i64, term).serialized_value_bytes()
         );
 
-        let term = term_from_path(&["toto"]);
+        let term = term_from_path("toto");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
             set_str("titi", term).serialized_value_bytes()
         );
         // Unsigned
-        let term = term_from_path(&["unsigned"]);
+        let term = term_from_path("unsigned");
         assert!(term_stream.advance());
         assert_eq!(
             term_stream.key(),
@@ -776,7 +813,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
-        let mut term = term_from_json_paths(json_field, ["mykey"].into_iter(), false);
+        let mut term = Term::from_field_json_path(json_field, "mykey", false);
         term.append_type_and_str("token");
         let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
         assert_eq!(
@@ -815,7 +852,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
         let inv_index = segment_reader.inverted_index(json_field).unwrap();
-        let mut term = term_from_json_paths(json_field, ["mykey"].into_iter(), false);
+        let mut term = Term::from_field_json_path(json_field, "mykey", false);
         term.append_type_and_str("two tokens");
         let term_info = inv_index.get_term_info(&term).unwrap().unwrap();
         assert_eq!(
@@ -856,7 +893,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
 
-        let term = term_from_json_paths(json_field, ["mykey", "field"].into_iter(), false);
+        let term = Term::from_field_json_path(json_field, "mykey.field", false);
 
         let mut hello_term = term.clone();
         hello_term.append_type_and_str("hello");

@@ -1,7 +1,6 @@
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
 use crate::indexer::{LogMergePolicy, NoMergePolicy};
-use crate::json_utils::term_from_json_paths;
 use crate::query::TermQuery;
 use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
@@ -417,8 +416,8 @@ fn test_non_text_json_term_freq() {
     let segment_reader = searcher.segment_reader(0u32);
     let inv_idx = segment_reader.inverted_index(field).unwrap();
 
-    let mut term = term_from_json_paths(field, ["tenant_id"].iter().cloned(), false);
-    term.append_type_and_fast_value(75u64);
+    let mut term = Term::from_field_json_path(field, "tenant_id", false);
+    term.append_type_and_fast_value(75i64);
 
     let postings = inv_idx
         .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
@@ -451,8 +450,8 @@ fn test_non_text_json_term_freq_bitpacked() {
     let segment_reader = searcher.segment_reader(0u32);
     let inv_idx = segment_reader.inverted_index(field).unwrap();
 
-    let mut term = term_from_json_paths(field, ["tenant_id"].iter().cloned(), false);
-    term.append_type_and_fast_value(75u64);
+    let mut term = Term::from_field_json_path(field, "tenant_id", false);
+    term.append_type_and_fast_value(75i64);
 
     let mut postings = inv_idx
         .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)

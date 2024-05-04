@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
-use crate::schema::{Field, Type};
+use crate::schema::Type;
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
@@ -31,7 +31,7 @@ use crate::{DateTime, DocId, Term};
 /// position 1.
 /// As a result, with lemmatization, "The Smiths" will match our object.
 ///
-/// Worse, if a same term is appears in the second object, a non increasing value would be pushed
+/// Worse, if a same term appears in the second object, a non increasing value would be pushed
 /// to the position recorder probably provoking a panic.
 ///
 /// This problem is solved for regular multivalued object by offsetting the position
@@ -50,13 +50,16 @@ use crate::{DateTime, DocId, Term};
 /// We can therefore afford working with a map that is not imperfect. It is fine if several
 /// path map to the same index position as long as the probability is relatively low.
 #[derive(Default)]
-struct IndexingPositionsPerPath {
+pub(crate) struct IndexingPositionsPerPath {
     positions_per_path: FxHashMap<u32, IndexingPosition>,
 }
 
 impl IndexingPositionsPerPath {
     fn get_position_from_id(&mut self, id: u32) -> &mut IndexingPosition {
         self.positions_per_path.entry(id).or_default()
+    }
+    pub fn clear(&mut self) {
+        self.positions_per_path.clear();
     }
 }
 
@@ -66,36 +69,6 @@ pub fn json_path_sep_to_dot(path: &mut str) {
     unsafe {
         replace_in_place(JSON_PATH_SEGMENT_SEP, b'.', path.as_bytes_mut());
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn index_json_values<'a, V: Value<'a>>(
-    doc: DocId,
-    json_visitors: impl Iterator<Item = crate::Result<V::ObjectIter>>,
-    text_analyzer: &mut TextAnalyzer,
-    expand_dots_enabled: bool,
-    term_buffer: &mut Term,
-    postings_writer: &mut dyn PostingsWriter,
-    json_path_writer: &mut JsonPathWriter,
-    ctx: &mut IndexingContext,
-) -> crate::Result<()> {
-    json_path_writer.clear();
-    json_path_writer.set_expand_dots(expand_dots_enabled);
-    let mut positions_per_path: IndexingPositionsPerPath = Default::default();
-    for json_visitor_res in json_visitors {
-        let json_visitor = json_visitor_res?;
-        index_json_object::<V>(
-            doc,
-            json_visitor,
-            text_analyzer,
-            term_buffer,
-            json_path_writer,
-            postings_writer,
-            ctx,
-            &mut positions_per_path,
-        );
-    }
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -126,7 +99,7 @@ fn index_json_object<'a, V: Value<'a>>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn index_json_value<'a, V: Value<'a>>(
+pub(crate) fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,
@@ -166,12 +139,18 @@ fn index_json_value<'a, V: Value<'a>>(
                 );
             }
             ReferenceValueLeaf::U64(val) => {
+                // try to parse to i64, since when querying we will apply the same logic and prefer
+                // i64 values
                 set_path_id(
                     term_buffer,
                     ctx.path_to_unordered_id
                         .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
-                term_buffer.append_type_and_fast_value(val);
+                if let Ok(i64_val) = val.try_into() {
+                    term_buffer.append_type_and_fast_value::<i64>(i64_val);
+                } else {
+                    term_buffer.append_type_and_fast_value(val);
+                }
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::I64(val) => {
@@ -257,10 +236,7 @@ fn index_json_value<'a, V: Value<'a>>(
 /// Tries to infer a JSON type from a string and append it to the term.
 ///
 /// The term must be json + JSON path.
-pub(crate) fn convert_to_fast_value_and_append_to_json_term(
-    mut term: Term,
-    phrase: &str,
-) -> Option<Term> {
+pub fn convert_to_fast_value_and_append_to_json_term(mut term: Term, phrase: &str) -> Option<Term> {
     assert_eq!(
         term.value()
             .as_json_value_bytes()
@@ -349,44 +325,24 @@ pub(crate) fn encode_column_name(
     path.into()
 }
 
-pub fn term_from_json_paths<'a>(
-    json_field: Field,
-    paths: impl Iterator<Item = &'a str>,
-    expand_dots_enabled: bool,
-) -> Term {
-    let mut json_path = JsonPathWriter::with_expand_dots(expand_dots_enabled);
-    for path in paths {
-        json_path.push(path);
-    }
-    json_path.set_end();
-    let mut term = Term::with_type_and_field(Type::Json, json_field);
-
-    term.append_bytes(json_path.as_str().as_bytes());
-    term
-}
-
 #[cfg(test)]
 mod tests {
     use super::split_json_path;
-    use crate::json_utils::term_from_json_paths;
     use crate::schema::Field;
+    use crate::Term;
 
     #[test]
     fn test_json_writer() {
         let field = Field::from_field_id(1);
 
-        let mut term = term_from_json_paths(field, ["attributes", "color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "attributes.color", false);
         term.append_type_and_str("red");
         assert_eq!(
             format!("{:?}", term),
             "Term(field=1, type=Json, path=attributes.color, type=Str, \"red\")"
         );
 
-        let mut term = term_from_json_paths(
-            field,
-            ["attributes", "dimensions", "width"].into_iter(),
-            false,
-        );
+        let mut term = Term::from_field_json_path(field, "attributes.dimensions.width", false);
         term.append_type_and_fast_value(400i64);
         assert_eq!(
             format!("{:?}", term),
@@ -397,7 +353,7 @@ mod tests {
     #[test]
     fn test_string_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_str("red");
 
         assert_eq!(term.serialized_term(), b"\x00\x00\x00\x01jcolor\x00sred")
@@ -406,7 +362,7 @@ mod tests {
     #[test]
     fn test_i64_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(-4i64);
 
         assert_eq!(
@@ -418,7 +374,7 @@ mod tests {
     #[test]
     fn test_u64_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(4u64);
 
         assert_eq!(
@@ -430,7 +386,7 @@ mod tests {
     #[test]
     fn test_f64_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(4.0f64);
         assert_eq!(
             term.serialized_term(),
@@ -441,7 +397,7 @@ mod tests {
     #[test]
     fn test_bool_term() {
         let field = Field::from_field_id(1);
-        let mut term = term_from_json_paths(field, ["color"].into_iter(), false);
+        let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(true);
         assert_eq!(
             term.serialized_term(),

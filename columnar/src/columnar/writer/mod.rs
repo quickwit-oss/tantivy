@@ -59,22 +59,6 @@ pub struct ColumnarWriter {
     buffers: SpareBuffers,
 }
 
-#[inline]
-fn mutate_or_create_column<V, TMutator>(
-    arena_hash_map: &mut ArenaHashMap,
-    column_name: &str,
-    updater: TMutator,
-) where
-    V: Copy + 'static,
-    TMutator: FnMut(Option<V>) -> V,
-{
-    assert!(
-        !column_name.as_bytes().contains(&0u8),
-        "key may not contain the 0 byte"
-    );
-    arena_hash_map.mutate_or_create(column_name.as_bytes(), updater);
-}
-
 impl ColumnarWriter {
     pub fn mem_usage(&self) -> usize {
         self.arena.mem_usage()
@@ -175,9 +159,8 @@ impl ColumnarWriter {
                     },
                     &mut self.dictionaries,
                 );
-                mutate_or_create_column(
-                    hash_map,
-                    column_name,
+                hash_map.mutate_or_create(
+                    column_name.as_bytes(),
                     |column_opt: Option<StrOrBytesColumnWriter>| {
                         let mut column_writer = if let Some(column_writer) = column_opt {
                             column_writer
@@ -192,24 +175,21 @@ impl ColumnarWriter {
                 );
             }
             ColumnType::Bool => {
-                mutate_or_create_column(
-                    &mut self.bool_field_hash_map,
-                    column_name,
+                self.bool_field_hash_map.mutate_or_create(
+                    column_name.as_bytes(),
                     |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
                 );
             }
             ColumnType::DateTime => {
-                mutate_or_create_column(
-                    &mut self.datetime_field_hash_map,
-                    column_name,
+                self.datetime_field_hash_map.mutate_or_create(
+                    column_name.as_bytes(),
                     |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
                 );
             }
             ColumnType::I64 | ColumnType::F64 | ColumnType::U64 => {
                 let numerical_type = column_type.numerical_type().unwrap();
-                mutate_or_create_column(
-                    &mut self.numerical_field_hash_map,
-                    column_name,
+                self.numerical_field_hash_map.mutate_or_create(
+                    column_name.as_bytes(),
                     |column_opt: Option<NumericalColumnWriter>| {
                         let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
                         column.force_numerical_type(numerical_type);
@@ -217,9 +197,8 @@ impl ColumnarWriter {
                     },
                 );
             }
-            ColumnType::IpAddr => mutate_or_create_column(
-                &mut self.ip_addr_field_hash_map,
-                column_name,
+            ColumnType::IpAddr => self.ip_addr_field_hash_map.mutate_or_create(
+                column_name.as_bytes(),
                 |column_opt: Option<ColumnWriter>| column_opt.unwrap_or_default(),
             ),
         }
@@ -232,9 +211,8 @@ impl ColumnarWriter {
         numerical_value: T,
     ) {
         let (hash_map, arena) = (&mut self.numerical_field_hash_map, &mut self.arena);
-        mutate_or_create_column(
-            hash_map,
-            column_name,
+        hash_map.mutate_or_create(
+            column_name.as_bytes(),
             |column_opt: Option<NumericalColumnWriter>| {
                 let mut column: NumericalColumnWriter = column_opt.unwrap_or_default();
                 column.record_numerical_value(doc, numerical_value.into(), arena);
@@ -244,10 +222,6 @@ impl ColumnarWriter {
     }
 
     pub fn record_ip_addr(&mut self, doc: RowId, column_name: &str, ip_addr: Ipv6Addr) {
-        assert!(
-            !column_name.as_bytes().contains(&0u8),
-            "key may not contain the 0 byte"
-        );
         let (hash_map, arena) = (&mut self.ip_addr_field_hash_map, &mut self.arena);
         hash_map.mutate_or_create(
             column_name.as_bytes(),
@@ -261,24 +235,30 @@ impl ColumnarWriter {
 
     pub fn record_bool(&mut self, doc: RowId, column_name: &str, val: bool) {
         let (hash_map, arena) = (&mut self.bool_field_hash_map, &mut self.arena);
-        mutate_or_create_column(hash_map, column_name, |column_opt: Option<ColumnWriter>| {
-            let mut column: ColumnWriter = column_opt.unwrap_or_default();
-            column.record(doc, val, arena);
-            column
-        });
+        hash_map.mutate_or_create(
+            column_name.as_bytes(),
+            |column_opt: Option<ColumnWriter>| {
+                let mut column: ColumnWriter = column_opt.unwrap_or_default();
+                column.record(doc, val, arena);
+                column
+            },
+        );
     }
 
     pub fn record_datetime(&mut self, doc: RowId, column_name: &str, datetime: common::DateTime) {
         let (hash_map, arena) = (&mut self.datetime_field_hash_map, &mut self.arena);
-        mutate_or_create_column(hash_map, column_name, |column_opt: Option<ColumnWriter>| {
-            let mut column: ColumnWriter = column_opt.unwrap_or_default();
-            column.record(
-                doc,
-                NumericalValue::I64(datetime.into_timestamp_nanos()),
-                arena,
-            );
-            column
-        });
+        hash_map.mutate_or_create(
+            column_name.as_bytes(),
+            |column_opt: Option<ColumnWriter>| {
+                let mut column: ColumnWriter = column_opt.unwrap_or_default();
+                column.record(
+                    doc,
+                    NumericalValue::I64(datetime.into_timestamp_nanos()),
+                    arena,
+                );
+                column
+            },
+        );
     }
 
     pub fn record_str(&mut self, doc: RowId, column_name: &str, value: &str) {
@@ -303,10 +283,6 @@ impl ColumnarWriter {
     }
 
     pub fn record_bytes(&mut self, doc: RowId, column_name: &str, value: &[u8]) {
-        assert!(
-            !column_name.as_bytes().contains(&0u8),
-            "key may not contain the 0 byte"
-        );
         let (hash_map, arena, dictionaries) = (
             &mut self.bytes_field_hash_map,
             &mut self.arena,
