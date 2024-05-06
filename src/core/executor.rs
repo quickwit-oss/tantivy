@@ -1,3 +1,5 @@
+#[cfg(feature = "quickwit")]
+use futures_util::{future::Either, FutureExt};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::TantivyError;
@@ -88,6 +90,29 @@ impl Executor {
                     ));
                 }
                 Ok(results)
+            }
+        }
+    }
+
+    /// Spawn a task on the pool, returning a future completing on task success.
+    ///
+    /// If the task panic, returns `Err(())`.
+    #[cfg(feature = "quickwit")]
+    pub fn spawn_blocking<T: Send + 'static>(
+        &self,
+        task: impl FnOnce() -> T + Send + 'static,
+    ) -> impl std::future::Future<Output = Result<T, ()>> {
+        match self {
+            Executor::SingleThread => Either::Left(std::future::ready(Ok(task()))),
+            Executor::ThreadPool(pool) => {
+                let (sender, receiver) = oneshot::channel();
+                pool.spawn(|| {
+                    // we don't care if the receiver was dropped
+                    let _ = sender.send(task());
+                });
+
+                let res = receiver.map(|res| res.map_err(|_| ()));
+                Either::Right(res)
             }
         }
     }
