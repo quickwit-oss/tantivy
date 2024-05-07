@@ -216,11 +216,6 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
-#[deprecated(
-    since = "0.22.0",
-    note = "Will be removed in tantivy 0.23. Use export from snippet module instead"
-)]
-pub use self::snippet::{Snippet, SnippetGenerator};
 #[doc(hidden)]
 pub use crate::core::json_utils;
 pub use crate::core::{Executor, Searcher, SearcherGeneration};
@@ -228,16 +223,10 @@ pub use crate::directory::Directory;
 #[allow(deprecated)] // Remove with index sorting
 pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
-    Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader,
+    Segment, SegmentMeta, SegmentReader,
 };
-#[deprecated(
-    since = "0.22.0",
-    note = "Will be removed in tantivy 0.23. Use export from indexer module instead"
-)]
-pub use crate::indexer::PreparedCommit;
 pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
-pub use crate::postings::Postings;
-pub use crate::schema::{DateOptions, DateTimePrecision, Document, TantivyDocument, Term};
+pub use crate::schema::{Document, TantivyDocument, Term};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 6;
@@ -392,9 +381,10 @@ pub mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::index::SegmentReader;
     use crate::merge_policy::NoMergePolicy;
+    use crate::postings::Postings;
     use crate::query::BooleanQuery;
     use crate::schema::*;
-    use crate::{DateTime, DocAddress, Index, IndexWriter, Postings, ReloadPolicy};
+    use crate::{DateTime, DocAddress, Index, IndexWriter, ReloadPolicy};
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
@@ -1109,9 +1099,9 @@ pub mod tests {
     #[test]
     fn test_update_via_delete_insert() -> crate::Result<()> {
         use crate::collector::Count;
+        use crate::index::SegmentId;
         use crate::indexer::NoMergePolicy;
         use crate::query::AllQuery;
-        use crate::SegmentId;
 
         const DOC_COUNT: u64 = 2u64;
 

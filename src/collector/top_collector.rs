@@ -4,7 +4,8 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use super::top_score_collector::TopNComputer;
-use crate::{DocAddress, DocId, SegmentOrdinal, SegmentReader};
+use crate::index::SegmentReader;
+use crate::{DocAddress, DocId, SegmentOrdinal};
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///

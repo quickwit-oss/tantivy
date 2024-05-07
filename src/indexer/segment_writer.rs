@@ -7,7 +7,7 @@ use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
-use crate::index::Segment;
+use crate::index::{Segment, SegmentComponent};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::postings::{
@@ -18,7 +18,7 @@ use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
-use crate::{DocId, Opstamp, SegmentComponent, TantivyError};
+use crate::{DocId, Opstamp, TantivyError};
 
 /// Computes the initial size of the hash table.
 ///
@@ -498,7 +498,7 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::directory::RamDirectory;
     use crate::fastfield::FastValue;
-    use crate::postings::TermInfo;
+    use crate::postings::{Postings, TermInfo};
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::document::Value;
     use crate::schema::{
@@ -510,8 +510,8 @@ mod tests {
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{
-        DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, Postings, TantivyDocument,
-        Term, TERMINATED,
+        DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, TantivyDocument, Term,
+        TERMINATED,
     };
 
     #[test]

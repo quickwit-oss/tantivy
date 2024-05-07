@@ -246,8 +246,9 @@ impl DeleteCursor {
 mod tests {
 
     use super::{DeleteOperation, DeleteQueue};
+    use crate::index::SegmentReader;
     use crate::query::{Explanation, Scorer, Weight};
-    use crate::{DocId, Score, SegmentReader};
+    use crate::{DocId, Score};
 
     struct DummyWeight;
     impl Weight for DummyWeight {

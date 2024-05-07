@@ -1,12 +1,14 @@
 use crate::collector::Count;
 use crate::directory::{RamDirectory, WatchCallback};
+use crate::index::SegmentId;
 use crate::indexer::{LogMergePolicy, NoMergePolicy};
+use crate::postings::Postings;
 use crate::query::TermQuery;
 use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, Postings,
-    ReloadPolicy, SegmentId, TantivyDocument, Term,
+    Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, ReloadPolicy,
+    TantivyDocument, Term,
 };
 
 #[test]

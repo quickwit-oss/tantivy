@@ -1,5 +1,3 @@
-//! # Index Module
-//!
 //! The `index` module in Tantivy contains core components to read and write indexes.
 //!
 //! It contains `Index` and `Segment`, where a `Index` consists of one or more `Segment`s.

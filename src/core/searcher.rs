@@ -4,13 +4,13 @@ use std::{fmt, io};
 
 use crate::collector::Collector;
 use crate::core::Executor;
-use crate::index::SegmentReader;
+use crate::index::{SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
 use crate::schema::document::DocumentDeserialize;
 use crate::schema::{Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
-use crate::{DocAddress, Index, Opstamp, SegmentId, TrackedObject};
+use crate::{DocAddress, Index, Opstamp, TrackedObject};
 
 /// Identifies the searcher generation accessed by a [`Searcher`].
 ///

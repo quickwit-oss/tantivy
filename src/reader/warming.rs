@@ -179,9 +179,10 @@ mod tests {
     use super::Warmer;
     use crate::core::searcher::SearcherGeneration;
     use crate::directory::RamDirectory;
+    use crate::index::SegmentId;
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::schema::{Schema, INDEXED};
-    use crate::{Index, IndexSettings, ReloadPolicy, Searcher, SegmentId};
+    use crate::{Index, IndexSettings, ReloadPolicy, Searcher};
 
     #[derive(Default)]
     struct TestWarmer {
