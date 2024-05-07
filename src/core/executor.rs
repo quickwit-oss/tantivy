@@ -100,20 +100,71 @@ impl Executor {
     #[cfg(feature = "quickwit")]
     pub fn spawn_blocking<T: Send + 'static>(
         &self,
-        task: impl FnOnce() -> T + Send + 'static,
+        cpu_intensive_task: impl FnOnce() -> T + Send + 'static,
     ) -> impl std::future::Future<Output = Result<T, ()>> {
         match self {
-            Executor::SingleThread => Either::Left(std::future::ready(Ok(task()))),
+            Executor::SingleThread => Either::Left(std::future::ready(Ok(cpu_intensive_task()))),
             Executor::ThreadPool(pool) => {
-                let (sender, receiver) = oneshot::channel();
+                let (sender, receiver) = oneshot_with_sentinel::channel();
                 pool.spawn(|| {
-                    // we don't care if the receiver was dropped
-                    let _ = sender.send(task());
+                    if sender.is_closed() {
+                        return;
+                    }
+                    let task_result = cpu_intensive_task();
+                    let _ = sender.send(task_result);
                 });
 
                 let res = receiver.map(|res| res.map_err(|_| ()));
                 Either::Right(res)
             }
+        }
+    }
+}
+
+#[cfg(feature = "quickwit")]
+mod oneshot_with_sentinel {
+    use std::pin::Pin;
+    use std::sync::Arc;
+    use std::task::{Context, Poll};
+    // TODO get ride of this if oneshot ever gains a is_closed()
+
+    pub struct SenderWithSentinel<T> {
+        tx: oneshot::Sender<T>,
+        guard: Arc<()>,
+    }
+
+    pub struct ReceiverWithSentinel<T> {
+        rx: oneshot::Receiver<T>,
+        _guard: Arc<()>,
+    }
+
+    pub fn channel<T>() -> (SenderWithSentinel<T>, ReceiverWithSentinel<T>) {
+        let (tx, rx) = oneshot::channel();
+        let guard = Arc::new(());
+        (
+            SenderWithSentinel {
+                tx,
+                guard: guard.clone(),
+            },
+            ReceiverWithSentinel { rx, _guard: guard },
+        )
+    }
+
+    impl<T> SenderWithSentinel<T> {
+        pub fn send(self, message: T) -> Result<(), oneshot::SendError<T>> {
+            self.tx.send(message)
+        }
+
+        pub fn is_closed(&self) -> bool {
+            Arc::strong_count(&self.guard) == 1
+        }
+    }
+
+    impl<T> std::future::Future for ReceiverWithSentinel<T> {
+        type Output = Result<T, oneshot::RecvError>;
+
+        fn poll(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
+            Pin::new(&mut self.rx).poll(ctx)
         }
     }
 }
