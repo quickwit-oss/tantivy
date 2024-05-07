@@ -1,4 +1,4 @@
-use binggan::{black_box, BenchGroup, PeakMemAlloc, INSTRUMENTED_SYSTEM};
+use binggan::{black_box, InputGroup, PeakMemAlloc, INSTRUMENTED_SYSTEM};
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -38,10 +38,10 @@ fn main() {
         ),
     ];
 
-    bench_agg(BenchGroup::new_with_inputs(inputs));
+    bench_agg(InputGroup::new_with_inputs(inputs));
 }
 
-fn bench_agg(mut group: BenchGroup<Index>) {
+fn bench_agg(mut group: InputGroup<Index>) {
     group.set_alloc(GLOBAL); // Set the peak mem allocator. This will enable peak memory reporting.
     register!(group, average_u64);
     register!(group, average_f64);
@@ -56,6 +56,8 @@ fn bench_agg(mut group: BenchGroup<Index>) {
     register!(group, terms_many_json_mixed_type_with_sub_agg_card);
     register!(group, range_agg);
     register!(group, range_agg_with_avg_sub_agg);
+    register!(group, range_agg_with_term_agg_few);
+    register!(group, range_agg_with_term_agg_many);
     register!(group, histogram);
     register!(group, histogram_hard_bounds);
     register!(group, histogram_with_avg_sub_agg);
@@ -212,6 +214,49 @@ fn range_agg_with_avg_sub_agg(index: &Index) {
             },
             "aggs": {
                 "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn range_agg_with_term_agg_few(index: &Index) {
+    let agg_req = json!({
+        "rangef64": {
+            "range": {
+                "field": "score_f64",
+                "ranges": [
+                    { "from": 3, "to": 7000 },
+                    { "from": 7000, "to": 20000 },
+                    { "from": 20000, "to": 30000 },
+                    { "from": 30000, "to": 40000 },
+                    { "from": 40000, "to": 50000 },
+                    { "from": 50000, "to": 60000 }
+                ]
+            },
+            "aggs": {
+                "my_texts": { "terms": { "field": "text_few_terms" } },
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+fn range_agg_with_term_agg_many(index: &Index) {
+    let agg_req = json!({
+        "rangef64": {
+            "range": {
+                "field": "score_f64",
+                "ranges": [
+                    { "from": 3, "to": 7000 },
+                    { "from": 7000, "to": 20000 },
+                    { "from": 20000, "to": 30000 },
+                    { "from": 30000, "to": 40000 },
+                    { "from": 40000, "to": 50000 },
+                    { "from": 50000, "to": 60000 }
+                ]
+            },
+            "aggs": {
+                "my_texts": { "terms": { "field": "text_many_terms" } },
             }
         },
     });
