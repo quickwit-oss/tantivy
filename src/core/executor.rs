@@ -171,7 +171,6 @@ mod oneshot_with_sentinel {
 
 #[cfg(test)]
 mod tests {
-
     use super::Executor;
 
     #[test]
@@ -222,5 +221,35 @@ mod tests {
         for i in 0..10 {
             assert_eq!(result[i], i * 2);
         }
+    }
+
+    #[cfg(feature = "quickwit")]
+    #[test]
+    fn test_cancel_cpu_intensive_tasks() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let counter: Arc<AtomicU64> = Default::default();
+        let mut futures = Vec::new();
+        let executor = Executor::multi_thread(3, "search-test").unwrap();
+        for _ in 0..1_000 {
+            let counter_clone = counter.clone();
+            let fut = executor.spawn_blocking(move || {
+                std::thread::sleep(Duration::from_millis(4));
+                counter_clone.fetch_add(1, Ordering::SeqCst)
+            });
+            futures.push(fut);
+        }
+        std::thread::sleep(Duration::from_millis(5));
+        // The first few num_cores tasks should run, but the other should get cancelled.
+        drop(futures);
+        while Arc::strong_count(&counter) > 1 {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        // with ideal timing, we expect the result to always be 6, but as long as we run some, and
+        // cancelled most, the test is a success
+        assert!(counter.load(Ordering::SeqCst) > 0);
+        assert!(counter.load(Ordering::SeqCst) < 50);
     }
 }
