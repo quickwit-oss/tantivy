@@ -341,7 +341,7 @@ impl Index {
     /// Replace the default single thread search executor pool
     /// by a thread pool with as many threads as there are CPUs on the system.
     pub fn set_default_multithread_executor(&mut self) -> crate::Result<()> {
-        let default_num_threads = available_parallelism().unwrap().get();
+        let default_num_threads = available_parallelism()?.get();
         self.set_multithread_executor(default_num_threads)
     }
 
@@ -622,7 +622,7 @@ impl Index {
         &self,
         memory_budget_in_bytes: usize,
     ) -> crate::Result<IndexWriter<D>> {
-        let mut num_threads = std::cmp::min(available_parallelism().unwrap().get(), MAX_NUM_THREAD);
+        let mut num_threads = std::cmp::min(available_parallelism()?.get(), MAX_NUM_THREAD);
         let memory_budget_num_bytes_per_thread = memory_budget_in_bytes / num_threads;
         if memory_budget_num_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
             num_threads = (memory_budget_in_bytes / MEMORY_BUDGET_NUM_BYTES_MIN).max(1);
