@@ -109,8 +109,9 @@ impl Searcher {
         &self,
         doc_address: DocAddress,
     ) -> crate::Result<D> {
+        let executor = self.inner.index.search_executor();
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
-        store_reader.get_async(doc_address.doc_id).await
+        store_reader.get_async(doc_address.doc_id, executor).await
     }
 
     /// Access the schema associated with the index of this searcher.
