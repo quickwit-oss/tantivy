@@ -143,8 +143,6 @@ use std::fmt::Display;
 #[cfg(test)]
 mod agg_tests;
 
-mod agg_bench;
-
 use core::fmt;
 
 pub use agg_limits::AggregationLimits;

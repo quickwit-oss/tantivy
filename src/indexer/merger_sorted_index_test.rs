@@ -3,6 +3,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::fastfield::AliveBitSet;
     use crate::index::Index;
+    use crate::postings::Postings;
     use crate::query::QueryParser;
     use crate::schema::document::Value;
     use crate::schema::{
@@ -10,8 +11,8 @@ mod tests {
         TextFieldIndexing, TextOptions,
     };
     use crate::{
-        DocAddress, DocSet, IndexSettings, IndexSortByField, IndexWriter, Order, Postings,
-        TantivyDocument, Term,
+        DocAddress, DocSet, IndexSettings, IndexSortByField, IndexWriter, Order, TantivyDocument,
+        Term,
     };
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {

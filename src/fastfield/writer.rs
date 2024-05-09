@@ -1,14 +1,14 @@
 use std::io;
 
 use columnar::{ColumnarWriter, NumericalValue};
-use common::JsonPathWriter;
+use common::{DateTimePrecision, JsonPathWriter};
 use tokenizer_api::Token;
 
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::document::{Document, ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema, Type};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::{DateTimePrecision, DocId, TantivyError};
+use crate::{DocId, TantivyError};
 
 /// Only index JSON down to a depth of 20.
 /// This is mostly to guard us from a stack overflow triggered by malicious input.
@@ -183,8 +183,7 @@ impl FastFieldsWriter {
                         .record_datetime(doc_id, field_name, truncated_datetime);
                 }
                 ReferenceValueLeaf::Facet(val) => {
-                    self.columnar_writer
-                        .record_str(doc_id, field_name, val.encoded_str());
+                    self.columnar_writer.record_str(doc_id, field_name, val);
                 }
                 ReferenceValueLeaf::Bytes(val) => {
                     self.columnar_writer.record_bytes(doc_id, field_name, val);

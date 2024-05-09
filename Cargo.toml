@@ -30,7 +30,6 @@ tempfile = { version = "3.3.0", optional = true }
 log = "0.4.16"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
-num_cpus = "1.13.1"
 fs4 = { version = "0.8.0", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
@@ -67,6 +66,7 @@ fnv = "1.0.7"
 winapi = "0.3.9"
 
 [dev-dependencies]
+binggan = "0.5.1"
 rand = "0.8.5"
 maplit = "1.0.2"
 matches = "0.1.9"
@@ -116,7 +116,7 @@ unstable = [] # useful for benches.
 
 quickwit = ["sstable", "futures-util"]
 
-# Compares only the hash of a string when indexing data. 
+# Compares only the hash of a string when indexing data.
 # Increases indexing speed, but may lead to extremely rare missing terms, when there's a hash collision.
 # Uses 64bit ahash.
 compare_hash_only = ["stacker/compare_hash_only"]
@@ -143,3 +143,8 @@ harness = false
 [[bench]]
 name = "index-bench"
 harness = false
+
+[[bench]]
+name = "agg_bench"
+harness = false
+

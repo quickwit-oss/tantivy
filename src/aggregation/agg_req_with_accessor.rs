@@ -17,7 +17,8 @@ use super::metric::{
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
 use crate::aggregation::{f64_to_fastfield_u64, Key};
-use crate::{SegmentOrdinal, SegmentReader};
+use crate::index::SegmentReader;
+use crate::SegmentOrdinal;
 
 #[derive(Default)]
 pub(crate) struct AggregationsWithAccessor {

@@ -7,7 +7,7 @@ use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
-use crate::index::Segment;
+use crate::index::{Segment, SegmentComponent};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::postings::{
@@ -18,7 +18,7 @@ use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
-use crate::{DocId, Opstamp, SegmentComponent, TantivyError};
+use crate::{DocId, Opstamp, TantivyError};
 
 /// Computes the initial size of the hash table.
 ///
@@ -206,8 +206,7 @@ impl SegmentWriter {
                         // Used to help with linting and type checking.
                         let value = value_access as D::Value<'_>;
 
-                        let facet = value.as_facet().ok_or_else(make_schema_error)?;
-                        let facet_str = facet.encoded_str();
+                        let facet_str = value.as_facet().ok_or_else(make_schema_error)?;
                         let mut facet_tokenizer = facet_tokenizer.token_stream(facet_str);
                         let mut indexing_position = IndexingPosition::default();
                         postings_writer.index_text(
@@ -230,7 +229,7 @@ impl SegmentWriter {
                                 &mut self.per_field_text_analyzers[field.field_id() as usize];
                             text_analyzer.token_stream(text)
                         } else if let Some(tok_str) = value.as_pre_tokenized_text() {
-                            BoxTokenStream::new(PreTokenizedStream::from(tok_str.clone()))
+                            BoxTokenStream::new(PreTokenizedStream::from(*tok_str.clone()))
                         } else {
                             continue;
                         };
@@ -498,7 +497,7 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::directory::RamDirectory;
     use crate::fastfield::FastValue;
-    use crate::postings::TermInfo;
+    use crate::postings::{Postings, TermInfo};
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::document::Value;
     use crate::schema::{
@@ -510,8 +509,8 @@ mod tests {
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{
-        DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, Postings, TantivyDocument,
-        Term, TERMINATED,
+        DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, TantivyDocument, Term,
+        TERMINATED,
     };
 
     #[test]
