@@ -206,8 +206,7 @@ impl SegmentWriter {
                         // Used to help with linting and type checking.
                         let value = value_access as D::Value<'_>;
 
-                        let facet = value.as_facet().ok_or_else(make_schema_error)?;
-                        let facet_str = facet.encoded_str();
+                        let facet_str = value.as_facet().ok_or_else(make_schema_error)?;
                         let mut facet_tokenizer = facet_tokenizer.token_stream(facet_str);
                         let mut indexing_position = IndexingPosition::default();
                         postings_writer.index_text(
@@ -230,7 +229,7 @@ impl SegmentWriter {
                                 &mut self.per_field_text_analyzers[field.field_id() as usize];
                             text_analyzer.token_stream(text)
                         } else if let Some(tok_str) = value.as_pre_tokenized_text() {
-                            BoxTokenStream::new(PreTokenizedStream::from(tok_str.clone()))
+                            BoxTokenStream::new(PreTokenizedStream::from(*tok_str.clone()))
                         } else {
                             continue;
                         };

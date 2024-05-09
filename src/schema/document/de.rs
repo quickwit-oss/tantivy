@@ -873,7 +873,7 @@ mod tests {
         );
 
         let facet = Facet::from_text("/hello/world").unwrap();
-        let result = serialize_value(ReferenceValueLeaf::Facet(&facet).into());
+        let result = serialize_value(ReferenceValueLeaf::Facet(facet.encoded_str()).into());
         let value = deserialize_value(result);
         assert_eq!(value, crate::schema::OwnedValue::Facet(facet));
 
@@ -881,7 +881,8 @@ mod tests {
             text: "hello, world".to_string(),
             tokens: vec![Token::default(), Token::default()],
         };
-        let result = serialize_value(ReferenceValueLeaf::PreTokStr(&pre_tok_str).into());
+        let result =
+            serialize_value(ReferenceValueLeaf::PreTokStr(pre_tok_str.clone().into()).into());
         let value = deserialize_value(result);
         assert_eq!(value, crate::schema::OwnedValue::PreTokStr(pre_tok_str));
     }
