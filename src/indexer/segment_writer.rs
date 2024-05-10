@@ -202,9 +202,8 @@ impl SegmentWriter {
             match field_entry.field_type() {
                 FieldType::Facet(_) => {
                     let mut facet_tokenizer = FacetTokenizer::default(); // this can be global
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
+                    for value in values {
+                        let value = value.as_value();
 
                         let facet_str = value.as_facet().ok_or_else(make_schema_error)?;
                         let mut facet_tokenizer = facet_tokenizer.token_stream(facet_str);
@@ -220,15 +219,14 @@ impl SegmentWriter {
                 }
                 FieldType::Str(_) => {
                     let mut indexing_position = IndexingPosition::default();
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
+                    for value in values {
+                        let value = value.as_value();
 
                         let mut token_stream = if let Some(text) = value.as_str() {
                             let text_analyzer =
                                 &mut self.per_field_text_analyzers[field.field_id() as usize];
                             text_analyzer.token_stream(text)
-                        } else if let Some(tok_str) = value.as_pre_tokenized_text() {
+                        } else if let Some(tok_str) = value.into_pre_tokenized_text() {
                             BoxTokenStream::new(PreTokenizedStream::from(*tok_str.clone()))
                         } else {
                             continue;
@@ -250,9 +248,8 @@ impl SegmentWriter {
                 }
                 FieldType::U64(_) => {
                     let mut num_vals = 0;
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
+                    for value in values {
+                        let value = value.as_value();
 
                         num_vals += 1;
                         let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
@@ -265,10 +262,8 @@ impl SegmentWriter {
                 }
                 FieldType::Date(_) => {
                     let mut num_vals = 0;
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value_access = value_access as D::Value<'_>;
-                        let value = value_access.as_value();
+                    for value in values {
+                        let value = value.as_value();
 
                         num_vals += 1;
                         let date_val = value.as_datetime().ok_or_else(make_schema_error)?;
@@ -282,9 +277,8 @@ impl SegmentWriter {
                 }
                 FieldType::I64(_) => {
                     let mut num_vals = 0;
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
+                    for value in values {
+                        let value = value.as_value();
 
                         num_vals += 1;
                         let i64_val = value.as_i64().ok_or_else(make_schema_error)?;
@@ -297,10 +291,8 @@ impl SegmentWriter {
                 }
                 FieldType::F64(_) => {
                     let mut num_vals = 0;
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
-
+                    for value in values {
+                        let value = value.as_value();
                         num_vals += 1;
                         let f64_val = value.as_f64().ok_or_else(make_schema_error)?;
                         term_buffer.set_f64(f64_val);
@@ -312,10 +304,8 @@ impl SegmentWriter {
                 }
                 FieldType::Bool(_) => {
                     let mut num_vals = 0;
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
-
+                    for value in values {
+                        let value = value.as_value();
                         num_vals += 1;
                         let bool_val = value.as_bool().ok_or_else(make_schema_error)?;
                         term_buffer.set_bool(bool_val);
@@ -327,10 +317,8 @@ impl SegmentWriter {
                 }
                 FieldType::Bytes(_) => {
                     let mut num_vals = 0;
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
-
+                    for value in values {
+                        let value = value.as_value();
                         num_vals += 1;
                         let bytes = value.as_bytes().ok_or_else(make_schema_error)?;
                         term_buffer.set_bytes(bytes);
@@ -364,9 +352,8 @@ impl SegmentWriter {
                 }
                 FieldType::IpAddr(_) => {
                     let mut num_vals = 0;
-                    for value_access in values {
-                        // Used to help with linting and type checking.
-                        let value = value_access as D::Value<'_>;
+                    for value in values {
+                        let value = value.as_value();
 
                         num_vals += 1;
                         let ip_addr = value.as_ip_addr().ok_or_else(make_schema_error)?;
