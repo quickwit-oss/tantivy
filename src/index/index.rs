@@ -3,7 +3,6 @@ use std::fmt;
 #[cfg(feature = "mmap")]
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::thread::available_parallelism;
 
 use super::segment::Segment;
@@ -294,7 +293,7 @@ pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
     settings: IndexSettings,
-    executor: Arc<Executor>,
+    executor: Executor,
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
@@ -319,23 +318,19 @@ impl Index {
     ///
     /// By default the executor is single thread, and simply runs in the calling thread.
     pub fn search_executor(&self) -> &Executor {
-        self.executor.as_ref()
+        &self.executor
     }
 
     /// Replace the default single thread search executor pool
     /// by a thread pool with a given number of threads.
     pub fn set_multithread_executor(&mut self, num_threads: usize) -> crate::Result<()> {
-        self.executor = Arc::new(Executor::multi_thread(num_threads, "tantivy-search-")?);
+        self.executor = Executor::multi_thread(num_threads, "tantivy-search-")?;
         Ok(())
     }
 
     /// Custom thread pool by a outer thread pool.
-    pub fn set_shared_multithread_executor(
-        &mut self,
-        shared_thread_pool: Arc<Executor>,
-    ) -> crate::Result<()> {
-        self.executor = shared_thread_pool.clone();
-        Ok(())
+    pub fn set_executor(&mut self, executor: Executor) {
+        self.executor = executor;
     }
 
     /// Replace the default single thread search executor pool
@@ -419,7 +414,7 @@ impl Index {
             schema,
             tokenizers: TokenizerManager::default(),
             fast_field_tokenizers: TokenizerManager::default(),
-            executor: Arc::new(Executor::single_thread()),
+            executor: Executor::single_thread(),
             inventory,
         }
     }
