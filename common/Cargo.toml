@@ -22,3 +22,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 [dev-dependencies]
 proptest = "1.0.0"
 rand = "0.8.4"
+
+[features]
+unstable = [] # useful for benches.
+

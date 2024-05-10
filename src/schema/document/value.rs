@@ -19,15 +19,6 @@ pub trait Value<'a>: Send + Sync + Debug {
     fn as_value(&self) -> ReferenceValue<'a, Self>;
 
     #[inline]
-    /// Returns if the value is `null` or not.
-    fn is_null(&self) -> bool {
-        matches!(
-            self.as_value(),
-            ReferenceValue::Leaf(ReferenceValueLeaf::Null)
-        )
-    }
-
-    #[inline]
     /// If the Value is a String, returns the associated str. Returns None otherwise.
     fn as_leaf(&self) -> Option<ReferenceValueLeaf<'a>> {
         if let ReferenceValue::Leaf(val) = self.as_value() {
@@ -116,18 +107,6 @@ pub trait Value<'a>: Send + Sync + Debug {
         } else {
             None
         }
-    }
-
-    #[inline]
-    /// Returns true if the Value is an array.
-    fn is_array(&self) -> bool {
-        matches!(self.as_value(), ReferenceValue::Object(_))
-    }
-
-    #[inline]
-    /// Returns true if the Value is an object.
-    fn is_object(&self) -> bool {
-        matches!(self.as_value(), ReferenceValue::Object(_))
     }
 }
 
