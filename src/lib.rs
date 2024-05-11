@@ -453,7 +453,6 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "lz4"))]
     fn test_version_string() {
         use regex::Regex;
         let regex_ptn = Regex::new(

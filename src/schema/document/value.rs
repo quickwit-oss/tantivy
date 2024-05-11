@@ -27,7 +27,7 @@ pub trait Value<'a>: Send + Sync + Debug {
     }
 
     #[inline]
-    /// If the Value is a String, returns the associated str. Returns None otherwise.
+    /// If the Value is a leaf, returns the associated leaf. Returns None otherwise.
     fn as_leaf(&self) -> Option<ReferenceValueLeaf<'a>> {
         if let ReferenceValue::Leaf(val) = self.as_value() {
             Some(val)
@@ -82,7 +82,8 @@ pub trait Value<'a>: Send + Sync + Debug {
     /// If the Value is a pre-tokenized string, returns the associated string. Returns None
     /// otherwise.
     fn as_pre_tokenized_text(&self) -> Option<Box<PreTokenizedString>> {
-        self.as_leaf().and_then(|leaf| leaf.as_pre_tokenized_text())
+        self.as_leaf()
+            .and_then(|leaf| leaf.into_pre_tokenized_text())
     }
 
     #[inline]
@@ -259,11 +260,11 @@ impl<'a> ReferenceValueLeaf<'a> {
     }
 
     #[inline]
-    /// If the Value is a pre-tokenized string, returns the associated string. Returns None
-    /// otherwise.
-    pub fn as_pre_tokenized_text(&self) -> Option<Box<PreTokenizedString>> {
+    /// If the Value is a pre-tokenized string, consumes it and returns the string.
+    /// Returns None otherwise.
+    pub fn into_pre_tokenized_text(self) -> Option<Box<PreTokenizedString>> {
         if let Self::PreTokStr(val) = self {
-            Some(val.clone())
+            Some(val)
         } else {
             None
         }
@@ -323,6 +324,16 @@ where V: Value<'a>
     }
 
     #[inline]
+    /// If the Value is a leaf, consume it and return the leaf. Returns None otherwise.
+    pub fn into_leaf(self) -> Option<ReferenceValueLeaf<'a>> {
+        if let Self::Leaf(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
     /// If the Value is a String, returns the associated str. Returns None otherwise.
     pub fn as_str(&self) -> Option<&'a str> {
         self.as_leaf().and_then(|leaf| leaf.as_str())
@@ -365,10 +376,11 @@ where V: Value<'a>
     }
 
     #[inline]
-    /// If the Value is a pre-tokenized string, returns the associated string. Returns None
-    /// otherwise.
-    pub fn as_pre_tokenized_text(&self) -> Option<Box<PreTokenizedString>> {
-        self.as_leaf().and_then(|leaf| leaf.as_pre_tokenized_text())
+    /// If the Value is a pre-tokenized string, consumes it and returns the string.
+    /// Returns None otherwise.
+    pub fn into_pre_tokenized_text(self) -> Option<Box<PreTokenizedString>> {
+        self.into_leaf()
+            .and_then(|leaf| leaf.into_pre_tokenized_text())
     }
 
     #[inline]

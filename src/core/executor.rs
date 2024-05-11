@@ -1,21 +1,25 @@
+use std::sync::Arc;
+
 #[cfg(feature = "quickwit")]
 use futures_util::{future::Either, FutureExt};
-use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::TantivyError;
 
-/// Search executor whether search request are single thread or multithread.
-///
-/// We don't expose Rayon thread pool directly here for several reasons.
-///
-/// First dependency hell. It is not a good idea to expose the
-/// API of a dependency, knowing it might conflict with a different version
-/// used by the client. Second, we may stop using rayon in the future.
+/// Executor makes it possible to run tasks in single thread or
+/// in a thread pool.
+#[derive(Clone)]
 pub enum Executor {
     /// Single thread variant of an Executor
     SingleThread,
     /// Thread pool variant of an Executor
-    ThreadPool(ThreadPool),
+    ThreadPool(Arc<rayon::ThreadPool>),
+}
+
+#[cfg(feature = "quickwit")]
+impl From<Arc<rayon::ThreadPool>> for Executor {
+    fn from(thread_pool: Arc<rayon::ThreadPool>) -> Self {
+        Executor::ThreadPool(thread_pool)
+    }
 }
 
 impl Executor {
@@ -26,11 +30,11 @@ impl Executor {
 
     /// Creates an Executor that dispatches the tasks in a thread pool.
     pub fn multi_thread(num_threads: usize, prefix: &'static str) -> crate::Result<Executor> {
-        let pool = ThreadPoolBuilder::new()
+        let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .thread_name(move |num| format!("{prefix}{num}"))
             .build()?;
-        Ok(Executor::ThreadPool(pool))
+        Ok(Executor::ThreadPool(Arc::new(pool)))
     }
 
     /// Perform a map in the thread pool.
@@ -105,7 +109,7 @@ impl Executor {
         match self {
             Executor::SingleThread => Either::Left(std::future::ready(Ok(cpu_intensive_task()))),
             Executor::ThreadPool(pool) => {
-                let (sender, receiver) = oneshot_with_sentinel::channel();
+                let (sender, receiver) = oneshot::channel();
                 pool.spawn(|| {
                     if sender.is_closed() {
                         return;
@@ -117,54 +121,6 @@ impl Executor {
                 let res = receiver.map(|res| res.map_err(|_| ()));
                 Either::Right(res)
             }
-        }
-    }
-}
-
-#[cfg(feature = "quickwit")]
-mod oneshot_with_sentinel {
-    use std::pin::Pin;
-    use std::sync::Arc;
-    use std::task::{Context, Poll};
-    // TODO get ride of this if oneshot ever gains a is_closed()
-
-    pub struct SenderWithSentinel<T> {
-        tx: oneshot::Sender<T>,
-        guard: Arc<()>,
-    }
-
-    pub struct ReceiverWithSentinel<T> {
-        rx: oneshot::Receiver<T>,
-        _guard: Arc<()>,
-    }
-
-    pub fn channel<T>() -> (SenderWithSentinel<T>, ReceiverWithSentinel<T>) {
-        let (tx, rx) = oneshot::channel();
-        let guard = Arc::new(());
-        (
-            SenderWithSentinel {
-                tx,
-                guard: guard.clone(),
-            },
-            ReceiverWithSentinel { rx, _guard: guard },
-        )
-    }
-
-    impl<T> SenderWithSentinel<T> {
-        pub fn send(self, message: T) -> Result<(), oneshot::SendError<T>> {
-            self.tx.send(message)
-        }
-
-        pub fn is_closed(&self) -> bool {
-            Arc::strong_count(&self.guard) == 1
-        }
-    }
-
-    impl<T> std::future::Future for ReceiverWithSentinel<T> {
-        type Output = Result<T, oneshot::RecvError>;
-
-        fn poll(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
-            Pin::new(&mut self.rx).poll(ctx)
         }
     }
 }
