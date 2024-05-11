@@ -47,6 +47,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, average_f64);
     register!(group, average_f64_u64);
     register!(group, stats_f64);
+    register!(group, extendedstats_f64);
     register!(group, percentiles_f64);
     register!(group, terms_few);
     register!(group, terms_many);
@@ -105,7 +106,12 @@ fn stats_f64(index: &Index) {
     });
     exec_term_with_agg(index, agg_req)
 }
-
+fn extendedstats_f64(index: &Index) {
+    let agg_req = json!({
+        "extendedstats_f64": { "extended_stats": { "field": "score_f64", } }
+    });
+    exec_term_with_agg(index, agg_req)
+}
 fn percentiles_f64(index: &Index) {
     let agg_req = json!({
       "mypercentiles": {
