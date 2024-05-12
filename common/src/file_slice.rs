@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::io::Read;
 use std::ops::{Deref, Range, RangeBounds};
 use std::sync::Arc;
 use std::{fmt, io};
@@ -368,9 +369,17 @@ impl FileHandle for OwnedBytes {
     }
 }
 
+impl Read for FileSlice {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let num_read = self.read_bytes_into(buf, self.range.clone())?;
+        self.range.start += num_read;
+        Ok(num_read)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::io;
+    use std::io::{self, Read};
     use std::ops::Bound;
     use std::sync::Arc;
 
@@ -435,6 +444,17 @@ mod tests {
     fn test_slice_read_slice() -> io::Result<()> {
         let slice_deref = FileSlice::new(Arc::new(&b"abcdef"[..]));
         assert_eq!(slice_deref.read_bytes_slice(1..4)?.as_ref(), b"bcd");
+        Ok(())
+    }
+
+    #[test]
+    fn test_slice_io_read() -> io::Result<()> {
+        let mut slice_deref = FileSlice::new(Arc::new(&b"abcdef"[..]));
+        let mut buf = [0u8; 4];
+        assert_eq!(slice_deref.read(&mut buf)?, 4);
+        assert_eq!(&buf, b"abcd");
+        assert_eq!(slice_deref.read(&mut buf)?, 2);
+        assert_eq!(&buf[..2], b"ef");
         Ok(())
     }
 
