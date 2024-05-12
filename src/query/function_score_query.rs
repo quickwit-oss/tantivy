@@ -37,8 +37,7 @@ type Function = Arc<dyn Fn(&SegmentReader, Score, DocId) -> Score + Send + Sync 
 ///     {
 ///         let query = FunctionScoreQuery::new(
 ///             Box::new(ConstScoreQuery::new(Box::new(AllQuery), 0.42)),
-///             Arc::new(move 
-/// |_, score, _| score * MULTIPLIER + OFFSET),
+///             Arc::new(move |_, score, _| score * MULTIPLIER + OFFSET),
 ///         );
 ///         let documents = searcher.search(&query, &TopDocs::with_limit(2))?;
 ///         for (score, _) in documents {
@@ -117,10 +116,8 @@ impl Weight for FunctionScoreWeight {
         if !self.scoring_enabled {
             Ok(Box::new(inner_scorer))
         } else {
-            let new_inner_scorer = self.weight.scorer(reader, boost)?;
             Ok(Box::new(FunctionScorer::new(
                 inner_scorer,
-                new_inner_scorer,
                 Arc::new(reader.clone()),
                 self.function.clone(),
             )))
@@ -148,22 +145,19 @@ impl Weight for FunctionScoreWeight {
     }
 }
 
-struct FunctionScorer<TDocSet: DocSet> {
-    docset: TDocSet,
+struct FunctionScorer {
     scorer: Box<dyn Scorer>,
     segment_reader: Arc<SegmentReader>,
     function: Function,
 }
 
-impl<TDocSet: DocSet> FunctionScorer<TDocSet> {
+impl FunctionScorer {
     pub fn new(
-        docset: TDocSet,
         scorer: Box<dyn Scorer>,
         segment_reader: Arc<SegmentReader>,
         function: Function,
     ) -> Self {
         FunctionScorer {
-            docset,
             scorer,
             segment_reader,
             function,
@@ -171,21 +165,21 @@ impl<TDocSet: DocSet> FunctionScorer<TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet> DocSet for FunctionScorer<TDocSet> {
+impl DocSet for FunctionScorer {
     fn advance(&mut self) -> DocId {
-        self.docset.advance()
+        self.scorer.advance()
     }
 
     fn doc(&self) -> DocId {
-        self.docset.doc()
+        self.scorer.doc()
     }
 
     fn size_hint(&self) -> u32 {
-        self.docset.size_hint()
+        self.scorer.size_hint()
     }
 }
 
-impl<TDocSet: DocSet + 'static> Scorer for FunctionScorer<TDocSet> {
+impl Scorer for FunctionScorer {
     fn score(&mut self) -> Score {
         let score = self.scorer.score();
         let doc_id = self.doc();
@@ -195,6 +189,7 @@ impl<TDocSet: DocSet + 'static> Scorer for FunctionScorer<TDocSet> {
 
 #[cfg(test)]
 mod tests {
+
     use super::FunctionScoreQuery;
     use crate::query::{AllQuery, ConstScoreQuery, Query};
     use crate::schema::FAST;
@@ -251,39 +246,47 @@ mod tests {
             index_writer.add_document(doc!(
                 title => "The Name of the Wind",
             ))?;
+            index_writer.add_document(doc!(
+                title => "The Old Man and the Sea",
+            ))?;
+            index_writer.add_document(doc!(
+                title => "The Diary of Muadib",
+            ))?;
             index_writer.commit()?;
         }
         let reader = index.reader()?;
         let searcher = reader.searcher();
 
         // Function that multiplies the score by the length of the title
-        let title_length_scorer = Arc::new(|segment_reader: &SegmentReader, score: f32, doc_id: DocId| {
-            let field_reader_opt = segment_reader.fast_fields().str("title").unwrap();
-            if field_reader_opt.is_none() {
-                return score;
+        let title_length_scorer = Arc::new(
+            |segment_reader: &SegmentReader, score: f32, doc_id: DocId| -> f32 {
+                let field_reader_opt = segment_reader.fast_fields().str("title").unwrap();
+                if field_reader_opt.is_none() {
+                    return score;
+                }
+                let field_reader = field_reader_opt.unwrap();
+                let mut bytes = Vec::new();
+                let ord = field_reader.term_ords(doc_id).next().unwrap();
+                field_reader.ord_to_bytes(ord, &mut bytes).unwrap();
+                let title = String::from_utf8(bytes).unwrap();
+                score * title.len() as f32
             }
-            let field_reader = field_reader_opt.unwrap();
-            let mut bytes = Vec::new();
-            let ord = field_reader.term_ords(doc_id).next().unwrap();
-            field_reader.ord_to_bytes(ord, &mut bytes).unwrap();
-            let title = String::from_utf8(bytes).unwrap();
-            score * title.as_str().len() as f32
-        });
+        );
 
         let query = FunctionScoreQuery::new(
             Box::new(ConstScoreQuery::new(Box::new(AllQuery), 0.42)),
             title_length_scorer
         );
-        let results = searcher.search(&query, &TopDocs::with_limit(1))?;
+        let results = searcher.search(&query, &TopDocs::with_limit(10))?;
         for (score, doc_address) in results {
             let doc = searcher.doc::<TantivyDocument>(doc_address)?;
             if let Some(OwnedValue::Str(title)) = doc.get_first(title) {
-                assert_eq!(title, "The Name of the Wind");
-                assert_eq!(score, "The Name of the Wind".len() as f32 * 0.42);
+                assert_eq!(score, title.len() as f32 * 0.42);
             } else {
                 panic!("Title field not found or not a string");
             }
         }
         Ok(())
     }
+
 }
