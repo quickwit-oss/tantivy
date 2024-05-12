@@ -45,10 +45,10 @@ pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::exist_query::ExistsQuery;
 pub use self::explanation::Explanation;
+pub use self::function_score_query::FunctionScoreQuery;
 #[cfg(test)]
 pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
-pub use self::function_score_query::FunctionScoreQuery;
 pub use self::intersection::{intersect_scorers, Intersection};
 pub use self::more_like_this::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
 pub use self::phrase_prefix_query::PhrasePrefixQuery;

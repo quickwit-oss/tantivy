@@ -1,11 +1,12 @@
-use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
-use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 use std::fmt;
 use std::sync::Arc;
 
+use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
+
 type Function = Arc<dyn Fn(&SegmentReader, Score, DocId) -> Score + Send + Sync + 'static>;
 
-/// A FunctionScoreQuery modifies the score of 
+/// A FunctionScoreQuery modifies the score of
 /// matched documents using a custom function.
 /// ```rust
 /// use tantivy::collector::TopDocs;
@@ -42,7 +43,7 @@ type Function = Arc<dyn Fn(&SegmentReader, Score, DocId) -> Score + Send + Sync 
 ///         let documents = searcher.search(&query, &TopDocs::with_limit(2))?;
 ///         for (score, _) in documents {
 ///            assert_eq!(score, 0.42 * 2.0 + 1.0);
-///         } 
+///         }
 ///     }
 ///
 ///     Ok(())
@@ -56,10 +57,7 @@ pub struct FunctionScoreQuery {
 
 impl FunctionScoreQuery {
     /// Creates a new FunctionScoreQuery.
-    pub fn new(
-        query: Box<dyn Query>,
-        function: Function,
-    ) -> Self {
+    pub fn new(query: Box<dyn Query>, function: Function) -> Self {
         FunctionScoreQuery { query, function }
     }
 }
@@ -97,11 +95,7 @@ struct FunctionScoreWeight {
 }
 
 impl FunctionScoreWeight {
-    pub fn new(
-        weight: Box<dyn Weight>,
-        scoring_enabled: bool,
-        function: Function,
-    ) -> Self {
+    pub fn new(weight: Box<dyn Weight>, scoring_enabled: bool, function: Function) -> Self {
         FunctionScoreWeight {
             weight,
             scoring_enabled,
@@ -190,14 +184,14 @@ impl Scorer for FunctionScorer {
 #[cfg(test)]
 mod tests {
 
-    use super::FunctionScoreQuery;
-    use crate::query::{AllQuery, ConstScoreQuery, Query};
-    use crate::schema::FAST;
-    use crate::schema::{Schema, document::OwnedValue, TEXT, STORED};
-    use crate::{DocAddress, Index, IndexWriter, TantivyDocument};
-    use crate::collector::TopDocs;
-    use crate::{SegmentReader, DocId};
     use std::sync::Arc;
+
+    use super::FunctionScoreQuery;
+    use crate::collector::TopDocs;
+    use crate::query::{AllQuery, ConstScoreQuery, Query};
+    use crate::schema::document::OwnedValue;
+    use crate::schema::{Schema, FAST, STORED, TEXT};
+    use crate::{DocAddress, DocId, Index, IndexWriter, SegmentReader, TantivyDocument};
 
     #[test]
     fn test_function_score_query_explain() -> crate::Result<()> {
@@ -238,7 +232,7 @@ mod tests {
     #[test]
     fn test_function_score_get_fast_field_from_segment_reader() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let title = schema_builder.add_text_field("title", TEXT | STORED | FAST); 
+        let title = schema_builder.add_text_field("title", TEXT | STORED | FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
@@ -270,12 +264,12 @@ mod tests {
                 field_reader.ord_to_bytes(ord, &mut bytes).unwrap();
                 let title = String::from_utf8(bytes).unwrap();
                 score * title.len() as f32
-            }
+            },
         );
 
         let query = FunctionScoreQuery::new(
             Box::new(ConstScoreQuery::new(Box::new(AllQuery), 0.42)),
-            title_length_scorer
+            title_length_scorer,
         );
         let results = searcher.search(&query, &TopDocs::with_limit(10))?;
         for (score, doc_address) in results {
@@ -288,5 +282,4 @@ mod tests {
         }
         Ok(())
     }
-
 }
