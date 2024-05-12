@@ -24,6 +24,9 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// This method may panic if the range requested is invalid.
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes>;
 
+    /// Reads a slice of bytes into an allocated buffer.
+    fn read_bytes_into(&self, buf: &mut [u8], range: Range<usize>) -> io::Result<usize>;
+
     #[doc(hidden)]
     async fn read_bytes_async(&self, _byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         Err(io::Error::new(
@@ -62,11 +65,21 @@ impl FileHandle for WrapFile {
         }
 
         let mut buffer = vec![0; end - start];
+        self.read_bytes_into(&mut buffer, start..end)?;
+
+        Ok(OwnedBytes::new(buffer))
+    }
+
+    fn read_bytes_into(&self, buf: &mut [u8], range: Range<usize>) -> io::Result<usize> {
+        let size = range.len().min(buf.len());
+        if size == 0 {
+            return Ok(0);
+        }
 
         #[cfg(unix)]
         {
             use std::os::unix::prelude::FileExt;
-            self.file.read_exact_at(&mut buffer, start as u64)?;
+            self.file.read_exact_at(&mut buf[..size], range.start as u64)?;
         }
 
         #[cfg(not(unix))]
@@ -74,13 +87,14 @@ impl FileHandle for WrapFile {
             use std::io::{Read, Seek};
             let mut file = self.file.try_clone()?; // Clone the file to read from it separately
                                                    // Seek to the start position in the file
-            file.seek(io::SeekFrom::Start(start as u64))?;
+            file.seek(io::SeekFrom::Start(range.start as u64))?;
             // Read the data into the buffer
-            file.read_exact(&mut buffer)?;
+            file.read_exact(&mut buf[..size])?;
         }
 
-        Ok(OwnedBytes::new(buffer))
+        Ok(size)
     }
+
     // todo implement async
 }
 impl HasLen for WrapFile {
@@ -94,6 +108,15 @@ impl FileHandle for &'static [u8] {
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         let bytes = &self[range];
         Ok(OwnedBytes::new(bytes))
+    }
+
+    fn read_bytes_into(&self, buf: &mut [u8], range: Range<usize>) -> io::Result<usize> {
+        let size = range.len().min(buf.len());
+        if size == 0 {
+            return Ok(0);
+        }
+        buf[..size].copy_from_slice(&self[range.start..range.start+size]);
+        Ok(size)
     }
 
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
@@ -310,6 +333,10 @@ impl FileHandle for FileSlice {
         self.read_bytes_slice(range)
     }
 
+    fn read_bytes_into(&self, buf: &mut [u8], range: Range<usize>) -> io::Result<usize> {
+        self.data.read_bytes_into(buf, range)
+    }
+
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
@@ -325,6 +352,15 @@ impl HasLen for FileSlice {
 impl FileHandle for OwnedBytes {
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.slice(range))
+    }
+    
+    fn read_bytes_into(&self, buf: &mut [u8], range: Range<usize>) -> io::Result<usize> {
+        let size = range.len().min(buf.len());
+        if size == 0 {
+            return Ok(0);
+        }
+        buf[..size].copy_from_slice(&self[range.start..range.start+size]);
+        Ok(size)
     }
 
     async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
