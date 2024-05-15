@@ -81,10 +81,11 @@ impl AggregationLimits {
         }
     }
 
-    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) -> crate::Result<()> {
-        self.memory_consumption
-            .fetch_add(num_bytes, Ordering::Relaxed);
-        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
+    pub(crate) fn add_memory_consumed(&self, add_num_bytes: u64) -> crate::Result<()> {
+        let prev_value = self
+            .memory_consumption
+            .fetch_add(add_num_bytes, Ordering::Relaxed);
+        validate_memory_consumption(prev_value + add_num_bytes, self.memory_limit)?;
         Ok(())
     }
 
@@ -94,11 +95,11 @@ impl AggregationLimits {
 }
 
 fn validate_memory_consumption(
-    memory_consumption: &AtomicU64,
+    memory_consumption: u64,
     memory_limit: ByteCount,
 ) -> Result<(), AggregationError> {
     // Load the estimated memory consumed by the aggregations
-    let memory_consumed: ByteCount = memory_consumption.load(Ordering::Relaxed).into();
+    let memory_consumed: ByteCount = memory_consumption.into();
     if memory_consumed > memory_limit {
         return Err(AggregationError::MemoryExceeded {
             limit: memory_limit,
@@ -118,10 +119,11 @@ pub struct ResourceLimitGuard {
 }
 
 impl ResourceLimitGuard {
-    pub(crate) fn add_memory_consumed(&self, num_bytes: u64) -> crate::Result<()> {
-        self.memory_consumption
-            .fetch_add(num_bytes, Ordering::Relaxed);
-        validate_memory_consumption(&self.memory_consumption, self.memory_limit)?;
+    pub(crate) fn add_memory_consumed(&self, add_num_bytes: u64) -> crate::Result<()> {
+        let prev_value = self
+            .memory_consumption
+            .fetch_add(add_num_bytes, Ordering::Relaxed);
+        validate_memory_consumption(prev_value + add_num_bytes, self.memory_limit)?;
         Ok(())
     }
 }
