@@ -91,8 +91,8 @@ pub mod tests {
                 StoreWriter::new(writer, compressor, blocksize, separate_thread).unwrap();
             for i in 0..num_docs {
                 let mut doc = TantivyDocument::default();
-                doc.add_field_value(field_body, LOREM.to_string());
-                doc.add_field_value(field_title, format!("Doc {i}"));
+                doc.add_text(field_body, LOREM);
+                doc.add_text(field_title, format!("Doc {i}"));
                 store_writer.store(&doc, &schema).unwrap();
             }
             store_writer.close().unwrap();

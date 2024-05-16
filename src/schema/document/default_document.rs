@@ -105,18 +105,20 @@ impl CompactDoc {
 
     /// Add a dynamic object field
     pub fn add_object(&mut self, field: Field, object: BTreeMap<String, OwnedValue>) {
-        self.add_field_value(field, object);
+        self.add_field_value(field, &OwnedValue::from(object));
     }
 
     /// Add a (field, value) to the document.
-    pub fn add_field_value<T: Into<OwnedValue>>(&mut self, field: Field, typed_val: T) {
-        let value = typed_val.into();
+    ///
+    /// `OwnedValue` implements Value, which should be easiest to use, but is not the most
+    /// performant.
+    pub fn add_field_value<'a, V: Value<'a>>(&mut self, field: Field, value: V) {
         let field_value = FieldValueAddr {
             field: field
                 .field_id()
                 .try_into()
                 .expect("support only up to u16::MAX field ids"),
-            value: self.container.add_value(&value),
+            value: self.container.add_value(value),
         };
         self.field_values.push(field_value);
     }
@@ -178,7 +180,7 @@ impl CompactDoc {
         for (field_name, values) in named_doc.0 {
             if let Ok(field) = schema.get_field(&field_name) {
                 for value in values {
-                    document.add_field_value(field, value);
+                    document.add_field_value(field, &value);
                 }
             }
         }
@@ -208,14 +210,14 @@ impl CompactDoc {
                             let value = field_type
                                 .value_from_json(json_item)
                                 .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                            doc.add_field_value(field, value);
+                            doc.add_field_value(field, &value);
                         }
                     }
                     _ => {
                         let value = field_type
                             .value_from_json(json_value)
                             .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                        doc.add_field_value(field, value);
+                        doc.add_field_value(field, &value);
                     }
                 }
             }
@@ -255,8 +257,10 @@ impl DocumentDeserialize for CompactDoc {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
         let mut doc = CompactDoc::default();
+        // TODO: Deserializing into OwnedValue is wasteful. The deserializer should be able to work
+        // on slices and referenced data.
         while let Some((field, value)) = deserializer.next_field::<OwnedValue>()? {
-            doc.add_field_value(field, value);
+            doc.add_field_value(field, &value);
         }
         Ok(doc)
     }

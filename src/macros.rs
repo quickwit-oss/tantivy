@@ -41,6 +41,7 @@
 /// );
 /// # }
 /// ```
+
 #[macro_export]
 macro_rules! doc(
     () => {
@@ -52,7 +53,7 @@ macro_rules! doc(
         {
             let mut document = $crate::TantivyDocument::default();
             $(
-                document.add_field_value($field, $value);
+                document.add_field_value($field, &$crate::schema::OwnedValue::from($value));
             )*
             document
         }
