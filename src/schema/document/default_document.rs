@@ -55,54 +55,52 @@ impl CompactDoc {
     pub fn add_facet<F>(&mut self, field: Field, path: F)
     where Facet: From<F> {
         let facet = Facet::from(path);
-        let value = OwnedValue::Facet(facet);
-        self.add_field_value(field, value);
+        self.add_leaf_field_value(field, ReferenceValueLeaf::Facet(facet.encoded_str()));
     }
 
     /// Add a text field.
-    pub fn add_text<S: ToString>(&mut self, field: Field, text: S) {
-        let value = OwnedValue::Str(text.to_string());
-        self.add_field_value(field, value);
+    pub fn add_text<S: AsRef<str>>(&mut self, field: Field, text: S) {
+        self.add_leaf_field_value(field, ReferenceValueLeaf::Str(text.as_ref()));
     }
 
     /// Add a pre-tokenized text field.
     pub fn add_pre_tokenized_text(&mut self, field: Field, pre_tokenized_text: PreTokenizedString) {
-        self.add_field_value(field, pre_tokenized_text);
+        self.add_leaf_field_value(field, pre_tokenized_text);
     }
 
     /// Add a u64 field
     pub fn add_u64(&mut self, field: Field, value: u64) {
-        self.add_field_value(field, value);
+        self.add_leaf_field_value(field, value);
     }
 
     /// Add a IP address field. Internally only Ipv6Addr is used.
     pub fn add_ip_addr(&mut self, field: Field, value: Ipv6Addr) {
-        self.add_field_value(field, value);
+        self.add_leaf_field_value(field, value);
     }
 
     /// Add a i64 field
     pub fn add_i64(&mut self, field: Field, value: i64) {
-        self.add_field_value(field, value);
+        self.add_leaf_field_value(field, value);
     }
 
     /// Add a f64 field
     pub fn add_f64(&mut self, field: Field, value: f64) {
-        self.add_field_value(field, value);
+        self.add_leaf_field_value(field, value);
     }
 
     /// Add a bool field
     pub fn add_bool(&mut self, field: Field, value: bool) {
-        self.add_field_value(field, value);
+        self.add_leaf_field_value(field, value);
     }
 
     /// Add a date field with unspecified time zone offset
     pub fn add_date(&mut self, field: Field, value: DateTime) {
-        self.add_field_value(field, value);
+        self.add_leaf_field_value(field, value);
     }
 
     /// Add a bytes field
-    pub fn add_bytes<T: Into<Vec<u8>>>(&mut self, field: Field, value: T) {
-        self.add_field_value(field, value.into());
+    pub fn add_bytes(&mut self, field: Field, value: &[u8]) {
+        self.add_leaf_field_value(field, value);
     }
 
     /// Add a dynamic object field
@@ -119,6 +117,24 @@ impl CompactDoc {
                 .try_into()
                 .expect("support only up to u16::MAX field ids"),
             value: self.container.add_value(&value),
+        };
+        self.field_values.push(field_value);
+    }
+
+    /// Add a (field, leaf value) to the document.
+    /// Leaf values don't have nested values.
+    pub fn add_leaf_field_value<'a, T: Into<ReferenceValueLeaf<'a>>>(
+        &mut self,
+        field: Field,
+        typed_val: T,
+    ) {
+        let value = typed_val.into();
+        let field_value = FieldValueAddr {
+            field: field
+                .field_id()
+                .try_into()
+                .expect("support only up to u16::MAX field ids"),
+            value: self.container.add_value_leaf(value),
         };
         self.field_values.push(field_value);
     }
@@ -372,21 +388,26 @@ pub enum ValueType {
 impl<'a, V: Value<'a>> From<&ReferenceValue<'a, V>> for ValueType {
     fn from(value: &ReferenceValue<'a, V>) -> Self {
         match value {
-            ReferenceValue::Leaf(leaf) => match leaf {
-                ReferenceValueLeaf::Null => ValueType::Null,
-                ReferenceValueLeaf::Str(_) => ValueType::Str,
-                ReferenceValueLeaf::U64(_) => ValueType::U64,
-                ReferenceValueLeaf::I64(_) => ValueType::I64,
-                ReferenceValueLeaf::F64(_) => ValueType::F64,
-                ReferenceValueLeaf::Bool(_) => ValueType::Bool,
-                ReferenceValueLeaf::Date(_) => ValueType::Date,
-                ReferenceValueLeaf::IpAddr(_) => ValueType::IpAddr,
-                ReferenceValueLeaf::PreTokStr(_) => ValueType::PreTokStr,
-                ReferenceValueLeaf::Facet(_) => ValueType::Facet,
-                ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
-            },
+            ReferenceValue::Leaf(leaf) => leaf.into(),
             ReferenceValue::Array(_) => ValueType::Array,
             ReferenceValue::Object(_) => ValueType::Object,
+        }
+    }
+}
+impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
+    fn from(value: &ReferenceValueLeaf<'a>) -> Self {
+        match value {
+            ReferenceValueLeaf::Null => ValueType::Null,
+            ReferenceValueLeaf::Str(_) => ValueType::Str,
+            ReferenceValueLeaf::U64(_) => ValueType::U64,
+            ReferenceValueLeaf::I64(_) => ValueType::I64,
+            ReferenceValueLeaf::F64(_) => ValueType::F64,
+            ReferenceValueLeaf::Bool(_) => ValueType::Bool,
+            ReferenceValueLeaf::Date(_) => ValueType::Date,
+            ReferenceValueLeaf::IpAddr(_) => ValueType::IpAddr,
+            ReferenceValueLeaf::PreTokStr(_) => ValueType::PreTokStr,
+            ReferenceValueLeaf::Facet(_) => ValueType::Facet,
+            ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
         }
     }
 }
@@ -416,7 +437,8 @@ impl BinarySerializable for NodeAddress {
 }
 
 impl CompactDocContainer {
-    pub fn add_value_leaf(&mut self, type_id: ValueType, leaf: ReferenceValueLeaf) -> ValueAddr {
+    pub fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
+        let type_id = ValueType::from(&leaf);
         match leaf {
             ReferenceValueLeaf::Null => ValueAddr::new(type_id, 0),
             ReferenceValueLeaf::Str(bytes) => ValueAddr::new(
@@ -456,7 +478,7 @@ impl CompactDocContainer {
         let value = value.as_value();
         let type_id = ValueType::from(&value);
         match value {
-            ReferenceValue::Leaf(leaf) => self.add_value_leaf(type_id, leaf),
+            ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
             ReferenceValue::Array(elements) => {
                 let elements: Vec<_> = elements.collect(); // TODO: Use ExactSizeIterator?
                 let pos = self.nodes.len() as u32;
@@ -492,7 +514,7 @@ impl CompactDocContainer {
                 });
                 for (idx, (key, value)) in entries.into_iter().enumerate() {
                     let node_idx = (idx * 2) + pos as usize;
-                    let ref_key = self.add_value_leaf(ValueType::Str, ReferenceValueLeaf::Str(key));
+                    let ref_key = self.add_value_leaf(ReferenceValueLeaf::Str(key));
                     let ref_value = self.add_value(value);
                     self.nodes[node_idx] = ref_key;
                     self.nodes[node_idx + 1] = ref_value;
