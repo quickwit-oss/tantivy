@@ -9,7 +9,7 @@ description = "column oriented storage for tantivy"
 categories = ["database-implementations", "data-structures", "compression"]
 
 [dependencies]
-itertools = "0.12.0"
+itertools = "0.13.0"
 fastdivide = "0.4.0"
 
 stacker = { version= "0.3", path = "../stacker", package="tantivy-stacker"}
