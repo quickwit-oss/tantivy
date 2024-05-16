@@ -142,9 +142,9 @@ impl CompactDoc {
     }
 
     /// field_values accessor
-    pub fn field_values<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (Field, ReferenceValue<'a, CompactDocValue<'a>>)> {
+    pub fn field_values(
+        &self,
+    ) -> impl Iterator<Item = (Field, ReferenceValue<'_, CompactDocValue<'_>>)> {
         self.field_values.iter().map(|field_val| {
             let field = Field::from_field_id(field_val.field as u32);
             let val = self.container.extract_ref_value(field_val.value).unwrap();
@@ -153,10 +153,10 @@ impl CompactDoc {
     }
 
     /// Returns all of the `ReferenceValue`s associated the given field
-    pub fn get_all<'a>(
-        &'a self,
+    pub fn get_all(
+        &self,
         field: Field,
-    ) -> impl Iterator<Item = ReferenceValue<'a, CompactDocValue<'a>>> + '_ {
+    ) -> impl Iterator<Item = ReferenceValue<'_, CompactDocValue<'_>>> + '_ {
         self.field_values
             .iter()
             .filter(move |field_value| Field::from_field_id(field_value.field as u32) == field)
@@ -164,10 +164,7 @@ impl CompactDoc {
     }
 
     /// Returns the first `ReferenceValue` associated the given field
-    pub fn get_first<'a>(
-        &'a self,
-        field: Field,
-    ) -> Option<ReferenceValue<'a, CompactDocValue<'a>>> {
+    pub fn get_first(&self, field: Field) -> Option<ReferenceValue<'_, CompactDocValue<'_>>> {
         self.get_all(field).next()
     }
 
@@ -245,8 +242,8 @@ impl PartialEq for CompactDoc {
             }
             field_value_set
         };
-        let self_field_values: HashMap<Field, HashSet<String>> = convert_to_comparable_map(&self);
-        let other_field_values: HashMap<Field, HashSet<String>> = convert_to_comparable_map(&other);
+        let self_field_values: HashMap<Field, HashSet<String>> = convert_to_comparable_map(self);
+        let other_field_values: HashMap<Field, HashSet<String>> = convert_to_comparable_map(other);
         self_field_values.eq(&other_field_values)
     }
 }
@@ -358,10 +355,11 @@ impl ValueAddr {
 }
 
 /// A enum representing a leaf value for tantivy to index.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum ValueType {
     /// A null value.
+    #[default]
     Null = 0,
     /// The str type is used for any text information.
     Str = 1,
@@ -413,11 +411,6 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
             ReferenceValueLeaf::Facet(_) => ValueType::Facet,
             ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
         }
-    }
-}
-impl Default for ValueType {
-    fn default() -> Self {
-        ValueType::Null
     }
 }
 
@@ -508,7 +501,7 @@ impl CompactDocContainer {
                 )
             }
             ReferenceValue::Object(entries) => {
-                let entries: Vec<_> = entries.collect();
+                let entries: Vec<_> = entries.collect(); // TODO: Use ExactSizeIterator?
                 let pos = self.nodes.len() as u32;
                 let len = entries.len() as u32;
                 // We reserve space upfront, so that we can write into the nodes array and just
@@ -540,14 +533,14 @@ impl CompactDocContainer {
 
 /// BinarySerializable for &str
 /// Specialized version since BinarySerializable doesn't have lifetimes.
-fn binary_deserialize_str<'a>(data: &'a [u8]) -> &'a str {
+fn binary_deserialize_str(data: &[u8]) -> &str {
     let data = binary_deserialize_bytes(data);
-    unsafe { std::str::from_utf8_unchecked(&data) }
+    unsafe { std::str::from_utf8_unchecked(data) }
 }
 
 /// BinarySerializable for &[u8]
 /// Specialized version since BinarySerializable doesn't have lifetimes.
-fn binary_deserialize_bytes<'a>(data: &'a [u8]) -> &'a [u8] {
+fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
     let (len, bytes_read) = read_u32_vint_no_advance(data);
     &data[bytes_read..bytes_read + len as usize]
 }
@@ -570,21 +563,21 @@ fn write_into<T: BinarySerializable>(data: &mut mediumvec::Vec32<u8>, value: T) 
 }
 
 impl CompactDocContainer {
-    pub fn extract_ref_value<'a>(
-        &'a self,
+    pub fn extract_ref_value(
+        &self,
         ref_value: ValueAddr,
-    ) -> io::Result<ReferenceValue<'a, CompactDocValue<'a>>> {
+    ) -> io::Result<ReferenceValue<'_, CompactDocValue<'_>>> {
         match ref_value.type_id {
             ValueType::Null => Ok(ReferenceValueLeaf::Null.into()),
             ValueType::Str => {
                 let data = binary_deserialize_bytes(self.get_slice(ref_value.val));
-                let str_ref = unsafe { std::str::from_utf8_unchecked(&data) };
-                Ok(ReferenceValueLeaf::Str(&str_ref).into())
+                let str_ref = unsafe { std::str::from_utf8_unchecked(data) };
+                Ok(ReferenceValueLeaf::Str(str_ref).into())
             }
             ValueType::Facet => {
                 let data = binary_deserialize_bytes(self.get_slice(ref_value.val));
-                let str_ref = unsafe { std::str::from_utf8_unchecked(&data) };
-                Ok(ReferenceValueLeaf::Facet(&str_ref).into())
+                let str_ref = unsafe { std::str::from_utf8_unchecked(data) };
+                Ok(ReferenceValueLeaf::Facet(str_ref).into())
             }
             ValueType::Bytes => {
                 let data = binary_deserialize_bytes(self.get_slice(ref_value.val));
@@ -640,8 +633,7 @@ impl CompactDocContainer {
 
     fn get_slice(&self, addr: Addr) -> &[u8] {
         let start = u32::from(addr) as usize;
-        let data_slice = &self.node_data[start..];
-        data_slice
+        &self.node_data[start..]
     }
 }
 
@@ -654,12 +646,12 @@ pub struct CompactDocObjectIter<'a> {
 }
 
 impl<'a> CompactDocObjectIter<'a> {
-    fn new(structure: &'a CompactDocContainer, addr: Addr) -> io::Result<Self> {
-        let node_address = structure.read_from::<NodeAddress>(addr)?;
+    fn new(container: &'a CompactDocContainer, addr: Addr) -> io::Result<Self> {
+        let node_address = container.read_from::<NodeAddress>(addr)?;
         let start = node_address.pos as usize;
         let end = start + node_address.num_nodes as usize * 2;
         Ok(Self {
-            container: structure,
+            container,
             index: start,
             end,
         })
@@ -670,7 +662,7 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
     type Item = (&'a str, CompactDocValue<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.index < self.end {
+        if self.index < self.end {
             let key_index = self.index;
             self.index += 2;
             let key = self.container.extract_str(self.container.nodes[key_index]);
@@ -709,7 +701,7 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
     type Item = CompactDocValue<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.index < self.end {
+        if self.index < self.end {
             let key_index = self.index;
             let value = CompactDocValue {
                 container: self.container,

@@ -51,10 +51,12 @@ fn main() -> tantivy::Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
     {
-        let facets = [Facet::from("/ingredient/egg"),
+        let facets = [
+            Facet::from("/ingredient/egg"),
             Facet::from("/ingredient/oil"),
             Facet::from("/ingredient/garlic"),
-            Facet::from("/ingredient/mushroom")];
+            Facet::from("/ingredient/mushroom"),
+        ];
         let query = BooleanQuery::new_multiterms_query(
             facets
                 .iter()
