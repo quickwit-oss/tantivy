@@ -499,7 +499,6 @@ mod tests {
     use crate::fastfield::FastValue;
     use crate::postings::{Postings, TermInfo};
     use crate::query::{PhraseQuery, QueryParser};
-    use crate::schema::document::Value;
     use crate::schema::{
         Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, STORED,
         STRING, TEXT,
@@ -555,9 +554,12 @@ mod tests {
         let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
         let doc = reader.get::<TantivyDocument>(0).unwrap();
 
-        assert_eq!(doc.field_values().len(), 2);
-        assert_eq!(doc.field_values()[0].value().as_str(), Some("A"));
-        assert_eq!(doc.field_values()[1].value().as_str(), Some("title"));
+        assert_eq!(doc.field_values().count(), 2);
+        assert_eq!(doc.get_all(text_field).next().unwrap().as_str(), Some("A"));
+        assert_eq!(
+            doc.get_all(text_field).nth(1).unwrap().as_str(),
+            Some("title")
+        );
     }
     #[test]
     fn test_simple_json_indexing() {

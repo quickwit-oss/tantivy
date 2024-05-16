@@ -472,6 +472,8 @@ mod tests {
         let mut doc = TantivyDocument::default();
         doc.add_bytes(bytes_field, "".as_bytes());
         let json_string = doc.to_json(&schema);
+        dbg!(&json_string);
+
         assert_eq!(json_string, r#"{"my_bytes":[""]}"#);
     }
 

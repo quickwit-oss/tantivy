@@ -59,7 +59,6 @@ pub mod tests {
     use super::*;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
-    use crate::schema::document::Value;
     use crate::schema::{
         self, Schema, TantivyDocument, TextFieldIndexing, TextOptions, STORED, TEXT,
     };
@@ -119,7 +118,7 @@ pub mod tests {
         let store = StoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
-                *store
+                store
                     .get::<TantivyDocument>(i)?
                     .get_first(field_title)
                     .unwrap()
@@ -131,7 +130,12 @@ pub mod tests {
 
         for doc in store.iter::<TantivyDocument>(Some(&alive_bitset)) {
             let doc = doc?;
-            let title_content = doc.get_first(field_title).unwrap().as_str().unwrap();
+            let title_content = doc
+                .get_first(field_title)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
             if !title_content.starts_with("Doc ") {
                 panic!("unexpected title_content {title_content}");
             }

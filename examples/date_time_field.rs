@@ -4,7 +4,7 @@
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{DateOptions, Document, OwnedValue, Schema, INDEXED, STORED, STRING};
+use tantivy::schema::{DateOptions, Document, Schema, INDEXED, STORED, STRING};
 use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
@@ -61,10 +61,11 @@ fn main() -> tantivy::Result<()> {
         assert_eq!(count_docs.len(), 1);
         for (_score, doc_address) in count_docs {
             let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
-            assert!(matches!(
-                retrieved_doc.get_first(occurred_at),
-                Some(OwnedValue::Date(_))
-            ));
+            assert!(retrieved_doc
+                .get_first(occurred_at)
+                .unwrap()
+                .as_datetime()
+                .is_some(),);
             assert_eq!(
                 retrieved_doc.to_json(&schema),
                 r#"{"event":["comment"],"occurred_at":["2022-06-22T13:00:00.22Z"]}"#

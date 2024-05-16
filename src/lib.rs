@@ -1026,13 +1026,16 @@ pub mod tests {
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);
-        let values: Vec<&OwnedValue> = document.get_all(text_field).collect();
+        let values: Vec<OwnedValue> = document.get_all(text_field).map(OwnedValue::from).collect();
         assert_eq!(values.len(), 2);
-        assert_eq!(values[0].as_str(), Some("tantivy"));
-        assert_eq!(values[1].as_str(), Some("some other value"));
-        let values: Vec<&OwnedValue> = document.get_all(other_text_field).collect();
+        assert_eq!(values[0].as_ref().as_str(), Some("tantivy"));
+        assert_eq!(values[1].as_ref().as_str(), Some("some other value"));
+        let values: Vec<OwnedValue> = document
+            .get_all(other_text_field)
+            .map(OwnedValue::from)
+            .collect();
         assert_eq!(values.len(), 1);
-        assert_eq!(values[0].as_str(), Some("short"));
+        assert_eq!(values[0].as_ref().as_str(), Some("short"));
     }
 
     #[test]

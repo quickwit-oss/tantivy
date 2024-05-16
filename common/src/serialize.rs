@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use crate::{Endianness, VInt};
+use crate::{read_u32_vint_no_advance, Endianness, VInt};
 
 #[derive(Default)]
 struct Counter(u64);
@@ -267,6 +267,20 @@ impl<'a> BinarySerializable for Cow<'a, str> {
     }
 }
 
+/// BinarySerializable for &str
+/// Specialized version since BinarySerializable doesn't have lifetimes.
+pub fn binary_deserialize_str<'a>(data: &'a [u8]) -> &'a str {
+    let data = binary_deserialize_bytes(data);
+    unsafe { std::str::from_utf8_unchecked(&data) }
+}
+
+/// BinarySerializable for &[u8]
+/// Specialized version since BinarySerializable doesn't have lifetimes.
+pub fn binary_deserialize_bytes<'a>(data: &'a [u8]) -> &'a [u8] {
+    let (len, bytes_read) = read_u32_vint_no_advance(data);
+    &data[bytes_read..bytes_read + len as usize]
+}
+
 impl<'a> BinarySerializable for Cow<'a, [u8]> {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         VInt(self.len() as u64).serialize(writer)?;
@@ -345,6 +359,20 @@ pub mod test {
         assert_eq!(serialize_test(String::from("")), 1);
         assert_eq!(serialize_test(String::from("ぽよぽよ")), 1 + 3 * 4);
         assert_eq!(serialize_test(String::from("富士さん見える。")), 1 + 3 * 8);
+    }
+
+    #[test]
+    fn test_serialize_str() {
+        serialize_test_str(String::from(""));
+        serialize_test_str(String::from("ぽよぽよ"));
+        serialize_test_str(String::from("富士さん見える。"));
+    }
+
+    fn serialize_test_str(v: String) {
+        let mut buffer: Vec<u8> = Vec::new();
+        v.serialize(&mut buffer).unwrap();
+        let deser = binary_deserialize_str(&buffer);
+        assert_eq!(deser, &v);
     }
 
     #[test]

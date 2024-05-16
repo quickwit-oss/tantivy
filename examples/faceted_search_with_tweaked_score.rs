@@ -94,9 +94,8 @@ fn main() -> tantivy::Result<()> {
                     .doc::<TantivyDocument>(*doc_id)
                     .unwrap()
                     .get_first(title)
-                    .and_then(|v| v.as_str())
+                    .and_then(|v| v.as_str().map(|el| el.to_string()))
                     .unwrap()
-                    .to_owned()
             })
             .collect();
         assert_eq!(titles, vec!["Fried egg", "Egg rolls"]);
