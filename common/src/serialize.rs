@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use crate::{read_u32_vint_no_advance, Endianness, VInt};
+use crate::{Endianness, VInt};
 
 #[derive(Default)]
 struct Counter(u64);
@@ -265,20 +265,6 @@ impl<'a> BinarySerializable for Cow<'a, str> {
             .read_to_string(&mut result)?;
         Ok(Cow::Owned(result))
     }
-}
-
-/// BinarySerializable for &str
-/// Specialized version since BinarySerializable doesn't have lifetimes.
-pub fn binary_deserialize_str<'a>(data: &'a [u8]) -> &'a str {
-    let data = binary_deserialize_bytes(data);
-    unsafe { std::str::from_utf8_unchecked(&data) }
-}
-
-/// BinarySerializable for &[u8]
-/// Specialized version since BinarySerializable doesn't have lifetimes.
-pub fn binary_deserialize_bytes<'a>(data: &'a [u8]) -> &'a [u8] {
-    let (len, bytes_read) = read_u32_vint_no_advance(data);
-    &data[bytes_read..bytes_read + len as usize]
 }
 
 impl<'a> BinarySerializable for Cow<'a, [u8]> {

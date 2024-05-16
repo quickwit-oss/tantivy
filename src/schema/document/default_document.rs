@@ -3,7 +3,7 @@ use std::io;
 use std::net::Ipv6Addr;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{binary_deserialize_bytes, binary_deserialize_str, BinarySerializable, DateTime};
+use common::{read_u32_vint_no_advance, serialize_vint_u32, BinarySerializable, DateTime};
 use serde_json::Map;
 pub use CompactDoc as TantivyDocument;
 
@@ -118,7 +118,7 @@ impl CompactDoc {
                 .field_id()
                 .try_into()
                 .expect("support only up to u16::MAX field ids"),
-            value: self.container.add_value(value),
+            value: self.container.add_value(&value),
         };
         self.field_values.push(field_value);
     }
@@ -368,22 +368,25 @@ pub enum ValueType {
     /// Pre-tokenized str type,
     Array = 12,
 }
-impl From<&OwnedValue> for ValueType {
-    fn from(value: &OwnedValue) -> Self {
+
+impl<'a, V: Value<'a>> From<&ReferenceValue<'a, V>> for ValueType {
+    fn from(value: &ReferenceValue<'a, V>) -> Self {
         match value {
-            OwnedValue::Null => ValueType::Null,
-            OwnedValue::Str(_) => ValueType::Str,
-            OwnedValue::U64(_) => ValueType::U64,
-            OwnedValue::I64(_) => ValueType::I64,
-            OwnedValue::F64(_) => ValueType::F64,
-            OwnedValue::Bool(_) => ValueType::Bool,
-            OwnedValue::Date(_) => ValueType::Date,
-            OwnedValue::Array(_) => ValueType::Array,
-            OwnedValue::Object(_) => ValueType::Object,
-            OwnedValue::IpAddr(_) => ValueType::IpAddr,
-            OwnedValue::PreTokStr(_) => ValueType::PreTokStr,
-            OwnedValue::Facet(_) => ValueType::Facet,
-            OwnedValue::Bytes(_) => ValueType::Bytes,
+            ReferenceValue::Leaf(leaf) => match leaf {
+                ReferenceValueLeaf::Null => ValueType::Null,
+                ReferenceValueLeaf::Str(_) => ValueType::Str,
+                ReferenceValueLeaf::U64(_) => ValueType::U64,
+                ReferenceValueLeaf::I64(_) => ValueType::I64,
+                ReferenceValueLeaf::F64(_) => ValueType::F64,
+                ReferenceValueLeaf::Bool(_) => ValueType::Bool,
+                ReferenceValueLeaf::Date(_) => ValueType::Date,
+                ReferenceValueLeaf::IpAddr(_) => ValueType::IpAddr,
+                ReferenceValueLeaf::PreTokStr(_) => ValueType::PreTokStr,
+                ReferenceValueLeaf::Facet(_) => ValueType::Facet,
+                ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
+            },
+            ReferenceValue::Array(_) => ValueType::Array,
+            ReferenceValue::Object(_) => ValueType::Object,
         }
     }
 }
@@ -413,25 +416,49 @@ impl BinarySerializable for NodeAddress {
 }
 
 impl CompactDocContainer {
-    pub fn add_value(&mut self, value: OwnedValue) -> ValueAddr {
-        let type_id = ValueType::from(&value);
-        match value {
-            OwnedValue::Null => ValueAddr::new(type_id, 0),
-            OwnedValue::U64(num) => ValueAddr::new(type_id, write_into(&mut self.node_data, num)),
-            OwnedValue::I64(num) => ValueAddr::new(type_id, write_into(&mut self.node_data, num)),
-            OwnedValue::F64(num) => ValueAddr::new(type_id, write_into(&mut self.node_data, num)),
-            OwnedValue::Bool(b) => ValueAddr::new(type_id, b as u32),
-            OwnedValue::Date(date) => ValueAddr::new(
+    pub fn add_value_leaf(&mut self, type_id: ValueType, leaf: ReferenceValueLeaf) -> ValueAddr {
+        match leaf {
+            ReferenceValueLeaf::Null => ValueAddr::new(type_id, 0),
+            ReferenceValueLeaf::Str(bytes) => ValueAddr::new(
+                type_id,
+                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
+            ),
+            ReferenceValueLeaf::Facet(bytes) => ValueAddr::new(
+                type_id,
+                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
+            ),
+            ReferenceValueLeaf::Bytes(bytes) => {
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, bytes))
+            }
+            ReferenceValueLeaf::U64(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            }
+            ReferenceValueLeaf::I64(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            }
+            ReferenceValueLeaf::F64(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            }
+            ReferenceValueLeaf::Bool(b) => ValueAddr::new(type_id, b as u32),
+            ReferenceValueLeaf::Date(date) => ValueAddr::new(
                 type_id,
                 write_into(&mut self.node_data, date.into_timestamp_nanos()),
             ),
-            OwnedValue::Str(bytes) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, bytes))
+            ReferenceValueLeaf::IpAddr(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num.to_u128()))
             }
-            OwnedValue::Bytes(bytes) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, bytes))
+            ReferenceValueLeaf::PreTokStr(pre_tok) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, *pre_tok))
             }
-            OwnedValue::Array(elements) => {
+        }
+    }
+    pub fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
+        let value = value.as_value();
+        let type_id = ValueType::from(&value);
+        match value {
+            ReferenceValue::Leaf(leaf) => self.add_value_leaf(type_id, leaf),
+            ReferenceValue::Array(elements) => {
+                let elements: Vec<_> = elements.collect(); // TODO: Use ExactSizeIterator?
                 let pos = self.nodes.len() as u32;
                 let len = elements.len() as u32;
                 // We reserve space upfront, so that we can write into the nodes array and just
@@ -454,7 +481,8 @@ impl CompactDocContainer {
                     ),
                 )
             }
-            OwnedValue::Object(entries) => {
+            ReferenceValue::Object(entries) => {
+                let entries: Vec<_> = entries.collect();
                 let pos = self.nodes.len() as u32;
                 let len = entries.len() as u32;
                 // We reserve space upfront, so that we can write into the nodes array and just
@@ -464,7 +492,7 @@ impl CompactDocContainer {
                 });
                 for (idx, (key, value)) in entries.into_iter().enumerate() {
                     let node_idx = (idx * 2) + pos as usize;
-                    let ref_key = self.add_value(OwnedValue::Str(key));
+                    let ref_key = self.add_value_leaf(ValueType::Str, ReferenceValueLeaf::Str(key));
                     let ref_value = self.add_value(value);
                     self.nodes[node_idx] = ref_key;
                     self.nodes[node_idx + 1] = ref_value;
@@ -480,17 +508,32 @@ impl CompactDocContainer {
                     ),
                 )
             }
-            OwnedValue::IpAddr(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num.to_u128()))
-            }
-            OwnedValue::PreTokStr(pre_tok) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, pre_tok))
-            }
-            OwnedValue::Facet(bytes) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, bytes))
-            }
         }
     }
+}
+
+/// BinarySerializable for &str
+/// Specialized version since BinarySerializable doesn't have lifetimes.
+fn binary_deserialize_str<'a>(data: &'a [u8]) -> &'a str {
+    let data = binary_deserialize_bytes(data);
+    unsafe { std::str::from_utf8_unchecked(&data) }
+}
+
+/// BinarySerializable for &[u8]
+/// Specialized version since BinarySerializable doesn't have lifetimes.
+fn binary_deserialize_bytes<'a>(data: &'a [u8]) -> &'a [u8] {
+    let (len, bytes_read) = read_u32_vint_no_advance(data);
+    &data[bytes_read..bytes_read + len as usize]
+}
+
+/// BinarySerializable alternative for borrowed data
+fn write_bytes_into(data: &mut mediumvec::Vec32<u8>, bytes: &[u8]) -> u32 {
+    let pos = data.len() as u32;
+    let mut buf = [0u8; 8];
+    let vint_bytes = serialize_vint_u32(bytes.len() as u32, &mut buf);
+    data.as_vec(|vec| vec.extend_from_slice(vint_bytes));
+    data.as_vec(|vec| vec.extend_from_slice(bytes));
+    pos
 }
 
 /// Serialize and return the position
