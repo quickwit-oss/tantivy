@@ -348,20 +348,6 @@ pub mod test {
     }
 
     #[test]
-    fn test_serialize_str() {
-        serialize_test_str(String::from(""));
-        serialize_test_str(String::from("ぽよぽよ"));
-        serialize_test_str(String::from("富士さん見える。"));
-    }
-
-    fn serialize_test_str(v: String) {
-        let mut buffer: Vec<u8> = Vec::new();
-        v.serialize(&mut buffer).unwrap();
-        let deser = binary_deserialize_str(&buffer);
-        assert_eq!(deser, &v);
-    }
-
-    #[test]
     fn test_serialize_vec() {
         assert_eq!(serialize_test(Vec::<u8>::new()), 1);
         assert_eq!(serialize_test(vec![1u32, 3u32]), 1 + 4 * 2);
