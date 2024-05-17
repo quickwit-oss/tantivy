@@ -90,8 +90,7 @@ fn benchmark_dynamic_json(
 ) {
     let json_field = schema.get_field("json").unwrap();
     _benchmark(b, input, schema, commit, parse_json, |_schema, doc_json| {
-        let json_val: serde_json::Map<String, serde_json::Value> =
-            serde_json::from_str(doc_json).unwrap();
+        let json_val: serde_json::Value = serde_json::from_str(doc_json).unwrap();
         tantivy::doc!(json_field=>json_val)
     })
 }
