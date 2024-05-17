@@ -235,7 +235,7 @@ pub trait Document: Send + Sync + 'static {
             let field_name = schema.get_field_name(field);
             let values: Vec<OwnedValue> = field_values
                 .into_iter()
-                .map(|val| val.as_value().into())
+                .map(|val| OwnedValue::from(val.as_value()))
                 .collect();
             field_map.insert(field_name.to_string(), values);
         }

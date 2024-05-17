@@ -643,7 +643,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", STORED | TEXT);
         let schema = schema_builder.build();
-        let json_val: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+        let json_val: serde_json::Value = serde_json::from_str(
             r#"{
             "toto": "titi",
             "float": -0.2,
@@ -671,14 +671,10 @@ mod tests {
                 doc_id: 0u32,
             })
             .unwrap();
-        let serdeser_json_val = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-            &doc.to_json(&schema),
-        )
-        .unwrap()
-        .get("json")
-        .unwrap()[0]
-            .as_object()
+        let serdeser_json_val = serde_json::from_str::<serde_json::Value>(&doc.to_json(&schema))
             .unwrap()
+            .get("json")
+            .unwrap()[0]
             .clone();
         assert_eq!(json_val, serdeser_json_val);
         let segment_reader = searcher.segment_reader(0u32);
@@ -842,7 +838,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", STRING);
         let schema = schema_builder.build();
-        let json_val: serde_json::Map<String, serde_json::Value> =
+        let json_val: serde_json::Value =
             serde_json::from_str(r#"{"mykey": "two tokens"}"#).unwrap();
         let doc = doc!(json_field=>json_val);
         let index = Index::create_in_ram(schema);
@@ -882,7 +878,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", TEXT);
         let schema = schema_builder.build();
-        let json_val: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+        let json_val: serde_json::Value = serde_json::from_str(
             r#"{"mykey": [{"field": "hello happy tax payer"}, {"field": "nothello"}]}"#,
         )
         .unwrap();

@@ -8,6 +8,7 @@ use serde::de::{MapAccess, SeqAccess};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
+use super::existing_type_impls::can_be_rfc3339_date_time;
 use super::ReferenceValueLeaf;
 use crate::schema::document::{
     ArrayAccess, DeserializeError, ObjectAccess, ReferenceValue, Value, ValueDeserialize,
@@ -373,16 +374,6 @@ impl From<BTreeMap<String, OwnedValue>> for OwnedValue {
         let key_values = object.into_iter().collect();
         OwnedValue::Object(key_values)
     }
-}
-
-fn can_be_rfc3339_date_time(text: &str) -> bool {
-    if let Some(&first_byte) = text.as_bytes().first() {
-        if first_byte.is_ascii_digit() {
-            return true;
-        }
-    }
-
-    false
 }
 
 impl From<serde_json::Value> for OwnedValue {
