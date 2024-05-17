@@ -30,6 +30,8 @@ mod weight;
 mod vec_docset;
 
 pub(crate) mod score_combiner;
+mod disjunction;
+
 pub use query_grammar::Occur;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
