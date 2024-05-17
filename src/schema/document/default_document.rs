@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::io;
+use std::io::{self, Read, Write};
 use std::net::Ipv6Addr;
 
 use columnar::MonotonicallyMappableToU128;
@@ -285,30 +285,14 @@ impl<'a> Value<'a> for CompactDocValue<'a> {
 #[derive(Debug, Clone)]
 /// A container to store tantivy Value
 struct CompactDocContainer {
-    /// A list of nodes, that are used to store the values of the document.
-    ///
-    /// ## Note on the design
-    /// We could use just a single vec `node_data` to store the nodes, but this would have a
-    /// downside. node_data has flexible sized elements compared to `nodes`. So when creating
-    /// a vec or document, we can reserve space for all od the direct child nodes upfront, and then
-    /// write into the nodes array without resizing. This is not possible with `node_data`. So
-    /// we use `nodes` to store the references to the actual data in `node_data`.
-    /// There would be 2 ways to use node_data instead of nodes:
-    /// - Instead of storing start and len for arrays and objects, we could a list of node pointers
-    /// to the bytes in node_data. This would require more memory.
-    /// - A two layer approach, where we when receiving an array/object, we would process the first
-    ///   level
-    /// subnodes and store the pos and len in and then handle then deeper levels. I don't like the
-    /// added complexity of this approach.
-    nodes: mediumvec::Vec32<ValueAddr>,
-    /// The `node_data` is a vec of bytes, where each value is serialized into bytes and stored. It
-    /// includes all the data of the document.
+    /// `node_data` is a vec of bytes, where each value is serialized into bytes and stored. It
+    /// includes all the data of the document and also metadata like where the nodes are located
+    /// in an object or array.
     node_data: mediumvec::Vec32<u8>,
 }
 impl Default for CompactDocContainer {
     fn default() -> Self {
         Self {
-            nodes: mediumvec::Vec32::with_capacity(4),
             // This should be at the lower end of the payload of a document
             // 512 byte is pretty small
             node_data: mediumvec::Vec32::with_capacity(512),
@@ -322,6 +306,21 @@ impl Default for CompactDocContainer {
 pub struct ValueAddr {
     type_id: ValueType,
     val: Addr, // this is the address, except for bool and null, which are inlined
+}
+impl BinarySerializable for ValueAddr {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        (self.type_id as u8).serialize(writer)?;
+        self.val.0.serialize(writer)
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let type_id = ValueType::deserialize(reader)?;
+        let addr: [u8; 3] = <[u8; 3]>::deserialize(reader)?;
+        Ok(ValueAddr {
+            type_id,
+            val: Addr(addr),
+        })
+    }
 }
 impl std::fmt::Debug for ValueAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -400,6 +399,26 @@ pub enum ValueType {
     Array = 12,
 }
 
+impl BinarySerializable for ValueType {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        (*self as u8).serialize(writer)?;
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let num = u8::deserialize(reader)?;
+        let type_id = if (0..=12).contains(&num) {
+            unsafe { std::mem::transmute(num) }
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Invalid value type id: {}", num),
+            ));
+        };
+        Ok(type_id)
+    }
+}
+
 impl<'a, V: Value<'a>> From<&ReferenceValue<'a, V>> for ValueType {
     fn from(value: &ReferenceValue<'a, V>) -> Self {
         match value {
@@ -474,9 +493,10 @@ impl CompactDocContainer {
                 let mut positions = Vec::new();
                 for elem in elements {
                     let ref_elem = self.add_value(elem);
-                    let position = self.nodes.len() as u32;
+                    let position = self.node_data.len() as u32;
                     write_u32_vint(position, &mut positions).expect("in memory can't fail");
-                    self.nodes.push(ref_elem);
+                    write_into(&mut self.node_data, ref_elem);
+                    // self.nodes.push(ref_elem);
                 }
                 ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
             }
@@ -485,10 +505,10 @@ impl CompactDocContainer {
                 for (key, value) in entries {
                     let ref_key = self.add_value_leaf(ReferenceValueLeaf::Str(key));
                     let ref_value = self.add_value(value);
-                    let position = self.nodes.len() as u32;
+                    let position = self.node_data.len() as u32;
                     write_u32_vint(position, &mut positions).expect("in memory can't fail");
-                    self.nodes.push(ref_key);
-                    self.nodes.push(ref_value);
+                    write_into(&mut self.node_data, ref_key);
+                    write_into(&mut self.node_data, ref_value);
                 }
                 ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
             }
@@ -619,12 +639,15 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
     type Item = (&'a str, CompactDocValue<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.positions_slice.len() > 0 {
+        if !self.positions_slice.is_empty() {
             let key_index = read_u32_vint(&mut self.positions_slice) as usize;
-            let key = self.container.extract_str(self.container.nodes[key_index]);
+            let position = &mut &self.container.node_data[key_index..];
+            let key_addr = ValueAddr::deserialize(position).ok()?;
+            let key = self.container.extract_str(key_addr);
+            let value = ValueAddr::deserialize(position).ok()?;
             let value = CompactDocValue {
                 container: self.container,
-                value: self.container.nodes[key_index + 1],
+                value,
             };
             return Some((key, value));
         }
@@ -653,11 +676,12 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
     type Item = CompactDocValue<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.positions_slice.len() > 0 {
+        if !self.positions_slice.is_empty() {
             let key_index = read_u32_vint(&mut self.positions_slice) as usize;
+            let value = ValueAddr::deserialize(&mut &self.container.node_data[key_index..]).ok()?;
             let value = CompactDocValue {
                 container: self.container,
-                value: self.container.nodes[key_index],
+                value,
             };
             return Some(value);
         }

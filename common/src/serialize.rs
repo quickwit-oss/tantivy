@@ -120,6 +120,23 @@ impl FixedSize for u32 {
     const SIZE_IN_BYTES: usize = 4;
 }
 
+impl BinarySerializable for [u8; 3] {
+    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_u8(self[0])?;
+        writer.write_u8(self[1])?;
+        writer.write_u8(self[2])?;
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<[u8; 3]> {
+        Ok([reader.read_u8()?, reader.read_u8()?, reader.read_u8()?])
+    }
+}
+
+impl FixedSize for [u8; 3] {
+    const SIZE_IN_BYTES: usize = 3;
+}
+
 impl BinarySerializable for u16 {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_u16::<Endianness>(*self)
@@ -345,6 +362,12 @@ pub mod test {
         assert_eq!(serialize_test(String::from("")), 1);
         assert_eq!(serialize_test(String::from("ぽよぽよ")), 1 + 3 * 4);
         assert_eq!(serialize_test(String::from("富士さん見える。")), 1 + 3 * 8);
+    }
+
+    #[test]
+    fn test_serialize_3bytes() {
+        let bytes: [u8; 3] = [1, 2, 3];
+        assert_eq!(serialize_test(bytes), 3);
     }
 
     #[test]
