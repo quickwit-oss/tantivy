@@ -537,21 +537,19 @@ impl CompactDocContainer {
     }
 }
 
-/// BinarySerializable for &str
-/// Specialized version since BinarySerializable doesn't have lifetimes.
+/// BinarySerializable alternative to read references
 fn binary_deserialize_str(data: &[u8]) -> &str {
     let data = binary_deserialize_bytes(data);
     unsafe { std::str::from_utf8_unchecked(data) }
 }
 
-/// BinarySerializable for &[u8]
-/// Specialized version since BinarySerializable doesn't have lifetimes.
+/// BinarySerializable alternative to read references
 fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
     let (len, bytes_read) = read_u32_vint_no_advance(data);
     &data[bytes_read..bytes_read + len as usize]
 }
 
-/// BinarySerializable alternative for borrowed data
+/// BinarySerializable alternative to write references
 fn write_bytes_into(data: &mut mediumvec::Vec32<u8>, bytes: &[u8]) -> u32 {
     let pos = data.len() as u32;
     let mut buf = [0u8; 8];
@@ -576,13 +574,11 @@ impl CompactDocContainer {
         match ref_value.type_id {
             ValueType::Null => Ok(ReferenceValueLeaf::Null.into()),
             ValueType::Str => {
-                let data = binary_deserialize_bytes(self.get_slice(ref_value.val));
-                let str_ref = unsafe { std::str::from_utf8_unchecked(data) };
+                let str_ref = binary_deserialize_str(self.get_slice(ref_value.val));
                 Ok(ReferenceValueLeaf::Str(str_ref).into())
             }
             ValueType::Facet => {
-                let data = binary_deserialize_bytes(self.get_slice(ref_value.val));
-                let str_ref = unsafe { std::str::from_utf8_unchecked(data) };
+                let str_ref = binary_deserialize_str(self.get_slice(ref_value.val));
                 Ok(ReferenceValueLeaf::Facet(str_ref).into())
             }
             ValueType::Bytes => {
