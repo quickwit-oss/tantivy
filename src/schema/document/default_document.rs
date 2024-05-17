@@ -53,7 +53,9 @@ impl CompactDoc {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where Facet: From<F> {
+    where
+        Facet: From<F>,
+    {
         let facet = Facet::from(path);
         self.add_leaf_field_value(field, ReferenceValueLeaf::Facet(facet.encoded_str()));
     }
@@ -252,7 +254,9 @@ impl Eq for CompactDoc {}
 
 impl DocumentDeserialize for CompactDoc {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
-    where D: DocumentDeserializer<'de> {
+    where
+        D: DocumentDeserializer<'de>,
+    {
         let mut doc = CompactDoc::default();
         // TODO: Deserializing into OwnedValue is wasteful. The deserializer should be able to work
         // on slices and referenced data.
@@ -329,11 +333,16 @@ impl std::fmt::Debug for ValueAddr {
 /// This means that we can address at most 16MB data in a Document.
 #[derive(Clone, Default, Eq, PartialEq, Debug, Copy)]
 struct Addr([u8; 3]);
-// TODO: use fallible conversion
-impl From<u32> for Addr {
-    fn from(val: u32) -> Self {
+impl Addr {
+    fn from_u32(val: u32) -> io::Result<Self> {
+        if val >= 1 << 24 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Value too large for Addr, the default TantivyDocument Document supports up to 16MB of payload",
+            ));
+        }
         let bytes = val.to_be_bytes();
-        Addr([bytes[1], bytes[2], bytes[3]])
+        Ok(Addr([bytes[1], bytes[2], bytes[3]]))
     }
 }
 impl From<Addr> for u32 {
@@ -349,7 +358,7 @@ impl ValueAddr {
     pub fn new(type_id: ValueType, val: u32) -> Self {
         Self {
             type_id,
-            val: val.into(),
+            val: Addr::from_u32(val).unwrap(),
         }
     }
 }
