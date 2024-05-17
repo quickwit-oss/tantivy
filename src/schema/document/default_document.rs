@@ -3,7 +3,10 @@ use std::io;
 use std::net::Ipv6Addr;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{read_u32_vint_no_advance, serialize_vint_u32, BinarySerializable, DateTime};
+use common::{
+    read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint,
+    BinarySerializable, DateTime,
+};
 use serde_json::Map;
 pub use CompactDoc as TantivyDocument;
 
@@ -322,7 +325,11 @@ pub struct ValueAddr {
 }
 impl std::fmt::Debug for ValueAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self.type_id))
+        f.write_fmt(format_args!(
+            "{:?} at {:?}",
+            self.type_id,
+            u32::from(self.val)
+        ))
     }
 }
 /// Addr in 3 bytes, can be converted from u32 by dropping the high byte.
@@ -420,25 +427,6 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct NodeAddress {
-    /// position in the node array
-    pos: u32,
-    /// num elements in the node array
-    num_nodes: u32,
-}
-impl BinarySerializable for NodeAddress {
-    fn serialize<W: std::io::Write + ?Sized>(&self, writer: &mut W) -> std::io::Result<()> {
-        self.pos.serialize(writer)?;
-        self.num_nodes.serialize(writer)
-    }
-    fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let pos = u32::deserialize(reader)?;
-        let num_nodes = u32::deserialize(reader)?;
-        Ok(NodeAddress { pos, num_nodes })
-    }
-}
-
 impl CompactDocContainer {
     pub fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
         let type_id = ValueType::from(&leaf);
@@ -483,55 +471,26 @@ impl CompactDocContainer {
         match value {
             ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
             ReferenceValue::Array(elements) => {
-                let elements: Vec<_> = elements.collect(); // TODO: Use ExactSizeIterator?
-                let pos = self.nodes.len() as u32;
-                let len = elements.len() as u32;
-                // We reserve space upfront, so that we can write into the nodes array and just
-                // reference it with pos + len
-                self.nodes
-                    .as_vec(|vec| vec.resize(pos as usize + len as usize, ValueAddr::default()));
-                for (idx, elem) in elements.into_iter().enumerate() {
+                let mut positions = Vec::new();
+                for elem in elements {
                     let ref_elem = self.add_value(elem);
-                    let node_idx = idx + pos as usize;
-                    self.nodes[node_idx] = ref_elem;
+                    let position = self.nodes.len() as u32;
+                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
+                    self.nodes.push(ref_elem);
                 }
-                ValueAddr::new(
-                    type_id,
-                    write_into(
-                        &mut self.node_data,
-                        NodeAddress {
-                            pos,
-                            num_nodes: len,
-                        },
-                    ),
-                )
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
             }
             ReferenceValue::Object(entries) => {
-                let entries: Vec<_> = entries.collect(); // TODO: Use ExactSizeIterator?
-                let pos = self.nodes.len() as u32;
-                let len = entries.len() as u32;
-                // We reserve space upfront, so that we can write into the nodes array and just
-                // reference it with pos + len
-                self.nodes.as_vec(|vec| {
-                    vec.resize(pos as usize + (len * 2) as usize, ValueAddr::default())
-                });
-                for (idx, (key, value)) in entries.into_iter().enumerate() {
-                    let node_idx = (idx * 2) + pos as usize;
+                let mut positions = Vec::new();
+                for (key, value) in entries {
                     let ref_key = self.add_value_leaf(ReferenceValueLeaf::Str(key));
                     let ref_value = self.add_value(value);
-                    self.nodes[node_idx] = ref_key;
-                    self.nodes[node_idx + 1] = ref_value;
+                    let position = self.nodes.len() as u32;
+                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
+                    self.nodes.push(ref_key);
+                    self.nodes.push(ref_value);
                 }
-                ValueAddr::new(
-                    type_id,
-                    write_into(
-                        &mut self.node_data,
-                        NodeAddress {
-                            pos,
-                            num_nodes: len,
-                        },
-                    ),
-                )
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
             }
         }
     }
@@ -643,19 +602,15 @@ impl CompactDocContainer {
 /// The Iterator for the object values in the compact document
 pub struct CompactDocObjectIter<'a> {
     container: &'a CompactDocContainer,
-    index: usize,
-    end: usize,
+    positions_slice: &'a [u8],
 }
 
 impl<'a> CompactDocObjectIter<'a> {
     fn new(container: &'a CompactDocContainer, addr: Addr) -> io::Result<Self> {
-        let node_address = container.read_from::<NodeAddress>(addr)?;
-        let start = node_address.pos as usize;
-        let end = start + node_address.num_nodes as usize * 2;
+        let positions_slice = binary_deserialize_bytes(container.get_slice(addr));
         Ok(Self {
             container,
-            index: start,
-            end,
+            positions_slice,
         })
     }
 }
@@ -664,9 +619,8 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
     type Item = (&'a str, CompactDocValue<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.end {
-            let key_index = self.index;
-            self.index += 2;
+        if self.positions_slice.len() > 0 {
+            let key_index = read_u32_vint(&mut self.positions_slice) as usize;
             let key = self.container.extract_str(self.container.nodes[key_index]);
             let value = CompactDocValue {
                 container: self.container,
@@ -682,19 +636,15 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
 /// The Iterator for the array values in the compact document
 pub struct CompactDocArrayIter<'a> {
     container: &'a CompactDocContainer,
-    index: usize,
-    end: usize,
+    positions_slice: &'a [u8],
 }
 
 impl<'a> CompactDocArrayIter<'a> {
-    fn new(structure: &'a CompactDocContainer, addr: Addr) -> io::Result<Self> {
-        let node_address = structure.read_from::<NodeAddress>(addr)?;
-        let start = node_address.pos as usize;
-        let end = start + node_address.num_nodes as usize;
+    fn new(container: &'a CompactDocContainer, addr: Addr) -> io::Result<Self> {
+        let positions_slice = binary_deserialize_bytes(container.get_slice(addr));
         Ok(Self {
-            container: structure,
-            index: start,
-            end,
+            container,
+            positions_slice,
         })
     }
 }
@@ -703,13 +653,12 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
     type Item = CompactDocValue<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.end {
-            let key_index = self.index;
+        if self.positions_slice.len() > 0 {
+            let key_index = read_u32_vint(&mut self.positions_slice) as usize;
             let value = CompactDocValue {
                 container: self.container,
                 value: self.container.nodes[key_index],
             };
-            self.index += 1;
             return Some(value);
         }
         None

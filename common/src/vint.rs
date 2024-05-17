@@ -157,6 +157,20 @@ pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> 
     writer.write_all(data)
 }
 
+/// Iterates over all u32 encoded vints in the slice
+pub fn vint_32_iterator(data: &[u8]) -> impl Iterator<Item = u32> + '_ {
+    let mut slice = data;
+    std::iter::from_fn(move || {
+        if slice.is_empty() {
+            None
+        } else {
+            let (value, vlen) = read_u32_vint_no_advance(&slice);
+            slice = &slice[vlen..];
+            Some(value)
+        }
+    })
+}
+
 impl VInt {
     pub fn val(&self) -> u64 {
         self.0
@@ -222,7 +236,8 @@ impl BinarySerializable for VInt {
 #[cfg(test)]
 mod tests {
 
-    use super::{serialize_vint_u32, BinarySerializable, VInt};
+    use super::{serialize_vint_u32, u32_vint_iterator, BinarySerializable, VInt};
+    use crate::write_u32_vint;
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
@@ -239,6 +254,18 @@ mod tests {
         }
         let serdeser_val = VInt::deserialize(&mut &v[..]).unwrap();
         assert_eq!(val, serdeser_val.0);
+    }
+
+    #[test]
+    fn vint_iterator_test() {
+        let mut out = Vec::new();
+
+        let values: Vec<u32> = (0..100).collect();
+        for i in values.iter() {
+            write_u32_vint(*i, &mut out).unwrap();
+        }
+        let deser: Vec<u32> = u32_vint_iterator(&out).collect();
+        assert_eq!(values, deser);
     }
 
     #[test]
