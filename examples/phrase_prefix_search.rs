@@ -70,17 +70,14 @@ fn main() -> Result<()> {
             let doc = searcher.doc::<TantivyDocument>(doc_address)?;
             let title = doc
                 .get_first(title)
-                .and_then(|v| v.as_str().map(|el| el.to_string()))
+                .and_then(|v| v.as_str())
                 .unwrap()
                 .to_owned();
             Ok(title)
         })
         .collect::<Result<Vec<_>>>()?;
     titles.sort_unstable();
-    assert_eq!(
-        titles,
-        ["Frankenstein".to_string(), "Of Mice and Men".to_string()]
-    );
+    assert_eq!(titles, ["Frankenstein", "Of Mice and Men"]);
 
     Ok(())
 }

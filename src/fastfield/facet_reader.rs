@@ -88,9 +88,7 @@ mod tests {
         let doc = searcher
             .doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))
             .unwrap();
-        let value = doc
-            .get_first(facet_field)
-            .and_then(|v| v.as_facet().map(|el| el.to_owned()));
+        let value = doc.get_first(facet_field).and_then(|v| v.as_facet());
         assert_eq!(value, None);
     }
 
@@ -149,7 +147,7 @@ mod tests {
         let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))?;
         let value: Option<Facet> = doc
             .get_first(facet_field)
-            .and_then(|v| v.as_facet().map(|el| el.to_owned()))
+            .and_then(|v| v.as_facet())
             .map(|facet| Facet::from_encoded_string(facet.to_string()));
         assert_eq!(value, Facet::from_text("/a/b").ok());
         Ok(())
