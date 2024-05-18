@@ -242,7 +242,7 @@ pub struct IntermediateStats {
     /// The sum of the extracted values.
     sum: f64,
     /// delta for sum needed for [Kahan algorithm for summation](https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
-    delta: f64,
+    // delta: f64,
     /// The min value.
     min: f64,
     /// The max value.
@@ -254,7 +254,7 @@ impl Default for IntermediateStats {
         Self {
             count: 0,
             sum: 0.0,
-            delta: 0.0,
+            // delta: 0.0,
             min: f64::MAX,
             max: f64::MIN,
         }
@@ -266,7 +266,7 @@ impl IntermediateStats {
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
         self.sum += other.sum;
-        self.delta += other.delta;
+        // self.delta += other.delta;
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
     }
@@ -302,13 +302,11 @@ impl IntermediateStats {
         self.count += 1;
 
         // kahan algorithm for sum
-
-        let y = value - self.delta;
-        let t = self.sum + y;
-        self.delta = (t - self.sum) - y;
-        self.sum = t;
-
-        // self.sum+=value;
+        // let y = value - self.delta;
+        // let t = self.sum + y;
+        // self.delta = (t - self.sum) - y;
+        // self.sum = t;
+        self.sum += value;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
@@ -397,7 +395,7 @@ impl IntermediateExtendedStats {
                         + other.intermediate_stats.sum as f64)
                         / new_count as f64;
                     self.intermediate_stats.sum += other.intermediate_stats.sum;
-                    self.intermediate_stats.delta += other.intermediate_stats.delta;
+                    // self.intermediate_stats.delta += other.intermediate_stats.delta;
                     self.sum_of_squares_elastic += other.sum_of_squares_elastic;
                     self.delta_sum_for_squares_elastic += other.delta_sum_for_squares_elastic
                 }
@@ -497,81 +495,79 @@ impl IntermediateExtendedStats {
     }
 }
 
-/*
-impl IntermediateInnerCollector for IntermediateExtendedStats {
-    #[inline]
-    fn collect(&mut self, value: f64) {
-        self.intermediate_stats.collect(value);
-        // kahan algorithm for sum_of_squares_elastic
-        let y = value * value - self.delta_sum_for_squares_elastic;
-        let t = self.sum_of_squares_elastic + y;
-        self.delta_sum_for_squares_elastic = (t - self.sum_of_squares_elastic) - y;
-        self.sum_of_squares_elastic = t;
-        self.update_variance(value);
-    }
-
-    fn into_intermediate_metric_result(self) -> IntermediateMetricResult {
-        IntermediateMetricResult::ExtendedStats(self)
-    }
-}
-
-/// trait implemented by IntermediateStats and
-/// IntermediateExtendedStats that allows the
-/// usage of a single [SegmentStatsCollector]
-pub trait IntermediateInnerCollector {
-    /// collects the single field value to form
-    /// the statistic
-    fn collect(&mut self, val: f64);
-    /// transforms the intermediate stat
-    /// into a [IntermediateMetricResult]
-    fn into_intermediate_metric_result(self) -> IntermediateMetricResult;
-}
-
-/// Intermediate struct used by [SegmentStatsCollector]
-/// for calculating Stats and creating [IntermediateMetricResult]
-#[derive(Clone, Debug, PartialEq)]
-pub struct IntermediateInnerStatsCollector {
-    stats: IntermediateStats,
-    collecting_for: SegmentStatsType,
-}
-
-impl IntermediateInnerStatsCollector {
-    pub(crate) fn for_stat_type(collecting_for: SegmentStatsType) -> Self {
-        IntermediateInnerStatsCollector {
-            stats: IntermediateStats::default(),
-            collecting_for: collecting_for,
-        }
-    }
-}
-
-impl IntermediateInnerCollector for IntermediateInnerStatsCollector {
-    #[inline]
-    fn collect(&mut self, value: f64) {
-        self.stats.collect(value);
-    }
-
-    fn into_intermediate_metric_result(self) -> IntermediateMetricResult {
-        match self.collecting_for {
-            SegmentStatsType::Average => {
-                IntermediateMetricResult::Average(IntermediateAverage::from_stats(self.stats))
-            }
-            SegmentStatsType::Count => {
-                IntermediateMetricResult::Count(IntermediateCount::from_stats(self.stats))
-            }
-            SegmentStatsType::Max => {
-                IntermediateMetricResult::Max(IntermediateMax::from_stats(self.stats))
-            }
-            SegmentStatsType::Min => {
-                IntermediateMetricResult::Min(IntermediateMin::from_stats(self.stats))
-            }
-            SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
-            SegmentStatsType::Sum => {
-                IntermediateMetricResult::Sum(IntermediateSum::from_stats(self.stats))
-            }
-        }
-    }
-}
-*/
+// impl IntermediateInnerCollector for IntermediateExtendedStats {
+// #[inline]
+// fn collect(&mut self, value: f64) {
+// self.intermediate_stats.collect(value);
+// kahan algorithm for sum_of_squares_elastic
+// let y = value * value - self.delta_sum_for_squares_elastic;
+// let t = self.sum_of_squares_elastic + y;
+// self.delta_sum_for_squares_elastic = (t - self.sum_of_squares_elastic) - y;
+// self.sum_of_squares_elastic = t;
+// self.update_variance(value);
+// }
+//
+// fn into_intermediate_metric_result(self) -> IntermediateMetricResult {
+// IntermediateMetricResult::ExtendedStats(self)
+// }
+// }
+//
+// trait implemented by IntermediateStats and
+// IntermediateExtendedStats that allows the
+// usage of a single [SegmentStatsCollector]
+// pub trait IntermediateInnerCollector {
+// collects the single field value to form
+// the statistic
+// fn collect(&mut self, val: f64);
+// transforms the intermediate stat
+// into a [IntermediateMetricResult]
+// fn into_intermediate_metric_result(self) -> IntermediateMetricResult;
+// }
+//
+// Intermediate struct used by [SegmentStatsCollector]
+// for calculating Stats and creating [IntermediateMetricResult]
+// #[derive(Clone, Debug, PartialEq)]
+// pub struct IntermediateInnerStatsCollector {
+// stats: IntermediateStats,
+// collecting_for: SegmentStatsType,
+// }
+//
+// impl IntermediateInnerStatsCollector {
+// pub(crate) fn for_stat_type(collecting_for: SegmentStatsType) -> Self {
+// IntermediateInnerStatsCollector {
+// stats: IntermediateStats::default(),
+// collecting_for: collecting_for,
+// }
+// }
+// }
+//
+// impl IntermediateInnerCollector for IntermediateInnerStatsCollector {
+// #[inline]
+// fn collect(&mut self, value: f64) {
+// self.stats.collect(value);
+// }
+//
+// fn into_intermediate_metric_result(self) -> IntermediateMetricResult {
+// match self.collecting_for {
+// SegmentStatsType::Average => {
+// IntermediateMetricResult::Average(IntermediateAverage::from_stats(self.stats))
+// }
+// SegmentStatsType::Count => {
+// IntermediateMetricResult::Count(IntermediateCount::from_stats(self.stats))
+// }
+// SegmentStatsType::Max => {
+// IntermediateMetricResult::Max(IntermediateMax::from_stats(self.stats))
+// }
+// SegmentStatsType::Min => {
+// IntermediateMetricResult::Min(IntermediateMin::from_stats(self.stats))
+// }
+// SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
+// SegmentStatsType::Sum => {
+// IntermediateMetricResult::Sum(IntermediateSum::from_stats(self.stats))
+// }
+// }
+// }
+// }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentStatsType {
@@ -710,7 +706,6 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentExtendedStatsCollector {
     missing: Option<u64>,
@@ -770,7 +765,9 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
         let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
         results.push(
             name,
-            IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(self.extended_stats)),
+            IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(
+                self.extended_stats,
+            )),
         )?;
 
         Ok(())
@@ -816,121 +813,119 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     }
 }
 
-/* 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SegmentStatsCollector1<T: IntermediateInnerCollector> {
-    missing: Option<u64>,
-    field_type: ColumnType,
-    inner_intermediate_collector: T,
-    pub(crate) accessor_idx: usize,
-    val_cache: Vec<u64>,
-}
-
-impl<T: IntermediateInnerCollector> SegmentStatsCollector1<T> {
-    pub fn from_req(
-        field_type: ColumnType,
-        // collecting_for: SegmentStatsType,
-        inner_intermediate_collector: T,
-        accessor_idx: usize,
-        missing: Option<f64>,
-    ) -> Self {
-        let missing = missing.and_then(|val| f64_to_fastfield_u64(val, &field_type));
-        Self {
-            field_type,
-            inner_intermediate_collector,
-            // collecting_for,
-            // stats: stats,
-            accessor_idx,
-            missing,
-            val_cache: Default::default(),
-        }
-    }
-    #[inline]
-    pub(crate) fn collect_block_with_field(
-        &mut self,
-        docs: &[DocId],
-        agg_accessor: &mut AggregationWithAccessor,
-    ) {
-        if let Some(missing) = self.missing.as_ref() {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &agg_accessor.accessor,
-                *missing,
-            );
-        } else {
-            agg_accessor
-                .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
-        }
-        for val in agg_accessor.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, &self.field_type);
-            self.inner_intermediate_collector.collect(val1);
-        }
-    }
-}
-
-impl<T> SegmentAggregationCollector for SegmentStatsCollector1<T>
-where T: IntermediateInnerCollector + Debug + Clone + 'static
-{
-    #[inline]
-    fn add_intermediate_aggregation_result(
-        self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
-        results: &mut IntermediateAggregationResults,
-    ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
-
-        let intermediate_metric_result = self
-            .inner_intermediate_collector
-            .into_intermediate_metric_result();
-        results.push(
-            name,
-            IntermediateAggregationResult::Metric(intermediate_metric_result),
-        )?;
-
-        Ok(())
-    }
-
-    #[inline]
-    fn collect(
-        &mut self,
-        doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
-    ) -> crate::Result<()> {
-        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
-        if let Some(missing) = self.missing {
-            let mut has_val = false;
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.inner_intermediate_collector.collect(val1);
-                has_val = true;
-            }
-            if !has_val {
-                self.inner_intermediate_collector
-                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
-            }
-        } else {
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.inner_intermediate_collector.collect(val1);
-            }
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    fn collect_block(
-        &mut self,
-        docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
-    ) -> crate::Result<()> {
-        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        self.collect_block_with_field(docs, field);
-        Ok(())
-    }
-}
-*/
+// #[derive(Clone, Debug, PartialEq)]
+// pub(crate) struct SegmentStatsCollector1<T: IntermediateInnerCollector> {
+// missing: Option<u64>,
+// field_type: ColumnType,
+// inner_intermediate_collector: T,
+// pub(crate) accessor_idx: usize,
+// val_cache: Vec<u64>,
+// }
+//
+// impl<T: IntermediateInnerCollector> SegmentStatsCollector1<T> {
+// pub fn from_req(
+// field_type: ColumnType,
+// collecting_for: SegmentStatsType,
+// inner_intermediate_collector: T,
+// accessor_idx: usize,
+// missing: Option<f64>,
+// ) -> Self {
+// let missing = missing.and_then(|val| f64_to_fastfield_u64(val, &field_type));
+// Self {
+// field_type,
+// inner_intermediate_collector,
+// collecting_for,
+// stats: stats,
+// accessor_idx,
+// missing,
+// val_cache: Default::default(),
+// }
+// }
+// #[inline]
+// pub(crate) fn collect_block_with_field(
+// &mut self,
+// docs: &[DocId],
+// agg_accessor: &mut AggregationWithAccessor,
+// ) {
+// if let Some(missing) = self.missing.as_ref() {
+// agg_accessor.column_block_accessor.fetch_block_with_missing(
+// docs,
+// &agg_accessor.accessor,
+// missing,
+// );
+// } else {
+// agg_accessor
+// .column_block_accessor
+// .fetch_block(docs, &agg_accessor.accessor);
+// }
+// for val in agg_accessor.column_block_accessor.iter_vals() {
+// let val1 = f64_from_fastfield_u64(val, &self.field_type);
+// self.inner_intermediate_collector.collect(val1);
+// }
+// }
+// }
+//
+// impl<T> SegmentAggregationCollector for SegmentStatsCollector1<T>
+// where T: IntermediateInnerCollector + Debug + Clone + 'static
+// {
+// #[inline]
+// fn add_intermediate_aggregation_result(
+// self: Box<Self>,
+// agg_with_accessor: &AggregationsWithAccessor,
+// results: &mut IntermediateAggregationResults,
+// ) -> crate::Result<()> {
+// let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+//
+// let intermediate_metric_result = self
+// .inner_intermediate_collector
+// .into_intermediate_metric_result();
+// results.push(
+// name,
+// IntermediateAggregationResult::Metric(intermediate_metric_result),
+// )?;
+//
+// Ok(())
+// }
+//
+// #[inline]
+// fn collect(
+// &mut self,
+// doc: crate::DocId,
+// agg_with_accessor: &mut AggregationsWithAccessor,
+// ) -> crate::Result<()> {
+// let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+// if let Some(missing) = self.missing {
+// let mut has_val = false;
+// for val in field.values_for_doc(doc) {
+// let val1 = f64_from_fastfield_u64(val, &self.field_type);
+// self.inner_intermediate_collector.collect(val1);
+// has_val = true;
+// }
+// if !has_val {
+// self.inner_intermediate_collector
+// .collect(f64_from_fastfield_u64(missing, &self.field_type));
+// }
+// } else {
+// for val in field.values_for_doc(doc) {
+// let val1 = f64_from_fastfield_u64(val, &self.field_type);
+// self.inner_intermediate_collector.collect(val1);
+// }
+// }
+//
+// Ok(())
+// }
+//
+// #[inline]
+// fn collect_block(
+// &mut self,
+// docs: &[crate::DocId],
+// agg_with_accessor: &mut AggregationsWithAccessor,
+// ) -> crate::Result<()> {
+// let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
+// self.collect_block_with_field(docs, field);
+// Ok(())
+// }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -938,7 +933,7 @@ mod tests {
 
     use crate::aggregation::agg_req::{Aggregation, Aggregations};
     use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::metric::{IntermediateExtendedStats};
+    use crate::aggregation::metric::IntermediateExtendedStats;
     use crate::aggregation::tests::{
         exec_request_with_query, get_test_index_2_segments, get_test_index_from_values,
     };
