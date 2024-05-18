@@ -770,7 +770,7 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
         let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
         results.push(
             name,
-            IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(Box::new(self.extended_stats))),
+            IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(self.extended_stats)),
         )?;
 
         Ok(())

@@ -216,7 +216,7 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
             IntermediateStats::default(),
         )),
         ExtendedStats(_) => IntermediateAggregationResult::Metric(
-            IntermediateMetricResult::ExtendedStats(Box::new(IntermediateExtendedStats::default())),
+            IntermediateMetricResult::ExtendedStats(IntermediateExtendedStats::default()),
         ),
         Sum(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::Sum(
             IntermediateSum::default(),
@@ -286,7 +286,7 @@ pub enum IntermediateMetricResult {
     /// Intermediate stats result.
     Stats(IntermediateStats),
     /// Intermediate stats result.
-    ExtendedStats(Box<IntermediateExtendedStats>),
+    ExtendedStats(IntermediateExtendedStats),
     /// Intermediate sum result.
     Sum(IntermediateSum),
     /// Intermediate top_hits result
@@ -358,7 +358,7 @@ impl IntermediateMetricResult {
                 IntermediateMetricResult::ExtendedStats(extended_stats_left),
                 IntermediateMetricResult::ExtendedStats(extended_stats_right),
             ) => {
-                extended_stats_left.merge_fruits(*extended_stats_right);
+                extended_stats_left.merge_fruits(extended_stats_right);
             }
             (IntermediateMetricResult::Sum(sum_left), IntermediateMetricResult::Sum(sum_right)) => {
                 sum_left.merge_fruits(sum_right);
