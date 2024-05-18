@@ -2,8 +2,9 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use super::IntermediateStats;
+use super::*;
 use crate::aggregation::*;
+
 /// A single-value metric aggregation that computes the maximum of numeric values that are
 /// extracted from the aggregated documents.
 /// See [super::SingleMetricResult] for return value.
@@ -50,9 +51,11 @@ pub struct IntermediateMax {
 }
 
 impl IntermediateMax {
-    /// Creates a new [`IntermediateAverage`] instance from a [`IntermediateStats`].
-    pub(crate) fn from_stats(stats: IntermediateStats) -> Self {
-        Self { stats }
+    /// Creates a new [`IntermediateMax`] instance from a [`SegmentStatsCollector`].
+    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
+        Self {
+            stats: collector.stats,
+        }
     }
     /// Merges the other intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateMax) {

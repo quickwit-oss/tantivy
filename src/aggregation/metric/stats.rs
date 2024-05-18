@@ -484,8 +484,20 @@ impl IntermediateExtendedStats {
         let delta2 = value - self.mean;
         self.sum_of_squares += delta * delta2;
     }
+
+    #[inline]
+    fn collect(&mut self, value: f64) {
+        self.intermediate_stats.collect(value);
+        // kahan algorithm for sum_of_squares_elastic
+        let y = value * value - self.delta_sum_for_squares_elastic;
+        let t = self.sum_of_squares_elastic + y;
+        self.delta_sum_for_squares_elastic = (t - self.sum_of_squares_elastic) - y;
+        self.sum_of_squares_elastic = t;
+        self.update_variance(value);
+    }
 }
 
+/*
 impl IntermediateInnerCollector for IntermediateExtendedStats {
     #[inline]
     fn collect(&mut self, value: f64) {
@@ -559,6 +571,7 @@ impl IntermediateInnerCollector for IntermediateInnerStatsCollector {
         }
     }
 }
+*/
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SegmentStatsType {
@@ -571,7 +584,241 @@ pub(crate) enum SegmentStatsType {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct SegmentStatsCollector<T: IntermediateInnerCollector> {
+pub(crate) struct SegmentStatsCollector {
+    missing: Option<u64>,
+    field_type: ColumnType,
+    pub(crate) collecting_for: SegmentStatsType,
+    pub(crate) stats: IntermediateStats,
+    pub(crate) accessor_idx: usize,
+    val_cache: Vec<u64>,
+}
+
+impl SegmentStatsCollector {
+    pub fn from_req(
+        field_type: ColumnType,
+        collecting_for: SegmentStatsType,
+        accessor_idx: usize,
+        missing: Option<f64>,
+    ) -> Self {
+        let missing = missing.and_then(|val| f64_to_fastfield_u64(val, &field_type));
+        Self {
+            field_type,
+            collecting_for,
+            stats: IntermediateStats::default(),
+            accessor_idx,
+            missing,
+            val_cache: Default::default(),
+        }
+    }
+    #[inline]
+    pub(crate) fn collect_block_with_field(
+        &mut self,
+        docs: &[DocId],
+        agg_accessor: &mut AggregationWithAccessor,
+    ) {
+        if let Some(missing) = self.missing.as_ref() {
+            agg_accessor.column_block_accessor.fetch_block_with_missing(
+                docs,
+                &agg_accessor.accessor,
+                *missing,
+            );
+        } else {
+            agg_accessor
+                .column_block_accessor
+                .fetch_block(docs, &agg_accessor.accessor);
+        }
+        for val in agg_accessor.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            self.stats.collect(val1);
+        }
+    }
+}
+
+impl SegmentAggregationCollector for SegmentStatsCollector {
+    #[inline]
+    fn add_intermediate_aggregation_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+
+        let intermediate_metric_result = match self.collecting_for {
+            SegmentStatsType::Average => {
+                IntermediateMetricResult::Average(IntermediateAverage::from_collector(*self))
+            }
+            SegmentStatsType::Count => {
+                IntermediateMetricResult::Count(IntermediateCount::from_collector(*self))
+            }
+            SegmentStatsType::Max => {
+                IntermediateMetricResult::Max(IntermediateMax::from_collector(*self))
+            }
+            SegmentStatsType::Min => {
+                IntermediateMetricResult::Min(IntermediateMin::from_collector(*self))
+            }
+            SegmentStatsType::Stats => IntermediateMetricResult::Stats(self.stats),
+            SegmentStatsType::Sum => {
+                IntermediateMetricResult::Sum(IntermediateSum::from_collector(*self))
+            }
+        };
+
+        results.push(
+            name,
+            IntermediateAggregationResult::Metric(intermediate_metric_result),
+        )?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+        if let Some(missing) = self.missing {
+            let mut has_val = false;
+            for val in field.values_for_doc(doc) {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.stats.collect(val1);
+                has_val = true;
+            }
+            if !has_val {
+                self.stats
+                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
+            }
+        } else {
+            for val in field.values_for_doc(doc) {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.stats.collect(val1);
+            }
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    fn collect_block(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
+        self.collect_block_with_field(docs, field);
+        Ok(())
+    }
+}
+
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SegmentExtendedStatsCollector {
+    missing: Option<u64>,
+    field_type: ColumnType,
+    pub(crate) extended_stats: IntermediateExtendedStats,
+    pub(crate) accessor_idx: usize,
+    val_cache: Vec<u64>,
+}
+
+impl SegmentExtendedStatsCollector {
+    pub fn from_req(
+        field_type: ColumnType,
+        sigma: Option<f64>,
+        accessor_idx: usize,
+        missing: Option<f64>,
+    ) -> Self {
+        let missing = missing.and_then(|val| f64_to_fastfield_u64(val, &field_type));
+        Self {
+            field_type,
+            extended_stats: IntermediateExtendedStats::with_sigma(sigma),
+            accessor_idx,
+            missing,
+            val_cache: Default::default(),
+        }
+    }
+    #[inline]
+    pub(crate) fn collect_block_with_field(
+        &mut self,
+        docs: &[DocId],
+        agg_accessor: &mut AggregationWithAccessor,
+    ) {
+        if let Some(missing) = self.missing.as_ref() {
+            agg_accessor.column_block_accessor.fetch_block_with_missing(
+                docs,
+                &agg_accessor.accessor,
+                *missing,
+            );
+        } else {
+            agg_accessor
+                .column_block_accessor
+                .fetch_block(docs, &agg_accessor.accessor);
+        }
+        for val in agg_accessor.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            self.extended_stats.collect(val1);
+        }
+    }
+}
+
+impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
+    #[inline]
+    fn add_intermediate_aggregation_result(
+        self: Box<Self>,
+        agg_with_accessor: &AggregationsWithAccessor,
+        results: &mut IntermediateAggregationResults,
+    ) -> crate::Result<()> {
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        results.push(
+            name,
+            IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(self.extended_stats)),
+        )?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+        if let Some(missing) = self.missing {
+            let mut has_val = false;
+            for val in field.values_for_doc(doc) {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.extended_stats.collect(val1);
+                has_val = true;
+            }
+            if !has_val {
+                self.extended_stats
+                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
+            }
+        } else {
+            for val in field.values_for_doc(doc) {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.extended_stats.collect(val1);
+            }
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    fn collect_block(
+        &mut self,
+        docs: &[crate::DocId],
+        agg_with_accessor: &mut AggregationsWithAccessor,
+    ) -> crate::Result<()> {
+        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
+        self.collect_block_with_field(docs, field);
+        Ok(())
+    }
+}
+
+/* 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SegmentStatsCollector1<T: IntermediateInnerCollector> {
     missing: Option<u64>,
     field_type: ColumnType,
     inner_intermediate_collector: T,
@@ -579,7 +826,7 @@ pub(crate) struct SegmentStatsCollector<T: IntermediateInnerCollector> {
     val_cache: Vec<u64>,
 }
 
-impl<T: IntermediateInnerCollector> SegmentStatsCollector<T> {
+impl<T: IntermediateInnerCollector> SegmentStatsCollector1<T> {
     pub fn from_req(
         field_type: ColumnType,
         // collecting_for: SegmentStatsType,
@@ -622,7 +869,7 @@ impl<T: IntermediateInnerCollector> SegmentStatsCollector<T> {
     }
 }
 
-impl<T> SegmentAggregationCollector for SegmentStatsCollector<T>
+impl<T> SegmentAggregationCollector for SegmentStatsCollector1<T>
 where T: IntermediateInnerCollector + Debug + Clone + 'static
 {
     #[inline]
@@ -683,6 +930,7 @@ where T: IntermediateInnerCollector + Debug + Clone + 'static
         Ok(())
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -690,7 +938,7 @@ mod tests {
 
     use crate::aggregation::agg_req::{Aggregation, Aggregations};
     use crate::aggregation::agg_result::AggregationResults;
-    use crate::aggregation::metric::{IntermediateExtendedStats, IntermediateInnerCollector};
+    use crate::aggregation::metric::{IntermediateExtendedStats};
     use crate::aggregation::tests::{
         exec_request_with_query, get_test_index_2_segments, get_test_index_from_values,
     };

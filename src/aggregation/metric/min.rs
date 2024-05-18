@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use super::IntermediateStats;
+use super::*;
 use crate::aggregation::*;
 
 /// A single-value metric aggregation that computes the minimum of numeric values that are
@@ -51,9 +51,11 @@ pub struct IntermediateMin {
 }
 
 impl IntermediateMin {
-    /// Creates a new [`IntermediateAverage`] instance from a [`IntermediateStats`].
-    pub(crate) fn from_stats(stats: IntermediateStats) -> Self {
-        Self { stats }
+    /// Creates a new [`IntermediateMin`] instance from a [`SegmentStatsCollector`].
+    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
+        Self {
+            stats: collector.stats,
+        }
     }
     /// Merges the other intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateMin) {
