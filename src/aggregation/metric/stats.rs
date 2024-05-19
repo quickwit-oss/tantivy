@@ -91,7 +91,7 @@ pub struct IntermediateStats {
     /// The sum of the extracted values.
     pub(crate) sum: f64,
     /// delta for sum needed for [Kahan algorithm for summation](https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
-    delta: f64,
+    pub(crate) delta: f64,
     /// The min value.
     pub(crate) min: f64,
     /// The max value.
@@ -114,8 +114,13 @@ impl IntermediateStats {
     /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
-        self.sum += other.sum;
-        self.delta += other.delta;
+
+        // kahan algorithm for sum
+        let y = other.sum - (self.delta + other.delta);
+        let t = self.sum + y;
+        self.delta = (t - self.sum) - y;
+        self.sum = t;
+
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
     }
@@ -155,6 +160,7 @@ impl IntermediateStats {
         let t = self.sum + y;
         self.delta = (t - self.sum) - y;
         self.sum = t;
+
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
