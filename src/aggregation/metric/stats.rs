@@ -154,7 +154,7 @@ impl IntermediateStats {
         let y = value - self.delta;
         let t = self.sum + y;
         self.delta = (t - self.sum) - y;
-        self.sum += value;
+        self.sum = t;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
@@ -309,9 +309,7 @@ mod tests {
     use crate::aggregation::AggregationCollector;
     use crate::query::{AllQuery, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, FAST};
-    use crate::{assert_nearly_equals, Index, IndexWriter, Term};
-
-    const EPSILON_FOR_TEST: f64 = 0.00000000000002;
+    use crate::{Index, IndexWriter, Term};
 
     #[test]
     fn test_aggregation_stats_empty_index() -> crate::Result<()> {
