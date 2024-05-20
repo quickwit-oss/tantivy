@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
+use crate::query::disjunction::DisjunctionScorer;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::term_query::TermScorer;
@@ -16,6 +17,26 @@ use crate::{DocId, Score};
 enum SpecializedScorer {
     TermUnion(Vec<TermScorer>),
     Other(Box<dyn Scorer>),
+}
+
+fn scorer_disjunction<TScoreCombiner>(
+    scorers: Vec<Box<dyn Scorer>>,
+    score_combiner: TScoreCombiner,
+    minimum_match_required: usize,
+) -> Box<dyn Scorer>
+where
+    TScoreCombiner: ScoreCombiner,
+{
+    debug_assert!(!scorers.is_empty());
+    debug_assert!(minimum_match_required > 1);
+    if scorers.len() == 1 {
+        return scorers.into_iter().next().unwrap(); // Safe unwrap.
+    }
+    Box::new(DisjunctionScorer::new(
+        scorers,
+        score_combiner,
+        minimum_match_required,
+    ))
 }
 
 fn scorer_union<TScoreCombiner>(
@@ -70,6 +91,7 @@ fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
 /// Weight associated to the `BoolQuery`.
 pub struct BooleanWeight<TScoreCombiner: ScoreCombiner> {
     weights: Vec<(Occur, Box<dyn Weight>)>,
+    minimum_number_should_match: usize,
     scoring_enabled: bool,
     score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send>,
 }
@@ -83,6 +105,21 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
     ) -> BooleanWeight<TScoreCombiner> {
         BooleanWeight {
             weights,
+            scoring_enabled,
+            score_combiner_fn,
+            minimum_number_should_match: 1,
+        }
+    }
+
+    pub fn with_minimum_number_should_match(
+        weights: Vec<(Occur, Box<dyn Weight>)>,
+        minimum_number_should_match: usize,
+        scoring_enabled: bool,
+        score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send + 'static>,
+    ) -> BooleanWeight<TScoreCombiner> {
+        BooleanWeight {
+            weights,
+            minimum_number_should_match,
             scoring_enabled,
             score_combiner_fn,
         }
@@ -112,13 +149,22 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
     ) -> crate::Result<SpecializedScorer> {
         let mut per_occur_scorers = self.per_occur_scorers(reader, boost)?;
 
-        let should_scorer_opt: Option<SpecializedScorer> = per_occur_scorers
-            .remove(&Occur::Should)
-            .map(|scorers| scorer_union(scorers, &score_combiner_fn));
+        let should_scorer_opt: Option<SpecializedScorer> =
+            per_occur_scorers.remove(&Occur::Should).map(|scorers| {
+                if self.minimum_number_should_match <= 1 {
+                    scorer_union(scorers, &score_combiner_fn)
+                } else {
+                    SpecializedScorer::Other(scorer_disjunction(
+                        scorers,
+                        score_combiner_fn(),
+                        self.minimum_number_should_match,
+                    ))
+                }
+            });
         let exclude_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::MustNot)
             .map(|scorers| scorer_union(scorers, DoNothingCombiner::default))
-            .map(|specialized_scorer| {
+            .map(|specialized_scorer: SpecializedScorer| {
                 into_box_scorer(specialized_scorer, DoNothingCombiner::default)
             });
 
@@ -163,21 +209,27 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
-            Ok(Box::new(EmptyScorer))
-        } else if self.weights.len() == 1 {
+            return Ok(Box::new(EmptyScorer));
+        }
+        if self.minimum_number_should_match > self.weights.len() {
+            return Ok(Box::new(EmptyScorer));
+        }
+        if self.weights.len() == 1 {
             let &(occur, ref weight) = &self.weights[0];
             if occur == Occur::MustNot {
-                Ok(Box::new(EmptyScorer))
-            } else {
-                weight.scorer(reader, boost)
+                return Ok(Box::new(EmptyScorer));
             }
-        } else if self.scoring_enabled {
-            self.complex_scorer(reader, boost, &self.score_combiner_fn)
+            return weight.scorer(reader, boost);
+        }
+        return if self.scoring_enabled {
+            self
+                .complex_scorer(reader, boost, &self.score_combiner_fn)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, &self.score_combiner_fn)
                 })
         } else {
-            self.complex_scorer(reader, boost, DoNothingCombiner::default)
+            self
+                .complex_scorer(reader, boost, DoNothingCombiner::default)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, DoNothingCombiner::default)
                 })

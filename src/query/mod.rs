@@ -25,6 +25,7 @@ mod set_query;
 mod term_query;
 mod union;
 mod weight;
+mod disjunction;
 
 #[cfg(test)]
 mod vec_docset;
