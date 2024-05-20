@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::index::SegmentReader;
 use crate::postings::FreqReadingOption;
-use crate::query::disjunction::DisjunctionScorer;
+use crate::query::disjunction::Disjunction;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::term_query::TermScorer;
@@ -32,7 +32,7 @@ where
     if scorers.len() == 1 {
         return scorers.into_iter().next().unwrap(); // Safe unwrap.
     }
-    Box::new(DisjunctionScorer::new(
+    Box::new(Disjunction::new(
         scorers,
         score_combiner,
         minimum_match_required,
@@ -149,52 +149,88 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         score_combiner_fn: impl Fn() -> TComplexScoreCombiner,
     ) -> crate::Result<SpecializedScorer> {
         let mut per_occur_scorers = self.per_occur_scorers(reader, boost)?;
-
-        let should_scorer_opt: Option<SpecializedScorer> =
-            per_occur_scorers.remove(&Occur::Should).map(|scorers| {
-                if self.minimum_number_should_match <= 1 {
-                    scorer_union(scorers, &score_combiner_fn)
-                } else {
-                    SpecializedScorer::Other(scorer_disjunction(
-                        scorers,
-                        score_combiner_fn(),
-                        self.minimum_number_should_match,
-                    ))
+        // Indicate how should clauses are combined with other clauses.
+        enum CombinationMethod {
+            Ignored,
+            // Only contributes to final score.
+            Optional(SpecializedScorer),
+            // Must be fitted.
+            Required(Box<dyn Scorer>),
+            // Same as `Required`, but each `Scorer` participants into intersection.
+            FullIntersection(Vec<Box<dyn Scorer>>),
+        }
+        let should_opt = if let Some(should_scorers) = per_occur_scorers.remove(&Occur::Should) {
+            let num_of_should_scorers = should_scorers.len();
+            if self.minimum_number_should_match > num_of_should_scorers {
+                return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+            }
+            match self.minimum_number_should_match {
+                0 => CombinationMethod::Optional(scorer_union(should_scorers, &score_combiner_fn)),
+                1 => CombinationMethod::Required(into_box_scorer(
+                    scorer_union(should_scorers, &score_combiner_fn),
+                    &score_combiner_fn,
+                )),
+                n @ _ if num_of_should_scorers == n => {
+                    CombinationMethod::FullIntersection(should_scorers)
                 }
-            });
+                _ => CombinationMethod::Required(scorer_disjunction(
+                    should_scorers,
+                    score_combiner_fn(),
+                    self.minimum_number_should_match,
+                )),
+            }
+        } else {
+            // None of should clauses are provided.
+            if self.minimum_number_should_match > 0 {
+                return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+            } else {
+                CombinationMethod::Ignored
+            }
+        };
         let exclude_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::MustNot)
             .map(|scorers| scorer_union(scorers, DoNothingCombiner::default))
             .map(|specialized_scorer: SpecializedScorer| {
                 into_box_scorer(specialized_scorer, DoNothingCombiner::default)
             });
-
-        let must_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
-            .remove(&Occur::Must)
-            .map(intersect_scorers);
-
-        let positive_scorer: SpecializedScorer = match (should_scorer_opt, must_scorer_opt) {
-            (Some(should_scorer), Some(must_scorer)) => {
+        let must_scorers = per_occur_scorers.remove(&Occur::Must);
+        let positive_scorer = match (should_opt, must_scorers) {
+            (CombinationMethod::Ignored, Some(must_scorers)) => {
+                SpecializedScorer::Other(intersect_scorers(must_scorers))
+            }
+            (CombinationMethod::Optional(should_scorer), Some(must_scorers)) => {
+                let must_scorer = intersect_scorers(must_scorers);
                 if self.scoring_enabled {
-                    SpecializedScorer::Other(Box::new(RequiredOptionalScorer::<
-                        Box<dyn Scorer>,
-                        Box<dyn Scorer>,
-                        TComplexScoreCombiner,
-                    >::new(
-                        must_scorer,
-                        into_box_scorer(should_scorer, &score_combiner_fn),
-                    )))
+                    SpecializedScorer::Other(Box::new(
+                        RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
+                            must_scorer,
+                            into_box_scorer(should_scorer, &score_combiner_fn),
+                        ),
+                    ))
                 } else {
                     SpecializedScorer::Other(must_scorer)
                 }
             }
-            (None, Some(must_scorer)) => SpecializedScorer::Other(must_scorer),
-            (Some(should_scorer), None) => should_scorer,
-            (None, None) => {
-                return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+            (CombinationMethod::Required(should_scorer), Some(mut must_scorers)) => {
+                must_scorers.push(should_scorer);
+                SpecializedScorer::Other(intersect_scorers(must_scorers))
+            }
+            (CombinationMethod::FullIntersection(mut should_scorers), Some(mut must_scorers)) => {
+                must_scorers.append(&mut should_scorers);
+                SpecializedScorer::Other(intersect_scorers(must_scorers))
+            }
+            (CombinationMethod::Ignored, None) => {
+                return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)))
+            }
+            (CombinationMethod::Required(should_scorer), None) => {
+                SpecializedScorer::Other(should_scorer)
+            }
+            // Optional options are promoted to required if no must scorers exists.
+            (CombinationMethod::Optional(should_scorer), None) => should_scorer,
+            (CombinationMethod::FullIntersection(should_scorers), _) => {
+                SpecializedScorer::Other(intersect_scorers(should_scorers))
             }
         };
-
         if let Some(exclude_scorer) = exclude_scorer_opt {
             let positive_scorer_boxed = into_box_scorer(positive_scorer, &score_combiner_fn);
             Ok(SpecializedScorer::Other(Box::new(Exclude::new(
@@ -210,19 +246,15 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
-            return Ok(Box::new(EmptyScorer));
-        }
-        if self.minimum_number_should_match > self.weights.len() {
-            return Ok(Box::new(EmptyScorer));
-        }
-        if self.weights.len() == 1 {
+            Ok(Box::new(EmptyScorer))
+        } else if self.weights.len() == 1 {
             let &(occur, ref weight) = &self.weights[0];
             if occur == Occur::MustNot {
-                return Ok(Box::new(EmptyScorer));
+                Ok(Box::new(EmptyScorer))
+            } else {
+                weight.scorer(reader, boost)
             }
-            return weight.scorer(reader, boost);
-        }
-        return if self.scoring_enabled {
+        } else if self.scoring_enabled {
             self.complex_scorer(reader, boost, &self.score_combiner_fn)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, &self.score_combiner_fn)
@@ -232,7 +264,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, DoNothingCombiner::default)
                 })
-        };
+        }
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {

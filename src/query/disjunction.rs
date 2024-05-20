@@ -1,29 +1,41 @@
-use std::cmp::{Ordering, Reverse};
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{ScoreCombiner, Scorer};
 use crate::{DocId, DocSet, Score, TERMINATED};
 
-pub struct DisjunctionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
-    chains: MinHeap<TScorer>,
+/// `Disjunction` is responsible for merging `DocSet` from multiply
+/// source. Specifically, It takes the union of two or more `DocSet`s
+/// then filtering out elements that appear fewer times than a
+/// specified threshold.
+pub struct Disjunction<TScorer, TScoreCombiner = DoNothingCombiner> {
+    chains: BinaryHeap<ScorerWrapper<TScorer>>,
     minimum_matches_required: usize,
     score_combiner: TScoreCombiner,
 
     doc: DocId,
     score: Score,
-    is_end: bool,
 }
 
-// TODO: Try reconstruct, it's ugly.
-type MinHeap<T> = BinaryHeap<Reverse<ScorerWrapper<T>>>;
+/// A wrapper around a `Scorer` that caches the current `doc_id` and implements the `DocSet` trait.
+/// Also, the `Ord` trait and it's family are implemented reversely. So that we can combine
+/// `std::BinaryHeap<ScorerWrapper<T>>` to gain a min-heap with current doc id as key.
+struct ScorerWrapper<T> {
+    inner: T,
+    doc_id: DocId,
+}
 
-#[repr(transparent)]
-struct ScorerWrapper<T>(T);
+impl<T: Scorer> ScorerWrapper<T> {
+    fn new(inner: T) -> Self {
+        let doc_id = inner.doc();
+        Self { inner, doc_id }
+    }
+}
 
 impl<T: Scorer> PartialEq for ScorerWrapper<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.0.doc() == other.0.doc()
+        self.doc() == other.doc()
     }
 }
 
@@ -37,11 +49,27 @@ impl<T: Scorer> PartialOrd for ScorerWrapper<T> {
 
 impl<T: Scorer> Ord for ScorerWrapper<T> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.0.doc().cmp(&other.0.doc())
+        self.doc().cmp(&other.doc()).reverse()
     }
 }
 
-impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DisjunctionScorer<TScorer, TScoreCombiner> {
+impl<T: Scorer> DocSet for ScorerWrapper<T> {
+    fn advance(&mut self) -> DocId {
+        let doc_id = self.inner.advance();
+        self.doc_id = doc_id;
+        doc_id
+    }
+
+    fn doc(&self) -> DocId {
+        self.doc_id
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.inner.size_hint()
+    }
+}
+
+impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Disjunction<TScorer, TScoreCombiner> {
     pub fn new<T: IntoIterator<Item = TScorer>>(
         docsets: T,
         score_combiner: TScoreCombiner,
@@ -51,9 +79,9 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DisjunctionScorer<TScorer, 
             minimum_matches_required > 1,
             "union scorer works better if just one matches required"
         );
-        let chains: MinHeap<_> = docsets
+        let chains = docsets
             .into_iter()
-            .map(|doc| Reverse(ScorerWrapper(doc)))
+            .map(|doc| ScorerWrapper::new(doc))
             .collect();
         let mut disjunction = Self {
             chains,
@@ -61,11 +89,8 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DisjunctionScorer<TScorer, 
             doc: TERMINATED,
             minimum_matches_required,
             score: 0.0,
-            is_end: false,
         };
         if minimum_matches_required > disjunction.chains.len() {
-            // Mark it as empty.
-            disjunction.is_end = true;
             return disjunction;
         }
         disjunction.advance();
@@ -74,12 +99,12 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DisjunctionScorer<TScorer, 
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
-    for DisjunctionScorer<TScorer, TScoreCombiner>
+    for Disjunction<TScorer, TScoreCombiner>
 {
     fn advance(&mut self) -> DocId {
         let mut votes = 0;
         while let Some(mut candidate) = self.chains.pop() {
-            let next = candidate.0 .0.doc();
+            let next = candidate.doc();
             if next != TERMINATED {
                 // Peek next doc.
                 if self.doc != next {
@@ -94,36 +119,34 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
                     self.score_combiner.clear();
                 }
                 votes += 1;
-                self.score_combiner.update(&mut candidate.0 .0);
-                candidate.0 .0.advance();
+                self.score_combiner.update(&mut candidate.inner);
+                candidate.advance();
                 self.chains.push(candidate);
             }
         }
         if votes < self.minimum_matches_required {
             self.doc = TERMINATED;
-            self.is_end = true;
         }
+        self.score = self.score_combiner.score();
         return self.doc;
     }
 
+    #[inline]
     fn doc(&self) -> DocId {
-        if self.is_end {
-            return TERMINATED;
-        }
         self.doc
     }
 
     fn size_hint(&self) -> u32 {
         self.chains
             .iter()
-            .map(|docset| docset.0 .0.size_hint())
+            .map(|docset| docset.size_hint())
             .max()
             .unwrap_or(0u32)
     }
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
-    for DisjunctionScorer<TScorer, TScoreCombiner>
+    for Disjunction<TScorer, TScoreCombiner>
 {
     fn score(&mut self) -> Score {
         self.score
@@ -134,7 +157,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::DisjunctionScorer;
+    use super::Disjunction;
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::{ConstScorer, Scorer, SumCombiner, VecDocSet};
     use crate::{DocId, DocSet, Score, TERMINATED};
@@ -161,7 +184,7 @@ mod tests {
     fn aux_test_conjunction(vals: Vec<Vec<u32>>, min_match: usize) {
         let mut union_expected = VecDocSet::from(conjunct(&vals, min_match));
         let make_scorer = || {
-            DisjunctionScorer::new(
+            Disjunction::new(
                 vals.iter()
                     .cloned()
                     .map(VecDocSet::from)
@@ -170,7 +193,7 @@ mod tests {
                 min_match,
             )
         };
-        let mut scorer: DisjunctionScorer<_, DoNothingCombiner> = make_scorer();
+        let mut scorer: Disjunction<_, DoNothingCombiner> = make_scorer();
         let mut count = 0;
         while scorer.doc() != TERMINATED {
             assert_eq!(union_expected.doc(), scorer.doc());
@@ -266,7 +289,7 @@ mod tests {
 
     #[test]
     fn test_score_calculate() {
-        let mut scorer = DisjunctionScorer::new(
+        let mut scorer = Disjunction::new(
             vec![
                 DummyScorer::new(vec![(1, 1f32), (2, 1f32)]),
                 DummyScorer::new(vec![(1, 1f32), (3, 1f32)]),
@@ -280,5 +303,22 @@ mod tests {
         assert_eq!(scorer.score(), 5.0);
         assert_eq!(scorer.advance(), 2);
         assert_eq!(scorer.score(), 3.0);
+    }
+
+    #[test]
+    fn test_score_calculate_corner_case() {
+        let mut scorer = Disjunction::new(
+            vec![
+                DummyScorer::new(vec![(1, 1f32), (2, 1f32)]),
+                DummyScorer::new(vec![(1, 1f32), (3, 1f32)]),
+                DummyScorer::new(vec![(1, 1f32), (3, 1f32)]),
+            ],
+            SumCombiner::default(),
+            2,
+        );
+        assert_eq!(scorer.doc(), 1);
+        assert_eq!(scorer.score(), 3.0);
+        assert_eq!(scorer.advance(), 3);
+        assert_eq!(scorer.score(), 2.0);
     }
 }

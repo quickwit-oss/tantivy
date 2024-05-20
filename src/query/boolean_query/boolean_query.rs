@@ -184,7 +184,20 @@ impl Query for BooleanQuery {
 impl BooleanQuery {
     /// Creates a new boolean query.
     pub fn new(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
-        Self::with_minimum_required_clauses(subqueries, 1)
+        // If the bool query includes at least one should clause
+        // and no Must or MustNot clauses, the default value is 1. Otherwise, the default value is
+        // 0. Keep pace with Elasticsearch.
+        let mut default_minimum_required = 0;
+        for (occur, _) in &subqueries {
+            match occur {
+                Occur::Should => default_minimum_required = 1,
+                Occur::Must | Occur::MustNot => {
+                    default_minimum_required = 0;
+                    break;
+                }
+            }
+        }
+        Self::with_minimum_required_clauses(subqueries, default_minimum_required)
     }
 
     /// Create a new boolean query with minimum number of required should clauses specified.
@@ -204,8 +217,8 @@ impl BooleanQuery {
     }
 
     /// Setter for `minimum_number_should_match`
-    pub fn set_minimum_number_should_match(&mut self, value: usize) {
-        self.minimum_number_should_match = value;
+    pub fn set_minimum_number_should_match(&mut self, minimum_number_should_match: usize) {
+        self.minimum_number_should_match = minimum_number_should_match;
     }
 
     /// Returns the intersection of the queries.
@@ -221,9 +234,15 @@ impl BooleanQuery {
     }
 
     /// Returns the union of the queries with minimum required clause.
-    pub fn union_with_minimum_required(queries: Vec<Box<dyn Query>>, mr: usize) -> BooleanQuery {
-        let subqueries = queries.into_iter().map(|s| (Occur::Should, s)).collect();
-        BooleanQuery::with_minimum_required_clauses(subqueries, mr)
+    pub fn union_with_minimum_required_clauses(
+        queries: Vec<Box<dyn Query>>,
+        minimum_required_clauses: usize,
+    ) -> BooleanQuery {
+        let subqueries = queries
+            .into_iter()
+            .map(|sub_query| (Occur::Should, sub_query))
+            .collect();
+        BooleanQuery::with_minimum_required_clauses(subqueries, minimum_required_clauses)
     }
 
     /// Helper method to create a boolean query matching a given list of terms.
@@ -297,7 +316,7 @@ mod tests {
                 .map(|t| TermQuery::new(t, IndexRecordOption::Basic))
                 .map(|q| -> Box<dyn Query> { Box::new(q) })
                 .collect();
-            BooleanQuery::union_with_minimum_required(terms, mr)
+            BooleanQuery::union_with_minimum_required_clauses(terms, mr)
         }
         fn check_doc_id<T: IntoIterator<Item = DocId>>(
             expected: T,
