@@ -165,7 +165,7 @@ impl CompactDoc {
     ) -> impl Iterator<Item = (Field, ReferenceValue<'_, CompactDocValue<'_>>)> {
         self.field_values.iter().map(|field_val| {
             let field = Field::from_field_id(field_val.field as u32);
-            let val = self.extract_ref_value(field_val.value).unwrap();
+            let val = self.extract_value(field_val.value).unwrap();
             (field, val)
         })
     }
@@ -178,7 +178,7 @@ impl CompactDoc {
         self.field_values
             .iter()
             .filter(move |field_value| Field::from_field_id(field_value.field as u32) == field)
-            .map(|val| self.extract_ref_value(val.value).unwrap())
+            .map(|val| self.extract_value(val.value).unwrap())
     }
 
     /// Returns the first `ReferenceValue` associated the given field
@@ -239,6 +239,155 @@ impl CompactDoc {
         }
         Ok(doc)
     }
+
+    pub(crate) fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
+        let type_id = ValueType::from(&leaf);
+        match leaf {
+            ReferenceValueLeaf::Null => ValueAddr::new(type_id, 0),
+            ReferenceValueLeaf::Str(bytes) => ValueAddr::new(
+                type_id,
+                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
+            ),
+            ReferenceValueLeaf::Facet(bytes) => ValueAddr::new(
+                type_id,
+                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
+            ),
+            ReferenceValueLeaf::Bytes(bytes) => {
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, bytes))
+            }
+            ReferenceValueLeaf::U64(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            }
+            ReferenceValueLeaf::I64(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            }
+            ReferenceValueLeaf::F64(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            }
+            ReferenceValueLeaf::Bool(b) => ValueAddr::new(type_id, b as u32),
+            ReferenceValueLeaf::Date(date) => ValueAddr::new(
+                type_id,
+                write_into(&mut self.node_data, date.into_timestamp_nanos()),
+            ),
+            ReferenceValueLeaf::IpAddr(num) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, num.to_u128()))
+            }
+            ReferenceValueLeaf::PreTokStr(pre_tok) => {
+                ValueAddr::new(type_id, write_into(&mut self.node_data, *pre_tok))
+            }
+        }
+    }
+    pub(crate) fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
+        let value = value.as_value();
+        let type_id = ValueType::from(&value);
+        match value {
+            ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
+            ReferenceValue::Array(elements) => {
+                let mut positions = Vec::new();
+                for elem in elements {
+                    let ref_elem = self.add_value(elem);
+                    let position = self.node_data.len() as u32;
+                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
+                    write_into(&mut self.node_data, ref_elem);
+                }
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
+            }
+            ReferenceValue::Object(entries) => {
+                let mut positions = Vec::new();
+                for (key, value) in entries {
+                    let ref_key = self.add_value_leaf(ReferenceValueLeaf::Str(key));
+                    let ref_value = self.add_value(value);
+                    let position = self.node_data.len() as u32;
+                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
+                    write_into(&mut self.node_data, ref_key);
+                    write_into(&mut self.node_data, ref_value);
+                }
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
+            }
+        }
+    }
+
+    pub(crate) fn extract_value(
+        &self,
+        ref_value: ValueAddr,
+    ) -> io::Result<ReferenceValue<'_, CompactDocValue<'_>>> {
+        match ref_value.type_id {
+            ValueType::Null => Ok(ReferenceValueLeaf::Null.into()),
+            ValueType::Str => {
+                let str_ref = self.extract_str(ref_value.val_addr);
+                Ok(ReferenceValueLeaf::Str(str_ref).into())
+            }
+            ValueType::Facet => {
+                let str_ref = self.extract_str(ref_value.val_addr);
+                Ok(ReferenceValueLeaf::Facet(str_ref).into())
+            }
+            ValueType::Bytes => {
+                let data = self.extract_bytes(ref_value.val_addr);
+                Ok(ReferenceValueLeaf::Bytes(data).into())
+            }
+            ValueType::U64 => self
+                .read_from::<u64>(ref_value.val_addr)
+                .map(ReferenceValueLeaf::U64)
+                .map(Into::into),
+            ValueType::I64 => self
+                .read_from::<i64>(ref_value.val_addr)
+                .map(ReferenceValueLeaf::I64)
+                .map(Into::into),
+            ValueType::F64 => self
+                .read_from::<f64>(ref_value.val_addr)
+                .map(ReferenceValueLeaf::F64)
+                .map(Into::into),
+            ValueType::Bool => {
+                Ok(ReferenceValueLeaf::Bool(u32::from(ref_value.val_addr) != 0).into())
+            }
+            ValueType::Date => self
+                .read_from::<i64>(ref_value.val_addr)
+                .map(|ts| ReferenceValueLeaf::Date(DateTime::from_timestamp_nanos(ts)))
+                .map(Into::into),
+            ValueType::IpAddr => self
+                .read_from::<u128>(ref_value.val_addr)
+                .map(|num| ReferenceValueLeaf::IpAddr(Ipv6Addr::from_u128(num)))
+                .map(Into::into),
+            ValueType::PreTokStr => self
+                .read_from::<PreTokenizedString>(ref_value.val_addr)
+                .map(Into::into)
+                .map(ReferenceValueLeaf::PreTokStr)
+                .map(Into::into),
+            ValueType::Object => Ok(ReferenceValue::Object(CompactDocObjectIter::new(
+                self,
+                ref_value.val_addr,
+            )?)),
+            ValueType::Array => Ok(ReferenceValue::Array(CompactDocArrayIter::new(
+                self,
+                ref_value.val_addr,
+            )?)),
+        }
+    }
+
+    /// get &[u8] reference from node_data
+    fn extract_bytes(&self, addr: Addr) -> &[u8] {
+        binary_deserialize_bytes(self.get_slice(addr))
+    }
+
+    /// get &str reference from node_data
+    fn extract_str(&self, addr: Addr) -> &str {
+        let data = self.extract_bytes(addr);
+        unsafe { std::str::from_utf8_unchecked(data) }
+    }
+
+    /// deserialized owned value from node_data
+    fn read_from<T: BinarySerializable>(&self, addr: Addr) -> io::Result<T> {
+        let start = u32::from(addr) as usize;
+        let data_slice = &self.node_data[start..];
+        let mut cursor = std::io::Cursor::new(data_slice);
+        T::deserialize(&mut cursor)
+    }
+
+    /// get slice from address. The returned slice is open ended
+    fn get_slice(&self, addr: Addr) -> &[u8] {
+        let start = u32::from(addr) as usize;
+        &self.node_data[start..]
+    }
 }
 
 impl PartialEq for CompactDoc {
@@ -247,7 +396,7 @@ impl PartialEq for CompactDoc {
         let convert_to_comparable_map = |doc: &CompactDoc| {
             let mut field_value_set: HashMap<Field, HashSet<String>> = Default::default();
             for field_value in doc.field_values.iter() {
-                let value: OwnedValue = doc.extract_ref_value(field_value.value).unwrap().into();
+                let value: OwnedValue = doc.extract_value(field_value.value).unwrap().into();
                 let value = serde_json::to_string(&value).unwrap();
                 field_value_set
                     .entry(Field::from_field_id(field_value.field as u32))
@@ -289,7 +438,7 @@ impl<'a> Value<'a> for CompactDocValue<'a> {
     type ObjectIter = CompactDocObjectIter<'a>;
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
-        self.container.extract_ref_value(self.value).unwrap()
+        self.container.extract_value(self.value).unwrap()
     }
 }
 
@@ -298,12 +447,13 @@ impl<'a> Value<'a> for CompactDocValue<'a> {
 /// Since Addr is only 3 bytes, the struct size is only 4bytes
 pub struct ValueAddr {
     type_id: ValueType,
-    val: Addr, // this is the address, except for bool and null, which are inlined
+    /// This is the address to the value in the vec, except for bool and null, which are inlined
+    val_addr: Addr,
 }
 impl BinarySerializable for ValueAddr {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         (self.type_id as u8).serialize(writer)?;
-        self.val.0.serialize(writer)
+        self.val_addr.0.serialize(writer)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -311,7 +461,7 @@ impl BinarySerializable for ValueAddr {
         let addr: [u8; 3] = <[u8; 3]>::deserialize(reader)?;
         Ok(ValueAddr {
             type_id,
-            val: Addr(addr),
+            val_addr: Addr(addr),
         })
     }
 }
@@ -320,10 +470,20 @@ impl std::fmt::Debug for ValueAddr {
         f.write_fmt(format_args!(
             "{:?} at {:?}",
             self.type_id,
-            u32::from(self.val)
+            u32::from(self.val_addr)
         ))
     }
 }
+
+impl ValueAddr {
+    pub fn new(type_id: ValueType, val: u32) -> Self {
+        Self {
+            type_id,
+            val_addr: Addr::from_u32(val).unwrap(),
+        }
+    }
+}
+
 /// Addr in 3 bytes, can be converted from u32 by dropping the high byte.
 /// This means that we can address at most 16MB data in a Document.
 #[derive(Clone, Default, Eq, PartialEq, Debug, Copy)]
@@ -347,15 +507,6 @@ impl From<Addr> for u32 {
         bytes[0] = 0;
         bytes[1..].copy_from_slice(&val.0);
         u32::from_be_bytes(bytes)
-    }
-}
-
-impl ValueAddr {
-    pub fn new(type_id: ValueType, val: u32) -> Self {
-        Self {
-            type_id,
-            val: Addr::from_u32(val).unwrap(),
-        }
     }
 }
 
@@ -439,153 +590,6 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
     }
 }
 
-impl CompactDoc {
-    pub(crate) fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
-        let type_id = ValueType::from(&leaf);
-        match leaf {
-            ReferenceValueLeaf::Null => ValueAddr::new(type_id, 0),
-            ReferenceValueLeaf::Str(bytes) => ValueAddr::new(
-                type_id,
-                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
-            ),
-            ReferenceValueLeaf::Facet(bytes) => ValueAddr::new(
-                type_id,
-                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
-            ),
-            ReferenceValueLeaf::Bytes(bytes) => {
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, bytes))
-            }
-            ReferenceValueLeaf::U64(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
-            }
-            ReferenceValueLeaf::I64(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
-            }
-            ReferenceValueLeaf::F64(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
-            }
-            ReferenceValueLeaf::Bool(b) => ValueAddr::new(type_id, b as u32),
-            ReferenceValueLeaf::Date(date) => ValueAddr::new(
-                type_id,
-                write_into(&mut self.node_data, date.into_timestamp_nanos()),
-            ),
-            ReferenceValueLeaf::IpAddr(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num.to_u128()))
-            }
-            ReferenceValueLeaf::PreTokStr(pre_tok) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, *pre_tok))
-            }
-        }
-    }
-    pub(crate) fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
-        let value = value.as_value();
-        let type_id = ValueType::from(&value);
-        match value {
-            ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
-            ReferenceValue::Array(elements) => {
-                let mut positions = Vec::new();
-                for elem in elements {
-                    let ref_elem = self.add_value(elem);
-                    let position = self.node_data.len() as u32;
-                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
-                    write_into(&mut self.node_data, ref_elem);
-                    // self.nodes.push(ref_elem);
-                }
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
-            }
-            ReferenceValue::Object(entries) => {
-                let mut positions = Vec::new();
-                for (key, value) in entries {
-                    let ref_key = self.add_value_leaf(ReferenceValueLeaf::Str(key));
-                    let ref_value = self.add_value(value);
-                    let position = self.node_data.len() as u32;
-                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
-                    write_into(&mut self.node_data, ref_key);
-                    write_into(&mut self.node_data, ref_value);
-                }
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
-            }
-        }
-    }
-
-    pub(crate) fn extract_ref_value(
-        &self,
-        ref_value: ValueAddr,
-    ) -> io::Result<ReferenceValue<'_, CompactDocValue<'_>>> {
-        match ref_value.type_id {
-            ValueType::Null => Ok(ReferenceValueLeaf::Null.into()),
-            ValueType::Str => {
-                let str_ref = binary_deserialize_str(self.get_slice(ref_value.val));
-                Ok(ReferenceValueLeaf::Str(str_ref).into())
-            }
-            ValueType::Facet => {
-                let str_ref = binary_deserialize_str(self.get_slice(ref_value.val));
-                Ok(ReferenceValueLeaf::Facet(str_ref).into())
-            }
-            ValueType::Bytes => {
-                let data = binary_deserialize_bytes(self.get_slice(ref_value.val));
-                Ok(ReferenceValueLeaf::Bytes(data).into())
-            }
-            ValueType::U64 => self
-                .read_from::<u64>(ref_value.val)
-                .map(ReferenceValueLeaf::U64)
-                .map(Into::into),
-            ValueType::I64 => self
-                .read_from::<i64>(ref_value.val)
-                .map(ReferenceValueLeaf::I64)
-                .map(Into::into),
-            ValueType::F64 => self
-                .read_from::<f64>(ref_value.val)
-                .map(ReferenceValueLeaf::F64)
-                .map(Into::into),
-            ValueType::Bool => Ok(ReferenceValueLeaf::Bool(u32::from(ref_value.val) != 0).into()),
-            ValueType::Date => self
-                .read_from::<i64>(ref_value.val)
-                .map(|ts| ReferenceValueLeaf::Date(DateTime::from_timestamp_nanos(ts)))
-                .map(Into::into),
-            ValueType::IpAddr => self
-                .read_from::<u128>(ref_value.val)
-                .map(|num| ReferenceValueLeaf::IpAddr(Ipv6Addr::from_u128(num)))
-                .map(Into::into),
-            ValueType::PreTokStr => self
-                .read_from::<PreTokenizedString>(ref_value.val)
-                .map(Into::into)
-                .map(ReferenceValueLeaf::PreTokStr)
-                .map(Into::into),
-            ValueType::Object => Ok(ReferenceValue::Object(CompactDocObjectIter::new(
-                self,
-                ref_value.val,
-            )?)),
-            ValueType::Array => Ok(ReferenceValue::Array(CompactDocArrayIter::new(
-                self,
-                ref_value.val,
-            )?)),
-        }
-    }
-
-    pub(crate) fn extract_str(&self, ref_value: ValueAddr) -> &str {
-        binary_deserialize_str(self.get_slice(ref_value.val))
-    }
-
-    fn read_from<T: BinarySerializable>(&self, addr: Addr) -> io::Result<T> {
-        let start = u32::from(addr) as usize;
-        let data_slice = &self.node_data[start..];
-        let mut cursor = std::io::Cursor::new(data_slice);
-        T::deserialize(&mut cursor)
-    }
-
-    fn get_slice(&self, addr: Addr) -> &[u8] {
-        let start = u32::from(addr) as usize;
-        &self.node_data[start..]
-    }
-}
-
-/// BinarySerializable alternative to read references
-fn binary_deserialize_str(data: &[u8]) -> &str {
-    let data = binary_deserialize_bytes(data);
-    unsafe { std::str::from_utf8_unchecked(data) }
-}
-
 /// BinarySerializable alternative to read references
 fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
     let (len, bytes_read) = read_u32_vint_no_advance(data);
@@ -618,7 +622,7 @@ pub struct CompactDocObjectIter<'a> {
 
 impl<'a> CompactDocObjectIter<'a> {
     fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
-        let positions_slice = binary_deserialize_bytes(container.get_slice(addr));
+        let positions_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
             positions_slice,
@@ -634,7 +638,7 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
             let key_index = read_u32_vint(&mut self.positions_slice) as usize;
             let position = &mut &self.container.node_data[key_index..];
             let key_addr = ValueAddr::deserialize(position).ok()?;
-            let key = self.container.extract_str(key_addr);
+            let key = self.container.extract_str(key_addr.val_addr);
             let value = ValueAddr::deserialize(position).ok()?;
             let value = CompactDocValue {
                 container: self.container,
@@ -655,7 +659,7 @@ pub struct CompactDocArrayIter<'a> {
 
 impl<'a> CompactDocArrayIter<'a> {
     fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
-        let positions_slice = binary_deserialize_bytes(container.get_slice(addr));
+        let positions_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
             positions_slice,
@@ -687,7 +691,7 @@ impl Document for CompactDoc {
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldValueIterRef {
             slice: self.field_values.iter(),
-            container: &self,
+            container: self,
         }
     }
 }
