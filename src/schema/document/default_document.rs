@@ -4,7 +4,7 @@ use std::net::Ipv6Addr;
 
 use columnar::MonotonicallyMappableToU128;
 use common::{
-    read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint,
+    read_u32_vint, read_u32_vint_no_advance, serialize_u32_vint_into_vec, serialize_vint_u32,
     BinarySerializable, DateTime,
 };
 use serde_json::Map;
@@ -277,30 +277,33 @@ impl CompactDoc {
             }
         }
     }
+    /// Adds a value and returns in address into the
     pub(crate) fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
         let value = value.as_value();
         let type_id = ValueType::from(&value);
         match value {
             ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
             ReferenceValue::Array(elements) => {
+                // vint encoded positions of the elements in node_data
                 let mut positions = Vec::new();
                 for elem in elements {
-                    let ref_elem = self.add_value(elem);
+                    let value_addr = self.add_value(elem);
                     let position = self.node_data.len() as u32;
-                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
-                    write_into(&mut self.node_data, ref_elem);
+                    serialize_u32_vint_into_vec(position, &mut positions);
+                    write_into(&mut self.node_data, value_addr);
                 }
                 ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
             }
             ReferenceValue::Object(entries) => {
+                // vint encoded positions of the elements in node_data
                 let mut positions = Vec::new();
                 for (key, value) in entries {
-                    let ref_key = self.add_value_leaf(ReferenceValueLeaf::Str(key));
-                    let ref_value = self.add_value(value);
+                    let key_addr = self.add_value_leaf(ReferenceValueLeaf::Str(key));
+                    let value_addr = self.add_value(value);
                     let position = self.node_data.len() as u32;
-                    write_u32_vint(position, &mut positions).expect("in memory can't fail");
-                    write_into(&mut self.node_data, ref_key);
-                    write_into(&mut self.node_data, ref_value);
+                    serialize_u32_vint_into_vec(position, &mut positions);
+                    write_into(&mut self.node_data, key_addr);
+                    write_into(&mut self.node_data, value_addr);
                 }
                 ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
             }
@@ -596,6 +599,8 @@ fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
     &data[bytes_read..bytes_read + len as usize]
 }
 
+/// Write bytes and return the position of the written data.
+///
 /// BinarySerializable alternative to write references
 fn write_bytes_into(vec: &mut Vec<u8>, bytes: &[u8]) -> u32 {
     let pos = vec.len() as u32;
@@ -768,7 +773,7 @@ mod tests {
                 "field.with.dot": 1
             },
             "date": "1985-04-12T23:20:50.52Z",
-            "my_arr": [2, 3, {"my_key": "two tokens"}, 4, {"nested_array": [2, 5, 6]}]
+            "my_arr": [2, 3, {"my_key": "two tokens"}, 4, {"nested_array": [2, 5, 6, [7, 8, {"a": 1}, 9, 10], [5, 5]]}]
         }"#;
         let json_val: std::collections::BTreeMap<String, OwnedValue> =
             serde_json::from_str(json_str).unwrap();
