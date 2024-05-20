@@ -160,54 +160,63 @@ pub enum ReferenceValueLeaf<'a> {
 }
 
 impl From<u64> for ReferenceValueLeaf<'_> {
+    #[inline]
     fn from(value: u64) -> Self {
         ReferenceValueLeaf::U64(value)
     }
 }
 
 impl From<i64> for ReferenceValueLeaf<'_> {
+    #[inline]
     fn from(value: i64) -> Self {
         ReferenceValueLeaf::I64(value)
     }
 }
 
 impl From<f64> for ReferenceValueLeaf<'_> {
+    #[inline]
     fn from(value: f64) -> Self {
         ReferenceValueLeaf::F64(value)
     }
 }
 
 impl From<bool> for ReferenceValueLeaf<'_> {
+    #[inline]
     fn from(value: bool) -> Self {
         ReferenceValueLeaf::Bool(value)
     }
 }
 
 impl<'a> From<&'a str> for ReferenceValueLeaf<'a> {
+    #[inline]
     fn from(value: &'a str) -> Self {
         ReferenceValueLeaf::Str(value)
     }
 }
 
 impl<'a> From<&'a [u8]> for ReferenceValueLeaf<'a> {
+    #[inline]
     fn from(value: &'a [u8]) -> Self {
         ReferenceValueLeaf::Bytes(value)
     }
 }
 
 impl From<DateTime> for ReferenceValueLeaf<'_> {
+    #[inline]
     fn from(value: DateTime) -> Self {
         ReferenceValueLeaf::Date(value)
     }
 }
 
 impl From<Ipv6Addr> for ReferenceValueLeaf<'_> {
+    #[inline]
     fn from(value: Ipv6Addr) -> Self {
         ReferenceValueLeaf::IpAddr(value)
     }
 }
 
 impl From<PreTokenizedString> for ReferenceValueLeaf<'_> {
+    #[inline]
     fn from(val: PreTokenizedString) -> Self {
         ReferenceValueLeaf::PreTokStr(Box::new(val))
     }

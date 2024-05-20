@@ -29,11 +29,14 @@ pub struct FieldValueAddr {
 #[derive(Debug, Clone)]
 /// The default document in tantivy. It encodes data in a compact form.
 pub struct CompactDoc {
-    /// Container to encode data from values
-    container: CompactDocContainer,
+    /// `node_data` is a vec of bytes, where each value is serialized into bytes and stored. It
+    /// includes all the data of the document and also metadata like where the nodes are located
+    /// in an object or array.
+    pub node_data: Vec<u8>,
     /// The root (Field, Value) pairs
-    field_values: mediumvec::Vec32<FieldValueAddr>,
+    field_values: Vec<FieldValueAddr>,
 }
+
 impl Default for CompactDoc {
     fn default() -> Self {
         Self::new()
@@ -42,11 +45,23 @@ impl Default for CompactDoc {
 
 impl CompactDoc {
     /// Creates a new, empty document object
-    pub fn new() -> CompactDoc {
+    /// The reserved capacity is for the total serialized data
+    pub fn with_capacity(bytes: usize) -> CompactDoc {
         CompactDoc {
-            container: Default::default(),
-            field_values: mediumvec::Vec32::with_capacity(4),
+            node_data: Vec::with_capacity(bytes),
+            field_values: Vec::with_capacity(4),
         }
+    }
+
+    /// Skrinks the capacity of the document to fit the data
+    pub fn shrink_to_fit(&mut self) {
+        self.node_data.shrink_to_fit();
+        self.field_values.shrink_to_fit();
+    }
+
+    /// Creates a new, empty document object
+    pub fn new() -> CompactDoc {
+        CompactDoc::with_capacity(1024)
     }
 
     /// Returns the length of the document.
@@ -121,7 +136,7 @@ impl CompactDoc {
                 .field_id()
                 .try_into()
                 .expect("support only up to u16::MAX field ids"),
-            value: self.container.add_value(value),
+            value: self.add_value(value),
         };
         self.field_values.push(field_value);
     }
@@ -139,7 +154,7 @@ impl CompactDoc {
                 .field_id()
                 .try_into()
                 .expect("support only up to u16::MAX field ids"),
-            value: self.container.add_value_leaf(value),
+            value: self.add_value_leaf(value),
         };
         self.field_values.push(field_value);
     }
@@ -150,7 +165,7 @@ impl CompactDoc {
     ) -> impl Iterator<Item = (Field, ReferenceValue<'_, CompactDocValue<'_>>)> {
         self.field_values.iter().map(|field_val| {
             let field = Field::from_field_id(field_val.field as u32);
-            let val = self.container.extract_ref_value(field_val.value).unwrap();
+            let val = self.extract_ref_value(field_val.value).unwrap();
             (field, val)
         })
     }
@@ -163,7 +178,7 @@ impl CompactDoc {
         self.field_values
             .iter()
             .filter(move |field_value| Field::from_field_id(field_value.field as u32) == field)
-            .map(|val| self.container.extract_ref_value(val.value).unwrap())
+            .map(|val| self.extract_ref_value(val.value).unwrap())
     }
 
     /// Returns the first `ReferenceValue` associated the given field
@@ -232,11 +247,7 @@ impl PartialEq for CompactDoc {
         let convert_to_comparable_map = |doc: &CompactDoc| {
             let mut field_value_set: HashMap<Field, HashSet<String>> = Default::default();
             for field_value in doc.field_values.iter() {
-                let value: OwnedValue = doc
-                    .container
-                    .extract_ref_value(field_value.value)
-                    .unwrap()
-                    .into();
+                let value: OwnedValue = doc.extract_ref_value(field_value.value).unwrap().into();
                 let value = serde_json::to_string(&value).unwrap();
                 field_value_set
                     .entry(Field::from_field_id(field_value.field as u32))
@@ -269,7 +280,7 @@ impl DocumentDeserialize for CompactDoc {
 /// A value of Compact Doc needs a reference to the container to extract its payload
 #[derive(Debug, Clone, Copy)]
 pub struct CompactDocValue<'a> {
-    container: &'a CompactDocContainer,
+    container: &'a CompactDoc,
     value: ValueAddr,
 }
 impl<'a> Value<'a> for CompactDocValue<'a> {
@@ -279,24 +290,6 @@ impl<'a> Value<'a> for CompactDocValue<'a> {
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
         self.container.extract_ref_value(self.value).unwrap()
-    }
-}
-
-#[derive(Debug, Clone)]
-/// A container to store tantivy Value
-struct CompactDocContainer {
-    /// `node_data` is a vec of bytes, where each value is serialized into bytes and stored. It
-    /// includes all the data of the document and also metadata like where the nodes are located
-    /// in an object or array.
-    node_data: mediumvec::Vec32<u8>,
-}
-impl Default for CompactDocContainer {
-    fn default() -> Self {
-        Self {
-            // This should be at the lower end of the payload of a document
-            // 512 byte is pretty small
-            node_data: mediumvec::Vec32::with_capacity(512),
-        }
     }
 }
 
@@ -446,8 +439,8 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
     }
 }
 
-impl CompactDocContainer {
-    pub fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
+impl CompactDoc {
+    pub(crate) fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
         let type_id = ValueType::from(&leaf);
         match leaf {
             ReferenceValueLeaf::Null => ValueAddr::new(type_id, 0),
@@ -484,7 +477,7 @@ impl CompactDocContainer {
             }
         }
     }
-    pub fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
+    pub(crate) fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
         let value = value.as_value();
         let type_id = ValueType::from(&value);
         match value {
@@ -514,39 +507,8 @@ impl CompactDocContainer {
             }
         }
     }
-}
 
-/// BinarySerializable alternative to read references
-fn binary_deserialize_str(data: &[u8]) -> &str {
-    let data = binary_deserialize_bytes(data);
-    unsafe { std::str::from_utf8_unchecked(data) }
-}
-
-/// BinarySerializable alternative to read references
-fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
-    let (len, bytes_read) = read_u32_vint_no_advance(data);
-    &data[bytes_read..bytes_read + len as usize]
-}
-
-/// BinarySerializable alternative to write references
-fn write_bytes_into(data: &mut mediumvec::Vec32<u8>, bytes: &[u8]) -> u32 {
-    let pos = data.len() as u32;
-    let mut buf = [0u8; 8];
-    let vint_bytes = serialize_vint_u32(bytes.len() as u32, &mut buf);
-    data.as_vec(|vec| vec.extend_from_slice(vint_bytes));
-    data.as_vec(|vec| vec.extend_from_slice(bytes));
-    pos
-}
-
-/// Serialize and return the position
-fn write_into<T: BinarySerializable>(data: &mut mediumvec::Vec32<u8>, value: T) -> u32 {
-    let pos = data.len() as u32;
-    data.as_vec(|vec| value.serialize(vec).unwrap());
-    pos
-}
-
-impl CompactDocContainer {
-    pub fn extract_ref_value(
+    pub(crate) fn extract_ref_value(
         &self,
         ref_value: ValueAddr,
     ) -> io::Result<ReferenceValue<'_, CompactDocValue<'_>>> {
@@ -601,7 +563,7 @@ impl CompactDocContainer {
         }
     }
 
-    pub fn extract_str(&self, ref_value: ValueAddr) -> &str {
+    pub(crate) fn extract_str(&self, ref_value: ValueAddr) -> &str {
         binary_deserialize_str(self.get_slice(ref_value.val))
     }
 
@@ -618,15 +580,44 @@ impl CompactDocContainer {
     }
 }
 
+/// BinarySerializable alternative to read references
+fn binary_deserialize_str(data: &[u8]) -> &str {
+    let data = binary_deserialize_bytes(data);
+    unsafe { std::str::from_utf8_unchecked(data) }
+}
+
+/// BinarySerializable alternative to read references
+fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
+    let (len, bytes_read) = read_u32_vint_no_advance(data);
+    &data[bytes_read..bytes_read + len as usize]
+}
+
+/// BinarySerializable alternative to write references
+fn write_bytes_into(vec: &mut Vec<u8>, bytes: &[u8]) -> u32 {
+    let pos = vec.len() as u32;
+    let mut buf = [0u8; 8];
+    let vint_bytes = serialize_vint_u32(bytes.len() as u32, &mut buf);
+    vec.extend_from_slice(vint_bytes);
+    vec.extend_from_slice(bytes);
+    pos
+}
+
+/// Serialize and return the position
+fn write_into<T: BinarySerializable>(vec: &mut Vec<u8>, value: T) -> u32 {
+    let pos = vec.len() as u32;
+    value.serialize(vec).unwrap();
+    pos
+}
+
 #[derive(Debug, Clone)]
 /// The Iterator for the object values in the compact document
 pub struct CompactDocObjectIter<'a> {
-    container: &'a CompactDocContainer,
+    container: &'a CompactDoc,
     positions_slice: &'a [u8],
 }
 
 impl<'a> CompactDocObjectIter<'a> {
-    fn new(container: &'a CompactDocContainer, addr: Addr) -> io::Result<Self> {
+    fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
         let positions_slice = binary_deserialize_bytes(container.get_slice(addr));
         Ok(Self {
             container,
@@ -658,12 +649,12 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
 #[derive(Debug, Clone)]
 /// The Iterator for the array values in the compact document
 pub struct CompactDocArrayIter<'a> {
-    container: &'a CompactDocContainer,
+    container: &'a CompactDoc,
     positions_slice: &'a [u8],
 }
 
 impl<'a> CompactDocArrayIter<'a> {
-    fn new(container: &'a CompactDocContainer, addr: Addr) -> io::Result<Self> {
+    fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
         let positions_slice = binary_deserialize_bytes(container.get_slice(addr));
         Ok(Self {
             container,
@@ -696,7 +687,7 @@ impl Document for CompactDoc {
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_> {
         FieldValueIterRef {
             slice: self.field_values.iter(),
-            container: &self.container,
+            container: &self,
         }
     }
 }
@@ -705,7 +696,7 @@ impl Document for CompactDoc {
 /// out of the fields iterator trait.
 pub struct FieldValueIterRef<'a> {
     slice: std::slice::Iter<'a, FieldValueAddr>,
-    container: &'a CompactDocContainer,
+    container: &'a CompactDoc,
 }
 
 impl<'a> Iterator for FieldValueIterRef<'a> {

@@ -37,6 +37,7 @@ impl<'a> Value<'a> for &'a serde_json::Value {
     type ArrayIter = std::slice::Iter<'a, serde_json::Value>;
     type ObjectIter = JsonObjectIter<'a>;
 
+    #[inline]
     fn as_value(&self) -> ReferenceValue<'a, Self> {
         match self {
             serde_json::Value::Null => ReferenceValueLeaf::Null.into(),
