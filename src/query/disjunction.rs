@@ -134,11 +134,10 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
 mod tests {
     use std::collections::BTreeMap;
 
+    use super::DisjunctionScorer;
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::{ConstScorer, Scorer, SumCombiner, VecDocSet};
     use crate::{DocId, DocSet, Score, TERMINATED};
-
-    use super::DisjunctionScorer;
 
     fn conjunct<T: Ord + Copy>(arrays: &[Vec<T>], pass_line: usize) -> Vec<T> {
         let mut counts = BTreeMap::new();

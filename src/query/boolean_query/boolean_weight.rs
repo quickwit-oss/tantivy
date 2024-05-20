@@ -111,6 +111,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         }
     }
 
+    /// Create a new boolean weight with minimum number of required should clauses specified.
     pub fn with_minimum_number_should_match(
         weights: Vec<(Occur, Box<dyn Weight>)>,
         minimum_number_should_match: usize,
@@ -222,18 +223,16 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
             return weight.scorer(reader, boost);
         }
         return if self.scoring_enabled {
-            self
-                .complex_scorer(reader, boost, &self.score_combiner_fn)
+            self.complex_scorer(reader, boost, &self.score_combiner_fn)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, &self.score_combiner_fn)
                 })
         } else {
-            self
-                .complex_scorer(reader, boost, DoNothingCombiner::default)
+            self.complex_scorer(reader, boost, DoNothingCombiner::default)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, DoNothingCombiner::default)
                 })
-        }
+        };
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {

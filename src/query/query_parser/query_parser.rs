@@ -1821,7 +1821,8 @@ mod test {
              \"bad\"))], prefix: (2, Term(field=0, type=Str, \"wo\")), max_expansions: 50 }), \
              (Should, PhrasePrefixQuery { field: Field(1), phrase_terms: [(0, Term(field=1, \
              type=Str, \"big\")), (1, Term(field=1, type=Str, \"bad\"))], prefix: (2, \
-             Term(field=1, type=Str, \"wo\")), max_expansions: 50 })] }"
+             Term(field=1, type=Str, \"wo\")), max_expansions: 50 })], \
+             minimum_number_should_match: 1 }"
         );
     }
 
@@ -1886,7 +1887,8 @@ mod test {
                 format!("{query:?}"),
                 "BooleanQuery { subqueries: [(Should, FuzzyTermQuery { term: Term(field=0, \
                  type=Str, \"abc\"), distance: 1, transposition_cost_one: true, prefix: false }), \
-                 (Should, TermQuery(Term(field=1, type=Str, \"abc\")))] }"
+                 (Should, TermQuery(Term(field=1, type=Str, \"abc\")))], \
+                 minimum_number_should_match: 1 }"
             );
         }
 
@@ -1903,7 +1905,8 @@ mod test {
                 format!("{query:?}"),
                 "BooleanQuery { subqueries: [(Should, TermQuery(Term(field=0, type=Str, \
                  \"abc\"))), (Should, FuzzyTermQuery { term: Term(field=1, type=Str, \"abc\"), \
-                 distance: 2, transposition_cost_one: false, prefix: true })] }"
+                 distance: 2, transposition_cost_one: false, prefix: true })], \
+                 minimum_number_should_match: 1 }"
             );
         }
     }

@@ -5,6 +5,7 @@ mod bm25;
 mod boolean_query;
 mod boost_query;
 mod const_score_query;
+mod disjunction;
 mod disjunction_max_query;
 mod empty_query;
 mod exclude;
@@ -25,7 +26,6 @@ mod set_query;
 mod term_query;
 mod union;
 mod weight;
-mod disjunction;
 
 #[cfg(test)]
 mod vec_docset;

@@ -27,8 +27,7 @@ use crate::schema::{IndexRecordOption, Term};
 /// use tantivy::IndexWriter;
 ///
 /// fn main() -> tantivy::Result<()> {
-///    use tantivy::query::QueryClone;
-/// let mut schema_builder = Schema::builder();
+///    let mut schema_builder = Schema::builder();
 ///    let title = schema_builder.add_text_field("title", TEXT);
 ///    let body = schema_builder.add_text_field("body", TEXT);
 ///    let schema = schema_builder.build();
@@ -126,9 +125,10 @@ use crate::schema::{IndexRecordOption, Term};
 ///         (Occur::Should, girl_term_query.box_clone()),
 ///         (Occur::Should, diary_term_query.box_clone()),
 ///    ], 2);
-///    // Return documents contains 'Diary Cow', 'Diary Girl' or 'Cow Girl'
+///    // Return documents contains "Diary Cow", "Diary Girl" or "Cow Girl"
+///    // Notice: "Diary" isn't "Dairy". ;-)
 ///    let count5 = searcher.search(&minimum_required_query, &Count)?;
-///    assert_eq!(count5, 3);
+///    assert_eq!(count5, 1);
 ///    Ok(())
 /// }
 /// ```
@@ -248,12 +248,13 @@ impl BooleanQuery {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::BooleanQuery;
     use crate::collector::{Count, DocSetCollector};
     use crate::query::{Query, QueryClone, QueryParser, TermQuery};
     use crate::schema::{Field, IndexRecordOption, Schema, TEXT};
     use crate::{DocAddress, DocId, Index, Term};
-    use std::collections::HashSet;
 
     fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
