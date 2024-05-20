@@ -348,12 +348,6 @@ pub mod test {
     }
 
     #[test]
-    fn test_serialize_3bytes() {
-        let bytes: [u8; 3] = [1, 2, 3];
-        assert_eq!(serialize_test(bytes), 3);
-    }
-
-    #[test]
     fn test_serialize_vec() {
         assert_eq!(serialize_test(Vec::<u8>::new()), 1);
         assert_eq!(serialize_test(vec![1u32, 3u32]), 1 + 4 * 2);

@@ -728,7 +728,7 @@ mod tests {
                 "field.with.dot": 1
             },
             "date": "1985-04-12T23:20:50.52Z",
-            "my_arr": [2, 3, {"my_key": "two tokens"}, 4, {"nested_array": [2, 5, 6, [7, 8, {"a": 1}, 9, 10], [5, 5]]}]
+            "my_arr": [2, 3, {"my_key": "two tokens"}, 4, {"nested_array": [2, 5, 6, [7, 8, {"a": [{"d": {"e":[99]}}, 9000]}, 9, 10], [5, 5]]}]
         }"#;
         let json_val: std::collections::BTreeMap<String, OwnedValue> =
             serde_json::from_str(json_str).unwrap();
