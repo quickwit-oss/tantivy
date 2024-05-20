@@ -3,10 +3,7 @@ use std::io::{self, Read, Write};
 use std::net::Ipv6Addr;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{
-    read_u32_vint, read_u32_vint_no_advance, serialize_u32_vint_into_vec, serialize_vint_u32,
-    BinarySerializable, DateTime,
-};
+use common::{read_u32_vint_no_advance, serialize_vint_u32, BinarySerializable, DateTime};
 use serde_json::Map;
 pub use CompactDoc as TantivyDocument;
 
@@ -71,7 +68,9 @@ impl CompactDoc {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where Facet: From<F> {
+    where
+        Facet: From<F>,
+    {
         let facet = Facet::from(path);
         self.add_leaf_field_value(field, ReferenceValueLeaf::Facet(facet.encoded_str()));
     }
@@ -284,28 +283,24 @@ impl CompactDoc {
         match value {
             ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
             ReferenceValue::Array(elements) => {
-                // vint encoded positions of the elements in node_data
-                let mut positions = Vec::new();
+                // addresses of the elements in node_data
+                let mut addresses = Vec::new();
                 for elem in elements {
                     let value_addr = self.add_value(elem);
-                    let position = self.node_data.len() as u32;
-                    serialize_u32_vint_into_vec(position, &mut positions);
-                    write_into(&mut self.node_data, value_addr);
+                    write_into(&mut addresses, value_addr);
                 }
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &addresses))
             }
             ReferenceValue::Object(entries) => {
-                // vint encoded positions of the elements in node_data
-                let mut positions = Vec::new();
+                // addresses of the elements in node_data
+                let mut addresses = Vec::new();
                 for (key, value) in entries {
                     let key_addr = self.add_value_leaf(ReferenceValueLeaf::Str(key));
                     let value_addr = self.add_value(value);
-                    let position = self.node_data.len() as u32;
-                    serialize_u32_vint_into_vec(position, &mut positions);
-                    write_into(&mut self.node_data, key_addr);
-                    write_into(&mut self.node_data, value_addr);
+                    write_into(&mut addresses, key_addr);
+                    write_into(&mut addresses, value_addr);
                 }
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &positions))
+                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &addresses))
             }
         }
     }
@@ -418,7 +413,9 @@ impl Eq for CompactDoc {}
 
 impl DocumentDeserialize for CompactDoc {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
-    where D: DocumentDeserializer<'de> {
+    where
+        D: DocumentDeserializer<'de>,
+    {
         let mut doc = CompactDoc::default();
         // TODO: Deserializing into OwnedValue is wasteful. The deserializer should be able to work
         // on slices and referenced data.
@@ -622,7 +619,7 @@ fn write_into<T: BinarySerializable>(vec: &mut Vec<u8>, value: T) -> u32 {
 /// The Iterator for the object values in the compact document
 pub struct CompactDocObjectIter<'a> {
     container: &'a CompactDoc,
-    positions_slice: &'a [u8],
+    node_addresses_slice: &'a [u8],
 }
 
 impl<'a> CompactDocObjectIter<'a> {
@@ -630,7 +627,7 @@ impl<'a> CompactDocObjectIter<'a> {
         let positions_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
-            positions_slice,
+            node_addresses_slice: positions_slice,
         })
     }
 }
@@ -639,12 +636,10 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
     type Item = (&'a str, CompactDocValue<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.positions_slice.is_empty() {
-            let key_index = read_u32_vint(&mut self.positions_slice) as usize;
-            let position = &mut &self.container.node_data[key_index..];
-            let key_addr = ValueAddr::deserialize(position).ok()?;
+        if !self.node_addresses_slice.is_empty() {
+            let key_addr = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
             let key = self.container.extract_str(key_addr.val_addr);
-            let value = ValueAddr::deserialize(position).ok()?;
+            let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
             let value = CompactDocValue {
                 container: self.container,
                 value,
@@ -659,7 +654,7 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
 /// The Iterator for the array values in the compact document
 pub struct CompactDocArrayIter<'a> {
     container: &'a CompactDoc,
-    positions_slice: &'a [u8],
+    node_addresses_slice: &'a [u8],
 }
 
 impl<'a> CompactDocArrayIter<'a> {
@@ -667,7 +662,7 @@ impl<'a> CompactDocArrayIter<'a> {
         let positions_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
-            positions_slice,
+            node_addresses_slice: positions_slice,
         })
     }
 }
@@ -676,9 +671,8 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
     type Item = CompactDocValue<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.positions_slice.is_empty() {
-            let key_index = read_u32_vint(&mut self.positions_slice) as usize;
-            let value = ValueAddr::deserialize(&mut &self.container.node_data[key_index..]).ok()?;
+        if !self.node_addresses_slice.is_empty() {
+            let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
             let value = CompactDocValue {
                 container: self.container,
                 value,

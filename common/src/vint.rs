@@ -157,13 +157,6 @@ pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> 
     writer.write_all(data)
 }
 
-/// Write a `u32` as a vint payload into a vec.
-pub fn serialize_u32_vint_into_vec(val: u32, output: &mut Vec<u8>) {
-    let mut buf = [0u8; 8];
-    let data = serialize_vint_u32(val, &mut buf);
-    output.extend_from_slice(data)
-}
-
 impl VInt {
     pub fn val(&self) -> u64 {
         self.0
