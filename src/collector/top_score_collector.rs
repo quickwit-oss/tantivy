@@ -871,7 +871,10 @@ mod tests {
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
-    use crate::{DateTime, DocAddress, DocId, Index, IndexWriter, Order, Score, SegmentReader};
+    use crate::{
+        assert_nearly_equals, DateTime, DocAddress, DocId, Index, IndexWriter, Order, Score,
+        SegmentReader,
+    };
 
     fn make_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();

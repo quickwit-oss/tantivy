@@ -397,20 +397,7 @@ pub mod tests {
     #[macro_export]
     macro_rules! assert_nearly_equals {
         ($left:expr, $right:expr) => {{
-            match (&$left, &$right) {
-                (left_val, right_val) => {
-                    let diff = (left_val - right_val).abs();
-                    let add = left_val.abs() + right_val.abs();
-                    if diff > 0.0005 * add {
-                        panic!(
-                            r#"assertion failed: `(left ~= right)`
-  left: `{:?}`,
- right: `{:?}`"#,
-                            &*left_val, &*right_val
-                        )
-                    }
-                }
-            }
+            assert_nearly_equals!($left, $right, 0.0005);
         }};
         ($left:expr, $right:expr, $epsilon:expr) => {{
             match (&$left, &$right, &$epsilon) {
