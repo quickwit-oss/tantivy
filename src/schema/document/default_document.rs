@@ -3,7 +3,7 @@ use std::io::{self, Read, Write};
 use std::net::Ipv6Addr;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{read_u32_vint_no_advance, serialize_vint_u32, BinarySerializable, DateTime};
+use common::{read_u32_vint_no_advance, serialize_vint_u32, BinarySerializable, DateTime, VInt};
 use serde_json::Map;
 pub use CompactDoc as TantivyDocument;
 
@@ -335,9 +335,7 @@ impl CompactDoc {
                 .read_from::<f64>(ref_value.val_addr)
                 .map(ReferenceValueLeaf::F64)
                 .map(Into::into),
-            ValueType::Bool => {
-                Ok(ReferenceValueLeaf::Bool(u32::from(ref_value.val_addr) != 0).into())
-            }
+            ValueType::Bool => Ok(ReferenceValueLeaf::Bool(ref_value.val_addr != 0).into()),
             ValueType::Date => self
                 .read_from::<i64>(ref_value.val_addr)
                 .map(|ts| ReferenceValueLeaf::Date(DateTime::from_timestamp_nanos(ts)))
@@ -375,16 +373,14 @@ impl CompactDoc {
 
     /// deserialized owned value from node_data
     fn read_from<T: BinarySerializable>(&self, addr: Addr) -> io::Result<T> {
-        let start = u32::from(addr) as usize;
-        let data_slice = &self.node_data[start..];
+        let data_slice = &self.node_data[addr as usize..];
         let mut cursor = std::io::Cursor::new(data_slice);
         T::deserialize(&mut cursor)
     }
 
     /// get slice from address. The returned slice is open ended
     fn get_slice(&self, addr: Addr) -> &[u8] {
-        let start = u32::from(addr) as usize;
-        &self.node_data[start..]
+        &self.node_data[addr as usize..]
     }
 }
 
@@ -442,9 +438,12 @@ impl<'a> Value<'a> for CompactDocValue<'a> {
     }
 }
 
+/// The address in the vec
+type Addr = u32;
+
 #[derive(Clone, Copy, Default)]
+#[repr(packed)]
 /// The value type and the address to its payload in the container.
-/// Since Addr is only 3 bytes, the struct size is only 4bytes
 pub struct ValueAddr {
     type_id: ValueType,
     /// This is the address to the value in the vec, except for bool and null, which are inlined
@@ -452,61 +451,26 @@ pub struct ValueAddr {
 }
 impl BinarySerializable for ValueAddr {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        (self.type_id as u8).serialize(writer)?;
-        self.val_addr.0.serialize(writer)
+        self.type_id.serialize(writer)?;
+        VInt(self.val_addr as u64).serialize(writer)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let type_id = ValueType::deserialize(reader)?;
-        let addr: [u8; 3] = <[u8; 3]>::deserialize(reader)?;
-        Ok(ValueAddr {
-            type_id,
-            val_addr: Addr(addr),
-        })
+        let val_addr = VInt::deserialize(reader)?.0 as u32;
+        Ok(ValueAddr { type_id, val_addr })
     }
 }
 impl std::fmt::Debug for ValueAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "{:?} at {:?}",
-            self.type_id,
-            u32::from(self.val_addr)
-        ))
+        let val_addr = self.val_addr;
+        f.write_fmt(format_args!("{:?} at {:?}", self.type_id, val_addr))
     }
 }
 
 impl ValueAddr {
-    pub fn new(type_id: ValueType, val: u32) -> Self {
-        Self {
-            type_id,
-            val_addr: Addr::from_u32(val).unwrap(),
-        }
-    }
-}
-
-/// Addr in 3 bytes, can be converted from u32 by dropping the high byte.
-/// This means that we can address at most 16MB data in a Document.
-#[derive(Clone, Default, Eq, PartialEq, Debug, Copy)]
-struct Addr([u8; 3]);
-impl Addr {
-    fn from_u32(val: u32) -> io::Result<Self> {
-        if val >= 1 << 24 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Value too large for Addr, the default TantivyDocument Document supports up to \
-                 16MB of payload",
-            ));
-        }
-        let bytes = val.to_be_bytes();
-        Ok(Addr([bytes[1], bytes[2], bytes[3]]))
-    }
-}
-impl From<Addr> for u32 {
-    fn from(val: Addr) -> Self {
-        let mut bytes = [0; 4];
-        bytes[0] = 0;
-        bytes[1..].copy_from_slice(&val.0);
-        u32::from_be_bytes(bytes)
+    pub fn new(type_id: ValueType, val_addr: u32) -> Self {
+        Self { type_id, val_addr }
     }
 }
 
