@@ -68,9 +68,7 @@ impl CompactDoc {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where
-        Facet: From<F>,
-    {
+    where Facet: From<F> {
         let facet = Facet::from(path);
         self.add_leaf_field_value(field, ReferenceValueLeaf::Facet(facet.encoded_str()));
     }
@@ -409,9 +407,7 @@ impl Eq for CompactDoc {}
 
 impl DocumentDeserialize for CompactDoc {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
-    where
-        D: DocumentDeserializer<'de>,
-    {
+    where D: DocumentDeserializer<'de> {
         let mut doc = CompactDoc::default();
         // TODO: Deserializing into OwnedValue is wasteful. The deserializer should be able to work
         // on slices and referenced data.
@@ -474,7 +470,9 @@ impl ValueAddr {
     }
 }
 
-/// A enum representing a leaf value for tantivy to index.
+/// A enum representing a value for tantivy to index.
+///
+/// Any changes need to be reflected in `BinarySerializable` for `ValueType`
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum ValueType {
@@ -563,12 +561,12 @@ fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
 /// Write bytes and return the position of the written data.
 ///
 /// BinarySerializable alternative to write references
-fn write_bytes_into(vec: &mut Vec<u8>, bytes: &[u8]) -> u32 {
+fn write_bytes_into(vec: &mut Vec<u8>, data: &[u8]) -> u32 {
     let pos = vec.len() as u32;
     let mut buf = [0u8; 8];
-    let vint_bytes = serialize_vint_u32(bytes.len() as u32, &mut buf);
-    vec.extend_from_slice(vint_bytes);
-    vec.extend_from_slice(bytes);
+    let len_vint_bytes = serialize_vint_u32(data.len() as u32, &mut buf);
+    vec.extend_from_slice(len_vint_bytes);
+    vec.extend_from_slice(data);
     pos
 }
 
@@ -588,10 +586,10 @@ pub struct CompactDocObjectIter<'a> {
 
 impl<'a> CompactDocObjectIter<'a> {
     fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
-        let positions_slice = container.extract_bytes(addr);
+        let node_addresses_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
-            node_addresses_slice: positions_slice,
+            node_addresses_slice,
         })
     }
 }
@@ -623,10 +621,10 @@ pub struct CompactDocArrayIter<'a> {
 
 impl<'a> CompactDocArrayIter<'a> {
     fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
-        let positions_slice = container.extract_bytes(addr);
+        let node_addresses_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
-            node_addresses_slice: positions_slice,
+            node_addresses_slice,
         })
     }
 }
@@ -659,8 +657,7 @@ impl Document for CompactDoc {
     }
 }
 
-/// A helper wrapper for creating standard iterators
-/// out of the fields iterator trait.
+/// A helper wrapper for creating an iterator over the field values
 pub struct FieldValueIterRef<'a> {
     slice: std::slice::Iter<'a, FieldValueAddr>,
     container: &'a CompactDoc,
