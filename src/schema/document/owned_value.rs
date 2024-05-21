@@ -8,6 +8,7 @@ use serde::de::{MapAccess, SeqAccess};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
+use super::existing_type_impls::can_be_rfc3339_date_time;
 use super::ReferenceValueLeaf;
 use crate::schema::document::{
     ArrayAccess, DeserializeError, ObjectAccess, ReferenceValue, Value, ValueDeserialize,
@@ -375,16 +376,6 @@ impl From<BTreeMap<String, OwnedValue>> for OwnedValue {
     }
 }
 
-fn can_be_rfc3339_date_time(text: &str) -> bool {
-    if let Some(&first_byte) = text.as_bytes().first() {
-        if first_byte.is_ascii_digit() {
-            return true;
-        }
-    }
-
-    false
-}
-
 impl From<serde_json::Value> for OwnedValue {
     fn from(value: serde_json::Value) -> Self {
         match value {
@@ -472,6 +463,7 @@ mod tests {
         let mut doc = TantivyDocument::default();
         doc.add_bytes(bytes_field, "".as_bytes());
         let json_string = doc.to_json(&schema);
+
         assert_eq!(json_string, r#"{"my_bytes":[""]}"#);
     }
 

@@ -5,7 +5,6 @@ mod tests {
     use crate::index::Index;
     use crate::postings::Postings;
     use crate::query::QueryParser;
-    use crate::schema::document::Value;
     use crate::schema::{
         self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
         TextFieldIndexing, TextOptions,

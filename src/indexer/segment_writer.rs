@@ -499,7 +499,6 @@ mod tests {
     use crate::fastfield::FastValue;
     use crate::postings::{Postings, TermInfo};
     use crate::query::{PhraseQuery, QueryParser};
-    use crate::schema::document::Value;
     use crate::schema::{
         Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, STORED,
         STRING, TEXT,
@@ -555,9 +554,12 @@ mod tests {
         let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
         let doc = reader.get::<TantivyDocument>(0).unwrap();
 
-        assert_eq!(doc.field_values().len(), 2);
-        assert_eq!(doc.field_values()[0].value().as_str(), Some("A"));
-        assert_eq!(doc.field_values()[1].value().as_str(), Some("title"));
+        assert_eq!(doc.field_values().count(), 2);
+        assert_eq!(doc.get_all(text_field).next().unwrap().as_str(), Some("A"));
+        assert_eq!(
+            doc.get_all(text_field).nth(1).unwrap().as_str(),
+            Some("title")
+        );
     }
     #[test]
     fn test_simple_json_indexing() {
@@ -641,7 +643,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", STORED | TEXT);
         let schema = schema_builder.build();
-        let json_val: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+        let json_val: serde_json::Value = serde_json::from_str(
             r#"{
             "toto": "titi",
             "float": -0.2,
@@ -669,14 +671,10 @@ mod tests {
                 doc_id: 0u32,
             })
             .unwrap();
-        let serdeser_json_val = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-            &doc.to_json(&schema),
-        )
-        .unwrap()
-        .get("json")
-        .unwrap()[0]
-            .as_object()
+        let serdeser_json_val = serde_json::from_str::<serde_json::Value>(&doc.to_json(&schema))
             .unwrap()
+            .get("json")
+            .unwrap()[0]
             .clone();
         assert_eq!(json_val, serdeser_json_val);
         let segment_reader = searcher.segment_reader(0u32);
@@ -840,7 +838,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", STRING);
         let schema = schema_builder.build();
-        let json_val: serde_json::Map<String, serde_json::Value> =
+        let json_val: serde_json::Value =
             serde_json::from_str(r#"{"mykey": "two tokens"}"#).unwrap();
         let doc = doc!(json_field=>json_val);
         let index = Index::create_in_ram(schema);
@@ -880,7 +878,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", TEXT);
         let schema = schema_builder.build();
-        let json_val: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+        let json_val: serde_json::Value = serde_json::from_str(
             r#"{"mykey": [{"field": "hello happy tax payer"}, {"field": "nothello"}]}"#,
         )
         .unwrap();

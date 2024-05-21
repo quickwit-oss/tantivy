@@ -59,7 +59,6 @@ pub mod tests {
     use super::*;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
-    use crate::schema::document::Value;
     use crate::schema::{
         self, Schema, TantivyDocument, TextFieldIndexing, TextOptions, STORED, TEXT,
     };
@@ -92,8 +91,8 @@ pub mod tests {
                 StoreWriter::new(writer, compressor, blocksize, separate_thread).unwrap();
             for i in 0..num_docs {
                 let mut doc = TantivyDocument::default();
-                doc.add_field_value(field_body, LOREM.to_string());
-                doc.add_field_value(field_title, format!("Doc {i}"));
+                doc.add_text(field_body, LOREM);
+                doc.add_text(field_title, format!("Doc {i}"));
                 store_writer.store(&doc, &schema).unwrap();
             }
             store_writer.close().unwrap();
@@ -119,7 +118,7 @@ pub mod tests {
         let store = StoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
-                *store
+                store
                     .get::<TantivyDocument>(i)?
                     .get_first(field_title)
                     .unwrap()
@@ -131,7 +130,12 @@ pub mod tests {
 
         for doc in store.iter::<TantivyDocument>(Some(&alive_bitset)) {
             let doc = doc?;
-            let title_content = doc.get_first(field_title).unwrap().as_str().unwrap();
+            let title_content = doc
+                .get_first(field_title)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
             if !title_content.starts_with("Doc ") {
                 panic!("unexpected title_content {title_content}");
             }

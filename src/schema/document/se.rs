@@ -25,6 +25,7 @@ where W: Write
 
     /// Attempts to serialize a given document and write the output
     /// to the writer.
+    #[inline]
     pub(crate) fn serialize_doc<D>(&mut self, doc: &D) -> io::Result<()>
     where D: Document {
         let stored_field_values = || {
@@ -679,6 +680,7 @@ mod tests {
         );
     }
 
+    #[inline]
     fn serialize_doc<D: Document>(doc: &D, schema: &Schema) -> Vec<u8> {
         let mut writer = Vec::new();
 

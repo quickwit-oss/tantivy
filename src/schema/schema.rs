@@ -645,15 +645,15 @@ mod tests {
         let doc =
             TantivyDocument::convert_named_doc(&schema, NamedFieldDocument(named_doc_map)).unwrap();
         assert_eq!(
-            doc.get_all(title).collect::<Vec<_>>(),
+            doc.get_all(title).map(OwnedValue::from).collect::<Vec<_>>(),
             vec![
-                &OwnedValue::from("title1".to_string()),
-                &OwnedValue::from("title2".to_string())
+                OwnedValue::from("title1".to_string()),
+                OwnedValue::from("title2".to_string())
             ]
         );
         assert_eq!(
-            doc.get_all(val).collect::<Vec<_>>(),
-            vec![&OwnedValue::from(14u64), &OwnedValue::from(-1i64)]
+            doc.get_all(val).map(OwnedValue::from).collect::<Vec<_>>(),
+            vec![OwnedValue::from(14u64), OwnedValue::from(-1i64)]
         );
     }
 
@@ -682,7 +682,7 @@ mod tests {
         let schema = schema_builder.build();
         {
             let doc = TantivyDocument::parse_json(&schema, "{}").unwrap();
-            assert!(doc.field_values().is_empty());
+            assert!(doc.field_values().next().is_none());
         }
         {
             let doc = TantivyDocument::parse_json(

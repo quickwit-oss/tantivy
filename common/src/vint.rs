@@ -151,7 +151,7 @@ pub fn read_u32_vint_no_advance(data: &[u8]) -> (u32, usize) {
     (result, vlen)
 }
 /// Write a `u32` as a vint payload.
-pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> {
+pub fn write_u32_vint<W: io::Write + ?Sized>(val: u32, writer: &mut W) -> io::Result<()> {
     let mut buf = [0u8; 8];
     let data = serialize_vint_u32(val, &mut buf);
     writer.write_all(data)

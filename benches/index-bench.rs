@@ -18,7 +18,7 @@ fn benchmark(
         benchmark_dynamic_json(b, input, schema, commit, parse_json)
     } else {
         _benchmark(b, input, schema, commit, parse_json, |schema, doc_json| {
-            TantivyDocument::parse_json(&schema, doc_json).unwrap()
+            TantivyDocument::parse_json(schema, doc_json).unwrap()
         })
     }
 }
@@ -90,8 +90,7 @@ fn benchmark_dynamic_json(
 ) {
     let json_field = schema.get_field("json").unwrap();
     _benchmark(b, input, schema, commit, parse_json, |_schema, doc_json| {
-        let json_val: serde_json::Map<String, serde_json::Value> =
-            serde_json::from_str(doc_json).unwrap();
+        let json_val: serde_json::Value = serde_json::from_str(doc_json).unwrap();
         tantivy::doc!(json_field=>json_val)
     })
 }
@@ -138,12 +137,13 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
     for (prefix, schema, is_dynamic) in benches {
         for commit in [false, true] {
             let suffix = if commit { "with-commit" } else { "no-commit" };
-            for parse_json in [false] {
+            {
+                let parse_json = false;
                 // for parse_json in [false, true] {
                 let suffix = if parse_json {
                     format!("{}-with-json-parsing", suffix)
                 } else {
-                    format!("{}", suffix)
+                    suffix.to_string()
                 };
 
                 let bench_name = format!("{}{}", prefix, suffix);

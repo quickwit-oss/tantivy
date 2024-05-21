@@ -306,12 +306,10 @@ mod tests_indexsorting {
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
-            assert_eq!(
-                searcher
-                    .doc::<TantivyDocument>(DocAddress::new(0, 0))?
-                    .get_first(my_string_field),
-                None
-            );
+            assert!(searcher
+                .doc::<TantivyDocument>(DocAddress::new(0, 0))?
+                .get_first(my_string_field)
+                .is_none());
             assert_eq!(
                 searcher
                     .doc::<TantivyDocument>(DocAddress::new(0, 3))?
@@ -344,7 +342,7 @@ mod tests_indexsorting {
                 Some("blublub")
             );
             let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 4))?;
-            assert_eq!(doc.get_first(my_string_field), None);
+            assert!(doc.get_first(my_string_field).is_none());
         }
         // sort by field desc
         let index = create_test_index(

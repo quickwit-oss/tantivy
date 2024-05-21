@@ -568,21 +568,21 @@ mod tests {
         let schema = schema_builder.build();
         let doc = TantivyDocument::parse_json(&schema, r#"{"id": 100}"#).unwrap();
         assert_eq!(
-            &OwnedValue::Str("100".to_string()),
-            doc.get_first(text_field).unwrap()
+            OwnedValue::Str("100".to_string()),
+            doc.get_first(text_field).unwrap().into()
         );
 
         let doc = TantivyDocument::parse_json(&schema, r#"{"id": true}"#).unwrap();
         assert_eq!(
-            &OwnedValue::Str("true".to_string()),
-            doc.get_first(text_field).unwrap()
+            OwnedValue::Str("true".to_string()),
+            doc.get_first(text_field).unwrap().into()
         );
 
         // Not sure if this null coercion is the best approach
         let doc = TantivyDocument::parse_json(&schema, r#"{"id": null}"#).unwrap();
         assert_eq!(
-            &OwnedValue::Str("null".to_string()),
-            doc.get_first(text_field).unwrap()
+            OwnedValue::Str("null".to_string()),
+            doc.get_first(text_field).unwrap().into()
         );
     }
 
@@ -595,9 +595,18 @@ mod tests {
         let schema = schema_builder.build();
         let doc_json = r#"{"i64": "100", "u64": "100", "f64": "100"}"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        assert_eq!(&OwnedValue::I64(100), doc.get_first(i64_field).unwrap());
-        assert_eq!(&OwnedValue::U64(100), doc.get_first(u64_field).unwrap());
-        assert_eq!(&OwnedValue::F64(100.0), doc.get_first(f64_field).unwrap());
+        assert_eq!(
+            OwnedValue::I64(100),
+            doc.get_first(i64_field).unwrap().into()
+        );
+        assert_eq!(
+            OwnedValue::U64(100),
+            doc.get_first(u64_field).unwrap().into()
+        );
+        assert_eq!(
+            OwnedValue::F64(100.0),
+            doc.get_first(f64_field).unwrap().into()
+        );
     }
 
     #[test]
@@ -607,11 +616,17 @@ mod tests {
         let schema = schema_builder.build();
         let doc_json = r#"{"bool": "true"}"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        assert_eq!(&OwnedValue::Bool(true), doc.get_first(bool_field).unwrap());
+        assert_eq!(
+            OwnedValue::Bool(true),
+            doc.get_first(bool_field).unwrap().into()
+        );
 
         let doc_json = r#"{"bool": "false"}"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        assert_eq!(&OwnedValue::Bool(false), doc.get_first(bool_field).unwrap());
+        assert_eq!(
+            OwnedValue::Bool(false),
+            doc.get_first(bool_field).unwrap().into()
+        );
     }
 
     #[test]
@@ -646,7 +661,7 @@ mod tests {
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
         let date = doc.get_first(date_field).unwrap();
         // Time zone is converted to UTC
-        assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{date:?}"));
+        assert_eq!("Leaf(Date(2019-10-12T05:20:50.52Z))", format!("{date:?}"));
     }
 
     #[test]
