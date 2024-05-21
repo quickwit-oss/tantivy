@@ -50,15 +50,15 @@ impl CompactDoc {
         }
     }
 
+    /// Creates a new, empty document object
+    pub fn new() -> CompactDoc {
+        CompactDoc::with_capacity(1024)
+    }
+
     /// Skrinks the capacity of the document to fit the data
     pub fn shrink_to_fit(&mut self) {
         self.node_data.shrink_to_fit();
         self.field_values.shrink_to_fit();
-    }
-
-    /// Creates a new, empty document object
-    pub fn new() -> CompactDoc {
-        CompactDoc::with_capacity(1024)
     }
 
     /// Returns the length of the document.
@@ -239,40 +239,28 @@ impl CompactDoc {
 
     pub(crate) fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
         let type_id = ValueType::from(&leaf);
-        match leaf {
-            ReferenceValueLeaf::Null => ValueAddr::new(type_id, 0),
-            ReferenceValueLeaf::Str(bytes) => ValueAddr::new(
-                type_id,
-                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
-            ),
-            ReferenceValueLeaf::Facet(bytes) => ValueAddr::new(
-                type_id,
-                write_bytes_into(&mut self.node_data, bytes.as_bytes()),
-            ),
-            ReferenceValueLeaf::Bytes(bytes) => {
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, bytes))
+        // Write into `node_data` and return u32 position as its address
+        // Null and bool are inlined into the address
+        let addr = match leaf {
+            ReferenceValueLeaf::Null => 0,
+            ReferenceValueLeaf::Str(bytes) => {
+                write_bytes_into(&mut self.node_data, bytes.as_bytes())
             }
-            ReferenceValueLeaf::U64(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            ReferenceValueLeaf::Facet(bytes) => {
+                write_bytes_into(&mut self.node_data, bytes.as_bytes())
             }
-            ReferenceValueLeaf::I64(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
+            ReferenceValueLeaf::Bytes(bytes) => write_bytes_into(&mut self.node_data, bytes),
+            ReferenceValueLeaf::U64(num) => write_into(&mut self.node_data, num),
+            ReferenceValueLeaf::I64(num) => write_into(&mut self.node_data, num),
+            ReferenceValueLeaf::F64(num) => write_into(&mut self.node_data, num),
+            ReferenceValueLeaf::Bool(b) => b as u32,
+            ReferenceValueLeaf::Date(date) => {
+                write_into(&mut self.node_data, date.into_timestamp_nanos())
             }
-            ReferenceValueLeaf::F64(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num))
-            }
-            ReferenceValueLeaf::Bool(b) => ValueAddr::new(type_id, b as u32),
-            ReferenceValueLeaf::Date(date) => ValueAddr::new(
-                type_id,
-                write_into(&mut self.node_data, date.into_timestamp_nanos()),
-            ),
-            ReferenceValueLeaf::IpAddr(num) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, num.to_u128()))
-            }
-            ReferenceValueLeaf::PreTokStr(pre_tok) => {
-                ValueAddr::new(type_id, write_into(&mut self.node_data, *pre_tok))
-            }
-        }
+            ReferenceValueLeaf::IpAddr(num) => write_into(&mut self.node_data, num.to_u128()),
+            ReferenceValueLeaf::PreTokStr(pre_tok) => write_into(&mut self.node_data, *pre_tok),
+        };
+        ValueAddr::new(type_id, addr)
     }
     /// Adds a value and returns in address into the
     pub(crate) fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
@@ -282,6 +270,8 @@ impl CompactDoc {
             ReferenceValue::Leaf(leaf) => self.add_value_leaf(leaf),
             ReferenceValue::Array(elements) => {
                 // addresses of the elements in node_data
+                // Reusing a vec would be nicer, but it's not easy because of the recursion
+                // A global vec would work if every writer get it's discriminator
                 let mut addresses = Vec::new();
                 for elem in elements {
                     let value_addr = self.add_value(elem);
@@ -366,6 +356,7 @@ impl CompactDoc {
     /// get &str reference from node_data
     fn extract_str(&self, addr: Addr) -> &str {
         let data = self.extract_bytes(addr);
+        // Utf-8 checks would have a noticeable performance overhead here
         unsafe { std::str::from_utf8_unchecked(data) }
     }
 
@@ -380,6 +371,31 @@ impl CompactDoc {
     fn get_slice(&self, addr: Addr) -> &[u8] {
         &self.node_data[addr as usize..]
     }
+}
+
+/// BinarySerializable alternative to read references
+fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
+    let (len, bytes_read) = read_u32_vint_no_advance(data);
+    &data[bytes_read..bytes_read + len as usize]
+}
+
+/// Write bytes and return the position of the written data.
+///
+/// BinarySerializable alternative to write references
+fn write_bytes_into(vec: &mut Vec<u8>, data: &[u8]) -> u32 {
+    let pos = vec.len() as u32;
+    let mut buf = [0u8; 8];
+    let len_vint_bytes = serialize_vint_u32(data.len() as u32, &mut buf);
+    vec.extend_from_slice(len_vint_bytes);
+    vec.extend_from_slice(data);
+    pos
+}
+
+/// Serialize and return the position
+fn write_into<T: BinarySerializable>(vec: &mut Vec<u8>, value: T) -> u32 {
+    let pos = vec.len() as u32;
+    value.serialize(vec).unwrap();
+    pos
 }
 
 impl PartialEq for CompactDoc {
@@ -473,6 +489,9 @@ impl ValueAddr {
 /// A enum representing a value for tantivy to index.
 ///
 /// Any changes need to be reflected in `BinarySerializable` for `ValueType`
+///
+/// We can't use [schema::Type] or [columnar::ColumnType] here, because they are missing
+/// some items like Array and PreTokStr.
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 #[repr(u8)]
 pub enum ValueType {
@@ -552,31 +571,6 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
     }
 }
 
-/// BinarySerializable alternative to read references
-fn binary_deserialize_bytes(data: &[u8]) -> &[u8] {
-    let (len, bytes_read) = read_u32_vint_no_advance(data);
-    &data[bytes_read..bytes_read + len as usize]
-}
-
-/// Write bytes and return the position of the written data.
-///
-/// BinarySerializable alternative to write references
-fn write_bytes_into(vec: &mut Vec<u8>, data: &[u8]) -> u32 {
-    let pos = vec.len() as u32;
-    let mut buf = [0u8; 8];
-    let len_vint_bytes = serialize_vint_u32(data.len() as u32, &mut buf);
-    vec.extend_from_slice(len_vint_bytes);
-    vec.extend_from_slice(data);
-    pos
-}
-
-/// Serialize and return the position
-fn write_into<T: BinarySerializable>(vec: &mut Vec<u8>, value: T) -> u32 {
-    let pos = vec.len() as u32;
-    value.serialize(vec).unwrap();
-    pos
-}
-
 #[derive(Debug, Clone)]
 /// The Iterator for the object values in the compact document
 pub struct CompactDocObjectIter<'a> {
@@ -586,6 +580,7 @@ pub struct CompactDocObjectIter<'a> {
 
 impl<'a> CompactDocObjectIter<'a> {
     fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
+        // Objects are `&[ValueAddr]` serialized into bytes
         let node_addresses_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
@@ -621,6 +616,7 @@ pub struct CompactDocArrayIter<'a> {
 
 impl<'a> CompactDocArrayIter<'a> {
     fn new(container: &'a CompactDoc, addr: Addr) -> io::Result<Self> {
+        // Arrays are &[ValueAddr] serialized into bytes
         let node_addresses_slice = container.extract_bytes(addr);
         Ok(Self {
             container,
