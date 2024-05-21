@@ -18,9 +18,9 @@ use crate::tokenizer::PreTokenizedString;
 #[repr(packed)]
 #[derive(Debug, Clone)]
 /// A field value pair in the compact tantivy document
-pub struct FieldValueAddr {
+struct FieldValueAddr {
     pub field: u16,
-    pub value: ValueAddr,
+    pub value_addr: ValueAddr,
 }
 
 #[derive(Debug, Clone)]
@@ -133,7 +133,7 @@ impl CompactDoc {
                 .field_id()
                 .try_into()
                 .expect("support only up to u16::MAX field ids"),
-            value: self.add_value(value),
+            value_addr: self.add_value(value),
         };
         self.field_values.push(field_value);
     }
@@ -151,7 +151,7 @@ impl CompactDoc {
                 .field_id()
                 .try_into()
                 .expect("support only up to u16::MAX field ids"),
-            value: self.add_value_leaf(value),
+            value_addr: self.add_value_leaf(value),
         };
         self.field_values.push(field_value);
     }
@@ -162,7 +162,7 @@ impl CompactDoc {
     ) -> impl Iterator<Item = (Field, ReferenceValue<'_, CompactDocValue<'_>>)> {
         self.field_values.iter().map(|field_val| {
             let field = Field::from_field_id(field_val.field as u32);
-            let val = self.extract_value(field_val.value).unwrap();
+            let val = self.extract_value(field_val.value_addr).unwrap();
             (field, val)
         })
     }
@@ -175,7 +175,7 @@ impl CompactDoc {
         self.field_values
             .iter()
             .filter(move |field_value| Field::from_field_id(field_value.field as u32) == field)
-            .map(|val| self.extract_value(val.value).unwrap())
+            .map(|val| self.extract_value(val.value_addr).unwrap())
     }
 
     /// Returns the first `ReferenceValue` associated the given field
@@ -237,11 +237,11 @@ impl CompactDoc {
         Ok(doc)
     }
 
-    pub(crate) fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
+    fn add_value_leaf(&mut self, leaf: ReferenceValueLeaf) -> ValueAddr {
         let type_id = ValueType::from(&leaf);
         // Write into `node_data` and return u32 position as its address
         // Null and bool are inlined into the address
-        let addr = match leaf {
+        let val_addr = match leaf {
             ReferenceValueLeaf::Null => 0,
             ReferenceValueLeaf::Str(bytes) => {
                 write_bytes_into(&mut self.node_data, bytes.as_bytes())
@@ -260,10 +260,10 @@ impl CompactDoc {
             ReferenceValueLeaf::IpAddr(num) => write_into(&mut self.node_data, num.to_u128()),
             ReferenceValueLeaf::PreTokStr(pre_tok) => write_into(&mut self.node_data, *pre_tok),
         };
-        ValueAddr::new(type_id, addr)
+        ValueAddr { type_id, val_addr }
     }
     /// Adds a value and returns in address into the
-    pub(crate) fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
+    fn add_value<'a, V: Value<'a>>(&mut self, value: V) -> ValueAddr {
         let value = value.as_value();
         let type_id = ValueType::from(&value);
         match value {
@@ -277,7 +277,10 @@ impl CompactDoc {
                     let value_addr = self.add_value(elem);
                     write_into(&mut addresses, value_addr);
                 }
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &addresses))
+                ValueAddr {
+                    type_id,
+                    val_addr: write_bytes_into(&mut self.node_data, &addresses),
+                }
             }
             ReferenceValue::Object(entries) => {
                 // addresses of the elements in node_data
@@ -288,12 +291,15 @@ impl CompactDoc {
                     write_into(&mut addresses, key_addr);
                     write_into(&mut addresses, value_addr);
                 }
-                ValueAddr::new(type_id, write_bytes_into(&mut self.node_data, &addresses))
+                ValueAddr {
+                    type_id,
+                    val_addr: write_bytes_into(&mut self.node_data, &addresses),
+                }
             }
         }
     }
 
-    pub(crate) fn extract_value(
+    fn extract_value(
         &self,
         ref_value: ValueAddr,
     ) -> io::Result<ReferenceValue<'_, CompactDocValue<'_>>> {
@@ -404,7 +410,7 @@ impl PartialEq for CompactDoc {
         let convert_to_comparable_map = |doc: &CompactDoc| {
             let mut field_value_set: HashMap<Field, HashSet<String>> = Default::default();
             for field_value in doc.field_values.iter() {
-                let value: OwnedValue = doc.extract_value(field_value.value).unwrap().into();
+                let value: OwnedValue = doc.extract_value(field_value.value_addr).unwrap().into();
                 let value = serde_json::to_string(&value).unwrap();
                 field_value_set
                     .entry(Field::from_field_id(field_value.field as u32))
@@ -456,7 +462,7 @@ type Addr = u32;
 #[derive(Clone, Copy, Default)]
 #[repr(packed)]
 /// The value type and the address to its payload in the container.
-pub struct ValueAddr {
+struct ValueAddr {
     type_id: ValueType,
     /// This is the address to the value in the vec, except for bool and null, which are inlined
     val_addr: Addr,
@@ -477,12 +483,6 @@ impl std::fmt::Debug for ValueAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let val_addr = self.val_addr;
         f.write_fmt(format_args!("{:?} at {:?}", self.type_id, val_addr))
-    }
-}
-
-impl ValueAddr {
-    pub fn new(type_id: ValueType, val_addr: u32) -> Self {
-        Self { type_id, val_addr }
     }
 }
 
@@ -593,17 +593,17 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
     type Item = (&'a str, CompactDocValue<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.node_addresses_slice.is_empty() {
-            let key_addr = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
-            let key = self.container.extract_str(key_addr.val_addr);
-            let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
-            let value = CompactDocValue {
-                container: self.container,
-                value,
-            };
-            return Some((key, value));
+        if self.node_addresses_slice.is_empty() {
+            return None;
         }
-        None
+        let key_addr = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
+        let key = self.container.extract_str(key_addr.val_addr);
+        let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
+        let value = CompactDocValue {
+            container: self.container,
+            value,
+        };
+        return Some((key, value));
     }
 }
 
@@ -629,15 +629,15 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
     type Item = CompactDocValue<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.node_addresses_slice.is_empty() {
-            let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
-            let value = CompactDocValue {
-                container: self.container,
-                value,
-            };
-            return Some(value);
+        if self.node_addresses_slice.is_empty() {
+            return None;
         }
-        None
+        let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
+        let value = CompactDocValue {
+            container: self.container,
+            value,
+        };
+        return Some(value);
     }
 }
 
@@ -668,7 +668,7 @@ impl<'a> Iterator for FieldValueIterRef<'a> {
                 Field::from_field_id(field_value.field as u32),
                 CompactDocValue::<'a> {
                     container: self.container,
-                    value: field_value.value,
+                    value: field_value.value_addr,
                 },
             )
         })
