@@ -60,7 +60,7 @@ pub mod tests {
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
     use crate::schema::{
-        self, Schema, TantivyDocument, TextFieldIndexing, TextOptions, STORED, TEXT,
+        self, Schema, TantivyDocument, TextFieldIndexing, TextOptions, Value, STORED, TEXT,
     };
     use crate::{Index, IndexWriter, Term};
 
@@ -122,6 +122,7 @@ pub mod tests {
                     .get::<TantivyDocument>(i)?
                     .get_first(field_title)
                     .unwrap()
+                    .as_value()
                     .as_str()
                     .unwrap(),
                 format!("Doc {i}")
@@ -133,6 +134,7 @@ pub mod tests {
             let title_content = doc
                 .get_first(field_title)
                 .unwrap()
+                .as_value()
                 .as_str()
                 .unwrap()
                 .to_string();

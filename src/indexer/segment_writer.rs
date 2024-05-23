@@ -500,8 +500,8 @@ mod tests {
     use crate::postings::{Postings, TermInfo};
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::{
-        Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, STORED,
-        STRING, TEXT,
+        Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value,
+        STORED, STRING, TEXT,
     };
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
@@ -555,9 +555,12 @@ mod tests {
         let doc = reader.get::<TantivyDocument>(0).unwrap();
 
         assert_eq!(doc.field_values().count(), 2);
-        assert_eq!(doc.get_all(text_field).next().unwrap().as_str(), Some("A"));
         assert_eq!(
-            doc.get_all(text_field).nth(1).unwrap().as_str(),
+            doc.get_all(text_field).next().unwrap().as_value().as_str(),
+            Some("A")
+        );
+        assert_eq!(
+            doc.get_all(text_field).nth(1).unwrap().as_value().as_str(),
             Some("title")
         );
     }

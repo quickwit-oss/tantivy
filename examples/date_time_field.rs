@@ -4,7 +4,7 @@
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{DateOptions, Document, Schema, INDEXED, STORED, STRING};
+use tantivy::schema::{DateOptions, Document, Schema, Value, INDEXED, STORED, STRING};
 use tantivy::{Index, IndexWriter, TantivyDocument};
 
 fn main() -> tantivy::Result<()> {
@@ -64,6 +64,7 @@ fn main() -> tantivy::Result<()> {
             assert!(retrieved_doc
                 .get_first(occurred_at)
                 .unwrap()
+                .as_value()
                 .as_datetime()
                 .is_some(),);
             assert_eq!(

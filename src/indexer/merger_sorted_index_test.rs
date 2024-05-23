@@ -7,7 +7,7 @@ mod tests {
     use crate::query::QueryParser;
     use crate::schema::{
         self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
-        TextFieldIndexing, TextOptions,
+        TextFieldIndexing, TextOptions, Value,
     };
     use crate::{
         DocAddress, DocSet, IndexSettings, IndexSortByField, IndexWriter, Order, TantivyDocument,
@@ -280,13 +280,16 @@ mod tests {
                 .doc::<TantivyDocument>(DocAddress::new(0, blubber_pos))
                 .unwrap();
             assert_eq!(
-                doc.get_first(my_text_field).unwrap().as_str(),
+                doc.get_first(my_text_field).unwrap().as_value().as_str(),
                 Some("blubber")
             );
             let doc = searcher
                 .doc::<TantivyDocument>(DocAddress::new(0, 0))
                 .unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(1000));
+            assert_eq!(
+                doc.get_first(int_field).unwrap().as_value().as_u64(),
+                Some(1000)
+            );
         }
     }
 
