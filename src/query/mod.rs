@@ -10,7 +10,7 @@ mod empty_query;
 mod exclude;
 mod exist_query;
 mod explanation;
-mod function_score_query;
+mod function_query;
 mod fuzzy_query;
 mod intersection;
 mod more_like_this;
@@ -45,7 +45,7 @@ pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::exist_query::ExistsQuery;
 pub use self::explanation::Explanation;
-pub use self::function_score_query::FunctionScoreQuery;
+pub use self::function_query::FunctionScoreQuery;
 #[cfg(test)]
 pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
