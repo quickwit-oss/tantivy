@@ -252,9 +252,8 @@ impl IndexBuilder {
                 let field_type = entry.field_type().value_type();
                 if !supported_field_types.contains(&field_type) {
                     return Err(TantivyError::InvalidArgument(format!(
-                        "Unsupported field type in sort_by_field: {:?}. Supported field types: \
-                         {:?} ",
-                        field_type, supported_field_types,
+                        "Unsupported field type in sort_by_field: {field_type:?}. Supported field types: \
+                         {supported_field_types:?} ",
                     )));
                 }
             }

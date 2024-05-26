@@ -216,7 +216,7 @@ mod tests_mmap {
         let test_query = |query_str: &str| {
             let query = parse_query.parse_query(query_str).unwrap();
             let num_docs = searcher.search(&query, &Count).unwrap();
-            assert_eq!(num_docs, 1, "{}", query_str);
+            assert_eq!(num_docs, 1, "{query_str}");
         };
         test_query(format!("json.{field_name_out}:test1").as_str());
         test_query(format!("json.a{field_name_out}:test2").as_str());
@@ -590,10 +590,10 @@ mod tests_mmap {
         let query_parser = QueryParser::for_index(&index, vec![]);
         // Test if field name can be queried
         for (indexed_field, val) in fields_and_vals.iter() {
-            let query_str = &format!("{}:{}", indexed_field, val);
+            let query_str = &format!("{indexed_field}:{val}");
             let query = query_parser.parse_query(query_str).unwrap();
             let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
-            assert!(!count_docs.is_empty(), "{}:{}", indexed_field, val);
+            assert!(!count_docs.is_empty(), "{indexed_field}:{val}");
         }
         // Test if field name can be used for aggregation
         for (field_name, val) in fields_and_vals.iter() {

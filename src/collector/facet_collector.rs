@@ -598,7 +598,7 @@ mod tests {
                 let mid = n % 4;
                 n /= 4;
                 let leaf = n % 5;
-                Facet::from(&format!("/top{}/mid{}/leaf{}", top, mid, leaf))
+                Facet::from(&format!("/top{top}/mid{mid}/leaf{leaf}"))
             })
             .collect();
         for i in 0..num_facets * 10 {
@@ -737,7 +737,7 @@ mod tests {
             vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
                 .into_iter()
                 .flat_map(|(c, count)| {
-                    let facet = Facet::from(&format!("/facet/{}", c));
+                    let facet = Facet::from(&format!("/facet/{c}"));
                     let doc = doc!(facet_field => facet);
                     iter::repeat(doc).take(count)
                 })
@@ -785,7 +785,7 @@ mod tests {
         let docs: Vec<TantivyDocument> = vec![("b", 2), ("a", 2), ("c", 4)]
             .into_iter()
             .flat_map(|(c, count)| {
-                let facet = Facet::from(&format!("/facet/{}", c));
+                let facet = Facet::from(&format!("/facet/{c}"));
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
             })

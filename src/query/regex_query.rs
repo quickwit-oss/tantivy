@@ -185,7 +185,7 @@ mod test {
             Err(crate::TantivyError::InvalidArgument(msg)) => {
                 assert!(msg.contains("error: unclosed group"))
             }
-            res => panic!("unexpected result: {:?}", res),
+            res => panic!("unexpected result: {res:?}"),
         }
     }
 }

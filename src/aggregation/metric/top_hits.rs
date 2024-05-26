@@ -131,8 +131,7 @@ impl<'de> Deserialize<'de> for KeyOrder {
         ))?;
         if key_order.next().is_some() {
             return Err(serde::de::Error::custom(format!(
-                "Expected exactly one key-value pair in sort parameter of top_hits, found {:?}",
-                key_order
+                "Expected exactly one key-value pair in sort parameter of top_hits, found {key_order:?}"
             )));
         }
         Ok(Self { field, order })
@@ -145,8 +144,7 @@ fn globbed_string_to_regex(glob: &str) -> Result<Regex, crate::TantivyError> {
     let sanitized = format!("^{}$", regex::escape(glob).replace(r"\*", ".*"));
     Regex::new(&sanitized.replace('*', ".*")).map_err(|e| {
         crate::TantivyError::SchemaError(format!(
-            "Invalid regex '{}' in docvalue_fields: {}",
-            glob, e
+            "Invalid regex '{glob}' in docvalue_fields: {e}"
         ))
     })
 }
@@ -154,17 +152,15 @@ fn globbed_string_to_regex(glob: &str) -> Result<Regex, crate::TantivyError> {
 fn use_doc_value_fields_err(parameter: &str) -> crate::Result<()> {
     Err(crate::TantivyError::AggregationError(
         AggregationError::InvalidRequest(format!(
-            "The `{}` parameter is not supported, only `docvalue_fields` is supported in \
-             `top_hits` aggregation",
-            parameter
+            "The `{parameter}` parameter is not supported, only `docvalue_fields` is supported in \
+             `top_hits` aggregation"
         )),
     ))
 }
 fn unsupported_err(parameter: &str) -> crate::Result<()> {
     Err(crate::TantivyError::AggregationError(
         AggregationError::InvalidRequest(format!(
-            "The `{}` parameter is not supported in the `top_hits` aggregation",
-            parameter
+            "The `{parameter}` parameter is not supported in the `top_hits` aggregation"
         )),
     ))
 }
@@ -217,8 +213,7 @@ impl TopHitsAggregation {
                     .collect::<Vec<_>>();
                 assert!(
                     !fields.is_empty(),
-                    "No fields matched the glob '{}' in docvalue_fields",
-                    field
+                    "No fields matched the glob '{field}' in docvalue_fields"
                 );
                 Ok(fields)
             })
@@ -254,7 +249,7 @@ impl TopHitsAggregation {
             .map(|field| {
                 let accessors = accessors
                     .get(field)
-                    .unwrap_or_else(|| panic!("field '{}' not found in accessors", field));
+                    .unwrap_or_else(|| panic!("field '{field}' not found in accessors"));
 
                 let values: Vec<FastFieldValue> = accessors
                     .iter()

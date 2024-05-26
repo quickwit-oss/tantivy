@@ -537,7 +537,7 @@ impl BinarySerializable for ValueType {
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Invalid value type id: {}", num),
+                format!("Invalid value type id: {num}"),
             ));
         };
         Ok(type_id)

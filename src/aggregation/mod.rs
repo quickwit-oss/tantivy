@@ -159,14 +159,13 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 fn parse_str_into_f64<E: de::Error>(value: &str) -> Result<f64, E> {
     let parsed = value.parse::<f64>().map_err(|_err| {
-        de::Error::custom(format!("Failed to parse f64 from string: {:?}", value))
+        de::Error::custom(format!("Failed to parse f64 from string: {value:?}"))
     })?;
 
     // Check if the parsed value is NaN or infinity
     if parsed.is_nan() || parsed.is_infinite() {
         Err(de::Error::custom(format!(
-            "Value is not a valid f64 (NaN or Infinity): {:?}",
-            value
+            "Value is not a valid f64 (NaN or Infinity): {value:?}"
         )))
     } else {
         Ok(parsed)

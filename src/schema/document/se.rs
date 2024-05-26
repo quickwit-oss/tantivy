@@ -58,9 +58,8 @@ where W: Write
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!(
-                    "Unexpected number of entries written to serializer, expected {} entries, got \
-                     {} entries",
-                    num_field_values, actual_length,
+                    "Unexpected number of entries written to serializer, expected {num_field_values} entries, got \
+                     {actual_length} entries",
                 ),
             ));
         }
