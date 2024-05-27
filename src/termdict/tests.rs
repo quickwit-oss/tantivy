@@ -95,7 +95,7 @@ fn test_term_dictionary_simple() -> crate::Result<()> {
 #[test]
 fn test_term_dictionary_stream() -> crate::Result<()> {
     let ids: Vec<_> = (0u32..10_000u32)
-        .map(|i| (format!("doc{:0>6}", i), i))
+        .map(|i| (format!("doc{i:0>6}"), i))
         .collect();
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
@@ -156,7 +156,7 @@ fn test_stream_high_range_prefix_suffix() -> crate::Result<()> {
 #[test]
 fn test_stream_range() -> crate::Result<()> {
     let ids: Vec<_> = (0u32..10_000u32)
-        .map(|i| (format!("doc{:0>6}", i), i))
+        .map(|i| (format!("doc{i:0>6}"), i))
         .collect();
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();

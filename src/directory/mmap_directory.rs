@@ -566,7 +566,7 @@ mod tests {
         let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let num_paths = 10;
         let paths: Vec<PathBuf> = (0..num_paths)
-            .map(|i| PathBuf::from(&*format!("file_{}", i)))
+            .map(|i| PathBuf::from(&*format!("file_{i}")))
             .collect();
         {
             for path in &paths {

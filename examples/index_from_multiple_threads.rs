@@ -61,7 +61,7 @@ fn main() -> tantivy::Result<()> {
                         debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
                         limbs and branches that arch over the pool"
                     ))?;
-            println!("add doc {} from thread 1 - opstamp {}", i, opstamp);
+            println!("add doc {i} from thread 1 - opstamp {opstamp}");
             thread::sleep(Duration::from_millis(20));
         }
         Result::<(), TantivyError>::Ok(())
@@ -82,7 +82,7 @@ fn main() -> tantivy::Result<()> {
                     body => "Some great book description..."
                 ))?
             };
-            println!("add doc {} from thread 2 - opstamp {}", i, opstamp);
+            println!("add doc {i} from thread 2 - opstamp {opstamp}");
             thread::sleep(Duration::from_millis(10));
         }
         Result::<(), TantivyError>::Ok(())

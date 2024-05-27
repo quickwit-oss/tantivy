@@ -357,8 +357,7 @@ impl SegmentTermCollector {
     ) -> crate::Result<Self> {
         if field_type == ColumnType::Bytes {
             return Err(TantivyError::InvalidArgument(format!(
-                "terms aggregation is not supported for column type {:?}",
-                field_type
+                "terms aggregation is not supported for column type {field_type:?}"
             )));
         }
         let term_buckets = TermBuckets::default();

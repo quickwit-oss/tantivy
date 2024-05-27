@@ -141,12 +141,12 @@ pub fn hdfs_index_benchmark(c: &mut Criterion) {
                 let parse_json = false;
                 // for parse_json in [false, true] {
                 let suffix = if parse_json {
-                    format!("{}-with-json-parsing", suffix)
+                    format!("{suffix}-with-json-parsing")
                 } else {
                     suffix.to_string()
                 };
 
-                let bench_name = format!("{}{}", prefix, suffix);
+                let bench_name = format!("{prefix}{suffix}");
                 group.bench_function(bench_name, |b| {
                     benchmark(b, HDFS_LOGS, schema.clone(), commit, parse_json, is_dynamic)
                 });

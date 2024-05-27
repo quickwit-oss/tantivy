@@ -338,14 +338,14 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "attributes.color", false);
         term.append_type_and_str("red");
         assert_eq!(
-            format!("{:?}", term),
+            format!("{term:?}"),
             "Term(field=1, type=Json, path=attributes.color, type=Str, \"red\")"
         );
 
         let mut term = Term::from_field_json_path(field, "attributes.dimensions.width", false);
         term.append_type_and_fast_value(400i64);
         assert_eq!(
-            format!("{:?}", term),
+            format!("{term:?}"),
             "Term(field=1, type=Json, path=attributes.dimensions.width, type=I64, 400)"
         );
     }

@@ -335,8 +335,8 @@ fn get_missing_val(
         }
         _ => {
             return Err(crate::TantivyError::InvalidArgument(format!(
-                "Missing value {:?} for field {} is not supported for column type {:?}",
-                missing, field_name, column_type
+                "Missing value {missing:?} for field {field_name} is not supported for column \
+                 type {column_type:?}"
             )));
         }
     };
@@ -403,7 +403,7 @@ fn get_dynamic_columns(
         .iter()
         .map(|h| h.open())
         .collect::<io::Result<_>>()?;
-    assert!(!ff_fields.is_empty(), "field {} not found", field_name);
+    assert!(!ff_fields.is_empty(), "field {field_name} not found");
     Ok(cols)
 }
 

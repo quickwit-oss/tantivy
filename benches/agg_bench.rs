@@ -349,7 +349,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     let lg_norm = rand_distr::LogNormal::new(2.996f64, 0.979f64).unwrap();
 
     let many_terms_data = (0..150_000)
-        .map(|num| format!("author{}", num))
+        .map(|num| format!("author{num}"))
         .collect::<Vec<_>>();
     {
         let mut rng = StdRng::from_seed([1u8; 32]);

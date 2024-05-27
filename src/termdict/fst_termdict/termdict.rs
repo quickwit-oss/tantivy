@@ -93,7 +93,7 @@ fn open_fst_index(fst_file: FileSlice) -> io::Result<tantivy_fst::Map<OwnedBytes
     let fst = Fst::new(bytes).map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("Fst data is corrupted: {:?}", err),
+            format!("Fst data is corrupted: {err:?}"),
         )
     })?;
     Ok(tantivy_fst::Map::from(fst))
