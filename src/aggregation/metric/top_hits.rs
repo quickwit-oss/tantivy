@@ -131,7 +131,8 @@ impl<'de> Deserialize<'de> for KeyOrder {
         ))?;
         if key_order.next().is_some() {
             return Err(serde::de::Error::custom(format!(
-                "Expected exactly one key-value pair in sort parameter of top_hits, found {key_order:?}"
+                "Expected exactly one key-value pair in sort parameter of top_hits, found \
+                 {key_order:?}"
             )));
         }
         Ok(Self { field, order })
@@ -143,9 +144,7 @@ fn globbed_string_to_regex(glob: &str) -> Result<Regex, crate::TantivyError> {
     // Replace `*` glob with `.*` regex
     let sanitized = format!("^{}$", regex::escape(glob).replace(r"\*", ".*"));
     Regex::new(&sanitized.replace('*', ".*")).map_err(|e| {
-        crate::TantivyError::SchemaError(format!(
-            "Invalid regex '{glob}' in docvalue_fields: {e}"
-        ))
+        crate::TantivyError::SchemaError(format!("Invalid regex '{glob}' in docvalue_fields: {e}"))
     })
 }
 

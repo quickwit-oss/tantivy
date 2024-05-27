@@ -335,7 +335,8 @@ fn get_missing_val(
         }
         _ => {
             return Err(crate::TantivyError::InvalidArgument(format!(
-                "Missing value {missing:?} for field {field_name} is not supported for column type {column_type:?}"
+                "Missing value {missing:?} for field {field_name} is not supported for column \
+                 type {column_type:?}"
             )));
         }
     };
