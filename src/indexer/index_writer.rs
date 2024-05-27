@@ -816,7 +816,7 @@ mod tests {
     use crate::query::{BooleanQuery, Occur, Query, QueryParser, TermQuery};
     use crate::schema::{
         self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions, Schema,
-        TextFieldIndexing, TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+        TextFieldIndexing, TextOptions, Value, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
     use crate::{
@@ -1979,7 +1979,13 @@ mod tests {
                 .unwrap();
             // test store iterator
             for doc in store_reader.iter::<TantivyDocument>(segment_reader.alive_bitset()) {
-                let id = doc.unwrap().get_first(id_field).unwrap().as_u64().unwrap();
+                let id = doc
+                    .unwrap()
+                    .get_first(id_field)
+                    .unwrap()
+                    .as_value()
+                    .as_u64()
+                    .unwrap();
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
             }
             // test store random access

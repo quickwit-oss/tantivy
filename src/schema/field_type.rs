@@ -659,9 +659,9 @@ mod tests {
         let schema = schema_builder.build();
         let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        let date = doc.get_first(date_field).unwrap();
+        let date = OwnedValue::from(doc.get_first(date_field).unwrap());
         // Time zone is converted to UTC
-        assert_eq!("Leaf(Date(2019-10-12T05:20:50.52Z))", format!("{date:?}"));
+        assert_eq!("Date(2019-10-12T05:20:50.52Z)", format!("{date:?}"));
     }
 
     #[test]

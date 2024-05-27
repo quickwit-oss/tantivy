@@ -797,7 +797,7 @@ mod tests {
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::{
         Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
-        TextFieldIndexing, INDEXED, TEXT,
+        TextFieldIndexing, Value, INDEXED, TEXT,
     };
     use crate::time::OffsetDateTime;
     use crate::{
@@ -909,15 +909,24 @@ mod tests {
             }
             {
                 let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
+                assert_eq!(
+                    doc.get_first(text_field).unwrap().as_value().as_str(),
+                    Some("af b")
+                );
             }
             {
                 let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c"));
+                assert_eq!(
+                    doc.get_first(text_field).unwrap().as_value().as_str(),
+                    Some("a b c")
+                );
             }
             {
                 let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
-                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c d"));
+                assert_eq!(
+                    doc.get_first(text_field).unwrap().as_value().as_str(),
+                    Some("a b c d")
+                );
             }
             {
                 let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 3))?;

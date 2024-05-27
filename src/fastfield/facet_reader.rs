@@ -62,7 +62,7 @@ impl FacetReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::{Facet, FacetOptions, SchemaBuilder, STORED};
+    use crate::schema::{Facet, FacetOptions, SchemaBuilder, Value, STORED};
     use crate::{DocAddress, Index, IndexWriter, TantivyDocument};
 
     #[test]
@@ -88,7 +88,9 @@ mod tests {
         let doc = searcher
             .doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))
             .unwrap();
-        let value = doc.get_first(facet_field).and_then(|v| v.as_facet());
+        let value = doc
+            .get_first(facet_field)
+            .and_then(|v| v.as_value().as_facet());
         assert_eq!(value, None);
     }
 

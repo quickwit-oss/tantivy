@@ -157,29 +157,24 @@ impl CompactDoc {
     }
 
     /// field_values accessor
-    pub fn field_values(
-        &self,
-    ) -> impl Iterator<Item = (Field, ReferenceValue<'_, CompactDocValue<'_>>)> {
+    pub fn field_values(&self) -> impl Iterator<Item = (Field, CompactDocValue<'_>)> {
         self.field_values.iter().map(|field_val| {
             let field = Field::from_field_id(field_val.field as u32);
-            let val = self.extract_value(field_val.value_addr).unwrap();
+            let val = self.get_compact_doc_value(field_val.value_addr);
             (field, val)
         })
     }
 
     /// Returns all of the `ReferenceValue`s associated the given field
-    pub fn get_all(
-        &self,
-        field: Field,
-    ) -> impl Iterator<Item = ReferenceValue<'_, CompactDocValue<'_>>> + '_ {
+    pub fn get_all(&self, field: Field) -> impl Iterator<Item = CompactDocValue<'_>> + '_ {
         self.field_values
             .iter()
             .filter(move |field_value| Field::from_field_id(field_value.field as u32) == field)
-            .map(|val| self.extract_value(val.value_addr).unwrap())
+            .map(|val| self.get_compact_doc_value(val.value_addr))
     }
 
     /// Returns the first `ReferenceValue` associated the given field
-    pub fn get_first(&self, field: Field) -> Option<ReferenceValue<'_, CompactDocValue<'_>>> {
+    pub fn get_first(&self, field: Field) -> Option<CompactDocValue<'_>> {
         self.get_all(field).next()
     }
 
@@ -299,58 +294,11 @@ impl CompactDoc {
         }
     }
 
-    fn extract_value(
-        &self,
-        ref_value: ValueAddr,
-    ) -> io::Result<ReferenceValue<'_, CompactDocValue<'_>>> {
-        match ref_value.type_id {
-            ValueType::Null => Ok(ReferenceValueLeaf::Null.into()),
-            ValueType::Str => {
-                let str_ref = self.extract_str(ref_value.val_addr);
-                Ok(ReferenceValueLeaf::Str(str_ref).into())
-            }
-            ValueType::Facet => {
-                let str_ref = self.extract_str(ref_value.val_addr);
-                Ok(ReferenceValueLeaf::Facet(str_ref).into())
-            }
-            ValueType::Bytes => {
-                let data = self.extract_bytes(ref_value.val_addr);
-                Ok(ReferenceValueLeaf::Bytes(data).into())
-            }
-            ValueType::U64 => self
-                .read_from::<u64>(ref_value.val_addr)
-                .map(ReferenceValueLeaf::U64)
-                .map(Into::into),
-            ValueType::I64 => self
-                .read_from::<i64>(ref_value.val_addr)
-                .map(ReferenceValueLeaf::I64)
-                .map(Into::into),
-            ValueType::F64 => self
-                .read_from::<f64>(ref_value.val_addr)
-                .map(ReferenceValueLeaf::F64)
-                .map(Into::into),
-            ValueType::Bool => Ok(ReferenceValueLeaf::Bool(ref_value.val_addr != 0).into()),
-            ValueType::Date => self
-                .read_from::<i64>(ref_value.val_addr)
-                .map(|ts| ReferenceValueLeaf::Date(DateTime::from_timestamp_nanos(ts)))
-                .map(Into::into),
-            ValueType::IpAddr => self
-                .read_from::<u128>(ref_value.val_addr)
-                .map(|num| ReferenceValueLeaf::IpAddr(Ipv6Addr::from_u128(num)))
-                .map(Into::into),
-            ValueType::PreTokStr => self
-                .read_from::<PreTokenizedString>(ref_value.val_addr)
-                .map(Into::into)
-                .map(ReferenceValueLeaf::PreTokStr)
-                .map(Into::into),
-            ValueType::Object => Ok(ReferenceValue::Object(CompactDocObjectIter::new(
-                self,
-                ref_value.val_addr,
-            )?)),
-            ValueType::Array => Ok(ReferenceValue::Array(CompactDocArrayIter::new(
-                self,
-                ref_value.val_addr,
-            )?)),
+    /// Get CompactDocValue for address
+    fn get_compact_doc_value(&self, value_addr: ValueAddr) -> CompactDocValue<'_> {
+        CompactDocValue {
+            container: self,
+            value_addr,
         }
     }
 
@@ -410,7 +358,7 @@ impl PartialEq for CompactDoc {
         let convert_to_comparable_map = |doc: &CompactDoc| {
             let mut field_value_set: HashMap<Field, HashSet<String>> = Default::default();
             for field_value in doc.field_values.iter() {
-                let value: OwnedValue = doc.extract_value(field_value.value_addr).unwrap().into();
+                let value: OwnedValue = doc.get_compact_doc_value(field_value.value_addr).into();
                 let value = serde_json::to_string(&value).unwrap();
                 field_value_set
                     .entry(Field::from_field_id(field_value.field as u32))
@@ -444,7 +392,19 @@ impl DocumentDeserialize for CompactDoc {
 #[derive(Debug, Clone, Copy)]
 pub struct CompactDocValue<'a> {
     container: &'a CompactDoc,
-    value: ValueAddr,
+    value_addr: ValueAddr,
+}
+impl PartialEq for CompactDocValue<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        let value1: OwnedValue = (*self).into();
+        let value2: OwnedValue = (*other).into();
+        value1 == value2
+    }
+}
+impl<'a> From<CompactDocValue<'a>> for OwnedValue {
+    fn from(value: CompactDocValue) -> Self {
+        value.as_value().into()
+    }
 }
 impl<'a> Value<'a> for CompactDocValue<'a> {
     type ArrayIter = CompactDocArrayIter<'a>;
@@ -452,7 +412,67 @@ impl<'a> Value<'a> for CompactDocValue<'a> {
     type ObjectIter = CompactDocObjectIter<'a>;
 
     fn as_value(&self) -> ReferenceValue<'a, Self> {
-        self.container.extract_value(self.value).unwrap()
+        self.get_ref_value().unwrap()
+    }
+}
+impl<'a> CompactDocValue<'a> {
+    fn get_ref_value(&self) -> io::Result<ReferenceValue<'a, CompactDocValue<'a>>> {
+        let addr = self.value_addr.val_addr;
+        match self.value_addr.type_id {
+            ValueType::Null => Ok(ReferenceValueLeaf::Null.into()),
+            ValueType::Str => {
+                let str_ref = self.container.extract_str(addr);
+                Ok(ReferenceValueLeaf::Str(str_ref).into())
+            }
+            ValueType::Facet => {
+                let str_ref = self.container.extract_str(addr);
+                Ok(ReferenceValueLeaf::Facet(str_ref).into())
+            }
+            ValueType::Bytes => {
+                let data = self.container.extract_bytes(addr);
+                Ok(ReferenceValueLeaf::Bytes(data).into())
+            }
+            ValueType::U64 => self
+                .container
+                .read_from::<u64>(addr)
+                .map(ReferenceValueLeaf::U64)
+                .map(Into::into),
+            ValueType::I64 => self
+                .container
+                .read_from::<i64>(addr)
+                .map(ReferenceValueLeaf::I64)
+                .map(Into::into),
+            ValueType::F64 => self
+                .container
+                .read_from::<f64>(addr)
+                .map(ReferenceValueLeaf::F64)
+                .map(Into::into),
+            ValueType::Bool => Ok(ReferenceValueLeaf::Bool(addr != 0).into()),
+            ValueType::Date => self
+                .container
+                .read_from::<i64>(addr)
+                .map(|ts| ReferenceValueLeaf::Date(DateTime::from_timestamp_nanos(ts)))
+                .map(Into::into),
+            ValueType::IpAddr => self
+                .container
+                .read_from::<u128>(addr)
+                .map(|num| ReferenceValueLeaf::IpAddr(Ipv6Addr::from_u128(num)))
+                .map(Into::into),
+            ValueType::PreTokStr => self
+                .container
+                .read_from::<PreTokenizedString>(addr)
+                .map(Into::into)
+                .map(ReferenceValueLeaf::PreTokStr)
+                .map(Into::into),
+            ValueType::Object => Ok(ReferenceValue::Object(CompactDocObjectIter::new(
+                self.container,
+                addr,
+            )?)),
+            ValueType::Array => Ok(ReferenceValue::Array(CompactDocArrayIter::new(
+                self.container,
+                addr,
+            )?)),
+        }
     }
 }
 
@@ -601,9 +621,9 @@ impl<'a> Iterator for CompactDocObjectIter<'a> {
         let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
         let value = CompactDocValue {
             container: self.container,
-            value,
+            value_addr: value,
         };
-        return Some((key, value));
+        Some((key, value))
     }
 }
 
@@ -635,9 +655,9 @@ impl<'a> Iterator for CompactDocArrayIter<'a> {
         let value = ValueAddr::deserialize(&mut self.node_addresses_slice).ok()?;
         let value = CompactDocValue {
             container: self.container,
-            value,
+            value_addr: value,
         };
-        return Some(value);
+        Some(value)
     }
 }
 
@@ -668,7 +688,7 @@ impl<'a> Iterator for FieldValueIterRef<'a> {
                 Field::from_field_id(field_value.field as u32),
                 CompactDocValue::<'a> {
                     container: self.container,
-                    value: field_value.value_addr,
+                    value_addr: field_value.value_addr,
                 },
             )
         })
