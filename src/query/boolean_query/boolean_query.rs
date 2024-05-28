@@ -187,17 +187,17 @@ impl BooleanQuery {
         // If the bool query includes at least one should clause
         // and no Must or MustNot clauses, the default value is 1. Otherwise, the default value is
         // 0. Keep pace with Elasticsearch.
-        let mut default_minimum_required = 0;
+        let mut minimum_required = 0;
         for (occur, _) in &subqueries {
             match occur {
-                Occur::Should => default_minimum_required = 1,
+                Occur::Should => minimum_required = 1,
                 Occur::Must | Occur::MustNot => {
-                    default_minimum_required = 0;
+                    minimum_required = 0;
                     break;
                 }
             }
         }
-        Self::with_minimum_required_clauses(subqueries, default_minimum_required)
+        Self::with_minimum_required_clauses(subqueries, minimum_required)
     }
 
     /// Create a new boolean query with minimum number of required should clauses specified.

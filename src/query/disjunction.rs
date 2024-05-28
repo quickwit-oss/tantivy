@@ -14,8 +14,8 @@ pub struct Disjunction<TScorer, TScoreCombiner = DoNothingCombiner> {
     minimum_matches_required: usize,
     score_combiner: TScoreCombiner,
 
-    doc: DocId,
-    score: Score,
+    current_doc: DocId,
+    current_score: Score,
 }
 
 /// A wrapper around a `Scorer` that caches the current `doc_id` and implements the `DocSet` trait.
@@ -86,9 +86,9 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Disjunction<TScorer, TScore
         let mut disjunction = Self {
             chains,
             score_combiner,
-            doc: TERMINATED,
+            current_doc: TERMINATED,
             minimum_matches_required,
-            score: 0.0,
+            current_score: 0.0,
         };
         if minimum_matches_required > disjunction.chains.len() {
             return disjunction;
@@ -107,15 +107,15 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
             let next = candidate.doc();
             if next != TERMINATED {
                 // Peek next doc.
-                if self.doc != next {
+                if self.current_doc != next {
                     if votes >= self.minimum_matches_required {
                         self.chains.push(candidate);
-                        self.score = self.score_combiner.score();
-                        return self.doc;
+                        self.current_score = self.score_combiner.score();
+                        return self.current_doc;
                     }
                     // Reset votes and scores.
                     votes = 0;
-                    self.doc = next;
+                    self.current_doc = next;
                     self.score_combiner.clear();
                 }
                 votes += 1;
@@ -125,15 +125,15 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
             }
         }
         if votes < self.minimum_matches_required {
-            self.doc = TERMINATED;
+            self.current_doc = TERMINATED;
         }
-        self.score = self.score_combiner.score();
-        return self.doc;
+        self.current_score = self.score_combiner.score();
+        return self.current_doc;
     }
 
     #[inline]
     fn doc(&self) -> DocId {
-        self.doc
+        self.current_doc
     }
 
     fn size_hint(&self) -> u32 {
@@ -149,7 +149,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
     for Disjunction<TScorer, TScoreCombiner>
 {
     fn score(&mut self) -> Score {
-        self.score
+        self.current_score
     }
 }
 
