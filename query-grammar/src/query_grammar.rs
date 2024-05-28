@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::iter::once;
 
 use nom::branch::alt;
@@ -19,7 +20,7 @@ use crate::Occur;
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
 const SPECIAL_CHARS: &[char] = &[
-    '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '!', '\\', '*', ' ',
+    '+', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '!', '\\', '*', ' ',
 ];
 
 /// consume a field name followed by colon. Return the field name with escape sequence
@@ -43,34 +44,75 @@ fn field_name(inp: &str) -> IResult<&str, String> {
 
 /// Consume a word outside of any context.
 // TODO should support escape sequences
-fn word(inp: &str) -> IResult<&str, &str> {
+fn word(inp: &str) -> IResult<&str, Cow<str>> {
     map_res(
         recognize(tuple((
-            satisfy(|c| {
-                !c.is_whitespace()
-                    && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
-            }),
-            many0(satisfy(|c: char| {
-                !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
-            })),
+            alt((
+                preceded(char('\\'), anychar),
+                satisfy(|c| {
+                    !c.is_whitespace()
+                        && ![
+                            '-', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '\\',
+                        ]
+                        .contains(&c)
+                }),
+            )),
+            many0(alt((
+                preceded(char('\\'), anychar),
+                satisfy(|c: char| {
+                    !c.is_whitespace()
+                        && ![':', '^', '{', '}', '"', '\'', '[', ']', '(', ')', '\\'].contains(&c)
+                }),
+            ))),
         ))),
         |s| match s {
             "OR" | "AND" | "NOT" | "IN" => Err(Error::new(inp, ErrorKind::Tag)),
-            _ => Ok(s),
+            s if s.contains('\\') => Ok(Cow::Owned(s.replace('\\', ""))),
+            s => Ok(Cow::Borrowed(s)),
         },
     )(inp)
 }
 
-fn word_infallible(delimiter: &str) -> impl Fn(&str) -> JResult<&str, Option<&str>> + '_ {
-    |inp| {
-        opt_i_err(
-            preceded(
-                multispace0,
-                recognize(many1(satisfy(|c| {
-                    !c.is_whitespace() && !delimiter.contains(c)
-                }))),
+fn word_infallible(
+    delimiter: &str,
+    emit_error: bool,
+) -> impl Fn(&str) -> JResult<&str, Option<Cow<str>>> + '_ {
+    // emit error is set when receiving an unescaped `:` should emit an error
+
+    move |inp| {
+        map(
+            opt_i_err(
+                preceded(
+                    multispace0,
+                    recognize(many1(alt((
+                        preceded(char::<&str, _>('\\'), anychar),
+                        satisfy(|c| !c.is_whitespace() && !delimiter.contains(c)),
+                    )))),
+                ),
+                "expected word",
             ),
-            "expected word",
+            |(opt_s, mut errors)| match opt_s {
+                Some(s) => {
+                    if emit_error
+                        && (s
+                            .as_bytes()
+                            .windows(2)
+                            .any(|window| window[0] != b'\\' && window[1] == b':')
+                            || s.chars().next() == Some(':'))
+                    {
+                        errors.push(LenientErrorInternal {
+                            pos: inp.len(),
+                            message: "parsed possible invalid field as term".to_string(),
+                        });
+                    }
+                    if s.contains('\\') {
+                        (Some(Cow::Owned(s.replace('\\', ""))), errors)
+                    } else {
+                        (Some(Cow::Borrowed(s)), errors)
+                    }
+                }
+                None => (None, errors),
+            },
         )(inp)
     }
 }
@@ -159,7 +201,7 @@ fn simple_term_infallible(
                 (value((), char('\'')), simple_quotes),
             ),
             // numbers are parsed with words in this case, as we allow string starting with a -
-            map(word_infallible(delimiter), |(text, errors)| {
+            map(word_infallible(delimiter, true), |(text, errors)| {
                 (text.map(|text| (Delimiter::None, text.to_string())), errors)
             }),
         )(inp)
@@ -323,15 +365,6 @@ fn literal_no_group_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>>
             (
                 leaf.map(|leaf| {
                     if matches!(&leaf, UserInputLeaf::Literal(literal)
-                            if literal.phrase.contains(':') && literal.delimiter == Delimiter::None)
-                        && field_name.is_none()
-                    {
-                        errors.push(LenientErrorInternal {
-                            pos: inp.len(),
-                            message: "parsed possible invalid field as term".to_string(),
-                        });
-                    }
-                    if matches!(&leaf, UserInputLeaf::Literal(literal)
                             if literal.phrase == "NOT" && literal.delimiter == Delimiter::None)
                         && field_name.is_none()
                     {
@@ -449,20 +482,20 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
         tuple_infallible((
             opt_i(anychar),
             space0_infallible,
-            word_infallible("]}"),
+            word_infallible("]}", false),
             space1_infallible,
             opt_i_err(
                 terminated(tag("TO"), alt((value((), multispace1), value((), eof)))),
                 "missing keyword TO",
             ),
-            word_infallible("]}"),
+            word_infallible("]}", false),
             opt_i_err(one_of("]}"), "missing range delimiter"),
         )),
         |(
             (lower_bound_kind, _multispace0, lower, _multispace1, to, upper, upper_bound_kind),
             errs,
         )| {
-            let lower_bound = match (lower_bound_kind, lower) {
+            let lower_bound = match (lower_bound_kind, lower.as_deref()) {
                 (_, Some("*")) => UserInputBound::Unbounded,
                 (_, None) => UserInputBound::Unbounded,
                 // if it is some, TO was actually the bound (i.e. [TO TO something])
@@ -471,7 +504,7 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
                 (Some('{'), Some(bound)) => UserInputBound::Exclusive(bound.to_string()),
                 _ => unreachable!("precondition failed, range did not start with [ or {{"),
             };
-            let upper_bound = match (upper_bound_kind, upper) {
+            let upper_bound = match (upper_bound_kind, upper.as_deref()) {
                 (_, Some("*")) => UserInputBound::Unbounded,
                 (_, None) => UserInputBound::Unbounded,
                 (Some(']'), Some(bound)) => UserInputBound::Inclusive(bound.to_string()),
@@ -488,7 +521,7 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
             (
                 (
                     value((), tag(">=")),
-                    map(word_infallible(""), |(bound, err)| {
+                    map(word_infallible("", false), |(bound, err)| {
                         (
                             (
                                 bound
@@ -502,7 +535,7 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
                 ),
                 (
                     value((), tag("<=")),
-                    map(word_infallible(""), |(bound, err)| {
+                    map(word_infallible("", false), |(bound, err)| {
                         (
                             (
                                 UserInputBound::Unbounded,
@@ -516,7 +549,7 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
                 ),
                 (
                     value((), tag(">")),
-                    map(word_infallible(""), |(bound, err)| {
+                    map(word_infallible("", false), |(bound, err)| {
                         (
                             (
                                 bound
@@ -530,7 +563,7 @@ fn range_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
                 ),
                 (
                     value((), tag("<")),
-                    map(word_infallible(""), |(bound, err)| {
+                    map(word_infallible("", false), |(bound, err)| {
                         (
                             (
                                 UserInputBound::Unbounded,
@@ -1590,5 +1623,19 @@ mod test {
             r#"myfield:'hello\"happy\'tax'"#,
             r#""myfield":'hello"happy'tax'"#,
         );
+    }
+
+    #[test]
+    fn test_queries_with_colons() {
+        test_parse_query_to_ast_helper(r#""abc:def""#, r#""abc:def""#);
+        test_parse_query_to_ast_helper(r#"'abc:def'"#, r#"'abc:def'"#);
+        test_parse_query_to_ast_helper(r#"abc\:def"#, r#"abc:def"#);
+        test_parse_query_to_ast_helper(r#""abc\:def""#, r#""abc:def""#);
+        test_parse_query_to_ast_helper(r#"'abc\:def'"#, r#"'abc:def'"#);
+    }
+
+    #[test]
+    fn test_invalid_field() {
+        test_is_parse_err(r#"!bc:def"#, "!bc:def");
     }
 }
