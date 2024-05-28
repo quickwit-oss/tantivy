@@ -98,7 +98,7 @@ fn word_infallible(
                             .as_bytes()
                             .windows(2)
                             .any(|window| window[0] != b'\\' && window[1] == b':')
-                            || s.chars().next() == Some(':'))
+                            || s.starts_with(':'))
                     {
                         errors.push(LenientErrorInternal {
                             pos: inp.len(),
