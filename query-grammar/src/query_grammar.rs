@@ -1190,6 +1190,12 @@ mod test {
         test_parse_query_to_ast_helper("weight: <= 70", "\"weight\":{\"*\" TO \"70\"]");
 
         test_parse_query_to_ast_helper("weight: <= 70.5", "\"weight\":{\"*\" TO \"70.5\"]");
+
+        test_parse_query_to_ast_helper(">a", "{\"a\" TO \"*\"}");
+        test_parse_query_to_ast_helper(">=a", "[\"a\" TO \"*\"}");
+        test_parse_query_to_ast_helper("<a", "{\"*\" TO \"a\"}");
+        test_parse_query_to_ast_helper("<=a", "{\"*\" TO \"a\"]");
+        test_parse_query_to_ast_helper("<=bsd", "{\"*\" TO \"bsd\"]");
     }
 
     #[test]
