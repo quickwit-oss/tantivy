@@ -22,14 +22,17 @@ pub struct Disjunction<TScorer, TScoreCombiner = DoNothingCombiner> {
 /// Also, the `Ord` trait and it's family are implemented reversely. So that we can combine
 /// `std::BinaryHeap<ScorerWrapper<T>>` to gain a min-heap with current doc id as key.
 struct ScorerWrapper<T> {
-    inner: T,
-    doc_id: DocId,
+    scorer: T,
+    current_doc: DocId,
 }
 
 impl<T: Scorer> ScorerWrapper<T> {
-    fn new(inner: T) -> Self {
-        let doc_id = inner.doc();
-        Self { inner, doc_id }
+    fn new(scorer: T) -> Self {
+        let current_doc = scorer.doc();
+        Self {
+            scorer,
+            current_doc,
+        }
     }
 }
 
@@ -55,17 +58,17 @@ impl<T: Scorer> Ord for ScorerWrapper<T> {
 
 impl<T: Scorer> DocSet for ScorerWrapper<T> {
     fn advance(&mut self) -> DocId {
-        let doc_id = self.inner.advance();
-        self.doc_id = doc_id;
+        let doc_id = self.scorer.advance();
+        self.current_doc = doc_id;
         doc_id
     }
 
     fn doc(&self) -> DocId {
-        self.doc_id
+        self.current_doc
     }
 
     fn size_hint(&self) -> u32 {
-        self.inner.size_hint()
+        self.scorer.size_hint()
     }
 }
 
@@ -102,29 +105,29 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
     for Disjunction<TScorer, TScoreCombiner>
 {
     fn advance(&mut self) -> DocId {
-        let mut votes = 0;
+        let mut current_num_matches = 0;
         while let Some(mut candidate) = self.chains.pop() {
             let next = candidate.doc();
             if next != TERMINATED {
                 // Peek next doc.
                 if self.current_doc != next {
-                    if votes >= self.minimum_matches_required {
+                    if current_num_matches >= self.minimum_matches_required {
                         self.chains.push(candidate);
                         self.current_score = self.score_combiner.score();
                         return self.current_doc;
                     }
-                    // Reset votes and scores.
-                    votes = 0;
+                    // Reset current_num_matches and scores.
+                    current_num_matches = 0;
                     self.current_doc = next;
                     self.score_combiner.clear();
                 }
-                votes += 1;
-                self.score_combiner.update(&mut candidate.inner);
+                current_num_matches += 1;
+                self.score_combiner.update(&mut candidate.scorer);
                 candidate.advance();
                 self.chains.push(candidate);
             }
         }
-        if votes < self.minimum_matches_required {
+        if current_num_matches < self.minimum_matches_required {
             self.current_doc = TERMINATED;
         }
         self.current_score = self.score_combiner.score();
