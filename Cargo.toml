@@ -15,8 +15,7 @@ rust-version = "1.63"
 exclude = ["benches/*.json", "benches/*.txt"]
 
 [dependencies]
-# Switch back to the non-forked oneshot crate once https://github.com/faern/oneshot/pull/35 is merged
-oneshot = { git = "https://github.com/fulmicoton/oneshot.git", rev = "b208f49" }
+oneshot = "0.1.7"
 base64 = "0.22.0"
 byteorder = "1.4.3"
 crc32fast = "1.3.2"
