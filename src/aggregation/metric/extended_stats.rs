@@ -78,24 +78,24 @@ pub struct ExtendedStats {
     pub avg: Option<f64>,
     /// The sum of squares of the fast field values. `None` if count equals zero.
     pub sum_of_squares: Option<f64>,
-    /// The variance of the fast field values. `None` if count is less then 2.
+    /// The variance of the fast field values. `None` if count is is 0 or 1.
     pub variance: Option<f64>,
     /// The variance population of the fast field values, always equal to variance. `None` if count
-    /// is less then 2.
+    /// is is 0 or 1.
     pub variance_population: Option<f64>,
     /// The variance sampling of the fast field values, always equal to variance. `None` if count
-    /// is less then 2.
+    /// is is 0 or 1.
     pub variance_sampling: Option<f64>,
-    /// The standard deviation of the fast field values. `None` if count is less then 2.
+    /// The standard deviation of the fast field values. `None` if count is is 0 or 1.
     pub std_deviation: Option<f64>,
     /// The standard deviation of the fast field values, always equal to variance. `None` if count
-    /// is less then 2.
+    /// is is 0 or 1.
     pub std_deviation_population: Option<f64>,
     /// The standard deviation sampling of the fast field values. `None`
-    /// if count is less then 2.
+    /// if count is is 0 or 1.
     pub std_deviation_sampling: Option<f64>,
     /// The standard deviation bounds of the fast field values, always equal to variance. `None`
-    /// if count is less then 2.
+    /// if count is is 0 or 1.
     pub std_deviation_bounds: Option<StandardDeviationBounds>,
 }
 
@@ -171,16 +171,16 @@ impl ExtendedStats {
 pub struct IntermediateExtendedStats {
     intermediate_stats: IntermediateStats,
     /// The number of extracted values.
-    // The sum of square values, it's referred as M2 in Welford's online algorithm
+    /// The sum of square values, it's referred as M2 in Welford's online algorithm
     sum_of_squares: f64,
-    // The sum of square values as computed by elastic search
+    /// The sum of square values as computed by elastic search
     sum_of_squares_elastic: f64,
-    /// delta for sum of squares  as computed by elastic search needed for the Kahan algorithm
+    /// The delta for sum of squares  as computed by elastic search needed for the Kahan algorithm
     delta_sum_for_squares_elastic: f64,
-    // The mean an intermediate value need for calculating the variance
-    // as per [Welford's online algorithm](https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm)
+    /// The mean is an intermediate value need for calculating the variance
+    /// as per [Welford's online algorithm](https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm)
     mean: f64,
-    // the value used for computing standard deviation bounds
+    /// The value used for computing standard deviation bounds
     sigma: f64,
 }
 
@@ -192,6 +192,7 @@ impl Default for IntermediateExtendedStats {
             sum_of_squares_elastic: 0.0,
             delta_sum_for_squares_elastic: 0.0,
             mean: 0.0,
+            // The default value is the same of ElasticSearch
             sigma: 2.0,
         }
     }
@@ -207,6 +208,7 @@ impl IntermediateExtendedStats {
             sum_of_squares_elastic: 0.0,
             delta_sum_for_squares_elastic: 0.0,
             mean: 0.0,
+            // The default value is the same of ElasticSearch
             sigma: sigma.unwrap_or(2.0),
         }
     }
@@ -257,22 +259,25 @@ impl IntermediateExtendedStats {
         };
         let std_deviation = variance.map(|v| v.sqrt());
         let std_deviation_sampling = variance_sampling.map(|v| v.sqrt());
-        let std_deviation_bounds = if std_deviation.is_none() {
-            None
-        } else {
-            let upper = self.mean + std_deviation.unwrap() * self.sigma;
-            let lower = self.mean - std_deviation.unwrap() * self.sigma;
-            let upper_sampling = self.mean + std_deviation_sampling.unwrap() * self.sigma;
-            let lower_sampling = self.mean - std_deviation_sampling.unwrap() * self.sigma;
-            Some(StandardDeviationBounds {
-                upper,
-                lower,
-                upper_sampling,
-                lower_sampling,
-                upper_population: upper,
-                lower_population: lower,
-            })
-        };
+        let std_deviation_bounds =
+            if let (Some(std_deviation_val), Some(std_deviation_sampling_val)) =
+                (std_deviation, std_deviation_sampling)
+            {
+                let upper = self.mean + std_deviation_val * self.sigma;
+                let lower = self.mean - std_deviation_val * self.sigma;
+                let upper_sampling = self.mean + std_deviation_sampling_val * self.sigma;
+                let lower_sampling = self.mean - std_deviation_sampling_val * self.sigma;
+                Some(StandardDeviationBounds {
+                    upper,
+                    lower,
+                    upper_sampling,
+                    lower_sampling,
+                    upper_population: upper,
+                    lower_population: lower,
+                })
+            } else {
+                None
+            };
         Box::new(ExtendedStats {
             count: self.intermediate_stats.count,
             sum: self.intermediate_stats.sum,
