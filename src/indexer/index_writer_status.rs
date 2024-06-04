@@ -11,7 +11,7 @@ pub(crate) struct IndexWriterStatus<D: Document = TantivyDocument> {
 }
 
 impl<D: Document> IndexWriterStatus<D> {
-    /// Returns true iff the index writer is alive.
+    /// Returns true if the index writer is alive.
     pub fn is_alive(&self) -> bool {
         self.inner.as_ref().is_alive()
     }

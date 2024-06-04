@@ -153,7 +153,7 @@ pub trait Collector: Sync + Send {
         segment: &SegmentReader,
     ) -> crate::Result<Self::Child>;
 
-    /// Returns true iff the collector requires to compute scores for documents.
+    /// Returns true if the collector requires to compute scores for documents.
     fn requires_scoring(&self) -> bool;
 
     /// Combines the fruit associated with the collection of each segments

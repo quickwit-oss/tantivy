@@ -169,7 +169,7 @@ impl SegmentMeta {
             .map(|delete_meta| delete_meta.opstamp)
     }
 
-    /// Returns true iff the segment meta contains
+    /// Returns true if the segment meta contains
     /// delete information.
     pub fn has_deletes(&self) -> bool {
         self.num_deleted_docs() > 0

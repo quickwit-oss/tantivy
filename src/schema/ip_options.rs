@@ -30,7 +30,7 @@ pub struct IpAddrOptions {
 }
 
 impl IpAddrOptions {
-    /// Returns true iff the value is a fast field.
+    /// Returns true if the value is a fast field.
     #[inline]
     pub fn is_fast(&self) -> bool {
         self.fast
@@ -42,7 +42,7 @@ impl IpAddrOptions {
         self.stored
     }
 
-    /// Returns true iff the value is indexed and therefore searchable.
+    /// Returns true if the value is indexed and therefore searchable.
     #[inline]
     pub fn is_indexed(&self) -> bool {
         self.indexed

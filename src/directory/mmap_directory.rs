@@ -32,7 +32,7 @@ pub(crate) fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)
 }
 
-/// Returns `None` iff the file exists, can be read, but is empty (and hence
+/// Returns `None` if the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
 fn open_mmap(full_path: &Path) -> Result<Option<Mmap>, OpenReadError> {
     let file = File::open(full_path).map_err(|io_err| {

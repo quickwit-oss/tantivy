@@ -52,25 +52,25 @@ impl From<NumericOptionsDeser> for NumericOptions {
 }
 
 impl NumericOptions {
-    /// Returns true iff the value is stored in the doc store.
+    /// Returns true if the value is stored in the doc store.
     #[inline]
     pub fn is_stored(&self) -> bool {
         self.stored
     }
 
-    /// Returns true iff the value is indexed and therefore searchable.
+    /// Returns true if the value is indexed and therefore searchable.
     #[inline]
     pub fn is_indexed(&self) -> bool {
         self.indexed
     }
 
-    /// Returns true iff the field has fieldnorm.
+    /// Returns true if the field has fieldnorms.
     #[inline]
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms && self.indexed
     }
 
-    /// Returns true iff the value is a fast field.
+    /// Returns true if the value is a fast field.
     #[inline]
     pub fn is_fast(&self) -> bool {
         self.fast

@@ -51,7 +51,7 @@ impl JsonObjectOptions {
         self.stored
     }
 
-    /// Returns `true` iff the json object should be indexed.
+    /// Returns `true` if the json object should be indexed.
     #[inline]
     pub fn is_indexed(&self) -> bool {
         self.indexing.is_some()
@@ -79,7 +79,7 @@ impl JsonObjectOptions {
         }
     }
 
-    /// Returns `true` iff dots in json keys should be expanded.
+    /// Returns `true` if dots in json keys should be expanded.
     ///
     /// When expand_dots is enabled, json object like
     /// `{"k8s.node.id": 5}` is processed as if it was
