@@ -63,7 +63,7 @@ query-grammar = { version = "0.22.0", path = "./query-grammar", package = "tanti
 tantivy-bitpacker = { version = "0.6", path = "./bitpacker" }
 common = { version = "0.7", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version = "0.3", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
-sketches-ddsketch = { version = "0.2.1", features = ["use_serde"] }
+sketches-ddsketch = { version = "0.3.0", features = ["use_serde"] }
 futures-util = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 
