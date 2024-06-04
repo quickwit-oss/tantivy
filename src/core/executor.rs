@@ -195,7 +195,7 @@ mod tests {
         let (tx, rx) = crossbeam_channel::bounded::<()>(0);
         let rx = Arc::new(rx);
         let executor = Executor::multi_thread(3, "search-test").unwrap();
-        for i in 0..1000 {
+        for _ in 0..1000 {
             let counter_clone: Arc<AtomicU64> = counter.clone();
             let other_counter_clone: Arc<AtomicU64> = other_counter.clone();
 
@@ -203,18 +203,18 @@ mod tests {
             let rx_clone2 = rx.clone();
             let fut = executor.spawn_blocking(move || {
                 counter_clone.fetch_add(1, Ordering::SeqCst);
-                let () = rx_clone.recv().unwrap();
+                let _ = rx_clone.recv();
             });
             futures.push(fut);
             let other_fut = executor.spawn_blocking(move || {
                 other_counter_clone.fetch_add(1, Ordering::SeqCst);
-                let () = rx_clone2.recv().unwrap();
+                let _ = rx_clone2.recv();
             });
             other_futures.push(other_fut);
         }
 
         // We execute 100 futures.
-        for i in 0..100 {
+        for _ in 0..100 {
             tx.send(()).unwrap();
         }
 
@@ -226,7 +226,7 @@ mod tests {
         drop(other_futures);
 
         // We execute 100 futures.
-        for i in 0..100 {
+        for _ in 0..100 {
             tx.send(()).unwrap();
         }
 
