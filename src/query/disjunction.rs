@@ -5,7 +5,7 @@ use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{ScoreCombiner, Scorer};
 use crate::{DocId, DocSet, Score, TERMINATED};
 
-/// `Disjunction` is responsible for merging `DocSet` from multiply
+/// `Disjunction` is responsible for merging `DocSet` from multiple
 /// source. Specifically, It takes the union of two or more `DocSet`s
 /// then filtering out elements that appear fewer times than a
 /// specified threshold.
