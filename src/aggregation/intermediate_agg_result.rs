@@ -19,8 +19,8 @@ use super::bucket::{
     GetDocCount, Order, OrderTarget, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    IntermediateAverage, IntermediateCount, IntermediateMax, IntermediateMin, IntermediateStats,
-    IntermediateSum, PercentilesCollector, TopHitsTopNComputer,
+    IntermediateAverage, IntermediateCount, IntermediateExtendedStats, IntermediateMax,
+    IntermediateMin, IntermediateStats, IntermediateSum, PercentilesCollector, TopHitsTopNComputer,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::{format_date, AggregationError, Key, SerializedKey};
@@ -215,6 +215,9 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Stats(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::Stats(
             IntermediateStats::default(),
         )),
+        ExtendedStats(_) => IntermediateAggregationResult::Metric(
+            IntermediateMetricResult::ExtendedStats(IntermediateExtendedStats::default()),
+        ),
         Sum(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::Sum(
             IntermediateSum::default(),
         )),
@@ -282,6 +285,8 @@ pub enum IntermediateMetricResult {
     Min(IntermediateMin),
     /// Intermediate stats result.
     Stats(IntermediateStats),
+    /// Intermediate stats result.
+    ExtendedStats(IntermediateExtendedStats),
     /// Intermediate sum result.
     Sum(IntermediateSum),
     /// Intermediate top_hits result
@@ -305,6 +310,9 @@ impl IntermediateMetricResult {
             }
             IntermediateMetricResult::Stats(intermediate_stats) => {
                 MetricResult::Stats(intermediate_stats.finalize())
+            }
+            IntermediateMetricResult::ExtendedStats(intermediate_stats) => {
+                MetricResult::ExtendedStats(intermediate_stats.finalize())
             }
             IntermediateMetricResult::Sum(intermediate_sum) => {
                 MetricResult::Sum(intermediate_sum.finalize().into())
@@ -345,6 +353,12 @@ impl IntermediateMetricResult {
                 IntermediateMetricResult::Stats(stats_right),
             ) => {
                 stats_left.merge_fruits(stats_right);
+            }
+            (
+                IntermediateMetricResult::ExtendedStats(extended_stats_left),
+                IntermediateMetricResult::ExtendedStats(extended_stats_right),
+            ) => {
+                extended_stats_left.merge_fruits(extended_stats_right);
             }
             (IntermediateMetricResult::Sum(sum_left), IntermediateMetricResult::Sum(sum_right)) => {
                 sum_left.merge_fruits(sum_right);

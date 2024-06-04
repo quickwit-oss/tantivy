@@ -34,7 +34,7 @@ use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation,
+    AverageAggregation, CountAggregation, ExtendedStatsAggregation, MaxAggregation, MinAggregation,
     PercentilesAggregationReq, StatsAggregation, SumAggregation, TopHitsAggregation,
 };
 
@@ -146,6 +146,11 @@ pub enum AggregationVariants {
     /// extracted values.
     #[serde(rename = "stats")]
     Stats(StatsAggregation),
+    /// Computes a collection of estended statistics (`min`, `max`, `sum`, `count`, `avg`,
+    /// `sum_of_squares`, `variance`, `variance_sampling`, `std_deviation`,
+    /// `std_deviation_sampling`) over the  extracted values.
+    #[serde(rename = "extended_stats")]
+    ExtendedStats(ExtendedStatsAggregation),
     /// Computes the sum of the extracted values.
     #[serde(rename = "sum")]
     Sum(SumAggregation),
@@ -170,6 +175,7 @@ impl AggregationVariants {
             AggregationVariants::Max(max) => vec![max.field_name()],
             AggregationVariants::Min(min) => vec![min.field_name()],
             AggregationVariants::Stats(stats) => vec![stats.field_name()],
+            AggregationVariants::ExtendedStats(extended_stats) => vec![extended_stats.field_name()],
             AggregationVariants::Sum(sum) => vec![sum.field_name()],
             AggregationVariants::Percentiles(per) => vec![per.field_name()],
             AggregationVariants::TopHits(top_hits) => top_hits.field_names(),

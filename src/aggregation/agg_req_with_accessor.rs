@@ -11,8 +11,8 @@ use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    AverageAggregation, CountAggregation, MaxAggregation, MinAggregation, StatsAggregation,
-    SumAggregation,
+    AverageAggregation, CountAggregation, ExtendedStatsAggregation, MaxAggregation, MinAggregation,
+    StatsAggregation, SumAggregation,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
@@ -273,6 +273,10 @@ impl AggregationWithAccessor {
                 ..
             })
             | Stats(StatsAggregation {
+                field: ref field_name,
+                ..
+            })
+            | ExtendedStats(ExtendedStatsAggregation {
                 field: ref field_name,
                 ..
             })

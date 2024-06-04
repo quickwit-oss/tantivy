@@ -18,6 +18,7 @@
 
 mod average;
 mod count;
+mod extended_stats;
 mod max;
 mod min;
 mod percentiles;
@@ -29,6 +30,7 @@ use std::collections::HashMap;
 
 pub use average::*;
 pub use count::*;
+pub use extended_stats::*;
 pub use max::*;
 pub use min::*;
 pub use percentiles::*;

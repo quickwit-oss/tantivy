@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -85,13 +87,15 @@ impl Stats {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     /// The number of extracted values.
-    count: u64,
+    pub(crate) count: u64,
     /// The sum of the extracted values.
-    sum: f64,
+    pub(crate) sum: f64,
+    /// delta for sum needed for [Kahan algorithm for summation](https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
+    pub(crate) delta: f64,
     /// The min value.
-    min: f64,
+    pub(crate) min: f64,
     /// The max value.
-    max: f64,
+    pub(crate) max: f64,
 }
 
 impl Default for IntermediateStats {
@@ -99,6 +103,7 @@ impl Default for IntermediateStats {
         Self {
             count: 0,
             sum: 0.0,
+            delta: 0.0,
             min: f64::MAX,
             max: f64::MIN,
         }
@@ -109,7 +114,13 @@ impl IntermediateStats {
     /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
-        self.sum += other.sum;
+
+        // kahan algorithm for sum
+        let y = other.sum - (self.delta + other.delta);
+        let t = self.sum + y;
+        self.delta = (t - self.sum) - y;
+        self.sum = t;
+
         self.min = self.min.min(other.min);
         self.max = self.max.max(other.max);
     }
@@ -141,9 +152,15 @@ impl IntermediateStats {
     }
 
     #[inline]
-    fn collect(&mut self, value: f64) {
+    pub(in crate::aggregation::metric) fn collect(&mut self, value: f64) {
         self.count += 1;
-        self.sum += value;
+
+        // kahan algorithm for sum
+        let y = value - self.delta;
+        let t = self.sum + y;
+        self.delta = (t - self.sum) - y;
+        self.sum = t;
+
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
@@ -288,7 +305,6 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
 
 #[cfg(test)]
 mod tests {
-
     use serde_json::Value;
 
     use crate::aggregation::agg_req::{Aggregation, Aggregations};
