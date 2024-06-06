@@ -225,7 +225,7 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
             IntermediateMetricResult::Percentiles(PercentilesCollector::default()),
         ),
         TopHits(ref req) => IntermediateAggregationResult::Metric(
-            IntermediateMetricResult::TopHits(TopHitsTopNComputer::new(req.clone())),
+            IntermediateMetricResult::TopHits(TopHitsTopNComputer::new(req)),
         ),
     }
 }
