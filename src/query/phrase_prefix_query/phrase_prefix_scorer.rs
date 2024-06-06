@@ -2,7 +2,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
-use crate::query::phrase_query::{intersection_count, PhraseScorer};
+use crate::query::phrase_query::{intersection_count, intersection_exists, PhraseScorer};
 use crate::query::Scorer;
 use crate::{DocId, Score};
 
@@ -92,14 +92,17 @@ impl<TPostings: Postings> Scorer for PhraseKind<TPostings> {
     }
 }
 
-pub struct PhrasePrefixScorer<TPostings: Postings> {
+pub struct PhrasePrefixScorer<TPostings: Postings, const SCORING_ENABLED: bool> {
     phrase_scorer: PhraseKind<TPostings>,
     suffixes: Vec<TPostings>,
     suffix_offset: u32,
     phrase_count: u32,
+    suffix_position_buffer: Vec<u32>,
 }
 
-impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
+impl<TPostings: Postings, const SCORING_ENABLED: bool>
+    PhrasePrefixScorer<TPostings, SCORING_ENABLED>
+{
     // If similarity_weight is None, then scoring is disabled.
     pub fn new(
         mut term_postings: Vec<(usize, TPostings)>,
@@ -107,7 +110,7 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
         fieldnorm_reader: FieldNormReader,
         suffixes: Vec<TPostings>,
         suffix_pos: usize,
-    ) -> PhrasePrefixScorer<TPostings> {
+    ) -> PhrasePrefixScorer<TPostings, SCORING_ENABLED> {
         // correct indices so we can merge with our suffix term the PhraseScorer doesn't know about
         let max_offset = term_postings
             .iter()
@@ -140,6 +143,7 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
             suffixes,
             suffix_offset: (max_offset - suffix_pos) as u32,
             phrase_count: 0,
+            suffix_position_buffer: Vec::with_capacity(100),
         };
         if phrase_prefix_scorer.doc() != TERMINATED && !phrase_prefix_scorer.matches_prefix() {
             phrase_prefix_scorer.advance();
@@ -153,7 +157,6 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
 
     fn matches_prefix(&mut self) -> bool {
         let mut count = 0;
-        let mut positions = Vec::new();
         let current_doc = self.doc();
         let pos_matching = self.phrase_scorer.get_intersection();
         for suffix in &mut self.suffixes {
@@ -162,16 +165,27 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
             }
             let doc = suffix.seek(current_doc);
             if doc == current_doc {
-                suffix.positions_with_offset(self.suffix_offset, &mut positions);
-                count += intersection_count(pos_matching, &positions);
+                suffix.positions_with_offset(self.suffix_offset, &mut self.suffix_position_buffer);
+                if SCORING_ENABLED {
+                    count += intersection_count(pos_matching, &self.suffix_position_buffer);
+                } else {
+                    if intersection_exists(pos_matching, &self.suffix_position_buffer) {
+                        return true;
+                    }
+                }
             }
+        }
+        if !SCORING_ENABLED {
+            return false;
         }
         self.phrase_count = count as u32;
         count != 0
     }
 }
 
-impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
+impl<TPostings: Postings, const SCORING_ENABLED: bool> DocSet
+    for PhrasePrefixScorer<TPostings, SCORING_ENABLED>
+{
     fn advance(&mut self) -> DocId {
         loop {
             let doc = self.phrase_scorer.advance();
@@ -198,9 +212,15 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
     }
 }
 
-impl<TPostings: Postings> Scorer for PhrasePrefixScorer<TPostings> {
+impl<TPostings: Postings, const SCORING_ENABLED: bool> Scorer
+    for PhrasePrefixScorer<TPostings, SCORING_ENABLED>
+{
     fn score(&mut self) -> Score {
+        if SCORING_ENABLED {
+            self.phrase_scorer.score()
+        } else {
+            1.0f32
+        }
         // TODO modify score??
-        self.phrase_scorer.score()
     }
 }
