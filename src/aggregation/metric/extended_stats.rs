@@ -229,8 +229,7 @@ impl IntermediateExtendedStats {
                 * self.intermediate_stats.count as f64
                 * other.intermediate_stats.count as f64
                 / new_count as f64;
-        self.mean = (self.intermediate_stats.sum as f64 + other.intermediate_stats.sum as f64)
-            / new_count as f64;
+        self.mean = (self.intermediate_stats.sum + other.intermediate_stats.sum) / new_count as f64;
         self.sum_of_squares_elastic += other.sum_of_squares_elastic;
         self.delta_sum_for_squares_elastic += other.delta_sum_for_squares_elastic;
         self.intermediate_stats
