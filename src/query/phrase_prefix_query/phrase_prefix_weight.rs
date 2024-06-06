@@ -42,11 +42,11 @@ impl PhrasePrefixWeight {
         Ok(FieldNormReader::constant(reader.max_doc(), 1))
     }
 
-    pub(crate) fn phrase_scorer(
+    pub(crate) fn phrase_prefix_scorer<const SCORING_ENABLED: bool>(
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> crate::Result<Option<PhrasePrefixScorer<SegmentPostings>>> {
+    ) -> crate::Result<Option<PhrasePrefixScorer<SegmentPostings, SCORING_ENABLED>>> {
         let similarity_weight_opt = self
             .similarity_weight_opt
             .as_ref()
@@ -128,15 +128,20 @@ impl PhrasePrefixWeight {
 
 impl Weight for PhrasePrefixWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        if let Some(scorer) = self.phrase_scorer(reader, boost)? {
-            Ok(Box::new(scorer))
+        if self.similarity_weight_opt.is_some() {
+            if let Some(scorer) = self.phrase_prefix_scorer::<true>(reader, boost)? {
+                return Ok(Box::new(scorer));
+            }
         } else {
-            Ok(Box::new(EmptyScorer))
+            if let Some(scorer) = self.phrase_prefix_scorer::<false>(reader, boost)? {
+                return Ok(Box::new(scorer));
+            }
         }
+        Ok(Box::new(EmptyScorer))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader, 1.0)?;
+        let scorer_opt = self.phrase_prefix_scorer::<true>(reader, 1.0)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
         }
@@ -200,13 +205,45 @@ mod tests {
             .unwrap()
             .unwrap();
         let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .phrase_prefix_scorer::<true>(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
         assert_eq!(phrase_scorer.advance(), 2);
         assert_eq!(phrase_scorer.doc(), 2);
         assert_eq!(phrase_scorer.phrase_count(), 1);
+        assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_phrase_no_count() -> crate::Result<()> {
+        let index = create_index(&[
+            "aa bb dd cc",
+            "aa aa bb c dd aa bb cc aa bb dc",
+            " aa bb cd",
+        ])?;
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let phrase_query = PhrasePrefixQuery::new(vec![
+            Term::from_field_text(text_field, "aa"),
+            Term::from_field_text(text_field, "bb"),
+            Term::from_field_text(text_field, "c"),
+        ]);
+        let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
+        let phrase_weight = phrase_query
+            .phrase_prefix_query_weight(enable_scoring)
+            .unwrap()
+            .unwrap();
+        let mut phrase_scorer = phrase_weight
+            .phrase_prefix_scorer::<false>(searcher.segment_reader(0u32), 1.0)?
+            .unwrap();
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.phrase_count(), 0);
+        assert_eq!(phrase_scorer.advance(), 2);
+        assert_eq!(phrase_scorer.doc(), 2);
+        assert_eq!(phrase_scorer.phrase_count(), 0);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())
     }
@@ -227,7 +264,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .phrase_prefix_scorer::<true>(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
