@@ -12,7 +12,7 @@ use common::CountingWriter;
 pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
-use crate::column_index::SerializableColumnIndex;
+use crate::column_index::{SerializableColumnIndex, SerializableOptionalIndex};
 use crate::column_values::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use crate::columnar::column_type::ColumnType;
 use crate::columnar::writer::column_writers::{
@@ -20,6 +20,7 @@ use crate::columnar::writer::column_writers::{
 };
 use crate::columnar::writer::value_index::{IndexBuilder, PreallocatedIndexBuilders};
 use crate::dictionary::{DictionaryBuilder, TermIdMapping, UnorderedId};
+use crate::iterable::Iterable;
 use crate::value::{Coerce, NumericalType, NumericalValue};
 use crate::{Cardinality, RowId};
 
@@ -635,16 +636,16 @@ fn send_to_serialize_column_mappable_to_u128<
             let optional_index_builder = value_index_builders.borrow_optional_index_builder();
             consume_operation_iterator(op_iterator, optional_index_builder, values);
             let optional_index = optional_index_builder.finish(num_rows);
-            SerializableColumnIndex::Optional {
+            SerializableColumnIndex::Optional(SerializableOptionalIndex {
                 num_rows,
                 non_null_row_ids: Box::new(optional_index),
-            }
+            })
         }
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
-            let multivalued_index = multivalued_index_builder.finish(num_rows);
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            let serializable_multivalued_index = multivalued_index_builder.finish(num_rows);
+            SerializableColumnIndex::Multivalued(serializable_multivalued_index)
         }
     };
     crate::column::serialize_column_mappable_to_u128(
@@ -687,19 +688,20 @@ fn send_to_serialize_column_mappable_to_u64(
             let optional_index_builder = value_index_builders.borrow_optional_index_builder();
             consume_operation_iterator(op_iterator, optional_index_builder, values);
             let optional_index = optional_index_builder.finish(num_rows);
-            SerializableColumnIndex::Optional {
+            SerializableColumnIndex::Optional(SerializableOptionalIndex {
                 non_null_row_ids: Box::new(optional_index),
                 num_rows,
-            }
+            })
         }
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
-            let multivalued_index = multivalued_index_builder.finish(num_rows);
             if sort_values_within_row {
-                sort_values_within_row_in_place(multivalued_index, values);
+                // not supported in this hack
+                todo!()
             }
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            let serializable_multivalued_index = multivalued_index_builder.finish(num_rows);
+            SerializableColumnIndex::Multivalued(serializable_multivalued_index)
         }
     };
     crate::column::serialize_column_mappable_to_u64(

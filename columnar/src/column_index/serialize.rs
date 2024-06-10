@@ -3,28 +3,41 @@ use std::io::Write;
 
 use common::{CountingWriter, OwnedBytes};
 
+use super::multivalued_index::SerializableMultivalueIndex;
+use super::OptionalIndex;
 use crate::column_index::multivalued_index::serialize_multivalued_index;
 use crate::column_index::optional_index::serialize_optional_index;
 use crate::column_index::ColumnIndex;
 use crate::iterable::Iterable;
 use crate::{Cardinality, RowId};
 
+pub struct SerializableOptionalIndex<'a> {
+    pub non_null_row_ids: Box<dyn Iterable<RowId> + 'a>,
+    pub num_rows: RowId,
+}
+
+impl<'a> From<&'a OptionalIndex> for SerializableOptionalIndex<'a> {
+    fn from(optional_index: &'a OptionalIndex) -> Self {
+        SerializableOptionalIndex {
+            non_null_row_ids: Box::new(optional_index),
+            num_rows: optional_index.num_docs(),
+        }
+    }
+}
+
 pub enum SerializableColumnIndex<'a> {
     Full,
-    Optional {
-        non_null_row_ids: Box<dyn Iterable<RowId> + 'a>,
-        num_rows: RowId,
-    },
+    Optional(SerializableOptionalIndex<'a>),
     // TODO remove the Arc<dyn> apart from serialization this is not
     // dynamic at all.
-    Multivalued(Box<dyn Iterable<RowId> + 'a>),
+    Multivalued(SerializableMultivalueIndex<'a>),
 }
 
 impl<'a> SerializableColumnIndex<'a> {
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
             SerializableColumnIndex::Full => Cardinality::Full,
-            SerializableColumnIndex::Optional { .. } => Cardinality::Optional,
+            SerializableColumnIndex::Optional(_) => Cardinality::Optional,
             SerializableColumnIndex::Multivalued(_) => Cardinality::Multivalued,
         }
     }
@@ -40,12 +53,12 @@ pub fn serialize_column_index(
     output.write_all(&[cardinality])?;
     match column_index {
         SerializableColumnIndex::Full => {}
-        SerializableColumnIndex::Optional {
+        SerializableColumnIndex::Optional(SerializableOptionalIndex {
             non_null_row_ids,
             num_rows,
-        } => serialize_optional_index(non_null_row_ids.as_ref(), num_rows, &mut output)?,
+        }) => serialize_optional_index(non_null_row_ids.as_ref(), num_rows, &mut output)?,
         SerializableColumnIndex::Multivalued(multivalued_index) => {
-            serialize_multivalued_index(&*multivalued_index, &mut output)?
+            serialize_multivalued_index(&multivalued_index, &mut output)?
         }
     }
     let column_index_num_bytes = output.written_bytes() as u32;

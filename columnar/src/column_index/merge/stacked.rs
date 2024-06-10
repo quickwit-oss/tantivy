@@ -1,6 +1,8 @@
-use std::iter;
+use std::ops::Range;
 
-use crate::column_index::{SerializableColumnIndex, Set};
+use crate::column_index::multivalued_index::SerializableMultivalueIndex;
+use crate::column_index::serialize::SerializableOptionalIndex;
+use crate::column_index::SerializableColumnIndex;
 use crate::iterable::Iterable;
 use crate::{Cardinality, ColumnIndex, RowId, StackMergeOrder};
 
@@ -15,20 +17,137 @@ pub fn merge_column_index_stacked<'a>(
 ) -> SerializableColumnIndex<'a> {
     match cardinality_after_merge {
         Cardinality::Full => SerializableColumnIndex::Full,
-        Cardinality::Optional => SerializableColumnIndex::Optional {
+        Cardinality::Optional => SerializableColumnIndex::Optional(SerializableOptionalIndex {
             non_null_row_ids: Box::new(StackedOptionalIndex {
                 columns,
                 stack_merge_order,
             }),
             num_rows: stack_merge_order.num_rows(),
-        },
+        }),
         Cardinality::Multivalued => {
-            let stacked_multivalued_index = StackedMultivaluedIndex {
-                columns,
-                stack_merge_order,
-            };
-            SerializableColumnIndex::Multivalued(Box::new(stacked_multivalued_index))
+            let serializable_multivalue_index =
+                make_serializable_multivalued_index(columns, stack_merge_order);
+            SerializableColumnIndex::Multivalued(serializable_multivalue_index)
         }
+    }
+}
+
+struct StackedDocIdsWithValues<'a> {
+    column_indexes: &'a [ColumnIndex],
+    stack_merge_order: &'a StackMergeOrder,
+}
+
+impl Iterable<u32> for StackedDocIdsWithValues<'_> {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
+        Box::new((0..self.column_indexes.len()).flat_map(|i| {
+            let column_index = &self.column_indexes[i];
+            let doc_range = self.stack_merge_order.columnar_range(i);
+            get_doc_ids_with_values(column_index, doc_range)
+        }))
+    }
+}
+
+fn get_doc_ids_with_values<'a>(
+    column_index: &'a ColumnIndex,
+    doc_range: Range<u32>,
+) -> Box<dyn Iterator<Item = u32> + 'a> {
+    match column_index {
+        ColumnIndex::Empty { .. } => Box::new(0..0),
+        ColumnIndex::Full => Box::new(doc_range),
+        ColumnIndex::Optional(optional_index) => Box::new(
+            optional_index
+                .iter_rows()
+                .map(move |row| row + doc_range.start),
+        ),
+        ColumnIndex::Multivalued(multivalued_index) => Box::new(
+            multivalued_index
+                .optional_index
+                .iter_rows()
+                .map(move |row| row + doc_range.start),
+        ),
+    }
+}
+
+fn stack_doc_ids_with_values<'a>(
+    column_indexes: &'a [ColumnIndex],
+    stack_merge_order: &'a StackMergeOrder,
+) -> SerializableOptionalIndex<'a> {
+    let num_rows = stack_merge_order.num_rows();
+    SerializableOptionalIndex {
+        non_null_row_ids: Box::new(StackedDocIdsWithValues {
+            column_indexes,
+            stack_merge_order,
+        }),
+        num_rows,
+    }
+}
+
+struct StackedStartOffsets<'a> {
+    column_indexes: &'a [ColumnIndex],
+    stack_merge_order: &'a StackMergeOrder,
+}
+
+fn get_num_values_iterator<'a>(
+    column_index: &'a ColumnIndex,
+    num_docs: u32,
+) -> Box<dyn Iterator<Item = u32> + 'a> {
+    match column_index {
+        ColumnIndex::Empty { .. } => Box::new(std::iter::empty()),
+        ColumnIndex::Full => Box::new(std::iter::repeat(1u32).take(num_docs as usize)),
+        ColumnIndex::Optional(optional_index) => {
+            Box::new(std::iter::repeat(1u32).take(optional_index.num_non_nulls() as usize))
+        }
+        ColumnIndex::Multivalued(multivalued_index) => {
+            let vals: Vec<u32> = multivalued_index.start_index_column.iter().collect();
+            Box::new(
+                multivalued_index
+                    .start_index_column
+                    .iter()
+                    .scan(0u32, |previous_start_offset, current_start_offset| {
+                        let num_vals = current_start_offset - *previous_start_offset;
+                        *previous_start_offset = current_start_offset;
+                        Some(num_vals)
+                    })
+                    .skip(1),
+            )
+        }
+    }
+}
+
+impl<'a> Iterable for StackedStartOffsets<'a> {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
+        let num_values_it = (0..self.column_indexes.len()).flat_map(|columnar_id| {
+            let num_docs = self.stack_merge_order.columnar_range(columnar_id).len() as u32;
+            let column_index = &self.column_indexes[columnar_id];
+            get_num_values_iterator(column_index, num_docs)
+        });
+        Box::new(std::iter::once(0u64).chain(num_values_it.into_iter().scan(
+            0u64,
+            |cumulated, el| {
+                *cumulated += el as u64;
+                Some(*cumulated)
+            },
+        )))
+    }
+}
+
+fn stack_start_offsets<'a>(
+    column_indexes: &'a [ColumnIndex],
+    stack_merge_order: &'a StackMergeOrder,
+) -> Box<dyn Iterable + 'a> {
+    Box::new(StackedStartOffsets {
+        column_indexes,
+        stack_merge_order,
+    })
+}
+
+fn make_serializable_multivalued_index<'a>(
+    columns: &'a [ColumnIndex],
+    stack_merge_order: &'a StackMergeOrder,
+) -> SerializableMultivalueIndex<'a> {
+    SerializableMultivalueIndex {
+        doc_ids_with_values: stack_doc_ids_with_values(columns, stack_merge_order),
+        start_offsets: stack_start_offsets(columns, stack_merge_order),
     }
 }
 
@@ -60,89 +179,5 @@ impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
                     rows_it
                 }),
         )
-    }
-}
-
-#[derive(Clone, Copy)]
-struct StackedMultivaluedIndex<'a> {
-    columns: &'a [ColumnIndex],
-    stack_merge_order: &'a StackMergeOrder,
-}
-
-fn convert_column_opt_to_multivalued_index<'a>(
-    column_index_opt: &'a ColumnIndex,
-    num_rows: RowId,
-) -> Box<dyn Iterator<Item = RowId> + 'a> {
-    match column_index_opt {
-        ColumnIndex::Empty { .. } => Box::new(iter::repeat(0u32).take(num_rows as usize + 1)),
-        ColumnIndex::Full => Box::new(0..num_rows + 1),
-        ColumnIndex::Optional(optional_index) => {
-            Box::new(
-                (0..num_rows)
-                    // TODO optimize
-                    .map(|row_id| optional_index.rank(row_id))
-                    .chain(std::iter::once(optional_index.num_non_nulls())),
-            )
-        }
-        ColumnIndex::Multivalued(multivalued_index) => multivalued_index.start_index_column.iter(),
-    }
-}
-
-impl<'a> Iterable<RowId> for StackedMultivaluedIndex<'a> {
-    fn boxed_iter(&self) -> Box<dyn Iterator<Item = RowId> + '_> {
-        let multivalued_indexes =
-            self.columns
-                .iter()
-                .enumerate()
-                .map(|(columnar_id, column_opt)| {
-                    let num_rows =
-                        self.stack_merge_order.columnar_range(columnar_id).len() as RowId;
-                    convert_column_opt_to_multivalued_index(column_opt, num_rows)
-                });
-        stack_multivalued_indexes(multivalued_indexes)
-    }
-}
-
-// Refactor me
-fn stack_multivalued_indexes<'a>(
-    mut multivalued_indexes: impl Iterator<Item = Box<dyn Iterator<Item = RowId> + 'a>> + 'a,
-) -> Box<dyn Iterator<Item = RowId> + 'a> {
-    let mut offset = 0;
-    let mut last_row_id = 0;
-    let mut current_it = multivalued_indexes.next();
-    Box::new(std::iter::from_fn(move || loop {
-        if let Some(row_id) = current_it.as_mut()?.next() {
-            last_row_id = offset + row_id;
-            return Some(last_row_id);
-        }
-        offset = last_row_id;
-        loop {
-            current_it = multivalued_indexes.next();
-            if current_it.as_mut()?.next().is_some() {
-                break;
-            }
-        }
-    }))
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::RowId;
-
-    fn it<'a>(row_ids: &'a [RowId]) -> Box<dyn Iterator<Item = RowId> + 'a> {
-        Box::new(row_ids.iter().copied())
-    }
-
-    #[test]
-    fn test_stack() {
-        let columns = [
-            it(&[0u32, 0u32]),
-            it(&[0u32, 1u32, 1u32, 4u32]),
-            it(&[0u32, 3u32, 5u32]),
-            it(&[0u32, 4u32]),
-        ]
-        .into_iter();
-        let start_offsets: Vec<RowId> = super::stack_multivalued_indexes(columns).collect();
-        assert_eq!(start_offsets, &[0, 0, 1, 1, 4, 7, 9, 13]);
     }
 }

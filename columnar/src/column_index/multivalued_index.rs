@@ -3,35 +3,64 @@ use std::io::Write;
 use std::ops::Range;
 use std::sync::Arc;
 
-use common::OwnedBytes;
+use common::{CountingWriter, OwnedBytes};
 
+use super::optional_index::{open_optional_index, serialize_optional_index};
+use super::{OptionalIndex, SerializableOptionalIndex, Set};
 use crate::column_values::{
     load_u64_based_column_values, serialize_u64_based_column_values, CodecType, ColumnValues,
 };
 use crate::iterable::Iterable;
 use crate::{DocId, RowId};
 
-pub fn serialize_multivalued_index(
-    multivalued_index: &dyn Iterable<RowId>,
+pub struct SerializableMultivalueIndex<'a> {
+    pub doc_ids_with_values: SerializableOptionalIndex<'a>,
+    pub start_offsets: Box<dyn Iterable<u64> + 'a>,
+}
+
+pub fn serialize_multivalued_index<'a>(
+    multivalued_index: &SerializableMultivalueIndex<'a>,
     output: &mut impl Write,
 ) -> io::Result<()> {
+    let SerializableMultivalueIndex {
+        doc_ids_with_values,
+        start_offsets,
+    } = multivalued_index;
+    let mut count_writer = CountingWriter::wrap(output);
+    let SerializableOptionalIndex {
+        non_null_row_ids,
+        num_rows,
+    } = doc_ids_with_values;
+    serialize_optional_index(&**non_null_row_ids, *num_rows, &mut count_writer)?;
+    let optional_len = count_writer.written_bytes() as u32;
+    let output = count_writer.finish();
     serialize_u64_based_column_values(
-        multivalued_index,
+        &**start_offsets,
         &[CodecType::Bitpacked, CodecType::Linear],
         output,
     )?;
+    output.write_all(&optional_len.to_le_bytes())?;
     Ok(())
 }
 
 pub fn open_multivalued_index(bytes: OwnedBytes) -> io::Result<MultiValueIndex> {
-    let start_index_column: Arc<dyn ColumnValues<RowId>> = load_u64_based_column_values(bytes)?;
-    Ok(MultiValueIndex { start_index_column })
+    let (body_bytes, optional_index_len) = bytes.rsplit(4);
+    let optional_index_len = u32::from_le_bytes(optional_index_len.as_slice().try_into().unwrap());
+    let (optional_index_bytes, start_index_bytes) = body_bytes.split(optional_index_len as usize);
+    let optional_index = open_optional_index(optional_index_bytes)?;
+    let start_index_column: Arc<dyn ColumnValues<RowId>> =
+        load_u64_based_column_values(start_index_bytes)?;
+    Ok(MultiValueIndex {
+        optional_index,
+        start_index_column,
+    })
 }
 
 #[derive(Clone)]
 /// Index to resolve value range for given doc_id.
 /// Starts at 0.
 pub struct MultiValueIndex {
+    pub optional_index: OptionalIndex,
     pub start_index_column: Arc<dyn crate::ColumnValues<RowId>>,
 }
 
@@ -43,16 +72,27 @@ impl std::fmt::Debug for MultiValueIndex {
     }
 }
 
-impl From<Arc<dyn ColumnValues<RowId>>> for MultiValueIndex {
-    fn from(start_index_column: Arc<dyn ColumnValues<RowId>>) -> Self {
-        MultiValueIndex { start_index_column }
-    }
-}
-
 impl MultiValueIndex {
     pub fn for_test(start_offsets: &[RowId]) -> MultiValueIndex {
+        assert!(start_offsets.len() > 0);
+        assert_eq!(start_offsets[0], 0);
+        let mut doc_with_values = Vec::new();
+        let mut compact_start_offsets: Vec<u64> = vec![0];
+        for doc in 0..start_offsets.len() - 1 {
+            if start_offsets[doc] < start_offsets[doc + 1] {
+                doc_with_values.push(doc as RowId);
+                compact_start_offsets.push(start_offsets[doc + 1] as u64);
+            }
+        }
+        let serializable_multivalued_index = SerializableMultivalueIndex {
+            doc_ids_with_values: SerializableOptionalIndex {
+                non_null_row_ids: Box::new(&doc_with_values[..]),
+                num_rows: start_offsets.len() as u32 - 1,
+            },
+            start_offsets: Box::new(&compact_start_offsets[..]),
+        };
         let mut buffer = Vec::new();
-        serialize_multivalued_index(&start_offsets, &mut buffer).unwrap();
+        serialize_multivalued_index(&serializable_multivalued_index, &mut buffer).unwrap();
         let bytes = OwnedBytes::new(buffer);
         open_multivalued_index(bytes).unwrap()
     }
@@ -61,15 +101,19 @@ impl MultiValueIndex {
     /// the given document are `start..end`.
     #[inline]
     pub(crate) fn range(&self, doc_id: DocId) -> Range<RowId> {
-        let start = self.start_index_column.get_val(doc_id);
-        let end = self.start_index_column.get_val(doc_id + 1);
+        let Some(rank) = self.optional_index.rank_if_exists(doc_id) else {
+            return 0..0;
+        };
+        let start = self.start_index_column.get_val(rank);
+        let end = self.start_index_column.get_val(rank + 1);
         start..end
     }
 
     /// Returns the number of documents in the index.
     #[inline]
     pub fn num_docs(&self) -> u32 {
-        self.start_index_column.num_vals() - 1
+        self.optional_index.num_docs()
+        // self.start_index_column.num_vals() - 1
     }
 
     /// Converts a list of ranks (row ids of values) in a 1:n index to the corresponding list of
@@ -108,6 +152,10 @@ impl MultiValueIndex {
             }
         }
         ranks.truncate(write_doc_pos);
+
+        for rank in ranks.iter_mut() {
+            *rank = self.optional_index.select(*rank);
+        }
     }
 }
 
@@ -134,6 +182,7 @@ mod tests {
         let positions = &[10u32, 11, 15, 20, 21, 22];
         assert_eq!(index_to_pos_helper(&index, 0..5, positions), vec![1, 3, 4]);
         assert_eq!(index_to_pos_helper(&index, 1..5, positions), vec![1, 3, 4]);
+
         assert_eq!(index_to_pos_helper(&index, 0..5, &[9]), vec![0]);
         assert_eq!(index_to_pos_helper(&index, 1..5, &[10]), vec![1]);
         assert_eq!(index_to_pos_helper(&index, 1..5, &[11]), vec![1]);

@@ -11,8 +11,11 @@ mod serialize;
 use std::ops::Range;
 
 pub use merge::merge_column_index;
+pub(crate) use multivalued_index::SerializableMultivalueIndex;
 pub use optional_index::{OptionalIndex, Set};
-pub use serialize::{open_column_index, serialize_column_index, SerializableColumnIndex};
+pub use serialize::{
+    open_column_index, serialize_column_index, SerializableColumnIndex, SerializableOptionalIndex,
+};
 
 use crate::column_index::multivalued_index::MultiValueIndex;
 use crate::{Cardinality, DocId, RowId};

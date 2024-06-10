@@ -1,3 +1,4 @@
+use crate::column_index::{SerializableMultivalueIndex, SerializableOptionalIndex};
 use crate::iterable::Iterable;
 use crate::RowId;
 
@@ -59,32 +60,50 @@ impl IndexBuilder for OptionalIndexBuilder {
 
 #[derive(Default)]
 pub struct MultivaluedIndexBuilder {
-    start_offsets: Vec<RowId>,
-    total_num_vals_seen: u32,
+    doc_with_values: Vec<RowId>,
+    start_offsets: Vec<u64>,
+    total_num_vals_seen: u64,
+    current_row: RowId,
+    current_row_has_value: bool,
 }
 
 impl MultivaluedIndexBuilder {
-    pub fn finish(&mut self, num_docs: RowId) -> &[u32] {
-        self.start_offsets
-            .resize(num_docs as usize + 1, self.total_num_vals_seen);
-        &self.start_offsets[..]
+    pub fn finish(&mut self, num_docs: RowId) -> SerializableMultivalueIndex<'_> {
+        self.start_offsets.push(self.total_num_vals_seen as u64);
+        let non_null_row_ids: Box<dyn Iterable<RowId>> = Box::new(&self.doc_with_values[..]);
+        SerializableMultivalueIndex {
+            doc_ids_with_values: SerializableOptionalIndex {
+                non_null_row_ids,
+                num_rows: num_docs,
+            },
+            start_offsets: Box::new(&self.start_offsets[..]),
+        }
     }
 
     fn reset(&mut self) {
+        self.doc_with_values.clear();
         self.start_offsets.clear();
-        self.start_offsets.push(0u32);
         self.total_num_vals_seen = 0;
+        self.current_row = 0;
+        self.current_row_has_value = false;
     }
 }
 
 impl IndexBuilder for MultivaluedIndexBuilder {
     fn record_row(&mut self, row_id: RowId) {
-        self.start_offsets
-            .resize(row_id as usize + 1, self.total_num_vals_seen);
+        self.current_row = row_id;
+        self.current_row_has_value = false;
+        // self.start_offsets
+        //     .resize(row_id as usize + 1, self.total_num_vals_seen);
     }
 
     fn record_value(&mut self) {
-        self.total_num_vals_seen += 1;
+        if !self.current_row_has_value {
+            self.current_row_has_value = true;
+            self.doc_with_values.push(self.current_row);
+            self.start_offsets.push(self.total_num_vals_seen as u64);
+        }
+        self.total_num_vals_seen += 1u64;
     }
 }
 
@@ -142,6 +161,32 @@ mod tests {
     }
 
     #[test]
+    fn test_multivalued_value_index_builder_simple() {
+        let mut multivalued_value_index_builder = MultivaluedIndexBuilder::default();
+        {
+            multivalued_value_index_builder.record_row(0u32);
+            multivalued_value_index_builder.record_value();
+            multivalued_value_index_builder.record_value();
+            let serialized_multivalue_index = multivalued_value_index_builder.finish(1u32);
+            let start_offsets: Vec<u64> = serialized_multivalue_index
+                .start_offsets
+                .boxed_iter()
+                .collect();
+            assert_eq!(&start_offsets, &[0, 2]);
+        }
+        multivalued_value_index_builder.reset();
+        multivalued_value_index_builder.record_row(0u32);
+        multivalued_value_index_builder.record_value();
+        multivalued_value_index_builder.record_value();
+        let serialized_multivalue_index = multivalued_value_index_builder.finish(1u32);
+        let start_offsets: Vec<u64> = serialized_multivalue_index
+            .start_offsets
+            .boxed_iter()
+            .collect();
+        assert_eq!(&start_offsets, &[0, 2]);
+    }
+
+    #[test]
     fn test_multivalued_value_index_builder() {
         let mut multivalued_value_index_builder = MultivaluedIndexBuilder::default();
         multivalued_value_index_builder.record_row(1u32);
@@ -149,17 +194,30 @@ mod tests {
         multivalued_value_index_builder.record_value();
         multivalued_value_index_builder.record_row(2u32);
         multivalued_value_index_builder.record_value();
-        assert_eq!(
-            multivalued_value_index_builder.finish(4u32).to_vec(),
-            vec![0, 0, 2, 3, 3]
-        );
-        multivalued_value_index_builder.reset();
-        multivalued_value_index_builder.record_row(2u32);
-        multivalued_value_index_builder.record_value();
-        multivalued_value_index_builder.record_value();
-        assert_eq!(
-            multivalued_value_index_builder.finish(4u32).to_vec(),
-            vec![0, 0, 0, 2, 2]
-        );
+        let SerializableMultivalueIndex {
+            doc_ids_with_values,
+            start_offsets,
+        } = multivalued_value_index_builder.finish(4u32);
+        assert_eq!(doc_ids_with_values.num_rows, 4u32);
+        let doc_ids_with_values: Vec<u32> =
+            doc_ids_with_values.non_null_row_ids.boxed_iter().collect();
+        assert_eq!(&doc_ids_with_values, &[1u32, 2u32]);
+        let start_offsets: Vec<u64> = start_offsets.boxed_iter().collect::<Vec<u64>>();
+        assert_eq!(&start_offsets[..], &[0, 2, 3]);
+        // assert!(doc_ids_with_values_opt.is_some());
+        // assert!(doc_ids_with_values_opt.is_some());
+
+        // assert_eq!(
+        //     multivalued_value_index_builder.finish(4u32).to_vec(),
+        //     vec![0, 0, 2, 3, 3]
+        // );
+        // multivalued_value_index_builder.reset();
+        // multivalued_value_index_builder.record_row(2u32);
+        // multivalued_value_index_builder.record_value();
+        // multivalued_value_index_builder.record_value();
+        // assert_eq!(
+        //     multivalued_value_index_builder.finish(4u32).to_vec(),
+        //     vec![0, 0, 0, 2, 2]
+        // );
     }
 }
