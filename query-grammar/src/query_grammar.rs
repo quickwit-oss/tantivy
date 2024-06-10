@@ -42,6 +42,30 @@ fn field_name(inp: &str) -> IResult<&str, String> {
     )(inp)
 }
 
+const ESCAPE_IN_WORD: &[char] = &['^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '\\'];
+
+fn interpret_escape(source: &str) -> String {
+    let mut res = String::with_capacity(source.len());
+    let mut in_escape = false;
+    let require_escape = |c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c) || c == '-';
+
+    for c in source.chars() {
+        if in_escape {
+            if !require_escape(c) {
+                // we re-add the escape sequence
+                res.push('\\');
+            }
+            res.push(c);
+            in_escape = false;
+        } else if c == '\\' {
+            in_escape = true;
+        } else {
+            res.push(c);
+        }
+    }
+    res
+}
+
 /// Consume a word outside of any context.
 // TODO should support escape sequences
 fn word(inp: &str) -> IResult<&str, Cow<str>> {
@@ -49,25 +73,16 @@ fn word(inp: &str) -> IResult<&str, Cow<str>> {
         recognize(tuple((
             alt((
                 preceded(char('\\'), anychar),
-                satisfy(|c| {
-                    !c.is_whitespace()
-                        && ![
-                            '-', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '\\',
-                        ]
-                        .contains(&c)
-                }),
+                satisfy(|c| !c.is_whitespace() && !ESCAPE_IN_WORD.contains(&c) && c != '-'),
             )),
             many0(alt((
                 preceded(char('\\'), anychar),
-                satisfy(|c: char| {
-                    !c.is_whitespace()
-                        && ![':', '^', '{', '}', '"', '\'', '[', ']', '(', ')', '\\'].contains(&c)
-                }),
+                satisfy(|c: char| !c.is_whitespace() && !ESCAPE_IN_WORD.contains(&c)),
             ))),
         ))),
         |s| match s {
             "OR" | "AND" | "NOT" | "IN" => Err(Error::new(inp, ErrorKind::Tag)),
-            s if s.contains('\\') => Ok(Cow::Owned(s.replace('\\', ""))),
+            s if s.contains('\\') => Ok(Cow::Owned(interpret_escape(s))),
             s => Ok(Cow::Borrowed(s)),
         },
     )(inp)
@@ -106,7 +121,7 @@ fn word_infallible(
                         });
                     }
                     if s.contains('\\') {
-                        (Some(Cow::Owned(s.replace('\\', ""))), errors)
+                        (Some(Cow::Owned(interpret_escape(s))), errors)
                     } else {
                         (Some(Cow::Borrowed(s)), errors)
                     }
@@ -1629,6 +1644,8 @@ mod test {
             r#"myfield:'hello\"happy\'tax'"#,
             r#""myfield":'hello"happy'tax'"#,
         );
+        // we don't process escape sequence for chars which don't require it
+        test_parse_query_to_ast_helper(r#"abc\*"#, r#"abc\*"#);
     }
 
     #[test]
