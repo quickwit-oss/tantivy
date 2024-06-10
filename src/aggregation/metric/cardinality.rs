@@ -2,6 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{BuildHasher, Hasher};
 
 use columnar::column_values::CompactSpaceU64Accessor;
+use columnar::{BytesColumn, StrColumn};
 use common::f64_to_u64;
 use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use rustc_hash::FxHashSet;
@@ -84,7 +85,7 @@ impl SegmentCardinalityCollector {
         }
     }
 
-    fn collect_block_with_field(
+    fn fetch_block_with_field(
         &mut self,
         docs: &[crate::DocId],
         agg_accessor: &mut AggregationWithAccessor,
@@ -108,7 +109,13 @@ impl SegmentCardinalityCollector {
     ) -> crate::Result<IntermediateMetricResult> {
         if self.column_type == ColumnType::Str {
             let mut buffer = String::new();
-            let term_dict = agg_with_accessor.str_dict_column.as_ref().cloned().unwrap();
+            let term_dict = agg_with_accessor
+                .str_dict_column
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| {
+                    StrColumn::wrap(BytesColumn::empty(agg_with_accessor.accessor.num_docs()))
+                });
             let mut has_missing = false;
             for term_ord in self.entries.into_iter() {
                 if term_ord == u64::MAX {
@@ -175,7 +182,7 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        self.collect_block_with_field(docs, bucket_agg_accessor);
+        self.fetch_block_with_field(docs, bucket_agg_accessor);
 
         let col_block_accessor = &bucket_agg_accessor.column_block_accessor;
         if self.column_type == ColumnType::Str {
