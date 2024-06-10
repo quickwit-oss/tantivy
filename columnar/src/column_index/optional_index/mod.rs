@@ -196,6 +196,7 @@ impl Set<RowId> for OptionalIndex {
         } = row_addr_from_row_id(doc_id);
         let block_meta = self.block_metas[block_id as usize];
         let block = self.block(block_meta);
+
         let block_offset_row_id = match block {
             Block::Dense(dense_block) => dense_block.rank(in_block_row_id),
             Block::Sparse(sparse_block) => sparse_block.rank(in_block_row_id),
