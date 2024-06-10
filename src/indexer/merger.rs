@@ -787,6 +787,8 @@ impl IndexMerger {
 mod tests {
 
     use columnar::Column;
+    use proptest::prop_oneof;
+    use proptest::strategy::Strategy;
     use schema::FAST;
 
     use crate::collector::tests::{
@@ -794,6 +796,7 @@ mod tests {
     };
     use crate::collector::{Count, FacetCollector};
     use crate::index::{Index, SegmentId};
+    use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::{
         Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
@@ -1528,6 +1531,112 @@ mod tests {
         reader.reload()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 0);
+        Ok(())
+    }
+
+    #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+    enum IndexingOp {
+        ZeroVal,
+        OneVal { val: u64 },
+        TwoVal { val: u64 },
+        Commit,
+    }
+
+    fn balanced_operation_strategy() -> impl Strategy<Value = IndexingOp> {
+        prop_oneof![
+            (0u64..1u64).prop_map(|_| IndexingOp::ZeroVal),
+            (0u64..1u64).prop_map(|val| IndexingOp::OneVal { val }),
+            (0u64..1u64).prop_map(|val| IndexingOp::TwoVal { val }),
+            (0u64..1u64).prop_map(|_| IndexingOp::Commit),
+        ]
+    }
+
+    use proptest::prelude::*;
+    proptest! {
+        #[test]
+        fn test_merge_columnar_int_proptest(ops in proptest::collection::vec(balanced_operation_strategy(), 1..20)) {
+            assert!(test_merge_int_fields(&ops[..]).is_ok());
+        }
+    }
+    fn test_merge_int_fields(ops: &[IndexingOp]) -> crate::Result<()> {
+        if ops.iter().all(|op| *op == IndexingOp::Commit) {
+            return Ok(());
+        }
+        let expected_doc_and_vals: Vec<(u32, Vec<u64>)> = ops
+            .iter()
+            .filter(|op| *op != &IndexingOp::Commit)
+            .map(|op| match op {
+                IndexingOp::ZeroVal => vec![],
+                IndexingOp::OneVal { val } => vec![*val],
+                IndexingOp::TwoVal { val } => vec![*val, *val],
+                IndexingOp::Commit => unreachable!(),
+            })
+            .enumerate()
+            .map(|(id, val)| (id as u32, val))
+            .collect();
+
+        let mut schema_builder = schema::Schema::builder();
+        let int_options = NumericOptions::default().set_fast().set_indexed();
+        let int_field = schema_builder.add_u64_field("intvals", int_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            let index_doc = |index_writer: &mut IndexWriter, int_vals: &[u64]| {
+                let mut doc = TantivyDocument::default();
+                for &val in int_vals {
+                    doc.add_u64(int_field, val);
+                }
+                index_writer.add_document(doc).unwrap();
+            };
+
+            for op in ops {
+                match op {
+                    IndexingOp::ZeroVal => index_doc(&mut index_writer, &[]),
+                    IndexingOp::OneVal { val } => index_doc(&mut index_writer, &[*val]),
+                    IndexingOp::TwoVal { val } => index_doc(&mut index_writer, &[*val, *val]),
+                    IndexingOp::Commit => {
+                        index_writer.commit().expect("commit failed");
+                    }
+                }
+            }
+            index_writer.commit().expect("commit failed");
+        }
+        {
+            let mut segment_ids = index.searchable_segment_ids()?;
+            segment_ids.sort();
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.merge(&segment_ids).wait()?;
+            index_writer.wait_merging_threads()?;
+        }
+        let reader = index.reader()?;
+        reader.reload()?;
+
+        let mut vals: Vec<u64> = Vec::new();
+        let mut test_vals = move |col: &Column<u64>, doc: DocId, expected: &[u64]| {
+            vals.clear();
+            vals.extend(col.values_for_doc(doc));
+            assert_eq!(&vals[..], expected);
+        };
+
+        let mut test_col = move |col: &Column<u64>, column_expected: &[(u32, Vec<u64>)]| {
+            for (doc_id, vals) in column_expected.iter() {
+                test_vals(col, *doc_id, vals);
+            }
+        };
+
+        {
+            let searcher = reader.searcher();
+            let segment = searcher.segment_reader(0u32);
+            let col = segment
+                .fast_fields()
+                .column_opt::<u64>("intvals")
+                .unwrap()
+                .unwrap();
+
+            test_col(&col, &expected_doc_and_vals);
+        }
+
         Ok(())
     }
 
