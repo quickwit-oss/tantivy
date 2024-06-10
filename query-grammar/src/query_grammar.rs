@@ -42,16 +42,12 @@ fn field_name(inp: &str) -> IResult<&str, String> {
     )(inp)
 }
 
+const ESCAPE_IN_WORD: &[char] = &['^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '\\'];
+
 fn interpret_escape(source: &str) -> String {
     let mut res = String::with_capacity(source.len());
     let mut in_escape = false;
-    let require_escape = |c: char| {
-        c.is_whitespace()
-            || [
-                '-', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '\\',
-            ]
-            .contains(&c)
-    };
+    let require_escape = |c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c) || c == '-';
 
     for c in source.chars() {
         if in_escape {
@@ -61,12 +57,10 @@ fn interpret_escape(source: &str) -> String {
             }
             res.push(c);
             in_escape = false;
+        } else if c == '\\' {
+            in_escape = true;
         } else {
-            if c == '\\' {
-                in_escape = true;
-            } else {
-                res.push(c);
-            }
+            res.push(c);
         }
     }
     res
@@ -79,20 +73,11 @@ fn word(inp: &str) -> IResult<&str, Cow<str>> {
         recognize(tuple((
             alt((
                 preceded(char('\\'), anychar),
-                satisfy(|c| {
-                    !c.is_whitespace()
-                        && ![
-                            '-', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '\\',
-                        ]
-                        .contains(&c)
-                }),
+                satisfy(|c| !c.is_whitespace() && !ESCAPE_IN_WORD.contains(&c) && c != '-'),
             )),
             many0(alt((
                 preceded(char('\\'), anychar),
-                satisfy(|c: char| {
-                    !c.is_whitespace()
-                        && ![':', '^', '{', '}', '"', '\'', '[', ']', '(', ')', '\\'].contains(&c)
-                }),
+                satisfy(|c: char| !c.is_whitespace() && !ESCAPE_IN_WORD.contains(&c)),
             ))),
         ))),
         |s| match s {
