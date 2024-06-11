@@ -832,17 +832,11 @@ impl QueryParser {
                 let (field, json_path) = try_tuple!(self
                     .split_full_path(&full_path)
                     .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
-                let field_entry = self.schema.get_field_entry(field);
-                let value_type = field_entry.field_type().value_type();
                 let (elements, errors) = elements
                     .into_iter()
                     .map(|element| self.compute_boundary_term(field, json_path, &element))
                     .partition_result();
-                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set {
-                    elements,
-                    field,
-                    value_type,
-                }));
+                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set { elements }));
                 (Some(logical_ast), errors)
             }
             UserInputLeaf::Exists { .. } => (
