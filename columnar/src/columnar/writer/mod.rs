@@ -699,6 +699,7 @@ fn send_to_serialize_column_mappable_to_u64(
             if sort_values_within_row {
                 // not supported in this hack
                 todo!()
+                // sort_values_within_row_in_place(multivalued_index, values);
             }
             let serializable_multivalued_index = multivalued_index_builder.finish(num_rows);
             SerializableColumnIndex::Multivalued(serializable_multivalued_index)
