@@ -73,14 +73,18 @@ fn detect_cardinality(
 pub fn merge_column_index<'a>(
     columns: &'a [ColumnIndex],
     merge_row_order: &'a MergeRowOrder,
+    num_values: u32,
 ) -> SerializableColumnIndex<'a> {
     // For simplification, we do not try to detect whether the cardinality could be
     // downgraded thanks to deletes.
     let cardinality_after_merge = detect_cardinality(columns, merge_row_order);
     match merge_row_order {
-        MergeRowOrder::Stack(stack_merge_order) => {
-            merge_column_index_stacked(columns, cardinality_after_merge, stack_merge_order)
-        }
+        MergeRowOrder::Stack(stack_merge_order) => merge_column_index_stacked(
+            columns,
+            cardinality_after_merge,
+            stack_merge_order,
+            num_values,
+        ),
         MergeRowOrder::Shuffled(complex_merge_order) => {
             merge_column_index_shuffled(columns, cardinality_after_merge, complex_merge_order)
         }
@@ -167,8 +171,12 @@ mod tests {
             ],
         )
         .into();
-        let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order);
-        let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
+        let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order, 3);
+        let SerializableColumnIndex::Multivalued {
+            indices: start_index_iterable,
+            ..
+        } = merged_column_index
+        else {
             panic!("Excpected a multivalued index")
         };
         let start_indexes: Vec<RowId> = start_index_iterable.boxed_iter().collect();
@@ -200,8 +208,12 @@ mod tests {
             ],
         )
         .into();
-        let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order);
-        let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
+        let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order, 6);
+        let SerializableColumnIndex::Multivalued {
+            indices: start_index_iterable,
+            ..
+        } = merged_column_index
+        else {
             panic!("Excpected a multivalued index")
         };
         let start_indexes: Vec<RowId> = start_index_iterable.boxed_iter().collect();

@@ -738,35 +738,22 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
     fn test_columnar_merge_proptest(columnar_docs in proptest::collection::vec(columnar_docs_strategy(), 2..=3)) {
-        let columnar_readers: Vec<ColumnarReader> = columnar_docs.iter()
-            .map(|docs| build_columnar(&docs[..]))
-            .collect::<Vec<_>>();
-        let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
-        let mut output: Vec<u8> = Vec::new();
-        let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]).into();
-        crate::merge_columnar(&columnar_readers_arr[..], &[], stack_merge_order, &mut output).unwrap();
-        let merged_columnar = ColumnarReader::open(output).unwrap();
-        let concat_rows: Vec<Vec<(&'static str, ColumnValue)>> = columnar_docs.iter().flatten().cloned().collect();
-        let expected_merged_columnar = build_columnar(&concat_rows[..]);
-        assert_columnar_eq_strict(&merged_columnar, &expected_merged_columnar);
+        test_columnar_docs(columnar_docs);
     }
 }
 
-#[test]
-fn test_columnar_merging_empty_columnar() {
-    let columnar_docs: Vec<Vec<Vec<(&str, ColumnValue)>>> =
-        vec![vec![], vec![vec![("c1", ColumnValue::Str("a"))]]];
+fn test_columnar_docs(columnar_docs: Vec<Vec<Vec<(&'static str, ColumnValue)>>>) {
     let columnar_readers: Vec<ColumnarReader> = columnar_docs
         .iter()
         .map(|docs| build_columnar(&docs[..]))
         .collect::<Vec<_>>();
     let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
     let mut output: Vec<u8> = Vec::new();
-    let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]);
+    let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]).into();
     crate::merge_columnar(
         &columnar_readers_arr[..],
         &[],
-        crate::MergeRowOrder::Stack(stack_merge_order),
+        stack_merge_order,
         &mut output,
     )
     .unwrap();
@@ -775,6 +762,24 @@ fn test_columnar_merging_empty_columnar() {
         columnar_docs.iter().flatten().cloned().collect();
     let expected_merged_columnar = build_columnar(&concat_rows[..]);
     assert_columnar_eq_strict(&merged_columnar, &expected_merged_columnar);
+}
+
+#[test]
+fn test_columnar_merging_empty_columnar() {
+    let columnar_docs: Vec<Vec<Vec<(&str, ColumnValue)>>> =
+        vec![vec![], vec![vec![("c1", ColumnValue::Str("a"))]]];
+    test_columnar_docs(columnar_docs);
+}
+#[test]
+fn test_columnar_merging_simple() {
+    let columnar_docs: Vec<Vec<Vec<(&str, ColumnValue)>>> = vec![
+        vec![],
+        vec![vec![
+            ("c1", ColumnValue::Numerical(0u64.into())),
+            ("c1", ColumnValue::Numerical(0u64.into())),
+        ]],
+    ];
+    test_columnar_docs(columnar_docs);
 }
 
 #[test]
@@ -793,25 +798,7 @@ fn test_columnar_merging_number_columns() {
             vec![("c2", ColumnValue::Numerical(u64::MAX.into()))],
         ],
     ];
-    let columnar_readers: Vec<ColumnarReader> = columnar_docs
-        .iter()
-        .map(|docs| build_columnar(&docs[..]))
-        .collect::<Vec<_>>();
-    let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
-    let mut output: Vec<u8> = Vec::new();
-    let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]);
-    crate::merge_columnar(
-        &columnar_readers_arr[..],
-        &[],
-        crate::MergeRowOrder::Stack(stack_merge_order),
-        &mut output,
-    )
-    .unwrap();
-    let merged_columnar = ColumnarReader::open(output).unwrap();
-    let concat_rows: Vec<Vec<(&'static str, ColumnValue)>> =
-        columnar_docs.iter().flatten().cloned().collect();
-    let expected_merged_columnar = build_columnar(&concat_rows[..]);
-    assert_columnar_eq_strict(&merged_columnar, &expected_merged_columnar);
+    test_columnar_docs(columnar_docs);
 }
 
 // TODO add non trivial remap and merge

@@ -37,7 +37,11 @@ pub trait ColumnCodecEstimator<T = u64>: 'static {
     /// This method will be called for each element of the column during
     /// `estimation`.
     fn collect(&mut self, value: u64);
-    /// Finalizes the first pass phase.
+    /// Returns true if the estimator needs a full pass over the column before serialization
+    fn requires_full_scan(&self) -> bool {
+        false
+    }
+    fn codec_type(&self) -> CodecType;
     fn finalize(&mut self) {}
     /// Returns an accurate estimation of the number of bytes that will
     /// be used to represent this column.
@@ -150,34 +154,45 @@ pub fn serialize_u64_based_column_values<T: MonotonicallyMappableToU64>(
     wrt: &mut dyn Write,
 ) -> io::Result<()> {
     let mut stats_collector = StatsCollector::default();
-    let mut estimators: Vec<(CodecType, Box<dyn ColumnCodecEstimator>)> =
-        Vec::with_capacity(codec_types.len());
+    let mut estimators: Vec<Box<dyn ColumnCodecEstimator>> = Vec::with_capacity(codec_types.len());
     for &codec_type in codec_types {
-        estimators.push((codec_type, codec_type.estimator()));
+        estimators.push(codec_type.estimator());
     }
     for val in vals.boxed_iter() {
         let val_u64 = val.to_u64();
         stats_collector.collect(val_u64);
-        for (_, estimator) in &mut estimators {
+        for estimator in &mut estimators {
             estimator.collect(val_u64);
         }
     }
-    for (_, estimator) in &mut estimators {
+    for estimator in &mut estimators {
         estimator.finalize();
     }
     let stats = stats_collector.stats();
-    let (_, best_codec, best_codec_estimator) = estimators
+    let (_, best_codec) = estimators
         .into_iter()
-        .flat_map(|(codec_type, estimator)| {
+        .flat_map(|estimator| {
             let num_bytes = estimator.estimate(&stats)?;
-            Some((num_bytes, codec_type, estimator))
+            Some((num_bytes, estimator))
         })
-        .min_by_key(|(num_bytes, _, _)| *num_bytes)
+        .min_by_key(|(num_bytes, _)| *num_bytes)
         .ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidData, "No available applicable codec.")
         })?;
-    best_codec.to_code().serialize(wrt)?;
-    best_codec_estimator.serialize(
+    serialize_u64_with_codec_and_stats(vals, best_codec, stats, wrt)?;
+    Ok(())
+}
+
+/// Serializes a given column of u64-mapped values.
+/// The codec estimator needs to be collected fully for the Line codec before calling this.
+pub fn serialize_u64_with_codec_and_stats<T: MonotonicallyMappableToU64>(
+    vals: &dyn Iterable<T>,
+    codec: Box<dyn ColumnCodecEstimator>,
+    stats: ColumnStats,
+    wrt: &mut dyn Write,
+) -> io::Result<()> {
+    codec.codec_type().to_code().serialize(wrt)?;
+    codec.serialize(
         &stats,
         &mut vals.boxed_iter().map(MonotonicallyMappableToU64::to_u64),
         wrt,

@@ -128,6 +128,9 @@ impl ColumnCodecEstimator for BitpackedCodecEstimator {
         bit_packer.close(wrt)?;
         Ok(())
     }
+    fn codec_type(&self) -> super::CodecType {
+        super::CodecType::Bitpacked
+    }
 }
 
 pub struct BitpackedCodec;

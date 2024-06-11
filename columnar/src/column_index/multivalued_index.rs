@@ -6,20 +6,29 @@ use std::sync::Arc;
 use common::OwnedBytes;
 
 use crate::column_values::{
-    load_u64_based_column_values, serialize_u64_based_column_values, CodecType, ColumnValues,
+    load_u64_based_column_values, serialize_u64_based_column_values,
+    serialize_u64_with_codec_and_stats, CodecType, ColumnStats, ColumnValues,
 };
 use crate::iterable::Iterable;
 use crate::{DocId, RowId};
 
 pub fn serialize_multivalued_index(
     multivalued_index: &dyn Iterable<RowId>,
+    stats: Option<ColumnStats>,
     output: &mut impl Write,
 ) -> io::Result<()> {
-    serialize_u64_based_column_values(
-        multivalued_index,
-        &[CodecType::Bitpacked, CodecType::Linear],
-        output,
-    )?;
+    if let Some(stats) = stats {
+        // TODO: Add something with higher compression that doesn't require a full scan upfront
+        let estimator = CodecType::Bitpacked.estimator();
+        assert!(!estimator.requires_full_scan());
+        serialize_u64_with_codec_and_stats(multivalued_index, estimator, stats, output)?;
+    } else {
+        serialize_u64_based_column_values(
+            multivalued_index,
+            &[CodecType::Bitpacked, CodecType::Linear],
+            output,
+        )?;
+    }
     Ok(())
 }
 
@@ -52,7 +61,7 @@ impl From<Arc<dyn ColumnValues<RowId>>> for MultiValueIndex {
 impl MultiValueIndex {
     pub fn for_test(start_offsets: &[RowId]) -> MultiValueIndex {
         let mut buffer = Vec::new();
-        serialize_multivalued_index(&start_offsets, &mut buffer).unwrap();
+        serialize_multivalued_index(&start_offsets, None, &mut buffer).unwrap();
         let bytes = OwnedBytes::new(buffer);
         open_multivalued_index(bytes).unwrap()
     }

@@ -153,6 +153,12 @@ impl ColumnCodecEstimator for LinearCodecEstimator {
             self.collect_before_line_estimation(value);
         }
     }
+    fn requires_full_scan(&self) -> bool {
+        true
+    }
+    fn codec_type(&self) -> super::CodecType {
+        super::CodecType::Linear
+    }
 }
 
 impl LinearCodecEstimator {

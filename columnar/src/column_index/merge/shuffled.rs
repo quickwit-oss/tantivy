@@ -22,7 +22,10 @@ pub fn merge_column_index_shuffled<'a>(
         Cardinality::Multivalued => {
             let multivalue_start_index =
                 merge_column_index_shuffled_multivalued(column_indexes, shuffle_merge_order);
-            SerializableColumnIndex::Multivalued(multivalue_start_index)
+            SerializableColumnIndex::Multivalued {
+                indices: multivalue_start_index,
+                stats: None,
+            }
         }
     }
 }

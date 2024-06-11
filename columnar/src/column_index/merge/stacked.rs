@@ -1,6 +1,8 @@
 use std::iter;
+use std::num::NonZeroU64;
 
 use crate::column_index::{SerializableColumnIndex, Set};
+use crate::column_values::ColumnStats;
 use crate::iterable::Iterable;
 use crate::{Cardinality, ColumnIndex, RowId, StackMergeOrder};
 
@@ -12,6 +14,7 @@ pub fn merge_column_index_stacked<'a>(
     columns: &'a [ColumnIndex],
     cardinality_after_merge: Cardinality,
     stack_merge_order: &'a StackMergeOrder,
+    num_values: u32,
 ) -> SerializableColumnIndex<'a> {
     match cardinality_after_merge {
         Cardinality::Full => SerializableColumnIndex::Full,
@@ -27,7 +30,17 @@ pub fn merge_column_index_stacked<'a>(
                 columns,
                 stack_merge_order,
             };
-            SerializableColumnIndex::Multivalued(Box::new(stacked_multivalued_index))
+            SerializableColumnIndex::Multivalued {
+                indices: Box::new(stacked_multivalued_index),
+                stats: Some(ColumnStats {
+                    gcd: NonZeroU64::new(1).unwrap(),
+                    // The values in the multivalue index are the positions of the values
+                    min_value: 0,
+                    max_value: num_values as u64,
+                    // This is num docs, but it starts at 0 so we need +1
+                    num_rows: stack_merge_order.num_rows() + 1,
+                }),
+            }
         }
     }
 }

@@ -3,7 +3,7 @@ mod merge_mapping;
 mod term_merger;
 
 use std::collections::{BTreeMap, HashSet};
-use std::io;
+use std::io::{self};
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
@@ -156,8 +156,15 @@ fn merge_column(
                     column_values.push(None);
                 }
             }
-            let merged_column_index =
-                crate::column_index::merge_column_index(&column_indexes[..], merge_row_order);
+            let num_values: u32 = column_values
+                .iter()
+                .map(|vals| vals.as_ref().map(|idx| idx.num_vals()).unwrap_or(0))
+                .sum();
+            let merged_column_index = crate::column_index::merge_column_index(
+                &column_indexes[..],
+                merge_row_order,
+                num_values,
+            );
             let merge_column_values = MergedColumnValues {
                 column_indexes: &column_indexes[..],
                 column_values: &column_values[..],
@@ -183,8 +190,15 @@ fn merge_column(
                 }
             }
 
-            let merged_column_index =
-                crate::column_index::merge_column_index(&column_indexes[..], merge_row_order);
+            let num_values: u32 = column_values
+                .iter()
+                .map(|vals| vals.as_ref().map(|idx| idx.num_vals()).unwrap_or(0))
+                .sum();
+            let merged_column_index = crate::column_index::merge_column_index(
+                &column_indexes[..],
+                merge_row_order,
+                num_values,
+            );
             let merge_column_values = MergedColumnValues {
                 column_indexes: &column_indexes[..],
                 column_values: &column_values,
@@ -214,8 +228,19 @@ fn merge_column(
                     }
                 }
             }
-            let merged_column_index =
-                crate::column_index::merge_column_index(&column_indexes[..], merge_row_order);
+            let num_values: u32 = bytes_columns
+                .iter()
+                .map(|vals| {
+                    vals.as_ref()
+                        .map(|idx| idx.term_ord_column.values.num_vals())
+                        .unwrap_or(0)
+                })
+                .sum();
+            let merged_column_index = crate::column_index::merge_column_index(
+                &column_indexes[..],
+                merge_row_order,
+                num_values,
+            );
             merge_bytes_or_str_column(merged_column_index, &bytes_columns, merge_row_order, wrt)?;
         }
     }

@@ -6,6 +6,7 @@ use common::{CountingWriter, OwnedBytes};
 use crate::column_index::multivalued_index::serialize_multivalued_index;
 use crate::column_index::optional_index::serialize_optional_index;
 use crate::column_index::ColumnIndex;
+use crate::column_values::ColumnStats;
 use crate::iterable::Iterable;
 use crate::{Cardinality, RowId};
 
@@ -15,9 +16,12 @@ pub enum SerializableColumnIndex<'a> {
         non_null_row_ids: Box<dyn Iterable<RowId> + 'a>,
         num_rows: RowId,
     },
-    // TODO remove the Arc<dyn> apart from serialization this is not
-    // dynamic at all.
-    Multivalued(Box<dyn Iterable<RowId> + 'a>),
+    Multivalued {
+        /// Iterator emitting the indices for the index
+        indices: Box<dyn Iterable<RowId> + 'a>,
+        /// In the merge case we can precompute the column stats
+        stats: Option<ColumnStats>,
+    },
 }
 
 impl<'a> SerializableColumnIndex<'a> {
@@ -25,7 +29,7 @@ impl<'a> SerializableColumnIndex<'a> {
         match self {
             SerializableColumnIndex::Full => Cardinality::Full,
             SerializableColumnIndex::Optional { .. } => Cardinality::Optional,
-            SerializableColumnIndex::Multivalued(_) => Cardinality::Multivalued,
+            SerializableColumnIndex::Multivalued { .. } => Cardinality::Multivalued,
         }
     }
 }
@@ -44,9 +48,10 @@ pub fn serialize_column_index(
             non_null_row_ids,
             num_rows,
         } => serialize_optional_index(non_null_row_ids.as_ref(), num_rows, &mut output)?,
-        SerializableColumnIndex::Multivalued(multivalued_index) => {
-            serialize_multivalued_index(&*multivalued_index, &mut output)?
-        }
+        SerializableColumnIndex::Multivalued {
+            indices: multivalued_index,
+            stats,
+        } => serialize_multivalued_index(&*multivalued_index, stats, &mut output)?,
     }
     let column_index_num_bytes = output.written_bytes() as u32;
     Ok(column_index_num_bytes)

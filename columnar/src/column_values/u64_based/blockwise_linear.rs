@@ -163,6 +163,10 @@ impl ColumnCodecEstimator for BlockwiseLinearEstimator {
 
         Ok(())
     }
+
+    fn codec_type(&self) -> super::CodecType {
+        super::CodecType::BlockwiseLinear
+    }
 }
 
 pub struct BlockwiseLinearCodec;

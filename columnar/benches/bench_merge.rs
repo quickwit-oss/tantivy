@@ -22,7 +22,7 @@ impl Display for Card {
     }
 }
 
-const NUM_DOCS: u32 = 100_000;
+const NUM_DOCS: u32 = 1_000_000;
 
 fn generate_columnar(card: Card, num_docs: u32) -> ColumnarReader {
     use tantivy_columnar::ColumnarWriter;
@@ -88,12 +88,8 @@ fn main() {
                 let columnar_readers = columnar_readers.iter().collect::<Vec<_>>();
                 let merge_row_order = StackMergeOrder::stack(&columnar_readers[..]);
 
-                let _ = black_box(merge_columnar(
-                    &columnar_readers,
-                    &[],
-                    merge_row_order.into(),
-                    &mut out,
-                ));
+                merge_columnar(&columnar_readers, &[], merge_row_order.into(), &mut out).unwrap();
+                black_box(out);
             },
         );
     }

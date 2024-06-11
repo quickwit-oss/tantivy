@@ -32,7 +32,8 @@ pub use u128_based::{
 };
 pub use u64_based::{
     load_u64_based_column_values, serialize_and_load_u64_based_column_values,
-    serialize_u64_based_column_values, CodecType, ALL_U64_CODEC_TYPES,
+    serialize_u64_based_column_values, serialize_u64_with_codec_and_stats, CodecType,
+    ALL_U64_CODEC_TYPES,
 };
 pub use vec_column::VecColumn;
 

@@ -644,7 +644,10 @@ fn send_to_serialize_column_mappable_to_u128<
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
             let multivalued_index = multivalued_index_builder.finish(num_rows);
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            SerializableColumnIndex::Multivalued {
+                indices: Box::new(multivalued_index),
+                stats: Default::default(), // TODO: implement stats for u128
+            }
         }
     };
     crate::column::serialize_column_mappable_to_u128(
@@ -699,7 +702,10 @@ fn send_to_serialize_column_mappable_to_u64(
             if sort_values_within_row {
                 sort_values_within_row_in_place(multivalued_index, values);
             }
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            SerializableColumnIndex::Multivalued {
+                indices: Box::new(multivalued_index),
+                stats: None,
+            }
         }
     };
     crate::column::serialize_column_mappable_to_u64(
