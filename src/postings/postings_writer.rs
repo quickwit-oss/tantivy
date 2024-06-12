@@ -204,7 +204,11 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
 impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
     #[inline]
     fn subscribe(&mut self, doc: DocId, position: u32, term: &Term, ctx: &mut IndexingContext) {
-        debug_assert!(term.serialized_term().len() >= 4);
+        assert!(
+            term.serialized_term().len() >= 4,
+            "Term too short expect >=4 but got {:?}",
+            term.serialized_term()
+        );
         self.total_num_tokens += 1;
         let (term_index, arena) = (&mut ctx.term_index, &mut ctx.arena);
         term_index.mutate_or_create(term.serialized_term(), |opt_recorder: Option<Rec>| {
