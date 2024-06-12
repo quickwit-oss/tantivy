@@ -29,6 +29,10 @@ binggan = "0.8.1"
 name = "bench_merge"
 harness = false
 
+[[bench]]
+name = "bench_access"
+harness = false
+
 
 [features]
 unstable = []

@@ -1,6 +1,3 @@
-#![feature(test)]
-extern crate test;
-
 use core::fmt;
 use std::fmt::{Display, Formatter};
 
@@ -40,12 +37,12 @@ fn generate_columnar(card: Card, num_docs: u32) -> ColumnarReader {
     for i in 0..num_docs {
         match card {
             Card::Multi | Card::Sparse => {
-                if i % 8 == 0 {
+                if i % 13 == 0 {
                     columnar_writer.record_numerical(i, "price", i as u64);
                 }
             }
             Card::Dense => {
-                if i % 6 == 0 {
+                if i % 12 == 0 {
                     columnar_writer.record_numerical(i, "price", i as u64);
                 }
             }
@@ -84,16 +81,12 @@ fn main() {
             input_name,
             columnar_readers,
             move |columnar_readers: &Vec<ColumnarReader>| {
-                let mut out = vec![];
+                let mut out = Vec::new();
                 let columnar_readers = columnar_readers.iter().collect::<Vec<_>>();
                 let merge_row_order = StackMergeOrder::stack(&columnar_readers[..]);
 
-                let _ = black_box(merge_columnar(
-                    &columnar_readers,
-                    &[],
-                    merge_row_order.into(),
-                    &mut out,
-                ));
+                merge_columnar(&columnar_readers, &[], merge_row_order.into(), &mut out).unwrap();
+                black_box(out);
             },
         );
     }
