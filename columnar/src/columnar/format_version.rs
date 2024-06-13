@@ -1,3 +1,6 @@
+use core::fmt;
+use std::fmt::{Display, Formatter};
+
 use crate::InvalidData;
 
 pub const VERSION_FOOTER_NUM_BYTES: usize = MAGIC_BYTES.len() + std::mem::size_of::<u32>();
@@ -20,10 +23,20 @@ pub fn parse_footer(footer_bytes: [u8; VERSION_FOOTER_NUM_BYTES]) -> Result<Vers
     Version::try_from_bytes(footer_bytes[0..4].try_into().unwrap())
 }
 
+pub const CURRENT_VERSION: Version = Version::V1;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Version {
     V1 = 1u32,
+}
+
+impl Display for Version {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Version::V1 => write!(f, "v1"),
+        }
+    }
 }
 
 impl Version {
