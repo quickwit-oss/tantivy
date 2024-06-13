@@ -18,27 +18,9 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(
-        mut segment: Segment,
-        is_in_merge: bool,
-    ) -> crate::Result<SegmentSerializer> {
-        // If the segment is going to be sorted, we stream the docs first to a temporary file.
-        // In the merge case this is not necessary because we can kmerge the already sorted
-        // segments
-        let remapping_required = segment.index().settings().sort_by_field.is_some() && !is_in_merge;
+    pub fn for_segment(mut segment: Segment) -> crate::Result<SegmentSerializer> {
         let settings = segment.index().settings().clone();
-        let store_writer = if remapping_required {
-            let store_write = segment.open_write(SegmentComponent::TempStore)?;
-            StoreWriter::new(
-                store_write,
-                crate::store::Compressor::None,
-                // We want fast random access on the docs, so we choose a small block size.
-                // If this is zero, the skip index will contain too many checkpoints and
-                // therefore will be relatively slow.
-                16000,
-                settings.docstore_compress_dedicated_thread,
-            )?
-        } else {
+        let store_writer = {
             let store_write = segment.open_write(SegmentComponent::Store)?;
             StoreWriter::new(
                 store_write,
@@ -70,10 +52,6 @@ impl SegmentSerializer {
 
     pub fn segment(&self) -> &Segment {
         &self.segment
-    }
-
-    pub fn segment_mut(&mut self) -> &mut Segment {
-        &mut self.segment
     }
 
     /// Accessor to the `PostingsSerializer`.

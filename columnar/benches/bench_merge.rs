@@ -50,7 +50,7 @@ fn generate_columnar(card: Card, num_docs: u32) -> ColumnarReader {
     }
 
     let mut wrt: Vec<u8> = Vec::new();
-    columnar_writer.serialize(num_docs, None, &mut wrt).unwrap();
+    columnar_writer.serialize(num_docs, &mut wrt).unwrap();
 
     ColumnarReader::open(wrt).unwrap()
 }

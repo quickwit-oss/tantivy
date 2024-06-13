@@ -12,7 +12,7 @@ fn make_columnar<T: Into<NumericalValue> + HasAssociatedColumnType + Copy>(
     }
     let mut buffer: Vec<u8> = Vec::new();
     dataframe_writer
-        .serialize(vals.len() as RowId, None, &mut buffer)
+        .serialize(vals.len() as RowId, &mut buffer)
         .unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
@@ -157,9 +157,7 @@ fn make_numerical_columnar_multiple_columns(
         .max()
         .unwrap_or(0u32);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer
-        .serialize(num_rows, None, &mut buffer)
-        .unwrap();
+    dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
 
@@ -182,9 +180,7 @@ fn make_byte_columnar_multiple_columns(
         }
     }
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer
-        .serialize(num_rows, None, &mut buffer)
-        .unwrap();
+    dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
 
@@ -203,9 +199,7 @@ fn make_text_columnar_multiple_columns(columns: &[(&str, &[&[&str]])]) -> Column
         .max()
         .unwrap_or(0u32);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer
-        .serialize(num_rows, None, &mut buffer)
-        .unwrap();
+    dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
 

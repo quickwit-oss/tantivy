@@ -61,7 +61,7 @@ fn generate_columnar(card: Card, num_docs: u32) -> Column {
     }
 
     let mut wrt: Vec<u8> = Vec::new();
-    columnar_writer.serialize(num_docs, None, &mut wrt).unwrap();
+    columnar_writer.serialize(num_docs, &mut wrt).unwrap();
 
     let reader = ColumnarReader::open(wrt).unwrap();
     reader.read_columns("price").unwrap()[0]

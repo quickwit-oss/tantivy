@@ -20,7 +20,7 @@ use crate::indexer::segment_updater::save_metas;
 use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
-use crate::schema::{Field, FieldType, Schema, Type};
+use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
 
@@ -232,31 +232,7 @@ impl IndexBuilder {
     }
 
     fn validate(&self) -> crate::Result<()> {
-        if let Some(schema) = self.schema.as_ref() {
-            if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref() {
-                let schema_field = schema.get_field(&sort_by_field.field).map_err(|_| {
-                    TantivyError::InvalidArgument(format!(
-                        "Field to sort index {} not found in schema",
-                        sort_by_field.field
-                    ))
-                })?;
-                let entry = schema.get_field_entry(schema_field);
-                if !entry.is_fast() {
-                    return Err(TantivyError::InvalidArgument(format!(
-                        "Field {} is no fast field. Field needs to be a single value fast field \
-                         to be used to sort an index",
-                        sort_by_field.field
-                    )));
-                }
-                let supported_field_types = [Type::I64, Type::U64, Type::F64, Type::Date];
-                let field_type = entry.field_type().value_type();
-                if !supported_field_types.contains(&field_type) {
-                    return Err(TantivyError::InvalidArgument(format!(
-                        "Unsupported field type in sort_by_field: {field_type:?}. Supported field \
-                         types: {supported_field_types:?} ",
-                    )));
-                }
-            }
+        if let Some(_schema) = self.schema.as_ref() {
             Ok(())
         } else {
             Err(TantivyError::InvalidArgument(
