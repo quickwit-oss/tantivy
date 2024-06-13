@@ -2,6 +2,7 @@
 //! We use this variant only if the fastfield exists, otherwise the default in `range_query` is
 //! used, which uses the term dictionary + postings.
 
+use std::borrow::Cow;
 use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
@@ -13,14 +14,18 @@ use crate::{DocId, DocSet, Score, SegmentReader, TantivyError};
 
 /// `IPFastFieldRangeWeight` uses the ip address fast field to execute range queries.
 pub struct IPFastFieldRangeWeight {
-    field: String,
+    field: Cow<'static, str>,
     lower_bound: Bound<Ipv6Addr>,
     upper_bound: Bound<Ipv6Addr>,
 }
 
 impl IPFastFieldRangeWeight {
     /// Creates a new IPFastFieldRangeWeight.
-    pub fn new(field: String, lower_bound: Bound<Ipv6Addr>, upper_bound: Bound<Ipv6Addr>) -> Self {
+    pub fn new(
+        field: Cow<'static, str>,
+        lower_bound: Bound<Ipv6Addr>,
+        upper_bound: Bound<Ipv6Addr>,
+    ) -> Self {
         Self {
             field,
             lower_bound,
@@ -171,7 +176,7 @@ pub mod tests {
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let range_weight = IPFastFieldRangeWeight {
-            field: "ips".to_string(),
+            field: Cow::Borrowed("ips"),
             lower_bound: Bound::Included(ip_addrs[1]),
             upper_bound: Bound::Included(ip_addrs[2]),
         };
