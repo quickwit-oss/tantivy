@@ -77,7 +77,7 @@ mod tests {
             let mut fieldnorm_writers = FieldNormsWriter::for_schema(&SCHEMA);
             fieldnorm_writers.record(2u32, *TXT_FIELD, 5);
             fieldnorm_writers.record(3u32, *TXT_FIELD, 3);
-            fieldnorm_writers.serialize(serializer, None)?;
+            fieldnorm_writers.serialize(serializer)?;
         }
         let file = directory.open_read(path)?;
         {

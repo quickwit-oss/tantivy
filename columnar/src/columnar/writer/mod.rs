@@ -43,7 +43,7 @@ struct SpareBuffers {
 /// columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
 /// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
 /// let mut wrt: Vec<u8> =  Vec::new();
-/// columnar_writer.serialize(2u32, None, &mut wrt).unwrap();
+/// columnar_writer.serialize(2u32, &mut wrt).unwrap();
 /// ```
 #[derive(Default)]
 pub struct ColumnarWriter {
@@ -73,63 +73,6 @@ impl ColumnarWriter {
                 .iter()
                 .map(|dict| dict.mem_usage())
                 .sum::<usize>()
-    }
-
-    /// Returns the list of doc ids from 0..num_docs sorted by the `sort_field`
-    /// column.
-    ///
-    /// If the column is multivalued, use the first value for scoring.
-    /// If no value is associated to a specific row, the document is assigned
-    /// the lowest possible score.
-    ///
-    /// The sort applied is stable.
-    pub fn sort_order(&self, sort_field: &str, num_docs: RowId, reversed: bool) -> Vec<u32> {
-        let Some(numerical_col_writer) = self
-            .numerical_field_hash_map
-            .get::<NumericalColumnWriter>(sort_field.as_bytes())
-            .or_else(|| {
-                self.datetime_field_hash_map
-                    .get::<NumericalColumnWriter>(sort_field.as_bytes())
-            })
-        else {
-            return Vec::new();
-        };
-        let mut symbols_buffer = Vec::new();
-        let mut values = Vec::new();
-        let mut start_doc_check_fill = 0;
-        let mut current_doc_opt: Option<RowId> = None;
-        // Assumption: NewDoc will never call the same doc twice and is strictly increasing between
-        // calls
-        for op in numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer) {
-            match op {
-                ColumnOperation::NewDoc(doc) => {
-                    current_doc_opt = Some(doc);
-                }
-                ColumnOperation::Value(numerical_value) => {
-                    if let Some(current_doc) = current_doc_opt {
-                        // Fill up with 0.0 since last doc
-                        values.extend((start_doc_check_fill..current_doc).map(|doc| (0.0, doc)));
-                        start_doc_check_fill = current_doc + 1;
-                        // handle multi values
-                        current_doc_opt = None;
-
-                        let score: f32 = f64::coerce(numerical_value) as f32;
-                        values.push((score, current_doc));
-                    }
-                }
-            }
-        }
-        for doc in values.len() as u32..num_docs {
-            values.push((0.0f32, doc));
-        }
-        values.sort_by(|(left_score, _), (right_score, _)| {
-            if reversed {
-                right_score.total_cmp(left_score)
-            } else {
-                left_score.total_cmp(right_score)
-            }
-        });
-        values.into_iter().map(|(_score, doc)| doc).collect()
     }
 
     /// Records a column type. This is useful to bypass the coercion process,
@@ -302,12 +245,7 @@ impl ColumnarWriter {
             },
         );
     }
-    pub fn serialize(
-        &mut self,
-        num_docs: RowId,
-        old_to_new_row_ids: Option<&[RowId]>,
-        wrt: &mut dyn io::Write,
-    ) -> io::Result<()> {
+    pub fn serialize(&mut self, num_docs: RowId, wrt: &mut dyn io::Write) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
         let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
             .numerical_field_hash_map
@@ -358,11 +296,7 @@ impl ColumnarWriter {
                     serialize_bool_column(
                         cardinality,
                         num_docs,
-                        column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
+                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
                         &mut column_serializer,
                     )?;
@@ -376,11 +310,7 @@ impl ColumnarWriter {
                     serialize_ip_addr_column(
                         cardinality,
                         num_docs,
-                        column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
+                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
                         &mut column_serializer,
                     )?;
@@ -405,11 +335,8 @@ impl ColumnarWriter {
                         num_docs,
                         str_or_bytes_column_writer.sort_values_within_row,
                         dictionary_builder,
-                        str_or_bytes_column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
+                        str_or_bytes_column_writer
+                            .operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
                         &self.arena,
                         &mut column_serializer,
@@ -427,11 +354,7 @@ impl ColumnarWriter {
                         cardinality,
                         num_docs,
                         numerical_type,
-                        numerical_column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
+                        numerical_column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
                         &mut column_serializer,
                     )?;
@@ -446,11 +369,7 @@ impl ColumnarWriter {
                         cardinality,
                         num_docs,
                         NumericalType::I64,
-                        column_writer.operation_iterator(
-                            arena,
-                            old_to_new_row_ids,
-                            &mut symbol_byte_buffer,
-                        ),
+                        column_writer.operation_iterator(arena, &mut symbol_byte_buffer),
                         buffers,
                         &mut column_serializer,
                     )?;
@@ -757,7 +676,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Full);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, None, &mut buffer)
+            .operation_iterator(&arena, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 6);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));
@@ -786,7 +705,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Optional);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, None, &mut buffer)
+            .operation_iterator(&arena, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 4);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(1u32)));
@@ -809,7 +728,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(2), Cardinality::Optional);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, None, &mut buffer)
+            .operation_iterator(&arena, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 2);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));
@@ -828,7 +747,7 @@ mod tests {
         assert_eq!(column_writer.get_cardinality(1), Cardinality::Multivalued);
         let mut buffer = Vec::new();
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
-            .operation_iterator(&arena, None, &mut buffer)
+            .operation_iterator(&arena, &mut buffer)
             .collect();
         assert_eq!(symbols.len(), 3);
         assert!(matches!(symbols[0], ColumnOperation::NewDoc(0u32)));

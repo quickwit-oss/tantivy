@@ -7,6 +7,11 @@
     - [Other](#other)
   - [Usage](#usage)
 
+# Index Sorting has been removed!
+More infos here:
+
+https://github.com/quickwit-oss/tantivy/issues/2352
+
 # Index Sorting
 
 Tantivy allows you to sort the index according to a property.

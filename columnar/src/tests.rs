@@ -21,7 +21,7 @@ fn test_dataframe_writer_str() {
     dataframe_writer.record_str(1u32, "my_string", "hello");
     dataframe_writer.record_str(3u32, "my_string", "helloeee");
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
@@ -35,7 +35,7 @@ fn test_dataframe_writer_bytes() {
     dataframe_writer.record_bytes(1u32, "my_string", b"hello");
     dataframe_writer.record_bytes(3u32, "my_string", b"helloeee");
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("my_string").unwrap();
@@ -49,7 +49,7 @@ fn test_dataframe_writer_bool() {
     dataframe_writer.record_bool(1u32, "bool.value", false);
     dataframe_writer.record_bool(3u32, "bool.value", true);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("bool.value").unwrap();
@@ -74,7 +74,7 @@ fn test_dataframe_writer_u64_multivalued() {
     dataframe_writer.record_numerical(6u32, "divisor", 2u64);
     dataframe_writer.record_numerical(6u32, "divisor", 3u64);
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(7, None, &mut buffer).unwrap();
+    dataframe_writer.serialize(7, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("divisor").unwrap();
@@ -97,7 +97,7 @@ fn test_dataframe_writer_ip_addr() {
     dataframe_writer.record_ip_addr(1, "ip_addr", Ipv6Addr::from_u128(1001));
     dataframe_writer.record_ip_addr(3, "ip_addr", Ipv6Addr::from_u128(1050));
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(5, None, &mut buffer).unwrap();
+    dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("ip_addr").unwrap();
@@ -128,7 +128,7 @@ fn test_dataframe_writer_numerical() {
     dataframe_writer.record_numerical(2u32, "srical.value", NumericalValue::U64(13u64));
     dataframe_writer.record_numerical(4u32, "srical.value", NumericalValue::U64(15u64));
     let mut buffer: Vec<u8> = Vec::new();
-    dataframe_writer.serialize(6, None, &mut buffer).unwrap();
+    dataframe_writer.serialize(6, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("srical.value").unwrap();
@@ -154,46 +154,6 @@ fn test_dataframe_writer_numerical() {
 }
 
 #[test]
-fn test_dataframe_sort_by_full() {
-    let mut dataframe_writer = ColumnarWriter::default();
-    dataframe_writer.record_numerical(0u32, "value", NumericalValue::U64(1));
-    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(2));
-    let data = dataframe_writer.sort_order("value", 2, false);
-    assert_eq!(data, vec![0, 1]);
-}
-
-#[test]
-fn test_dataframe_sort_by_opt() {
-    let mut dataframe_writer = ColumnarWriter::default();
-    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(3));
-    dataframe_writer.record_numerical(3u32, "value", NumericalValue::U64(2));
-    let data = dataframe_writer.sort_order("value", 5, false);
-    // 0, 2, 4 is 0.0
-    assert_eq!(data, vec![0, 2, 4, 3, 1]);
-    let data = dataframe_writer.sort_order("value", 5, true);
-    assert_eq!(
-        data,
-        vec![4, 2, 0, 3, 1].into_iter().rev().collect::<Vec<_>>()
-    );
-}
-
-#[test]
-fn test_dataframe_sort_by_multi() {
-    let mut dataframe_writer = ColumnarWriter::default();
-    // valid for sort
-    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(2));
-    // those are ignored for sort
-    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(4));
-    dataframe_writer.record_numerical(1u32, "value", NumericalValue::U64(4));
-    // valid for sort
-    dataframe_writer.record_numerical(3u32, "value", NumericalValue::U64(3));
-    // ignored, would change sort order
-    dataframe_writer.record_numerical(3u32, "value", NumericalValue::U64(1));
-    let data = dataframe_writer.sort_order("value", 4, false);
-    assert_eq!(data, vec![0, 2, 1, 3]);
-}
-
-#[test]
 fn test_dictionary_encoded_str() {
     let mut buffer = Vec::new();
     let mut columnar_writer = ColumnarWriter::default();
@@ -201,7 +161,7 @@ fn test_dictionary_encoded_str() {
     columnar_writer.record_str(3, "my.column", "c");
     columnar_writer.record_str(3, "my.column2", "different_column!");
     columnar_writer.record_str(4, "my.column", "b");
-    columnar_writer.serialize(5, None, &mut buffer).unwrap();
+    columnar_writer.serialize(5, &mut buffer).unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar_reader.num_columns(), 2);
     let col_handles = columnar_reader.read_columns("my.column").unwrap();
@@ -235,7 +195,7 @@ fn test_dictionary_encoded_bytes() {
     columnar_writer.record_bytes(3, "my.column", b"c");
     columnar_writer.record_bytes(3, "my.column2", b"different_column!");
     columnar_writer.record_bytes(4, "my.column", b"b");
-    columnar_writer.serialize(5, None, &mut buffer).unwrap();
+    columnar_writer.serialize(5, &mut buffer).unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar_reader.num_columns(), 2);
     let col_handles = columnar_reader.read_columns("my.column").unwrap();
@@ -369,26 +329,12 @@ fn columnar_docs_strategy() -> impl Strategy<Value = Vec<Vec<(&'static str, Colu
         .prop_flat_map(|num_docs| proptest::collection::vec(doc_strategy(), num_docs))
 }
 
-fn columnar_docs_and_mapping_strategy(
-) -> impl Strategy<Value = (Vec<Vec<(&'static str, ColumnValue)>>, Vec<RowId>)> {
-    columnar_docs_strategy().prop_flat_map(|docs| {
-        permutation_strategy(docs.len()).prop_map(move |permutation| (docs.clone(), permutation))
-    })
-}
-
-fn permutation_strategy(n: usize) -> impl Strategy<Value = Vec<RowId>> {
-    Just((0u32..n as RowId).collect()).prop_shuffle()
-}
-
 fn permutation_and_subset_strategy(n: usize) -> impl Strategy<Value = Vec<usize>> {
     let vals: Vec<usize> = (0..n).collect();
     subsequence(vals, 0..=n).prop_shuffle()
 }
 
-fn build_columnar_with_mapping(
-    docs: &[Vec<(&'static str, ColumnValue)>],
-    old_to_new_row_ids_opt: Option<&[RowId]>,
-) -> ColumnarReader {
+fn build_columnar_with_mapping(docs: &[Vec<(&'static str, ColumnValue)>]) -> ColumnarReader {
     let num_docs = docs.len() as u32;
     let mut buffer = Vec::new();
     let mut columnar_writer = ColumnarWriter::default();
@@ -416,15 +362,13 @@ fn build_columnar_with_mapping(
             }
         }
     }
-    columnar_writer
-        .serialize(num_docs, old_to_new_row_ids_opt, &mut buffer)
-        .unwrap();
+    columnar_writer.serialize(num_docs, &mut buffer).unwrap();
 
     ColumnarReader::open(buffer).unwrap()
 }
 
 fn build_columnar(docs: &[Vec<(&'static str, ColumnValue)>]) -> ColumnarReader {
-    build_columnar_with_mapping(docs, None)
+    build_columnar_with_mapping(docs)
 }
 
 fn assert_columnar_eq_strict(left: &ColumnarReader, right: &ColumnarReader) {
@@ -678,54 +622,6 @@ proptest! {
                     assert_bytes_column_values(col, expected_col_values, false),
                 DynamicColumn::Str(col) =>
                     assert_bytes_column_values(col, expected_col_values, true),
-            }
-        }
-    }
-}
-
-// Same as `test_single_columnar_builder_proptest` but with a shuffling mapping.
-proptest! {
-    #![proptest_config(ProptestConfig::with_cases(500))]
-    #[test]
-    fn test_single_columnar_builder_with_shuffle_proptest((docs, mapping) in columnar_docs_and_mapping_strategy()) {
-        let columnar = build_columnar_with_mapping(&docs[..], Some(&mapping));
-        assert_eq!(columnar.num_rows() as usize, docs.len());
-        let mut expected_columns: HashMap<(&str, ColumnTypeCategory), HashMap<u32, Vec<&ColumnValue>> > = Default::default();
-        for (doc_id, doc_vals) in docs.iter().enumerate() {
-            for (col_name, col_val) in doc_vals {
-                expected_columns
-                    .entry((col_name, col_val.column_type_category()))
-                    .or_default()
-                    .entry(mapping[doc_id])
-                    .or_default()
-                    .push(col_val);
-            }
-        }
-        let column_list = columnar.list_columns().unwrap();
-        assert_eq!(expected_columns.len(), column_list.len());
-        for (column_name, column) in column_list {
-            let dynamic_column = column.open().unwrap();
-            let col_category: ColumnTypeCategory = dynamic_column.column_type().into();
-            let expected_col_values: &HashMap<u32, Vec<&ColumnValue>> = expected_columns.get(&(column_name.as_str(), col_category)).unwrap();
-            for _doc_id in 0..columnar.num_rows() {
-                match &dynamic_column {
-                    DynamicColumn::Bool(col) =>
-                        assert_column_values(col, expected_col_values),
-                    DynamicColumn::I64(col) =>
-                        assert_column_values(col, expected_col_values),
-                    DynamicColumn::U64(col) =>
-                        assert_column_values(col, expected_col_values),
-                    DynamicColumn::F64(col) =>
-                        assert_column_values(col, expected_col_values),
-                    DynamicColumn::IpAddr(col) =>
-                        assert_column_values(col, expected_col_values),
-                    DynamicColumn::DateTime(col) =>
-                        assert_column_values(col, expected_col_values),
-                    DynamicColumn::Bytes(col) =>
-                        assert_bytes_column_values(col, expected_col_values, false),
-                    DynamicColumn::Str(col) =>
-                        assert_bytes_column_values(col, expected_col_values, true),
-                }
             }
         }
     }

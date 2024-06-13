@@ -115,11 +115,10 @@ fn merge(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger: IndexMerger =
-        IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
+    let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
 
     // ... we just serialize this index merger in our new segment to merge the segments.
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
 
     let num_docs = merger.write(segment_serializer)?;
 
@@ -220,13 +219,9 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     )?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
-        merged_index.schema(),
-        merged_index.settings().clone(),
-        segments,
-        filter_doc_ids,
-    )?;
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
+    let merger: IndexMerger =
+        IndexMerger::open_with_custom_alive_set(merged_index.schema(), segments, filter_doc_ids)?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
     let num_docs = merger.write(segment_serializer)?;
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
@@ -1067,7 +1062,6 @@ mod tests {
             )?;
             let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
-                merged_index.settings().clone(),
                 &segments[..],
                 filter_segments,
             )?;
@@ -1083,7 +1077,6 @@ mod tests {
                 Index::create(RamDirectory::default(), target_schema, target_settings)?;
             let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
-                merged_index.settings().clone(),
                 &segments[..],
                 filter_segments,
             )?;

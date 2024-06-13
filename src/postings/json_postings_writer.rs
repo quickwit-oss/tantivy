@@ -3,7 +3,6 @@ use std::io;
 use common::json_path_writer::JSON_END_OF_PATH;
 use stacker::Addr;
 
-use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
@@ -62,7 +61,6 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
         &self,
         term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
         ordered_id_to_path: &[&str],
-        doc_id_map: Option<&DocIdMapping>,
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
@@ -87,7 +85,6 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
                     SpecializedPostingsWriter::<Rec>::serialize_one_term(
                         term_buffer.serialized_value_bytes(),
                         *addr,
-                        doc_id_map,
                         &mut buffer_lender,
                         ctx,
                         serializer,
@@ -96,7 +93,6 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
                     SpecializedPostingsWriter::<DocIdRecorder>::serialize_one_term(
                         term_buffer.serialized_value_bytes(),
                         *addr,
-                        doc_id_map,
                         &mut buffer_lender,
                         ctx,
                         serializer,

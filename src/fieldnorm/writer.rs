@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::{io, iter};
 
 use super::{fieldnorm_to_id, FieldNormsSerializer};
-use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::{Field, Schema};
 use crate::DocId;
 
@@ -92,11 +91,7 @@ impl FieldNormsWriter {
     }
 
     /// Serialize the seen fieldnorm values to the serializer for all fields.
-    pub fn serialize(
-        &self,
-        mut fieldnorms_serializer: FieldNormsSerializer,
-        doc_id_map: Option<&DocIdMapping>,
-    ) -> io::Result<()> {
+    pub fn serialize(&self, mut fieldnorms_serializer: FieldNormsSerializer) -> io::Result<()> {
         for (field, fieldnorms_buffer) in self.fieldnorms_buffers.iter().enumerate().filter_map(
             |(field_id, fieldnorms_buffer_opt)| {
                 fieldnorms_buffer_opt.as_ref().map(|fieldnorms_buffer| {
@@ -104,12 +99,7 @@ impl FieldNormsWriter {
                 })
             },
         ) {
-            if let Some(doc_id_map) = doc_id_map {
-                let remapped_fieldnorm_buffer = doc_id_map.remap(fieldnorms_buffer);
-                fieldnorms_serializer.serialize_field(field, &remapped_fieldnorm_buffer)?;
-            } else {
-                fieldnorms_serializer.serialize_field(field, fieldnorms_buffer)?;
-            }
+            fieldnorms_serializer.serialize_field(field, fieldnorms_buffer)?;
         }
         fieldnorms_serializer.close()?;
         Ok(())
