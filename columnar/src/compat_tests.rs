@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{Column, ColumnarReader, DynamicColumn, CURRENT_VERSION};
 
 const NUM_DOCS: u32 = u16::MAX as u32;
@@ -26,15 +28,14 @@ fn generate_columnar(num_docs: u32) -> Vec<u8> {
 }
 
 #[test]
-#[ignore]
-/// Unignore to write columnar for current version to disk
+/// Writes a columnar for the CURRENT_VERSION to disk.
 fn create_format() {
-    create_format_for_version(CURRENT_VERSION.to_string().as_str());
-}
-
-fn create_format_for_version(version: &str) {
+    let version = CURRENT_VERSION.to_string();
+    let file_path = path_for_version(&version);
+    if PathBuf::from(file_path.clone()).exists() {
+        return;
+    }
     let columnar = generate_columnar(NUM_DOCS);
-    let file_path = path_for_version(version);
     std::fs::write(file_path, columnar).unwrap();
 }
 
