@@ -1,59 +1,11 @@
-use core::fmt;
-use std::fmt::{Display, Formatter};
+mod bench_access;
 
+use bench_access::{generate_columnar, Card};
 use binggan::{black_box, BenchRunner};
 use tantivy_columnar::*;
 
-enum Card {
-    Multi,
-    Sparse,
-    Dense,
-}
-impl Display for Card {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Card::Multi => write!(f, "multi"),
-            Card::Sparse => write!(f, "sparse"),
-            Card::Dense => write!(f, "dense"),
-        }
-    }
-}
-
 const NUM_DOCS: u32 = 100_000;
 
-fn generate_columnar(card: Card, num_docs: u32) -> ColumnarReader {
-    use tantivy_columnar::ColumnarWriter;
-
-    let mut columnar_writer = ColumnarWriter::default();
-
-    match card {
-        Card::Multi => {
-            columnar_writer.record_numerical(0, "price", 10u64);
-            columnar_writer.record_numerical(0, "price", 10u64);
-        }
-        _ => {}
-    }
-
-    for i in 0..num_docs {
-        match card {
-            Card::Multi | Card::Sparse => {
-                if i % 13 == 0 {
-                    columnar_writer.record_numerical(i, "price", i as u64);
-                }
-            }
-            Card::Dense => {
-                if i % 12 == 0 {
-                    columnar_writer.record_numerical(i, "price", i as u64);
-                }
-            }
-        }
-    }
-
-    let mut wrt: Vec<u8> = Vec::new();
-    columnar_writer.serialize(num_docs, &mut wrt).unwrap();
-
-    ColumnarReader::open(wrt).unwrap()
-}
 fn main() {
     let mut inputs = Vec::new();
 
@@ -68,9 +20,12 @@ fn main() {
     };
 
     add_combo(Card::Multi, Card::Multi);
+    add_combo(Card::MultiSparse, Card::MultiSparse);
     add_combo(Card::Dense, Card::Dense);
     add_combo(Card::Sparse, Card::Sparse);
     add_combo(Card::Sparse, Card::Dense);
+    add_combo(Card::MultiSparse, Card::Dense);
+    add_combo(Card::MultiSparse, Card::Sparse);
     add_combo(Card::Multi, Card::Dense);
     add_combo(Card::Multi, Card::Sparse);
 
