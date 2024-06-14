@@ -156,10 +156,10 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             Optional(SpecializedScorer),
             // Must be fitted.
             Required(Box<dyn Scorer>),
-            // Same as `Required`, but each `Scorer` participants into intersection.
-            FullIntersection(Vec<Box<dyn Scorer>>),
         }
-        let should_opt = if let Some(should_scorers) = per_occur_scorers.remove(&Occur::Should) {
+        let mut must_scorers = per_occur_scorers.remove(&Occur::Must);
+        let should_opt = if let Some(mut should_scorers) = per_occur_scorers.remove(&Occur::Should)
+        {
             let num_of_should_scorers = should_scorers.len();
             if self.minimum_number_should_match > num_of_should_scorers {
                 return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
@@ -171,7 +171,16 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     &score_combiner_fn,
                 )),
                 n @ _ if num_of_should_scorers == n => {
-                    CombinationMethod::FullIntersection(should_scorers)
+                    // When num_of_should_scorers equals the number of should clauses,
+                    // they are no different from must clauses.
+                    must_scorers = match must_scorers.take() {
+                        Some(mut must_scorers) => {
+                            must_scorers.append(&mut should_scorers);
+                            Some(must_scorers)
+                        }
+                        None => Some(should_scorers),
+                    };
+                    CombinationMethod::Ignored
                 }
                 _ => CombinationMethod::Required(scorer_disjunction(
                     should_scorers,
@@ -193,7 +202,6 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             .map(|specialized_scorer: SpecializedScorer| {
                 into_box_scorer(specialized_scorer, DoNothingCombiner::default)
             });
-        let must_scorers = per_occur_scorers.remove(&Occur::Must);
         let positive_scorer = match (should_opt, must_scorers) {
             (CombinationMethod::Ignored, Some(must_scorers)) => {
                 SpecializedScorer::Other(intersect_scorers(must_scorers))
@@ -215,10 +223,6 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 must_scorers.push(should_scorer);
                 SpecializedScorer::Other(intersect_scorers(must_scorers))
             }
-            (CombinationMethod::FullIntersection(mut should_scorers), Some(mut must_scorers)) => {
-                must_scorers.append(&mut should_scorers);
-                SpecializedScorer::Other(intersect_scorers(must_scorers))
-            }
             (CombinationMethod::Ignored, None) => {
                 return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)))
             }
@@ -227,9 +231,6 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             }
             // Optional options are promoted to required if no must scorers exists.
             (CombinationMethod::Optional(should_scorer), None) => should_scorer,
-            (CombinationMethod::FullIntersection(should_scorers), _) => {
-                SpecializedScorer::Other(intersect_scorers(should_scorers))
-            }
         };
         if let Some(exclude_scorer) = exclude_scorer_opt {
             let positive_scorer_boxed = into_box_scorer(positive_scorer, &score_combiner_fn);
