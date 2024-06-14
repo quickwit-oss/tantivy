@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use binggan::{black_box, InputGroup};
 use tantivy_columnar::*;
 
-enum Card {
+pub enum Card {
     MultiSparse,
     Multi,
     Sparse,
@@ -25,7 +25,7 @@ impl Display for Card {
 
 const NUM_DOCS: u32 = 2_000_000;
 
-fn generate_columnar(card: Card, num_docs: u32) -> Column {
+pub fn generate_columnar(card: Card, num_docs: u32) -> ColumnarReader {
     use tantivy_columnar::ColumnarWriter;
 
     let mut columnar_writer = ColumnarWriter::default();
@@ -62,18 +62,26 @@ fn generate_columnar(card: Card, num_docs: u32) -> Column {
 
     let mut wrt: Vec<u8> = Vec::new();
     columnar_writer.serialize(num_docs, &mut wrt).unwrap();
-
     let reader = ColumnarReader::open(wrt).unwrap();
+    reader
+}
+
+pub fn generate_columnar_and_open(card: Card, num_docs: u32) -> Column {
+    let reader = generate_columnar(card, num_docs);
     reader.read_columns("price").unwrap()[0]
         .open_u64_lenient()
         .unwrap()
         .unwrap()
 }
+
 fn main() {
     let mut inputs = Vec::new();
 
     let mut add_card = |card1: Card| {
-        inputs.push((format!("{card1}"), generate_columnar(card1, NUM_DOCS)));
+        inputs.push((
+            format!("{card1}"),
+            generate_columnar_and_open(card1, NUM_DOCS),
+        ));
     };
 
     add_card(Card::MultiSparse);
