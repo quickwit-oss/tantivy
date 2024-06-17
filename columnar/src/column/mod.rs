@@ -136,7 +136,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
             .map(|value_row_id: RowId| self.values.get_val(value_row_id))
     }
 
-    /// Get the docids of values which are in the provided value range.
+    /// Get the docids of values which are in the provided value and docid range.
     #[inline]
     pub fn get_docids_for_value_range(
         &self,

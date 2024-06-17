@@ -95,8 +95,12 @@ pub fn merge_column_index<'a>(
 
 #[cfg(test)]
 mod tests {
+    use common::OwnedBytes;
+
     use crate::column_index::merge::detect_cardinality;
-    use crate::column_index::multivalued_index::MultiValueIndex;
+    use crate::column_index::multivalued_index::{
+        open_multivalued_index, serialize_multivalued_index, MultiValueIndex,
+    };
     use crate::column_index::{merge_column_index, OptionalIndex, SerializableColumnIndex};
     use crate::{
         Cardinality, ColumnIndex, MergeRowOrder, RowAddr, RowId, ShuffleMergeOrder, StackMergeOrder,
@@ -171,7 +175,11 @@ mod tests {
         let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
             panic!("Excpected a multivalued index")
         };
-        let start_indexes: Vec<RowId> = start_index_iterable.boxed_iter().collect();
+        let mut output = Vec::new();
+        serialize_multivalued_index(&start_index_iterable, &mut output).unwrap();
+        let multivalue =
+            open_multivalued_index(OwnedBytes::new(output), crate::Version::V2).unwrap();
+        let start_indexes: Vec<RowId> = multivalue.get_start_index_column().iter().collect();
         assert_eq!(&start_indexes, &[0, 3, 5]);
     }
 
@@ -200,11 +208,16 @@ mod tests {
             ],
         )
         .into();
+
         let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order);
         let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
             panic!("Excpected a multivalued index")
         };
-        let start_indexes: Vec<RowId> = start_index_iterable.boxed_iter().collect();
+        let mut output = Vec::new();
+        serialize_multivalued_index(&start_index_iterable, &mut output).unwrap();
+        let multivalue =
+            open_multivalued_index(OwnedBytes::new(output), crate::Version::V2).unwrap();
+        let start_indexes: Vec<RowId> = multivalue.get_start_index_column().iter().collect();
         assert_eq!(&start_indexes, &[0, 3, 5, 6]);
     }
 }

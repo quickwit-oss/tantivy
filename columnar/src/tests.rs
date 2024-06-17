@@ -79,7 +79,7 @@ fn test_dataframe_writer_u64_multivalued() {
     assert_eq!(columnar.num_columns(), 1);
     let cols: Vec<DynamicColumnHandle> = columnar.read_columns("divisor").unwrap();
     assert_eq!(cols.len(), 1);
-    assert_eq!(cols[0].num_bytes(), 29);
+    assert_eq!(cols[0].num_bytes(), 50);
     let dyn_i64_col = cols[0].open().unwrap();
     let DynamicColumn::I64(divisor_col) = dyn_i64_col else {
         panic!();
@@ -304,7 +304,7 @@ fn column_value_strategy() -> impl Strategy<Value = ColumnValue> {
             ip_addr_byte
         ))),
         1 => any::<bool>().prop_map(ColumnValue::Bool),
-        1 => (0_679_723_993i64..1_679_723_995i64)
+        1 => (679_723_993i64..1_679_723_995i64)
             .prop_map(|val| { ColumnValue::DateTime(DateTime::from_timestamp_secs(val)) })
     ]
 }
@@ -392,6 +392,7 @@ fn assert_columnar_eq(
     }
 }
 
+#[track_caller]
 fn assert_column_eq<T: Copy + PartialOrd + Debug + Send + Sync + 'static>(
     left: &Column<T>,
     right: &Column<T>,
@@ -740,22 +741,66 @@ fn columnar_docs_and_remap(
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(1000))]
     #[test]
-    fn test_columnar_merge_and_remap_proptest((columnar_docs, shuffle_merge_order) in columnar_docs_and_remap()) {
-        let shuffled_rows: Vec<Vec<(&'static str, ColumnValue)>> = shuffle_merge_order.iter()
-            .map(|row_addr| columnar_docs[row_addr.segment_ord as usize][row_addr.row_id as usize].clone())
-            .collect();
-        let expected_merged_columnar = build_columnar(&shuffled_rows[..]);
-        let columnar_readers: Vec<ColumnarReader> = columnar_docs.iter()
-            .map(|docs| build_columnar(&docs[..]))
-            .collect::<Vec<_>>();
-        let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
-        let mut output: Vec<u8> = Vec::new();
-        let segment_num_rows: Vec<RowId> = columnar_docs.iter().map(|docs| docs.len() as RowId).collect();
-        let shuffle_merge_order = ShuffleMergeOrder::for_test(&segment_num_rows, shuffle_merge_order);
-        crate::merge_columnar(&columnar_readers_arr[..], &[], shuffle_merge_order.into(), &mut output).unwrap();
-        let merged_columnar = ColumnarReader::open(output).unwrap();
-        assert_columnar_eq(&merged_columnar, &expected_merged_columnar, true);
+    fn test_columnar_merge_and_remap_proptest((columnar_docs, shuffle_merge_order) in
+columnar_docs_and_remap()) {
+        test_columnar_merge_and_remap(columnar_docs, shuffle_merge_order);
     }
+}
+
+fn test_columnar_merge_and_remap(
+    columnar_docs: Vec<Vec<Vec<(&'static str, ColumnValue)>>>,
+    shuffle_merge_order: Vec<RowAddr>,
+) {
+    let shuffled_rows: Vec<Vec<(&'static str, ColumnValue)>> = shuffle_merge_order
+        .iter()
+        .map(|row_addr| {
+            columnar_docs[row_addr.segment_ord as usize][row_addr.row_id as usize].clone()
+        })
+        .collect();
+    let expected_merged_columnar = build_columnar(&shuffled_rows[..]);
+    let columnar_readers: Vec<ColumnarReader> = columnar_docs
+        .iter()
+        .map(|docs| build_columnar(&docs[..]))
+        .collect::<Vec<_>>();
+    let columnar_readers_ref: Vec<&ColumnarReader> = columnar_readers.iter().collect();
+    let mut output: Vec<u8> = Vec::new();
+    let segment_num_rows: Vec<RowId> = columnar_docs
+        .iter()
+        .map(|docs| docs.len() as RowId)
+        .collect();
+    let shuffle_merge_order = ShuffleMergeOrder::for_test(&segment_num_rows, shuffle_merge_order);
+    crate::merge_columnar(
+        &columnar_readers_ref[..],
+        &[],
+        shuffle_merge_order.into(),
+        &mut output,
+    )
+    .unwrap();
+    let merged_columnar = ColumnarReader::open(output).unwrap();
+    assert_columnar_eq(&merged_columnar, &expected_merged_columnar, true);
+}
+
+#[test]
+fn test_columnar_merge_and_remap_bug_1() {
+    let columnar_docs = vec![vec![
+        vec![
+            ("c1", ColumnValue::Numerical(NumericalValue::U64(0))),
+            ("c1", ColumnValue::Numerical(NumericalValue::U64(0))),
+        ],
+        vec![],
+    ]];
+    let shuffle_merge_order: Vec<RowAddr> = vec![
+        RowAddr {
+            segment_ord: 0,
+            row_id: 1,
+        },
+        RowAddr {
+            segment_ord: 0,
+            row_id: 0,
+        },
+    ];
+
+    test_columnar_merge_and_remap(columnar_docs, shuffle_merge_order);
 }
 
 #[test]

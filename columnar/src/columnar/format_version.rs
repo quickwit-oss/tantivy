@@ -11,7 +11,7 @@ const MAGIC_BYTES: [u8; 4] = [2, 113, 119, 66];
 
 pub fn footer() -> [u8; VERSION_FOOTER_NUM_BYTES] {
     let mut footer_bytes = [0u8; VERSION_FOOTER_NUM_BYTES];
-    footer_bytes[0..4].copy_from_slice(&Version::V1.to_bytes());
+    footer_bytes[0..4].copy_from_slice(&CURRENT_VERSION.to_bytes());
     footer_bytes[4..8].copy_from_slice(&MAGIC_BYTES[..]);
     footer_bytes
 }
@@ -23,18 +23,20 @@ pub fn parse_footer(footer_bytes: [u8; VERSION_FOOTER_NUM_BYTES]) -> Result<Vers
     Version::try_from_bytes(footer_bytes[0..4].try_into().unwrap())
 }
 
-pub const CURRENT_VERSION: Version = Version::V1;
+pub const CURRENT_VERSION: Version = Version::V2;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u32)]
 pub enum Version {
     V1 = 1u32,
+    V2 = 2u32,
 }
 
 impl Display for Version {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Version::V1 => write!(f, "v1"),
+            Version::V2 => write!(f, "v2"),
         }
     }
 }
@@ -48,6 +50,7 @@ impl Version {
         let code = u32::from_le_bytes(bytes);
         match code {
             1u32 => Ok(Version::V1),
+            2u32 => Ok(Version::V2),
             _ => Err(InvalidData),
         }
     }
@@ -62,7 +65,7 @@ mod tests {
     #[test]
     fn test_footer_dserialization() {
         let parsed_version: Version = parse_footer(footer()).unwrap();
-        assert_eq!(Version::V1, parsed_version);
+        assert_eq!(Version::V2, parsed_version);
     }
 
     #[test]
@@ -76,11 +79,10 @@ mod tests {
         for &i in &version_to_tests {
             let version_res = Version::try_from_bytes(i.to_le_bytes());
             if let Ok(version) = version_res {
-                assert_eq!(version, Version::V1);
                 assert_eq!(version.to_bytes(), i.to_le_bytes());
                 valid_versions.insert(i);
             }
         }
-        assert_eq!(valid_versions.len(), 1);
+        assert_eq!(valid_versions.len(), 2);
     }
 }

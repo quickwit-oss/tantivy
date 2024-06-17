@@ -12,7 +12,7 @@ use common::CountingWriter;
 pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
-use crate::column_index::SerializableColumnIndex;
+use crate::column_index::{SerializableColumnIndex, SerializableOptionalIndex};
 use crate::column_values::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use crate::columnar::column_type::ColumnType;
 use crate::columnar::writer::column_writers::{
@@ -554,16 +554,16 @@ fn send_to_serialize_column_mappable_to_u128<
             let optional_index_builder = value_index_builders.borrow_optional_index_builder();
             consume_operation_iterator(op_iterator, optional_index_builder, values);
             let optional_index = optional_index_builder.finish(num_rows);
-            SerializableColumnIndex::Optional {
+            SerializableColumnIndex::Optional(SerializableOptionalIndex {
                 num_rows,
                 non_null_row_ids: Box::new(optional_index),
-            }
+            })
         }
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
-            let multivalued_index = multivalued_index_builder.finish(num_rows);
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            let serializable_multivalued_index = multivalued_index_builder.finish(num_rows);
+            SerializableColumnIndex::Multivalued(serializable_multivalued_index)
         }
     };
     crate::column::serialize_column_mappable_to_u128(
@@ -572,15 +572,6 @@ fn send_to_serialize_column_mappable_to_u128<
         &mut wrt,
     )?;
     Ok(())
-}
-
-fn sort_values_within_row_in_place(multivalued_index: &[RowId], values: &mut [u64]) {
-    let mut start_index: usize = 0;
-    for end_index in multivalued_index.iter().copied() {
-        let end_index = end_index as usize;
-        values[start_index..end_index].sort_unstable();
-        start_index = end_index;
-    }
 }
 
 fn send_to_serialize_column_mappable_to_u64(
@@ -606,19 +597,22 @@ fn send_to_serialize_column_mappable_to_u64(
             let optional_index_builder = value_index_builders.borrow_optional_index_builder();
             consume_operation_iterator(op_iterator, optional_index_builder, values);
             let optional_index = optional_index_builder.finish(num_rows);
-            SerializableColumnIndex::Optional {
+            SerializableColumnIndex::Optional(SerializableOptionalIndex {
                 non_null_row_ids: Box::new(optional_index),
                 num_rows,
-            }
+            })
         }
         Cardinality::Multivalued => {
             let multivalued_index_builder = value_index_builders.borrow_multivalued_index_builder();
             consume_operation_iterator(op_iterator, multivalued_index_builder, values);
-            let multivalued_index = multivalued_index_builder.finish(num_rows);
+            let serializable_multivalued_index = multivalued_index_builder.finish(num_rows);
             if sort_values_within_row {
-                sort_values_within_row_in_place(multivalued_index, values);
+                sort_values_within_row_in_place(
+                    serializable_multivalued_index.start_offsets.boxed_iter(),
+                    values,
+                );
             }
-            SerializableColumnIndex::Multivalued(Box::new(multivalued_index))
+            SerializableColumnIndex::Multivalued(serializable_multivalued_index)
         }
     };
     crate::column::serialize_column_mappable_to_u64(
@@ -627,6 +621,18 @@ fn send_to_serialize_column_mappable_to_u64(
         &mut wrt,
     )?;
     Ok(())
+}
+
+fn sort_values_within_row_in_place(
+    multivalued_index: impl Iterator<Item = RowId>,
+    values: &mut [u64],
+) {
+    let mut start_index: usize = 0;
+    for end_index in multivalued_index {
+        let end_index = end_index as usize;
+        values[start_index..end_index].sort_unstable();
+        start_index = end_index;
+    }
 }
 
 fn coerce_numerical_symbol<T>(

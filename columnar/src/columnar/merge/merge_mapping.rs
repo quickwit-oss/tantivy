@@ -59,7 +59,6 @@ pub enum MergeRowOrder {
     Stack(StackMergeOrder),
     /// Some more complex mapping, that may interleaves rows from the different readers and
     /// drop rows, or do both.
-    /// TODO: remove ordering part here
     Shuffled(ShuffleMergeOrder),
 }
 

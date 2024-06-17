@@ -1,73 +1,13 @@
-use core::fmt;
-use std::fmt::{Display, Formatter};
-
 use binggan::{black_box, InputGroup};
-use tantivy_columnar::*;
+use common::*;
+use tantivy_columnar::Column;
 
-pub enum Card {
-    MultiSparse,
-    Multi,
-    Sparse,
-    Dense,
-    Full,
-}
-impl Display for Card {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            Card::MultiSparse => write!(f, "multi sparse 1/13"),
-            Card::Multi => write!(f, "multi 2x"),
-            Card::Sparse => write!(f, "sparse 1/13"),
-            Card::Dense => write!(f, "dense 1/12"),
-            Card::Full => write!(f, "full"),
-        }
-    }
-}
+pub mod common;
 
 const NUM_DOCS: u32 = 2_000_000;
 
-pub fn generate_columnar(card: Card, num_docs: u32) -> ColumnarReader {
-    use tantivy_columnar::ColumnarWriter;
-
-    let mut columnar_writer = ColumnarWriter::default();
-
-    match card {
-        Card::MultiSparse => {
-            columnar_writer.record_numerical(0, "price", 10u64);
-            columnar_writer.record_numerical(0, "price", 10u64);
-        }
-        _ => {}
-    }
-
-    for i in 0..num_docs {
-        match card {
-            Card::MultiSparse | Card::Sparse => {
-                if i % 13 == 0 {
-                    columnar_writer.record_numerical(i, "price", i as u64);
-                }
-            }
-            Card::Dense => {
-                if i % 12 == 0 {
-                    columnar_writer.record_numerical(i, "price", i as u64);
-                }
-            }
-            Card::Full => {
-                columnar_writer.record_numerical(i, "price", i as u64);
-            }
-            Card::Multi => {
-                columnar_writer.record_numerical(i, "price", i as u64);
-                columnar_writer.record_numerical(i, "price", i as u64);
-            }
-        }
-    }
-
-    let mut wrt: Vec<u8> = Vec::new();
-    columnar_writer.serialize(num_docs, &mut wrt).unwrap();
-    let reader = ColumnarReader::open(wrt).unwrap();
-    reader
-}
-
 pub fn generate_columnar_and_open(card: Card, num_docs: u32) -> Column {
-    let reader = generate_columnar(card, num_docs);
+    let reader = generate_columnar_with_name(card, num_docs, "price");
     reader.read_columns("price").unwrap()[0]
         .open_u64_lenient()
         .unwrap()
@@ -116,9 +56,8 @@ fn bench_group(mut runner: InputGroup<Column>) {
 
             column.first_vals(&docs, &mut buffer);
             for val in buffer.iter() {
-                if let Some(val) = val {
-                    sum += *val;
-                }
+                let Some(val) = val else { continue };
+                sum += *val;
             }
         }
 
