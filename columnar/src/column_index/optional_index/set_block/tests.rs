@@ -22,8 +22,8 @@ fn test_set_helper<C: SetCodec<Item = u16>>(vals: &[u16]) -> usize {
             vals.iter().cloned().take_while(|v| *v < val).count() as u16
         );
     }
-    for rank in 0..vals.len() {
-        assert_eq!(tested_set.select(rank as u16), vals[rank]);
+    for (rank, val) in vals.iter().enumerate() {
+        assert_eq!(tested_set.select(rank as u16), *val);
     }
     buffer.len()
 }
@@ -106,4 +106,42 @@ fn test_simple_translate_codec_idx_to_original_idx_dense() {
     for i in 0..150 {
         assert_eq!(i, select_cursor.select(i));
     }
+}
+
+#[test]
+fn test_simple_translate_idx_to_value_idx_dense() {
+    let mut buffer = Vec::new();
+    DenseBlockCodec::serialize([1, 10].iter().copied(), &mut buffer).unwrap();
+    let tested_set = DenseBlockCodec::open(buffer.as_slice());
+    assert!(tested_set.contains(1));
+    assert!(!tested_set.contains(2));
+    assert_eq!(tested_set.rank(0), 0);
+    assert_eq!(tested_set.rank(1), 0);
+    for rank in 2..10 {
+        // ranks that don't exist select the next highest one
+        assert_eq!(tested_set.rank_if_exists(rank), None);
+        assert_eq!(tested_set.rank(rank), 1);
+    }
+    assert_eq!(tested_set.rank(10), 1);
+}
+
+#[test]
+fn test_simple_translate_idx_to_value_idx_sparse() {
+    let mut buffer = Vec::new();
+    SparseBlockCodec::serialize([1, 10].iter().copied(), &mut buffer).unwrap();
+    let tested_set = SparseBlockCodec::open(buffer.as_slice());
+    assert!(tested_set.contains(1));
+    assert!(!tested_set.contains(2));
+    assert_eq!(tested_set.rank(0), 0);
+    assert_eq!(tested_set.select(tested_set.rank(0)), 1);
+    assert_eq!(tested_set.rank(1), 0);
+    assert_eq!(tested_set.select(tested_set.rank(1)), 1);
+    for rank in 2..10 {
+        // ranks that don't exist select the next highest one
+        assert_eq!(tested_set.rank_if_exists(rank), None);
+        assert_eq!(tested_set.rank(rank), 1);
+        assert_eq!(tested_set.select(tested_set.rank(rank)), 10);
+    }
+    assert_eq!(tested_set.rank(10), 1);
+    assert_eq!(tested_set.select(tested_set.rank(10)), 10);
 }

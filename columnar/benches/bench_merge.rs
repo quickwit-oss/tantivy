@@ -1,7 +1,7 @@
-mod bench_access;
+pub mod common;
 
-use bench_access::{generate_columnar, Card};
 use binggan::{black_box, BenchRunner};
+use common::{generate_columnar_with_name, Card};
 use tantivy_columnar::*;
 
 const NUM_DOCS: u32 = 100_000;
@@ -13,8 +13,8 @@ fn main() {
         inputs.push((
             format!("merge_{card1}_and_{card2}"),
             vec![
-                generate_columnar(card1, NUM_DOCS),
-                generate_columnar(card2, NUM_DOCS),
+                generate_columnar_with_name(card1, NUM_DOCS, "price"),
+                generate_columnar_with_name(card2, NUM_DOCS, "price"),
             ],
         ));
     };

@@ -2212,7 +2212,7 @@ mod tests {
 
     #[test]
     fn test_fast_field_range() {
-        let ops: Vec<_> = (0..1000).map(|id| IndexingOp::add(id)).collect();
+        let ops: Vec<_> = (0..1000).map(IndexingOp::add).collect();
         assert!(test_operation_strategy(&ops, true).is_ok());
     }
 

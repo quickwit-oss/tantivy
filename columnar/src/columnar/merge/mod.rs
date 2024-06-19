@@ -7,7 +7,6 @@ use std::io;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
-use itertools::Itertools;
 pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;
@@ -371,20 +370,8 @@ fn is_empty_after_merge(
                         true
                     }
                     ColumnIndex::Multivalued(multivalued_index) => {
-                        for (doc_id, (start_index, end_index)) in multivalued_index
-                            .start_index_column
-                            .iter()
-                            .tuple_windows()
-                            .enumerate()
-                        {
-                            let doc_id = doc_id as u32;
-                            if start_index == end_index {
-                                // There are no values in this document
-                                continue;
-                            }
-                            // The document contains values and is present in the alive bitset.
-                            // The column is therefore not empty.
-                            if alive_bitset.contains(doc_id) {
+                        for alive_docid in alive_bitset.iter() {
+                            if !multivalued_index.range(alive_docid).is_empty() {
                                 return false;
                             }
                         }

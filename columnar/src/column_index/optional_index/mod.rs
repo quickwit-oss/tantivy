@@ -86,8 +86,14 @@ pub struct OptionalIndex {
     block_metas: Arc<[BlockMeta]>,
 }
 
+impl<'a> Iterable<u32> for &'a OptionalIndex {
+    fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
+        Box::new(self.iter_rows())
+    }
+}
+
 impl std::fmt::Debug for OptionalIndex {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("OptionalIndex")
             .field("num_rows", &self.num_rows)
             .field("num_non_null_rows", &self.num_non_null_rows)
