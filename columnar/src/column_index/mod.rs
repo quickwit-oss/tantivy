@@ -161,10 +161,10 @@ impl ColumnIndex {
                     // how the `start_index_column` works, so we get the value start of the next
                     // docid which we use to create the exclusive range.
                     //
-                    let rank = index.optional_index.rank(doc_id_range.start);
-                    let row_start = index.start_index_column.get_val(rank);
-                    let rank = index.optional_index.rank(doc_id_range.end);
-                    let row_end = index.start_index_column.get_val(rank);
+                    let rank_start = index.optional_index.rank(doc_id_range.start);
+                    let row_start = index.start_index_column.get_val(rank_start);
+                    let rank_end = index.optional_index.rank(doc_id_range.end);
+                    let row_end = index.start_index_column.get_val(rank_end);
 
                     row_start..row_end
                 }
