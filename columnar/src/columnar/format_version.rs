@@ -63,7 +63,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_footer_dserialization() {
+    fn test_footer_deserialization() {
         let parsed_version: Version = parse_footer(footer()).unwrap();
         assert_eq!(Version::V2, parsed_version);
     }
