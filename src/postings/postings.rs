@@ -15,6 +15,7 @@ pub trait Postings: DocSet + 'static {
     fn term_freq(&self) -> u32;
 
     /// Returns the positions offsetted with a given value.
+    /// It is not necessary to clear the `output` before calling this method.
     /// The output vector will be resized to the `term_freq`.
     fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>);
 
