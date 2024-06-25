@@ -1,3 +1,5 @@
+use common::json_path_writer::JSON_END_OF_PATH;
+use common::replace_in_place;
 use fnv::FnvHashMap;
 
 /// `Field` is represented by an unsigned 32-bit integer type.
@@ -38,7 +40,14 @@ impl PathToUnorderedId {
     #[cold]
     fn insert_new_path(&mut self, path: &str) -> u32 {
         let next_id = self.map.len() as u32;
-        self.map.insert(path.to_string(), next_id);
+        let mut new_path = path.to_string();
+
+        // The unsafe below is safe as long as b'.' and JSON_PATH_SEGMENT_SEP are
+        // valid single byte ut8 strings.
+        // By utf-8 design, they cannot be part of another codepoint.
+        unsafe { replace_in_place(JSON_END_OF_PATH, b'0', new_path.as_bytes_mut()) };
+
+        self.map.insert(new_path, next_id);
         next_id
     }
 

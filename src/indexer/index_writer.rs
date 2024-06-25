@@ -2490,4 +2490,29 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_bug_2442() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let json_field = schema_builder.add_json_field("json", TEXT | FAST);
+
+        let schema = schema_builder.build();
+        let index = Index::builder().schema(schema).create_in_ram()?;
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        index_writer
+            .add_document(doc!(
+                json_field=>json!({"\u{0000}B":"1"})
+            ))
+            .unwrap();
+        index_writer
+            .add_document(doc!(
+                json_field=>json!({" A":"1"})
+            ))
+            .unwrap();
+        index_writer.commit()?;
+
+        Ok(())
+    }
 }

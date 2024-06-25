@@ -247,6 +247,7 @@ impl ColumnarWriter {
     }
     pub fn serialize(&mut self, num_docs: RowId, wrt: &mut dyn io::Write) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
+
         let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
             .numerical_field_hash_map
             .iter()
@@ -260,7 +261,7 @@ impl ColumnarWriter {
         columns.extend(
             self.bytes_field_hash_map
                 .iter()
-                .map(|(term, addr)| (term, ColumnType::Bytes, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::Bytes, addr)),
         );
         columns.extend(
             self.str_field_hash_map
@@ -282,6 +283,7 @@ impl ColumnarWriter {
                 .iter()
                 .map(|(column_name, addr)| (column_name, ColumnType::DateTime, addr)),
         );
+        // TODO: replace JSON_END_OF_PATH with b'0' in columns
         columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
 
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
