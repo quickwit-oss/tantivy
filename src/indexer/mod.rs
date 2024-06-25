@@ -145,15 +145,27 @@ mod tests_mmap {
         }
     }
     #[test]
-    fn test_json_field_null_byte() {
-        // Test when field name contains a zero byte, which has special meaning in tantivy.
-        // As a workaround, we convert the zero byte to the ASCII character '0'.
-        // https://github.com/quickwit-oss/tantivy/issues/2340
-        // https://github.com/quickwit-oss/tantivy/issues/2193
-        let field_name_in = "\u{0000}";
-        let field_name_out = "0";
-        test_json_field_name(field_name_in, field_name_out);
+    fn test_json_field_null_byte_is_ignored() {
+        let mut schema_builder = Schema::builder();
+        let options = JsonObjectOptions::from(TEXT | FAST).set_expand_dots_enabled();
+        let field = schema_builder.add_json_field("json", options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(field=>json!({"key": "test1", "invalidkey\u{0000}": "test2"})))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let inv_indexer = segment_reader.inverted_index(field).unwrap();
+        let term_dict = inv_indexer.terms();
+        assert_eq!(term_dict.num_terms(), 1);
+        let mut term_bytes = Vec::new();
+        term_dict.ord_to_term(0, &mut term_bytes).unwrap();
+        assert_eq!(term_bytes, b"key\0stest1");
     }
+
     #[test]
     fn test_json_field_1byte() {
         // Test when field name contains a '1' byte, which has special meaning in tantivy.

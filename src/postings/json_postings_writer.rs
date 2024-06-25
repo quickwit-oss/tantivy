@@ -59,7 +59,7 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(
         &self,
-        term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
+        ordered_term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
         ordered_id_to_path: &[&str],
         ctx: &IndexingContext,
         serializer: &mut FieldSerializer,
@@ -69,7 +69,7 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
         term_buffer.clear_with_field_and_type(Type::Json, Field::from_field_id(0));
         let mut prev_term_id = u32::MAX;
         let mut term_path_len = 0; // this will be set in the first iteration
-        for (_field, path_id, term, addr) in term_addrs {
+        for (_field, path_id, term, addr) in ordered_term_addrs {
             if prev_term_id != path_id.path_id() {
                 term_buffer.truncate_value_bytes(0);
                 term_buffer.append_path(ordered_id_to_path[path_id.path_id() as usize].as_bytes());

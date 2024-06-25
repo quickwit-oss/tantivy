@@ -8,6 +8,7 @@ use std::net::Ipv6Addr;
 
 use column_operation::ColumnOperation;
 pub(crate) use column_writers::CompatibleNumericalTypes;
+use common::json_path_writer::JSON_END_OF_PATH;
 use common::CountingWriter;
 pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
@@ -247,6 +248,7 @@ impl ColumnarWriter {
     }
     pub fn serialize(&mut self, num_docs: RowId, wrt: &mut dyn io::Write) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
+
         let mut columns: Vec<(&[u8], ColumnType, Addr)> = self
             .numerical_field_hash_map
             .iter()
@@ -260,7 +262,7 @@ impl ColumnarWriter {
         columns.extend(
             self.bytes_field_hash_map
                 .iter()
-                .map(|(term, addr)| (term, ColumnType::Bytes, addr)),
+                .map(|(column_name, addr)| (column_name, ColumnType::Bytes, addr)),
         );
         columns.extend(
             self.str_field_hash_map
@@ -287,6 +289,12 @@ impl ColumnarWriter {
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
         for (column_name, column_type, addr) in columns {
+            if column_name.contains(&JSON_END_OF_PATH) {
+                // Tantivy uses b'0' as a separator for nested fields in JSON.
+                // Column names with a b'0' are not simply ignored by the columnar (and the inverted
+                // index).
+                continue;
+            }
             match column_type {
                 ColumnType::Bool => {
                     let column_writer: ColumnWriter = self.bool_field_hash_map.read(addr);

@@ -1,4 +1,4 @@
-use common::json_path_writer::JSON_PATH_SEGMENT_SEP;
+use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
 use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
@@ -83,6 +83,9 @@ fn index_json_object<'a, V: Value<'a>>(
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
     for (json_path_segment, json_value_visitor) in json_visitor {
+        if json_path_segment.as_bytes().contains(&JSON_END_OF_PATH) {
+            continue;
+        }
         json_path_writer.push(json_path_segment);
         index_json_value(
             doc,
