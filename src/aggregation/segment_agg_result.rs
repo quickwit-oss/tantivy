@@ -16,7 +16,10 @@ use super::metric::{
     SumAggregation,
 };
 use crate::aggregation::bucket::TermMissingAgg;
-use crate::aggregation::metric::{SegmentExtendedStatsCollector, TopHitsSegmentCollector};
+use crate::aggregation::metric::{
+    CardinalityAggregationReq, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
+    TopHitsSegmentCollector,
+};
 
 pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
@@ -169,6 +172,9 @@ pub(crate) fn build_single_agg_segment_collector(
             accessor_idx,
             req.segment_ordinal,
         ))),
+        Cardinality(CardinalityAggregationReq { missing, .. }) => Ok(Box::new(
+            SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
+        )),
     }
 }
 

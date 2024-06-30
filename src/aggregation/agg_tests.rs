@@ -110,6 +110,16 @@ fn test_aggregation_flushing(
                 }
             }
         }
+    },
+    "cardinality_string_id":{
+        "cardinality": {
+            "field": "string_id"
+        }
+    },
+    "cardinality_score":{
+        "cardinality": {
+            "field": "score"
+        }
     }
     });
 
@@ -211,6 +221,9 @@ fn test_aggregation_flushing(
           }
         )
     );
+
+    assert_eq!(res["cardinality_string_id"]["value"], 2.0);
+    assert_eq!(res["cardinality_score"]["value"], 80.0);
 
     Ok(())
 }

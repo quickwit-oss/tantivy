@@ -98,6 +98,8 @@ pub enum MetricResult {
     Percentiles(PercentilesMetricResult),
     /// Top hits metric result
     TopHits(TopHitsMetricResult),
+    /// Cardinality metric result
+    Cardinality(SingleMetricResult),
 }
 
 impl MetricResult {
@@ -116,6 +118,7 @@ impl MetricResult {
             MetricResult::TopHits(_) => Err(TantivyError::AggregationError(
                 AggregationError::InvalidRequest("top_hits can't be used to order".to_string()),
             )),
+            MetricResult::Cardinality(card) => Ok(card.value),
         }
     }
 }

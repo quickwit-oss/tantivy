@@ -11,8 +11,8 @@ use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    AverageAggregation, CountAggregation, ExtendedStatsAggregation, MaxAggregation, MinAggregation,
-    StatsAggregation, SumAggregation,
+    AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
+    MaxAggregation, MinAggregation, StatsAggregation, SumAggregation,
 };
 use super::segment_agg_result::AggregationLimits;
 use super::VecWithNames;
@@ -159,6 +159,11 @@ impl AggregationWithAccessor {
                 add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Terms(TermsAggregation {
+                field: ref field_name,
+                ref missing,
+                ..
+            })
+            | Cardinality(CardinalityAggregationReq {
                 field: ref field_name,
                 ref missing,
                 ..
