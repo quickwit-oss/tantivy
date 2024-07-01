@@ -815,8 +815,9 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::{QueryParser, TermQuery};
     use crate::schema::{
-        self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, NumericOptions,
-        TextFieldIndexing, TextOptions, Value, FAST, INDEXED, STORED, STRING, TEXT,
+        self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, JsonObjectOptions,
+        NumericOptions, Schema, TextFieldIndexing, TextOptions, Value, FAST, INDEXED, STORED,
+        STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
     use crate::{
@@ -2378,11 +2379,11 @@ mod tests {
 
     #[test]
     fn test_bug_1617_2() {
-        assert!(test_operation_strategy(
+        test_operation_strategy(
             &[
                 IndexingOp::AddDoc {
                     id: 13,
-                    value: Default::default()
+                    value: Default::default(),
                 },
                 IndexingOp::DeleteDoc { id: 13 },
                 IndexingOp::Commit,
@@ -2390,9 +2391,9 @@ mod tests {
                 IndexingOp::Commit,
                 IndexingOp::Merge,
             ],
-            true
+            true,
         )
-        .is_ok());
+        .unwrap();
     }
 
     #[test]
@@ -2488,6 +2489,48 @@ mod tests {
 
         assert_eq!(top_docs.len(), 1); // Fails
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_bug_2442_reserved_character_fast_field() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let json_field = schema_builder.add_json_field("json", FAST | TEXT);
+
+        let schema = schema_builder.build();
+        let index = Index::builder().schema(schema).create_in_ram()?;
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        index_writer
+            .add_document(doc!(
+                json_field=>json!({"\u{0000}B":"1"})
+            ))
+            .unwrap();
+        index_writer
+            .add_document(doc!(
+                json_field=>json!({" A":"1"})
+            ))
+            .unwrap();
+        index_writer.commit()?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bug_2442_reserved_character_columnar() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let options = JsonObjectOptions::from(FAST).set_expand_dots_enabled();
+        let field = schema_builder.add_json_field("json", options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(field=>json!({"\u{0000}": "A"})))
+            .unwrap();
+        index_writer
+            .add_document(doc!(field=>json!({format!("\u{0000}\u{0000}"): "A"})))
+            .unwrap();
+        index_writer.commit().unwrap();
         Ok(())
     }
 }
