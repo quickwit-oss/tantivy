@@ -2,7 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{BuildHasher, Hasher};
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::{BytesColumn, StrColumn};
+use columnar::Dictionary;
 use common::f64_to_u64;
 use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use rustc_hash::FxHashSet;
@@ -38,7 +38,53 @@ impl BuildHasher for BuildSaltedHasher {
 ///
 /// The cardinality aggregation allows for computing an estimate
 /// of the number of different values in a data set based on the
-/// HyperLogLog++ alogrithm.
+/// HyperLogLog++ algorithm. This is particularly useful for understanding the
+/// uniqueness of values in a large dataset where counting each unique value
+/// individually would be computationally expensive.
+///
+/// For example, you might use a cardinality aggregation to estimate the number
+/// of unique visitors to a website by aggregating on a field that contains
+/// user IDs or session IDs.
+///
+/// To use the cardinality aggregation, you'll need to provide a field to
+/// aggregate on. The following example demonstrates a request for the cardinality
+/// of the "user_id" field:
+///
+/// ```JSON
+/// {
+///     "cardinality": {
+///         "field": "user_id"
+///     }
+/// }
+/// ```
+///
+/// This request will return an estimate of the number of unique values in the
+/// "user_id" field.
+///
+/// ## Missing Values
+///
+/// The `missing` parameter defines how documents that are missing a value should be treated.
+/// By default, documents without a value for the specified field are ignored. However, you can
+/// specify a default value for these documents using the `missing` parameter. This can be useful
+/// when you want to include documents with missing values in the aggregation.
+///
+/// For example, the following request treats documents with missing values in the "user_id"
+/// field as if they had a value of "unknown":
+///
+/// ```JSON
+/// {
+///     "cardinality": {
+///         "field": "user_id",
+///         "missing": "unknown"
+///     }
+/// }
+/// ```
+///
+/// # Estimation Accuracy
+///
+/// The cardinality aggregation provides an approximate count, which is usually
+/// accurate within a small error range. This trade-off allows for efficient
+/// computation even on very large datasets.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CardinalityAggregationReq {
     /// The field name to compute the percentiles on.
@@ -108,27 +154,29 @@ impl SegmentCardinalityCollector {
         agg_with_accessor: &AggregationWithAccessor,
     ) -> crate::Result<IntermediateMetricResult> {
         if self.column_type == ColumnType::Str {
-            let mut buffer = String::new();
-            let term_dict = agg_with_accessor
+            let fallback_dict = Dictionary::empty();
+            let dict = agg_with_accessor
                 .str_dict_column
                 .as_ref()
-                .cloned()
-                .unwrap_or_else(|| {
-                    StrColumn::wrap(BytesColumn::empty(agg_with_accessor.accessor.num_docs()))
-                });
+                .map(|el| el.dictionary())
+                .unwrap_or_else(|| &fallback_dict);
             let mut has_missing = false;
+
+            // TODO: replace FxHashSet with something that allows iterating in order
+            // (e.g. sparse bitvec)
+            let mut term_ids = Vec::new();
             for term_ord in self.entries.into_iter() {
                 if term_ord == u64::MAX {
                     has_missing = true;
                 } else {
-                    if !term_dict.ord_to_str(term_ord, &mut buffer)? {
-                        return Err(TantivyError::InternalError(format!(
-                            "Couldn't find term_ord {term_ord} in dict"
-                        )));
-                    }
-                    self.cardinality.sketch.insert_any(&buffer);
+                    // we can reasonably exclude values above u32::MAX
+                    term_ids.push(term_ord as u32);
                 }
             }
+            term_ids.sort_unstable();
+            dict.ords_to_term_cb(term_ids.iter().map(|term| *term as u64), |term| {
+                self.cardinality.sketch.insert_any(&term);
+            })?;
             if has_missing {
                 let missing_key = self
                     .missing

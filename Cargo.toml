@@ -11,7 +11,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 edition = "2021"
-rust-version = "1.63"
+rust-version = "1.66"
 exclude = ["benches/*.json", "benches/*.txt"]
 
 [dependencies]

@@ -89,7 +89,7 @@ use crate::{DocAddress, DocId, SegmentOrdinal};
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-pub struct TopHitsAggregation {
+pub struct TopHitsAggregationReq {
     sort: Vec<KeyOrder>,
     size: usize,
     from: Option<usize>,
@@ -164,7 +164,7 @@ fn unsupported_err(parameter: &str) -> crate::Result<()> {
     ))
 }
 
-impl TopHitsAggregation {
+impl TopHitsAggregationReq {
     /// Validate and resolve field retrieval parameters
     pub fn validate_and_resolve_field_names(
         &mut self,
@@ -431,7 +431,7 @@ impl Eq for DocSortValuesAndFields {}
 /// The TopHitsCollector used for collecting over segments and merging results.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TopHitsTopNComputer {
-    req: TopHitsAggregation,
+    req: TopHitsAggregationReq,
     top_n: TopNComputer<DocSortValuesAndFields, DocAddress, false>,
 }
 
@@ -443,7 +443,7 @@ impl std::cmp::PartialEq for TopHitsTopNComputer {
 
 impl TopHitsTopNComputer {
     /// Create a new TopHitsCollector
-    pub fn new(req: &TopHitsAggregation) -> Self {
+    pub fn new(req: &TopHitsAggregationReq) -> Self {
         Self {
             top_n: TopNComputer::new(req.size + req.from.unwrap_or(0)),
             req: req.clone(),
@@ -496,7 +496,7 @@ pub(crate) struct TopHitsSegmentCollector {
 
 impl TopHitsSegmentCollector {
     pub fn from_req(
-        req: &TopHitsAggregation,
+        req: &TopHitsAggregationReq,
         accessor_idx: usize,
         segment_ordinal: SegmentOrdinal,
     ) -> Self {
@@ -509,7 +509,7 @@ impl TopHitsSegmentCollector {
     fn into_top_hits_collector(
         self,
         value_accessors: &HashMap<String, Vec<DynamicColumn>>,
-        req: &TopHitsAggregation,
+        req: &TopHitsAggregationReq,
     ) -> TopHitsTopNComputer {
         let mut top_hits_computer = TopHitsTopNComputer::new(req);
         let top_results = self.top_n.into_vec();
@@ -532,7 +532,7 @@ impl TopHitsSegmentCollector {
     fn collect_with(
         &mut self,
         doc_id: crate::DocId,
-        req: &TopHitsAggregation,
+        req: &TopHitsAggregationReq,
         accessors: &[(Column<u64>, ColumnType)],
     ) -> crate::Result<()> {
         let sorts: Vec<DocValueAndOrder> = req

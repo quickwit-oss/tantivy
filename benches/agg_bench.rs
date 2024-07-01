@@ -54,7 +54,11 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_many_order_by_term);
     register!(group, terms_many_with_top_hits);
     register!(group, terms_many_with_avg_sub_agg);
-    register!(group, terms_many_json_mixed_type_with_sub_agg_card);
+    register!(group, terms_many_json_mixed_type_with_avg_sub_agg);
+
+    register!(group, cardinality_agg);
+    register!(group, terms_few_with_cardinality_agg);
+
     register!(group, range_agg);
     register!(group, range_agg_with_avg_sub_agg);
     register!(group, range_agg_with_term_agg_few);
@@ -123,6 +127,33 @@ fn percentiles_f64(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+
+fn cardinality_agg(index: &Index) {
+    let agg_req = json!({
+        "cardinality": {
+            "cardinality": {
+                "field": "text_many_terms"
+            },
+        }
+    });
+    execute_agg(index, agg_req);
+}
+fn terms_few_with_cardinality_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms" },
+            "aggs": {
+                "cardinality": {
+                    "cardinality": {
+                        "field": "text_many_terms"
+                    },
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
 fn terms_few(index: &Index) {
     let agg_req = json!({
         "my_texts": { "terms": { "field": "text_few_terms" } },
@@ -171,7 +202,7 @@ fn terms_many_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
-fn terms_many_json_mixed_type_with_sub_agg_card(index: &Index) {
+fn terms_many_json_mixed_type_with_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
             "terms": { "field": "json.mixed_type" },
@@ -268,6 +299,7 @@ fn range_agg_with_term_agg_many(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+
 fn histogram(index: &Index) {
     let agg_req = json!({
         "rangef64": {

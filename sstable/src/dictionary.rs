@@ -338,6 +338,44 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         Ok(true)
     }
 
+    /// Returns the terms for a _sorted_ list of term ordinals.
+    ///
+    /// Returns true if and only if all terms have been found.
+    pub fn ords_to_term_cb<F: FnMut(&[u8])>(
+        &self,
+        ord: impl Iterator<Item = TermOrdinal>,
+        mut cb: F,
+    ) -> io::Result<bool> {
+        let mut bytes = Vec::new();
+        let mut current_block_addr = self.sstable_index.get_block_with_ord(0);
+        let mut current_sstable_delta_reader =
+            self.sstable_delta_reader_block(current_block_addr.clone())?;
+        let mut current_ordinal = 0;
+        for ord in ord {
+            // check if block changed for new term_ord
+            let new_block_addr = self.sstable_index.get_block_with_ord(ord);
+            if new_block_addr != current_block_addr {
+                current_block_addr = new_block_addr;
+                current_ordinal = current_block_addr.first_ordinal;
+                current_sstable_delta_reader =
+                    self.sstable_delta_reader_block(current_block_addr.clone())?;
+                bytes.clear();
+            }
+
+            // move to ord inside that block
+            for _ in current_ordinal..=ord {
+                if !current_sstable_delta_reader.advance()? {
+                    return Ok(false);
+                }
+                bytes.truncate(current_sstable_delta_reader.common_prefix_len());
+                bytes.extend_from_slice(current_sstable_delta_reader.suffix());
+            }
+            current_ordinal = ord + 1;
+            cb(&bytes);
+        }
+        Ok(true)
+    }
+
     /// Returns the number of terms in the dictionary.
     pub fn term_info_from_ord(&self, term_ord: TermOrdinal) -> io::Result<Option<TSSTable::Value>> {
         // find block in which the term would be
@@ -549,6 +587,49 @@ mod tests {
         assert!(dic.term_ord(b"1000G").unwrap().is_none());
         // shorter than 10000, tests prefix case
         assert!(dic.term_ord(b"1000").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_ords_term() {
+        let (dic, _slice) = make_test_sstable();
+
+        // Single term
+        let mut terms = Vec::new();
+        assert!(dic
+            .ords_to_term_cb(100_000..100_001, |term| { terms.push(term.to_vec()) })
+            .unwrap());
+        assert_eq!(terms, vec![format!("{:05X}", 100_000).into_bytes(),]);
+        // Single term
+        let mut terms = Vec::new();
+        assert!(dic
+            .ords_to_term_cb(100_001..100_002, |term| { terms.push(term.to_vec()) })
+            .unwrap());
+        assert_eq!(terms, vec![format!("{:05X}", 100_001).into_bytes(),]);
+        // both terms
+        let mut terms = Vec::new();
+        assert!(dic
+            .ords_to_term_cb(100_000..100_002, |term| { terms.push(term.to_vec()) })
+            .unwrap());
+        assert_eq!(
+            terms,
+            vec![
+                format!("{:05X}", 100_000).into_bytes(),
+                format!("{:05X}", 100_001).into_bytes(),
+            ]
+        );
+        // Test cross block
+        let mut terms = Vec::new();
+        assert!(dic
+            .ords_to_term_cb(98653..=98655, |term| { terms.push(term.to_vec()) })
+            .unwrap());
+        assert_eq!(
+            terms,
+            vec![
+                format!("{:05X}", 98653).into_bytes(),
+                format!("{:05X}", 98654).into_bytes(),
+                format!("{:05X}", 98655).into_bytes(),
+            ]
+        );
     }
 
     #[test]
