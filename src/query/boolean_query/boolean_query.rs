@@ -66,6 +66,10 @@ use crate::schema::{IndexRecordOption, Term};
 ///        Term::from_field_text(title, "diary"),
 ///        IndexRecordOption::Basic,
 ///    ));
+///    let cow_term_query: Box<dyn Query> = Box::new(TermQuery::new(
+///        Term::from_field_text(title, "cow"),
+///        IndexRecordOption::Basic
+///    ));
 ///    // A TermQuery with "found" in the body
 ///    let body_term_query: Box<dyn Query> = Box::new(TermQuery::new(
 ///        Term::from_field_text(body, "found"),
@@ -74,7 +78,7 @@ use crate::schema::{IndexRecordOption, Term};
 ///    // TermQuery "diary" must and "girl" must not be present
 ///    let queries_with_occurs1 = vec![
 ///        (Occur::Must, diary_term_query.box_clone()),
-///        (Occur::MustNot, girl_term_query),
+///        (Occur::MustNot, girl_term_query.box_clone()),
 ///    ];
 ///    // Make a BooleanQuery equivalent to
 ///    // title:+diary title:-girl
@@ -82,15 +86,10 @@ use crate::schema::{IndexRecordOption, Term};
 ///    let count1 = searcher.search(&diary_must_and_girl_mustnot, &Count)?;
 ///    assert_eq!(count1, 1);
 ///
-///    // TermQuery for "cow" in the title
-///    let cow_term_query: Box<dyn Query> = Box::new(TermQuery::new(
-///        Term::from_field_text(title, "cow"),
-///        IndexRecordOption::Basic,
-///    ));
 ///    // "title:diary OR title:cow"
 ///    let title_diary_or_cow = BooleanQuery::new(vec![
 ///        (Occur::Should, diary_term_query.box_clone()),
-///        (Occur::Should, cow_term_query),
+///        (Occur::Should, cow_term_query.box_clone()),
 ///    ]);
 ///    let count2 = searcher.search(&title_diary_or_cow, &Count)?;
 ///    assert_eq!(count2, 4);
@@ -118,21 +117,39 @@ use crate::schema::{IndexRecordOption, Term};
 ///    ]);
 ///    let count4 = searcher.search(&nested_query, &Count)?;
 ///    assert_eq!(count4, 1);
+///
+///    // You may call `with_minimum_required_clauses` to
+///    // specify the number of should clauses the returned documents must match.
+///    let minimum_required_query = BooleanQuery::with_minimum_required_clauses(vec![
+///         (Occur::Should, cow_term_query.box_clone()),
+///         (Occur::Should, girl_term_query.box_clone()),
+///         (Occur::Should, diary_term_query.box_clone()),
+///    ], 2);
+///    // Return documents contains "Diary Cow", "Diary Girl" or "Cow Girl"
+///    // Notice: "Diary" isn't "Dairy". ;-)
+///    let count5 = searcher.search(&minimum_required_query, &Count)?;
+///    assert_eq!(count5, 1);
 ///    Ok(())
 /// }
 /// ```
 #[derive(Debug)]
 pub struct BooleanQuery {
     subqueries: Vec<(Occur, Box<dyn Query>)>,
+    minimum_number_should_match: usize,
 }
 
 impl Clone for BooleanQuery {
     fn clone(&self) -> Self {
-        self.subqueries
+        let subqueries = self
+            .subqueries
             .iter()
             .map(|(occur, subquery)| (*occur, subquery.box_clone()))
             .collect::<Vec<_>>()
-            .into()
+            .into();
+        Self {
+            subqueries,
+            minimum_number_should_match: self.minimum_number_should_match,
+        }
     }
 }
 
@@ -149,8 +166,9 @@ impl Query for BooleanQuery {
             .iter()
             .map(|(occur, subquery)| Ok((*occur, subquery.weight(enable_scoring)?)))
             .collect::<crate::Result<_>>()?;
-        Ok(Box::new(BooleanWeight::new(
+        Ok(Box::new(BooleanWeight::with_minimum_number_should_match(
             sub_weights,
+            self.minimum_number_should_match,
             enable_scoring.is_scoring_enabled(),
             Box::new(SumWithCoordsCombiner::default),
         )))
@@ -166,7 +184,41 @@ impl Query for BooleanQuery {
 impl BooleanQuery {
     /// Creates a new boolean query.
     pub fn new(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
-        BooleanQuery { subqueries }
+        // If the bool query includes at least one should clause
+        // and no Must or MustNot clauses, the default value is 1. Otherwise, the default value is
+        // 0. Keep pace with Elasticsearch.
+        let mut minimum_required = 0;
+        for (occur, _) in &subqueries {
+            match occur {
+                Occur::Should => minimum_required = 1,
+                Occur::Must | Occur::MustNot => {
+                    minimum_required = 0;
+                    break;
+                }
+            }
+        }
+        Self::with_minimum_required_clauses(subqueries, minimum_required)
+    }
+
+    /// Create a new boolean query with minimum number of required should clauses specified.
+    pub fn with_minimum_required_clauses(
+        subqueries: Vec<(Occur, Box<dyn Query>)>,
+        minimum_number_should_match: usize,
+    ) -> BooleanQuery {
+        BooleanQuery {
+            subqueries,
+            minimum_number_should_match,
+        }
+    }
+
+    /// Getter for `minimum_number_should_match`
+    pub fn get_minimum_number_should_match(&self) -> usize {
+        self.minimum_number_should_match
+    }
+
+    /// Setter for `minimum_number_should_match`
+    pub fn set_minimum_number_should_match(&mut self, minimum_number_should_match: usize) {
+        self.minimum_number_should_match = minimum_number_should_match;
     }
 
     /// Returns the intersection of the queries.
@@ -179,6 +231,18 @@ impl BooleanQuery {
     pub fn union(queries: Vec<Box<dyn Query>>) -> BooleanQuery {
         let subqueries = queries.into_iter().map(|s| (Occur::Should, s)).collect();
         BooleanQuery::new(subqueries)
+    }
+
+    /// Returns the union of the queries with minimum required clause.
+    pub fn union_with_minimum_required_clauses(
+        queries: Vec<Box<dyn Query>>,
+        minimum_required_clauses: usize,
+    ) -> BooleanQuery {
+        let subqueries = queries
+            .into_iter()
+            .map(|sub_query| (Occur::Should, sub_query))
+            .collect();
+        BooleanQuery::with_minimum_required_clauses(subqueries, minimum_required_clauses)
     }
 
     /// Helper method to create a boolean query matching a given list of terms.
@@ -203,11 +267,13 @@ impl BooleanQuery {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::BooleanQuery;
     use crate::collector::{Count, DocSetCollector};
-    use crate::query::{QueryClone, QueryParser, TermQuery};
-    use crate::schema::{IndexRecordOption, Schema, TEXT};
-    use crate::{DocAddress, Index, Term};
+    use crate::query::{Query, QueryClone, QueryParser, TermQuery};
+    use crate::schema::{Field, IndexRecordOption, Schema, TEXT};
+    use crate::{DocAddress, DocId, Index, Term};
 
     fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
@@ -221,6 +287,73 @@ mod tests {
         writer.add_document(doc!(text=>"a d"))?;
         writer.commit()?;
         Ok(index)
+    }
+
+    #[test]
+    fn test_minimum_required() -> crate::Result<()> {
+        fn create_test_index_with<T: IntoIterator<Item = &'static str>>(
+            docs: T,
+        ) -> crate::Result<Index> {
+            let mut schema_builder = Schema::builder();
+            let text = schema_builder.add_text_field("text", TEXT);
+            let schema = schema_builder.build();
+            let index = Index::create_in_ram(schema);
+            let mut writer = index.writer_for_tests()?;
+            for doc in docs {
+                writer.add_document(doc!(text => doc))?;
+            }
+            writer.commit()?;
+            Ok(index)
+        }
+        fn create_boolean_query_with_mr<T: IntoIterator<Item = &'static str>>(
+            queries: T,
+            field: Field,
+            mr: usize,
+        ) -> BooleanQuery {
+            let terms = queries
+                .into_iter()
+                .map(|t| Term::from_field_text(field, t))
+                .map(|t| TermQuery::new(t, IndexRecordOption::Basic))
+                .map(|q| -> Box<dyn Query> { Box::new(q) })
+                .collect();
+            BooleanQuery::union_with_minimum_required_clauses(terms, mr)
+        }
+        fn check_doc_id<T: IntoIterator<Item = DocId>>(
+            expected: T,
+            actually: HashSet<DocAddress>,
+            seg: u32,
+        ) {
+            assert_eq!(
+                actually,
+                expected
+                    .into_iter()
+                    .map(|id| DocAddress::new(seg, id))
+                    .collect()
+            );
+        }
+        let index = create_test_index_with(["a b c", "a c e", "d f g", "z z z", "c i b"])?;
+        let searcher = index.reader()?.searcher();
+        let text = index.schema().get_field("text").unwrap();
+        // Documents contains 'a c' 'a z' 'a i' 'c z' 'c i' or 'z i' shall be return.
+        let q1 = create_boolean_query_with_mr(["a", "c", "z", "i"], text, 2);
+        let docs = searcher.search(&q1, &DocSetCollector)?;
+        check_doc_id([0, 1, 4], docs, 0);
+        // Documents contains 'a b c', 'a b e', 'a c e' or 'b c e' shall be return.
+        let q2 = create_boolean_query_with_mr(["a", "b", "c", "e"], text, 3);
+        let docs = searcher.search(&q2, &DocSetCollector)?;
+        check_doc_id([0, 1], docs, 0);
+        // Nothing queried since minimum_required is too large.
+        let q3 = create_boolean_query_with_mr(["a", "b"], text, 3);
+        let docs = searcher.search(&q3, &DocSetCollector)?;
+        assert!(docs.is_empty());
+        // When mr is set to zero or one, there are no difference with `Boolean::Union`.
+        let q4 = create_boolean_query_with_mr(["a", "z"], text, 1);
+        let docs = searcher.search(&q4, &DocSetCollector)?;
+        check_doc_id([0, 1, 3], docs, 0);
+        let q5 = create_boolean_query_with_mr(["a", "b"], text, 0);
+        let docs = searcher.search(&q5, &DocSetCollector)?;
+        check_doc_id([0, 1, 4], docs, 0);
+        Ok(())
     }
 
     #[test]
