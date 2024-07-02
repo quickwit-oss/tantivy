@@ -1,10 +1,9 @@
 use std::fmt::Debug;
+use std::io;
 use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::{
-    BytesColumn, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, StrColumn,
-};
+use columnar::{ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -466,49 +465,66 @@ impl SegmentTermCollector {
             };
 
         if self.column_type == ColumnType::Str {
+            let fallback_dict = Dictionary::empty();
             let term_dict = agg_with_accessor
                 .str_dict_column
                 .as_ref()
-                .cloned()
-                .unwrap_or_else(|| {
-                    StrColumn::wrap(BytesColumn::empty(agg_with_accessor.accessor.num_docs()))
-                });
-            let mut buffer = String::new();
-            for (term_id, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(term_id, doc_count)?;
-                // Special case for missing key
-                if term_id == u64::MAX {
-                    let missing_key = self
-                        .req
-                        .missing
-                        .as_ref()
-                        .expect("Found placeholder term_id but `missing` is None");
-                    match missing_key {
-                        Key::Str(missing) => {
-                            buffer.clear();
-                            buffer.push_str(missing);
-                            dict.insert(
-                                IntermediateKey::Str(buffer.to_string()),
-                                intermediate_entry,
-                            );
-                        }
-                        Key::F64(val) => {
-                            buffer.push_str(&val.to_string());
-                            dict.insert(IntermediateKey::F64(*val), intermediate_entry);
-                        }
+                .map(|el| el.dictionary())
+                .unwrap_or_else(|| &fallback_dict);
+            let mut buffer = Vec::new();
+
+            // special case for missing key
+            if let Some(index) = entries.iter().position(|value| value.0 == u64::MAX) {
+                let entry = entries[index];
+                let intermediate_entry = into_intermediate_bucket_entry(entry.0, entry.1)?;
+                let missing_key = self
+                    .req
+                    .missing
+                    .as_ref()
+                    .expect("Found placeholder term_id but `missing` is None");
+                match missing_key {
+                    Key::Str(missing) => {
+                        buffer.clear();
+                        buffer.extend_from_slice(missing.as_bytes());
+                        dict.insert(
+                            IntermediateKey::Str(
+                                String::from_utf8(buffer.to_vec())
+                                    .expect("could not convert to String"),
+                            ),
+                            intermediate_entry,
+                        );
                     }
-                } else {
-                    if !term_dict.ord_to_str(term_id, &mut buffer)? {
-                        return Err(TantivyError::InternalError(format!(
-                            "Couldn't find term_id {term_id} in dict"
-                        )));
+                    Key::F64(val) => {
+                        dict.insert(IntermediateKey::F64(*val), intermediate_entry);
                     }
-                    dict.insert(IntermediateKey::Str(buffer.to_string()), intermediate_entry);
                 }
+
+                entries.swap_remove(index);
             }
+
+            // Sort by term ord
+            entries.sort_unstable_by_key(|bucket| bucket.0);
+            let mut idx = 0;
+            term_dict.sorted_ords_to_term_cb(
+                entries.iter().map(|(term_id, _)| *term_id),
+                |term| {
+                    let entry = entries[idx];
+                    let intermediate_entry = into_intermediate_bucket_entry(entry.0, entry.1)
+                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                    dict.insert(
+                        IntermediateKey::Str(
+                            String::from_utf8(term.to_vec()).expect("could not convert to String"),
+                        ),
+                        intermediate_entry,
+                    );
+                    idx += 1;
+                    Ok(())
+                },
+            )?;
+
             if self.req.min_doc_count == 0 {
                 // TODO: Handle rev streaming for descending sorting by keys
-                let mut stream = term_dict.dictionary().stream()?;
+                let mut stream = term_dict.stream()?;
                 let empty_sub_aggregation = IntermediateAggregationResults::empty_from_req(
                     agg_with_accessor.agg.sub_aggregation(),
                 );

@@ -51,6 +51,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, percentiles_f64);
     register!(group, terms_few);
     register!(group, terms_many);
+    register!(group, terms_many_top_1000);
     register!(group, terms_many_order_by_term);
     register!(group, terms_many_with_top_hits);
     register!(group, terms_many_with_avg_sub_agg);
@@ -163,6 +164,12 @@ fn terms_few(index: &Index) {
 fn terms_many(index: &Index) {
     let agg_req = json!({
         "my_texts": { "terms": { "field": "text_many_terms" } },
+    });
+    execute_agg(index, agg_req);
+}
+fn terms_many_top_1000(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "terms": { "field": "text_many_terms", "size": 1000 } },
     });
     execute_agg(index, agg_req);
 }
