@@ -1574,11 +1574,11 @@ mod tests {
                     deleted_ids.remove(id);
                 }
                 IndexingOp::DeleteDoc { id } => {
-                    existing_ids.remove(&id);
+                    existing_ids.remove(id);
                     deleted_ids.insert(*id);
                 }
                 IndexingOp::DeleteDocQuery { id } => {
-                    existing_ids.remove(&id);
+                    existing_ids.remove(id);
                     deleted_ids.insert(*id);
                 }
                 _ => {}

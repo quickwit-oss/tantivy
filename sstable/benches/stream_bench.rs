@@ -7,7 +7,7 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use tantivy_sstable::{Dictionary, MonotonicU64SSTable};
 
-const CHARSET: &'static [u8] = b"abcdefghij";
+const CHARSET: &[u8] = b"abcdefghij";
 
 fn generate_key(rng: &mut impl Rng) -> String {
     let len = rng.gen_range(3..12);

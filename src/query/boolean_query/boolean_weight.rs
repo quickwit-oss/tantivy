@@ -170,7 +170,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     scorer_union(should_scorers, &score_combiner_fn),
                     &score_combiner_fn,
                 )),
-                n @ _ if num_of_should_scorers == n => {
+                n if num_of_should_scorers == n => {
                     // When num_of_should_scorers equals the number of should clauses,
                     // they are no different from must clauses.
                     must_scorers = match must_scorers.take() {

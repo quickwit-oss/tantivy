@@ -3,7 +3,7 @@
 //! In "The beauty and the beast", the term "the" appears in position 0 and position 3.
 //! This information is useful to run phrase queries.
 //!
-//! The [position](crate::SegmentComponent::Positions) file contains all of the
+//! The [position](crate::index::SegmentComponent::Positions) file contains all of the
 //! bitpacked positions delta, for all terms of a given field, one term after the other.
 //!
 //! Each term is encoded independently.

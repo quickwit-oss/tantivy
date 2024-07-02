@@ -508,7 +508,7 @@ impl std::fmt::Debug for ValueAddr {
 
 /// A enum representing a value for tantivy to index.
 ///
-/// Any changes need to be reflected in `BinarySerializable` for `ValueType`
+/// ** Any changes need to be reflected in `BinarySerializable` for `ValueType` **
 ///
 /// We can't use [schema::Type] or [columnar::ColumnType] here, because they are missing
 /// some items like Array and PreTokStr.
@@ -553,7 +553,7 @@ impl BinarySerializable for ValueType {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let num = u8::deserialize(reader)?;
         let type_id = if (0..=12).contains(&num) {
-            unsafe { std::mem::transmute(num) }
+            unsafe { std::mem::transmute::<u8, ValueType>(num) }
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,

@@ -36,7 +36,7 @@ use super::bucket::{
 use super::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
     MaxAggregation, MinAggregation, PercentilesAggregationReq, StatsAggregation, SumAggregation,
-    TopHitsAggregation,
+    TopHitsAggregationReq,
 };
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
@@ -160,7 +160,7 @@ pub enum AggregationVariants {
     Percentiles(PercentilesAggregationReq),
     /// Finds the top k values matching some order
     #[serde(rename = "top_hits")]
-    TopHits(TopHitsAggregation),
+    TopHits(TopHitsAggregationReq),
     /// Computes an estimate of the number of unique values
     #[serde(rename = "cardinality")]
     Cardinality(CardinalityAggregationReq),
@@ -208,7 +208,7 @@ impl AggregationVariants {
             _ => None,
         }
     }
-    pub(crate) fn as_top_hits(&self) -> Option<&TopHitsAggregation> {
+    pub(crate) fn as_top_hits(&self) -> Option<&TopHitsAggregationReq> {
         match &self {
             AggregationVariants::TopHits(top_hits) => Some(top_hits),
             _ => None,
