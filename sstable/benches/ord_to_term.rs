@@ -16,9 +16,7 @@ fn make_test_sstable(suffix: &str) -> FileSlice {
 
     let table = builder.finish().unwrap();
     let table = Arc::new(OwnedBytes::new(table));
-    let slice = common::file_slice::FileSlice::new(table.clone());
-
-    slice
+    common::file_slice::FileSlice::new(table.clone())
 }
 
 pub fn criterion_benchmark(c: &mut Criterion) {

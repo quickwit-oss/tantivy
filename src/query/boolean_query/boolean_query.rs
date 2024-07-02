@@ -144,8 +144,7 @@ impl Clone for BooleanQuery {
             .subqueries
             .iter()
             .map(|(occur, subquery)| (*occur, subquery.box_clone()))
-            .collect::<Vec<_>>()
-            .into();
+            .collect::<Vec<_>>();
         Self {
             subqueries,
             minimum_number_should_match: self.minimum_number_should_match,

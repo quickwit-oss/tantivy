@@ -54,7 +54,7 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     );
 
     // numbers
-    let input_bytes = 1_000_000 * 8 as u64;
+    let input_bytes = 1_000_000 * 8;
     group.throughput(Throughput::Bytes(input_bytes));
     let numbers: Vec<[u8; 8]> = (0..1_000_000u64).map(|el| el.to_le_bytes()).collect();
 
@@ -82,7 +82,7 @@ fn bench_hashmap_throughput(c: &mut Criterion) {
     let mut rng = StdRng::from_seed([3u8; 32]);
     let zipf = zipf::ZipfDistribution::new(10_000, 1.03).unwrap();
 
-    let input_bytes = 1_000_000 * 8 as u64;
+    let input_bytes = 1_000_000 * 8;
     group.throughput(Throughput::Bytes(input_bytes));
     let zipf_numbers: Vec<[u8; 8]> = (0..1_000_000u64)
         .map(|_| zipf.sample(&mut rng).to_le_bytes())
@@ -110,7 +110,7 @@ impl DocIdRecorder {
     }
 }
 
-fn create_hash_map<'a, T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
+fn create_hash_map<T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
     let mut map = ArenaHashMap::with_capacity(HASHMAP_SIZE);
     for term in terms {
         map.mutate_or_create(term.as_ref(), |val| {
@@ -126,7 +126,7 @@ fn create_hash_map<'a, T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaH
     map
 }
 
-fn create_hash_map_with_expull<'a, T: AsRef<[u8]>>(
+fn create_hash_map_with_expull<T: AsRef<[u8]>>(
     terms: impl Iterator<Item = (u32, T)>,
 ) -> ArenaHashMap {
     let mut memory_arena = MemoryArena::default();
@@ -145,7 +145,7 @@ fn create_hash_map_with_expull<'a, T: AsRef<[u8]>>(
     map
 }
 
-fn create_fx_hash_ref_map_with_expull<'a>(
+fn create_fx_hash_ref_map_with_expull(
     terms: impl Iterator<Item = &'static [u8]>,
 ) -> FxHashMap<&'static [u8], Vec<u32>> {
     let terms = terms.enumerate();
@@ -158,7 +158,7 @@ fn create_fx_hash_ref_map_with_expull<'a>(
     map
 }
 
-fn create_fx_hash_owned_map_with_expull<'a>(
+fn create_fx_hash_owned_map_with_expull(
     terms: impl Iterator<Item = &'static [u8]>,
 ) -> FxHashMap<Vec<u8>, Vec<u32>> {
     let terms = terms.enumerate();

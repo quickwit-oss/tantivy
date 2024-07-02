@@ -10,7 +10,7 @@ fn main() {
     }
 }
 
-fn create_hash_map<'a, T: AsRef<str>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
+fn create_hash_map<T: AsRef<str>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
     let mut map = ArenaHashMap::with_capacity(4);
     for term in terms {
         map.mutate_or_create(term.as_ref().as_bytes(), |val| {

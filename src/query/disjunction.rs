@@ -131,7 +131,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
             self.current_doc = TERMINATED;
         }
         self.current_score = self.score_combiner.score();
-        return self.current_doc;
+        self.current_doc
     }
 
     #[inline]
