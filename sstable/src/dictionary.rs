@@ -341,7 +341,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Returns the terms for a _sorted_ list of term ordinals.
     ///
     /// Returns true if and only if all terms have been found.
-    pub fn ords_to_term_cb<F: FnMut(&[u8])>(
+    pub fn sorted_ords_to_term_cb<F: FnMut(&[u8])>(
         &self,
         ord: impl Iterator<Item = TermOrdinal>,
         mut cb: F,
@@ -352,6 +352,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             self.sstable_delta_reader_block(current_block_addr.clone())?;
         let mut current_ordinal = 0;
         for ord in ord {
+            assert!(ord >= current_ordinal);
             // check if block changed for new term_ord
             let new_block_addr = self.sstable_index.get_block_with_ord(ord);
             if new_block_addr != current_block_addr {
@@ -596,19 +597,19 @@ mod tests {
         // Single term
         let mut terms = Vec::new();
         assert!(dic
-            .ords_to_term_cb(100_000..100_001, |term| { terms.push(term.to_vec()) })
+            .sorted_ords_to_term_cb(100_000..100_001, |term| { terms.push(term.to_vec()) })
             .unwrap());
         assert_eq!(terms, vec![format!("{:05X}", 100_000).into_bytes(),]);
         // Single term
         let mut terms = Vec::new();
         assert!(dic
-            .ords_to_term_cb(100_001..100_002, |term| { terms.push(term.to_vec()) })
+            .sorted_ords_to_term_cb(100_001..100_002, |term| { terms.push(term.to_vec()) })
             .unwrap());
         assert_eq!(terms, vec![format!("{:05X}", 100_001).into_bytes(),]);
         // both terms
         let mut terms = Vec::new();
         assert!(dic
-            .ords_to_term_cb(100_000..100_002, |term| { terms.push(term.to_vec()) })
+            .sorted_ords_to_term_cb(100_000..100_002, |term| { terms.push(term.to_vec()) })
             .unwrap());
         assert_eq!(
             terms,
@@ -620,7 +621,7 @@ mod tests {
         // Test cross block
         let mut terms = Vec::new();
         assert!(dic
-            .ords_to_term_cb(98653..=98655, |term| { terms.push(term.to_vec()) })
+            .sorted_ords_to_term_cb(98653..=98655, |term| { terms.push(term.to_vec()) })
             .unwrap());
         assert_eq!(
             terms,
