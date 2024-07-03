@@ -15,11 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
-        run: rustup toolchain install nightly-2024-04-10 --profile minimal --component llvm-tools-preview
+        run: rustup toolchain install nightly-2024-07-01 --profile minimal --component llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo +nightly-2024-04-10 llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
+        run: cargo +nightly-2024-07-01 llvm-cov --all-features --workspace --doctests --lcov --output-path lcov.info
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         continue-on-error: true
