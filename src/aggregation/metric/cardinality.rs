@@ -176,6 +176,7 @@ impl SegmentCardinalityCollector {
             term_ids.sort_unstable();
             dict.sorted_ords_to_term_cb(term_ids.iter().map(|term| *term as u64), |term| {
                 self.cardinality.sketch.insert_any(&term);
+                Ok(())
             })?;
             if has_missing {
                 let missing_key = self
