@@ -54,30 +54,6 @@ impl ScoreCombiner for SumCombiner {
     }
 }
 
-/// Sums the score of different scorers and keeps the count
-/// of scorers which matched.
-#[derive(Default, Clone, Copy)]
-pub struct SumWithCoordsCombiner {
-    num_fields: usize,
-    score: Score,
-}
-
-impl ScoreCombiner for SumWithCoordsCombiner {
-    fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer) {
-        self.score += scorer.score();
-        self.num_fields += 1;
-    }
-
-    fn clear(&mut self) {
-        self.score = 0.0;
-        self.num_fields = 0;
-    }
-
-    fn score(&self) -> Score {
-        self.score
-    }
-}
-
 /// Take max score of different scorers
 /// and optionally sum it with other matches multiplied by `tie_breaker`
 #[derive(Default, Clone, Copy)]

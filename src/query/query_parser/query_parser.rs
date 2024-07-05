@@ -379,7 +379,7 @@ impl QueryParser {
         if !err.is_empty() {
             return Err(err.swap_remove(0));
         }
-        Ok(ast)
+        Ok(ast.simplify())
     }
 
     /// Parse the user query into an AST.
@@ -1434,7 +1434,7 @@ mod test {
         );
         test_parse_query_to_logical_ast_helper(
             "(+title:a +title:b) title:c",
-            r#"(+(+Term(field=0, type=Str, "a") +Term(field=0, type=Str, "b")) +Term(field=0, type=Str, "c"))"#,
+            r#"(+Term(field=0, type=Str, "a") +Term(field=0, type=Str, "b") +Term(field=0, type=Str, "c"))"#,
             true,
         );
     }
@@ -1470,7 +1470,7 @@ mod test {
     pub fn test_parse_query_to_ast_two_terms() {
         test_parse_query_to_logical_ast_helper(
             "title:a b",
-            r#"(Term(field=0, type=Str, "a") (Term(field=0, type=Str, "b") Term(field=1, type=Str, "b")))"#,
+            r#"(Term(field=0, type=Str, "a") Term(field=0, type=Str, "b") Term(field=1, type=Str, "b"))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
@@ -1698,6 +1698,21 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "title:\"a b\"",
             r#""[(0, Term(field=0, type=Str, "a")), (1, Term(field=0, type=Str, "b"))]""#,
+            true,
+        );
+    }
+
+    #[test]
+    pub fn test_parse_query_negative() {
+        test_parse_query_to_logical_ast_helper(
+            "title:b -title:a",
+            r#"(+Term(field=0, type=Str, "b") -Term(field=0, type=Str, "a"))"#,
+            true,
+        );
+
+        test_parse_query_to_logical_ast_helper(
+            "title:b -(-title:a -title:c)",
+            r#"(+Term(field=0, type=Str, "b") -(-Term(field=0, type=Str, "a") -Term(field=0, type=Str, "c")))"#,
             true,
         );
     }
