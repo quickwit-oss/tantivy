@@ -18,7 +18,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 
 ## Benchmark
 
-The following [benchmark](https://tantivy-search.github.io/bench/) breakdowns
+The following [benchmark](https://tantivy-search.github.io/bench/) breaks down the
 performance for different types of queries/collections.
 
 Your mileage WILL vary depending on the nature of queries and their load.
