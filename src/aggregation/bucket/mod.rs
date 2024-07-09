@@ -112,18 +112,64 @@ impl Serialize for CustomOrder {
 impl<'de> Deserialize<'de> for CustomOrder {
     fn deserialize<D>(deserializer: D) -> Result<CustomOrder, D::Error>
     where D: Deserializer<'de> {
-        HashMap::<String, Order>::deserialize(deserializer).and_then(|map| {
-            if let Some((key, value)) = map.into_iter().next() {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let return_err = |message, val: serde_json::Value| {
+            de::Error::custom(format!(
+                "{}, but got {}",
+                message,
+                serde_json::to_string(&val).unwrap()
+            ))
+        };
+
+        match value {
+            serde_json::Value::Object(map) => {
+                if map.len() != 1 {
+                    return Err(return_err(
+                        "expected exactly one key-value pair in the order map",
+                        map.into(),
+                    ));
+                }
+
+                let (key, value) = map.into_iter().next().unwrap();
+                let order = serde_json::from_value(value).map_err(de::Error::custom)?;
+
                 Ok(CustomOrder {
                     target: key.as_str().into(),
-                    order: value,
+                    order,
                 })
-            } else {
-                Err(de::Error::custom(
-                    "unexpected empty map in order".to_string(),
-                ))
             }
-        })
+            serde_json::Value::Array(arr) => {
+                if arr.is_empty() {
+                    return Err(return_err("unexpected empty array in order", arr.into()));
+                }
+                if arr.len() != 1 {
+                    return Err(return_err(
+                        "only one sort order supported currently",
+                        arr.into(),
+                    ));
+                }
+                let entry = arr.into_iter().next().unwrap();
+                let map = entry
+                    .as_object()
+                    .ok_or_else(|| return_err("expected object as sort order", entry.clone()))?;
+                let (key, value) = map.into_iter().next().ok_or_else(|| {
+                    return_err(
+                        "expected exactly one key-value pair in the order map",
+                        entry.clone(),
+                    )
+                })?;
+                let order = serde_json::from_value(value.clone()).map_err(de::Error::custom)?;
+
+                Ok(CustomOrder {
+                    target: key.as_str().into(),
+                    order,
+                })
+            }
+            _ => Err(return_err(
+                "unexpected type, expected an object or array",
+                value,
+            )),
+        }
     }
 }
 
@@ -139,10 +185,22 @@ fn custom_order_serde_test() {
     let order_deser = serde_json::from_str(&order_str).unwrap();
 
     assert_eq!(order, order_deser);
+    let order_deser: CustomOrder = serde_json::from_str("[{\"_key\":\"desc\"}]").unwrap();
+    assert_eq!(order, order_deser);
 
     let order_deser: serde_json::Result<CustomOrder> = serde_json::from_str("{}");
     assert!(order_deser.is_err());
 
     let order_deser: serde_json::Result<CustomOrder> = serde_json::from_str("[]");
-    assert!(order_deser.is_err());
+    assert!(order_deser
+        .unwrap_err()
+        .to_string()
+        .contains("unexpected empty array in order"));
+
+    let order_deser: serde_json::Result<CustomOrder> =
+        serde_json::from_str(r#"[{"_key":"desc"},{"_key":"desc"}]"#);
+    assert_eq!(
+        order_deser.unwrap_err().to_string(),
+        r#"only one sort order supported currently, but got [{"_key":"desc"},{"_key":"desc"}]"#
+    );
 }
