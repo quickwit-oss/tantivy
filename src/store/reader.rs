@@ -1,5 +1,6 @@
 use std::io;
 use std::iter::Sum;
+use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,7 +15,9 @@ use super::Decompressor;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
-use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserialize};
+use crate::schema::document::{
+    BinaryDocumentDeserializer, DocumentDeserialize, DocumentDeserializeSeed,
+};
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
@@ -201,11 +204,21 @@ impl StoreReader {
     /// It should not be called to score documents
     /// for instance.
     pub fn get<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
+        self.get_seed(doc_id, PhantomData)
+    }
+
+    /// A stateful version of [`get`][Self::get].
+    pub fn get_seed<T: DocumentDeserializeSeed>(
+        &self,
+        doc_id: DocId,
+        seed: T,
+    ) -> crate::Result<T::Value> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
 
         let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
             .map_err(crate::TantivyError::from)?;
-        D::deserialize(deserializer).map_err(crate::TantivyError::from)
+        seed.deserialize(deserializer)
+            .map_err(crate::TantivyError::from)
     }
 
     /// Returns raw bytes of a given document.
@@ -237,16 +250,27 @@ impl StoreReader {
     /// Iterator over all Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
     /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.
-    pub fn iter<'a: 'b, 'b, D: DocumentDeserialize>(
+    pub fn iter<'a: 'b, 'b, D: DocumentDeserialize + 'b>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<D>> + 'b {
+        self.iter_seed(alive_bitset, &PhantomData)
+    }
+
+    /// A stateful variant of [`iter`][Self::iter].
+    pub fn iter_seed<'a: 'b, 'b, T: DocumentDeserializeSeed + Clone + 'b>(
+        &'b self,
+        alive_bitset: Option<&'a AliveBitSet>,
+        seed: &'b T,
+    ) -> impl Iterator<Item = crate::Result<T::Value>> + 'b {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
 
             let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
                 .map_err(crate::TantivyError::from)?;
-            D::deserialize(deserializer).map_err(crate::TantivyError::from)
+            seed.clone()
+                .deserialize(deserializer)
+                .map_err(crate::TantivyError::from)
         })
     }
 
@@ -389,11 +413,22 @@ impl StoreReader {
         doc_id: DocId,
         executor: &Executor,
     ) -> crate::Result<D> {
+        self.get_async_seed(doc_id, executor, PhantomData).await
+    }
+
+    /// A stateful variant of [`get_async`][Self::get_async].
+    pub async fn get_async_seed<T: DocumentDeserializeSeed>(
+        &self,
+        doc_id: DocId,
+        executor: &Executor,
+        seed: T,
+    ) -> crate::Result<T::Value> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id, executor).await?;
 
         let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
             .map_err(crate::TantivyError::from)?;
-        D::deserialize(deserializer).map_err(crate::TantivyError::from)
+        seed.deserialize(deserializer)
+            .map_err(crate::TantivyError::from)
     }
 }
 
