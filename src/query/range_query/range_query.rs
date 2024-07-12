@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io;
 use std::net::Ipv6Addr;
 use std::ops::{Bound, Range};
@@ -68,7 +69,7 @@ use crate::{DateTime, DocId, Score};
 /// ```
 #[derive(Clone, Debug)]
 pub struct RangeQuery {
-    field: String,
+    field: Cow<'static, str>,
     value_type: Type,
     lower_bound: Bound<Vec<u8>>,
     upper_bound: Bound<Vec<u8>>,
@@ -80,15 +81,15 @@ impl RangeQuery {
     ///
     /// If the value type is not correct, something may go terribly wrong when
     /// the `Weight` object is created.
-    pub fn new_term_bounds(
-        field: String,
+    pub fn new_term_bounds<F: Into<Cow<'static, str>>>(
+        field: F,
         value_type: Type,
         lower_bound: &Bound<Term>,
         upper_bound: &Bound<Term>,
     ) -> RangeQuery {
         let verify_and_unwrap_term = |val: &Term| val.serialized_value_bytes().to_owned();
         RangeQuery {
-            field,
+            field: field.into(),
             value_type,
             lower_bound: map_bound(lower_bound, verify_and_unwrap_term),
             upper_bound: map_bound(upper_bound, verify_and_unwrap_term),
@@ -100,7 +101,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `i64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_i64(field: String, range: Range<i64>) -> RangeQuery {
+    pub fn new_i64<F: Into<Cow<'static, str>>>(field: F, range: Range<i64>) -> RangeQuery {
         RangeQuery::new_i64_bounds(
             field,
             Bound::Included(range.start),
@@ -115,8 +116,8 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `i64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_i64_bounds(
-        field: String,
+    pub fn new_i64_bounds<F: Into<Cow<'static, str>>>(
+        field: F,
         lower_bound: Bound<i64>,
         upper_bound: Bound<i64>,
     ) -> RangeQuery {
@@ -126,7 +127,7 @@ impl RangeQuery {
                 .to_owned()
         };
         RangeQuery {
-            field,
+            field: field.into(),
             value_type: Type::I64,
             lower_bound: map_bound(&lower_bound, make_term_val),
             upper_bound: map_bound(&upper_bound, make_term_val),
@@ -138,7 +139,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `f64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_f64(field: String, range: Range<f64>) -> RangeQuery {
+    pub fn new_f64<F: Into<Cow<'static, str>>>(field: F, range: Range<f64>) -> RangeQuery {
         RangeQuery::new_f64_bounds(
             field,
             Bound::Included(range.start),
@@ -153,8 +154,8 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `f64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_f64_bounds(
-        field: String,
+    pub fn new_f64_bounds<F: Into<Cow<'static, str>>>(
+        field: F,
         lower_bound: Bound<f64>,
         upper_bound: Bound<f64>,
     ) -> RangeQuery {
@@ -164,7 +165,7 @@ impl RangeQuery {
                 .to_owned()
         };
         RangeQuery {
-            field,
+            field: field.into(),
             value_type: Type::F64,
             lower_bound: map_bound(&lower_bound, make_term_val),
             upper_bound: map_bound(&upper_bound, make_term_val),
@@ -179,8 +180,8 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `u64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_u64_bounds(
-        field: String,
+    pub fn new_u64_bounds<F: Into<Cow<'static, str>>>(
+        field: F,
         lower_bound: Bound<u64>,
         upper_bound: Bound<u64>,
     ) -> RangeQuery {
@@ -190,7 +191,7 @@ impl RangeQuery {
                 .to_owned()
         };
         RangeQuery {
-            field,
+            field: field.into(),
             value_type: Type::U64,
             lower_bound: map_bound(&lower_bound, make_term_val),
             upper_bound: map_bound(&upper_bound, make_term_val),
@@ -202,8 +203,8 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `ip`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_ip_bounds(
-        field: String,
+    pub fn new_ip_bounds<F: Into<Cow<'static, str>>>(
+        field: F,
         lower_bound: Bound<Ipv6Addr>,
         upper_bound: Bound<Ipv6Addr>,
     ) -> RangeQuery {
@@ -213,7 +214,7 @@ impl RangeQuery {
                 .to_owned()
         };
         RangeQuery {
-            field,
+            field: field.into(),
             value_type: Type::IpAddr,
             lower_bound: map_bound(&lower_bound, make_term_val),
             upper_bound: map_bound(&upper_bound, make_term_val),
@@ -225,7 +226,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `u64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_u64(field: String, range: Range<u64>) -> RangeQuery {
+    pub fn new_u64<F: Into<Cow<'static, str>>>(field: F, range: Range<u64>) -> RangeQuery {
         RangeQuery::new_u64_bounds(
             field,
             Bound::Included(range.start),
@@ -240,8 +241,8 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `date`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_date_bounds(
-        field: String,
+    pub fn new_date_bounds<F: Into<Cow<'static, str>>>(
+        field: F,
         lower_bound: Bound<DateTime>,
         upper_bound: Bound<DateTime>,
     ) -> RangeQuery {
@@ -251,7 +252,7 @@ impl RangeQuery {
                 .to_owned()
         };
         RangeQuery {
-            field,
+            field: field.into(),
             value_type: Type::Date,
             lower_bound: map_bound(&lower_bound, make_term_val),
             upper_bound: map_bound(&upper_bound, make_term_val),
@@ -263,7 +264,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `date`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_date(field: String, range: Range<DateTime>) -> RangeQuery {
+    pub fn new_date<F: Into<Cow<'static, str>>>(field: F, range: Range<DateTime>) -> RangeQuery {
         RangeQuery::new_date_bounds(
             field,
             Bound::Included(range.start),
@@ -278,14 +279,14 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str_bounds(
-        field: String,
+    pub fn new_str_bounds<F: Into<Cow<'static, str>>>(
+        field: F,
         lower_bound: Bound<&str>,
         upper_bound: Bound<&str>,
     ) -> RangeQuery {
         let make_term_val = |val: &&str| val.as_bytes().to_vec();
         RangeQuery {
-            field,
+            field: field.into(),
             value_type: Type::Str,
             lower_bound: map_bound(&lower_bound, make_term_val),
             upper_bound: map_bound(&upper_bound, make_term_val),
@@ -297,7 +298,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str(field: String, range: Range<&str>) -> RangeQuery {
+    pub fn new_str<F: Into<Cow<'static, str>>>(field: F, range: Range<&str>) -> RangeQuery {
         RangeQuery::new_str_bounds(
             field,
             Bound::Included(range.start),
@@ -358,7 +359,7 @@ impl Query for RangeQuery {
                 let lower_bound = map_bound_res(&self.lower_bound, parse_ip_from_bytes)?;
                 let upper_bound = map_bound_res(&self.upper_bound, parse_ip_from_bytes)?;
                 Ok(Box::new(IPFastFieldRangeWeight::new(
-                    self.field.to_string(),
+                    self.field.clone(),
                     lower_bound,
                     upper_bound,
                 )))
@@ -373,14 +374,14 @@ impl Query for RangeQuery {
                 let lower_bound = map_bound(&self.lower_bound, parse_from_bytes);
                 let upper_bound = map_bound(&self.upper_bound, parse_from_bytes);
                 Ok(Box::new(FastFieldRangeWeight::new_u64_lenient(
-                    self.field.to_string(),
+                    self.field.clone(),
                     lower_bound,
                     upper_bound,
                 )))
             }
         } else {
             Ok(Box::new(RangeWeight {
-                field: self.field.to_string(),
+                field: self.field.clone(),
                 lower_bound: self.lower_bound.clone(),
                 upper_bound: self.upper_bound.clone(),
                 limit: self.limit,
@@ -390,7 +391,7 @@ impl Query for RangeQuery {
 }
 
 pub struct RangeWeight {
-    field: String,
+    field: Cow<'static, str>,
     lower_bound: Bound<Vec<u8>>,
     upper_bound: Bound<Vec<u8>>,
     limit: Option<u64>,

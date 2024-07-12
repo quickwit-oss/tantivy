@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use std::borrow::Cow;
 
 use columnar::{ColumnIndex, DynamicColumn};
 
@@ -14,7 +14,7 @@ use crate::{DocId, Score, TantivyError};
 /// All of the matched documents get the score 1.0.
 #[derive(Clone, Debug)]
 pub struct ExistsQuery {
-    field_name: String,
+    field: Cow<'static, str>,
 }
 
 impl ExistsQuery {
@@ -23,40 +23,42 @@ impl ExistsQuery {
     /// This query matches all documents with at least one non-null value in the specified field.
     /// This constructor never fails, but executing the search with this query will return an
     /// error if the specified field doesn't exists or is not a fast field.
-    pub fn new_exists_query(field: String) -> ExistsQuery {
-        ExistsQuery { field_name: field }
+    pub fn new_exists_query<F: Into<Cow<'static, str>>>(field: F) -> ExistsQuery {
+        ExistsQuery {
+            field: field.into(),
+        }
     }
 }
 
 impl Query for ExistsQuery {
     fn weight(&self, enable_scoring: EnableScoring) -> crate::Result<Box<dyn Weight>> {
         let schema = enable_scoring.schema();
-        let Some((field, _path)) = schema.find_field(&self.field_name) else {
-            return Err(TantivyError::FieldNotFound(self.field_name.clone()));
+        let Some((field, _path)) = schema.find_field(&self.field) else {
+            return Err(TantivyError::FieldNotFound(self.field.to_string()));
         };
         let field_type = schema.get_field_entry(field).field_type();
         if !field_type.is_fast() {
             return Err(TantivyError::SchemaError(format!(
                 "Field {} is not a fast field.",
-                self.field_name
+                self.field
             )));
         }
         Ok(Box::new(ExistsWeight {
-            field_name: self.field_name.clone(),
+            field: self.field.clone(),
         }))
     }
 }
 
 /// Weight associated with the `ExistsQuery` query.
 pub struct ExistsWeight {
-    field_name: String,
+    field: Cow<'static, str>,
 }
 
 impl Weight for ExistsWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let fast_field_reader = reader.fast_fields();
         let dynamic_columns: crate::Result<Vec<DynamicColumn>> = fast_field_reader
-            .dynamic_column_handles(&self.field_name)?
+            .dynamic_column_handles(&self.field)?
             .into_iter()
             .map(|handle| handle.open().map_err(|io_error| io_error.into()))
             .collect();
