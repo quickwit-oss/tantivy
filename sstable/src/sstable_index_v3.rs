@@ -69,7 +69,7 @@ impl SSTableIndex {
     pub fn get_block_for_automaton<'a>(
         &'a self,
         automaton: &'a impl Automaton,
-    ) -> impl Iterator<Item = (usize, BlockAddr)> + 'a {
+    ) -> impl Iterator<Item = (u64, BlockAddr)> + 'a {
         match self {
             SSTableIndex::V2(v2_index) => {
                 BlockIter::V2(v2_index.get_block_for_automaton(automaton))
@@ -163,7 +163,7 @@ impl SSTableIndexV3 {
     pub(crate) fn get_block_for_automaton<'a>(
         &'a self,
         automaton: &'a impl Automaton,
-    ) -> impl Iterator<Item = (usize, BlockAddr)> + 'a {
+    ) -> impl Iterator<Item = (u64, BlockAddr)> + 'a {
         // this is more complicated than other index formats: we don't have a ready made list of
         // blocks, and instead need to stream-decode the sstable.
 
@@ -185,7 +185,7 @@ struct GetBlockForAutomaton<'a, A: Automaton> {
 }
 
 impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
-    type Item = (usize, BlockAddr);
+    type Item = (u64, BlockAddr);
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((new_key, block_id)) = self.streamer.next() {
@@ -193,10 +193,7 @@ impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
                 if block_match_automaton(Some(prev_key), new_key, self.automaton) {
                     prev_key.clear();
                     prev_key.extend_from_slice(new_key);
-                    return Some((
-                        block_id as usize,
-                        self.block_addr_store.get(block_id).unwrap(),
-                    ));
+                    return Some((block_id, self.block_addr_store.get(block_id).unwrap()));
                 }
                 // actually we could not write here, and it would still be correct, but it might
                 // lead to checking more keys than necessary which in itself can be a slowdown.
@@ -205,10 +202,7 @@ impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
             } else {
                 self.prev_key = Some(new_key.to_owned());
                 if block_match_automaton(None, new_key, self.automaton) {
-                    return Some((
-                        block_id as usize,
-                        self.block_addr_store.get(block_id).unwrap(),
-                    ));
+                    return Some((block_id, self.block_addr_store.get(block_id).unwrap()));
                 }
             }
         }

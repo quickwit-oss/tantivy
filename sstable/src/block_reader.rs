@@ -7,6 +7,7 @@ use zstd::bulk::Decompressor;
 pub struct BlockReader {
     buffer: Vec<u8>,
     reader: OwnedBytes,
+    next_readers: std::vec::IntoIter<OwnedBytes>,
     offset: usize,
 }
 
@@ -15,6 +16,18 @@ impl BlockReader {
         BlockReader {
             buffer: Vec::new(),
             reader,
+            next_readers: Vec::new().into_iter(),
+            offset: 0,
+        }
+    }
+
+    pub fn from_multiple_blocks(readers: Vec<OwnedBytes>) -> BlockReader {
+        let mut next_readers = readers.into_iter();
+        let reader = next_readers.next().unwrap_or_else(|| OwnedBytes::empty());
+        BlockReader {
+            buffer: Vec::new(),
+            reader,
+            next_readers,
             offset: 0,
         }
     }
@@ -34,42 +47,52 @@ impl BlockReader {
         self.offset = 0;
         self.buffer.clear();
 
-        let block_len = match self.reader.len() {
-            0 => return Ok(false),
-            1..=3 => {
+        loop {
+            let block_len = match self.reader.len() {
+                0 => {
+                    // we are out of data for this block. Check if we have another block after
+                    if let Some(new_reader) = self.next_readers.next() {
+                        self.reader = new_reader;
+                        continue;
+                    } else {
+                        return Ok(false);
+                    }
+                }
+                1..=3 => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        "failed to read block_len",
+                    ))
+                }
+                _ => self.reader.read_u32() as usize,
+            };
+            if block_len <= 1 {
+                return Ok(false);
+            }
+            let compress = self.reader.read_u8();
+            let block_len = block_len - 1;
+
+            if self.reader.len() < block_len {
                 return Err(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
-                    "failed to read block_len",
-                ))
+                    "failed to read block content",
+                ));
             }
-            _ => self.reader.read_u32() as usize,
-        };
-        if block_len <= 1 {
-            return Ok(false);
-        }
-        let compress = self.reader.read_u8();
-        let block_len = block_len - 1;
+            if compress == 1 {
+                let required_capacity =
+                    Decompressor::upper_bound(&self.reader[..block_len]).unwrap_or(1024 * 1024);
+                self.buffer.reserve(required_capacity);
+                Decompressor::new()?
+                    .decompress_to_buffer(&self.reader[..block_len], &mut self.buffer)?;
 
-        if self.reader.len() < block_len {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "failed to read block content",
-            ));
-        }
-        if compress == 1 {
-            let required_capacity =
-                Decompressor::upper_bound(&self.reader[..block_len]).unwrap_or(1024 * 1024);
-            self.buffer.reserve(required_capacity);
-            Decompressor::new()?
-                .decompress_to_buffer(&self.reader[..block_len], &mut self.buffer)?;
+                self.reader.advance(block_len);
+            } else {
+                self.buffer.resize(block_len, 0u8);
+                self.reader.read_exact(&mut self.buffer[..])?;
+            }
 
-            self.reader.advance(block_len);
-        } else {
-            self.buffer.resize(block_len, 0u8);
-            self.reader.read_exact(&mut self.buffer[..])?;
+            return Ok(true);
         }
-
-        Ok(true)
     }
 
     #[inline(always)]

@@ -80,7 +80,7 @@ impl SSTableIndex {
     pub(crate) fn get_block_for_automaton<'a>(
         &'a self,
         automaton: &'a impl Automaton,
-    ) -> impl Iterator<Item = (usize, BlockAddr)> + 'a {
+    ) -> impl Iterator<Item = (u64, BlockAddr)> + 'a {
         std::iter::once((None, &self.blocks[0]))
             .chain(self.blocks.windows(2).map(|window| {
                 let [prev, curr] = window else {
@@ -91,7 +91,7 @@ impl SSTableIndex {
             .enumerate()
             .filter_map(move |(pos, (prev_key, current_block))| {
                 if block_match_automaton(prev_key, &current_block.last_key_or_greater, automaton) {
-                    Some((pos, current_block.block_addr.clone()))
+                    Some((pos as u64, current_block.block_addr.clone()))
                 } else {
                     None
                 }

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use common::bounds::{transform_bound_inner_res, TransformBound};
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
+use futures_util::{stream, StreamExt, TryStreamExt};
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
@@ -98,20 +99,46 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         &self,
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
+        automaton: &impl Automaton,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
-        let slice = self.file_slice_for_range(key_range, limit);
-        let data = slice.read_bytes_async().await?;
-        Ok(TSSTable::delta_reader(data))
+        let match_all = automaton.will_always_match(&automaton.start());
+        if match_all {
+            let slice = self.file_slice_for_range(key_range, limit);
+            let data = slice.read_bytes_async().await?;
+            Ok(TSSTable::delta_reader(data))
+        } else {
+            let blocks =
+                stream::iter(self.get_block_iterator_for_range_and_automaton(key_range, automaton));
+            let data = blocks
+                .map(|block_addr| {
+                    self.sstable_slice
+                        .read_bytes_slice_async(block_addr.byte_range)
+                })
+                .buffered(5)
+                .try_collect::<Vec<_>>()
+                .await?;
+            Ok(DeltaReader::from_multiple_blocks(data))
+        }
     }
 
     pub(crate) fn sstable_delta_reader_for_key_range(
         &self,
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
+        automaton: &impl Automaton,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
-        let slice = self.file_slice_for_range(key_range, limit);
-        let data = slice.read_bytes()?;
-        Ok(TSSTable::delta_reader(data))
+        let match_all = automaton.will_always_match(&automaton.start());
+        if match_all {
+            let slice = self.file_slice_for_range(key_range, limit);
+            let data = slice.read_bytes()?;
+            Ok(TSSTable::delta_reader(data))
+        } else {
+            let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton);
+            let data = blocks
+                .map(|block_addr| self.sstable_slice.read_bytes_slice(block_addr.byte_range))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(DeltaReader::from_multiple_blocks(data))
+        }
     }
 
     pub(crate) fn sstable_delta_reader_block(
@@ -202,6 +229,31 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             .unwrap_or(Bound::Unbounded);
 
         self.sstable_slice.slice((start_bound, end_bound))
+    }
+
+    fn get_block_iterator_for_range_and_automaton<'a>(
+        &'a self,
+        key_range: impl RangeBounds<[u8]>,
+        automaton: &'a impl Automaton,
+    ) -> impl Iterator<Item = BlockAddr> + 'a {
+        let lower_bound = match key_range.start_bound() {
+            Bound::Included(key) | Bound::Excluded(key) => {
+                self.sstable_index.locate_with_key(key).unwrap_or(u64::MAX)
+            }
+            Bound::Unbounded => 0,
+        };
+
+        let upper_bound = match key_range.end_bound() {
+            Bound::Included(key) | Bound::Excluded(key) => {
+                self.sstable_index.locate_with_key(key).unwrap_or(u64::MAX)
+            }
+            Bound::Unbounded => u64::MAX,
+        };
+        let block_range = lower_bound..=upper_bound;
+        self.sstable_index
+            .get_block_for_automaton(automaton)
+            .filter(move |(block_id, _)| block_range.contains(block_id))
+            .map(|(_, block_addr)| block_addr)
     }
 
     /// Opens a `TermDictionary`.

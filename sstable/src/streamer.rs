@@ -86,7 +86,7 @@ where
             bound_as_byte_slice(&self.upper),
         );
         self.term_dict
-            .sstable_delta_reader_for_key_range(key_range, self.limit)
+            .sstable_delta_reader_for_key_range(key_range, self.limit, &self.automaton)
     }
 
     async fn delta_reader_async(&self) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
@@ -95,7 +95,7 @@ where
             bound_as_byte_slice(&self.upper),
         );
         self.term_dict
-            .sstable_delta_reader_for_key_range_async(key_range, self.limit)
+            .sstable_delta_reader_for_key_range_async(key_range, self.limit, &self.automaton)
             .await
     }
 
@@ -327,4 +327,7 @@ mod tests {
         assert!(!term_streamer.advance());
         Ok(())
     }
+
+    // TODO add test for sparse search with a block of poison (starts with 0xffffffff) => such a
+    // block instantly causes an unexpected EOF error
 }

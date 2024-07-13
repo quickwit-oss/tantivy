@@ -143,6 +143,16 @@ where TValueReader: value::ValueReader
         }
     }
 
+    pub fn from_multiple_blocks(reader: Vec<OwnedBytes>) -> Self {
+        DeltaReader {
+            idx: 0,
+            common_prefix_len: 0,
+            suffix_range: 0..0,
+            value_reader: TValueReader::default(),
+            block_reader: BlockReader::from_multiple_blocks(reader),
+        }
+    }
+
     pub fn empty() -> Self {
         DeltaReader::new(OwnedBytes::empty())
     }
