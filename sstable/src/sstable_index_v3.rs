@@ -5,8 +5,9 @@ use std::sync::Arc;
 use common::{BinarySerializable, FixedSize, OwnedBytes};
 use tantivy_bitpacker::{compute_num_bits, BitPacker};
 use tantivy_fst::raw::Fst;
-use tantivy_fst::{IntoStreamer, Map, MapBuilder, Streamer};
+use tantivy_fst::{Automaton, IntoStreamer, Map, MapBuilder, Streamer};
 
+use crate::block_match_automaton::block_match_automaton;
 use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
 
 #[derive(Debug, Clone)]
@@ -62,6 +63,41 @@ impl SSTableIndex {
             SSTableIndex::V2(v2_index) => v2_index.get_block_with_ord(ord),
             SSTableIndex::V3(v3_index) => v3_index.get_block_with_ord(ord),
             SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_ord(ord),
+        }
+    }
+
+    pub fn get_block_for_automaton<'a>(
+        &'a self,
+        automaton: &'a impl Automaton,
+    ) -> impl Iterator<Item = (usize, BlockAddr)> + 'a {
+        match self {
+            SSTableIndex::V2(v2_index) => {
+                BlockIter::V2(v2_index.get_block_for_automaton(automaton))
+            }
+            SSTableIndex::V3(v3_index) => {
+                BlockIter::V3(v3_index.get_block_for_automaton(automaton))
+            }
+            SSTableIndex::V3Empty(v3_empty) => {
+                BlockIter::V3Empty(std::iter::once((0, v3_empty.block_addr.clone())))
+            }
+        }
+    }
+}
+
+enum BlockIter<V2, V3, T> {
+    V2(V2),
+    V3(V3),
+    V3Empty(std::iter::Once<T>),
+}
+
+impl<V2: Iterator<Item = T>, V3: Iterator<Item = T>, T> Iterator for BlockIter<V2, V3, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            BlockIter::V2(v2) => v2.next(),
+            BlockIter::V3(v3) => v3.next(),
+            BlockIter::V3Empty(once) => once.next(),
         }
     }
 }
@@ -122,6 +158,61 @@ impl SSTableIndexV3 {
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
     pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
         self.block_addr_store.binary_search_ord(ord).1
+    }
+
+    pub(crate) fn get_block_for_automaton<'a>(
+        &'a self,
+        automaton: &'a impl Automaton,
+    ) -> impl Iterator<Item = (usize, BlockAddr)> + 'a {
+        // this is more complicated than other index formats: we don't have a ready made list of
+        // blocks, and instead need to stream-decode the sstable.
+
+        GetBlockForAutomaton {
+            streamer: self.fst_index.stream(),
+            block_addr_store: &self.block_addr_store,
+            prev_key: None,
+            automaton,
+        }
+    }
+}
+
+struct GetBlockForAutomaton<'a, A: Automaton> {
+    streamer: tantivy_fst::map::Stream<'a>,
+    // TODO we could be more efficient by streaming the store
+    block_addr_store: &'a BlockAddrStore,
+    prev_key: Option<Vec<u8>>,
+    automaton: &'a A,
+}
+
+impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
+    type Item = (usize, BlockAddr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((new_key, block_id)) = self.streamer.next() {
+            if let Some(prev_key) = self.prev_key.as_mut() {
+                if block_match_automaton(Some(prev_key), new_key, self.automaton) {
+                    prev_key.clear();
+                    prev_key.extend_from_slice(new_key);
+                    return Some((
+                        block_id as usize,
+                        self.block_addr_store.get(block_id).unwrap(),
+                    ));
+                }
+                // actually we could not write here, and it would still be correct, but it might
+                // lead to checking more keys than necessary which in itself can be a slowdown.
+                prev_key.clear();
+                prev_key.extend_from_slice(new_key);
+            } else {
+                self.prev_key = Some(new_key.to_owned());
+                if block_match_automaton(None, new_key, self.automaton) {
+                    return Some((
+                        block_id as usize,
+                        self.block_addr_store.get(block_id).unwrap(),
+                    ));
+                }
+            }
+        }
+        None
     }
 }
 
@@ -734,7 +825,8 @@ fn find_best_slope(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32
 mod tests {
     use common::OwnedBytes;
 
-    use super::{BlockAddr, SSTableIndexBuilder, SSTableIndexV3};
+    use super::*;
+    use crate::block_match_automaton::tests::EqBuffer;
     use crate::SSTableDataCorruption;
 
     #[test]
@@ -821,6 +913,110 @@ mod tests {
         assert_eq!(
             super::find_best_slope(std::iter::once((1, 12345))),
             (12345, 1)
+        );
+    }
+
+    #[test]
+    fn test_get_block_for_automaton() {
+        let sstable_index_builder = SSTableIndexBuilder {
+            blocks: vec![
+                BlockMeta {
+                    last_key_or_greater: vec![0, 1, 2],
+                    block_addr: BlockAddr {
+                        first_ordinal: 0,
+                        byte_range: 0..10,
+                    },
+                },
+                BlockMeta {
+                    last_key_or_greater: vec![0, 2, 2],
+                    block_addr: BlockAddr {
+                        first_ordinal: 5,
+                        byte_range: 10..20,
+                    },
+                },
+                BlockMeta {
+                    last_key_or_greater: vec![0, 3, 2],
+                    block_addr: BlockAddr {
+                        first_ordinal: 10,
+                        byte_range: 20..30,
+                    },
+                },
+            ],
+        };
+
+        let mut sstable_index_bytes = Vec::new();
+        let fst_len = sstable_index_builder
+            .serialize(&mut sstable_index_bytes)
+            .unwrap();
+
+        let sstable = SSTableIndexV3::load(OwnedBytes::new(sstable_index_bytes), fst_len).unwrap();
+
+        let res = sstable
+            .get_block_for_automaton(&EqBuffer(vec![0, 1, 1]))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            res,
+            vec![(
+                0,
+                BlockAddr {
+                    first_ordinal: 0,
+                    byte_range: 0..10
+                }
+            )]
+        );
+        let res = sstable
+            .get_block_for_automaton(&EqBuffer(vec![0, 2, 1]))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            res,
+            vec![(
+                1,
+                BlockAddr {
+                    first_ordinal: 5,
+                    byte_range: 10..20
+                }
+            )]
+        );
+        let res = sstable
+            .get_block_for_automaton(&EqBuffer(vec![0, 3, 1]))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            res,
+            vec![(
+                2,
+                BlockAddr {
+                    first_ordinal: 10,
+                    byte_range: 20..30
+                }
+            )]
+        );
+        let res = sstable
+            .get_block_for_automaton(&EqBuffer(vec![0, 4, 1]))
+            .collect::<Vec<_>>();
+        assert!(res.is_empty());
+
+        let complex_automaton = EqBuffer(vec![0, 1, 1]).union(EqBuffer(vec![0, 3, 1]));
+        let res = sstable
+            .get_block_for_automaton(&complex_automaton)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            res,
+            vec![
+                (
+                    0,
+                    BlockAddr {
+                        first_ordinal: 0,
+                        byte_range: 0..10
+                    }
+                ),
+                (
+                    2,
+                    BlockAddr {
+                        first_ordinal: 10,
+                        byte_range: 20..30
+                    }
+                )
+            ]
         );
     }
 }

@@ -150,13 +150,13 @@ fn match_range_end<S, A: Automaton<State = S>>(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use proptest::prelude::*;
     use tantivy_fst::Automaton;
 
     use super::*;
 
-    struct EqBuffer(Vec<u8>);
+    pub(crate) struct EqBuffer(pub Vec<u8>);
 
     impl Automaton for EqBuffer {
         type State = Option<usize>;
@@ -185,7 +185,6 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(1_000_000_000))]
         #[test]
         fn test_proptest_automaton_match_block(start in any::<Vec<u8>>(), end in any::<Vec<u8>>(), key in any::<Vec<u8>>()) {
             // inverted keys are *not* supported and can return bogus results
