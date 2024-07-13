@@ -12,6 +12,7 @@ description = "sstables for tantivy"
 [dependencies]
 common = {version= "0.7", path="../common", package="tantivy-common"}
 futures-util = "0.3.30"
+itertools = "0.13.0"
 tantivy-bitpacker = { version= "0.6", path="../bitpacker" }
 tantivy-fst = "0.5"
 # experimental gives us access to Decompressor::upper_bound

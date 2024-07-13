@@ -8,6 +8,7 @@ use common::bounds::{transform_bound_inner_res, TransformBound};
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
 use futures_util::{stream, StreamExt, TryStreamExt};
+use itertools::Itertools;
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
 
@@ -254,6 +255,16 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             .get_block_for_automaton(automaton)
             .filter(move |(block_id, _)| block_range.contains(block_id))
             .map(|(_, block_addr)| block_addr)
+            .coalesce(|first, second| {
+                if first.byte_range.end == second.byte_range.start {
+                    Ok(BlockAddr {
+                        first_ordinal: first.first_ordinal,
+                        byte_range: first.byte_range.start..second.byte_range.end,
+                    })
+                } else {
+                    Err((first, second))
+                }
+            })
     }
 
     /// Opens a `TermDictionary`.
