@@ -12,9 +12,9 @@ pub use self::range_query_u64_fastfield::FastFieldRangeWeight;
 // TODO is this correct?
 pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
     match typ {
-        Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date => true,
+        Type::Str | Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date => true,
         Type::IpAddr => true,
-        Type::Str | Type::Facet | Type::Bytes | Type::Json => false,
+        Type::Facet | Type::Bytes | Type::Json => false,
     }
 }
 

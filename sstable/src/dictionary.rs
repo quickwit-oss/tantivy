@@ -56,6 +56,51 @@ impl Dictionary<VoidSSTable> {
     }
 }
 
+fn map_bound<TFrom, TTo>(bound: &Bound<TFrom>, transform: impl Fn(&TFrom) -> TTo) -> Bound<TTo> {
+    use self::Bound::*;
+    match bound {
+        Excluded(ref from_val) => Bound::Excluded(transform(from_val)),
+        Included(ref from_val) => Bound::Included(transform(from_val)),
+        Unbounded => Unbounded,
+    }
+}
+
+fn map_bound_res<TFrom, TTo>(
+    bound: &Bound<TFrom>,
+    transform: impl Fn(&TFrom) -> io::Result<Bound<TTo>>,
+) -> io::Result<Bound<TTo>> {
+    use self::Bound::*;
+    Ok(match bound {
+        Excluded(ref from_val) => transform(from_val)?,
+        Included(ref from_val) => transform(from_val)?,
+        Unbounded => Unbounded,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TermOrdHit {
+    /// Exact term ord hit
+    Exact(TermOrdinal),
+    /// Next best term ordinal
+    Next(TermOrdinal),
+}
+
+impl TermOrdHit {
+    fn into_exact(self) -> Option<TermOrdinal> {
+        match self {
+            TermOrdHit::Exact(ord) => Some(ord),
+            TermOrdHit::Next(_) => None,
+        }
+    }
+
+    fn map<F: FnOnce(TermOrdinal) -> TermOrdinal>(self, f: F) -> Self {
+        match self {
+            TermOrdHit::Exact(ord) => TermOrdHit::Exact(f(ord)),
+            TermOrdHit::Next(ord) => TermOrdHit::Next(f(ord)),
+        }
+    }
+}
+
 impl<TSSTable: SSTable> Dictionary<TSSTable> {
     pub fn builder<W: io::Write>(wrt: W) -> io::Result<crate::Writer<W, TSSTable::ValueWriter>> {
         Ok(TSSTable::writer(wrt))
@@ -257,6 +302,17 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         key: K,
         sstable_delta_reader: &mut DeltaReader<TSSTable::ValueReader>,
     ) -> io::Result<Option<TermOrdinal>> {
+        self.decode_up_to_or_next(key, sstable_delta_reader)
+            .map(|hit| hit.into_exact())
+    }
+    /// Decode a DeltaReader up to key, returning the number of terms traversed
+    ///
+    /// If the key was not found, it returns the next term id.
+    fn decode_up_to_or_next<K: AsRef<[u8]>>(
+        &self,
+        key: K,
+        sstable_delta_reader: &mut DeltaReader<TSSTable::ValueReader>,
+    ) -> io::Result<TermOrdHit> {
         let mut term_ord = 0;
         let key_bytes = key.as_ref();
         let mut ok_bytes = 0;
@@ -265,7 +321,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let suffix = sstable_delta_reader.suffix();
 
             match prefix_len.cmp(&ok_bytes) {
-                Ordering::Less => return Ok(None), // popped bytes already matched => too far
+                Ordering::Less => return Ok(TermOrdHit::Next(term_ord)), /* popped bytes already matched => too far */
                 Ordering::Equal => (),
                 Ordering::Greater => {
                     // the ok prefix is less than current entry prefix => continue to next elem
@@ -277,25 +333,26 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             // we have ok_bytes byte of common prefix, check if this key adds more
             for (key_byte, suffix_byte) in key_bytes[ok_bytes..].iter().zip(suffix) {
                 match suffix_byte.cmp(key_byte) {
-                    Ordering::Less => break,              // byte too small
-                    Ordering::Equal => ok_bytes += 1,     // new matching byte
-                    Ordering::Greater => return Ok(None), // too far
+                    Ordering::Less => break,          // byte too small
+                    Ordering::Equal => ok_bytes += 1, // new matching
+                    // byte
+                    Ordering::Greater => return Ok(TermOrdHit::Next(term_ord)), // too far
                 }
             }
 
             if ok_bytes == key_bytes.len() {
                 if prefix_len + suffix.len() == ok_bytes {
-                    return Ok(Some(term_ord));
+                    return Ok(TermOrdHit::Exact(term_ord));
                 } else {
                     // current key is a prefix of current element, not a match
-                    return Ok(None);
+                    return Ok(TermOrdHit::Next(term_ord));
                 }
             }
 
             term_ord += 1;
         }
 
-        Ok(None)
+        Ok(TermOrdHit::Next(term_ord))
     }
 
     /// Returns the ordinal associated with a given term.
@@ -310,6 +367,61 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let mut sstable_delta_reader = self.sstable_delta_reader_block(block_addr)?;
         self.decode_up_to_key(key_bytes, &mut sstable_delta_reader)
             .map(|opt| opt.map(|ord| ord + first_ordinal))
+    }
+
+    /// Returns the ordinal associated with a given term or its closest next term_id
+    /// The closest next term_id may not exist.
+    pub fn term_ord_or_next<K: AsRef<[u8]>>(&self, key: K) -> io::Result<TermOrdHit> {
+        let key_bytes = key.as_ref();
+
+        let Some(block_addr) = self.sstable_index.get_block_with_key(key_bytes) else {
+            // TODO: Would be more consistent to return last_term id + 1
+            return Ok(TermOrdHit::Next(u64::MAX));
+        };
+
+        let first_ordinal = block_addr.first_ordinal;
+        let mut sstable_delta_reader = self.sstable_delta_reader_block(block_addr)?;
+        self.decode_up_to_or_next(key_bytes, &mut sstable_delta_reader)
+            .map(|opt| opt.map(|ord| ord + first_ordinal))
+    }
+
+    /// Converts strings into a Bound range.
+    /// This does handle several special cases if the term is not exactly in the dictionary.
+    /// e.g. [bbb, ddd]
+    /// lower_bound: Bound::Included(aaa) => Included(0) // "Next" term id
+    /// lower_bound: Bound::Excluded(aaa) => Included(0) // "Next" term id + Change the Bounds
+    /// lower_bound: Bound::Included(ccc) => Included(1) // "Next" term id
+    /// lower_bound: Bound::Excluded(ccc) => Included(1) // "Next" term id + Change the Bounds
+    /// lower_bound: Bound::Included(zzz) => Included(2) // "Next" term id
+    /// lower_bound: Bound::Excluded(zzz) => Included(2) // "Next" term id + Change the Bounds
+    /// For zzz we should have some post processing to return an empty query`
+    ///
+    /// upper_bound: Bound::Included(aaa) => Excluded(0) // "Next" term id + Change the bounds
+    /// upper_bound: Bound::Excluded(aaa) => Excluded(0) // "Next" term id
+    /// upper_bound: Bound::Included(ccc) => Excluded(1) // Next term id + Change the bounds
+    /// upper_bound: Bound::Excluded(ccc) => Excluded(1) // Next term id
+    /// upper_bound: Bound::Included(zzz) => Excluded(2) // Next term id + Change the bounds
+    /// upper_bound: Bound::Excluded(zzz) => Excluded(2) // Next term id
+    pub fn term_bounds_to_ord<K: AsRef<[u8]>>(
+        &self,
+        lower_bound: Bound<K>,
+        upper_bound: Bound<K>,
+    ) -> io::Result<(Bound<TermOrdinal>, Bound<TermOrdinal>)> {
+        let lower_bound = map_bound_res(&lower_bound, |start_bound_bytes| {
+            let ord = self.term_ord_or_next(start_bound_bytes)?;
+            match ord {
+                TermOrdHit::Exact(ord) => Ok(map_bound(&lower_bound, |_| ord)),
+                TermOrdHit::Next(ord) => Ok(Bound::Included(ord)), // Change bounds to included
+            }
+        })?;
+        let upper_bound = map_bound_res(&upper_bound, |end_bound_bytes| {
+            let ord = self.term_ord_or_next(end_bound_bytes)?;
+            match ord {
+                TermOrdHit::Exact(ord) => Ok(map_bound(&upper_bound, |_| ord)),
+                TermOrdHit::Next(ord) => Ok(Bound::Excluded(ord)), // Change bounds to excluded
+            }
+        })?;
+        Ok((lower_bound, upper_bound))
     }
 
     /// Returns the term associated with a given term ordinal.
@@ -455,12 +567,13 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Range;
+    use std::ops::{Bound, Range};
     use std::sync::{Arc, Mutex};
 
     use common::OwnedBytes;
 
     use super::Dictionary;
+    use crate::dictionary::TermOrdHit;
     use crate::MonotonicU64SSTable;
 
     #[derive(Debug)]
@@ -522,6 +635,222 @@ mod tests {
         assert_ne!(dictionary.sstable_index.locate_with_ord(u64::MAX), 0);
         assert_eq!(dictionary.num_terms(), 0x3ffff);
         (dictionary, table)
+    }
+
+    #[test]
+    fn test_term_to_ord_or_next() {
+        let dict = {
+            let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+
+            builder.insert(b"bbb", &1).unwrap();
+            builder.insert(b"ddd", &2).unwrap();
+
+            let table = builder.finish().unwrap();
+            let table = Arc::new(PermissionedHandle::new(table));
+            let slice = common::file_slice::FileSlice::new(table.clone());
+
+            Dictionary::<MonotonicU64SSTable>::open(slice).unwrap()
+        };
+
+        assert_eq!(dict.term_ord_or_next(b"aaa").unwrap(), TermOrdHit::Next(0));
+        assert_eq!(dict.term_ord_or_next(b"bbb").unwrap(), TermOrdHit::Exact(0));
+        assert_eq!(dict.term_ord_or_next(b"bb").unwrap(), TermOrdHit::Next(0));
+        assert_eq!(dict.term_ord_or_next(b"bbbb").unwrap(), TermOrdHit::Next(1));
+        assert_eq!(dict.term_ord_or_next(b"dd").unwrap(), TermOrdHit::Next(1));
+        assert_eq!(dict.term_ord_or_next(b"ddd").unwrap(), TermOrdHit::Exact(1));
+        assert_eq!(dict.term_ord_or_next(b"dddd").unwrap(), TermOrdHit::Next(2));
+
+        // Shouldn't this be u64::MAX?
+        assert_eq!(
+            dict.term_ord_or_next(b"zzzzzzz").unwrap(),
+            TermOrdHit::Next(2)
+        );
+    }
+    #[test]
+    fn test_term_to_ord_or_next_2() {
+        let dict = {
+            let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+
+            let mut term_ord = 0;
+            builder.insert(b"bbb", &term_ord).unwrap();
+
+            // Fill blocks in between
+            for elem in 0..50_000 {
+                term_ord += 1;
+                let key = format!("ccccc{elem:05X}").into_bytes();
+                builder.insert(&key, &term_ord).unwrap();
+            }
+
+            term_ord += 1;
+            builder.insert(b"eee", &term_ord).unwrap();
+
+            let table = builder.finish().unwrap();
+            let table = Arc::new(PermissionedHandle::new(table));
+            let slice = common::file_slice::FileSlice::new(table.clone());
+
+            Dictionary::<MonotonicU64SSTable>::open(slice).unwrap()
+        };
+
+        assert_eq!(dict.term_ord(b"bbb").unwrap(), Some(0));
+        assert_eq!(dict.term_ord_or_next(b"bbb").unwrap(), TermOrdHit::Exact(0));
+        assert_eq!(dict.term_ord_or_next(b"aaa").unwrap(), TermOrdHit::Next(0));
+        assert_eq!(dict.term_ord_or_next(b"bb").unwrap(), TermOrdHit::Next(0));
+        assert_eq!(dict.term_ord_or_next(b"bbbb").unwrap(), TermOrdHit::Next(1));
+        assert_eq!(
+            dict.term_ord_or_next(b"ee").unwrap(),
+            TermOrdHit::Next(50001)
+        );
+        assert_eq!(
+            dict.term_ord_or_next(b"eee").unwrap(),
+            TermOrdHit::Exact(50001)
+        );
+        assert_eq!(
+            dict.term_ord_or_next(b"eeee").unwrap(),
+            TermOrdHit::Next(u64::MAX)
+        );
+
+        assert_eq!(
+            dict.term_ord_or_next(b"zzzzzzz").unwrap(),
+            TermOrdHit::Next(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn test_term_bounds_to_ord() {
+        let dict = {
+            let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+
+            builder.insert(b"bbb", &1).unwrap();
+            builder.insert(b"ddd", &2).unwrap();
+
+            let table = builder.finish().unwrap();
+            let table = Arc::new(PermissionedHandle::new(table));
+            let slice = common::file_slice::FileSlice::new(table.clone());
+
+            Dictionary::<MonotonicU64SSTable>::open(slice).unwrap()
+        };
+
+        // Test cases for lower_bound
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Included(b"aaa".as_slice()),
+                Bound::Included(b"ignored")
+            )
+            .unwrap()
+            .0,
+            Bound::Included(0)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Excluded(b"aaa".as_slice()),
+                Bound::Excluded(b"ignored")
+            )
+            .unwrap()
+            .0,
+            Bound::Included(0)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Included(b"ccc".as_slice()),
+                Bound::Included(b"ignored")
+            )
+            .unwrap()
+            .0,
+            Bound::Included(1)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Excluded(b"ccc".as_slice()),
+                Bound::Excluded(b"ignored")
+            )
+            .unwrap()
+            .0,
+            Bound::Included(1)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Included(b"zzz".as_slice()),
+                Bound::Included(b"ignored")
+            )
+            .unwrap()
+            .0,
+            Bound::Included(2)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Excluded(b"zzz".as_slice()),
+                Bound::Excluded(b"ignored")
+            )
+            .unwrap()
+            .0,
+            Bound::Included(2)
+        );
+
+        // Test cases for upper_bound
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Included(b"ignored".as_slice()),
+                Bound::Included(b"ccc")
+            )
+            .unwrap()
+            .1,
+            Bound::Excluded(1)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Excluded(b"ignored".as_slice()),
+                Bound::Excluded(b"ccc")
+            )
+            .unwrap()
+            .1,
+            Bound::Excluded(1)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Included(b"ignored".as_slice()),
+                Bound::Included(b"zzz")
+            )
+            .unwrap()
+            .1,
+            Bound::Excluded(2)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Excluded(b"ignored".as_slice()),
+                Bound::Excluded(b"zzz")
+            )
+            .unwrap()
+            .1,
+            Bound::Excluded(2)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Included(b"ignored".as_slice()),
+                Bound::Included(b"ddd")
+            )
+            .unwrap()
+            .1,
+            Bound::Included(1)
+        );
+
+        assert_eq!(
+            dict.term_bounds_to_ord(
+                Bound::Excluded(b"ignored".as_slice()),
+                Bound::Excluded(b"ddd")
+            )
+            .unwrap()
+            .1,
+            Bound::Excluded(1)
+        );
     }
 
     #[test]

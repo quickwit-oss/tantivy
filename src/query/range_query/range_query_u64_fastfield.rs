@@ -5,7 +5,7 @@
 use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
-use columnar::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+use columnar::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64, StrColumn};
 use common::BinarySerializable;
 
 use super::fast_field_range_doc_set::RangeDocSet;
@@ -51,16 +51,22 @@ impl Weight for FastFieldRangeWeight {
         }
         let field_name = reader.schema().get_field_name(self.field);
         let field_type = reader.schema().get_field_entry(self.field).field_type();
+
+        let term = inner_bound(&self.lower_bound)
+            .or(inner_bound(&self.upper_bound))
+            .expect("At least one bound must be set");
+        assert_eq!(
+            term.typ(),
+            field_type.value_type(),
+            "Field is of type {:?}, but got term of type {:?}",
+            field_type,
+            term.typ()
+        );
         if field_type.is_ip_addr() {
             let parse_ip_from_bytes = |term: &Term| {
-                let ip_u128_bytes: [u8; 16] =
-                    term.serialized_value_bytes().try_into().map_err(|_| {
-                        crate::TantivyError::InvalidArgument(
-                            "Expected 8 bytes for ip address".to_string(),
-                        )
-                    })?;
-                let ip_u128 = u128::from_be_bytes(ip_u128_bytes);
-                crate::Result::<Ipv6Addr>::Ok(Ipv6Addr::from_u128(ip_u128))
+                term.value().as_ip_addr().ok_or_else(|| {
+                    crate::TantivyError::InvalidArgument("Expected ip address".to_string())
+                })
             };
             let lower_bound = map_bound_res(&self.lower_bound, parse_ip_from_bytes)?;
             let upper_bound = map_bound_res(&self.upper_bound, parse_ip_from_bytes)?;
@@ -79,32 +85,41 @@ impl Weight for FastFieldRangeWeight {
             let docset = RangeDocSet::new(value_range, ip_addr_column);
             Ok(Box::new(ConstScorer::new(docset, boost)))
         } else {
-            assert!(
-                maps_to_u64_fastfield(field_type.value_type()),
-                "{:?}",
-                field_type
-            );
+            let (lower_bound, upper_bound) = if field_type.is_term() {
+                let Some(str_dict_column): Option<StrColumn> =
+                    reader.fast_fields().str(field_name)?
+                else {
+                    return Ok(Box::new(EmptyScorer));
+                };
+                let dict = str_dict_column.dictionary();
 
-            let term = inner_bound(&self.lower_bound)
-                .or(inner_bound(&self.upper_bound))
-                .expect("At least one bound must be set");
-            assert_eq!(
-                term.typ(),
-                field_type.value_type(),
-                "Field is of type {:?}, but got term of type {:?}",
-                field_type,
-                term.typ()
-            );
+                let lower_bound = map_bound(&self.lower_bound, |term| {
+                    term.serialized_value_bytes().to_vec()
+                });
+                let upper_bound = map_bound(&self.upper_bound, |term| {
+                    term.serialized_value_bytes().to_vec()
+                });
+                // Get term ids for terms
+                let (lower_bound, upper_bound) =
+                    dict.term_bounds_to_ord(lower_bound, upper_bound)?;
+                (lower_bound, upper_bound)
+            } else {
+                assert!(
+                    maps_to_u64_fastfield(field_type.value_type()),
+                    "{:?}",
+                    field_type
+                );
+                let parse_from_bytes = |term: &Term| {
+                    u64::from_be(
+                        BinarySerializable::deserialize(&mut &term.serialized_value_bytes()[..])
+                            .unwrap(),
+                    )
+                };
 
-            let parse_from_bytes = |term: &Term| {
-                u64::from_be(
-                    BinarySerializable::deserialize(&mut &term.serialized_value_bytes()[..])
-                        .unwrap(),
-                )
+                let lower_bound = map_bound(&self.lower_bound, parse_from_bytes);
+                let upper_bound = map_bound(&self.upper_bound, parse_from_bytes);
+                (lower_bound, upper_bound)
             };
-
-            let lower_bound = map_bound(&self.lower_bound, parse_from_bytes);
-            let upper_bound = map_bound(&self.upper_bound, parse_from_bytes);
 
             let fast_field_reader = reader.fast_fields();
             let Some((column, _)) = fast_field_reader.u64_lenient_for_type(None, field_name)?
@@ -202,11 +217,51 @@ pub mod tests {
     use rand::seq::SliceRandom;
     use rand::SeedableRng;
 
-    use crate::collector::Count;
+    use crate::collector::{Count, TopDocs};
     use crate::query::range_query::range_query_u64_fastfield::FastFieldRangeWeight;
     use crate::query::{QueryParser, Weight};
-    use crate::schema::{NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING};
+    use crate::schema::{
+        NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING, TEXT,
+    };
     use crate::{Index, IndexWriter, Term, TERMINATED};
+
+    #[test]
+    fn test_text_field_ff_range_query() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("title", TEXT | FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_for_tests()?;
+        let title = schema.get_field("title").unwrap();
+        index_writer.add_document(doc!(
+          title => "bbb"
+        ))?;
+        index_writer.add_document(doc!(
+          title => "ddd"
+        ))?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![title]);
+
+        let test_query = |query, num_hits| {
+            let query = query_parser.parse_query(query).unwrap();
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            assert_eq!(top_docs.len(), num_hits);
+        };
+
+        test_query("title:[aaa TO ccc]", 1);
+        test_query("title:[aaa TO bbb]", 1);
+        test_query("title:[bbb TO bbb]", 1);
+        test_query("title:[bbb TO ddd]", 2);
+        test_query("title:[bbb TO eee]", 2);
+        test_query("title:[bb TO eee]", 2);
+        test_query("title:[ccc TO ccc]", 0);
+        test_query("title:[ccc TO ddd]", 1);
+        test_query("title:[ccc TO eee]", 1);
+
+        Ok(())
+    }
 
     #[derive(Clone, Debug)]
     pub struct Doc {
@@ -224,14 +279,14 @@ pub mod tests {
     fn doc_from_id_1(id: u64) -> Doc {
         let id = id * 1000;
         Doc {
-            id_name: id.to_string(),
+            id_name: format!("id_name{:010}", id),
             id,
         }
     }
     fn doc_from_id_2(id: u64) -> Doc {
         let id = id * 1000;
         Doc {
-            id_name: (id - 1).to_string(),
+            id_name: format!("id_name{:010}", id - 1),
             id,
         }
     }
@@ -319,7 +374,8 @@ pub mod tests {
             NumericOptions::default().set_fast().set_indexed(),
         );
 
-        let text_field = schema_builder.add_text_field("id_name", STRING | STORED);
+        let text_field = schema_builder.add_text_field("id_name", STRING | STORED | FAST);
+        let text_field2 = schema_builder.add_text_field("id_name_fast", STRING | STORED | FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -338,6 +394,7 @@ pub mod tests {
                         id_f64_field => doc.id as f64,
                         id_i64_field => doc.id as i64,
                         text_field => doc.id_name.to_string(),
+                        text_field2 => doc.id_name.to_string(),
                     ))
                     .unwrap();
             }
@@ -381,6 +438,24 @@ pub mod tests {
 
             let query = gen_query_inclusive("ids", ids[0]..=ids[1]);
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+
+            // Text query
+            {
+                let test_text_query = |field_name: &str| {
+                    let mut id_names: Vec<&str> =
+                        sample_docs.iter().map(|doc| doc.id_name.as_str()).collect();
+                    id_names.sort();
+                    let expected_num_hits = docs
+                        .iter()
+                        .filter(|doc| (id_names[0]..=id_names[1]).contains(&doc.id_name.as_str()))
+                        .count();
+                    let query = format!("{}:[{} TO {}]", field_name, id_names[0], id_names[1]);
+                    assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
+                };
+
+                test_text_query("id_name");
+                test_text_query("id_name_fast");
+            }
 
             // Exclusive range
             let expected_num_hits = docs
