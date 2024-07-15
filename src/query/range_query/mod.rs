@@ -2,13 +2,11 @@ use std::ops::Bound;
 
 use crate::schema::Type;
 
-mod fast_field_range_query;
+mod fast_field_range_doc_set;
 mod range_query;
-mod range_query_ip_fastfield;
 mod range_query_u64_fastfield;
 
 pub use self::range_query::RangeQuery;
-pub use self::range_query_ip_fastfield::IPFastFieldRangeWeight;
 pub use self::range_query_u64_fastfield::FastFieldRangeWeight;
 
 // TODO is this correct?

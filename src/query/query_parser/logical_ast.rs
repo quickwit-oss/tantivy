@@ -2,7 +2,7 @@ use std::fmt;
 use std::ops::Bound;
 
 use crate::query::Occur;
-use crate::schema::{Term, Type};
+use crate::schema::Term;
 use crate::Score;
 
 #[derive(Clone)]
@@ -14,8 +14,6 @@ pub enum LogicalLiteral {
         prefix: bool,
     },
     Range {
-        field: String,
-        value_type: Type,
         lower: Bound<Term>,
         upper: Bound<Term>,
     },

@@ -790,8 +790,6 @@ impl QueryParser {
                 let (field, json_path) = try_tuple!(self
                     .split_full_path(&full_path)
                     .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
-                let field_entry = self.schema.get_field_entry(field);
-                let value_type = field_entry.field_type().value_type();
                 let mut errors = Vec::new();
                 let lower = match self.resolve_bound(field, json_path, &lower) {
                     Ok(bound) => bound,
@@ -812,12 +810,8 @@ impl QueryParser {
                     // we failed to parse something. Either way, there is no point emiting it
                     return (None, errors);
                 }
-                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Range {
-                    field: self.schema.get_field_name(field).to_string(),
-                    value_type,
-                    lower,
-                    upper,
-                }));
+                let logical_ast =
+                    LogicalAst::Leaf(Box::new(LogicalLiteral::Range { lower, upper }));
                 (Some(logical_ast), errors)
             }
             UserInputLeaf::Set {
@@ -884,14 +878,7 @@ fn convert_literal_to_query(
                 Box::new(PhraseQuery::new_with_offset_and_slop(terms, slop))
             }
         }
-        LogicalLiteral::Range {
-            field,
-            value_type,
-            lower,
-            upper,
-        } => Box::new(RangeQuery::new_term_bounds(
-            field, value_type, &lower, &upper,
-        )),
+        LogicalLiteral::Range { lower, upper } => Box::new(RangeQuery::new(lower, upper)),
         LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
     }
@@ -1136,8 +1123,8 @@ mod test {
         let query = make_query_parser().parse_query("title:[A TO B]").unwrap();
         assert_eq!(
             format!("{query:?}"),
-            "RangeQuery { field: \"title\", value_type: Str, lower_bound: Included([97]), \
-             upper_bound: Included([98]), limit: None }"
+            "RangeQuery { lower_bound: Included(Term(field=0, type=Str, \"a\")), upper_bound: \
+             Included(Term(field=0, type=Str, \"b\")), limit: None }"
         );
     }
 

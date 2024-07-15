@@ -22,10 +22,7 @@ pub struct AllWeight;
 
 impl Weight for AllWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let all_scorer = AllScorer {
-            doc: 0u32,
-            max_doc: reader.max_doc(),
-        };
+        let all_scorer = AllScorer::new(reader.max_doc());
         Ok(Box::new(BoostScorer::new(all_scorer, boost)))
     }
 
@@ -41,6 +38,13 @@ impl Weight for AllWeight {
 pub struct AllScorer {
     doc: DocId,
     max_doc: DocId,
+}
+
+impl AllScorer {
+    /// Creates a new AllScorer with `max_doc` docs.
+    pub fn new(max_doc: DocId) -> AllScorer {
+        AllScorer { doc: 0u32, max_doc }
+    }
 }
 
 impl DocSet for AllScorer {

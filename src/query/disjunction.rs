@@ -192,7 +192,7 @@ mod tests {
                     .cloned()
                     .map(VecDocSet::from)
                     .map(|d| ConstScorer::new(d, 1.0)),
-                DoNothingCombiner::default(),
+                DoNothingCombiner,
                 min_match,
             )
         };

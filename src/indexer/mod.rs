@@ -303,7 +303,7 @@ mod tests_mmap {
                 Type::Str,
             ),
             (format!("{field_name_out_internal}a"), Type::Str),
-            (format!("{field_name_out_internal}"), Type::Str),
+            (field_name_out_internal.to_string(), Type::Str),
             (format!("num{field_name_out_internal}"), Type::I64),
         ];
         expected_fields.sort();

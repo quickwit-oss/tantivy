@@ -149,7 +149,7 @@ mod tests {
     use crate::query::exist_query::ExistsQuery;
     use crate::query::{BooleanQuery, RangeQuery};
     use crate::schema::{Facet, FacetOptions, Schema, FAST, INDEXED, STRING, TEXT};
-    use crate::{Index, Searcher};
+    use crate::{Index, Searcher, Term};
 
     #[test]
     fn test_exists_query_simple() -> crate::Result<()> {
@@ -188,9 +188,8 @@ mod tests {
 
         // exercise seek
         let query = BooleanQuery::intersection(vec![
-            Box::new(RangeQuery::new_u64_bounds(
-                "all".to_string(),
-                Bound::Included(50),
+            Box::new(RangeQuery::new(
+                Bound::Included(Term::from_field_u64(all_field, 50)),
                 Bound::Unbounded,
             )),
             Box::new(ExistsQuery::new_exists_query("even".to_string())),
@@ -198,10 +197,9 @@ mod tests {
         assert_eq!(searcher.search(&query, &Count)?, 25);
 
         let query = BooleanQuery::intersection(vec![
-            Box::new(RangeQuery::new_u64_bounds(
-                "all".to_string(),
-                Bound::Included(0),
-                Bound::Excluded(50),
+            Box::new(RangeQuery::new(
+                Bound::Included(Term::from_field_u64(all_field, 0)),
+                Bound::Included(Term::from_field_u64(all_field, 50)),
             )),
             Box::new(ExistsQuery::new_exists_query("odd".to_string())),
         ]);
