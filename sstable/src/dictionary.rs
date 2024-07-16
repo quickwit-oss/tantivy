@@ -662,7 +662,6 @@ mod tests {
         assert_eq!(dict.term_ord_or_next(b"ddd").unwrap(), TermOrdHit::Exact(1));
         assert_eq!(dict.term_ord_or_next(b"dddd").unwrap(), TermOrdHit::Next(2));
 
-        // Shouldn't this be u64::MAX?
         assert_eq!(
             dict.term_ord_or_next(b"zzzzzzz").unwrap(),
             TermOrdHit::Next(2)
