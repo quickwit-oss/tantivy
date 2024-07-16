@@ -662,6 +662,9 @@ mod tests {
         assert_eq!(dict.term_ord_or_next(b"ddd").unwrap(), TermOrdHit::Exact(1));
         assert_eq!(dict.term_ord_or_next(b"dddd").unwrap(), TermOrdHit::Next(2));
 
+        // This is not u64::MAX because for very small sstables (only one block),
+        // we don't store an index, and the pseudo-index always reply that the
+        // answer lies in block number 0
         assert_eq!(
             dict.term_ord_or_next(b"zzzzzzz").unwrap(),
             TermOrdHit::Next(2)
