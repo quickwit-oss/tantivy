@@ -85,7 +85,7 @@ impl Weight for FastFieldRangeWeight {
             let docset = RangeDocSet::new(value_range, ip_addr_column);
             Ok(Box::new(ConstScorer::new(docset, boost)))
         } else {
-            let (lower_bound, upper_bound) = if field_type.is_term() {
+            let (lower_bound, upper_bound) = if field_type.is_str() {
                 let Some(str_dict_column): Option<StrColumn> =
                     reader.fast_fields().str(field_name)?
                 else {
@@ -259,6 +259,27 @@ pub mod tests {
         test_query("title:[ccc TO ccc]", 0);
         test_query("title:[ccc TO ddd]", 1);
         test_query("title:[ccc TO eee]", 1);
+
+        test_query("title:[aaa TO *}", 2);
+        test_query("title:[bbb TO *]", 2);
+        test_query("title:[bb TO *]", 2);
+        test_query("title:[ccc TO *]", 1);
+        test_query("title:[ddd TO *]", 1);
+        test_query("title:[dddd TO *]", 0);
+
+        test_query("title:{aaa TO *}", 2);
+        test_query("title:{bbb TO *]", 1);
+        test_query("title:{bb TO *]", 2);
+        test_query("title:{ccc TO *]", 1);
+        test_query("title:{ddd TO *]", 0);
+        test_query("title:{dddd TO *]", 0);
+
+        test_query("title:[* TO bb]", 0);
+        test_query("title:[* TO bbb]", 1);
+        test_query("title:[* TO ccc]", 1);
+        test_query("title:[* TO ddd]", 2);
+        test_query("title:[* TO ddd}", 1);
+        test_query("title:[* TO eee]", 2);
 
         Ok(())
     }

@@ -202,7 +202,7 @@ impl FieldType {
     }
 
     /// returns true if this is an str field
-    pub fn is_term(&self) -> bool {
+    pub fn is_str(&self) -> bool {
         matches!(self, FieldType::Str(_))
     }
 

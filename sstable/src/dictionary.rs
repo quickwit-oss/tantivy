@@ -65,7 +65,9 @@ fn map_bound<TFrom, TTo>(bound: &Bound<TFrom>, transform: impl Fn(&TFrom) -> TTo
     }
 }
 
-fn map_bound_res<TFrom, TTo>(
+/// Takes a bound and transforms the inner value into a new bound via a closure.
+/// The bound variant may change by the value returned value from the closure.
+fn transform_bound_inner<TFrom, TTo>(
     bound: &Bound<TFrom>,
     transform: impl Fn(&TFrom) -> io::Result<Bound<TTo>>,
 ) -> io::Result<Bound<TTo>> {
@@ -407,14 +409,14 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         lower_bound: Bound<K>,
         upper_bound: Bound<K>,
     ) -> io::Result<(Bound<TermOrdinal>, Bound<TermOrdinal>)> {
-        let lower_bound = map_bound_res(&lower_bound, |start_bound_bytes| {
+        let lower_bound = transform_bound_inner(&lower_bound, |start_bound_bytes| {
             let ord = self.term_ord_or_next(start_bound_bytes)?;
             match ord {
                 TermOrdHit::Exact(ord) => Ok(map_bound(&lower_bound, |_| ord)),
                 TermOrdHit::Next(ord) => Ok(Bound::Included(ord)), // Change bounds to included
             }
         })?;
-        let upper_bound = map_bound_res(&upper_bound, |end_bound_bytes| {
+        let upper_bound = transform_bound_inner(&upper_bound, |end_bound_bytes| {
             let ord = self.term_ord_or_next(end_bound_bytes)?;
             match ord {
                 TermOrdHit::Exact(ord) => Ok(map_bound(&upper_bound, |_| ord)),
@@ -731,126 +733,42 @@ mod tests {
         };
 
         // Test cases for lower_bound
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Included(b"aaa".as_slice()),
-                Bound::Included(b"ignored")
-            )
-            .unwrap()
-            .0,
-            Bound::Included(0)
-        );
+        let test_lower_bound = |bound, expected| {
+            assert_eq!(
+                dict.term_bounds_to_ord::<&[u8]>(bound, Bound::Included(b"ignored"))
+                    .unwrap()
+                    .0,
+                expected
+            );
+        };
 
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Excluded(b"aaa".as_slice()),
-                Bound::Excluded(b"ignored")
-            )
-            .unwrap()
-            .0,
-            Bound::Included(0)
-        );
+        test_lower_bound(Bound::Included(b"aaa".as_slice()), Bound::Included(0));
+        test_lower_bound(Bound::Excluded(b"aaa".as_slice()), Bound::Included(0));
 
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Included(b"ccc".as_slice()),
-                Bound::Included(b"ignored")
-            )
-            .unwrap()
-            .0,
-            Bound::Included(1)
-        );
+        test_lower_bound(Bound::Included(b"bbb".as_slice()), Bound::Included(0));
+        test_lower_bound(Bound::Excluded(b"bbb".as_slice()), Bound::Excluded(0));
 
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Excluded(b"ccc".as_slice()),
-                Bound::Excluded(b"ignored")
-            )
-            .unwrap()
-            .0,
-            Bound::Included(1)
-        );
+        test_lower_bound(Bound::Included(b"ccc".as_slice()), Bound::Included(1));
+        test_lower_bound(Bound::Excluded(b"ccc".as_slice()), Bound::Included(1));
 
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Included(b"zzz".as_slice()),
-                Bound::Included(b"ignored")
-            )
-            .unwrap()
-            .0,
-            Bound::Included(2)
-        );
-
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Excluded(b"zzz".as_slice()),
-                Bound::Excluded(b"ignored")
-            )
-            .unwrap()
-            .0,
-            Bound::Included(2)
-        );
+        test_lower_bound(Bound::Included(b"zzz".as_slice()), Bound::Included(2));
+        test_lower_bound(Bound::Excluded(b"zzz".as_slice()), Bound::Included(2));
 
         // Test cases for upper_bound
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Included(b"ignored".as_slice()),
-                Bound::Included(b"ccc")
-            )
-            .unwrap()
-            .1,
-            Bound::Excluded(1)
-        );
-
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Excluded(b"ignored".as_slice()),
-                Bound::Excluded(b"ccc")
-            )
-            .unwrap()
-            .1,
-            Bound::Excluded(1)
-        );
-
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Included(b"ignored".as_slice()),
-                Bound::Included(b"zzz")
-            )
-            .unwrap()
-            .1,
-            Bound::Excluded(2)
-        );
-
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Excluded(b"ignored".as_slice()),
-                Bound::Excluded(b"zzz")
-            )
-            .unwrap()
-            .1,
-            Bound::Excluded(2)
-        );
-
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Included(b"ignored".as_slice()),
-                Bound::Included(b"ddd")
-            )
-            .unwrap()
-            .1,
-            Bound::Included(1)
-        );
-
-        assert_eq!(
-            dict.term_bounds_to_ord(
-                Bound::Excluded(b"ignored".as_slice()),
-                Bound::Excluded(b"ddd")
-            )
-            .unwrap()
-            .1,
-            Bound::Excluded(1)
-        );
+        let test_upper_bound = |bound, expected| {
+            assert_eq!(
+                dict.term_bounds_to_ord::<&[u8]>(Bound::Included(b"ignored"), bound,)
+                    .unwrap()
+                    .1,
+                expected
+            );
+        };
+        test_upper_bound(Bound::Included(b"ccc".as_slice()), Bound::Excluded(1));
+        test_upper_bound(Bound::Excluded(b"ccc".as_slice()), Bound::Excluded(1));
+        test_upper_bound(Bound::Included(b"zzz".as_slice()), Bound::Excluded(2));
+        test_upper_bound(Bound::Excluded(b"zzz".as_slice()), Bound::Excluded(2));
+        test_upper_bound(Bound::Included(b"ddd".as_slice()), Bound::Included(1));
+        test_upper_bound(Bound::Excluded(b"ddd".as_slice()), Bound::Excluded(1));
     }
 
     #[test]
