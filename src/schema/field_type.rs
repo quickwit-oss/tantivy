@@ -201,6 +201,11 @@ impl FieldType {
         matches!(self, FieldType::IpAddr(_))
     }
 
+    /// returns true if this is an str field
+    pub fn is_str(&self) -> bool {
+        matches!(self, FieldType::Str(_))
+    }
+
     /// returns true if this is an date field
     pub fn is_date(&self) -> bool {
         matches!(self, FieldType::Date(_))
