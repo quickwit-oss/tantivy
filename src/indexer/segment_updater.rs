@@ -542,7 +542,13 @@ impl SegmentUpdater {
     }
 
     fn consider_merge_options(&self) {
-        let (committed_segments, uncommitted_segments) = self.get_mergeable_segments();
+        let (mut committed_segments, mut uncommitted_segments) = self.get_mergeable_segments();
+        if committed_segments.len() == 1 && committed_segments[0].num_deleted_docs() == 0 {
+            committed_segments.clear();
+        }
+        if uncommitted_segments.len() == 1 && uncommitted_segments[0].num_deleted_docs() == 0 {
+            uncommitted_segments.clear();
+        }
 
         // Committed segments cannot be merged with uncommitted_segments.
         // We therefore consider merges using these two sets of segments independently.
