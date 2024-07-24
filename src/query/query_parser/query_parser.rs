@@ -482,16 +482,32 @@ impl QueryParser {
                 });
                 if terms.len() != 1 {
                     return Err(QueryParserError::UnsupportedQuery(format!(
-                        "Range query boundary cannot have multiple tokens: {phrase:?}."
+                        "Range query boundary cannot have multiple tokens: {phrase:?} [{terms:?}]."
                     )));
                 }
                 Ok(terms.into_iter().next().unwrap())
             }
-            FieldType::JsonObject(_) => {
-                // Json range are not supported.
-                Err(QueryParserError::UnsupportedQuery(
-                    "Range query are not supported on json field.".to_string(),
-                ))
+            FieldType::JsonObject(ref json_options) => {
+                let get_term_with_path = || {
+                    Term::from_field_json_path(
+                        field,
+                        json_path,
+                        json_options.is_expand_dots_enabled(),
+                    )
+                };
+                if let Some(term) =
+                    // Try to convert the phrase to a fast value
+                    convert_to_fast_value_and_append_to_json_term(
+                        get_term_with_path(),
+                        phrase,
+                    )
+                {
+                    Ok(term)
+                } else {
+                    let mut term = get_term_with_path();
+                    term.append_type_and_str(phrase);
+                    Ok(term)
+                }
             }
             FieldType::Facet(_) => match Facet::from_text(phrase) {
                 Ok(facet) => Ok(Term::from_facet(field, &facet)),
@@ -1123,8 +1139,8 @@ mod test {
         let query = make_query_parser().parse_query("title:[A TO B]").unwrap();
         assert_eq!(
             format!("{query:?}"),
-            "RangeQuery { lower_bound: Included(Term(field=0, type=Str, \"a\")), upper_bound: \
-             Included(Term(field=0, type=Str, \"b\")), limit: None }"
+            "RangeQuery { bounds: BoundsRange { lower_bound: Included(Term(field=0, type=Str, \
+             \"a\")), upper_bound: Included(Term(field=0, type=Str, \"b\")) }, limit: None }"
         );
     }
 

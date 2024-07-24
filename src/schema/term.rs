@@ -7,7 +7,7 @@ use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP_STR};
 use common::JsonPathWriter;
 
 use super::date_time_options::DATE_TIME_PRECISION_INDEXED;
-use super::Field;
+use super::{Field, Schema};
 use crate::fastfield::FastValue;
 use crate::json_utils::split_json_path;
 use crate::schema::{Facet, Type};
@@ -55,6 +55,25 @@ impl Term {
         term.append_bytes(json_path.as_str().as_bytes());
 
         term
+    }
+
+    /// Gets the full path of the field name + optional json path.
+    pub fn get_full_path(&self, schema: &Schema) -> String {
+        let field = self.field();
+        let field_type = schema.get_field_entry(field).field_type();
+        let mut field = schema.get_field_name(field).to_string();
+        let field_name = if field_type.is_json() {
+            field.push('.');
+            let value = self.value();
+            let json_path = value.as_json().expect("expected json type in term").0;
+            field.push_str(unsafe {
+                std::str::from_utf8_unchecked(&json_path[..json_path.len() - 1])
+            });
+            field
+        } else {
+            field
+        };
+        field_name
     }
 
     pub(crate) fn with_type_and_field(typ: Type, field: Field) -> Term {
@@ -324,6 +343,11 @@ where B: AsRef<[u8]>
         ValueBytes(data)
     }
 
+    /// Wraps a object holding Vec<u8>
+    pub fn to_owned(&self) -> ValueBytes<Vec<u8>> {
+        ValueBytes(self.0.as_ref().to_vec())
+    }
+
     fn typ_code(&self) -> u8 {
         self.0.as_ref()[0]
     }
@@ -345,7 +369,7 @@ where B: AsRef<[u8]>
         if self.typ() != T::to_type() {
             return None;
         }
-        let value_bytes = self.value_bytes();
+        let value_bytes = self.raw_value_bytes_payload();
         let value_u64 = u64::from_be_bytes(value_bytes.try_into().ok()?);
         Some(T::from_u64(value_u64))
     }
@@ -390,7 +414,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Str {
             return None;
         }
-        str::from_utf8(self.value_bytes()).ok()
+        str::from_utf8(self.raw_value_bytes_payload()).ok()
     }
 
     /// Returns the facet associated with the term.
@@ -401,7 +425,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Facet {
             return None;
         }
-        let facet_encode_str = str::from_utf8(self.value_bytes()).ok()?;
+        let facet_encode_str = str::from_utf8(self.raw_value_bytes_payload()).ok()?;
         Some(Facet::from_encoded_string(facet_encode_str.to_string()))
     }
 
@@ -412,7 +436,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Bytes {
             return None;
         }
-        Some(self.value_bytes())
+        Some(self.raw_value_bytes_payload())
     }
 
     /// Returns a `Ipv6Addr` value from the term.
@@ -420,7 +444,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::IpAddr {
             return None;
         }
-        let ip_u128 = u128::from_be_bytes(self.value_bytes().try_into().ok()?);
+        let ip_u128 = u128::from_be_bytes(self.raw_value_bytes_payload().try_into().ok()?);
         Some(Ipv6Addr::from_u128(ip_u128))
     }
 
@@ -441,7 +465,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Json {
             return None;
         }
-        let bytes = self.value_bytes();
+        let bytes = self.raw_value_bytes_payload();
 
         let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
         // split at pos + 1, so that json_path_bytes includes the JSON_END_OF_PATH byte.
@@ -456,14 +480,23 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Json {
             return None;
         }
-        let bytes = self.value_bytes();
+        let bytes = self.raw_value_bytes_payload();
         let pos = bytes.iter().cloned().position(|b| b == JSON_END_OF_PATH)?;
         Some(ValueBytes::wrap(&bytes[pos + 1..]))
     }
 
-    /// Returns the serialized value of ValueBytes without the type.
-    fn value_bytes(&self) -> &[u8] {
+    /// Returns the raw value of ValueBytes payload, without the type tag.
+    pub(crate) fn raw_value_bytes_payload(&self) -> &[u8] {
         &self.0.as_ref()[1..]
+    }
+
+    /// Returns the serialized value of ValueBytes payload, without the type tag.
+    pub(crate) fn value_bytes_payload(&self) -> Vec<u8> {
+        if let Some(value_bytes) = self.as_json_value_bytes() {
+            value_bytes.raw_value_bytes_payload().to_vec()
+        } else {
+            self.raw_value_bytes_payload().to_vec()
+        }
     }
 
     /// Returns the serialized representation of Term.

@@ -1,9 +1,9 @@
 use std::io;
 use std::ops::Bound;
 
+use common::bounds::{map_bound, BoundsRange};
 use common::BitSet;
 
-use super::map_bound;
 use super::range_query_u64_fastfield::FastFieldRangeWeight;
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
@@ -69,17 +69,8 @@ use crate::{DocId, Score};
 /// ```
 #[derive(Clone, Debug)]
 pub struct RangeQuery {
-    lower_bound: Bound<Term>,
-    upper_bound: Bound<Term>,
+    bounds: BoundsRange<Term>,
     limit: Option<u64>,
-}
-
-/// Returns the inner value of a `Bound`
-pub(crate) fn inner_bound(val: &Bound<Term>) -> Option<&Term> {
-    match val {
-        Bound::Included(term) | Bound::Excluded(term) => Some(term),
-        Bound::Unbounded => None,
-    }
 }
 
 impl RangeQuery {
@@ -89,8 +80,7 @@ impl RangeQuery {
     /// the `Weight` object is created.
     pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> RangeQuery {
         RangeQuery {
-            lower_bound,
-            upper_bound,
+            bounds: BoundsRange::new(lower_bound, upper_bound),
             limit: None,
         }
     }
@@ -106,8 +96,8 @@ impl RangeQuery {
     }
 
     pub(crate) fn get_term(&self) -> &Term {
-        inner_bound(&self.lower_bound)
-            .or(inner_bound(&self.upper_bound))
+        self.bounds
+            .get_inner()
             .expect("At least one bound must be set")
     }
 
@@ -128,15 +118,19 @@ impl Query for RangeQuery {
         if field_type.is_fast() && is_type_valid_for_fastfield_range_query(self.value_type()) {
             Ok(Box::new(FastFieldRangeWeight::new(
                 self.field(),
-                self.lower_bound.clone(),
-                self.upper_bound.clone(),
+                self.bounds.clone(),
             )))
         } else {
+            if field_type.is_json() {
+                return Err(crate::TantivyError::InvalidArgument(
+                    "RangeQuery on JSON is only supported for fast fields currently".to_string(),
+                ));
+            }
             let verify_and_unwrap_term = |val: &Term| val.serialized_value_bytes().to_owned();
             Ok(Box::new(RangeWeight {
                 field: self.field(),
-                lower_bound: map_bound(&self.lower_bound, verify_and_unwrap_term),
-                upper_bound: map_bound(&self.upper_bound, verify_and_unwrap_term),
+                lower_bound: map_bound(&self.bounds.lower_bound, verify_and_unwrap_term),
+                upper_bound: map_bound(&self.bounds.upper_bound, verify_and_unwrap_term),
                 limit: self.limit,
             }))
         }

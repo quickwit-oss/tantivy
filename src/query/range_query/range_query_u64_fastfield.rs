@@ -5,32 +5,29 @@
 use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
-use columnar::{Column, MonotonicallyMappableToU128, MonotonicallyMappableToU64, StrColumn};
+use columnar::{
+    Column, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, NumericalType,
+    StrColumn,
+};
+use common::bounds::{BoundsRange, TransformBound};
 use common::BinarySerializable;
 
 use super::fast_field_range_doc_set::RangeDocSet;
-use super::{map_bound, map_bound_res};
-use crate::query::range_query::range_query::inner_bound;
 use crate::query::{AllScorer, ConstScorer, EmptyScorer, Explanation, Query, Scorer, Weight};
-use crate::schema::{Field, Type};
+use crate::schema::{Field, Type, ValueBytes};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
 
 /// `FastFieldRangeWeight` uses the fast field to execute range queries.
 #[derive(Clone, Debug)]
 pub struct FastFieldRangeWeight {
-    lower_bound: Bound<Term>,
-    upper_bound: Bound<Term>,
+    bounds: BoundsRange<Term>,
     field: Field,
 }
 
 impl FastFieldRangeWeight {
     /// Create a new FastFieldRangeWeight
-    pub fn new(field: Field, lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> Self {
-        Self {
-            lower_bound,
-            upper_bound,
-            field,
-        }
+    pub(crate) fn new(field: Field, bounds: BoundsRange<Term>) -> Self {
+        Self { bounds, field }
     }
 }
 
@@ -46,14 +43,14 @@ impl Query for FastFieldRangeWeight {
 impl Weight for FastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         // Check if both bounds are Bound::Unbounded
-        if self.lower_bound == Bound::Unbounded && self.upper_bound == Bound::Unbounded {
+        if self.bounds.is_unbounded() {
             return Ok(Box::new(AllScorer::new(reader.max_doc())));
         }
-        let field_name = reader.schema().get_field_name(self.field);
         let field_type = reader.schema().get_field_entry(self.field).field_type();
 
-        let term = inner_bound(&self.lower_bound)
-            .or(inner_bound(&self.upper_bound))
+        let term = self
+            .bounds
+            .get_inner()
             .expect("At least one bound must be set");
         assert_eq!(
             term.typ(),
@@ -62,83 +59,135 @@ impl Weight for FastFieldRangeWeight {
             field_type,
             term.typ()
         );
-        if field_type.is_ip_addr() {
+        let field_name = term.get_full_path(reader.schema());
+
+        let get_value_bytes = |term: &Term| term.value().value_bytes_payload();
+        let get_term_u64_internal_representation = |term: &Term| {
+            let bytes = term.value().value_bytes_payload();
+            u64::from_be(BinarySerializable::deserialize(&mut &bytes[..]).unwrap())
+        };
+
+        let term_value = term.value();
+        if field_type.is_json() {
+            let bounds = self.bounds.map_bound(|term| {
+                let val = term.value().as_json_value_bytes().unwrap().to_owned();
+                val
+            });
+            // Unlike with other field types JSON may have multiple columns of different types
+            // under the same name
+            //
+            // In the JSON case the provided type in term may not exactly match the column type,
+            // especially with the numeric type interpolation
+            let json_value_bytes = term_value
+                .as_json_value_bytes()
+                .expect("expected json type in term");
+            let typ = json_value_bytes.typ();
+            match typ {
+                Type::Str => {
+                    // If we are here that means we already tried to convert to a fast value and
+                    // failed
+                    let Some(str_dict_column): Option<StrColumn> =
+                        reader.fast_fields().str(&field_name)?
+                    else {
+                        return Ok(Box::new(EmptyScorer));
+                    };
+                    let dict = str_dict_column.dictionary();
+
+                    let bounds = self.bounds.map_bound(get_value_bytes);
+                    // Get term ids for terms
+                    let (lower_bound, upper_bound) =
+                        dict.term_bounds_to_ord(bounds.lower_bound, bounds.upper_bound)?;
+                    let fast_field_reader = reader.fast_fields();
+                    let Some((column, _col_type)) =
+                        fast_field_reader.u64_lenient_for_type(None, &field_name)?
+                    else {
+                        return Ok(Box::new(EmptyScorer));
+                    };
+                    search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+                }
+                Type::U64 | Type::I64 | Type::F64 => {
+                    search_on_json_numerical_field(reader, &field_name, typ, bounds, boost)
+                }
+                Type::Date => {
+                    let fast_field_reader = reader.fast_fields();
+                    let Some((column, _col_type)) = fast_field_reader
+                        .u64_lenient_for_type(Some(&[ColumnType::DateTime]), &field_name)?
+                    else {
+                        return Ok(Box::new(EmptyScorer));
+                    };
+                    let bounds = bounds.map_bound(|term| term.as_date().unwrap().to_u64());
+                    search_on_u64_ff(
+                        column,
+                        boost,
+                        BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+                    )
+                }
+                Type::Bool | Type::Facet | Type::Bytes | Type::Json | Type::IpAddr => {
+                    Err(crate::TantivyError::InvalidArgument(format!(
+                        "unsupported value bytes type in json term value_bytes {:?}",
+                        term_value.typ()
+                    )))
+                }
+            }
+        } else if field_type.is_ip_addr() {
             let parse_ip_from_bytes = |term: &Term| {
                 term.value().as_ip_addr().ok_or_else(|| {
                     crate::TantivyError::InvalidArgument("Expected ip address".to_string())
                 })
             };
-            let lower_bound = map_bound_res(&self.lower_bound, parse_ip_from_bytes)?;
-            let upper_bound = map_bound_res(&self.upper_bound, parse_ip_from_bytes)?;
+            let bounds: BoundsRange<Ipv6Addr> = self.bounds.map_bound_res(parse_ip_from_bytes)?;
 
             let Some(ip_addr_column): Option<Column<Ipv6Addr>> =
-                reader.fast_fields().column_opt(field_name)?
+                reader.fast_fields().column_opt(&field_name)?
             else {
                 return Ok(Box::new(EmptyScorer));
             };
-            let value_range = bound_to_value_range_ip(
-                &lower_bound,
-                &upper_bound,
+            let value_range = bound_range_inclusive_ip(
+                &bounds.lower_bound,
+                &bounds.upper_bound,
                 ip_addr_column.min_value(),
                 ip_addr_column.max_value(),
             );
             let docset = RangeDocSet::new(value_range, ip_addr_column);
             Ok(Box::new(ConstScorer::new(docset, boost)))
-        } else {
-            let (lower_bound, upper_bound) = if field_type.is_str() {
-                let Some(str_dict_column): Option<StrColumn> =
-                    reader.fast_fields().str(field_name)?
-                else {
-                    return Ok(Box::new(EmptyScorer));
-                };
-                let dict = str_dict_column.dictionary();
-
-                let lower_bound = map_bound(&self.lower_bound, |term| {
-                    term.serialized_value_bytes().to_vec()
-                });
-                let upper_bound = map_bound(&self.upper_bound, |term| {
-                    term.serialized_value_bytes().to_vec()
-                });
-                // Get term ids for terms
-                let (lower_bound, upper_bound) =
-                    dict.term_bounds_to_ord(lower_bound, upper_bound)?;
-                (lower_bound, upper_bound)
-            } else {
-                assert!(
-                    maps_to_u64_fastfield(field_type.value_type()),
-                    "{:?}",
-                    field_type
-                );
-                let parse_from_bytes = |term: &Term| {
-                    u64::from_be(
-                        BinarySerializable::deserialize(&mut &term.serialized_value_bytes()[..])
-                            .unwrap(),
-                    )
-                };
-
-                let lower_bound = map_bound(&self.lower_bound, parse_from_bytes);
-                let upper_bound = map_bound(&self.upper_bound, parse_from_bytes);
-                (lower_bound, upper_bound)
-            };
-
-            let fast_field_reader = reader.fast_fields();
-            let Some((column, _)) = fast_field_reader.u64_lenient_for_type(None, field_name)?
+        } else if field_type.is_str() {
+            let Some(str_dict_column): Option<StrColumn> = reader.fast_fields().str(&field_name)?
             else {
                 return Ok(Box::new(EmptyScorer));
             };
-            #[allow(clippy::reversed_empty_ranges)]
-            let value_range = bound_to_value_range(
-                &lower_bound,
-                &upper_bound,
-                column.min_value(),
-                column.max_value(),
-            )
-            .unwrap_or(1..=0); // empty range
-            if value_range.is_empty() {
+            let dict = str_dict_column.dictionary();
+
+            let bounds = self.bounds.map_bound(get_value_bytes);
+            // Get term ids for terms
+            let (lower_bound, upper_bound) =
+                dict.term_bounds_to_ord(bounds.lower_bound, bounds.upper_bound)?;
+            let fast_field_reader = reader.fast_fields();
+            let Some((column, _col_type)) =
+                fast_field_reader.u64_lenient_for_type(None, &field_name)?
+            else {
                 return Ok(Box::new(EmptyScorer));
-            }
-            let docset = RangeDocSet::new(value_range, column);
-            Ok(Box::new(ConstScorer::new(docset, boost)))
+            };
+            search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+        } else {
+            assert!(
+                maps_to_u64_fastfield(field_type.value_type()),
+                "{:?}",
+                field_type
+            );
+
+            let bounds = self.bounds.map_bound(get_term_u64_internal_representation);
+
+            let fast_field_reader = reader.fast_fields();
+            let Some((column, _col_type)) =
+                fast_field_reader.u64_lenient_for_type(None, &field_name)?
+            else {
+                return Ok(Box::new(EmptyScorer));
+            };
+            search_on_u64_ff(
+                column,
+                boost,
+                BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+            )
         }
     }
 
@@ -155,6 +204,186 @@ impl Weight for FastFieldRangeWeight {
     }
 }
 
+fn search_on_json_numerical_field(
+    reader: &SegmentReader,
+    field_name: &str,
+    typ: Type,
+    bounds: BoundsRange<ValueBytes<Vec<u8>>>,
+    boost: Score,
+) -> crate::Result<Box<dyn Scorer>> {
+    // Since we don't know which type was interpolated for the internal column whe
+    // have to check for all types (only one exists)
+    let allowed_column_types: Option<&[ColumnType]> =
+        Some(&[ColumnType::F64, ColumnType::I64, ColumnType::U64]);
+    let fast_field_reader = reader.fast_fields();
+    let Some((column, col_type)) =
+        fast_field_reader.u64_lenient_for_type(allowed_column_types, field_name)?
+    else {
+        return Ok(Box::new(EmptyScorer));
+    };
+    let actual_colum_type: NumericalType = col_type.numerical_type().unwrap_or_else(|| {
+        panic!(
+            "internal error: couldn't cast to numerical_type: {:?}",
+            col_type
+        )
+    });
+
+    let bounds = match typ.numerical_type().unwrap() {
+        NumericalType::I64 => {
+            let bounds = bounds.map_bound(|term| (term.as_i64().unwrap()));
+            match actual_colum_type {
+                NumericalType::I64 => bounds.map_bound(|&term| term.to_u64()),
+                NumericalType::U64 => {
+                    bounds.transform_inner(
+                        |&val| {
+                            if val < 0 {
+                                return TransformBound::NewBound(Bound::Unbounded);
+                            }
+                            TransformBound::Existing(val as u64)
+                        },
+                        |&val| {
+                            if val < 0 {
+                                // no hits case
+                                return TransformBound::NewBound(Bound::Excluded(0));
+                            }
+                            TransformBound::Existing(val as u64)
+                        },
+                    )
+                }
+                NumericalType::F64 => bounds.map_bound(|&term| (term as f64).to_u64()),
+            }
+        }
+        NumericalType::U64 => {
+            let bounds = bounds.map_bound(|term| (term.as_u64().unwrap()));
+            match actual_colum_type {
+                NumericalType::U64 => bounds.map_bound(|&term| term.to_u64()),
+                NumericalType::I64 => {
+                    bounds.transform_inner(
+                        |&val| {
+                            if val > i64::MAX as u64 {
+                                // Actual no hits case
+                                return TransformBound::NewBound(Bound::Excluded(i64::MAX as u64));
+                            }
+                            TransformBound::Existing((val as i64).to_u64())
+                        },
+                        |&val| {
+                            if val > i64::MAX as u64 {
+                                return TransformBound::NewBound(Bound::Unbounded);
+                            }
+                            TransformBound::Existing((val as i64).to_u64())
+                        },
+                    )
+                }
+                NumericalType::F64 => bounds.map_bound(|&term| (term as f64).to_u64()),
+            }
+        }
+        NumericalType::F64 => {
+            let bounds = bounds.map_bound(|term| (term.as_f64().unwrap()));
+            match actual_colum_type {
+                NumericalType::U64 => transform_from_f64_bounds::<u64>(&bounds),
+                NumericalType::I64 => transform_from_f64_bounds::<i64>(&bounds),
+                NumericalType::F64 => bounds.map_bound(|&term| term.to_u64()),
+            }
+        }
+    };
+    search_on_u64_ff(
+        column,
+        boost,
+        BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+    )
+}
+
+trait IntType {
+    fn min() -> Self;
+    fn max() -> Self;
+    fn to_f64(self) -> f64;
+    fn from_f64(val: f64) -> Self;
+}
+impl IntType for i64 {
+    fn min() -> Self {
+        Self::MIN
+    }
+    fn max() -> Self {
+        Self::MAX
+    }
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
+    fn from_f64(val: f64) -> Self {
+        val as Self
+    }
+}
+impl IntType for u64 {
+    fn min() -> Self {
+        Self::MIN
+    }
+    fn max() -> Self {
+        Self::MAX
+    }
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
+    fn from_f64(val: f64) -> Self {
+        val as Self
+    }
+}
+
+fn transform_from_f64_bounds<T: IntType + MonotonicallyMappableToU64>(
+    bounds: &BoundsRange<f64>,
+) -> BoundsRange<u64> {
+    bounds.transform_inner(
+        |&lower_bound| {
+            if lower_bound < T::min().to_f64() {
+                return TransformBound::NewBound(Bound::Unbounded);
+            }
+            if lower_bound > T::max().to_f64() {
+                // no hits case
+                return TransformBound::NewBound(Bound::Excluded(u64::MAX));
+            }
+
+            if lower_bound.fract() == 0.0 {
+                TransformBound::Existing(T::from_f64(lower_bound).to_u64())
+            } else {
+                TransformBound::NewBound(Bound::Included(T::from_f64(lower_bound.trunc()).to_u64()))
+            }
+        },
+        |&upper_bound| {
+            if upper_bound < T::min().to_f64() {
+                return TransformBound::NewBound(Bound::Unbounded);
+            }
+            if upper_bound > T::max().to_f64() {
+                // no hits case
+                return TransformBound::NewBound(Bound::Included(u64::MAX));
+            }
+            if upper_bound.fract() == 0.0 {
+                TransformBound::Existing(T::from_f64(upper_bound).to_u64())
+            } else {
+                TransformBound::NewBound(Bound::Included(T::from_f64(upper_bound.trunc()).to_u64()))
+            }
+        },
+    )
+}
+
+fn search_on_u64_ff(
+    column: Column<u64>,
+    boost: Score,
+    bounds: BoundsRange<u64>,
+) -> crate::Result<Box<dyn Scorer>> {
+    #[allow(clippy::reversed_empty_ranges)]
+    let value_range = bound_to_value_range(
+        &bounds.lower_bound,
+        &bounds.upper_bound,
+        column.min_value(),
+        column.max_value(),
+    )
+    .unwrap_or(1..=0); // empty range
+    if value_range.is_empty() {
+        return Ok(Box::new(EmptyScorer));
+    }
+    let docset = RangeDocSet::new(value_range, column);
+    Ok(Box::new(ConstScorer::new(docset, boost)))
+}
+
 /// Returns true if the type maps to a u64 fast field
 pub(crate) fn maps_to_u64_fastfield(typ: Type) -> bool {
     match typ {
@@ -164,7 +393,7 @@ pub(crate) fn maps_to_u64_fastfield(typ: Type) -> bool {
     }
 }
 
-fn bound_to_value_range_ip(
+fn bound_range_inclusive_ip(
     lower_bound: &Bound<Ipv6Addr>,
     upper_bound: &Bound<Ipv6Addr>,
     min_value: Ipv6Addr,
@@ -212,16 +441,21 @@ fn bound_to_value_range<T: MonotonicallyMappableToU64>(
 pub mod tests {
     use std::ops::{Bound, RangeInclusive};
 
+    use common::bounds::BoundsRange;
+    use common::DateTime;
     use proptest::prelude::*;
     use rand::rngs::StdRng;
     use rand::seq::SliceRandom;
     use rand::SeedableRng;
+    use time::format_description::well_known::Rfc3339;
+    use time::OffsetDateTime;
 
     use crate::collector::{Count, TopDocs};
+    use crate::fastfield::FastValue;
     use crate::query::range_query::range_query_u64_fastfield::FastFieldRangeWeight;
-    use crate::query::{QueryParser, Weight};
+    use crate::query::{QueryParser, RangeQuery, Weight};
     use crate::schema::{
-        NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING, TEXT,
+        Field, NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::{Index, IndexWriter, Term, TERMINATED};
 
@@ -284,6 +518,208 @@ pub mod tests {
         Ok(())
     }
 
+    fn get_json_term<T: FastValue>(field: Field, path: &str, value: T) -> Term {
+        let mut term = Term::from_field_json_path(field, path, true);
+        term.append_type_and_fast_value(value);
+        term
+    }
+
+    #[test]
+    fn json_range_test() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", TEXT | STORED | FAST);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let u64_val = u64::MAX - 1;
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
+            let doc = json!({
+                "id_u64": 0,
+                "id_f64": 10.5,
+                "id_i64": -100,
+                "date": "2022-12-01T00:00:01Z"
+            });
+            index_writer.add_document(doc!(json_field => doc)).unwrap();
+            let doc = json!({
+                "id_u64": u64_val,
+                "id_f64": 1000.5,
+                "id_i64": 1000,
+                "date": "2023-12-01T00:00:01Z"
+            });
+            index_writer.add_document(doc!(json_field => doc)).unwrap();
+
+            index_writer.commit().unwrap();
+        }
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let count = |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
+
+        // u64 on u64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_u64", u64_val)),
+                Bound::Included(get_json_term(json_field, "id_u64", u64_val)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_u64", u64_val)),
+                Bound::Excluded(get_json_term(json_field, "id_u64", u64_val)),
+            )),
+            0
+        );
+        // f64 on u64 field
+        assert_eq!(
+            count(RangeQuery::new(
+                // We need to subtract since there is some inaccuracy
+                Bound::Included(get_json_term(
+                    json_field,
+                    "id_u64",
+                    (u64_val - 10000) as f64
+                )),
+                Bound::Included(get_json_term(json_field, "id_u64", (u64_val) as f64)),
+            )),
+            1
+        );
+        // i64 on u64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_u64", 0_i64)),
+                Bound::Included(get_json_term(json_field, "id_u64", 0_i64)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_u64", 1_i64)),
+                Bound::Included(get_json_term(json_field, "id_u64", 1_i64)),
+            )),
+            0
+        );
+        // u64 on f64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_f64", 10_u64)),
+                Bound::Included(get_json_term(json_field, "id_f64", 11_u64)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_f64", 10_u64)),
+                Bound::Included(get_json_term(json_field, "id_f64", 2000_u64)),
+            )),
+            2
+        );
+        // i64 on f64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_f64", 10_i64)),
+                Bound::Included(get_json_term(json_field, "id_f64", 2000_i64)),
+            )),
+            2
+        );
+
+        // i64 on i64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", -1000i64)),
+                Bound::Included(get_json_term(json_field, "id_i64", 1000i64)),
+            )),
+            2
+        );
+
+        // u64 on i64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", 0_u64)),
+                Bound::Included(get_json_term(json_field, "id_i64", 1000u64)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", 0_u64)),
+                Bound::Included(get_json_term(json_field, "id_i64", 999u64)),
+            )),
+            0
+        );
+        // f64 on i64 field
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", -1000.0)),
+                Bound::Included(get_json_term(json_field, "id_i64", 1000.0)),
+            )),
+            2
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", -1000.0f64)),
+                Bound::Excluded(get_json_term(json_field, "id_i64", 1000.0f64)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", -1000.0f64)),
+                Bound::Included(get_json_term(json_field, "id_i64", 1000.0f64)),
+            )),
+            2
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", -1000.0f64)),
+                Bound::Excluded(get_json_term(json_field, "id_i64", 1000.01f64)),
+            )),
+            2
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", -1000.0f64)),
+                Bound::Included(get_json_term(json_field, "id_i64", 999.99f64)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Excluded(get_json_term(json_field, "id_i64", 999.9)),
+                Bound::Excluded(get_json_term(json_field, "id_i64", 1000.1)),
+            )),
+            1
+        );
+
+        // Date field
+        let dt1 =
+            DateTime::from_utc(OffsetDateTime::parse("2022-12-01T00:00:01Z", &Rfc3339).unwrap());
+        let dt2 =
+            DateTime::from_utc(OffsetDateTime::parse("2023-12-01T00:00:01Z", &Rfc3339).unwrap());
+
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "date", dt1)),
+                Bound::Included(get_json_term(json_field, "date", dt2)),
+            )),
+            2
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "date", dt1)),
+                Bound::Excluded(get_json_term(json_field, "date", dt2)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Excluded(get_json_term(json_field, "date", dt1)),
+                Bound::Excluded(get_json_term(json_field, "date", dt2)),
+            )),
+            0
+        );
+    }
+
     #[derive(Clone, Debug)]
     pub struct Doc {
         pub id_name: String,
@@ -327,6 +763,12 @@ pub mod tests {
     }
 
     #[test]
+    fn range_regression1_test_json() {
+        let ops = vec![doc_from_id_1(0)];
+        assert!(test_id_range_for_docs_json(ops).is_ok());
+    }
+
+    #[test]
     fn test_range_regression2() {
         let ops = vec![
             doc_from_id_1(52),
@@ -356,8 +798,10 @@ pub mod tests {
         let searcher = index.reader().unwrap().searcher();
         let range_query = FastFieldRangeWeight::new(
             field,
-            Bound::Included(Term::from_field_u64(field, 50_000)),
-            Bound::Included(Term::from_field_u64(field, 50_002)),
+            BoundsRange::new(
+                Bound::Included(Term::from_field_u64(field, 50_000)),
+                Bound::Included(Term::from_field_u64(field, 50_002)),
+            ),
         );
         let scorer = range_query
             .scorer(searcher.segment_reader(0), 1.0f32)
@@ -377,56 +821,94 @@ pub mod tests {
         assert!(test_id_range_for_docs(ops).is_ok());
     }
 
-    pub fn create_index_from_docs(docs: &[Doc]) -> Index {
+    pub fn create_index_from_docs(docs: &[Doc], json_field: bool) -> Index {
         let mut schema_builder = Schema::builder();
-        let id_u64_field = schema_builder.add_u64_field("id", INDEXED | STORED | FAST);
-        let ids_u64_field =
-            schema_builder.add_u64_field("ids", NumericOptions::default().set_fast().set_indexed());
+        if json_field {
+            let json_field = schema_builder.add_json_field("json", TEXT | STORED | FAST);
+            let schema = schema_builder.build();
 
-        let id_f64_field = schema_builder.add_f64_field("id_f64", INDEXED | STORED | FAST);
-        let ids_f64_field = schema_builder.add_f64_field(
-            "ids_f64",
-            NumericOptions::default().set_fast().set_indexed(),
-        );
+            let index = Index::create_in_ram(schema);
 
-        let id_i64_field = schema_builder.add_i64_field("id_i64", INDEXED | STORED | FAST);
-        let ids_i64_field = schema_builder.add_i64_field(
-            "ids_i64",
-            NumericOptions::default().set_fast().set_indexed(),
-        );
+            {
+                let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
+                for doc in docs.iter() {
+                    let doc = json!({
+                        "ids_i64": doc.id as i64,
+                        "ids_i64": doc.id as i64,
+                        "ids_f64": doc.id as f64,
+                        "ids_f64": doc.id as f64,
+                        "ids": doc.id,
+                        "ids": doc.id,
+                        "id": doc.id,
+                        "id_f64": doc.id as f64,
+                        "id_i64": doc.id as i64,
+                        "id_name": doc.id_name.to_string(),
+                        "id_name_fast": doc.id_name.to_string(),
+                    });
+                    index_writer.add_document(doc!(json_field => doc)).unwrap();
+                }
 
-        let text_field = schema_builder.add_text_field("id_name", STRING | STORED | FAST);
-        let text_field2 = schema_builder.add_text_field("id_name_fast", STRING | STORED | FAST);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-
-        {
-            let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
-            for doc in docs.iter() {
-                index_writer
-                    .add_document(doc!(
-                        ids_i64_field => doc.id as i64,
-                        ids_i64_field => doc.id as i64,
-                        ids_f64_field => doc.id as f64,
-                        ids_f64_field => doc.id as f64,
-                        ids_u64_field => doc.id,
-                        ids_u64_field => doc.id,
-                        id_u64_field => doc.id,
-                        id_f64_field => doc.id as f64,
-                        id_i64_field => doc.id as i64,
-                        text_field => doc.id_name.to_string(),
-                        text_field2 => doc.id_name.to_string(),
-                    ))
-                    .unwrap();
+                index_writer.commit().unwrap();
             }
+            index
+        } else {
+            let id_u64_field = schema_builder.add_u64_field("id", INDEXED | STORED | FAST);
+            let ids_u64_field = schema_builder
+                .add_u64_field("ids", NumericOptions::default().set_fast().set_indexed());
 
-            index_writer.commit().unwrap();
+            let id_f64_field = schema_builder.add_f64_field("id_f64", INDEXED | STORED | FAST);
+            let ids_f64_field = schema_builder.add_f64_field(
+                "ids_f64",
+                NumericOptions::default().set_fast().set_indexed(),
+            );
+
+            let id_i64_field = schema_builder.add_i64_field("id_i64", INDEXED | STORED | FAST);
+            let ids_i64_field = schema_builder.add_i64_field(
+                "ids_i64",
+                NumericOptions::default().set_fast().set_indexed(),
+            );
+
+            let text_field = schema_builder.add_text_field("id_name", STRING | STORED);
+            let text_field2 = schema_builder.add_text_field("id_name_fast", STRING | STORED | FAST);
+            let schema = schema_builder.build();
+
+            let index = Index::create_in_ram(schema);
+
+            {
+                let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
+                for doc in docs.iter() {
+                    index_writer
+                        .add_document(doc!(
+                            ids_i64_field => doc.id as i64,
+                            ids_i64_field => doc.id as i64,
+                            ids_f64_field => doc.id as f64,
+                            ids_f64_field => doc.id as f64,
+                            ids_u64_field => doc.id,
+                            ids_u64_field => doc.id,
+                            id_u64_field => doc.id,
+                            id_f64_field => doc.id as f64,
+                            id_i64_field => doc.id as i64,
+                            text_field => doc.id_name.to_string(),
+                            text_field2 => doc.id_name.to_string(),
+                        ))
+                        .unwrap();
+                }
+
+                index_writer.commit().unwrap();
+            }
+            index
         }
-        index
     }
 
     fn test_id_range_for_docs(docs: Vec<Doc>) -> crate::Result<()> {
-        let index = create_index_from_docs(&docs);
+        test_id_range_for_docs_with_opt(docs, false)
+    }
+    fn test_id_range_for_docs_json(docs: Vec<Doc>) -> crate::Result<()> {
+        test_id_range_for_docs_with_opt(docs, true)
+    }
+
+    fn test_id_range_for_docs_with_opt(docs: Vec<Doc>, json: bool) -> crate::Result<()> {
+        let index = create_index_from_docs(&docs, json);
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
 
@@ -439,11 +921,29 @@ pub mod tests {
                 .unwrap()
         };
 
+        let field_path = |field: &str| {
+            if json {
+                format!("json.{}", field)
+            } else {
+                field.to_string()
+            }
+        };
+
         let gen_query_inclusive = |field: &str, range: RangeInclusive<u64>| {
-            format!("{}:[{} TO {}]", field, range.start(), range.end())
+            format!(
+                "{}:[{} TO {}]",
+                field_path(field),
+                range.start(),
+                range.end()
+            )
         };
         let gen_query_exclusive = |field: &str, range: RangeInclusive<u64>| {
-            format!("{}:{{{} TO {}}}", field, range.start(), range.end())
+            format!(
+                "{}:{{{} TO {}}}",
+                field_path(field),
+                range.start(),
+                range.end()
+            )
         };
 
         let test_sample = |sample_docs: Vec<Doc>| {
@@ -470,7 +970,12 @@ pub mod tests {
                         .iter()
                         .filter(|doc| (id_names[0]..=id_names[1]).contains(&doc.id_name.as_str()))
                         .count();
-                    let query = format!("{}:[{} TO {}]", field_name, id_names[0], id_names[1]);
+                    let query = format!(
+                        "{}:[{} TO {}]",
+                        field_path(field_name),
+                        id_names[0],
+                        id_names[1]
+                    );
                     assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
                 };
 
@@ -499,20 +1004,23 @@ pub mod tests {
                 .filter(|doc| (ids[0]..=ids[1]).contains(&doc.id) && doc.id_name == id_filter)
                 .count();
             let query = format!(
-                "{} AND id_name:{}",
+                "{} AND {}:{}",
                 gen_query_inclusive("id", ids[0]..=ids[1]),
+                field_path("id_name"),
                 &id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
-                "{} AND id_name:{}",
+                "{} AND {}:{}",
                 gen_query_inclusive("id_f64", ids[0]..=ids[1]),
+                field_path("id_name"),
                 &id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
-                "{} AND id_name:{}",
+                "{} AND {}:{}",
                 gen_query_inclusive("id_i64", ids[0]..=ids[1]),
+                field_path("id_name"),
                 &id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
@@ -520,20 +1028,23 @@ pub mod tests {
             // Intersection search on multivalue id field
             let id_filter = sample_docs[0].id_name.to_string();
             let query = format!(
-                "{} AND id_name:{}",
+                "{} AND {}:{}",
                 gen_query_inclusive("ids", ids[0]..=ids[1]),
+                field_path("id_name"),
                 &id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
-                "{} AND id_name:{}",
+                "{} AND {}:{}",
                 gen_query_inclusive("ids_f64", ids[0]..=ids[1]),
+                field_path("id_name"),
                 &id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
             let query = format!(
-                "{} AND id_name:{}",
+                "{} AND {}:{}",
                 gen_query_inclusive("ids_i64", ids[0]..=ids[1]),
+                field_path("id_name"),
                 &id_filter
             );
             assert_eq!(get_num_hits(query_from_text(&query)), expected_num_hits);
@@ -649,8 +1160,10 @@ pub mod ip_range_tests {
         let searcher = index.reader().unwrap().searcher();
         let range_weight = FastFieldRangeWeight::new(
             ips_field,
-            Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[1])),
-            Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[2])),
+            BoundsRange::new(
+                Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[1])),
+                Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[2])),
+            ),
         );
 
         let count =
@@ -783,7 +1296,7 @@ mod bench {
             })
             .collect();
 
-        create_index_from_docs(&docs)
+        create_index_from_docs(&docs, false)
     }
 
     fn get_90_percent() -> RangeInclusive<u64> {
