@@ -599,6 +599,7 @@ impl IntermediateTermBucketResult {
                         let val = if key { "true" } else { "false" };
                         Some(val.to_string())
                     }
+                    IntermediateKey::F64(val) => Some(val.to_string()),
                     _ => None,
                 };
                 Ok(BucketEntry {
