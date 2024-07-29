@@ -25,7 +25,7 @@ pub struct FastFieldRangeWeight {
 
 impl FastFieldRangeWeight {
     /// Create a new FastFieldRangeWeight
-    pub(crate) fn new(field: Field, lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> Self {
+    pub fn new(field: Field, lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> Self {
         Self {
             lower_bound,
             upper_bound,
