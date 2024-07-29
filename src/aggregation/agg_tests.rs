@@ -939,10 +939,10 @@ fn test_aggregation_on_json_object_mixed_types() {
           },
           "termagg": {
             "buckets": [
-              { "doc_count": 1, "key": 10.0, "min_price": { "value": 10.0 } },
+              { "doc_count": 1, "key": 10.0, "key_as_string": "10", "min_price": { "value": 10.0 } },
               { "doc_count": 3, "key": "blue", "min_price": { "value": 5.0 } },
               { "doc_count": 2, "key": "red", "min_price": { "value": 1.0 } },
-              { "doc_count": 1, "key": -20.5, "min_price": { "value": -20.5 } },
+              { "doc_count": 1, "key": -20.5, "key_as_string": "-20.5", "min_price": { "value": -20.5 } },
               { "doc_count": 2, "key": 1.0, "key_as_string": "true", "min_price": { "value": null } },
             ],
             "sum_other_doc_count": 0
