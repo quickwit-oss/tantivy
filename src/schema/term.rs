@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::{fmt, str};
 
-use columnar::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+use columnar::MonotonicallyMappableToU128;
 use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP_STR};
 use common::JsonPathWriter;
 
@@ -137,8 +137,20 @@ impl Term {
         Term::from_fast_value(field, &val)
     }
 
-    /// Builds a term given a field, and a `DateTime` value
+    /// Builds a term given a field, and a `DateTime` value.
+    ///
+    /// The contained value may not match the value, due do the truncation used
+    /// for indexed data [super::DATE_TIME_PRECISION_INDEXED].
+    /// To create a term used for search use `from_field_date_for_search`.
     pub fn from_field_date(field: Field, val: DateTime) -> Term {
+        Term::from_fast_value(field, &val)
+    }
+
+    /// Builds a term given a field, and a `DateTime` value to be used in searching the inverted
+    /// index.
+    /// It truncates the `DateTime` to the precision used in the index
+    /// ([super::DATE_TIME_PRECISION_INDEXED]).
+    pub fn from_field_date_for_search(field: Field, val: DateTime) -> Term {
         Term::from_fast_value(field, &val.truncate(DATE_TIME_PRECISION_INDEXED))
     }
 
@@ -210,13 +222,7 @@ impl Term {
     /// It will not clear existing bytes.
     pub fn append_type_and_fast_value<T: FastValue>(&mut self, val: T) {
         self.0.push(T::to_type().to_code());
-        let value = if T::to_type() == Type::Date {
-            DateTime::from_u64(val.to_u64())
-                .truncate(DATE_TIME_PRECISION_INDEXED)
-                .to_u64()
-        } else {
-            val.to_u64()
-        };
+        let value = val.to_u64();
         self.0.extend(value.to_be_bytes().as_ref());
     }
 

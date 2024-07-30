@@ -64,9 +64,9 @@ impl SegmentWriter {
     ///
     /// The arguments are defined as follows
     ///
-    /// - memory_budget: most of the segment writer data (terms, and postings lists recorders)
-    /// is stored in a memory arena. This makes it possible for the user to define
-    /// the flushing behavior as a memory limit.
+    /// - memory_budget: most of the segment writer data (terms, and postings lists recorders) is
+    ///   stored in a memory arena. This makes it possible for the user to define the flushing
+    ///   behavior as a memory limit.
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
@@ -431,7 +431,7 @@ mod tests {
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::{
         Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value,
-        STORED, STRING, TEXT,
+        DATE_TIME_PRECISION_INDEXED, STORED, STRING, TEXT,
     };
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
@@ -651,7 +651,8 @@ mod tests {
             set_fast_val(
                 DateTime::from_utc(
                     OffsetDateTime::parse("1985-04-12T23:20:50.52Z", &Rfc3339).unwrap(),
-                ),
+                )
+                .truncate(DATE_TIME_PRECISION_INDEXED),
                 term
             )
             .serialized_value_bytes()

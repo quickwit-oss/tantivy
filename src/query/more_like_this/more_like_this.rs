@@ -241,7 +241,7 @@ impl MoreLikeThis {
                     let timestamp = value.as_datetime().ok_or_else(|| {
                         TantivyError::InvalidArgument("invalid value".to_string())
                     })?;
-                    let term = Term::from_field_date(field, timestamp);
+                    let term = Term::from_field_date_for_search(field, timestamp);
                     *term_frequencies.entry(term).or_insert(0) += 1;
                 }
             }

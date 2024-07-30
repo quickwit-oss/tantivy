@@ -116,10 +116,7 @@ impl Query for RangeQuery {
         let field_type = schema.get_field_entry(self.field()).field_type();
 
         if field_type.is_fast() && is_type_valid_for_fastfield_range_query(self.value_type()) {
-            Ok(Box::new(FastFieldRangeWeight::new(
-                self.field(),
-                self.bounds.clone(),
-            )))
+            Ok(Box::new(FastFieldRangeWeight::new(self.bounds.clone())))
         } else {
             if field_type.is_json() {
                 return Err(crate::TantivyError::InvalidArgument(

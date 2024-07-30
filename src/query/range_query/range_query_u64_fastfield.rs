@@ -10,24 +10,22 @@ use columnar::{
     StrColumn,
 };
 use common::bounds::{BoundsRange, TransformBound};
-use common::BinarySerializable;
 
 use super::fast_field_range_doc_set::RangeDocSet;
 use crate::query::{AllScorer, ConstScorer, EmptyScorer, Explanation, Query, Scorer, Weight};
-use crate::schema::{Field, Type, ValueBytes};
+use crate::schema::{Type, ValueBytes};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
 
 /// `FastFieldRangeWeight` uses the fast field to execute range queries.
 #[derive(Clone, Debug)]
 pub struct FastFieldRangeWeight {
     bounds: BoundsRange<Term>,
-    field: Field,
 }
 
 impl FastFieldRangeWeight {
     /// Create a new FastFieldRangeWeight
-    pub(crate) fn new(field: Field, bounds: BoundsRange<Term>) -> Self {
-        Self { bounds, field }
+    pub(crate) fn new(bounds: BoundsRange<Term>) -> Self {
+        Self { bounds }
     }
 }
 
@@ -46,12 +44,12 @@ impl Weight for FastFieldRangeWeight {
         if self.bounds.is_unbounded() {
             return Ok(Box::new(AllScorer::new(reader.max_doc())));
         }
-        let field_type = reader.schema().get_field_entry(self.field).field_type();
 
         let term = self
             .bounds
             .get_inner()
             .expect("At least one bound must be set");
+        let field_type = reader.schema().get_field_entry(term.field()).field_type();
         assert_eq!(
             term.typ(),
             field_type.value_type(),
@@ -62,10 +60,6 @@ impl Weight for FastFieldRangeWeight {
         let field_name = term.get_full_path(reader.schema());
 
         let get_value_bytes = |term: &Term| term.value().value_bytes_payload();
-        let get_term_u64_internal_representation = |term: &Term| {
-            let bytes = term.value().value_bytes_payload();
-            u64::from_be(BinarySerializable::deserialize(&mut &bytes[..]).unwrap())
-        };
 
         let term_value = term.value();
         if field_type.is_json() {
@@ -175,11 +169,35 @@ impl Weight for FastFieldRangeWeight {
                 field_type
             );
 
-            let bounds = self.bounds.map_bound(get_term_u64_internal_representation);
+            let bounds = self.bounds.map_bound_res(|term| {
+                let value = term.value();
+                let val = if let Some(val) = value.as_u64() {
+                    val
+                } else if let Some(val) = value.as_i64() {
+                    val.to_u64()
+                } else if let Some(val) = value.as_f64() {
+                    val.to_u64()
+                } else if let Some(val) = value.as_date() {
+                    val.to_u64()
+                } else {
+                    return Err(TantivyError::InvalidArgument(format!(
+                        "Expected term with u64, i64, f64 or date, but got {:?}",
+                        term
+                    )));
+                };
+                Ok(val)
+            })?;
 
             let fast_field_reader = reader.fast_fields();
-            let Some((column, _col_type)) =
-                fast_field_reader.u64_lenient_for_type(None, &field_name)?
+            let Some((column, _col_type)) = fast_field_reader.u64_lenient_for_type(
+                Some(&[
+                    ColumnType::U64,
+                    ColumnType::I64,
+                    ColumnType::F64,
+                    ColumnType::DateTime,
+                ]),
+                &field_name,
+            )?
             else {
                 return Ok(Box::new(EmptyScorer));
             };
@@ -212,7 +230,7 @@ fn search_on_json_numerical_field(
     boost: Score,
 ) -> crate::Result<Box<dyn Scorer>> {
     // Since we don't know which type was interpolated for the internal column whe
-    // have to check for all types (only one exists)
+    // have to check for all numeric types (only one exists)
     let allowed_column_types: Option<&[ColumnType]> =
         Some(&[ColumnType::F64, ColumnType::I64, ColumnType::U64]);
     let fast_field_reader = reader.fast_fields();
@@ -455,7 +473,8 @@ pub mod tests {
     use crate::query::range_query::range_query_u64_fastfield::FastFieldRangeWeight;
     use crate::query::{QueryParser, RangeQuery, Weight};
     use crate::schema::{
-        Field, NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING, TEXT,
+        DateOptions, Field, NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING,
+        TEXT,
     };
     use crate::{Index, IndexWriter, Term, TERMINATED};
 
@@ -518,6 +537,113 @@ pub mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_date_range_query() {
+        let mut schema_builder = Schema::builder();
+        let options = DateOptions::default()
+            .set_precision(common::DateTimePrecision::Microseconds)
+            .set_fast();
+        let date_field = schema_builder.add_date_field("date", options);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema.clone());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
+            // This is added a string and creates a string column!
+            index_writer
+                .add_document(doc!(date_field => DateTime::from_utc(
+                    OffsetDateTime::parse("2022-12-01T00:00:01Z", &Rfc3339).unwrap(),
+                )))
+                .unwrap();
+            index_writer
+                .add_document(doc!(date_field => DateTime::from_utc(
+                    OffsetDateTime::parse("2023-12-01T00:00:01Z", &Rfc3339).unwrap(),
+                )))
+                .unwrap();
+            index_writer
+                .add_document(doc!(date_field => DateTime::from_utc(
+                    OffsetDateTime::parse("2015-02-01T00:00:00.001Z", &Rfc3339).unwrap(),
+                )))
+                .unwrap();
+            index_writer.commit().unwrap();
+        }
+
+        // Date field
+        let dt1 =
+            DateTime::from_utc(OffsetDateTime::parse("2022-12-01T00:00:01Z", &Rfc3339).unwrap());
+        let dt2 =
+            DateTime::from_utc(OffsetDateTime::parse("2023-12-01T00:00:01Z", &Rfc3339).unwrap());
+        let dt3 = DateTime::from_utc(
+            OffsetDateTime::parse("2015-02-01T00:00:00.001Z", &Rfc3339).unwrap(),
+        );
+        let dt4 = DateTime::from_utc(
+            OffsetDateTime::parse("2015-02-01T00:00:00.002Z", &Rfc3339).unwrap(),
+        );
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![date_field]);
+        let test_query = |query, num_hits| {
+            let query = query_parser.parse_query(query).unwrap();
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            assert_eq!(top_docs.len(), num_hits);
+        };
+
+        test_query(
+            "date:[2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.001Z]",
+            1,
+        );
+        test_query(
+            "date:[2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.002Z}",
+            1,
+        );
+        test_query(
+            "date:[2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.002Z]",
+            1,
+        );
+        test_query(
+            "date:{2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.002Z]",
+            0,
+        );
+
+        let count = |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(Term::from_field_date(date_field, dt3)),
+                Bound::Excluded(Term::from_field_date(date_field, dt4)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(Term::from_field_date(date_field, dt3)),
+                Bound::Included(Term::from_field_date(date_field, dt4)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(Term::from_field_date(date_field, dt1)),
+                Bound::Included(Term::from_field_date(date_field, dt2)),
+            )),
+            2
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(Term::from_field_date(date_field, dt1)),
+                Bound::Excluded(Term::from_field_date(date_field, dt2)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Excluded(Term::from_field_date(date_field, dt1)),
+                Bound::Excluded(Term::from_field_date(date_field, dt2)),
+            )),
+            0
+        );
+    }
+
     fn get_json_term<T: FastValue>(field: Field, path: &str, value: T) -> Term {
         let mut term = Term::from_field_json_path(field, path, true);
         term.append_type_and_fast_value(value);
@@ -546,6 +672,10 @@ pub mod tests {
                 "id_f64": 1000.5,
                 "id_i64": 1000,
                 "date": "2023-12-01T00:00:01Z"
+            });
+            index_writer.add_document(doc!(json_field => doc)).unwrap();
+            let doc = json!({
+                "date": "2015-02-01T00:00:00.001Z"
             });
             index_writer.add_document(doc!(json_field => doc)).unwrap();
 
@@ -631,6 +761,13 @@ pub mod tests {
             )),
             2
         );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "id_i64", 1000i64)),
+                Bound::Excluded(get_json_term(json_field, "id_i64", 1001i64)),
+            )),
+            1
+        );
 
         // u64 on i64
         assert_eq!(
@@ -691,6 +828,32 @@ pub mod tests {
             1
         );
 
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![json_field]);
+        let test_query = |query, num_hits| {
+            let query = query_parser.parse_query(query).unwrap();
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            assert_eq!(top_docs.len(), num_hits);
+        };
+
+        test_query(
+            "json.date:[2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.001Z]",
+            1,
+        );
+        test_query(
+            "json.date:[2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.002Z}",
+            1,
+        );
+        test_query(
+            "json.date:[2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.002Z]",
+            1,
+        );
+        test_query(
+            "json.date:{2015-02-01T00:00:00.001Z TO 2015-02-01T00:00:00.002Z]",
+            0,
+        );
+
         // Date field
         let dt1 =
             DateTime::from_utc(OffsetDateTime::parse("2022-12-01T00:00:01Z", &Rfc3339).unwrap());
@@ -718,6 +881,18 @@ pub mod tests {
             )),
             0
         );
+        // Date precision test. We don't want to truncate the precision
+        let dt3 = DateTime::from_utc(
+            OffsetDateTime::parse("2015-02-01T00:00:00.001Z", &Rfc3339).unwrap(),
+        );
+        let dt4 = DateTime::from_utc(
+            OffsetDateTime::parse("2015-02-01T00:00:00.002Z", &Rfc3339).unwrap(),
+        );
+        let query = RangeQuery::new(
+            Bound::Included(get_json_term(json_field, "date", dt3)),
+            Bound::Excluded(get_json_term(json_field, "date", dt4)),
+        );
+        assert_eq!(count(query), 1);
     }
 
     #[derive(Clone, Debug)]
@@ -796,13 +971,10 @@ pub mod tests {
         writer.add_document(doc!(field=>52_000u64)).unwrap();
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
-        let range_query = FastFieldRangeWeight::new(
-            field,
-            BoundsRange::new(
-                Bound::Included(Term::from_field_u64(field, 50_000)),
-                Bound::Included(Term::from_field_u64(field, 50_002)),
-            ),
-        );
+        let range_query = FastFieldRangeWeight::new(BoundsRange::new(
+            Bound::Included(Term::from_field_u64(field, 50_000)),
+            Bound::Included(Term::from_field_u64(field, 50_002)),
+        ));
         let scorer = range_query
             .scorer(searcher.segment_reader(0), 1.0f32)
             .unwrap();
@@ -1158,13 +1330,10 @@ pub mod ip_range_tests {
         }
         writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
-        let range_weight = FastFieldRangeWeight::new(
-            ips_field,
-            BoundsRange::new(
-                Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[1])),
-                Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[2])),
-            ),
-        );
+        let range_weight = FastFieldRangeWeight::new(BoundsRange::new(
+            Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[1])),
+            Bound::Included(Term::from_field_ip_addr(ips_field, ip_addrs[2])),
+        ));
 
         let count =
             crate::query::weight::Weight::count(&range_weight, searcher.segment_reader(0)).unwrap();

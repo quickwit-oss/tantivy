@@ -102,6 +102,9 @@ const ALL_TYPES: [Type; 10] = [
 ];
 
 impl Type {
+    /// Returns the numerical type if applicable
+    /// It does not do any mapping, e.g. Date is None although it's also stored as I64 in the
+    /// column store
     pub fn numerical_type(&self) -> Option<NumericalType> {
         match self {
             Type::I64 => Some(NumericalType::I64),
