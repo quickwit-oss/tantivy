@@ -191,6 +191,12 @@ impl SegmentCardinalityCollector {
                         let val = f64_to_u64(*val);
                         self.cardinality.sketch.insert_any(&val);
                     }
+                    Key::U64(val) => {
+                        self.cardinality.sketch.insert_any(&val);
+                    }
+                    Key::I64(val) => {
+                        self.cardinality.sketch.insert_any(&val);
+                    }
                 }
             }
         }

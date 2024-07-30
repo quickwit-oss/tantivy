@@ -186,6 +186,8 @@ impl AggregationWithAccessor {
                     .map(|missing| match missing {
                         Key::Str(_) => ColumnType::Str,
                         Key::F64(_) => ColumnType::F64,
+                        Key::I64(_) => ColumnType::I64,
+                        Key::U64(_) => ColumnType::U64,
                     })
                     .unwrap_or(ColumnType::U64);
                 let column_and_types = get_all_ff_reader_or_empty(
@@ -339,8 +341,17 @@ fn get_missing_val(
         Key::Str(_) if column_type == ColumnType::Str => Some(u64::MAX),
         // Allow fallback to number on text fields
         Key::F64(_) if column_type == ColumnType::Str => Some(u64::MAX),
+        Key::U64(_) if column_type == ColumnType::Str => Some(u64::MAX),
+        Key::I64(_) if column_type == ColumnType::Str => Some(u64::MAX),
         Key::F64(val) if column_type.numerical_type().is_some() => {
             f64_to_fastfield_u64(*val, &column_type)
+        }
+        // NOTE: We may loose precision of the passed missing value by casting i64 and u64 to f64.
+        Key::I64(val) if column_type.numerical_type().is_some() => {
+            f64_to_fastfield_u64(*val as f64, &column_type)
+        }
+        Key::U64(val) if column_type.numerical_type().is_some() => {
+            f64_to_fastfield_u64(*val as f64, &column_type)
         }
         _ => {
             return Err(crate::TantivyError::InvalidArgument(format!(

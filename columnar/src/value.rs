@@ -17,6 +17,31 @@ impl NumericalValue {
             NumericalValue::F64(_) => NumericalType::F64,
         }
     }
+
+    /// Tries to normalize the numerical value in the following priorities:
+    /// i64, i64, f64
+    pub fn normalize(self) -> Self {
+        match self {
+            NumericalValue::U64(val) => {
+                if val <= i64::MAX as u64 {
+                    NumericalValue::I64(val as i64)
+                } else {
+                    NumericalValue::F64(val as f64)
+                }
+            }
+            NumericalValue::I64(val) => NumericalValue::I64(val),
+            NumericalValue::F64(val) => {
+                let fract = val.fract();
+                if fract == 0.0 && val >= i64::MIN as f64 && val <= i64::MAX as f64 {
+                    NumericalValue::I64(val as i64)
+                } else if fract == 0.0 && val >= u64::MIN as f64 && val <= u64::MAX as f64 {
+                    NumericalValue::U64(val as u64)
+                } else {
+                    NumericalValue::F64(val)
+                }
+            }
+        }
+    }
 }
 
 impl From<u64> for NumericalValue {

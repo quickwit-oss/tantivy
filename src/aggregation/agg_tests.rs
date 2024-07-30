@@ -939,12 +939,69 @@ fn test_aggregation_on_json_object_mixed_types() {
           },
           "termagg": {
             "buckets": [
-              { "doc_count": 1, "key": 10.0, "min_price": { "value": 10.0 } },
+              { "doc_count": 1, "key": 10, "min_price": { "value": 10.0 } },
               { "doc_count": 3, "key": "blue", "min_price": { "value": 5.0 } },
               { "doc_count": 2, "key": "red", "min_price": { "value": 1.0 } },
               { "doc_count": 1, "key": -20.5, "min_price": { "value": -20.5 } },
-              { "doc_count": 2, "key": 1.0, "key_as_string": "true", "min_price": { "value": null } },
+              { "doc_count": 2, "key": 1, "key_as_string": "true", "min_price": { "value": null } },
             ],
+            "sum_other_doc_count": 0
+          }
+        }
+        )
+    );
+}
+
+#[test]
+fn test_aggregation_on_json_object_mixed_numerical_segments() {
+    let mut schema_builder = Schema::builder();
+    let json = schema_builder.add_json_field("json", FAST);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+    // => Segment with all values f64 numeric
+    index_writer
+        .add_document(doc!(json => json!({"mixed_price": 10.5})))
+        .unwrap();
+    // Gets converted to f64!
+    index_writer
+        .add_document(doc!(json => json!({"mixed_price": 10})))
+        .unwrap();
+    index_writer.commit().unwrap();
+    // => Segment with all values i64 numeric
+    index_writer
+        .add_document(doc!(json => json!({"mixed_price": 10})))
+        .unwrap();
+    index_writer.commit().unwrap();
+
+    index_writer.commit().unwrap();
+
+    // All bucket types
+    let agg_req_str = r#"
+    {
+        "termagg": {
+            "terms": {
+                "field": "json.mixed_price"
+            }
+        }
+    } "#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let aggregation_collector = get_collector(agg);
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+
+    let aggregation_results = searcher.search(&AllQuery, &aggregation_collector).unwrap();
+    let aggregation_res_json = serde_json::to_value(aggregation_results).unwrap();
+    use pretty_assertions::assert_eq;
+    assert_eq!(
+        &aggregation_res_json,
+        &serde_json::json!({
+          "termagg": {
+            "buckets": [
+              { "doc_count": 2, "key": 10},
+              { "doc_count": 1, "key": 10.5},
+            ],
+            "doc_count_error_upper_bound": 0,
             "sum_other_doc_count": 0
           }
         }

@@ -336,10 +336,16 @@ pub type SerializedKey = String;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialOrd)]
 /// The key to identify a bucket.
+///
+/// The order is important, with serde untagged, that we try to deserialize into i64 first.
 #[serde(untagged)]
 pub enum Key {
     /// String key
     Str(String),
+    /// `i64` key
+    I64(i64),
+    /// `u64` key
+    U64(u64),
     /// `f64` key
     F64(f64),
 }
@@ -350,6 +356,8 @@ impl std::hash::Hash for Key {
         match self {
             Key::Str(text) => text.hash(state),
             Key::F64(val) => val.to_bits().hash(state),
+            Key::U64(val) => val.hash(state),
+            Key::I64(val) => val.hash(state),
         }
     }
 }
@@ -369,6 +377,8 @@ impl Display for Key {
         match self {
             Key::Str(val) => f.write_str(val),
             Key::F64(val) => f.write_str(&val.to_string()),
+            Key::U64(val) => f.write_str(&val.to_string()),
+            Key::I64(val) => f.write_str(&val.to_string()),
         }
     }
 }
