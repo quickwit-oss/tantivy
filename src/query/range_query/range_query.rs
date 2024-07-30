@@ -134,6 +134,7 @@ impl Query for RangeQuery {
     }
 }
 
+/// Range query on the inverted index
 pub struct RangeWeight {
     field: Field,
     lower_bound: Bound<Vec<u8>>,
@@ -142,6 +143,23 @@ pub struct RangeWeight {
 }
 
 impl RangeWeight {
+    /// Creates a new RangeWeight
+    ///
+    /// Note: The limit is only enabled with the quickwit feature flag.
+    pub fn new(
+        field: Field,
+        lower_bound: Bound<Vec<u8>>,
+        upper_bound: Bound<Vec<u8>>,
+        limit: Option<u64>,
+    ) -> Self {
+        Self {
+            field,
+            lower_bound,
+            upper_bound,
+            limit,
+        }
+    }
+
     fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> io::Result<TermStreamer<'a>> {
         use std::ops::Bound::*;
         let mut term_stream_builder = term_dict.range();
