@@ -3,7 +3,9 @@ use std::io;
 use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::{ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+use columnar::{
+    ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64, NumericalValue,
+};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +21,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_from_fastfield_u64, format_date, Key};
+use crate::aggregation::{format_date, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -497,6 +499,12 @@ impl SegmentTermCollector {
                     Key::F64(val) => {
                         dict.insert(IntermediateKey::F64(*val), intermediate_entry);
                     }
+                    Key::U64(val) => {
+                        dict.insert(IntermediateKey::U64(*val), intermediate_entry);
+                    }
+                    Key::I64(val) => {
+                        dict.insert(IntermediateKey::I64(*val), intermediate_entry);
+                    }
                 }
 
                 entries.swap_remove(index);
@@ -583,8 +591,26 @@ impl SegmentTermCollector {
         } else {
             for (val, doc_count) in entries {
                 let intermediate_entry = into_intermediate_bucket_entry(val, doc_count)?;
-                let val = f64_from_fastfield_u64(val, &self.column_type);
-                dict.insert(IntermediateKey::F64(val), intermediate_entry);
+                if self.column_type == ColumnType::U64 {
+                    dict.insert(IntermediateKey::U64(val), intermediate_entry);
+                } else if self.column_type == ColumnType::I64 {
+                    dict.insert(IntermediateKey::I64(i64::from_u64(val)), intermediate_entry);
+                } else {
+                    let val = f64::from_u64(val);
+                    let val: NumericalValue = val.into();
+
+                    match val.normalize() {
+                        NumericalValue::U64(val) => {
+                            dict.insert(IntermediateKey::U64(val), intermediate_entry);
+                        }
+                        NumericalValue::I64(val) => {
+                            dict.insert(IntermediateKey::I64(val), intermediate_entry);
+                        }
+                        NumericalValue::F64(val) => {
+                            dict.insert(IntermediateKey::F64(val), intermediate_entry);
+                        }
+                    }
+                };
             }
         };
 
@@ -1713,6 +1739,54 @@ mod tests {
         assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
         assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 2);
         assert_eq!(res["my_ids"]["buckets"][1]["key"], 1.0);
+        assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_ids"]["buckets"][2]["key"], serde_json::Value::Null);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_u64_value() -> crate::Result<()> {
+        // Make sure that large u64 are not truncated
+        let mut schema_builder = Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
+            index_writer.add_document(doc!(
+                id_field => 9_223_372_036_854_775_807u64,
+            ))?;
+            index_writer.add_document(doc!(
+                id_field => 1_769_070_189_829_214_202u64,
+            ))?;
+            index_writer.add_document(doc!(
+                id_field => 1_769_070_189_829_214_202u64,
+            ))?;
+            index_writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_ids": {
+                "terms": {
+                    "field": "id"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request_with_query(agg_req, &index, None)?;
+
+        // id field
+        assert_eq!(
+            res["my_ids"]["buckets"][0]["key"],
+            1_769_070_189_829_214_202u64
+        );
+        assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(
+            res["my_ids"]["buckets"][1]["key"],
+            9_223_372_036_854_775_807u64
+        );
         assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 1);
         assert_eq!(res["my_ids"]["buckets"][2]["key"], serde_json::Value::Null);
 

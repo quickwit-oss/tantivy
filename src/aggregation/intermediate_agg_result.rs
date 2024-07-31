@@ -51,12 +51,18 @@ pub enum IntermediateKey {
     Str(String),
     /// `f64` key
     F64(f64),
+    /// `i64` key
+    I64(i64),
+    /// `u64` key
+    U64(u64),
 }
 impl From<Key> for IntermediateKey {
     fn from(value: Key) -> Self {
         match value {
             Key::Str(s) => Self::Str(s),
             Key::F64(f) => Self::F64(f),
+            Key::U64(f) => Self::U64(f),
+            Key::I64(f) => Self::I64(f),
         }
     }
 }
@@ -73,7 +79,9 @@ impl From<IntermediateKey> for Key {
                 }
             }
             IntermediateKey::F64(f) => Self::F64(f),
-            IntermediateKey::Bool(f) => Self::F64(f as u64 as f64),
+            IntermediateKey::Bool(f) => Self::U64(f as u64),
+            IntermediateKey::U64(f) => Self::U64(f),
+            IntermediateKey::I64(f) => Self::I64(f),
         }
     }
 }
@@ -86,6 +94,8 @@ impl std::hash::Hash for IntermediateKey {
         match self {
             IntermediateKey::Str(text) => text.hash(state),
             IntermediateKey::F64(val) => val.to_bits().hash(state),
+            IntermediateKey::U64(val) => val.hash(state),
+            IntermediateKey::I64(val) => val.hash(state),
             IntermediateKey::Bool(val) => val.hash(state),
             IntermediateKey::IpAddr(val) => val.hash(state),
         }

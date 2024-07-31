@@ -70,7 +70,6 @@ impl SegmentAggregationCollector for TermMissingAgg {
             )?;
             missing_entry.sub_aggregation = res;
         }
-
         entries.insert(missing.into(), missing_entry);
 
         let bucket = IntermediateBucketResult::Terms {
