@@ -234,13 +234,16 @@ impl AggregationWithAccessor {
                         missing.clone()
                     };
 
-                    let missing_value_for_accessor = if let Some(missing) =
-                        missing_value_term_agg.as_ref()
-                    {
-                        get_missing_val(column_type, missing, agg.agg.get_fast_field_names()[0])?
-                    } else {
-                        None
-                    };
+                    let missing_value_for_accessor =
+                        if let Some(missing) = missing_value_term_agg.as_ref() {
+                            get_missing_val_as_u64_lenient(
+                                column_type,
+                                missing,
+                                agg.agg.get_fast_field_names()[0],
+                            )?
+                        } else {
+                            None
+                        };
 
                     let agg = AggregationWithAccessor {
                         segment_ordinal,
@@ -332,7 +335,14 @@ impl AggregationWithAccessor {
     }
 }
 
-fn get_missing_val(
+/// Get the missing value as internal u64 representation
+///
+/// For terms we use u64::MAX as sentinel value
+/// For numerical data we convert the value into the representation
+/// we would get from the fast field, when we open it as u64_lenient_for_type.
+///
+/// That way we can use it the same way as if it would come from the fastfield.
+fn get_missing_val_as_u64_lenient(
     column_type: ColumnType,
     missing: &Key,
     field_name: &str,

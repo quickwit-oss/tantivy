@@ -179,10 +179,11 @@ impl SegmentCardinalityCollector {
                 Ok(())
             })?;
             if has_missing {
+                // Replace missing with the actual value provided
                 let missing_key = self
                     .missing
                     .as_ref()
-                    .expect("Found placeholder term_ord but `missing` is None");
+                    .expect("Found sentinel value u64::MAX for term_ord but `missing` is not set");
                 match missing_key {
                     Key::Str(missing) => {
                         self.cardinality.sketch.insert_any(&missing);
