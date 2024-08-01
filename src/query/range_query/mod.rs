@@ -4,7 +4,7 @@ mod fast_field_range_doc_set;
 mod range_query;
 mod range_query_u64_fastfield;
 
-pub use self::range_query::{RangeQuery, RangeWeight};
+pub use self::range_query::*;
 pub use self::range_query_u64_fastfield::FastFieldRangeWeight;
 
 // TODO is this correct?

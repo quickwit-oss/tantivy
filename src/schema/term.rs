@@ -89,7 +89,7 @@ impl Term {
         term
     }
 
-    fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
+    pub(crate) fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
         let mut term = Self::with_type_and_field(T::to_type(), field);
         term.set_u64(val.to_u64());
         term

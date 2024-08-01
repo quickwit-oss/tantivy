@@ -1140,7 +1140,7 @@ mod test {
         assert_eq!(
             format!("{query:?}"),
             "RangeQuery { bounds: BoundsRange { lower_bound: Included(Term(field=0, type=Str, \
-             \"a\")), upper_bound: Included(Term(field=0, type=Str, \"b\")) }, limit: None }"
+             \"a\")), upper_bound: Included(Term(field=0, type=Str, \"b\")) } }"
         );
     }
 

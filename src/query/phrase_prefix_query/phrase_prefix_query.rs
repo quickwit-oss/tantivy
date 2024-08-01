@@ -1,10 +1,8 @@
 use std::ops::Bound;
 
-use common::bounds::{map_bound, BoundsRange};
-
 use super::{prefix_end, PhrasePrefixWeight};
 use crate::query::bm25::Bm25Weight;
-use crate::query::{EnableScoring, FastFieldRangeWeight, Query, RangeQuery, RangeWeight, Weight};
+use crate::query::{EnableScoring, InvertedIndexRangeWeight, Query, Weight};
 use crate::schema::{Field, IndexRecordOption, Term};
 
 const DEFAULT_MAX_EXPANSIONS: u32 = 50;
@@ -147,14 +145,13 @@ impl Query for PhrasePrefixQuery {
                     Bound::Unbounded
                 };
 
-            let verify_and_unwrap_term = |val: &Term| val.serialized_value_bytes().to_owned();
             let lower_bound = Bound::Included(self.prefix.1.clone());
             let upper_bound = end_term;
 
-            Ok(Box::new(RangeWeight::new(
+            Ok(Box::new(InvertedIndexRangeWeight::new(
                 self.field,
-                map_bound(&lower_bound, verify_and_unwrap_term),
-                map_bound(&upper_bound, verify_and_unwrap_term),
+                &lower_bound,
+                &upper_bound,
                 Some(self.max_expansions as u64),
             )))
         }

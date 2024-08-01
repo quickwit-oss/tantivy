@@ -222,6 +222,9 @@ impl Weight for FastFieldRangeWeight {
     }
 }
 
+/// On numerical fields the column type may not match the user provided one.
+///
+/// Convert into fast field value space and search.
 fn search_on_json_numerical_field(
     reader: &SegmentReader,
     field_name: &str,
@@ -476,7 +479,7 @@ pub mod tests {
         DateOptions, Field, NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING,
         TEXT,
     };
-    use crate::{Index, IndexWriter, Term, TERMINATED};
+    use crate::{Index, IndexWriter, TantivyDocument, Term, TERMINATED};
 
     #[test]
     fn test_text_field_ff_range_query() -> crate::Result<()> {
@@ -648,6 +651,79 @@ pub mod tests {
         let mut term = Term::from_field_json_path(field, path, true);
         term.append_type_and_fast_value(value);
         term
+    }
+
+    #[test]
+    fn mixed_numerical_test() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_i64_field("id_i64", STORED | FAST);
+        schema_builder.add_u64_field("id_u64", STORED | FAST);
+        schema_builder.add_f64_field("id_f64", STORED | FAST);
+        let schema = schema_builder.build();
+
+        fn get_json_term<T: FastValue>(schema: &Schema, path: &str, value: T) -> Term {
+            let field = schema.get_field(path).unwrap();
+            Term::from_fast_value(field, &value)
+            // term.append_type_and_fast_value(value);
+            // term
+        }
+        let index = Index::create_in_ram(schema.clone());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
+
+            let doc = json!({
+                "id_u64": 0,
+                "id_i64": 50,
+            });
+            let doc = TantivyDocument::parse_json(&schema, &serde_json::to_string(&doc).unwrap())
+                .unwrap();
+            index_writer.add_document(doc).unwrap();
+            let doc = json!({
+                "id_u64": 10,
+                "id_i64": 1000,
+            });
+            let doc = TantivyDocument::parse_json(&schema, &serde_json::to_string(&doc).unwrap())
+                .unwrap();
+            index_writer.add_document(doc).unwrap();
+
+            index_writer.commit().unwrap();
+        }
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let count = |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
+
+        // u64 on u64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(&schema, "id_u64", 10u64)),
+                Bound::Included(get_json_term(&schema, "id_u64", 10u64)),
+            )),
+            1
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(&schema, "id_u64", 9u64)),
+                Bound::Excluded(get_json_term(&schema, "id_u64", 10u64)),
+            )),
+            0
+        );
+
+        // i64 on i64
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(&schema, "id_i64", 50i64)),
+                Bound::Included(get_json_term(&schema, "id_i64", 1000i64)),
+            )),
+            2
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(&schema, "id_i64", 50i64)),
+                Bound::Excluded(get_json_term(&schema, "id_i64", 1000i64)),
+            )),
+            1
+        );
     }
 
     #[test]
