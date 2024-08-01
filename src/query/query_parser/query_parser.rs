@@ -137,7 +137,7 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///   so-called default fields (as set up in the constructor).
 ///
 ///   Assuming that the default fields are `body` and `title`, and the query parser is set with
-/// conjunction   as a default, our query will be interpreted as.
+///   conjunction as a default, our query will be interpreted as.
 ///   `(body:Barack OR title:Barack) AND (title:Obama OR body:Obama)`.
 ///   By default, all tokenized and indexed fields are default fields.
 ///
@@ -148,8 +148,7 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///   `body:Barack OR (body:Barack OR text:Obama)` .
 ///
 /// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is
-///   interpreted
-/// as `(a AND b) OR c`.
+///   interpreted as `(a AND b) OR c`.
 ///
 /// * In addition to the boolean operators, the `-`, `+` can help define. These operators are
 ///   sufficient to express all queries using boolean operators. For instance `x AND y OR z` can be
@@ -272,8 +271,7 @@ impl QueryParser {
 
     /// Creates a `QueryParser`, given
     ///  * an index
-    ///  * a set of default fields used to search if no field is specifically defined
-    ///   in the query.
+    ///  * a set of default fields used to search if no field is specifically defined in the query.
     pub fn for_index(index: &Index, default_fields: Vec<Field>) -> QueryParser {
         QueryParser::new(index.schema(), default_fields, index.tokenizers().clone())
     }
@@ -482,16 +480,33 @@ impl QueryParser {
                 });
                 if terms.len() != 1 {
                     return Err(QueryParserError::UnsupportedQuery(format!(
-                        "Range query boundary cannot have multiple tokens: {phrase:?}."
+                        "Range query boundary cannot have multiple tokens: {phrase:?} [{terms:?}]."
                     )));
                 }
                 Ok(terms.into_iter().next().unwrap())
             }
-            FieldType::JsonObject(_) => {
-                // Json range are not supported.
-                Err(QueryParserError::UnsupportedQuery(
-                    "Range query are not supported on json field.".to_string(),
-                ))
+            FieldType::JsonObject(ref json_options) => {
+                let get_term_with_path = || {
+                    Term::from_field_json_path(
+                        field,
+                        json_path,
+                        json_options.is_expand_dots_enabled(),
+                    )
+                };
+                if let Some(term) =
+                    // Try to convert the phrase to a fast value
+                    convert_to_fast_value_and_append_to_json_term(
+                        get_term_with_path(),
+                        phrase,
+                        false,
+                    )
+                {
+                    Ok(term)
+                } else {
+                    let mut term = get_term_with_path();
+                    term.append_type_and_str(phrase);
+                    Ok(term)
+                }
             }
             FieldType::Facet(_) => match Facet::from_text(phrase) {
                 Ok(facet) => Ok(Term::from_facet(field, &facet)),
@@ -553,7 +568,7 @@ impl QueryParser {
             }
             FieldType::Date(_) => {
                 let dt = OffsetDateTime::parse(phrase, &Rfc3339)?;
-                let dt_term = Term::from_field_date(field, DateTime::from_utc(dt));
+                let dt_term = Term::from_field_date_for_search(field, DateTime::from_utc(dt));
                 Ok(vec![LogicalLiteral::Term(dt_term)])
             }
             FieldType::Str(ref str_options) => {
@@ -685,8 +700,8 @@ impl QueryParser {
     ///
     /// The terms are identified by a triplet:
     /// - tantivy field
-    /// - field_path: tantivy has JSON fields. It is possible to target a member of a JSON
-    /// object by naturally extending the json field name with a "." separated field_path
+    /// - field_path: tantivy has JSON fields. It is possible to target a member of a JSON object by
+    ///   naturally extending the json field name with a "." separated field_path
     /// - field_phrase: the phrase that is being searched.
     ///
     /// The literal identifies the targeted field by a so-called *full field path*,
@@ -949,7 +964,8 @@ fn generate_literals_for_json_object(
         || Term::from_field_json_path(field, json_path, json_options.is_expand_dots_enabled());
 
     // Try to convert the phrase to a fast value
-    if let Some(term) = convert_to_fast_value_and_append_to_json_term(get_term_with_path(), phrase)
+    if let Some(term) =
+        convert_to_fast_value_and_append_to_json_term(get_term_with_path(), phrase, true)
     {
         logical_literals.push(LogicalLiteral::Term(term));
     }
@@ -1123,8 +1139,8 @@ mod test {
         let query = make_query_parser().parse_query("title:[A TO B]").unwrap();
         assert_eq!(
             format!("{query:?}"),
-            "RangeQuery { lower_bound: Included(Term(field=0, type=Str, \"a\")), upper_bound: \
-             Included(Term(field=0, type=Str, \"b\")), limit: None }"
+            "RangeQuery { bounds: BoundsRange { lower_bound: Included(Term(field=0, type=Str, \
+             \"a\")), upper_bound: Included(Term(field=0, type=Str, \"b\")) } }"
         );
     }
 

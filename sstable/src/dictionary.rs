@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
+use common::bounds::{transform_bound_inner_res, TransformBound};
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
 use tantivy_fst::automaton::AlwaysMatch;
@@ -54,29 +55,6 @@ impl Dictionary<VoidSSTable> {
         dictionary_writer.finish().unwrap();
         Dictionary::from_bytes(OwnedBytes::new(buffer)).unwrap()
     }
-}
-
-fn map_bound<TFrom, TTo>(bound: &Bound<TFrom>, transform: impl Fn(&TFrom) -> TTo) -> Bound<TTo> {
-    use self::Bound::*;
-    match bound {
-        Excluded(ref from_val) => Bound::Excluded(transform(from_val)),
-        Included(ref from_val) => Bound::Included(transform(from_val)),
-        Unbounded => Unbounded,
-    }
-}
-
-/// Takes a bound and transforms the inner value into a new bound via a closure.
-/// The bound variant may change by the value returned value from the closure.
-fn transform_bound_inner<TFrom, TTo>(
-    bound: &Bound<TFrom>,
-    transform: impl Fn(&TFrom) -> io::Result<Bound<TTo>>,
-) -> io::Result<Bound<TTo>> {
-    use self::Bound::*;
-    Ok(match bound {
-        Excluded(ref from_val) => transform(from_val)?,
-        Included(ref from_val) => transform(from_val)?,
-        Unbounded => Unbounded,
-    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -409,18 +387,18 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         lower_bound: Bound<K>,
         upper_bound: Bound<K>,
     ) -> io::Result<(Bound<TermOrdinal>, Bound<TermOrdinal>)> {
-        let lower_bound = transform_bound_inner(&lower_bound, |start_bound_bytes| {
+        let lower_bound = transform_bound_inner_res(&lower_bound, |start_bound_bytes| {
             let ord = self.term_ord_or_next(start_bound_bytes)?;
             match ord {
-                TermOrdHit::Exact(ord) => Ok(map_bound(&lower_bound, |_| ord)),
-                TermOrdHit::Next(ord) => Ok(Bound::Included(ord)), // Change bounds to included
+                TermOrdHit::Exact(ord) => Ok(TransformBound::Existing(ord)),
+                TermOrdHit::Next(ord) => Ok(TransformBound::NewBound(Bound::Included(ord))), /* Change bounds to included */
             }
         })?;
-        let upper_bound = transform_bound_inner(&upper_bound, |end_bound_bytes| {
+        let upper_bound = transform_bound_inner_res(&upper_bound, |end_bound_bytes| {
             let ord = self.term_ord_or_next(end_bound_bytes)?;
             match ord {
-                TermOrdHit::Exact(ord) => Ok(map_bound(&upper_bound, |_| ord)),
-                TermOrdHit::Next(ord) => Ok(Bound::Excluded(ord)), // Change bounds to excluded
+                TermOrdHit::Exact(ord) => Ok(TransformBound::Existing(ord)),
+                TermOrdHit::Next(ord) => Ok(TransformBound::NewBound(Bound::Excluded(ord))), /* Change bounds to excluded */
             }
         })?;
         Ok((lower_bound, upper_bound))

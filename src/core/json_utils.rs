@@ -4,7 +4,7 @@ use rustc_hash::FxHashMap;
 
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
-use crate::schema::Type;
+use crate::schema::{Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::{OffsetDateTime, UtcOffset};
 use crate::tokenizer::TextAnalyzer;
@@ -189,6 +189,7 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
                     ctx.path_to_unordered_id
                         .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
+                let val = val.truncate(DATE_TIME_PRECISION_INDEXED);
                 term_buffer.append_type_and_fast_value(val);
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
@@ -239,7 +240,11 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
 /// Tries to infer a JSON type from a string and append it to the term.
 ///
 /// The term must be json + JSON path.
-pub fn convert_to_fast_value_and_append_to_json_term(mut term: Term, phrase: &str) -> Option<Term> {
+pub fn convert_to_fast_value_and_append_to_json_term(
+    mut term: Term,
+    phrase: &str,
+    truncate_date_for_search: bool,
+) -> Option<Term> {
     assert_eq!(
         term.value()
             .as_json_value_bytes()
@@ -250,8 +255,11 @@ pub fn convert_to_fast_value_and_append_to_json_term(mut term: Term, phrase: &st
         "JSON value bytes should be empty"
     );
     if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
-        let dt_utc = dt.to_offset(UtcOffset::UTC);
-        term.append_type_and_fast_value(DateTime::from_utc(dt_utc));
+        let mut dt = DateTime::from_utc(dt.to_offset(UtcOffset::UTC));
+        if truncate_date_for_search {
+            dt = dt.truncate(DATE_TIME_PRECISION_INDEXED);
+        }
+        term.append_type_and_fast_value(dt);
         return Some(term);
     }
     if let Ok(i64_val) = str::parse::<i64>(phrase) {

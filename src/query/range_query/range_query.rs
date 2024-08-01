@@ -1,9 +1,9 @@
 use std::io;
 use std::ops::Bound;
 
+use common::bounds::{map_bound, BoundsRange};
 use common::BitSet;
 
-use super::map_bound;
 use super::range_query_u64_fastfield::FastFieldRangeWeight;
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
@@ -69,17 +69,7 @@ use crate::{DocId, Score};
 /// ```
 #[derive(Clone, Debug)]
 pub struct RangeQuery {
-    lower_bound: Bound<Term>,
-    upper_bound: Bound<Term>,
-    limit: Option<u64>,
-}
-
-/// Returns the inner value of a `Bound`
-pub(crate) fn inner_bound(val: &Bound<Term>) -> Option<&Term> {
-    match val {
-        Bound::Included(term) | Bound::Excluded(term) => Some(term),
-        Bound::Unbounded => None,
-    }
+    bounds: BoundsRange<Term>,
 }
 
 impl RangeQuery {
@@ -89,9 +79,7 @@ impl RangeQuery {
     /// the `Weight` object is created.
     pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> RangeQuery {
         RangeQuery {
-            lower_bound,
-            upper_bound,
-            limit: None,
+            bounds: BoundsRange::new(lower_bound, upper_bound),
         }
     }
 
@@ -106,17 +94,9 @@ impl RangeQuery {
     }
 
     pub(crate) fn get_term(&self) -> &Term {
-        inner_bound(&self.lower_bound)
-            .or(inner_bound(&self.upper_bound))
+        self.bounds
+            .get_inner()
             .expect("At least one bound must be set")
-    }
-
-    /// Limit the number of term the `RangeQuery` will go through.
-    ///
-    /// This does not limit the number of matching document, only the number of
-    /// different terms that get matched.
-    pub(crate) fn limit(&mut self, limit: u64) {
-        self.limit = Some(limit);
     }
 }
 
@@ -126,31 +106,90 @@ impl Query for RangeQuery {
         let field_type = schema.get_field_entry(self.field()).field_type();
 
         if field_type.is_fast() && is_type_valid_for_fastfield_range_query(self.value_type()) {
-            Ok(Box::new(FastFieldRangeWeight::new(
-                self.field(),
-                self.lower_bound.clone(),
-                self.upper_bound.clone(),
-            )))
+            Ok(Box::new(FastFieldRangeWeight::new(self.bounds.clone())))
         } else {
-            let verify_and_unwrap_term = |val: &Term| val.serialized_value_bytes().to_owned();
-            Ok(Box::new(RangeWeight {
-                field: self.field(),
-                lower_bound: map_bound(&self.lower_bound, verify_and_unwrap_term),
-                upper_bound: map_bound(&self.upper_bound, verify_and_unwrap_term),
-                limit: self.limit,
-            }))
+            if field_type.is_json() {
+                return Err(crate::TantivyError::InvalidArgument(
+                    "RangeQuery on JSON is only supported for fast fields currently".to_string(),
+                ));
+            }
+            Ok(Box::new(InvertedIndexRangeWeight::new(
+                self.field(),
+                &self.bounds.lower_bound,
+                &self.bounds.upper_bound,
+                None,
+            )))
         }
     }
 }
 
-pub struct RangeWeight {
+#[derive(Clone, Debug)]
+/// `InvertedIndexRangeQuery` is the same as [RangeQuery] but only uses the inverted index
+pub struct InvertedIndexRangeQuery {
+    bounds: BoundsRange<Term>,
+    limit: Option<u64>,
+}
+impl InvertedIndexRangeQuery {
+    /// Create new `InvertedIndexRangeQuery`
+    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> InvertedIndexRangeQuery {
+        InvertedIndexRangeQuery {
+            bounds: BoundsRange::new(lower_bound, upper_bound),
+            limit: None,
+        }
+    }
+    /// Limit the number of term the `RangeQuery` will go through.
+    ///
+    /// This does not limit the number of matching document, only the number of
+    /// different terms that get matched.
+    pub fn limit(&mut self, limit: u64) {
+        self.limit = Some(limit);
+    }
+}
+
+impl Query for InvertedIndexRangeQuery {
+    fn weight(&self, _enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        let field = self
+            .bounds
+            .get_inner()
+            .expect("At least one bound must be set")
+            .field();
+
+        Ok(Box::new(InvertedIndexRangeWeight::new(
+            field,
+            &self.bounds.lower_bound,
+            &self.bounds.upper_bound,
+            self.limit,
+        )))
+    }
+}
+
+/// Range weight on the inverted index
+pub struct InvertedIndexRangeWeight {
     field: Field,
     lower_bound: Bound<Vec<u8>>,
     upper_bound: Bound<Vec<u8>>,
     limit: Option<u64>,
 }
 
-impl RangeWeight {
+impl InvertedIndexRangeWeight {
+    /// Creates a new RangeWeight
+    ///
+    /// Note: The limit is only enabled with the quickwit feature flag.
+    pub fn new(
+        field: Field,
+        lower_bound: &Bound<Term>,
+        upper_bound: &Bound<Term>,
+        limit: Option<u64>,
+    ) -> Self {
+        let verify_and_unwrap_term = |val: &Term| val.serialized_value_bytes().to_owned();
+        Self {
+            field,
+            lower_bound: map_bound(lower_bound, verify_and_unwrap_term),
+            upper_bound: map_bound(upper_bound, verify_and_unwrap_term),
+            limit,
+        }
+    }
+
     fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> io::Result<TermStreamer<'a>> {
         use std::ops::Bound::*;
         let mut term_stream_builder = term_dict.range();
@@ -172,7 +211,7 @@ impl RangeWeight {
     }
 }
 
-impl Weight for RangeWeight {
+impl Weight for InvertedIndexRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
@@ -227,6 +266,7 @@ mod tests {
     use super::RangeQuery;
     use crate::collector::{Count, TopDocs};
     use crate::indexer::NoMergePolicy;
+    use crate::query::range_query::range_query::InvertedIndexRangeQuery;
     use crate::query::QueryParser;
     use crate::schema::{
         Field, IntoIpv6Addr, Schema, TantivyDocument, FAST, INDEXED, STORED, TEXT,
@@ -253,7 +293,7 @@ mod tests {
         let reader = index.reader()?;
         let searcher = reader.searcher();
 
-        let docs_in_the_sixties = RangeQuery::new(
+        let docs_in_the_sixties = InvertedIndexRangeQuery::new(
             Bound::Included(Term::from_field_u64(year_field, 1960)),
             Bound::Excluded(Term::from_field_u64(year_field, 1970)),
         );
@@ -287,7 +327,7 @@ mod tests {
         let reader = index.reader()?;
         let searcher = reader.searcher();
 
-        let mut docs_in_the_sixties = RangeQuery::new(
+        let mut docs_in_the_sixties = InvertedIndexRangeQuery::new(
             Bound::Included(Term::from_field_u64(year_field, 1960)),
             Bound::Excluded(Term::from_field_u64(year_field, 1970)),
         );

@@ -673,7 +673,7 @@ mod tests {
                     ]
                 );
                 assert_eq!(
-                    get_doc_ids(vec![Term::from_field_date(
+                    get_doc_ids(vec![Term::from_field_date_for_search(
                         date_field,
                         DateTime::from_utc(curr_time)
                     )])?,
