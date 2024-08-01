@@ -60,20 +60,24 @@ impl Term {
     /// Gets the full path of the field name + optional json path.
     pub fn get_full_path(&self, schema: &Schema) -> String {
         let field = self.field();
-        let field_type = schema.get_field_entry(field).field_type();
         let mut field = schema.get_field_name(field).to_string();
-        let field_name = if field_type.is_json() {
+        if let Some(json_path) = self.get_json_path() {
             field.push('.');
-            let value = self.value();
-            let json_path = value.as_json().expect("expected json type in term").0;
-            field.push_str(unsafe {
-                std::str::from_utf8_unchecked(&json_path[..json_path.len() - 1])
-            });
-            field
-        } else {
-            field
+            field.push_str(&json_path);
         };
-        field_name
+        field
+    }
+
+    /// Gets the json path if the type is JSON
+    pub fn get_json_path(&self) -> Option<String> {
+        let value = self.value();
+        if let Some((json_path, _)) = value.as_json() {
+            Some(unsafe {
+                std::str::from_utf8_unchecked(&json_path[..json_path.len() - 1]).to_string()
+            })
+        } else {
+            None
+        }
     }
 
     pub(crate) fn with_type_and_field(typ: Type, field: Field) -> Term {

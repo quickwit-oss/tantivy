@@ -63,10 +63,9 @@ impl Weight for FastFieldRangeWeight {
 
         let term_value = term.value();
         if field_type.is_json() {
-            let bounds = self.bounds.map_bound(|term| {
-                let val = term.value().as_json_value_bytes().unwrap().to_owned();
-                val
-            });
+            let bounds = self
+                .bounds
+                .map_bound(|term| term.value().as_json_value_bytes().unwrap().to_owned());
             // Unlike with other field types JSON may have multiple columns of different types
             // under the same name
             //
@@ -76,10 +75,9 @@ impl Weight for FastFieldRangeWeight {
                 .as_json_value_bytes()
                 .expect("expected json type in term");
             let typ = json_value_bytes.typ();
+
             match typ {
                 Type::Str => {
-                    // If we are here that means we already tried to convert to a fast value and
-                    // failed
                     let Some(str_dict_column): Option<StrColumn> =
                         reader.fast_fields().str(&field_name)?
                     else {
@@ -92,8 +90,8 @@ impl Weight for FastFieldRangeWeight {
                     let (lower_bound, upper_bound) =
                         dict.term_bounds_to_ord(bounds.lower_bound, bounds.upper_bound)?;
                     let fast_field_reader = reader.fast_fields();
-                    let Some((column, _col_type)) =
-                        fast_field_reader.u64_lenient_for_type(None, &field_name)?
+                    let Some((column, _col_type)) = fast_field_reader
+                        .u64_lenient_for_type(Some(&[ColumnType::Str]), &field_name)?
                     else {
                         return Ok(Box::new(EmptyScorer));
                     };
@@ -723,6 +721,65 @@ pub mod tests {
                 Bound::Excluded(get_json_term(&schema, "id_i64", 1000i64)),
             )),
             1
+        );
+    }
+
+    #[test]
+    fn json_range_mixed_val() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", TEXT | STORED | FAST);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
+            let doc = json!({
+                "mixed_val": 10000,
+            });
+            index_writer.add_document(doc!(json_field => doc)).unwrap();
+            let doc = json!({
+                "mixed_val": 20000,
+            });
+            index_writer.add_document(doc!(json_field => doc)).unwrap();
+            let doc = json!({
+                "mixed_val": "1000a",
+            });
+            index_writer.add_document(doc!(json_field => doc)).unwrap();
+            let doc = json!({
+                "mixed_val": "2000a",
+            });
+            index_writer.add_document(doc!(json_field => doc)).unwrap();
+            index_writer.commit().unwrap();
+        }
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let count = |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
+
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term(json_field, "mixed_val", 10000u64)),
+                Bound::Included(get_json_term(json_field, "mixed_val", 20000u64)),
+            )),
+            2
+        );
+        fn get_json_term_str(field: Field, path: &str, value: &str) -> Term {
+            let mut term = Term::from_field_json_path(field, path, true);
+            term.append_type_and_str(value);
+            term
+        }
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term_str(json_field, "mixed_val", "1000a")),
+                Bound::Included(get_json_term_str(json_field, "mixed_val", "2000b")),
+            )),
+            2
+        );
+        assert_eq!(
+            count(RangeQuery::new(
+                Bound::Included(get_json_term_str(json_field, "mixed_val", "1000")),
+                Bound::Included(get_json_term_str(json_field, "mixed_val", "2000a")),
+            )),
+            2
         );
     }
 
@@ -1916,7 +1973,6 @@ mod bench_ip {
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
-
         bench.iter(|| excute_query("ips", get_1_percent(), "AND id:many", &index));
     }
 
