@@ -12,11 +12,10 @@ mod tests {
     use super::*;
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::collector::TopDocs;
-    use crate::query::score_combiner::SumWithCoordsCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::{
         EnableScoring, Intersection, Occur, Query, QueryParser, RequiredOptionalScorer, Scorer,
-        TermQuery,
+        SumCombiner, TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
@@ -90,11 +89,8 @@ mod tests {
             let query = query_parser.parse_query("+a b")?;
             let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
-            assert!(scorer.is::<RequiredOptionalScorer<
-                Box<dyn Scorer>,
-                Box<dyn Scorer>,
-                SumWithCoordsCombiner,
-            >>());
+            assert!(scorer
+                .is::<RequiredOptionalScorer<Box<dyn Scorer>, Box<dyn Scorer>, SumCombiner>>());
         }
         {
             let query = query_parser.parse_query("+a b")?;
