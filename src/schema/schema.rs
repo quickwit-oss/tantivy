@@ -363,7 +363,7 @@ impl Schema {
             .or(default_field_opt.map(|field| (field, full_path)))?;
         let field_entry = self.get_field_entry(field);
         let is_json = field_entry.field_type().value_type() == Type::Json;
-        if is_json == json_path.is_empty() {
+        if !is_json && !json_path.is_empty() {
             return None;
         }
         Some((field, json_path))
