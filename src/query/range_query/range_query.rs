@@ -4,7 +4,7 @@ use std::ops::Bound;
 use common::bounds::{map_bound, BoundsRange};
 use common::BitSet;
 
-use super::range_query_u64_fastfield::FastFieldRangeWeight;
+use super::range_query_fastfield::FastFieldRangeWeight;
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
 use crate::query::range_query::is_type_valid_for_fastfield_range_query;

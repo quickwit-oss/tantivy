@@ -12,9 +12,31 @@ use columnar::{
 use common::bounds::{BoundsRange, TransformBound};
 
 use super::fast_field_range_doc_set::RangeDocSet;
-use crate::query::{AllScorer, ConstScorer, EmptyScorer, Explanation, Query, Scorer, Weight};
+use crate::query::{
+    AllScorer, ConstScorer, EmptyScorer, EnableScoring, Explanation, Query, Scorer, Weight,
+};
 use crate::schema::{Type, ValueBytes};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
+
+#[derive(Clone, Debug)]
+/// `FastFieldRangeQuery` is the same as [RangeQuery] but only uses the fast field
+pub struct FastFieldRangeQuery {
+    bounds: BoundsRange<Term>,
+}
+impl FastFieldRangeQuery {
+    /// Create new `FastFieldRangeQuery`
+    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> FastFieldRangeQuery {
+        Self {
+            bounds: BoundsRange::new(lower_bound, upper_bound),
+        }
+    }
+}
+
+impl Query for FastFieldRangeQuery {
+    fn weight(&self, _enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        Ok(Box::new(FastFieldRangeWeight::new(self.bounds.clone())))
+    }
+}
 
 /// `FastFieldRangeWeight` uses the fast field to execute range queries.
 #[derive(Clone, Debug)]
@@ -24,17 +46,8 @@ pub struct FastFieldRangeWeight {
 
 impl FastFieldRangeWeight {
     /// Create a new FastFieldRangeWeight
-    pub(crate) fn new(bounds: BoundsRange<Term>) -> Self {
+    pub fn new(bounds: BoundsRange<Term>) -> Self {
         Self { bounds }
-    }
-}
-
-impl Query for FastFieldRangeWeight {
-    fn weight(
-        &self,
-        _enable_scoring: crate::query::EnableScoring<'_>,
-    ) -> crate::Result<Box<dyn Weight>> {
-        Ok(Box::new(self.clone()))
     }
 }
 
@@ -49,7 +62,8 @@ impl Weight for FastFieldRangeWeight {
             .bounds
             .get_inner()
             .expect("At least one bound must be set");
-        let field_type = reader.schema().get_field_entry(term.field()).field_type();
+        let schema = reader.schema();
+        let field_type = schema.get_field_entry(term.field()).field_type();
         assert_eq!(
             term.typ(),
             field_type.value_type(),
@@ -471,7 +485,7 @@ pub mod tests {
 
     use crate::collector::{Count, TopDocs};
     use crate::fastfield::FastValue;
-    use crate::query::range_query::range_query_u64_fastfield::FastFieldRangeWeight;
+    use crate::query::range_query::range_query_fastfield::FastFieldRangeWeight;
     use crate::query::{QueryParser, RangeQuery, Weight};
     use crate::schema::{
         DateOptions, Field, NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING,
