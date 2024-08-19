@@ -363,7 +363,7 @@ impl Schema {
             .or(default_field_opt.map(|field| (field, full_path)))?;
         let field_entry = self.get_field_entry(field);
         let is_json = field_entry.field_type().value_type() == Type::Json;
-        if is_json == json_path.is_empty() {
+        if !is_json && !json_path.is_empty() {
             return None;
         }
         Some((field, json_path))
@@ -959,5 +959,65 @@ mod tests {
         assert_eq!(schema.find_field(""), None);
         assert_eq!(schema.find_field("thiswouldbeareallylongfieldname"), None);
         assert_eq!(schema.find_field("baz.bar.foo"), None);
+    }
+
+    #[test]
+    fn test_find_field_with_default() {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_json_field("_default", JsonObjectOptions::default());
+        let default = Field::from_field_id(0);
+        schema_builder.add_json_field("foo", STRING);
+        let foo = Field::from_field_id(1);
+        schema_builder.add_text_field("foo.bar", STRING);
+        let foo_bar = Field::from_field_id(2);
+        schema_builder.add_text_field("bar", STRING);
+        let bar = Field::from_field_id(3);
+        schema_builder.add_json_field("baz", JsonObjectOptions::default());
+        let baz = Field::from_field_id(4);
+        let schema = schema_builder.build();
+
+        assert_eq!(schema.find_field_with_default("foo", None), Some((foo, "")));
+        assert_eq!(
+            schema.find_field_with_default("foo.bar", None),
+            Some((foo_bar, ""))
+        );
+        assert_eq!(schema.find_field_with_default("bar", None), Some((bar, "")));
+        assert_eq!(schema.find_field_with_default("bar.baz", None), None);
+        assert_eq!(schema.find_field_with_default("baz", None), Some((baz, "")));
+        assert_eq!(
+            schema.find_field_with_default("baz.foobar", None),
+            Some((baz, "foobar"))
+        );
+        assert_eq!(schema.find_field_with_default("foobar", None), None);
+
+        assert_eq!(
+            schema.find_field_with_default("foo", Some(default)),
+            Some((foo, ""))
+        );
+        assert_eq!(
+            schema.find_field_with_default("foo.bar", Some(default)),
+            Some((foo_bar, ""))
+        );
+        assert_eq!(
+            schema.find_field_with_default("bar", Some(default)),
+            Some((bar, ""))
+        );
+        // still None, we are under an existing field
+        assert_eq!(
+            schema.find_field_with_default("bar.baz", Some(default)),
+            None
+        );
+        assert_eq!(
+            schema.find_field_with_default("baz", Some(default)),
+            Some((baz, ""))
+        );
+        assert_eq!(
+            schema.find_field_with_default("baz.foobar", Some(default)),
+            Some((baz, "foobar"))
+        );
+        assert_eq!(
+            schema.find_field_with_default("foobar", Some(default)),
+            Some((default, "foobar"))
+        );
     }
 }
