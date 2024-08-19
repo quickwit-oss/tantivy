@@ -51,15 +51,6 @@ impl FastFieldRangeWeight {
     }
 }
 
-impl Query for FastFieldRangeWeight {
-    fn weight(
-        &self,
-        _enable_scoring: crate::query::EnableScoring<'_>,
-    ) -> crate::Result<Box<dyn Weight>> {
-        Ok(Box::new(self.clone()))
-    }
-}
-
 impl Weight for FastFieldRangeWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         // Check if both bounds are Bound::Unbounded
