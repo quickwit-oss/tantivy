@@ -209,8 +209,7 @@ struct StutteringIterator<T> {
 }
 
 impl<T> StutteringIterator<T>
-where
-    T: Iterator<Item = usize>,
+where T: Iterator<Item = usize>
 {
     pub fn new(underlying: T, min_gram: usize, max_gram: usize) -> StutteringIterator<T> {
         assert!(min_gram > 0);
@@ -241,8 +240,7 @@ where
 }
 
 impl<T> Iterator for StutteringIterator<T>
-where
-    T: Iterator<Item = usize>,
+where T: Iterator<Item = usize>
 {
     type Item = (usize, usize, usize);
 
