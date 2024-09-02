@@ -5,8 +5,8 @@ use crate::schema::{Field, IndexRecordOption, Term};
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
-/// For instance the phrase query for `"part time"` will match
-/// the sentence
+/// For instance, the phrase query for `"part time"` will match
+/// the sentence:
 ///
 /// **Alan just got a part time job.**
 ///
@@ -15,7 +15,7 @@ use crate::schema::{Field, IndexRecordOption, Term};
 /// **This is my favorite part of the job.**
 ///
 /// [Slop](PhraseQuery::set_slop) allows leniency in term proximity
-/// for some performance tradeof.
+/// for some performance trade-off.
 ///
 /// Using a `PhraseQuery` on a field requires positions
 /// to be indexed for this field.
