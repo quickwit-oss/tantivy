@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use columnar::ColumnValues;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
@@ -790,7 +789,7 @@ impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNCompu
 impl<Score, D, const R: bool> TopNComputer<Score, D, R>
 where
     Score: PartialOrd + Clone,
-    D: Serialize + DeserializeOwned + Ord + Clone,
+    D: Ord,
 {
     /// Create a new `TopNComputer`.
     /// Internally it will allocate a buffer of size `2 * top_n`.

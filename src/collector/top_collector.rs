@@ -15,11 +15,6 @@ use crate::{DocAddress, DocId, SegmentOrdinal};
 /// The REVERSE_ORDER generic parameter controls whether the by-feature order
 /// should be reversed, which is useful for achieving for example largest-first
 /// semantics without having to wrap the feature in a `Reverse`.
-///
-/// WARNING: equality is not what you would expect here.
-/// Two elements are equal if their feature is equal, and regardless of whether `doc`
-/// is equal. This should be perfectly fine for this usage, but let's make sure this
-/// struct is never public.
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ComparableDoc<T, D, const REVERSE_ORDER: bool = false> {
     /// The feature of the document. In practice, this is
