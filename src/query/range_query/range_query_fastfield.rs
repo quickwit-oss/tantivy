@@ -471,7 +471,7 @@ fn bound_to_value_range<T: MonotonicallyMappableToU64>(
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use std::ops::{Bound, RangeInclusive};
 
     use common::bounds::BoundsRange;

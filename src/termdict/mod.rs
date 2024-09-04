@@ -47,11 +47,24 @@ use self::termdict::{
 pub use self::termdict::{TermMerger, TermStreamer};
 use crate::postings::TermInfo;
 
+#[derive(Debug, Eq, PartialEq)]
 #[repr(u32)]
 #[allow(dead_code)]
 enum DictionaryType {
     Fst = 1,
     SSTable = 2,
+}
+
+impl TryFrom<u32> for DictionaryType {
+    type Error = &'static str;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(DictionaryType::Fst),
+            2 => Ok(DictionaryType::SSTable),
+            _ => Err("Invalid value for DictionaryType"),
+        }
+    }
 }
 
 #[cfg(not(feature = "quickwit"))]
@@ -70,13 +83,19 @@ impl TermDictionary {
         let (main_slice, dict_type) = file.split_from_end(4);
         let mut dict_type = dict_type.read_bytes()?;
         let dict_type = u32::deserialize(&mut dict_type)?;
+        let dict_type = DictionaryType::try_from(dict_type).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Unsuported dictionary type, found {dict_type}"),
+            )
+        })?;
 
-        if dict_type != CURRENT_TYPE as u32 {
+        if dict_type != CURRENT_TYPE {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!(
-                    "Unsuported dictionary type, expected {}, found {dict_type}",
-                    CURRENT_TYPE as u32,
+                    "Unsuported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
+                     {dict_type:?}",
                 ),
             ));
         }

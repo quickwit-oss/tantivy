@@ -202,12 +202,15 @@ pub mod space_usage;
 pub mod store;
 pub mod termdict;
 
+mod docset;
 mod reader;
+
+#[cfg(test)]
+mod compat_tests;
 
 pub use self::reader::{IndexReader, IndexReaderBuilder, ReloadPolicy, Warmer};
 pub mod snippet;
 
-mod docset;
 use std::fmt;
 
 pub use census::{Inventory, TrackedObject};
@@ -229,9 +232,9 @@ pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::schema::{Document, TantivyDocument, Term};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 6;
+pub const INDEX_FORMAT_VERSION: u32 = 6;
 /// Oldest index format version this tantivy version can read.
-const INDEX_FORMAT_OLDEST_SUPPORTED_VERSION: u32 = 4;
+pub const INDEX_FORMAT_OLDEST_SUPPORTED_VERSION: u32 = 4;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
