@@ -100,7 +100,7 @@ impl Executor {
 
     /// Spawn a task on the pool, returning a future completing on task success.
     ///
-    /// If the task panic, returns `Err(())`.
+    /// If the task panics, returns `Err(())`.
     #[cfg(feature = "quickwit")]
     pub fn spawn_blocking<T: Send + 'static>(
         &self,

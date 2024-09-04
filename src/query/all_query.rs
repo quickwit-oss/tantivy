@@ -7,7 +7,7 @@ use crate::{DocId, Score};
 
 /// Query that matches all of the documents.
 ///
-/// All of the document get the score 1.0.
+/// All of the documents get the score 1.0.
 #[derive(Clone, Debug)]
 pub struct AllQuery;
 
