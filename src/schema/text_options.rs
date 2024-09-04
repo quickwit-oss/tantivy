@@ -189,8 +189,8 @@ impl TokenizerName {
 ///
 /// It defines
 /// - The amount of information that should be stored about the presence of a term in a document.
-/// Essentially, should we store the term frequency and/or the positions (See
-/// [`IndexRecordOption`]).
+///   Essentially, should we store the term frequency and/or the positions (See
+///   [`IndexRecordOption`]).
 /// - The name of the `Tokenizer` that should be used to process the field.
 /// - Flag indicating, if fieldnorms should be stored (See [fieldnorm](crate::fieldnorm)). Defaults
 ///   to `true`.

@@ -639,12 +639,11 @@ mod tests {
     /// <field> + <type byte> + <value len>
     ///
     /// - <field> is a big endian encoded u32 field id
-    /// - <type_byte>'s most significant bit expresses whether the term is a json term or not
-    /// The remaining 7 bits are used to encode the type of the value.
-    /// If this is a JSON term, the type is the type of the leaf of the json.
-    ///
+    /// - <type_byte>'s most significant bit expresses whether the term is a json term or not The
+    ///   remaining 7 bits are used to encode the type of the value. If this is a JSON term, the
+    ///   type is the type of the leaf of the json.
     /// - <value> is,  if this is not the json term, a binary representation specific to the type.
-    /// If it is a JSON Term, then it is prepended with the path that leads to this leaf value.
+    ///   If it is a JSON Term, then it is prepended with the path that leads to this leaf value.
     const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
 
     #[test]

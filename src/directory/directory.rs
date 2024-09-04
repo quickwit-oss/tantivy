@@ -102,10 +102,8 @@ fn retry_policy(is_blocking: bool) -> RetryPolicy {
 ///
 /// There are currently two implementations of `Directory`
 ///
-/// - The [`MMapDirectory`][crate::directory::MmapDirectory], this
-/// should be your default choice.
-/// - The [`RamDirectory`][crate::directory::RamDirectory], which
-/// should be used mostly for tests.
+/// - The [`MMapDirectory`][crate::directory::MmapDirectory], this should be your default choice.
+/// - The [`RamDirectory`][crate::directory::RamDirectory], which should be used mostly for tests.
 pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a file and returns a boxed `FileHandle`.
     ///

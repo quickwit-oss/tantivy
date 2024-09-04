@@ -11,8 +11,8 @@ use crate::TantivyError;
 /// progress. Dropping the `FutureResult` does not cancel the task being executed
 /// either.
 ///
-/// - In a sync context, you can call `FutureResult::wait()`. The function
-/// does not rely on `block_on`.
+/// - In a sync context, you can call `FutureResult::wait()`. The function does not rely on
+///   `block_on`.
 /// - In an async context, you can call simply use `FutureResult` as a future.
 pub struct FutureResult<T> {
     inner: Inner<T>,

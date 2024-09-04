@@ -11,8 +11,7 @@ use crate::termdict::{TermOrdinal, TermStreamer};
 ///
 /// The item yielded is actually a pair with
 /// - the term
-/// - a slice with the ordinal of the segments containing
-/// the term.
+/// - a slice with the ordinal of the segments containing the term.
 pub struct TermMerger<'a> {
     dictionaries: Vec<&'a TermDictionary>,
     union: Union<'a>,

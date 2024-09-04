@@ -18,7 +18,7 @@ use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 /// # Assumption
 ///
 /// - The block is sorted. Some elements may appear several times. This is the case at the
-/// end of the last block for instance.
+///   end of the last block for instance.
 /// - The target is assumed smaller or equal to the last element of the block.
 pub fn branchless_binary_search(arr: &[u32; COMPRESSION_BLOCK_SIZE], target: u32) -> usize {
     let mut start = 0;

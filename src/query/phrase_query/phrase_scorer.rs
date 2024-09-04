@@ -219,8 +219,8 @@ fn intersection_exists_with_slop(
 /// In contrast to the regular algorithm this solves some issues:
 /// - Keep track of the slop so far. Slop is a budget that is spent on the distance between terms.
 /// - When encountering a match between two positions, which position is the best match is unclear
-/// and depends on intersections afterwards, therefore this algorithm keeps left and right as
-/// matches, but only counts one.
+///   and depends on intersections afterwards, therefore this algorithm keeps left and right as
+///   matches, but only counts one.
 ///
 /// This algorithm may return an incorrect count in some cases (e.g. left, right expansion and is
 /// then matches both on the following term.)
