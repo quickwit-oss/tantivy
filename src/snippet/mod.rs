@@ -284,6 +284,7 @@ fn sort_and_deduplicate_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
 /// - [0..2, 1..3] -> [0..3]  # overlapping, merged
 /// - [0..3, 1..2] -> [0..3]  # second range is completely within the first
 fn merge_overlapping_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
+    debug_assert!(is_sorted(ranges.iter().map(|range| range.start)));
     let mut result = Vec::<Range<usize>>::new();
     for range in ranges {
         if let Some(last) = result.last_mut() {
@@ -315,7 +316,6 @@ fn merge_overlapping_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
 /// - [0..3, 3..6, 0..3, 3..6] -> [0..6]  # duplicates removed, then merged
 pub fn collapse_overlapped_ranges(ranges: &[Range<usize>]) -> Vec<Range<usize>> {
     let prepared = sort_and_deduplicate_ranges(ranges);
-    debug_assert!(is_sorted(prepared.iter().map(|range| range.start)));
     merge_overlapping_ranges(&prepared)
 }
 
