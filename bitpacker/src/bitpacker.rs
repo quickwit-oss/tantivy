@@ -368,9 +368,9 @@ mod test {
                 for start_idx in 0u32..32u32 {
                     output.resize(len, 0);
                     bitunpacker.get_batch_u32s(start_idx, &buffer, &mut output);
-                    for i in 0..len {
+                    for (i, output_byte) in output.iter().enumerate() {
                         let expected = (start_idx + i as u32) & mask;
-                        assert_eq!(output[i], expected);
+                        assert_eq!(*output_byte, expected);
                     }
                 }
             }

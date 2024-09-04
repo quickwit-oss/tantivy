@@ -110,8 +110,8 @@ fn test_null_index(data: &[bool]) {
         .map(|(pos, _val)| pos as u32)
         .collect();
     let mut select_iter = null_index.select_cursor();
-    for i in 0..orig_idx_with_value.len() {
-        assert_eq!(select_iter.select(i as u32), orig_idx_with_value[i]);
+    for (i, expected) in orig_idx_with_value.iter().enumerate() {
+        assert_eq!(select_iter.select(i as u32), *expected);
     }
 
     let step_size = (orig_idx_with_value.len() / 100).max(1);
