@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use crate::{Endianness, VInt};
+use crate::{DateTimePrecision, Endianness, VInt};
 
 #[derive(Default)]
 struct Counter(u64);
@@ -24,6 +24,63 @@ impl io::Write for Counter {
         Ok(())
     }
 }
+
+/// The configuration for binary serialization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BinarySerializableConfig {
+    /// The precision with which DateTime is de/serialized
+    pub date_time_precision: DateTimePrecision,
+}
+
+/// Trait for configurable binary serialization
+pub trait ConfigurableBinarySerializable: fmt::Debug + Sized {
+    fn serialize<W: Write + ?Sized>(
+        &self,
+        writer: &mut W,
+        config: &BinarySerializableConfig,
+    ) -> io::Result<()>;
+    fn deserialize<R: Read>(reader: &mut R, config: &BinarySerializableConfig) -> io::Result<Self>;
+    fn num_bytes(&self, config: &BinarySerializableConfig) -> u64 {
+        let mut counter = Counter::default();
+        self.serialize(&mut counter, config).unwrap();
+        counter.0
+    }
+}
+
+/// Implement ConfigurableBinarySerializable trait for types that don't need versioning by
+/// forwarding to BinarySerializable trait.
+#[macro_export]
+macro_rules! impl_configurable_binary_serializable_by_calling_binary_serializable {
+    ($type:ty) => {
+        impl ConfigurableBinarySerializable for $type {
+            fn serialize<W: Write + ?Sized>(
+                &self,
+                writer: &mut W,
+                _version: &BinarySerializableConfig,
+            ) -> io::Result<()> {
+                <Self as BinarySerializable>::serialize(self, writer)
+            }
+
+            fn deserialize<R: Read>(
+                reader: &mut R,
+                _version: &BinarySerializableConfig,
+            ) -> io::Result<Self> {
+                <Self as BinarySerializable>::deserialize(reader)
+            }
+        }
+    };
+}
+
+impl_configurable_binary_serializable_by_calling_binary_serializable!(String);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(u64);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(i64);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(f64);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(Vec<u8>);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(u128);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(bool);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(());
+impl_configurable_binary_serializable_by_calling_binary_serializable!(Cow<'_, str>);
+impl_configurable_binary_serializable_by_calling_binary_serializable!(Cow<'_, [u8]>);
 
 /// Trait for a simple binary serialization.
 pub trait BinarySerializable: fmt::Debug + Sized {
@@ -74,14 +131,14 @@ impl FixedSize for () {
 
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        VInt(self.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(self.len() as u64), writer)?;
         for it in self {
             it.serialize(writer)?;
         }
         Ok(())
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Vec<T>> {
-        let num_items = VInt::deserialize(reader)?.val();
+        let num_items = <VInt as BinarySerializable>::deserialize(reader)?.val();
         let mut items: Vec<T> = Vec::with_capacity(num_items as usize);
         for _ in 0..num_items {
             let item = T::deserialize(reader)?;
@@ -236,12 +293,12 @@ impl FixedSize for bool {
 impl BinarySerializable for String {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let data: &[u8] = self.as_bytes();
-        VInt(data.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(data.len() as u64), writer)?;
         writer.write_all(data)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<String> {
-        let string_length = VInt::deserialize(reader)?.val() as usize;
+        let string_length = <VInt as BinarySerializable>::deserialize(reader)?.val() as usize;
         let mut result = String::with_capacity(string_length);
         reader
             .take(string_length as u64)
@@ -253,12 +310,12 @@ impl BinarySerializable for String {
 impl<'a> BinarySerializable for Cow<'a, str> {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let data: &[u8] = self.as_bytes();
-        VInt(data.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(data.len() as u64), writer)?;
         writer.write_all(data)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Cow<'a, str>> {
-        let string_length = VInt::deserialize(reader)?.val() as usize;
+        let string_length = <VInt as BinarySerializable>::deserialize(reader)?.val() as usize;
         let mut result = String::with_capacity(string_length);
         reader
             .take(string_length as u64)
@@ -269,18 +326,18 @@ impl<'a> BinarySerializable for Cow<'a, str> {
 
 impl<'a> BinarySerializable for Cow<'a, [u8]> {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        VInt(self.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(self.len() as u64), writer)?;
         for it in self.iter() {
-            it.serialize(writer)?;
+            BinarySerializable::serialize(it, writer)?;
         }
         Ok(())
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Cow<'a, [u8]>> {
-        let num_items = VInt::deserialize(reader)?.val();
+        let num_items = <VInt as BinarySerializable>::deserialize(reader)?.val();
         let mut items: Vec<u8> = Vec::with_capacity(num_items as usize);
         for _ in 0..num_items {
-            let item = u8::deserialize(reader)?;
+            let item = <u8 as BinarySerializable>::deserialize(reader)?;
             items.push(item);
         }
         Ok(Cow::Owned(items))

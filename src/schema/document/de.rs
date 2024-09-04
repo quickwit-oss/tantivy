@@ -16,12 +16,13 @@ use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{u64_to_f64, BinarySerializable, DateTime, VInt};
+use common::{u64_to_f64, BinarySerializable, ConfigurableBinarySerializable, DateTime, VInt};
 
 use super::se::BinaryObjectSerializer;
 use super::{OwnedValue, Value};
 use crate::schema::document::type_codes;
 use crate::schema::{Facet, Field};
+use crate::store::doc_store_version_to_serialize_config;
 use crate::tokenizer::PreTokenizedString;
 
 #[derive(Debug, thiserror::Error, Clone)]
@@ -45,6 +46,9 @@ pub enum DeserializeError {
     #[error("{0}")]
     /// A custom error message.
     Custom(String),
+    #[error("Version {0}, Max version supported: {1}")]
+    /// Unsupported version error.
+    UnsupportedVersion(u32, u32),
 }
 
 impl DeserializeError {
@@ -291,6 +295,7 @@ pub trait ObjectAccess<'de> {
 pub struct BinaryDocumentDeserializer<'de, R> {
     length: usize,
     position: usize,
+    doc_store_version: u32,
     reader: &'de mut R,
 }
 
@@ -298,12 +303,16 @@ impl<'de, R> BinaryDocumentDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new document deserializer from a given reader.
-    pub(crate) fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
+    pub(crate) fn from_reader(
+        reader: &'de mut R,
+        doc_store_version: u32,
+    ) -> Result<Self, DeserializeError> {
         let length = VInt::deserialize(reader)?;
 
         Ok(Self {
             length: length.val() as usize,
             position: 0,
+            doc_store_version,
             reader,
         })
     }
@@ -329,8 +338,8 @@ where R: Read
         }
 
         let field = Field::deserialize(self.reader).map_err(DeserializeError::from)?;
-
-        let deserializer = BinaryValueDeserializer::from_reader(self.reader)?;
+        let deserializer =
+            BinaryValueDeserializer::from_reader(self.reader, self.doc_store_version)?;
         let value = V::deserialize(deserializer)?;
 
         self.position += 1;
@@ -344,13 +353,14 @@ where R: Read
 pub struct BinaryValueDeserializer<'de, R> {
     value_type: ValueType,
     reader: &'de mut R,
+    doc_store_version: u32,
 }
 
 impl<'de, R> BinaryValueDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new value deserializer from a given reader.
-    fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
+    fn from_reader(reader: &'de mut R, doc_store_version: u32) -> Result<Self, DeserializeError> {
         let type_code = <u8 as BinarySerializable>::deserialize(reader)?;
 
         let value_type = match type_code {
@@ -391,7 +401,11 @@ where R: Read
             }
         };
 
-        Ok(Self { value_type, reader })
+        Ok(Self {
+            value_type,
+            reader,
+            doc_store_version,
+        })
     }
 
     fn validate_type(&self, expected_type: ValueType) -> Result<(), DeserializeError> {
@@ -416,57 +430,94 @@ where R: Read
 
     fn deserialize_string(self) -> Result<String, DeserializeError> {
         self.validate_type(ValueType::String)?;
-        <String as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <String as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_u64(self) -> Result<u64, DeserializeError> {
         self.validate_type(ValueType::U64)?;
-        <u64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <u64 as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_i64(self) -> Result<i64, DeserializeError> {
         self.validate_type(ValueType::I64)?;
-        <i64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <i64 as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_f64(self) -> Result<f64, DeserializeError> {
         self.validate_type(ValueType::F64)?;
-        <u64 as BinarySerializable>::deserialize(self.reader)
-            .map(u64_to_f64)
-            .map_err(DeserializeError::from)
+        <u64 as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map(u64_to_f64)
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_datetime(self) -> Result<DateTime, DeserializeError> {
         self.validate_type(ValueType::DateTime)?;
-        <DateTime as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <DateTime as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_facet(self) -> Result<Facet, DeserializeError> {
         self.validate_type(ValueType::Facet)?;
-        <Facet as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <Facet as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_bytes(self) -> Result<Vec<u8>, DeserializeError> {
         self.validate_type(ValueType::Bytes)?;
-        <Vec<u8> as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <Vec<u8> as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_ip_address(self) -> Result<Ipv6Addr, DeserializeError> {
         self.validate_type(ValueType::IpAddr)?;
-        <u128 as BinarySerializable>::deserialize(self.reader)
-            .map(Ipv6Addr::from_u128)
-            .map_err(DeserializeError::from)
+        <u128 as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map(Ipv6Addr::from_u128)
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_bool(self) -> Result<bool, DeserializeError> {
         self.validate_type(ValueType::Bool)?;
-        <bool as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <bool as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError> {
         self.validate_type(ValueType::PreTokStr)?;
-        <PreTokenizedString as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::from)
+        <PreTokenizedString as ConfigurableBinarySerializable>::deserialize(
+            self.reader,
+            &doc_store_version_to_serialize_config(self.doc_store_version)?,
+        )
+        .map_err(DeserializeError::from)
     }
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
@@ -514,11 +565,13 @@ where R: Read
                 visitor.visit_pre_tokenized_string(val)
             }
             ValueType::Array => {
-                let access = BinaryArrayDeserializer::from_reader(self.reader)?;
+                let access =
+                    BinaryArrayDeserializer::from_reader(self.reader, self.doc_store_version)?;
                 visitor.visit_array(access)
             }
             ValueType::Object => {
-                let access = BinaryObjectDeserializer::from_reader(self.reader)?;
+                let access =
+                    BinaryObjectDeserializer::from_reader(self.reader, self.doc_store_version)?;
                 visitor.visit_object(access)
             }
             #[allow(deprecated)]
@@ -537,7 +590,8 @@ where R: Read
 
                 let out_rc = std::rc::Rc::new(out);
                 let mut slice: &[u8] = &out_rc;
-                let access = BinaryObjectDeserializer::from_reader(&mut slice)?;
+                let access =
+                    BinaryObjectDeserializer::from_reader(&mut slice, self.doc_store_version)?;
 
                 visitor.visit_object(access)
             }
@@ -551,19 +605,21 @@ pub struct BinaryArrayDeserializer<'de, R> {
     length: usize,
     position: usize,
     reader: &'de mut R,
+    doc_store_version: u32,
 }
 
 impl<'de, R> BinaryArrayDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new array deserializer from a given reader.
-    fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
+    fn from_reader(reader: &'de mut R, doc_store_version: u32) -> Result<Self, DeserializeError> {
         let length = <VInt as BinarySerializable>::deserialize(reader)?;
 
         Ok(Self {
             length: length.val() as usize,
             position: 0,
             reader,
+            doc_store_version,
         })
     }
 
@@ -587,7 +643,8 @@ where R: Read
             return Ok(None);
         }
 
-        let deserializer = BinaryValueDeserializer::from_reader(self.reader)?;
+        let deserializer =
+            BinaryValueDeserializer::from_reader(self.reader, self.doc_store_version)?;
         let value = V::deserialize(deserializer)?;
 
         // Advance the position cursor.
@@ -610,8 +667,8 @@ impl<'de, R> BinaryObjectDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new object deserializer from a given reader.
-    fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
-        let inner = BinaryArrayDeserializer::from_reader(reader)?;
+    fn from_reader(reader: &'de mut R, doc_store_version: u32) -> Result<Self, DeserializeError> {
+        let inner = BinaryArrayDeserializer::from_reader(reader, doc_store_version)?;
         Ok(Self { inner })
     }
 }
@@ -819,6 +876,7 @@ mod tests {
     use crate::schema::document::existing_type_impls::JsonObjectIter;
     use crate::schema::document::se::BinaryValueSerializer;
     use crate::schema::document::{ReferenceValue, ReferenceValueLeaf};
+    use crate::store::DOC_STORE_VERSION;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
         let mut writer = Vec::new();
@@ -831,7 +889,8 @@ mod tests {
 
     fn deserialize_value(buffer: Vec<u8>) -> crate::schema::OwnedValue {
         let mut cursor = Cursor::new(buffer);
-        let deserializer = BinaryValueDeserializer::from_reader(&mut cursor).unwrap();
+        let deserializer =
+            BinaryValueDeserializer::from_reader(&mut cursor, DOC_STORE_VERSION).unwrap();
         crate::schema::OwnedValue::deserialize(deserializer).expect("Deserialize value")
     }
 

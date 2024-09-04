@@ -28,6 +28,7 @@ type Block = OwnedBytes;
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
     decompressor: Decompressor,
+    doc_store_version: u32,
     data: FileSlice,
     skip_index: Arc<SkipIndex>,
     space_usage: StoreSpaceUsage,
@@ -129,6 +130,7 @@ impl StoreReader {
         let skip_index = SkipIndex::open(index_data);
         Ok(StoreReader {
             decompressor: footer.decompressor,
+            doc_store_version: footer.doc_store_version,
             data: data_file,
             cache: BlockCache {
                 cache: NonZeroUsize::new(cache_num_blocks)
@@ -203,8 +205,9 @@ impl StoreReader {
     pub fn get<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
 
-        let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
-            .map_err(crate::TantivyError::from)?;
+        let deserializer =
+            BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
+                .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
 
@@ -244,8 +247,9 @@ impl StoreReader {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
 
-            let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
-                .map_err(crate::TantivyError::from)?;
+            let deserializer =
+                BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
+                    .map_err(crate::TantivyError::from)?;
             D::deserialize(deserializer).map_err(crate::TantivyError::from)
         })
     }
@@ -391,8 +395,9 @@ impl StoreReader {
     ) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id, executor).await?;
 
-        let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
-            .map_err(crate::TantivyError::from)?;
+        let deserializer =
+            BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
+                .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
 }

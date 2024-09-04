@@ -3,11 +3,14 @@ use std::io;
 use std::io::Write;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{f64_to_u64, BinarySerializable, VInt};
+use common::{
+    f64_to_u64, BinarySerializable, BinarySerializableConfig, ConfigurableBinarySerializable, VInt,
+};
 
 use super::{OwnedValue, ReferenceValueLeaf};
 use crate::schema::document::{type_codes, Document, ReferenceValue, Value};
 use crate::schema::Schema;
+use crate::store::{doc_store_version_to_serialize_config, DOC_STORE_VERSION};
 
 /// A serializer writing documents which implement [`Document`] to a provided writer.
 pub struct BinaryDocumentSerializer<'se, W> {
@@ -71,6 +74,7 @@ where W: Write
 /// A serializer for a single value.
 pub struct BinaryValueSerializer<'se, W> {
     writer: &'se mut W,
+    serializable_config: BinarySerializableConfig,
 }
 
 impl<'se, W> BinaryValueSerializer<'se, W>
@@ -78,7 +82,21 @@ where W: Write
 {
     /// Creates a new serializer with a provided writer.
     pub(crate) fn new(writer: &'se mut W) -> Self {
-        Self { writer }
+        Self {
+            writer,
+            serializable_config: doc_store_version_to_serialize_config(DOC_STORE_VERSION).expect(
+                "internal error: no BinarySerializableConfig added for current DOC_STORE_VERSION",
+            ),
+        }
+    }
+
+    fn serialize_with_type_code<T: ConfigurableBinarySerializable>(
+        &mut self,
+        code: u8,
+        val: &T,
+    ) -> io::Result<()> {
+        self.write_type_code(code)?;
+        ConfigurableBinarySerializable::serialize(val, self.writer, &self.serializable_config)
     }
 
     /// Attempts to serialize a given value and write the output
@@ -94,56 +112,36 @@ where W: Write
             ReferenceValue::Leaf(leaf) => match leaf {
                 ReferenceValueLeaf::Null => self.write_type_code(type_codes::NULL_CODE),
                 ReferenceValueLeaf::Str(val) => {
-                    self.write_type_code(type_codes::TEXT_CODE)?;
-
-                    let temp_val = Cow::Borrowed(val);
-                    temp_val.serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::TEXT_CODE, &Cow::Borrowed(val))
                 }
                 ReferenceValueLeaf::U64(val) => {
-                    self.write_type_code(type_codes::U64_CODE)?;
-
-                    val.serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::U64_CODE, &val)
                 }
                 ReferenceValueLeaf::I64(val) => {
-                    self.write_type_code(type_codes::I64_CODE)?;
-
-                    val.serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::I64_CODE, &val)
                 }
                 ReferenceValueLeaf::F64(val) => {
-                    self.write_type_code(type_codes::F64_CODE)?;
-
-                    f64_to_u64(val).serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::F64_CODE, &f64_to_u64(val))
                 }
                 ReferenceValueLeaf::Date(val) => {
-                    self.write_type_code(type_codes::DATE_CODE)?;
-                    val.serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::DATE_CODE, &val)
                 }
-                ReferenceValueLeaf::Facet(val) => {
-                    self.write_type_code(type_codes::HIERARCHICAL_FACET_CODE)?;
-
-                    Cow::Borrowed(val).serialize(self.writer)
-                }
+                ReferenceValueLeaf::Facet(val) => self.serialize_with_type_code(
+                    type_codes::HIERARCHICAL_FACET_CODE,
+                    &Cow::Borrowed(val),
+                ),
                 ReferenceValueLeaf::Bytes(val) => {
-                    self.write_type_code(type_codes::BYTES_CODE)?;
-
-                    let temp_val = Cow::Borrowed(val);
-                    temp_val.serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::BYTES_CODE, &Cow::Borrowed(val))
                 }
                 ReferenceValueLeaf::IpAddr(val) => {
-                    self.write_type_code(type_codes::IP_CODE)?;
-
-                    val.to_u128().serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::IP_CODE, &val.to_u128())
                 }
                 ReferenceValueLeaf::Bool(val) => {
-                    self.write_type_code(type_codes::BOOL_CODE)?;
-
-                    val.serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::BOOL_CODE, &val)
                 }
                 ReferenceValueLeaf::PreTokStr(val) => {
                     self.write_type_code(type_codes::EXT_CODE)?;
-                    self.write_type_code(type_codes::TOK_STR_EXT_CODE)?;
-
-                    val.serialize(self.writer)
+                    self.serialize_with_type_code(type_codes::TOK_STR_EXT_CODE, &*val)
                 }
             },
             ReferenceValue::Array(elements) => {
@@ -337,7 +335,11 @@ mod tests {
                     $ext_code.serialize(&mut writer).unwrap();
                 )?
 
-                $value.serialize(&mut writer).unwrap();
+                ConfigurableBinarySerializable::serialize(
+                    &$value,
+                    &mut writer,
+                    &doc_store_version_to_serialize_config(DOC_STORE_VERSION).unwrap(),
+                ).unwrap();
             )*
 
             writer
@@ -355,7 +357,11 @@ mod tests {
                     $ext_code.serialize(&mut writer).unwrap();
                 )?
 
-                $value.serialize(&mut writer).unwrap();
+                ConfigurableBinarySerializable::serialize(
+                    &$value,
+                    &mut writer,
+                    &doc_store_version_to_serialize_config(DOC_STORE_VERSION).unwrap(),
+                ).unwrap();
             )*
 
             writer

@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::io;
 use std::io::{Read, Write};
 
-use common::BinarySerializable;
+use common::*;
 
 use crate::tokenizer::{Token, TokenStream};
 
@@ -52,6 +52,7 @@ impl BinarySerializable for PreTokenizedString {
         }
     }
 }
+common::impl_configurable_binary_serializable_by_calling_binary_serializable!(PreTokenizedString);
 
 /// [`TokenStream`] implementation which wraps [`PreTokenizedString`]
 pub struct PreTokenizedStream {
