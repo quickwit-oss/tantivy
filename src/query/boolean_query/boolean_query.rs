@@ -5,15 +5,10 @@ use crate::schema::{IndexRecordOption, Term};
 /// The boolean query returns a set of documents
 /// that matches the Boolean combination of constituent subqueries.
 ///
-/// The documents matched by the boolean query are
-/// those which
-/// * match all of the sub queries associated with the
-/// `Must` occurrence
-/// * match none of the sub queries associated with the
-/// `MustNot` occurrence.
-/// * match at least one of the sub queries associated
-/// with the `Must` or `Should` occurrence.
-///
+/// The documents matched by the boolean query are those which
+/// - match all of the sub queries associated with the `Must` occurrence
+/// - match none of the sub queries associated with the `MustNot` occurrence.
+/// - match at least one of the sub queries associated with the `Must` or `Should` occurrence.
 ///
 /// You can combine other query types and their `Occur`ances into one `BooleanQuery`
 ///

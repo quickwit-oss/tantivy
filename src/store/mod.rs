@@ -25,8 +25,8 @@
 //! Most users should not access the `StoreReader` directly
 //! and should rely on either
 //!
-//! - at the segment level, the
-//! [`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
+//! - at the segment level, the [`SegmentReader`'s `doc`
+//!   method](../struct.SegmentReader.html#method.doc)
 //! - at the index level, the [`Searcher::doc()`](crate::Searcher::doc) method
 
 mod compressors;

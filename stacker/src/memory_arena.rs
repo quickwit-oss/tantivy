@@ -12,13 +12,13 @@
 //! # Limitations
 //!
 //! - Your object shall not implement `Drop`.
-//! - `Addr` to the `Arena` are 32-bits. The maximum capacity of the arena
-//! is 4GB. *(Tantivy's indexer uses one arena per indexing thread.)*
-//! - The arena only works for objects much smaller than  `1MB`.
-//! Allocating more than `1MB` at a time will result in a panic,
-//! and allocating a lot of large object (> 500KB) will result in a fragmentation.
-//! - Your objects are store in an unaligned fashion. For this reason,
-//! the API does not let you access them as references.
+//! - `Addr` to the `Arena` are 32-bits. The maximum capacity of the arena is 4GB. *(Tantivy's
+//!   indexer uses one arena per indexing thread.)*
+//! - The arena only works for objects much smaller than  `1MB`. Allocating more than `1MB` at a
+//!   time will result in a panic, and allocating a lot of large object (> 500KB) will result in a
+//!   fragmentation.
+//! - Your objects are store in an unaligned fashion. For this reason, the API does not let you
+//!   access them as references.
 //!
 //! Instead, you store and access your data via `.write(...)` and `.read(...)`, which under the hood
 //! stores your object using `ptr::write_unaligned` and `ptr::read_unaligned`.

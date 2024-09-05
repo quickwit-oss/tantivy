@@ -49,10 +49,10 @@ pub(crate) struct RangeDocSet<T> {
     ///
     /// There are two patterns.
     /// - We do a full scan. => We can load large chunks. We don't know in advance if seek call
-    /// will come, so we start with small chunks
+    ///   will come, so we start with small chunks
     /// - We load docs, interspersed with seek calls. When there are big jumps in the seek, we
-    /// should load small chunks. When the seeks are small, we can employ the same strategy as on a
-    /// full scan.
+    ///   should load small chunks. When the seeks are small, we can employ the same strategy as on
+    ///   a full scan.
     fetch_horizon: u32,
     /// Current batch of loaded docs.
     loaded_docs: VecCursor,

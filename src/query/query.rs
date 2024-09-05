@@ -115,10 +115,10 @@ impl<'a> EnableScoring<'a> {
 ///
 /// So to sum it up :
 /// - a `Query` is a recipe to define a set of documents as well the way to score them.
-/// - a [`Weight`] is this recipe tied to a specific [`Searcher`]. It may for instance
-/// hold statistics about the different term of the query. It is created by the query.
-/// - a [`Scorer`] is a cursor over the set of matching documents, for a specific
-/// [`SegmentReader`]. It is created by the [`Weight`].
+/// - a [`Weight`] is this recipe tied to a specific [`Searcher`]. It may for instance hold
+///   statistics about the different term of the query. It is created by the query.
+/// - a [`Scorer`] is a cursor over the set of matching documents, for a specific [`SegmentReader`].
+///   It is created by the [`Weight`].
 ///
 /// When implementing a new type of `Query`, it is normal to implement a
 /// dedicated `Query`, [`Weight`] and [`Scorer`].

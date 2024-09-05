@@ -169,7 +169,7 @@ impl Facet {
 
     /// Extract path from the `Facet`.
     pub fn to_path(&self) -> Vec<&str> {
-        self.encoded_str().split(|c| c == FACET_SEP_CHAR).collect()
+        self.encoded_str().split(FACET_SEP_CHAR).collect()
     }
 
     /// This function is the inverse of Facet::from(&str).

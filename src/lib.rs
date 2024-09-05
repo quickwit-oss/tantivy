@@ -125,8 +125,8 @@
 //!
 //! - **Searching**: [Searcher] searches the segments with anything that implements
 //!   [Query](query::Query) and merges the results. The list of [supported
-//! queries](query::Query#implementors). Custom Queries are supported by implementing the
-//! [Query](query::Query) trait.
+//!   queries](query::Query#implementors). Custom Queries are supported by implementing the
+//!   [Query](query::Query) trait.
 //!
 //! - **[Directory](directory)**: Abstraction over the storage where the index data is stored.
 //!

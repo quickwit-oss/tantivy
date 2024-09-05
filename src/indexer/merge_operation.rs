@@ -29,8 +29,8 @@ impl MergeOperationInventory {
 
 /// A `MergeOperation` has two roles.
 /// It carries all of the information required to describe a merge:
-/// - `target_opstamp` is the opstamp up to which we want to consume the
-/// delete queue and reflect their deletes.
+/// - `target_opstamp` is the opstamp up to which we want to consume the delete queue and reflect
+///   their deletes.
 /// - `segment_ids` is the list of segment to be merged.
 ///
 /// The second role is to ensure keep track of the fact that these
