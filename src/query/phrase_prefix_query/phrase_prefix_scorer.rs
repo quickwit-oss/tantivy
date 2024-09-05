@@ -6,6 +6,9 @@ use crate::query::phrase_query::{intersection_count, PhraseScorer};
 use crate::query::Scorer;
 use crate::{DocId, Score};
 
+// MultiPrefix is the larger variant, and also the one we expect most often. PhraseScorer is > 1kB
+// though, it would be interesting to slim it down if possible.
+#[allow(clippy::large_enum_variant)]
 enum PhraseKind<TPostings: Postings> {
     SinglePrefix {
         position_offset: u32,
