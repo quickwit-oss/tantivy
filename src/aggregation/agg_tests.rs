@@ -585,7 +585,7 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
         }
     }));
 
-    assert_eq!(agg_req_1.is_err(), true);
+    assert!(agg_req_1.is_err());
     assert_eq!(agg_req_1.unwrap_err().to_string(), "missing field `field`");
 
     let agg_req_1: Result<Aggregations, serde_json::Error> = serde_json::from_value(json!({
@@ -596,7 +596,7 @@ fn test_aggregation_invalid_requests() -> crate::Result<()> {
         }
     }));
 
-    assert_eq!(agg_req_1.is_err(), true);
+    assert!(agg_req_1.is_err());
     // TODO: This should list valid values
     assert!(agg_req_1
         .unwrap_err()

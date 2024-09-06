@@ -2,12 +2,11 @@
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
-#![allow(
+#![expect(
     clippy::len_without_is_empty,
     clippy::derive_partial_eq_without_eq,
     clippy::module_inception,
-    clippy::needless_range_loop,
-    clippy::bool_assert_comparison
+    clippy::needless_range_loop
 )]
 
 //! # `tantivy`
@@ -178,7 +177,6 @@ pub use crate::future_result::FutureResult;
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
 mod core;
-#[allow(deprecated)] // Remove with index sorting
 pub mod indexer;
 
 #[allow(unused_doc_comments)]
@@ -190,7 +188,6 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
-#[allow(deprecated)] // Remove with index sorting
 pub mod index;
 pub mod positions;
 pub mod postings;
@@ -223,7 +220,6 @@ pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 pub use crate::core::json_utils;
 pub use crate::core::{Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
-#[allow(deprecated)] // Remove with index sorting
 pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader, Order, Segment,
     SegmentMeta, SegmentReader,
