@@ -179,7 +179,7 @@ pub type Result<T> = std::result::Result<T, TantivyError>;
 mod core;
 pub mod indexer;
 
-#[allow(unused_doc_comments)]
+#[expect(unused_doc_comments)]
 pub mod error;
 pub mod tokenizer;
 

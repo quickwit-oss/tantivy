@@ -80,7 +80,7 @@ impl<'a> SparseBlock<'a> {
     }
 
     #[inline]
-    #[allow(clippy::comparison_chain)]
+    #[expect(clippy::comparison_chain)]
     // Looks for the element in the block. Returns the positions if found.
     fn binary_search(&self, target: u16) -> Result<u16, u16> {
         let data = &self.0;
