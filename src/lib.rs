@@ -181,7 +181,7 @@ mod core;
 #[allow(deprecated)] // Remove with index sorting
 pub mod indexer;
 
-#[allow(unused_doc_comments)]
+#[expect(unused_doc_comments)]
 pub mod error;
 pub mod tokenizer;
 

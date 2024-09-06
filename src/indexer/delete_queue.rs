@@ -187,7 +187,6 @@ impl DeleteCursor {
         }
     }
 
-    #[allow(clippy::wrong_self_convention)]
     fn is_behind_opstamp(&mut self, target_opstamp: Opstamp) -> bool {
         self.get()
             .map(|operation| operation.opstamp < target_opstamp)

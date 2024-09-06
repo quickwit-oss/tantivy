@@ -402,7 +402,7 @@ fn search_on_u64_ff(
     boost: Score,
     bounds: BoundsRange<u64>,
 ) -> crate::Result<Box<dyn Scorer>> {
-    #[allow(clippy::reversed_empty_ranges)]
+    #[expect(clippy::reversed_empty_ranges)]
     let value_range = bound_to_value_range(
         &bounds.lower_bound,
         &bounds.upper_bound,

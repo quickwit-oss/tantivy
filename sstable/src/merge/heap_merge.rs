@@ -26,7 +26,6 @@ impl<B: AsRef<[u8]>> PartialEq for HeapItem<B> {
     }
 }
 
-#[allow(dead_code)]
 pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
     readers: Vec<Reader<SST::ValueReader>>,
     mut writer: Writer<W, SST::ValueWriter>,

@@ -31,7 +31,6 @@ pub struct InvertedIndexReader {
 }
 
 impl InvertedIndexReader {
-    #[allow(clippy::needless_pass_by_value)] // for symmetry
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
