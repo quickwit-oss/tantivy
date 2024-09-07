@@ -157,6 +157,77 @@ pub trait TokenFilter: 'static + Send + Sync {
     fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T>;
 }
 
+/// An optional [`TokenFilter`].
+impl<F: TokenFilter> TokenFilter for Option<F> {
+    type Tokenizer<T: Tokenizer> = OptionalTokenizer<F::Tokenizer<T>, T>;
+
+    #[inline]
+    fn transform<T: Tokenizer>(self, tokenizer: T) -> Self::Tokenizer<T> {
+        match self {
+            Some(filter) => OptionalTokenizer::Enabled(filter.transform(tokenizer)),
+            None => OptionalTokenizer::Disabled(tokenizer),
+        }
+    }
+}
+
+/// A [`Tokenizer`] derived from a [`TokenFilter::transform`] on an
+/// [`Option<F>`] token filter.
+#[derive(Clone)]
+pub enum OptionalTokenizer<E: Tokenizer, D: Tokenizer> {
+    Enabled(E),
+    Disabled(D),
+}
+
+impl<E: Tokenizer, D: Tokenizer> Tokenizer for OptionalTokenizer<E, D> {
+    type TokenStream<'a> = OptionalTokenStream<E::TokenStream<'a>, D::TokenStream<'a>>;
+
+    #[inline]
+    fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
+        match self {
+            Self::Enabled(tokenizer) => {
+                let token_stream = tokenizer.token_stream(text);
+                OptionalTokenStream::Enabled(token_stream)
+            }
+            Self::Disabled(tokenizer) => {
+                let token_stream = tokenizer.token_stream(text);
+                OptionalTokenStream::Disabled(token_stream)
+            }
+        }
+    }
+}
+
+/// A [`TokenStream`] derived from a [`Tokenizer::token_stream`] on an [`OptionalTokenizer`].
+pub enum OptionalTokenStream<E: TokenStream, D: TokenStream> {
+    Enabled(E),
+    Disabled(D),
+}
+
+impl<E: TokenStream, D: TokenStream> TokenStream for OptionalTokenStream<E, D> {
+    #[inline]
+    fn advance(&mut self) -> bool {
+        match self {
+            Self::Enabled(t) => t.advance(),
+            Self::Disabled(t) => t.advance(),
+        }
+    }
+
+    #[inline]
+    fn token(&self) -> &Token {
+        match self {
+            Self::Enabled(t) => t.token(),
+            Self::Disabled(t) => t.token(),
+        }
+    }
+
+    #[inline]
+    fn token_mut(&mut self) -> &mut Token {
+        match self {
+            Self::Enabled(t) => t.token_mut(),
+            Self::Disabled(t) => t.token_mut(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
