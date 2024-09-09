@@ -19,7 +19,7 @@ time = { version = "0.3.10", features = ["serde-well-known"] }
 serde = { version = "1.0.136", features = ["derive"] }
 
 [dev-dependencies]
-binggan = "0.8.1"
+binggan = "0.10.0"
 proptest = "1.0.0"
 rand = "0.8.4"
 
