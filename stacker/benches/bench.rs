@@ -82,7 +82,7 @@ fn bench_vint() {
                 let mut group = runner.new_group();
                 group.set_name(format!("numbers unique {}", num_numbers_label));
                 group.set_input_size(input_bytes);
-                group.register_with_input("hashmap", &numbers, move |data| {
+                group.register_with_input("only hashmap", &numbers, move |data| {
                     black_box(create_hash_map(data.iter()));
                     None
                 });
@@ -129,7 +129,7 @@ fn main() {
     bench_vint();
 }
 
-const HASHMAP_SIZE: usize = 1 << 15;
+const HASHMAP_SIZE: usize = 1 << 20;
 
 /// Only records the doc ids
 #[derive(Clone, Default, Copy)]
