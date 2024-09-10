@@ -173,11 +173,20 @@ impl FuzzyTermQuery {
             ))
         }
     }
+
+    /// The `Term` this query is built out of.
+    pub fn term(&self) -> &Term {
+        &self.term
+    }
 }
 
 impl Query for FuzzyTermQuery {
     fn weight(&self, _enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight()?))
+    }
+
+    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+        visitor(&self.term, false);
     }
 }
 

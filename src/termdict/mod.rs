@@ -44,7 +44,7 @@ use self::termdict::{
     TermDictionary as InnerTermDict, TermDictionaryBuilder as InnerTermDictBuilder,
     TermStreamerBuilder,
 };
-pub use self::termdict::{TermMerger, TermStreamer};
+pub use self::termdict::{TermInfoStore, TermMerger, TermStreamer};
 use crate::postings::TermInfo;
 
 #[repr(u32)]

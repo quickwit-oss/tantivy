@@ -25,4 +25,5 @@ mod termdict;
 
 pub use self::merger::TermMerger;
 pub use self::streamer::{TermStreamer, TermStreamerBuilder};
+pub use self::term_info_store::TermInfoStore;
 pub use self::termdict::{TermDictionary, TermDictionaryBuilder};

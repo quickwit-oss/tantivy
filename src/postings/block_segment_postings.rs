@@ -94,7 +94,7 @@ impl BlockSegmentPostings {
     /// `requested_option` is the amount of data requested by the user.
     /// If for instance, we do not request for term frequencies, this function will not decompress
     /// term frequency blocks.
-    pub(crate) fn open(
+    pub fn open(
         doc_freq: u32,
         data: FileSlice,
         mut record_option: IndexRecordOption,
