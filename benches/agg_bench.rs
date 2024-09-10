@@ -17,7 +17,10 @@ pub static GLOBAL: &PeakMemAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
 /// runner.register("average_u64", move |index| average_u64(index));
 macro_rules! register {
     ($runner:expr, $func:ident) => {
-        $runner.register(stringify!($func), move |index| $func(index))
+        $runner.register(stringify!($func), move |index| {
+            $func(index);
+            None
+        })
     };
 }
 
