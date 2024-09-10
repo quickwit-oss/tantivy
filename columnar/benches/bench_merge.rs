@@ -41,7 +41,7 @@ fn main() {
                 let merge_row_order = StackMergeOrder::stack(&columnar_readers[..]);
 
                 merge_columnar(&columnar_readers, &[], merge_row_order.into(), &mut out).unwrap();
-                black_box(out);
+                Some(out.len() as u64)
             },
         );
     }

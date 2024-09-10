@@ -42,6 +42,7 @@ fn bench_group(mut runner: InputGroup<Column>) {
             }
         }
         black_box(sum);
+        None
     });
     runner.register("access_first_vals", |column| {
         let mut sum = 0;
@@ -62,6 +63,7 @@ fn bench_group(mut runner: InputGroup<Column>) {
         }
 
         black_box(sum);
+        None
     });
     runner.run();
 }
