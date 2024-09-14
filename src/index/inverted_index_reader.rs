@@ -3,6 +3,12 @@ use std::io;
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::BinarySerializable;
 use fnv::FnvHashSet;
+#[cfg(feature = "quickwit")]
+use futures_util::{FutureExt, StreamExt, TryStreamExt};
+#[cfg(feature = "quickwit")]
+use itertools::Itertools;
+#[cfg(feature = "quickwit")]
+use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
@@ -219,13 +225,18 @@ impl InvertedIndexReader {
         self.termdict.get_async(term.serialized_value_bytes()).await
     }
 
-    async fn get_term_range_async(
-        &self,
+    async fn get_term_range_async<'a, A: Automaton + 'a>(
+        &'a self,
         terms: impl std::ops::RangeBounds<Term>,
+        automaton: A,
         limit: Option<u64>,
-    ) -> io::Result<impl Iterator<Item = TermInfo> + '_> {
+        merge_holes_under: usize,
+    ) -> io::Result<impl Iterator<Item = TermInfo> + 'a>
+    where
+        A::State: Clone,
+    {
         use std::ops::Bound;
-        let range_builder = self.termdict.range();
+        let range_builder = self.termdict.search(automaton);
         let range_builder = match terms.start_bound() {
             Bound::Included(bound) => range_builder.ge(bound.serialized_value_bytes()),
             Bound::Excluded(bound) => range_builder.gt(bound.serialized_value_bytes()),
@@ -242,7 +253,7 @@ impl InvertedIndexReader {
             range_builder
         };
 
-        let mut stream = range_builder.into_stream_async().await?;
+        let mut stream = range_builder.into_stream_async(merge_holes_under).await?;
 
         let iter = std::iter::from_fn(move || stream.next().map(|(_k, v)| v.clone()));
 
@@ -288,7 +299,9 @@ impl InvertedIndexReader {
         limit: Option<u64>,
         with_positions: bool,
     ) -> io::Result<bool> {
-        let mut term_info = self.get_term_range_async(terms, limit).await?;
+        let mut term_info = self
+            .get_term_range_async(terms, AlwaysMatch, limit, 0)
+            .await?;
 
         let Some(first_terminfo) = term_info.next() else {
             // no key matches, nothing more to load
@@ -313,6 +326,55 @@ impl InvertedIndexReader {
             postings.await?;
         }
         Ok(true)
+    }
+
+    /// Warmup a block postings given a range of `Term`s.
+    /// This method is for an advanced usage only.
+    ///
+    /// returns a boolean, whether a term matching the range was found in the dictionary
+    pub async fn warm_postings_automaton<A: Automaton + Clone>(
+        &self,
+        automaton: A,
+        // with_positions: bool, at the moment we have no use for it, and supporting it would add
+        // complexity to the coalesce
+    ) -> io::Result<bool>
+    where
+        A::State: Clone,
+    {
+        // merge holes under 4MiB, that's how many bytes we can hope to receive during a TTFB from
+        // S3 (~80MiB/s, and 50ms latency)
+        let merge_holes_under = (80 * 1024 * 1024 * 50) / 1000;
+        // we build a first iterator to download everything. Simply calling the function already
+        // loads everything, but doesn't start iterating over the sstable.
+        let mut _term_info = self
+            .get_term_range_async(.., automaton.clone(), None, merge_holes_under)
+            .await?;
+        // we build a 2nd iterator, this one with no holes, so we don't go through blocks we can't
+        // match, and just download them to reduce our query count. This makes the assumption
+        // there is a caching layer below, which might not always be true, but is in Quickwit.
+        let term_info = self.get_term_range_async(.., automaton, None, 0).await?;
+
+        let range_to_load = term_info
+            .map(|term_info| term_info.postings_range)
+            .coalesce(|range1, range2| {
+                if range1.end + merge_holes_under >= range2.start {
+                    Ok(range1.start..range2.end)
+                } else {
+                    Err((range1, range2))
+                }
+            });
+
+        let slices_downloaded = futures_util::stream::iter(range_to_load)
+            .map(|posting_slice| {
+                self.postings_file_slice
+                    .read_bytes_slice_async(posting_slice)
+                    .map(|result| result.map(|_slice| ()))
+            })
+            .buffer_unordered(5)
+            .try_collect::<Vec<()>>()
+            .await?;
+
+        Ok(!slices_downloaded.is_empty())
     }
 
     /// Warmup the block postings for all terms.
