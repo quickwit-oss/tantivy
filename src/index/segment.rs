@@ -46,7 +46,7 @@ impl Segment {
     ///
     /// This method is only used when updating `max_doc` from 0
     /// as we finalize a fresh new segment.
-    pub fn with_max_doc(self, max_doc: u32) -> Segment {
+    pub(crate) fn with_max_doc(self, max_doc: u32) -> Segment {
         Segment {
             index: self.index,
             meta: self.meta.with_max_doc(max_doc),
