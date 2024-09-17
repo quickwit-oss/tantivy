@@ -21,6 +21,9 @@ impl<K, V, S> MemoryConsumption for HashMap<K, V, S> {
 
 /// Aggregation memory limit after which the request fails. Defaults to DEFAULT_MEMORY_LIMIT
 /// (500MB). The limit is shared by all SegmentCollectors
+///
+/// The memory limit is also a guard, which tracks how much it allocated and releases it's memory
+/// on the shared counter. Cloning will create a new guard.
 pub struct AggregationLimits {
     /// The counter which is shared between the aggregations for one request.
     memory_consumption: Arc<AtomicU64>,
@@ -29,6 +32,8 @@ pub struct AggregationLimits {
     /// The maximum number of buckets _returned_
     /// This is not counting intermediate buckets.
     bucket_limit: u32,
+    /// Allocated memory with this guard.
+    allocated_with_the_guard: u64,
 }
 impl Clone for AggregationLimits {
     fn clone(&self) -> Self {
@@ -36,7 +41,17 @@ impl Clone for AggregationLimits {
             memory_consumption: Arc::clone(&self.memory_consumption),
             memory_limit: self.memory_limit,
             bucket_limit: self.bucket_limit,
+            allocated_with_the_guard: 0,
         }
+    }
+}
+
+impl Drop for AggregationLimits {
+    /// Removes the memory consumed tracked by this _instance_ of AggregationLimits.
+    /// This is used to clear the segment specific memory consumption all at once.
+    fn drop(&mut self) {
+        self.memory_consumption
+            .fetch_sub(self.allocated_with_the_guard, Ordering::Relaxed);
     }
 }
 
@@ -46,6 +61,7 @@ impl Default for AggregationLimits {
             memory_consumption: Default::default(),
             memory_limit: DEFAULT_MEMORY_LIMIT.into(),
             bucket_limit: DEFAULT_BUCKET_LIMIT,
+            allocated_with_the_guard: 0,
         }
     }
 }
@@ -67,24 +83,15 @@ impl AggregationLimits {
             memory_consumption: Default::default(),
             memory_limit: memory_limit.unwrap_or(DEFAULT_MEMORY_LIMIT).into(),
             bucket_limit: bucket_limit.unwrap_or(DEFAULT_BUCKET_LIMIT),
-        }
-    }
-
-    /// Create a new ResourceLimitGuard, that will release the memory when dropped.
-    pub fn new_guard(&self) -> ResourceLimitGuard {
-        ResourceLimitGuard {
-            // The counter which is shared between the aggregations for one request.
-            memory_consumption: Arc::clone(&self.memory_consumption),
-            // The memory_limit in bytes
-            memory_limit: self.memory_limit,
             allocated_with_the_guard: 0,
         }
     }
 
-    pub(crate) fn add_memory_consumed(&self, add_num_bytes: u64) -> crate::Result<()> {
+    pub(crate) fn add_memory_consumed(&mut self, add_num_bytes: u64) -> crate::Result<()> {
         let prev_value = self
             .memory_consumption
             .fetch_add(add_num_bytes, Ordering::Relaxed);
+        self.allocated_with_the_guard += add_num_bytes;
         validate_memory_consumption(prev_value + add_num_bytes, self.memory_limit)?;
         Ok(())
     }
@@ -107,34 +114,6 @@ fn validate_memory_consumption(
         });
     }
     Ok(())
-}
-
-pub struct ResourceLimitGuard {
-    /// The counter which is shared between the aggregations for one request.
-    memory_consumption: Arc<AtomicU64>,
-    /// The memory_limit in bytes
-    memory_limit: ByteCount,
-    /// Allocated memory with this guard.
-    allocated_with_the_guard: u64,
-}
-
-impl ResourceLimitGuard {
-    pub(crate) fn add_memory_consumed(&self, add_num_bytes: u64) -> crate::Result<()> {
-        let prev_value = self
-            .memory_consumption
-            .fetch_add(add_num_bytes, Ordering::Relaxed);
-        validate_memory_consumption(prev_value + add_num_bytes, self.memory_limit)?;
-        Ok(())
-    }
-}
-
-impl Drop for ResourceLimitGuard {
-    /// Removes the memory consumed tracked by this _instance_ of AggregationLimits.
-    /// This is used to clear the segment specific memory consumption all at once.
-    fn drop(&mut self) {
-        self.memory_consumption
-            .fetch_sub(self.allocated_with_the_guard, Ordering::Relaxed);
-    }
 }
 
 #[cfg(test)]

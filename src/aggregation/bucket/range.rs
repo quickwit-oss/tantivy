@@ -4,7 +4,6 @@ use std::ops::Range;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_limits::ResourceLimitGuard;
 use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -270,7 +269,7 @@ impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
         req: &RangeAggregation,
         sub_aggregation: &mut AggregationsWithAccessor,
-        limits: &ResourceLimitGuard,
+        limits: &mut AggregationLimits,
         field_type: ColumnType,
         accessor_idx: usize,
     ) -> crate::Result<Self> {
@@ -471,7 +470,7 @@ mod tests {
         SegmentRangeCollector::from_req_and_validate(
             &req,
             &mut Default::default(),
-            &AggregationLimits::default().new_guard(),
+            &mut AggregationLimits::default(),
             field_type,
             0,
         )

@@ -438,7 +438,7 @@ fn intermediate_buckets_to_final_buckets_fill_gaps(
     buckets: Vec<IntermediateHistogramBucketEntry>,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &Aggregations,
-    limits: &AggregationLimits,
+    limits: &mut AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     // Generate the full list of buckets without gaps.
     //
@@ -496,7 +496,7 @@ pub(crate) fn intermediate_histogram_buckets_to_final_buckets(
     is_date_agg: bool,
     histogram_req: &HistogramAggregation,
     sub_aggregation: &Aggregations,
-    limits: &AggregationLimits,
+    limits: &mut AggregationLimits,
 ) -> crate::Result<Vec<BucketEntry>> {
     // Normalization is column type dependent.
     // The request used in the the call to final is not yet be normalized.

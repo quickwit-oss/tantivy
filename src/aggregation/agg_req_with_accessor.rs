@@ -5,7 +5,6 @@ use std::io;
 
 use columnar::{Column, ColumnBlockAccessor, ColumnType, DynamicColumn, StrColumn};
 
-use super::agg_limits::ResourceLimitGuard;
 use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
@@ -46,7 +45,7 @@ pub struct AggregationWithAccessor {
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
-    pub(crate) limits: ResourceLimitGuard,
+    pub(crate) limits: AggregationLimits,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
     /// Used for missing term aggregation, which checks all columns for existence.
     /// And also for `top_hits` aggregation, which may sort on multiple fields.
@@ -91,7 +90,7 @@ impl AggregationWithAccessor {
                     &limits,
                 )?,
                 agg: agg.clone(),
-                limits: limits.new_guard(),
+                limits: limits.clone(),
                 missing_value_for_accessor: None,
                 str_dict_column: None,
                 column_block_accessor: Default::default(),
@@ -106,6 +105,7 @@ impl AggregationWithAccessor {
                                       value_accessors: HashMap<String, Vec<DynamicColumn>>|
          -> crate::Result<()> {
             let (accessor, field_type) = accessors.first().expect("at least one accessor");
+            let limits = limits.clone();
             let res = AggregationWithAccessor {
                 segment_ordinal,
                 // TODO: We should do away with the `accessor` field altogether
@@ -120,7 +120,7 @@ impl AggregationWithAccessor {
                     &limits,
                 )?,
                 agg: agg.clone(),
-                limits: limits.new_guard(),
+                limits,
                 missing_value_for_accessor: None,
                 str_dict_column: None,
                 column_block_accessor: Default::default(),
@@ -245,6 +245,7 @@ impl AggregationWithAccessor {
                             None
                         };
 
+                    let limits = limits.clone();
                     let agg = AggregationWithAccessor {
                         segment_ordinal,
                         missing_value_for_accessor,
@@ -260,7 +261,7 @@ impl AggregationWithAccessor {
                         )?,
                         agg: agg.clone(),
                         str_dict_column: str_dict_column.clone(),
-                        limits: limits.new_guard(),
+                        limits,
                         column_block_accessor: Default::default(),
                     };
                     res.push(agg);

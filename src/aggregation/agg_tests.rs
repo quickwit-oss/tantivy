@@ -146,7 +146,7 @@ fn test_aggregation_flushing(
                 .expect("Post deserialization failed");
 
         intermediate_agg_result
-            .into_final_result(agg_req, &Default::default())
+            .into_final_result(agg_req, Default::default())
             .unwrap()
     } else {
         let collector = get_collector(agg_req);
@@ -460,7 +460,7 @@ fn test_aggregation_level2(
 
         let searcher = reader.searcher();
         let res = searcher.search(&term_query, &collector).unwrap();
-        res.into_final_result(agg_req.clone(), &Default::default())
+        res.into_final_result(agg_req.clone(), Default::default())
             .unwrap()
     } else {
         let collector = get_collector(agg_req.clone());
