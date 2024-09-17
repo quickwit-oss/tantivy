@@ -5,7 +5,7 @@
 
 use std::fmt::Debug;
 
-pub(crate) use super::agg_limits::AggregationLimits;
+pub(crate) use super::agg_limits::AggregationLimitsGuard;
 use super::agg_req::AggregationVariants;
 use super::agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAccessor};
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
@@ -103,7 +103,7 @@ pub(crate) fn build_single_agg_segment_collector(
         Range(range_req) => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
             range_req,
             &mut req.sub_aggregation,
-            &req.limits,
+            &mut req.limits,
             req.field_type,
             accessor_idx,
         )?)),

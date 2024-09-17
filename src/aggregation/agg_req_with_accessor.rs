@@ -5,7 +5,6 @@ use std::io;
 
 use columnar::{Column, ColumnBlockAccessor, ColumnType, DynamicColumn, StrColumn};
 
-use super::agg_limits::ResourceLimitGuard;
 use super::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
@@ -14,7 +13,7 @@ use super::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
     MaxAggregation, MinAggregation, StatsAggregation, SumAggregation,
 };
-use super::segment_agg_result::AggregationLimits;
+use super::segment_agg_result::AggregationLimitsGuard;
 use super::VecWithNames;
 use crate::aggregation::{f64_to_fastfield_u64, Key};
 use crate::index::SegmentReader;
@@ -46,7 +45,7 @@ pub struct AggregationWithAccessor {
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
-    pub(crate) limits: ResourceLimitGuard,
+    pub(crate) limits: AggregationLimitsGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
     /// Used for missing term aggregation, which checks all columns for existence.
     /// And also for `top_hits` aggregation, which may sort on multiple fields.
@@ -69,7 +68,7 @@ impl AggregationWithAccessor {
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
         segment_ordinal: SegmentOrdinal,
-        limits: AggregationLimits,
+        limits: AggregationLimitsGuard,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
         let mut agg = agg.clone();
 
@@ -91,7 +90,7 @@ impl AggregationWithAccessor {
                     &limits,
                 )?,
                 agg: agg.clone(),
-                limits: limits.new_guard(),
+                limits: limits.clone(),
                 missing_value_for_accessor: None,
                 str_dict_column: None,
                 column_block_accessor: Default::default(),
@@ -106,6 +105,7 @@ impl AggregationWithAccessor {
                                       value_accessors: HashMap<String, Vec<DynamicColumn>>|
          -> crate::Result<()> {
             let (accessor, field_type) = accessors.first().expect("at least one accessor");
+            let limits = limits.clone();
             let res = AggregationWithAccessor {
                 segment_ordinal,
                 // TODO: We should do away with the `accessor` field altogether
@@ -120,7 +120,7 @@ impl AggregationWithAccessor {
                     &limits,
                 )?,
                 agg: agg.clone(),
-                limits: limits.new_guard(),
+                limits,
                 missing_value_for_accessor: None,
                 str_dict_column: None,
                 column_block_accessor: Default::default(),
@@ -245,6 +245,7 @@ impl AggregationWithAccessor {
                             None
                         };
 
+                    let limits = limits.clone();
                     let agg = AggregationWithAccessor {
                         segment_ordinal,
                         missing_value_for_accessor,
@@ -260,7 +261,7 @@ impl AggregationWithAccessor {
                         )?,
                         agg: agg.clone(),
                         str_dict_column: str_dict_column.clone(),
-                        limits: limits.new_guard(),
+                        limits,
                         column_block_accessor: Default::default(),
                     };
                     res.push(agg);
@@ -386,7 +387,7 @@ pub(crate) fn get_aggs_with_segment_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    limits: &AggregationLimits,
+    limits: &AggregationLimitsGuard,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut aggss = Vec::new();
     for (key, agg) in aggs.iter() {

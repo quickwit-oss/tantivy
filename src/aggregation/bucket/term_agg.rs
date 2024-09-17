@@ -669,7 +669,7 @@ mod tests {
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_from_terms, get_test_index_from_values_and_terms,
     };
-    use crate::aggregation::AggregationLimits;
+    use crate::aggregation::AggregationLimitsGuard;
     use crate::indexer::NoMergePolicy;
     use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
     use crate::{Index, IndexWriter};
@@ -1424,7 +1424,7 @@ mod tests {
             agg_req,
             &index,
             None,
-            AggregationLimits::new(Some(50_000), None),
+            AggregationLimitsGuard::new(Some(50_000), None),
         )
         .unwrap_err();
         assert!(res
