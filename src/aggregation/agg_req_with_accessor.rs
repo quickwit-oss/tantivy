@@ -13,7 +13,7 @@ use super::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
     MaxAggregation, MinAggregation, StatsAggregation, SumAggregation,
 };
-use super::segment_agg_result::AggregationLimits;
+use super::segment_agg_result::AggregationLimitsGuard;
 use super::VecWithNames;
 use crate::aggregation::{f64_to_fastfield_u64, Key};
 use crate::index::SegmentReader;
@@ -45,7 +45,7 @@ pub struct AggregationWithAccessor {
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
-    pub(crate) limits: AggregationLimits,
+    pub(crate) limits: AggregationLimitsGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
     /// Used for missing term aggregation, which checks all columns for existence.
     /// And also for `top_hits` aggregation, which may sort on multiple fields.
@@ -68,7 +68,7 @@ impl AggregationWithAccessor {
         sub_aggregation: &Aggregations,
         reader: &SegmentReader,
         segment_ordinal: SegmentOrdinal,
-        limits: AggregationLimits,
+        limits: AggregationLimitsGuard,
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
         let mut agg = agg.clone();
 
@@ -387,7 +387,7 @@ pub(crate) fn get_aggs_with_segment_accessor_and_validate(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    limits: &AggregationLimits,
+    limits: &AggregationLimitsGuard,
 ) -> crate::Result<AggregationsWithAccessor> {
     let mut aggss = Vec::new();
     for (key, agg) in aggs.iter() {

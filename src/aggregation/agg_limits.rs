@@ -24,7 +24,7 @@ impl<K, V, S> MemoryConsumption for HashMap<K, V, S> {
 ///
 /// The memory limit is also a guard, which tracks how much it allocated and releases it's memory
 /// on the shared counter. Cloning will create a new guard.
-pub struct AggregationLimits {
+pub struct AggregationLimitsGuard {
     /// The counter which is shared between the aggregations for one request.
     memory_consumption: Arc<AtomicU64>,
     /// The memory_limit in bytes
@@ -35,7 +35,7 @@ pub struct AggregationLimits {
     /// Allocated memory with this guard.
     allocated_with_the_guard: u64,
 }
-impl Clone for AggregationLimits {
+impl Clone for AggregationLimitsGuard {
     fn clone(&self) -> Self {
         Self {
             memory_consumption: Arc::clone(&self.memory_consumption),
@@ -46,7 +46,7 @@ impl Clone for AggregationLimits {
     }
 }
 
-impl Drop for AggregationLimits {
+impl Drop for AggregationLimitsGuard {
     /// Removes the memory consumed tracked by this _instance_ of AggregationLimits.
     /// This is used to clear the segment specific memory consumption all at once.
     fn drop(&mut self) {
@@ -55,7 +55,7 @@ impl Drop for AggregationLimits {
     }
 }
 
-impl Default for AggregationLimits {
+impl Default for AggregationLimitsGuard {
     fn default() -> Self {
         Self {
             memory_consumption: Default::default(),
@@ -66,7 +66,7 @@ impl Default for AggregationLimits {
     }
 }
 
-impl AggregationLimits {
+impl AggregationLimitsGuard {
     /// *memory_limit*
     /// memory_limit is defined in bytes.
     /// Aggregation fails when the estimated memory consumption of the aggregation is higher than

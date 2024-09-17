@@ -22,7 +22,7 @@ use super::metric::{
     IntermediateAverage, IntermediateCount, IntermediateExtendedStats, IntermediateMax,
     IntermediateMin, IntermediateStats, IntermediateSum, PercentilesCollector, TopHitsTopNComputer,
 };
-use super::segment_agg_result::AggregationLimits;
+use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
 use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
 use crate::aggregation::bucket::TermsAggregationInternal;
@@ -122,7 +122,7 @@ impl IntermediateAggregationResults {
     pub fn into_final_result(
         self,
         req: Aggregations,
-        mut limits: AggregationLimits,
+        mut limits: AggregationLimitsGuard,
     ) -> crate::Result<AggregationResults> {
         let res = self.into_final_result_internal(&req, &mut limits)?;
         let bucket_count = res.get_bucket_count() as u32;
@@ -141,7 +141,7 @@ impl IntermediateAggregationResults {
     pub(crate) fn into_final_result_internal(
         self,
         req: &Aggregations,
-        limits: &mut AggregationLimits,
+        limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<AggregationResults> {
         let mut results: FxHashMap<String, AggregationResult> = FxHashMap::default();
         for (key, agg_res) in self.aggs_res.into_iter() {
@@ -257,7 +257,7 @@ impl IntermediateAggregationResult {
     pub(crate) fn into_final_result(
         self,
         req: &Aggregation,
-        limits: &mut AggregationLimits,
+        limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<AggregationResult> {
         let res = match self {
             IntermediateAggregationResult::Bucket(bucket) => {
@@ -432,7 +432,7 @@ impl IntermediateBucketResult {
     pub(crate) fn into_final_bucket_result(
         self,
         req: &Aggregation,
-        limits: &mut AggregationLimits,
+        limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<BucketResult> {
         match self {
             IntermediateBucketResult::Range(range_res) => {
@@ -596,7 +596,7 @@ impl IntermediateTermBucketResult {
         self,
         req: &TermsAggregation,
         sub_aggregation_req: &Aggregations,
-        limits: &mut AggregationLimits,
+        limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<BucketResult> {
         let req = TermsAggregationInternal::from_req(req);
         let mut buckets: Vec<BucketEntry> = self
@@ -723,7 +723,7 @@ impl IntermediateHistogramBucketEntry {
     pub(crate) fn into_final_bucket_entry(
         self,
         req: &Aggregations,
-        limits: &mut AggregationLimits,
+        limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<BucketEntry> {
         Ok(BucketEntry {
             key_as_string: None,
@@ -758,7 +758,7 @@ impl IntermediateRangeBucketEntry {
         req: &Aggregations,
         _range_req: &RangeAggregation,
         column_type: Option<ColumnType>,
-        limits: &mut AggregationLimits,
+        limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<RangeBucketEntry> {
         let mut range_bucket_entry = RangeBucketEntry {
             key: self.key.into(),

@@ -148,7 +148,7 @@ mod agg_tests;
 
 use core::fmt;
 
-pub use agg_limits::AggregationLimits;
+pub use agg_limits::AggregationLimitsGuard;
 pub use collector::{
     AggregationCollector, AggregationSegmentCollector, DistributedAggregationCollector,
     DEFAULT_BUCKET_LIMIT,
@@ -458,7 +458,7 @@ mod tests {
         agg_req: Aggregations,
         index: &Index,
         query: Option<(&str, &str)>,
-        limits: AggregationLimits,
+        limits: AggregationLimitsGuard,
     ) -> crate::Result<Value> {
         let collector = AggregationCollector::from_aggs(agg_req, limits);
 

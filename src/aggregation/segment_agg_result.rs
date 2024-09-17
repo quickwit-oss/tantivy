@@ -5,7 +5,7 @@
 
 use std::fmt::Debug;
 
-pub(crate) use super::agg_limits::AggregationLimits;
+pub(crate) use super::agg_limits::AggregationLimitsGuard;
 use super::agg_req::AggregationVariants;
 use super::agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAccessor};
 use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};

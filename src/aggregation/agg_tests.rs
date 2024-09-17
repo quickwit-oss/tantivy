@@ -5,7 +5,7 @@ use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
-use crate::aggregation::segment_agg_result::AggregationLimits;
+use crate::aggregation::segment_agg_result::AggregationLimitsGuard;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
 use crate::query::{AllQuery, TermQuery};
@@ -130,7 +130,7 @@ fn test_aggregation_flushing(
     let agg_res: AggregationResults = if use_distributed_collector {
         let collector = DistributedAggregationCollector::from_aggs(
             agg_req.clone(),
-            AggregationLimits::default(),
+            AggregationLimitsGuard::default(),
         );
 
         let searcher = reader.searcher();
