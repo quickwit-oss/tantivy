@@ -158,7 +158,7 @@ impl TermDictionary {
     /// Returns a search builder, to stream all of the terms
     /// within the Automaton
     pub fn search<'a, A: Automaton + 'a>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A>
-    where A::State: Clone {
+    {
         self.0.search(automaton)
     }
 

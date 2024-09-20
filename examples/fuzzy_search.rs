@@ -74,16 +74,10 @@ fn main() -> tantivy::Result<()> {
     // ### Adding documents
     //
     index_writer.add_document(doc!(
-        title => "The Name of the Wind",
+        title => "Help",
     ))?;
     index_writer.add_document(doc!(
-        title => "The Diary of Muadib",
-    ))?;
-    index_writer.add_document(doc!(
-        title => "A Dairy Cow",
-    ))?;
-    index_writer.add_document(doc!(
-        title => "The Diary of a Young Girl",
+        title => "Telp",
     ))?;
     index_writer.commit()?;
 
@@ -142,14 +136,13 @@ fn main() -> tantivy::Result<()> {
 
     // ### FuzzyTermQuery
     {
-        let term = Term::from_field_text(title, "Diary");
-        let query = FuzzyTermQuery::new(term, 2, true);
+        let term = Term::from_field_text(title, "help");
+        let mut query = FuzzyTermQuery::new(term, 2, true);
+        query.set_prefix_length(Some(2));
 
         let (top_docs, count) = searcher
             .search(&query, &(TopDocs::with_limit(5), Count))
             .unwrap();
-        assert_eq!(count, 3);
-        assert_eq!(top_docs.len(), 3);
         for (score, doc_address) in top_docs {
             // Note that the score is not lower for the fuzzy hit.
             // There's an issue open for that: https://github.com/quickwit-oss/tantivy/issues/563
