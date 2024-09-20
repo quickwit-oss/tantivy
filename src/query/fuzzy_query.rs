@@ -180,7 +180,7 @@ impl FuzzyTermQuery {
             transposition_cost_one,
             prefix: false,
             max_expansions: Some(DEFAULT_MAX_EXPANSIONS),
-            prefix_length: Some(0),
+            prefix_length: None,
         }
     }
 
@@ -192,7 +192,7 @@ impl FuzzyTermQuery {
             transposition_cost_one,
             prefix: true,
             max_expansions: Some(DEFAULT_MAX_EXPANSIONS),
-            prefix_length: Some(0),
+            prefix_length: None,
         }
     }
 
