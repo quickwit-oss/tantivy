@@ -1,3 +1,69 @@
+Tantivy 0.23 - Unreleased
+================================
+Tantivy 0.23 will be backwards compatible with indices created with v0.22 and v0.21.
+
+#### Bugfixes
+- fix potential endless loop in merge [#2457](https://github.com/quickwit-oss/tantivy/pull/2457)(@PSeitz)
+- fix bug that causes out-of-order sstable key. [#2445](https://github.com/quickwit-oss/tantivy/pull/2445)(@fulmicoton)
+- fix ReferenceValue API flaw [#2372](https://github.com/quickwit-oss/tantivy/pull/2372)(@PSeitz)
+
+#### Breaking API Changes
+- remove index sorting [#2434](https://github.com/quickwit-oss/tantivy/pull/2434)(@PSeitz)
+
+#### Features/Improvements
+- **Aggregation**
+    - Support for cardinality aggregation [#2337](https://github.com/quickwit-oss/tantivy/pull/2337) [#2446](https://github.com/quickwit-oss/tantivy/pull/2446) (@raphaelcoeffic @PSeitz)
+    - Support for extended stats aggregation [#2247](https://github.com/quickwit-oss/tantivy/pull/2247)(@giovannicuccu)
+    - Add Key::I64 and Key::U64 variants in aggregation to avoid f64 precision issues [#2468](https://github.com/quickwit-oss/tantivy/pull/2468)(@PSeitz)
+    - Faster term aggregation fetch terms [#2447](https://github.com/quickwit-oss/tantivy/pull/2447)(@PSeitz)
+    - Improve custom order deserialization [#2451](https://github.com/quickwit-oss/tantivy/pull/2451)(@PSeitz)
+    - Change AggregationLimits behavior [#2495](https://github.com/quickwit-oss/tantivy/pull/2495)(@PSeitz)
+    - lower contention on AggregationLimits [#2394](https://github.com/quickwit-oss/tantivy/pull/2394)(@PSeitz)
+    - fix postcard compatibility for top_hits, add postcard test [#2346](https://github.com/quickwit-oss/tantivy/pull/2346)(@PSeitz)
+    - reduce top hits memory consumption [#2426](https://github.com/quickwit-oss/tantivy/pull/2426)(@PSeitz)
+    - check unsupported parameters top_hits [#2351](https://github.com/quickwit-oss/tantivy/pull/2351)(@PSeitz)
+    - Change AggregationLimits to AggregationLimitsGuard [#2495](https://github.com/quickwit-oss/tantivy/pull/2495)(@PSeitz)
+- **Range Queries**
+    - Support fast field range queries on json fields [#2456](https://github.com/quickwit-oss/tantivy/pull/2456)(@PSeitz)
+    - Add support for str fast field range query [#2460](https://github.com/quickwit-oss/tantivy/pull/2460) [#2452](https://github.com/quickwit-oss/tantivy/pull/2452) [#2453](https://github.com/quickwit-oss/tantivy/pull/2453)(@PSeitz)
+    - modify fastfield range query heuristic [#2375](https://github.com/quickwit-oss/tantivy/pull/2375)(@trinity-1686a)
+    - add FastFieldRangeQuery for explicit range queries on fast field (for `RangeQuery` it is autodetected) [#2477](https://github.com/quickwit-oss/tantivy/pull/2477)(@PSeitz)
+
+- add format backwards-compatibiliy tests [#2485](https://github.com/quickwit-oss/tantivy/pull/2485)(@PSeitz)
+- add columnar format compatibiliy tests [#2433](https://github.com/quickwit-oss/tantivy/pull/2433)(@PSeitz)
+- Improved snippet ranges algorithm [#2474](https://github.com/quickwit-oss/tantivy/pull/2474)(@gezihuzi)
+- make find_field_with_default return json fields without path [#2476](https://github.com/quickwit-oss/tantivy/pull/2476)(@trinity-1686a)
+- feat(query): Make `BooleanQuery` support `minimum_number_should_match` [#2405](https://github.com/quickwit-oss/tantivy/pull/2405)(@LebranceBW)
+
+- **Optional Index in Multivalue Columnar Index** For mostly empty multivalued indices there was a large overhead during creation when iterating all docids (merge case). This is alleviated by placing an optional index in the multivalued index to mark documents that have values. This will slightly increase space and access time. [#2439](https://github.com/quickwit-oss/tantivy/pull/2439)(@PSeitz)
+
+- **Performace/Memory**
+    - lift clauses in LogicalAst for optimized ast during execution [#2449](https://github.com/quickwit-oss/tantivy/pull/2449)(@PSeitz)
+    - Use Vec instead of BTreeMap to back OwnedValue object [#2364](https://github.com/quickwit-oss/tantivy/pull/2364)(@fulmicoton)
+    - Replace TantivyDocument with CompactDoc. CompactDoc is much smaller and provides similar performance. [#2402](https://github.com/quickwit-oss/tantivy/pull/2402)(@PSeitz)
+    - Recycling buffer in PrefixPhraseScorer [#2443](https://github.com/quickwit-oss/tantivy/pull/2443)(@fulmicoton)
+
+- **Json Type**
+    - JSON supports now all values on the root level. Previously an object was required. This enables support for flat mixed types. allow more JSON values, fix i64 special case [#2383](https://github.com/quickwit-oss/tantivy/pull/2383)(@PSeitz)
+    - add json path constructor to term [#2367](https://github.com/quickwit-oss/tantivy/pull/2367)(@PSeitz)
+
+- **QueryParser**
+    - fix de-escaping too much in query parser [#2427](https://github.com/quickwit-oss/tantivy/pull/2427)(@trinity-1686a)
+    - improve query parser [#2416](https://github.com/quickwit-oss/tantivy/pull/2416)(@trinity-1686a)
+    - Support field grouping `title:(return AND "pink panther")` [#2333](https://github.com/quickwit-oss/tantivy/pull/2333)(@trinity-1686a)
+
+- add access benchmark for columnar [#2432](https://github.com/quickwit-oss/tantivy/pull/2432)(@PSeitz)
+- extend indexwriter proptests [#2342](https://github.com/quickwit-oss/tantivy/pull/2342)(@PSeitz)
+- add bench & test for columnar merging [#2428](https://github.com/quickwit-oss/tantivy/pull/2428)(@PSeitz)
+- Change in Executor API [#2391](https://github.com/quickwit-oss/tantivy/pull/2391)(@fulmicoton)
+- Removed usage of num_cpus [#2387](https://github.com/quickwit-oss/tantivy/pull/2387)(@fulmicoton)
+- use bingang for agg benchmark [#2378](https://github.com/quickwit-oss/tantivy/pull/2378)(@PSeitz)
+- cleanup top level exports [#2382](https://github.com/quickwit-oss/tantivy/pull/2382)(@PSeitz)
+- make convert_to_fast_value_and_append_to_json_term pub [#2370](https://github.com/quickwit-oss/tantivy/pull/2370)(@PSeitz)
+- remove JsonTermWriter [#2238](https://github.com/quickwit-oss/tantivy/pull/2238)(@PSeitz)
+- validate sort by field type [#2336](https://github.com/quickwit-oss/tantivy/pull/2336)(@PSeitz)
+- Fix trait bound of StoreReader::iter [#2360](https://github.com/quickwit-oss/tantivy/pull/2360)(@adamreichold)
+
 Tantivy 0.22
 ================================
 
