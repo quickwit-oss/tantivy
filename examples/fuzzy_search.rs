@@ -17,7 +17,8 @@ use tantivy::schema::*;
 use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
 use tempfile::TempDir;
 
-fn main() -> tantivy::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     // Let's create a temporary directory for the
     // sake of this example
     let index_path = TempDir::new()?;
@@ -146,7 +147,7 @@ fn main() -> tantivy::Result<()> {
         for (score, doc_address) in top_docs {
             // Note that the score is not lower for the fuzzy hit.
             // There's an issue open for that: https://github.com/quickwit-oss/tantivy/issues/563
-            let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
+            let retrieved_doc: TantivyDocument = searcher.doc_async(doc_address).await?;
             println!("score {score:?} doc {}", retrieved_doc.to_json(&schema));
             // score 1.0 doc {"title":["The Diary of Muadib"]}
             //

@@ -67,7 +67,8 @@ sketches-ddsketch = { version = "0.3.0", features = ["use_serde"] }
 hyperloglogplus = { version = "0.4.1", features = ["const-loop"] }
 futures-util = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
-
+tokio = { version = "1.40.0", features = ["full"] }
+anyhow = "1.0.86"
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
 
@@ -87,7 +88,8 @@ time = { version = "0.3.10", features = ["serde-well-known", "macros"] }
 postcard = { version = "1.0.4", features = [
   "use-std",
 ], default-features = false }
-
+tokio = { version = "1.40.0", features = ["full"] }
+anyhow = "1.0.86"
 [target.'cfg(not(windows))'.dev-dependencies]
 criterion = { version = "0.5", default-features = false }
 
@@ -110,7 +112,7 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-default = ["mmap", "stopwords", "lz4-compression"]
+default = ["mmap", "stopwords", "lz4-compression", "futures-util"]
 mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
 

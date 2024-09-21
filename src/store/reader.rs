@@ -18,7 +18,7 @@ use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserialize};
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
-#[cfg(feature = "quickwit")]
+//#[cfg(feature = "quickwit")]
 use crate::Executor;
 
 pub(crate) const DOCSTORE_CACHE_CAPACITY: usize = 100;
@@ -336,7 +336,7 @@ fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
     Ok(start_offset..end_offset)
 }
 
-#[cfg(feature = "quickwit")]
+//#[cfg(feature = "quickwit")]
 impl StoreReader {
     /// Advanced API.
     ///
