@@ -222,6 +222,43 @@ impl InvertedIndexReader {
             .map(|term_info| term_info.doc_freq)
             .unwrap_or(0u32))
     }
+
+    /// Warmup the block postings for all terms.
+    /// This method is for an advanced usage only.
+    ///
+    /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] or
+    /// [`Self::warm_postings`] instead.
+    pub async fn warm_postings_full(&self, with_positions: bool) -> io::Result<()> {
+        self.postings_file_slice.read_bytes_async().await?;
+        if with_positions {
+            self.positions_file_slice.read_bytes_async().await?;
+        }
+        Ok(())
+    }
+
+    /// Warmup a block postings given a `Term`.
+    /// This method is for an advanced usage only.
+    ///
+    /// returns a boolean, whether the term was found in the dictionary
+    pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<bool> {
+        let term_info_opt: Option<TermInfo> = self.get_term_info(term)?;
+        if let Some(term_info) = term_info_opt {
+            let postings = self
+                .postings_file_slice
+                .read_bytes_slice_async(term_info.postings_range.clone());
+            if with_positions {
+                let positions = self
+                    .positions_file_slice
+                    .read_bytes_slice_async(term_info.positions_range.clone());
+                futures_util::future::try_join(postings, positions).await?;
+            } else {
+                postings.await?;
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
 }
 
 #[cfg(feature = "quickwit")]

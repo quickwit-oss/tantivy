@@ -104,7 +104,7 @@ impl Searcher {
     }
 
     /// Fetches a document in an asynchronous manner.
-    #[cfg(feature = "quickwit")]
+    //#[cfg(feature = "quickwit")]
     pub async fn doc_async<D: DocumentDeserialize>(
         &self,
         doc_address: DocAddress,

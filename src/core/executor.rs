@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-#[cfg(feature = "quickwit")]
+//#[cfg(feature = "quickwit")]
 use futures_util::{future::Either, FutureExt};
 
 use crate::TantivyError;
@@ -15,7 +15,7 @@ pub enum Executor {
     ThreadPool(Arc<rayon::ThreadPool>),
 }
 
-#[cfg(feature = "quickwit")]
+//#[cfg(feature = "quickwit")]
 impl From<Arc<rayon::ThreadPool>> for Executor {
     fn from(thread_pool: Arc<rayon::ThreadPool>) -> Self {
         Executor::ThreadPool(thread_pool)
@@ -101,7 +101,7 @@ impl Executor {
     /// Spawn a task on the pool, returning a future completing on task success.
     ///
     /// If the task panics, returns `Err(())`.
-    #[cfg(feature = "quickwit")]
+    //#[cfg(feature = "quickwit")]
     pub fn spawn_blocking<T: Send + 'static>(
         &self,
         cpu_intensive_task: impl FnOnce() -> T + Send + 'static,
