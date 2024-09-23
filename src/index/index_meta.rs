@@ -176,9 +176,6 @@ impl SegmentMeta {
     }
 
     /// Updates the max_doc value from the `SegmentMeta`.
-    ///
-    /// This method is only used when updating `max_doc` from 0
-    /// as we finalize a fresh new segment.
     pub fn with_max_doc(self, max_doc: u32) -> SegmentMeta {
         assert_eq!(self.tracked.max_doc, 0);
         assert!(self.tracked.deletes.is_none());
