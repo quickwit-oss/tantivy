@@ -174,7 +174,9 @@ impl<'a> SelectCursor<RowId> for OptionalIndexSelectCursor<'a> {
 }
 
 impl Set<RowId> for OptionalIndex {
-    type SelectCursor<'b> = OptionalIndexSelectCursor<'b> where Self: 'b;
+    type SelectCursor<'b> = 
+        OptionalIndexSelectCursor<'b> 
+    where Self: 'b;
     // Check if value at position is not null.
     #[inline]
     fn contains(&self, row_id: RowId) -> bool {
