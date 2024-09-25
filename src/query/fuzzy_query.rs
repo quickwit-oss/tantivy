@@ -85,7 +85,7 @@ impl<A: Automaton, B: Automaton> Automaton for Intersection<A, B> {
 
 pub(crate) struct DfaWrapper(pub DFA);
 
-const DEFAULT_MAX_EXPANSIONS: u8 = 50;
+const DEFAULT_MAX_EXPANSIONS: u32 = 50;
 
 impl Automaton for DfaWrapper {
     type State = u32;
@@ -167,7 +167,7 @@ pub struct FuzzyTermQuery {
     /// is a starts with query
     prefix: bool,
     /// max expansions allowed
-    max_expansions: Option<u8>,
+    max_expansions: Option<u32>,
     prefix_length: Option<usize>
 }
 
@@ -197,7 +197,7 @@ impl FuzzyTermQuery {
     }
 
     /// maximum expansions to allow for fuzzy match
-    pub fn set_max_expansions(&mut self, max_expansions: Option<u8>) {
+    pub fn set_max_expansions(&mut self, max_expansions: Option<u32>) {
         self.max_expansions = max_expansions;
     }
 
@@ -263,11 +263,13 @@ impl FuzzyTermQuery {
                 self.term.field(),
                 DfaWrapper(automaton),
                 json_path_bytes,
+                self.max_expansions
             ))
         } else {
             Ok(AutomatonWeight::new(
                 self.term.field(),
                 DfaWrapper(automaton),
+                self.max_expansions
             ))
         }
     }
@@ -334,11 +336,13 @@ impl FuzzyTermQuery {
                 self.term.field(),
                 Intersection(DfaWrapper(automaton), prefix_automaton),
                 json_path_bytes,
+                self.max_expansions
             ))
         } else {
             Ok(AutomatonWeight::new(
                 self.term.field(),
                 Intersection(DfaWrapper(automaton), prefix_automaton),
+                self.max_expansions
             ))
         }
     }
