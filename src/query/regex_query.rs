@@ -76,7 +76,7 @@ impl RegexQuery {
     }
 
     fn specialized_weight(&self) -> AutomatonWeight<Regex> {
-        AutomatonWeight::new(self.field, self.regex.clone())
+        AutomatonWeight::new(self.field, self.regex.clone(), None)
     }
 }
 

@@ -19,6 +19,7 @@ pub struct AutomatonWeight<A> {
     // We apply additional filtering based on the given JSON path, when searching within the term
     // dictionary. This prevents terms from unrelated paths from matching the search criteria.
     json_path_bytes: Option<Box<[u8]>>,
+    max_expansions: Option<u32>,
 }
 
 impl<A> AutomatonWeight<A>
@@ -26,11 +27,16 @@ where
     A: Automaton + Send + Sync + 'static,
 {
     /// Create a new AutomationWeight
-    pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA) -> AutomatonWeight<A> {
+    pub fn new<IntoArcA: Into<Arc<A>>>(
+        field: Field,
+        automaton: IntoArcA,
+        max_expansions: Option<u32>,
+    ) -> AutomatonWeight<A> {
         AutomatonWeight {
             field,
             automaton: automaton.into(),
             json_path_bytes: None,
+            max_expansions: max_expansions,
         }
     }
 
@@ -39,11 +45,13 @@ where
         field: Field,
         automaton: IntoArcA,
         json_path_bytes: &[u8],
+        max_expansions: Option<u32>,
     ) -> AutomatonWeight<A> {
         AutomatonWeight {
             field,
             automaton: automaton.into(),
             json_path_bytes: Some(json_path_bytes.to_vec().into_boxed_slice()),
+            max_expansions: max_expansions,
         }
     }
 
@@ -75,19 +83,16 @@ where
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
         let mut term_stream = self.automaton_stream(term_dict)?;
-        while term_stream.advance() {
-            let term_info = term_stream.value();
-            let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-            loop {
-                let docs = block_segment_postings.docs();
-                if docs.is_empty() {
-                    break;
-                }
-                for &doc in docs {
-                    doc_bitset.insert(doc);
-                }
-                block_segment_postings.advance();
+
+        if let Some(max_expansion) = self.max_expansions {
+            let mut counter: u32 = 0;
+            while counter < max_expansion && term_stream.advance() {
+                process_term(&term_stream, &inverted_index, &mut doc_bitset)?;
+                counter += 1;
+            }
+        } else {
+            while term_stream.advance() {
+                process_term(&term_stream, &inverted_index, &mut doc_bitset)?;
             }
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
@@ -105,6 +110,29 @@ where
             ))
         }
     }
+}
+
+fn process_term<A>(
+    term_stream: &TermStreamer<'_, &A>,
+    inverted_index: &Arc<crate::InvertedIndexReader>,
+    doc_bitset: &mut BitSet,
+) -> Result<(), TantivyError>
+where
+    A: Automaton,
+{
+    let term_info = term_stream.value();
+    let mut block_segment_postings =
+        inverted_index.read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+    Ok(loop {
+        let docs = block_segment_postings.docs();
+        if docs.is_empty() {
+            break;
+        }
+        for &doc in docs {
+            doc_bitset.insert(doc);
+        }
+        block_segment_postings.advance();
+    })
 }
 
 #[cfg(test)]
@@ -168,7 +196,7 @@ mod tests {
     fn test_automaton_weight() -> crate::Result<()> {
         let index = create_index()?;
         let field = index.schema().get_field("title").unwrap();
-        let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
+        let automaton_weight = AutomatonWeight::new(field, PrefixedByA, None);
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
@@ -185,7 +213,7 @@ mod tests {
     fn test_automaton_weight_boost() -> crate::Result<()> {
         let index = create_index()?;
         let field = index.schema().get_field("title").unwrap();
-        let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
+        let automaton_weight = AutomatonWeight::new(field, PrefixedByA, None);
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.32)?;

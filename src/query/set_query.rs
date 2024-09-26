@@ -56,7 +56,7 @@ impl TermSetQuery {
 
             sub_queries.push((
                 Occur::Should,
-                Box::new(AutomatonWeight::new(field, SetDfaWrapper(map))),
+                Box::new(AutomatonWeight::new(field, SetDfaWrapper(map), None)),
             ));
         }
 
