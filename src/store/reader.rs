@@ -454,6 +454,11 @@ mod tests {
     }
 
     #[test]
+    fn test_doc_store_version_ord() {
+        assert!(DocStoreVersion::V1 < DocStoreVersion::V2);
+    }
+
+    #[test]
     fn test_store_lru_cache() -> crate::Result<()> {
         let directory = RamDirectory::create();
         let path = Path::new("store");
