@@ -2,13 +2,13 @@ use std::io;
 
 use common::{BinarySerializable, FixedSize, HasLen};
 
-use super::{Decompressor, DOC_STORE_VERSION};
+use super::{Decompressor, DocStoreVersion, DOC_STORE_VERSION};
 use crate::directory::FileSlice;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DocStoreFooter {
     pub offset: u64,
-    pub doc_store_version: u32,
+    pub doc_store_version: DocStoreVersion,
     pub decompressor: Decompressor,
 }
 
@@ -26,7 +26,7 @@ impl BinarySerializable for DocStoreFooter {
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let doc_store_version = u32::deserialize(reader)?;
+        let doc_store_version = DocStoreVersion::deserialize(reader)?;
         if doc_store_version > DOC_STORE_VERSION {
             panic!(
                 "actual doc store version: {doc_store_version}, max_supported: {DOC_STORE_VERSION}"
@@ -49,7 +49,11 @@ impl FixedSize for DocStoreFooter {
 }
 
 impl DocStoreFooter {
-    pub fn new(offset: u64, decompressor: Decompressor, doc_store_version: u32) -> Self {
+    pub fn new(
+        offset: u64,
+        decompressor: Decompressor,
+        doc_store_version: DocStoreVersion,
+    ) -> Self {
         DocStoreFooter {
             offset,
             doc_store_version,

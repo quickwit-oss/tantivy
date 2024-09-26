@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::io;
 use std::iter::Sum;
 use std::num::NonZeroUsize;
@@ -25,10 +26,43 @@ pub(crate) const DOCSTORE_CACHE_CAPACITY: usize = 100;
 
 type Block = OwnedBytes;
 
+/// The format version of the document store.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub(crate) enum DocStoreVersion {
+    V1 = 1,
+    V2 = 2,
+}
+impl Display for DocStoreVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DocStoreVersion::V1 => write!(f, "V1"),
+            DocStoreVersion::V2 => write!(f, "V2"),
+        }
+    }
+}
+impl BinarySerializable for DocStoreVersion {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        (*self as u32).serialize(writer)
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(match u32::deserialize(reader)? {
+            1 => DocStoreVersion::V1,
+            2 => DocStoreVersion::V2,
+            v => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Invalid doc store version {}", v),
+                ))
+            }
+        })
+    }
+}
+
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
     decompressor: Decompressor,
-    doc_store_version: u32,
+    doc_store_version: DocStoreVersion,
     data: FileSlice,
     skip_index: Arc<SkipIndex>,
     space_usage: StoreSpaceUsage,

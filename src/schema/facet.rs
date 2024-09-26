@@ -199,7 +199,6 @@ impl BinarySerializable for Facet {
         Ok(Facet(<String as BinarySerializable>::deserialize(reader)?))
     }
 }
-common::impl_configurable_binary_serializable_by_calling_binary_serializable!(Facet);
 
 impl Display for Facet {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

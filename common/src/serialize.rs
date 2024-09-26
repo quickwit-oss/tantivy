@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use crate::{DateTimePrecision, Endianness, VInt};
+use crate::{Endianness, VInt};
 
 #[derive(Default)]
 struct Counter(u64);
@@ -24,63 +24,6 @@ impl io::Write for Counter {
         Ok(())
     }
 }
-
-/// The configuration for binary serialization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BinarySerializableConfig {
-    /// The precision with which DateTime is de/serialized
-    pub date_time_precision: DateTimePrecision,
-}
-
-/// Trait for configurable binary serialization
-pub trait ConfigurableBinarySerializable: fmt::Debug + Sized {
-    fn serialize<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-        config: &BinarySerializableConfig,
-    ) -> io::Result<()>;
-    fn deserialize<R: Read>(reader: &mut R, config: &BinarySerializableConfig) -> io::Result<Self>;
-    fn num_bytes(&self, config: &BinarySerializableConfig) -> u64 {
-        let mut counter = Counter::default();
-        self.serialize(&mut counter, config).unwrap();
-        counter.0
-    }
-}
-
-/// Implement ConfigurableBinarySerializable trait for types that don't need versioning by
-/// forwarding to BinarySerializable trait.
-#[macro_export]
-macro_rules! impl_configurable_binary_serializable_by_calling_binary_serializable {
-    ($type:ty) => {
-        impl ConfigurableBinarySerializable for $type {
-            fn serialize<W: Write + ?Sized>(
-                &self,
-                writer: &mut W,
-                _version: &BinarySerializableConfig,
-            ) -> io::Result<()> {
-                <Self as BinarySerializable>::serialize(self, writer)
-            }
-
-            fn deserialize<R: Read>(
-                reader: &mut R,
-                _version: &BinarySerializableConfig,
-            ) -> io::Result<Self> {
-                <Self as BinarySerializable>::deserialize(reader)
-            }
-        }
-    };
-}
-
-impl_configurable_binary_serializable_by_calling_binary_serializable!(String);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(u64);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(i64);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(f64);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(Vec<u8>);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(u128);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(bool);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(());
-impl_configurable_binary_serializable_by_calling_binary_serializable!(Cow<'_, str>);
-impl_configurable_binary_serializable_by_calling_binary_serializable!(Cow<'_, [u8]>);
 
 /// Trait for a simple binary serialization.
 pub trait BinarySerializable: fmt::Debug + Sized {

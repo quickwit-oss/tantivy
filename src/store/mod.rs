@@ -36,36 +36,15 @@ mod index;
 mod reader;
 mod writer;
 
-use common::{BinarySerializableConfig, DateTimePrecision};
-
 pub use self::compressors::{Compressor, ZstdCompressor};
 pub use self::decompressors::Decompressor;
-pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
 pub use self::reader::{CacheStats, StoreReader};
+pub(crate) use self::reader::{DocStoreVersion, DOCSTORE_CACHE_CAPACITY};
 pub use self::writer::StoreWriter;
-use crate::schema::document::DeserializeError;
 mod store_compressor;
 
 /// Doc store version in footer to handle format changes.
-pub(crate) const DOC_STORE_VERSION: u32 = 2;
-
-/// Get the serialize config for the doc store version
-pub fn doc_store_version_to_serialize_config(
-    version: u32,
-) -> Result<BinarySerializableConfig, DeserializeError> {
-    match version {
-        1 => Ok(BinarySerializableConfig {
-            date_time_precision: DateTimePrecision::Microseconds,
-        }),
-        2 => Ok(BinarySerializableConfig {
-            date_time_precision: DateTimePrecision::Nanoseconds,
-        }),
-        _ => Err(DeserializeError::UnsupportedVersion(
-            version,
-            DOC_STORE_VERSION,
-        )),
-    }
-}
+pub(crate) const DOC_STORE_VERSION: DocStoreVersion = DocStoreVersion::V2;
 
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;

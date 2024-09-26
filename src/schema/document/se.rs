@@ -3,14 +3,11 @@ use std::io;
 use std::io::Write;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{
-    f64_to_u64, BinarySerializable, BinarySerializableConfig, ConfigurableBinarySerializable, VInt,
-};
+use common::{f64_to_u64, BinarySerializable, VInt};
 
 use super::{OwnedValue, ReferenceValueLeaf};
 use crate::schema::document::{type_codes, Document, ReferenceValue, Value};
 use crate::schema::Schema;
-use crate::store::{doc_store_version_to_serialize_config, DOC_STORE_VERSION};
 
 /// A serializer writing documents which implement [`Document`] to a provided writer.
 pub struct BinaryDocumentSerializer<'se, W> {
@@ -74,7 +71,6 @@ where W: Write
 /// A serializer for a single value.
 pub struct BinaryValueSerializer<'se, W> {
     writer: &'se mut W,
-    serializable_config: BinarySerializableConfig,
 }
 
 impl<'se, W> BinaryValueSerializer<'se, W>
@@ -82,21 +78,16 @@ where W: Write
 {
     /// Creates a new serializer with a provided writer.
     pub(crate) fn new(writer: &'se mut W) -> Self {
-        Self {
-            writer,
-            serializable_config: doc_store_version_to_serialize_config(DOC_STORE_VERSION).expect(
-                "internal error: no BinarySerializableConfig added for current DOC_STORE_VERSION",
-            ),
-        }
+        Self { writer }
     }
 
-    fn serialize_with_type_code<T: ConfigurableBinarySerializable>(
+    fn serialize_with_type_code<T: BinarySerializable>(
         &mut self,
         code: u8,
         val: &T,
     ) -> io::Result<()> {
         self.write_type_code(code)?;
-        ConfigurableBinarySerializable::serialize(val, self.writer, &self.serializable_config)
+        BinarySerializable::serialize(val, self.writer)
     }
 
     /// Attempts to serialize a given value and write the output
@@ -124,7 +115,9 @@ where W: Write
                     self.serialize_with_type_code(type_codes::F64_CODE, &f64_to_u64(val))
                 }
                 ReferenceValueLeaf::Date(val) => {
-                    self.serialize_with_type_code(type_codes::DATE_CODE, &val)
+                    self.write_type_code(type_codes::DATE_CODE)?;
+                    let timestamp_nanos: i64 = val.into_timestamp_nanos();
+                    BinarySerializable::serialize(&timestamp_nanos, self.writer)
                 }
                 ReferenceValueLeaf::Facet(val) => self.serialize_with_type_code(
                     type_codes::HIERARCHICAL_FACET_CODE,
@@ -304,7 +297,6 @@ where W: Write
 mod tests {
     use std::collections::BTreeMap;
 
-    use common::DateTime;
     use serde_json::Number;
     use tokenizer_api::Token;
 
@@ -335,10 +327,9 @@ mod tests {
                     $ext_code.serialize(&mut writer).unwrap();
                 )?
 
-                ConfigurableBinarySerializable::serialize(
+                BinarySerializable::serialize(
                     &$value,
                     &mut writer,
-                    &doc_store_version_to_serialize_config(DOC_STORE_VERSION).unwrap(),
                 ).unwrap();
             )*
 
@@ -357,10 +348,9 @@ mod tests {
                     $ext_code.serialize(&mut writer).unwrap();
                 )?
 
-                ConfigurableBinarySerializable::serialize(
+                BinarySerializable::serialize(
                     &$value,
                     &mut writer,
-                    &doc_store_version_to_serialize_config(DOC_STORE_VERSION).unwrap(),
                 ).unwrap();
             )*
 
@@ -418,15 +408,6 @@ mod tests {
         let result = serialize_value(ReferenceValueLeaf::Bool(false).into());
         let expected = binary_repr!(
             type_codes::BOOL_CODE => false,
-        );
-        assert_eq!(
-            result, expected,
-            "Expected serialized value to match the binary representation"
-        );
-
-        let result = serialize_value(ReferenceValueLeaf::Date(DateTime::MAX).into());
-        let expected = binary_repr!(
-            type_codes::DATE_CODE => DateTime::MAX,
         );
         assert_eq!(
             result, expected,

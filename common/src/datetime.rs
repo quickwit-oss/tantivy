@@ -1,11 +1,11 @@
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 
 use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
 
-use crate::{BinarySerializable, BinarySerializableConfig, ConfigurableBinarySerializable};
+use crate::BinarySerializable;
 
 /// Precision with which datetimes are truncated when stored in fast fields. This setting is only
 /// relevant for fast fields. In the docstore, datetimes are always saved with nanosecond precision.
@@ -172,31 +172,5 @@ impl BinarySerializable for DateTime {
     fn deserialize<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let timestamp_micros = <i64 as BinarySerializable>::deserialize(reader)?;
         Ok(Self::from_timestamp_micros(timestamp_micros))
-    }
-}
-
-impl ConfigurableBinarySerializable for DateTime {
-    fn serialize<W: Write + ?Sized>(
-        &self,
-        writer: &mut W,
-        config: &BinarySerializableConfig,
-    ) -> io::Result<()> {
-        let truncated_val = match config.date_time_precision {
-            DateTimePrecision::Seconds => self.into_timestamp_secs(),
-            DateTimePrecision::Milliseconds => self.into_timestamp_millis(),
-            DateTimePrecision::Microseconds => self.into_timestamp_micros(),
-            DateTimePrecision::Nanoseconds => self.into_timestamp_nanos(),
-        };
-        <i64 as BinarySerializable>::serialize(&truncated_val, writer)
-    }
-
-    fn deserialize<R: Read>(reader: &mut R, config: &BinarySerializableConfig) -> io::Result<Self> {
-        let timestamp = <i64 as BinarySerializable>::deserialize(reader)?;
-        match config.date_time_precision {
-            DateTimePrecision::Seconds => Ok(Self::from_timestamp_secs(timestamp)),
-            DateTimePrecision::Milliseconds => Ok(Self::from_timestamp_millis(timestamp)),
-            DateTimePrecision::Microseconds => Ok(Self::from_timestamp_micros(timestamp)),
-            DateTimePrecision::Nanoseconds => Ok(Self::from_timestamp_nanos(timestamp)),
-        }
     }
 }
