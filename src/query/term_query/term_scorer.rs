@@ -74,7 +74,7 @@ impl TermScorer {
             .block_max_score(&self.fieldnorm_reader, &self.similarity_weight)
     }
 
-    pub fn term_freq(&self) -> u32 {
+    pub fn term_freq(&mut self) -> u32 {
         self.postings.term_freq()
     }
 
@@ -82,7 +82,7 @@ impl TermScorer {
         self.fieldnorm_reader.fieldnorm_id(self.doc())
     }
 
-    pub fn explain(&self) -> Explanation {
+    pub fn explain(&mut self) -> Explanation {
         let fieldnorm_id = self.fieldnorm_id();
         let term_freq = self.term_freq();
         self.similarity_weight.explain(fieldnorm_id, term_freq)

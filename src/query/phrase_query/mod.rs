@@ -1,6 +1,8 @@
 mod phrase_query;
 mod phrase_scorer;
 mod phrase_weight;
+pub mod regex_phrase_query;
+mod regex_phrase_weight;
 
 pub use self::phrase_query::PhraseQuery;
 pub(crate) use self::phrase_scorer::intersection_count;
@@ -19,15 +21,15 @@ pub mod tests {
     use crate::schema::{Schema, Term, TEXT};
     use crate::{assert_nearly_equals, DocAddress, DocId, IndexWriter, TERMINATED};
 
-    pub fn create_index(texts: &[&'static str]) -> crate::Result<Index> {
+    pub fn create_index<S: AsRef<str>>(texts: &[S]) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
             let mut index_writer: IndexWriter = index.writer_for_tests()?;
-            for &text in texts {
-                let doc = doc!(text_field=>text);
+            for text in texts {
+                let doc = doc!(text_field=>text.as_ref());
                 index_writer.add_document(doc)?;
             }
             index_writer.commit()?;

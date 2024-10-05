@@ -66,6 +66,11 @@ impl InvertedIndexReader {
         self.termdict.get(term.serialized_value_bytes())
     }
 
+    /// Returns the term info associated with the str term.
+    pub fn get_term_info_str(&self, term: &str) -> io::Result<Option<TermInfo>> {
+        self.termdict.get(term.as_bytes())
+    }
+
     /// Return the term dictionary datastructure.
     pub fn terms(&self) -> &TermDictionary {
         &self.termdict

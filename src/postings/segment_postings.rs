@@ -223,7 +223,7 @@ impl Postings for SegmentPostings {
     /// # Panics
     ///
     /// Will panics if called without having called advance before.
-    fn term_freq(&self) -> u32 {
+    fn term_freq(&mut self) -> u32 {
         debug_assert!(
             // Here we do not use the len of `freqs()`
             // because it is actually ok to request for the freq of doc
@@ -237,8 +237,9 @@ impl Postings for SegmentPostings {
         self.block_cursor.freq(self.cur)
     }
 
-    fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
+    fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         let term_freq = self.term_freq();
+        let prev_len = output.len();
         if let Some(position_reader) = self.position_reader.as_mut() {
             debug_assert!(
                 !self.block_cursor.freqs().is_empty(),
@@ -249,15 +250,13 @@ impl Postings for SegmentPostings {
                     .iter()
                     .cloned()
                     .sum::<u32>() as u64);
-            output.resize(term_freq as usize, 0u32);
-            position_reader.read(read_offset, &mut output[..]);
+            output.resize(prev_len + term_freq as usize, 0u32);
+            position_reader.read(read_offset, &mut output[prev_len..]);
             let mut cum = offset;
-            for output_mut in output.iter_mut() {
+            for output_mut in output[prev_len..].iter_mut() {
                 cum += *output_mut;
                 *output_mut = cum;
             }
-        } else {
-            output.clear();
         }
     }
 }
@@ -289,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_empty_postings_doc_term_freq_returns_0() {
-        let postings = SegmentPostings::empty();
+        let mut postings = SegmentPostings::empty();
         assert_eq!(postings.term_freq(), 1);
     }
 
