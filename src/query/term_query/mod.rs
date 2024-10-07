@@ -1,8 +1,10 @@
 mod term_query;
 mod term_scorer;
 mod term_weight;
+mod term_filter_query;
 
 pub use self::term_query::TermQuery;
+pub use self::term_filter_query::TermFilterQuery;
 pub use self::term_scorer::TermScorer;
 #[cfg(test)]
 mod tests {

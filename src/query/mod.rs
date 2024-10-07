@@ -61,6 +61,7 @@ pub use self::score_combiner::{DisjunctionMaxCombiner, ScoreCombiner, SumCombine
 pub use self::scorer::Scorer;
 pub use self::set_query::TermSetQuery;
 pub use self::term_query::TermQuery;
+pub use self::term_query::TermFilterQuery;
 pub use self::union::Union;
 #[cfg(test)]
 pub use self::vec_docset::VecDocSet;

@@ -63,6 +63,24 @@ impl PhraseQuery {
         }
     }
 
+    /// Creates a new `PhraseQuery` given a list of terms, their offsets and a slop
+    pub fn new_with_offset_and_slop_nosort(terms: Vec<(usize, Term)>, slop: u32) -> PhraseQuery {
+        assert!(
+            terms.len() > 1,
+            "A phrase query is required to have strictly more than one term."
+        );
+        let field = terms[0].1.field();
+        assert!(
+            terms[1..].iter().all(|term| term.1.field() == field),
+            "All terms from a phrase query must belong to the same field"
+        );
+        PhraseQuery {
+            field,
+            phrase_terms: terms,
+            slop,
+        }
+    }
+
     /// Slop allowed for the phrase.
     ///
     /// The query will match if its terms are separated by `slop` terms at most.
