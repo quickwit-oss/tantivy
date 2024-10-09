@@ -184,7 +184,7 @@ impl CompactSpaceBuilder {
 
         let mut covered_space = Vec::with_capacity(self.blanks.len());
 
-        // begining of the blanks
+        // beginning of the blanks
         if let Some(first_blank_start) = self.blanks.first().map(RangeInclusive::start) {
             if *first_blank_start != 0 {
                 covered_space.push(0..=first_blank_start - 1);

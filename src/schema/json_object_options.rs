@@ -16,7 +16,7 @@ pub struct JsonObjectOptions {
     indexing: Option<TextFieldIndexing>,
     // Store all field as fast fields with an optional tokenizer for text.
     fast: FastFieldTextOptions,
-    /// tantivy will generate pathes to the different nodes of the json object
+    /// tantivy will generate paths to the different nodes of the json object
     /// both in:
     /// - the inverted index (for the terms)
     /// - fast fields (for the column names).
@@ -26,7 +26,7 @@ pub struct JsonObjectOptions {
     ///
     /// By default, if an object key contains a `.`, we keep it as a `.` it as is.
     /// On the search side, users will then have to escape this `.` in the query parser
-    /// or when refering to a column name.
+    /// or when referring to a column name.
     ///
     /// For instance:
     /// `{"root": {"child.with.dot": "hello"}}`
@@ -35,7 +35,7 @@ pub struct JsonObjectOptions {
     /// `root.child\.with\.dot:hello`
     ///
     /// If `expand_dots_enabled` is set to true, we will treat this `.` in object keys
-    /// as json seperators. In other words, if set to true, our object will be
+    /// as json separators. In other words, if set to true, our object will be
     /// processed as if it was
     /// `{"root": {"child": {"with": {"dot": "hello"}}}}`
     /// and it can be search using the following query:

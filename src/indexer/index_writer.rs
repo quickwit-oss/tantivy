@@ -482,7 +482,7 @@ impl<D: Document> IndexWriter<D> {
     ///     let index = Index::create_in_ram(schema.clone());
     ///
     ///     let mut index_writer = index.writer_with_num_threads(1, 50_000_000)?;
-    ///     index_writer.add_document(doc!(title => "The modern Promotheus"))?;
+    ///     index_writer.add_document(doc!(title => "The modern Prometheus"))?;
     ///     index_writer.commit()?;
     ///
     ///     let clear_res = index_writer.delete_all_documents().unwrap();
@@ -491,7 +491,7 @@ impl<D: Document> IndexWriter<D> {
     ///
     ///     let searcher = index.reader()?.searcher();
     ///     let query_parser = QueryParser::for_index(&index, vec![title]);
-    ///     let query_promo = query_parser.parse_query("Promotheus")?;
+    ///     let query_promo = query_parser.parse_query("Prometheus")?;
     ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1))?;
     ///
     ///     assert!(top_docs_promo.is_empty());
@@ -2093,7 +2093,7 @@ mod tests {
         //
         // Take half as sample
         let mut sample: Vec<_> = expected_ids_and_num_occurrences.iter().collect();
-        sample.sort_by_key(|(k, _num_occurences)| *k);
+        sample.sort_by_key(|(k, _num_occurrences)| *k);
         // sample.truncate(sample.len() / 2);
         if !sample.is_empty() {
             let (left_sample, right_sample) = sample.split_at(sample.len() / 2);
@@ -2102,7 +2102,7 @@ mod tests {
                 sample
                     .iter()
                     .filter(|(id, _)| id_is_full_doc(**id))
-                    .map(|(_id, num_occurences)| **num_occurences)
+                    .map(|(_id, num_occurrences)| **num_occurrences)
                     .sum::<u64>()
             };
             fn gen_query_inclusive<T1: ToString, T2: ToString>(

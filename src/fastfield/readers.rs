@@ -70,13 +70,13 @@ impl FastFieldReaders {
     ///
     /// This function transforms `attributes.color` into a column key to be used in the `columnar`.
     ///
-    /// The logic works as follows, first we identify which field is targetted by calling
+    /// The logic works as follows, first we identify which field is targeted by calling
     /// `schema.find_field(..)`. This method will attempt to split the user splied fast field
     /// name by non-escaped dots, and find the longest matching schema field name.
     /// In our case, it would return the (attribute_field, "color").
     ///
     /// If no field is found, but a dynamic field is supplied, then we
-    /// will simply assuem the user is targetting the dynamic field. (This feature is used in
+    /// will simply assume the user is targeting the dynamic field. (This feature is used in
     /// Quickwit.)
     ///
     /// We then encode the `(field, path)` into the right `columnar_key`.

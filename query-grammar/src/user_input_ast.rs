@@ -267,7 +267,7 @@ impl fmt::Debug for UserInputAst {
         match *self {
             UserInputAst::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
-                    // TODO this will break ast reserialization, is writing "( )" enought?
+                    // TODO this will break ast reserialization, is writing "( )" enough?
                     write!(formatter, "<emptyclause>")?;
                 } else {
                     write!(formatter, "(")?;

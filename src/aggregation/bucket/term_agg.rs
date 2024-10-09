@@ -25,7 +25,7 @@ use crate::aggregation::{format_date, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
-/// Creates a bucket for every unique term and counts the number of occurences.
+/// Creates a bucket for every unique term and counts the number of occurrences.
 /// Note that doc_count in the response buckets equals term count here.
 ///
 /// If the text is untokenized and single value, that means one term per document and therefore it
@@ -158,7 +158,7 @@ pub struct TermsAggregation {
     /// when loading the text.
     /// Special Case 1:
     /// If we have multiple columns on one field, we need to have a union on the indices on both
-    /// columns, to find docids without a value. That requires a special missing aggreggation.
+    /// columns, to find docids without a value. That requires a special missing aggregation.
     /// Special Case 2: if the key is of type text and the column is numerical, we also need to use
     /// the special missing aggregation, since there is no mechanism in the numerical column to
     /// add text.
@@ -364,7 +364,7 @@ impl SegmentTermCollector {
         let term_buckets = TermBuckets::default();
 
         if let Some(custom_order) = req.order.as_ref() {
-            // Validate sub aggregtion exists
+            // Validate sub aggregation exists
             if let OrderTarget::SubAggregation(sub_agg_name) = &custom_order.target {
                 let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
 
@@ -1685,7 +1685,7 @@ mod tests {
             res["my_texts"]["buckets"][2]["key"],
             serde_json::Value::Null
         );
-        // text field with numner as missing fallback
+        // text field with number as missing fallback
         assert_eq!(res["my_texts2"]["buckets"][0]["key"], "Hello Hello");
         assert_eq!(res["my_texts2"]["buckets"][0]["doc_count"], 5);
         assert_eq!(res["my_texts2"]["buckets"][1]["key"], 1337.0);
@@ -1859,7 +1859,7 @@ mod tests {
             res["my_texts"]["buckets"][2]["key"],
             serde_json::Value::Null
         );
-        // text field with numner as missing fallback
+        // text field with number as missing fallback
         assert_eq!(res["my_texts2"]["buckets"][0]["key"], "Hello Hello");
         assert_eq!(res["my_texts2"]["buckets"][0]["doc_count"], 4);
         assert_eq!(res["my_texts2"]["buckets"][1]["key"], 1337.0);
