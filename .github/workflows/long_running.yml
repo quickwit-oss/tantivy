@@ -21,12 +21,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install stable
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
           toolchain: stable
-          profile: minimal
-          override: true
-
     - name: Run indexing_unsorted
       run: cargo test indexing_unsorted -- --ignored
     - name: Run indexing_sorted
