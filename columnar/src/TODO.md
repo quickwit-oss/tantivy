@@ -10,7 +10,7 @@
 
 # Perf and Size
 * remove alloc in `ord_to_term`
-+ multivaued range queries restrat frm the beginning all of the time.
++ multivaued range queries restart from the beginning all of the time.
 * re-add ZSTD compression for dictionaries
 no systematic monotonic mapping
 consider removing multilinear
@@ -30,7 +30,7 @@ investigate if should have better errors? io::Error is overused at the moment.
 rename rank/select in unit tests
 Review the public API via cargo doc
 go through TODOs
-remove all  doc_id occurences -> row_id
+remove all  doc_id occurrences -> row_id
 use the rank & select naming in unit tests branch.
 multi-linear -> blockwise
 linear codec -> simply a multiplication for the index column
@@ -43,5 +43,5 @@ isolate u128_based and uniform naming
 # Other
 fix enhance column-cli
 
-# Santa claus
+# Santa Claus
 autodetect datetime ipaddr, plug customizable tokenizer.

@@ -139,7 +139,7 @@ impl<'de> Deserialize<'de> for KeyOrder {
     }
 }
 
-// Tranform a glob (`pattern*`, for example) into a regex::Regex (`^pattern.*$`)
+// Transform a glob (`pattern*`, for example) into a regex::Regex (`^pattern.*$`)
 fn globbed_string_to_regex(glob: &str) -> Result<Regex, crate::TantivyError> {
     // Replace `*` glob with `.*` regex
     let sanitized = format!("^{}$", regex::escape(glob).replace(r"\*", ".*"));

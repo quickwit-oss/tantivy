@@ -1,4 +1,4 @@
-//! Implementations of some of the core traits on varius types to improve the ergonomics
+//! Implementations of some of the core traits on various types to improve the ergonomics
 //! of the API when providing custom documents.
 //!
 //! This allows users a bit more freedom and ergonomics if they want a simple API
@@ -258,7 +258,7 @@ impl ValueDeserialize for serde_json::Value {
     }
 }
 
-/// A wrapper struct for an interator producing [Value]s.
+/// A wrapper struct for an iterator producing [Value]s.
 pub struct JsonObjectIter<'a>(pub(crate) serde_json::map::Iter<'a>);
 
 impl<'a> Iterator for JsonObjectIter<'a> {

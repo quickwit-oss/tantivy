@@ -28,7 +28,7 @@ pub enum ColumnIndex {
     Full,
     Optional(OptionalIndex),
     /// In addition, at index num_rows, an extra value is added
-    /// containing the overal number of values.
+    /// containing the overall number of values.
     Multivalued(MultiValueIndex),
 }
 

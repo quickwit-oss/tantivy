@@ -39,7 +39,7 @@ pub fn fast_short_slice_compare(left: &[u8], right: &[u8]) -> bool {
     double_check_trick::<8>(left, right)
 }
 
-// Note: The straigthforward left.chunks_exact(SIZE).zip(right.chunks_exact(SIZE)) produces slower
+// Note: The straightforward left.chunks_exact(SIZE).zip(right.chunks_exact(SIZE)) produces slower
 // assembly
 #[inline]
 pub fn fast_nbyte_slice_compare<const SIZE: usize>(left: &[u8], right: &[u8]) -> bool {

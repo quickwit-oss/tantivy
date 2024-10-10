@@ -73,7 +73,7 @@ where
     /// Load no more data than what's required to to get `limit`
     /// matching entries.
     ///
-    /// The resulting [`Streamer`] can still return marginaly
+    /// The resulting [`Streamer`] can still return marginally
     /// more than `limit` elements.
     pub fn limit(mut self, limit: u64) -> Self {
         self.limit = Some(limit);

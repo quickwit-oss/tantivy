@@ -173,7 +173,7 @@ mod tests {
         .into();
         let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order);
         let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
-            panic!("Excpected a multivalued index")
+            panic!("Expected a multivalued index")
         };
         let mut output = Vec::new();
         serialize_multivalued_index(&start_index_iterable, &mut output).unwrap();
@@ -211,7 +211,7 @@ mod tests {
 
         let merged_column_index = merge_column_index(&column_indexes[..], &merge_row_order);
         let SerializableColumnIndex::Multivalued(start_index_iterable) = merged_column_index else {
-            panic!("Excpected a multivalued index")
+            panic!("Expected a multivalued index")
         };
         let mut output = Vec::new();
         serialize_multivalued_index(&start_index_iterable, &mut output).unwrap();

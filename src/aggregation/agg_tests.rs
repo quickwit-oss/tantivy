@@ -870,7 +870,7 @@ fn test_aggregation_on_json_object_mixed_types() {
         .add_document(doc!(json => json!({"mixed_type": "blue", "mixed_price": 5.0})))
         .unwrap();
     index_writer.commit().unwrap();
-    // => Segment with all boolen
+    // => Segment with all boolean
     index_writer
         .add_document(doc!(json => json!({"mixed_type": true, "mixed_price": "no_price"})))
         .unwrap();

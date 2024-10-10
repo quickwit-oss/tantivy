@@ -386,7 +386,7 @@ mod test {
                 16, 17, 33, 18, 19, 17, 20, // data block
                 0, 0, 0, 0, // no more block
                 // index
-                0, 0, 0, 0, 0, 0, 0, 0, // fst lenght
+                0, 0, 0, 0, 0, 0, 0, 0, // fst length
                 16, 0, 0, 0, 0, 0, 0, 0, // index start offset
                 3, 0, 0, 0, 0, 0, 0, 0, // num term
                 3, 0, 0, 0, // version

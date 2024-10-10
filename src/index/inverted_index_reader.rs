@@ -71,7 +71,7 @@ impl InvertedIndexReader {
         &self.termdict
     }
 
-    /// Return the fields and types encoded in the dictionary in lexicographic oder.
+    /// Return the fields and types encoded in the dictionary in lexicographic order.
     /// Only valid on JSON fields.
     ///
     /// Notice: This requires a full scan and therefore **very expensive**.

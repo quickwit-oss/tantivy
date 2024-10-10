@@ -25,7 +25,7 @@ use crate::{
 /// After merge, all columns belonging to the same category are coerced to
 /// the same column type.
 ///
-/// In practise, today, only Numerical colummns are coerced into one type today.
+/// In practise, today, only Numerical columns are coerced into one type today.
 ///
 /// See also [README.md].
 ///
@@ -63,8 +63,8 @@ impl From<ColumnType> for ColumnTypeCategory {
 /// `require_columns` makes it possible to ensure that some columns will be present in the
 /// resulting columnar. When a required column is a numerical column type, one of two things can
 /// happen:
-/// - If the required column type is compatible with all of the input columnar, the resulsting
-///   merged columnar will simply coerce the input column and use the required column type.
+/// - If the required column type is compatible with all of the input columnar, the resulting merged
+///   columnar will simply coerce the input column and use the required column type.
 /// - If the required column type is incompatible with one of the input columnar, the merged will
 ///   fail with an InvalidData error.
 ///

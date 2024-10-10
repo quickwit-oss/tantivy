@@ -58,7 +58,7 @@ pub enum QueryParserError {
     #[error("Invalid query: Only excluding terms given")]
     AllButQueryForbidden,
     /// If no default field is declared, running a query without any
-    /// field specified is forbbidden.
+    /// field specified is forbidden.
     #[error("No default field declared and no field specified in query")]
     NoDefaultFieldDeclared,
     /// The field searched for is not declared
@@ -822,7 +822,7 @@ impl QueryParser {
                 };
                 if lower == Bound::Unbounded && upper == Bound::Unbounded {
                     // this range is useless, either because a user requested [* TO *], or because
-                    // we failed to parse something. Either way, there is no point emiting it
+                    // we failed to parse something. Either way, there is no point emitting it
                     return (None, errors);
                 }
                 let logical_ast =
@@ -1307,7 +1307,7 @@ mod test {
     }
 
     #[test]
-    fn test_json_field_query_with_espaced_dot() {
+    fn test_json_field_query_with_escaped_dot() {
         assert_eq!(
             extract_query_term_json_path(r#"json.k8s.node.name:hello"#),
             "k8s\u{1}node\u{1}name\0shello"

@@ -332,7 +332,7 @@ where B: AsRef<[u8]>
 
 /// ValueBytes represents a serialized value.
 /// The value can be of any type of [`Type`] (e.g. string, u64, f64, bool, date, JSON).
-/// The serialized representation matches the lexographical order of the type.
+/// The serialized representation matches the lexicographical order of the type.
 ///
 /// The `ValueBytes` format is as follow:
 /// `[type code: u8][serialized value]`

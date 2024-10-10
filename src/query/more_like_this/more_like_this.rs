@@ -209,7 +209,7 @@ impl MoreLikeThis {
                     }
                 };
 
-                // TOOD: Validate these changed align with the HEAD branch.
+                // TODO: Validate these changed align with the HEAD branch.
                 for value in values {
                     if let Some(text) = value.as_str() {
                         let tokenizer = match &mut tokenizer_opt {
@@ -295,7 +295,7 @@ impl MoreLikeThis {
         self.stop_words.contains(&word)
     }
 
-    /// Couputes the score for each term while ignoring not useful terms
+    /// Computes the score for each term while ignoring not useful terms
     fn create_score_term(
         &self,
         searcher: &Searcher,
