@@ -14,8 +14,8 @@ use crate::index::Index;
 use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
-    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
-    PhraseQuery, Query, TermQuery, TermSetQuery,
+    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, ExistsQuery, FuzzyTermQuery, Occur,
+    PhrasePrefixQuery, PhraseQuery, Query, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -848,12 +848,32 @@ impl QueryParser {
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Set { elements }));
                 (Some(logical_ast), errors)
             }
-            UserInputLeaf::Exists { .. } => (
-                None,
-                vec![QueryParserError::UnsupportedQuery(
-                    "Range query need to target a specific field.".to_string(),
-                )],
-            ),
+            UserInputLeaf::Exists { field: full_path } => {
+                let mut errors = Vec::<QueryParserError>::new();
+                let (field, json_path) = try_tuple!(self
+                    .split_full_path(&full_path)
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
+                let field_entry = self.schema.get_field_entry(field);
+                let field_type = field_entry.field_type();
+                if !field_type.is_fast() {
+                    // FIXME: FieldNotIndexed error is not accurate.
+                    errors.push(QueryParserError::FieldNotIndexed(
+                        field_entry.name().to_string(),
+                    ));
+                    return (None, errors);
+                }
+                if !json_path.is_empty() && field_type.is_json() {
+                    errors.push(QueryParserError::UnsupportedQuery(format!(
+                        "Json path is not supported for field {:?}",
+                        field_entry.name()
+                    )));
+                    return (None, errors);
+                }
+                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Exist {
+                    field_name: field_entry.name().to_string(),
+                }));
+                (Some(logical_ast), errors)
+            }
         }
     }
 }
@@ -896,6 +916,7 @@ fn convert_literal_to_query(
         LogicalLiteral::Range { lower, upper } => Box::new(RangeQuery::new(lower, upper)),
         LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
+        LogicalLiteral::Exist { field_name } => Box::new(ExistsQuery::new_exists_query(field_name)),
     }
 }
 
@@ -1921,5 +1942,28 @@ mod test {
                  minimum_number_should_match: 1 }"
             );
         }
+    }
+
+    #[test]
+    pub fn test_exist_query() {
+        let query_parser = make_query_parser_with_default_fields(&["title", "text", "u64_ff"]);
+        // Basic function.
+        {
+            let query = query_parser.parse_query("u64_ff:*").unwrap();
+            assert_eq!(
+                format!("{query:?}"),
+                r##"ExistsQuery { field_name: "u64_ff" }"##
+            )
+        }
+        // Non-existed field should raise `FieldDoesNotExist` error.
+        assert_matches!(
+            query_parser.parse_query("Aether:*"),
+            Err(QueryParserError::FieldDoesNotExist(_))
+        );
+        // Non-fast field should raise `FieldNotIndexed` error.
+        assert_matches!(
+            query_parser.parse_query("text:*"),
+            Err(QueryParserError::FieldNotIndexed(_))
+        );
     }
 }
