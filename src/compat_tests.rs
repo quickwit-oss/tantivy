@@ -44,8 +44,19 @@ fn test_format_6() {
     assert_date_time_precision(&index, DateTimePrecision::Microseconds);
 }
 
+/// feature flag quickwit uses a different dictionary type
+#[test]
 #[cfg(not(feature = "quickwit"))]
-fn assert_date_time_precision(index: &Index, precision: DateTimePrecision) {
+fn test_format_7() {
+    let path = path_for_version("7");
+
+    let index = Index::open_in_dir(path).expect("Failed to open index");
+    // dates are not truncated in v7 in the docstore
+    assert_date_time_precision(&index, DateTimePrecision::Nanoseconds);
+}
+
+#[cfg(not(feature = "quickwit"))]
+fn assert_date_time_precision(index: &Index, doc_store_precision: DateTimePrecision) {
     use collector::TopDocs;
     let reader = index.reader().expect("Failed to create reader");
     let searcher = reader.searcher();
@@ -75,6 +86,6 @@ fn assert_date_time_precision(index: &Index, precision: DateTimePrecision) {
         .as_datetime()
         .unwrap();
 
-    let expected = DateTime::from_timestamp_nanos(123456).truncate(precision);
+    let expected = DateTime::from_timestamp_nanos(123456).truncate(doc_store_precision);
     assert_eq!(date_value, expected,);
 }
