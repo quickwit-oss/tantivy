@@ -122,7 +122,7 @@ impl Line {
         line
     }
 
-    /// Returns a line that attemps to approximate a function
+    /// Returns a line that attempts to approximate a function
     /// f: i in 0..[ys.num_vals()) -> ys[i].
     ///
     /// - The approximation is always lower than the actual value. Or more rigorously, formally

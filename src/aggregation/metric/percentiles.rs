@@ -163,8 +163,8 @@ impl PartialEq for PercentilesCollector {
     }
 }
 
-fn format_percentil(percentil: f64) -> String {
-    let mut out = percentil.to_string();
+fn format_percentile(percentile: f64) -> String {
+    let mut out = percentile.to_string();
     // Slightly silly way to format trailing decimals
     if !out.contains('.') {
         out.push_str(".0");
@@ -197,7 +197,7 @@ impl PercentilesCollector {
         let values = if req.keyed {
             PercentileValues::HashMap(
                 iter_quantile_and_values
-                    .map(|(val, quantil)| (format_percentil(val), quantil))
+                    .map(|(val, quantil)| (format_percentile(val), quantil))
                     .collect(),
             )
         } else {

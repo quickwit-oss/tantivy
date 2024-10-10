@@ -28,7 +28,7 @@ fn main() -> tantivy::Result<()> {
     let mut index_writer: IndexWriter = index.writer_with_num_threads(1, 50_000_000)?;
     index_writer.add_document(doc!(title => "The Old Man and the Sea"))?;
     index_writer.add_document(doc!(title => "Of Mice and Men"))?;
-    index_writer.add_document(doc!(title => "The modern Promotheus"))?;
+    index_writer.add_document(doc!(title => "The modern Prometheus"))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;

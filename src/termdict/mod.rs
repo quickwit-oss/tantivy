@@ -86,7 +86,7 @@ impl TermDictionary {
         let dict_type = DictionaryType::try_from(dict_type).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::Other,
-                format!("Unsuported dictionary type, found {dict_type}"),
+                format!("Unsupported dictionary type, found {dict_type}"),
             )
         })?;
 
@@ -94,7 +94,7 @@ impl TermDictionary {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!(
-                    "Unsuported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
+                    "Unsupported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
                      {dict_type:?}",
                 ),
             ));

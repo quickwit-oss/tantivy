@@ -59,7 +59,7 @@ impl StoreWriter {
 
     /// Checks if the current block is full, and if so, compresses and flushes it.
     fn check_flush_block(&mut self) -> io::Result<()> {
-        // this does not count the VInt storing the index lenght itself, but it is negligible in
+        // this does not count the VInt storing the index length itself, but it is negligible in
         // front of everything else.
         let index_len = self.doc_pos.len() * std::mem::size_of::<usize>();
         if self.current_block.len() + index_len > self.block_size {

@@ -377,7 +377,7 @@ impl SegmentUpdater {
         if self.is_alive() {
             let index = &self.index;
             let directory = index.directory();
-            let mut commited_segment_metas = self.segment_manager.committed_segment_metas();
+            let mut committed_segment_metas = self.segment_manager.committed_segment_metas();
 
             // We sort segment_readers by number of documents.
             // This is an heuristic to make multithreading more efficient.
@@ -392,10 +392,10 @@ impl SegmentUpdater {
             // from the different drives.
             //
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
-            commited_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
+            committed_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
             let index_meta = IndexMeta {
                 index_settings: index.settings().clone(),
-                segments: commited_segment_metas,
+                segments: committed_segment_metas,
                 schema: index.schema(),
                 opstamp,
                 payload: commit_message,

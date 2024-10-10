@@ -244,7 +244,7 @@ fn search_on_json_numerical_field(
     bounds: BoundsRange<ValueBytes<Vec<u8>>>,
     boost: Score,
 ) -> crate::Result<Box<dyn Scorer>> {
-    // Since we don't know which type was interpolated for the internal column whe
+    // Since we don't know which type was interpolated for the internal column we
     // have to check for all numeric types (only one exists)
     let allowed_column_types: Option<&[ColumnType]> =
         Some(&[ColumnType::F64, ColumnType::I64, ColumnType::U64]);
@@ -254,7 +254,7 @@ fn search_on_json_numerical_field(
     else {
         return Ok(Box::new(EmptyScorer));
     };
-    let actual_colum_type: NumericalType = col_type.numerical_type().unwrap_or_else(|| {
+    let actual_column_type: NumericalType = col_type.numerical_type().unwrap_or_else(|| {
         panic!(
             "internal error: couldn't cast to numerical_type: {:?}",
             col_type
@@ -264,7 +264,7 @@ fn search_on_json_numerical_field(
     let bounds = match typ.numerical_type().unwrap() {
         NumericalType::I64 => {
             let bounds = bounds.map_bound(|term| (term.as_i64().unwrap()));
-            match actual_colum_type {
+            match actual_column_type {
                 NumericalType::I64 => bounds.map_bound(|&term| term.to_u64()),
                 NumericalType::U64 => {
                     bounds.transform_inner(
@@ -288,7 +288,7 @@ fn search_on_json_numerical_field(
         }
         NumericalType::U64 => {
             let bounds = bounds.map_bound(|term| (term.as_u64().unwrap()));
-            match actual_colum_type {
+            match actual_column_type {
                 NumericalType::U64 => bounds.map_bound(|&term| term.to_u64()),
                 NumericalType::I64 => {
                     bounds.transform_inner(
@@ -312,7 +312,7 @@ fn search_on_json_numerical_field(
         }
         NumericalType::F64 => {
             let bounds = bounds.map_bound(|term| (term.as_f64().unwrap()));
-            match actual_colum_type {
+            match actual_column_type {
                 NumericalType::U64 => transform_from_f64_bounds::<u64>(&bounds),
                 NumericalType::I64 => transform_from_f64_bounds::<i64>(&bounds),
                 NumericalType::F64 => bounds.map_bound(|&term| term.to_u64()),
@@ -1844,7 +1844,7 @@ mod bench_ip {
         start..=end
     }
 
-    fn excute_query(
+    fn execute_query(
         field: &str,
         ip_range: RangeInclusive<Ipv6Addr>,
         suffix: &str,
@@ -1876,152 +1876,152 @@ mod bench_ip {
     fn bench_ip_range_hit_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_90_percent(), "", &index));
+        bench.iter(|| execute_query("ip", get_90_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_10_percent(), "", &index));
+        bench.iter(|| execute_query("ip", get_10_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_1_percent(), "", &index));
+        bench.iter(|| execute_query("ip", get_1_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_10_percent(), "AND id:few", &index));
+        bench.iter(|| execute_query("ip", get_10_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:few", &index));
+        bench.iter(|| execute_query("ip", get_1_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:many", &index));
+        bench.iter(|| execute_query("ip", get_1_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_1_percent(), "AND id:veryfew", &index));
+        bench.iter(|| execute_query("ip", get_1_percent(), "AND id:veryfew", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_10_percent(), "AND id:many", &index));
+        bench.iter(|| execute_query("ip", get_10_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_90_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:many", &index));
+        bench.iter(|| execute_query("ip", get_90_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_10_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:few", &index));
+        bench.iter(|| execute_query("ip", get_90_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_1_percent(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ip", get_90_percent(), "AND id:veryfew", &index));
+        bench.iter(|| execute_query("ip", get_90_percent(), "AND id:veryfew", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_90_percent(), "", &index));
+        bench.iter(|| execute_query("ips", get_90_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_10_percent(), "", &index));
+        bench.iter(|| execute_query("ips", get_10_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_1_percent(), "", &index));
+        bench.iter(|| execute_query("ips", get_1_percent(), "", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_10_percent(), "AND id:few", &index));
+        bench.iter(|| execute_query("ips", get_10_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:few", &index));
+        bench.iter(|| execute_query("ips", get_1_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
-        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:many", &index));
+        bench.iter(|| execute_query("ips", get_1_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_1_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_1_percent(), "AND id:veryfew", &index));
+        bench.iter(|| execute_query("ips", get_1_percent(), "AND id:veryfew", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_10_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_10_percent(), "AND id:many", &index));
+        bench.iter(|| execute_query("ips", get_10_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:many", &index));
+        bench.iter(|| execute_query("ips", get_90_percent(), "AND id:many", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:few", &index));
+        bench.iter(|| execute_query("ips", get_90_percent(), "AND id:few", &index));
     }
 
     #[bench]
     fn bench_ip_range_hit_90_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
         let index = get_index_0_to_100();
 
-        bench.iter(|| excute_query("ips", get_90_percent(), "AND id:veryfew", &index));
+        bench.iter(|| execute_query("ips", get_90_percent(), "AND id:veryfew", &index));
     }
 }

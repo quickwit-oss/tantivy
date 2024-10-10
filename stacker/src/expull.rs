@@ -111,7 +111,7 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
 }
 
 // The block size is 2^block_num + 2, but max 2^15= 32k
-// Inital size is 8, for the first block => block_num == 1
+// Initial size is 8, for the first block => block_num == 1
 #[inline]
 fn get_block_size(block_num: u16) -> u16 {
     1 << block_num.min(15)

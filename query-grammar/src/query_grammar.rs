@@ -833,7 +833,7 @@ fn aggregate_infallible_expressions(
     if early_operand {
         err.push(LenientErrorInternal {
             pos: 0,
-            message: "Found unexpeted boolean operator before term".to_string(),
+            message: "Found unexpected boolean operator before term".to_string(),
         });
     }
 
@@ -856,7 +856,7 @@ fn aggregate_infallible_expressions(
                     _ => Some(Occur::Should),
                 };
                 if occur == &Some(Occur::MustNot) && default_op == Some(Occur::Should) {
-                    // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                    // if occur is MustNot *and* operation is OR, we synthesize a ShouldNot
                     clauses.push(vec![(
                         Some(Occur::Should),
                         ast.clone().unary(Occur::MustNot),
@@ -872,7 +872,7 @@ fn aggregate_infallible_expressions(
                     None => None,
                 };
                 if occur == &Some(Occur::MustNot) && default_op == Some(Occur::Should) {
-                    // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                    // if occur is MustNot *and* operation is OR, we synthesize a ShouldNot
                     clauses.push(vec![(
                         Some(Occur::Should),
                         ast.clone().unary(Occur::MustNot),
@@ -897,7 +897,7 @@ fn aggregate_infallible_expressions(
         }
         Some(BinaryOperand::Or) => {
             if last_occur == Some(Occur::MustNot) {
-                // if occur is MustNot *and* operation is OR, we synthetize a ShouldNot
+                // if occur is MustNot *and* operation is OR, we synthesize a ShouldNot
                 clauses.push(vec![(Some(Occur::Should), last_ast.unary(Occur::MustNot))]);
             } else {
                 clauses.push(vec![(last_occur.or(Some(Occur::Should)), last_ast)]);
@@ -1057,7 +1057,7 @@ mod test {
         valid_parse("1", 1.0, "");
         valid_parse("0.234234 aaa", 0.234234f64, " aaa");
         error_parse(".3332");
-        // TODO trinity-1686a: I disagree that it should fail, I think it should succeeed,
+        // TODO trinity-1686a: I disagree that it should fail, I think it should succeed,
         // consuming only "1", and leave "." for the next thing (which will likely fail then)
         // error_parse("1.");
         error_parse("-1.");
@@ -1467,7 +1467,7 @@ mod test {
     }
 
     #[test]
-    fn test_parse_query_to_triming_spaces() {
+    fn test_parse_query_to_trimming_spaces() {
         test_parse_query_to_ast_helper("   abc", "abc");
         test_parse_query_to_ast_helper("abc ", "abc");
         test_parse_query_to_ast_helper("(  a OR abc)", "(?a ?abc)");

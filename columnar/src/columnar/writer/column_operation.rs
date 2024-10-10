@@ -87,7 +87,7 @@ impl<V: SymbolValue> ColumnOperation<V> {
         minibuf
     }
 
-    /// Deserialize a colummn operation.
+    /// Deserialize a column operation.
     /// Returns None if the buffer is empty.
     ///
     /// Panics if the payload is invalid:

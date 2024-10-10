@@ -671,7 +671,7 @@ impl BlockAddrStoreWriter {
 }
 
 /// Given an iterator over (index, value), returns the slope, and number of bits needed to
-/// represente the error to a prediction made by this slope.
+/// represent the error to a prediction made by this slope.
 ///
 /// The iterator may be empty, but all indexes in it must be non-zero.
 fn find_best_slope(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32, u8) {
@@ -702,7 +702,7 @@ fn find_best_slope(elements: impl Iterator<Item = (usize, u64)> + Clone) -> (u32
     // a point that appear earlier might have a high slope derivation, but a smaller absolute
     // derivation than a latter point.
     // The actual best values can be obtained by using the symplex method, but the improvement is
-    // likely minimal, and computation is way more complexe.
+    // likely minimal, and computation is way more complex.
     //
     // Assuming these point are the furthest up and down, we find the slope that would cause the
     // same positive derivation for the highest as negative derivation for the lowest.
