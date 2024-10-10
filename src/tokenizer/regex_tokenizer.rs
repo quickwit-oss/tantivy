@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_regexp_tokenizer_error_on_invalid_regex() {
         let tokenizer = RegexTokenizer::new(r"\@(");
-        assert_eq!(tokenizer.is_err(), true);
+        assert!(tokenizer.is_err());
         assert_eq!(
             tokenizer.err().unwrap().to_string(),
             "An invalid argument was passed: '\\@('"

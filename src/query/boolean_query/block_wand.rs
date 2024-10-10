@@ -417,7 +417,7 @@ mod tests {
             .boxed()
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn gen_term_scorers(num_scorers: usize) -> BoxedStrategy<(Vec<Vec<(DocId, u32)>>, Vec<u32>)> {
         (1u32..100u32)
             .prop_flat_map(move |max_doc: u32| {

@@ -839,12 +839,12 @@ mod tests {
             .bool("field_bool")
             .unwrap()
             .first_or_default_col(false);
-        assert_eq!(col.get_val(0), false);
+        assert!(!col.get_val(0));
         let col = fastfield_readers
             .bool("field_bool")
             .unwrap()
             .first_or_default_col(true);
-        assert_eq!(col.get_val(0), true);
+        assert!(col.get_val(0));
     }
 
     fn get_index(docs: &[crate::TantivyDocument], schema: &Schema) -> crate::Result<RamDirectory> {

@@ -35,7 +35,6 @@ const IMPLS: [FilterImplPerInstructionSet; 2] = [
 const IMPLS: [FilterImplPerInstructionSet; 1] = [FilterImplPerInstructionSet::Scalar];
 
 impl FilterImplPerInstructionSet {
-    #[allow(unused_variables)]
     #[inline]
     fn from(code: u8) -> FilterImplPerInstructionSet {
         #[cfg(target_arch = "x86_64")]

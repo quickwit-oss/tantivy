@@ -32,7 +32,7 @@ pub struct WatchCallbackList {
 /// file change is detected.
 #[must_use = "This `WatchHandle` controls the lifetime of the watch and should therefore be used."]
 #[derive(Clone)]
-#[allow(dead_code)]
+#[expect(dead_code)]
 pub struct WatchHandle(Arc<WatchCallback>);
 
 impl WatchHandle {

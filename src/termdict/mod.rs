@@ -49,7 +49,6 @@ use crate::postings::TermInfo;
 
 #[derive(Debug, Eq, PartialEq)]
 #[repr(u32)]
-#[allow(dead_code)]
 enum DictionaryType {
     Fst = 1,
     SSTable = 2,

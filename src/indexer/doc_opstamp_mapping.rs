@@ -53,10 +53,10 @@ mod tests {
     #[test]
     fn test_doc_to_opstamp_mapping_with_map() {
         let doc_to_opstamp_mapping = DocToOpstampMapping::WithMap(&[5u64, 1u64, 0u64, 4u64, 3u64]);
-        assert_eq!(doc_to_opstamp_mapping.is_deleted(0u32, 2u64), false);
-        assert_eq!(doc_to_opstamp_mapping.is_deleted(1u32, 2u64), true);
-        assert_eq!(doc_to_opstamp_mapping.is_deleted(2u32, 2u64), true);
-        assert_eq!(doc_to_opstamp_mapping.is_deleted(3u32, 2u64), false);
-        assert_eq!(doc_to_opstamp_mapping.is_deleted(4u32, 2u64), false);
+        assert!(!doc_to_opstamp_mapping.is_deleted(0u32, 2u64));
+        assert!(doc_to_opstamp_mapping.is_deleted(1u32, 2u64));
+        assert!(doc_to_opstamp_mapping.is_deleted(2u32, 2u64));
+        assert!(!doc_to_opstamp_mapping.is_deleted(3u32, 2u64));
+        assert!(!doc_to_opstamp_mapping.is_deleted(4u32, 2u64));
     }
 }

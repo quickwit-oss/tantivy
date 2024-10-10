@@ -78,7 +78,7 @@ pub struct SegmentSpaceUsage {
 }
 
 impl SegmentSpaceUsage {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub(crate) fn new(
         num_docs: u32,
         termdict: PerFieldSpaceUsage,

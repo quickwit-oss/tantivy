@@ -89,7 +89,6 @@ pub fn load<Item: Copy + 'static>(data: &[u8]) -> Item {
 }
 
 /// The `MemoryArena`
-#[allow(clippy::new_without_default)]
 pub struct MemoryArena {
     pages: Vec<Page>,
 }

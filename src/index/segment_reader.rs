@@ -478,7 +478,7 @@ pub fn merge_field_meta_data(
         .into_iter()
         .kmerge_by(|left, right| left < right)
         // TODO: Remove allocation
-        .group_by(|el| (el.field_name.to_string(), el.typ))
+        .chunk_by(|el| (el.field_name.to_string(), el.typ))
     {
         let mut merged: FieldMetadata = group.next().unwrap();
         for el in group {

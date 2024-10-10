@@ -4,7 +4,7 @@ use std::mem;
 use lz4_flex::{compress_into, decompress_into};
 
 #[inline]
-#[allow(clippy::uninit_vec)]
+#[expect(clippy::uninit_vec)]
 pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
     compressed.clear();
     let maximum_output_size =
@@ -24,7 +24,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
 }
 
 #[inline]
-#[allow(clippy::uninit_vec)]
+#[expect(clippy::uninit_vec)]
 pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()> {
     decompressed.clear();
     let uncompressed_size_bytes: &[u8; 4] = compressed

@@ -104,7 +104,7 @@ impl MergePolicy for LogMergePolicy {
 
         let mut current_max_log_size = f64::MAX;
         let mut levels = vec![];
-        for (_, merge_group) in &size_sorted_segments.into_iter().group_by(|segment| {
+        for (_, merge_group) in &size_sorted_segments.into_iter().chunk_by(|segment| {
             let segment_log_size = f64::from(self.clip_min_size(segment.num_docs())).log2();
             if segment_log_size < (current_max_log_size - self.level_log_size) {
                 // update current_max_log_size to create a new group

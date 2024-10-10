@@ -161,7 +161,7 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// # Ok(())
 /// # }
 /// ```
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 #[derive(Default)]
 pub struct MultiCollector<'a> {
     collector_wrappers: Vec<

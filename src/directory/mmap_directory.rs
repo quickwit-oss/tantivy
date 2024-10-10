@@ -244,7 +244,7 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        #[allow(clippy::bind_instead_of_map)]
+        #[expect(clippy::bind_instead_of_map)]
         let canonical_path: PathBuf = directory_path.canonicalize().or_else(|io_err| {
             let directory_path = directory_path.to_owned();
 
