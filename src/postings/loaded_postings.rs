@@ -46,17 +46,18 @@ impl LoadedPostings {
     }
 }
 
+#[cfg(test)]
 impl From<(Vec<DocId>, Vec<Vec<u32>>)> for LoadedPostings {
-    fn from(doc_ids: (Vec<DocId>, Vec<Vec<u32>>)) -> LoadedPostings {
+    fn from(doc_ids_and_positions: (Vec<DocId>, Vec<Vec<u32>>)) -> LoadedPostings {
         let mut position_offsets = Vec::new();
         let mut positions = Vec::new();
-        for pos in &doc_ids.1 {
+        for pos in &doc_ids_and_positions.1 {
             position_offsets.push(positions.len() as u32);
             positions.extend_from_slice(pos);
         }
         position_offsets.push(positions.len() as u32);
         LoadedPostings {
-            doc_ids: doc_ids.0,
+            doc_ids: doc_ids_and_positions.0,
             positions,
             position_offsets,
             cursor: 0,
@@ -94,8 +95,8 @@ impl Postings for LoadedPostings {
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         let start = self.position_offsets[self.cursor] as usize;
-        let stop = self.position_offsets[self.cursor + 1] as usize;
-        for pos in &self.positions[start..stop] {
+        let end = self.position_offsets[self.cursor + 1] as usize;
+        for pos in &self.positions[start..end] {
             output.push(*pos + offset);
         }
     }

@@ -21,12 +21,12 @@ mod tests {
     use crate::query::{BitSetDocSet, ConstScorer, VecDocSet};
     use crate::{tests, DocId};
 
-    pub fn vec_doc_set_from_docs_list(
+    fn vec_doc_set_from_docs_list(
         docs_list: &[Vec<DocId>],
     ) -> impl Iterator<Item = VecDocSet> + '_ {
         docs_list.iter().cloned().map(VecDocSet::from)
     }
-    pub fn union_from_docs_list(docs_list: &[Vec<DocId>]) -> Box<dyn DocSet> {
+    fn union_from_docs_list(docs_list: &[Vec<DocId>]) -> Box<dyn DocSet> {
         Box::new(BufferedUnionScorer::build(
             vec_doc_set_from_docs_list(docs_list)
                 .map(|docset| ConstScorer::new(docset, 1.0))
@@ -49,8 +49,7 @@ mod tests {
     fn bitset_from_docs_list(docs_list: &[Vec<DocId>]) -> BitSetDocSet {
         let max_doc = docs_list
             .iter()
-            .flat_map(|docs| docs.iter())
-            .cloned()
+            .flat_map(|docs| docs.iter().copied())
             .max()
             .unwrap_or(0);
         let mut doc_bitset = BitSet::with_max_value(max_doc + 1);
