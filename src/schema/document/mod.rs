@@ -164,8 +164,10 @@ mod owned_value;
 mod se;
 mod value;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::mem;
+
+use named_field_document::NamedFieldDocumentHashMap;
 
 pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
@@ -184,11 +186,13 @@ use super::*;
 pub trait Document: Send + Sync + 'static {
     /// The value of the field.
     type Value<'a>: Value<'a> + Clone
-    where Self: 'a;
+    where
+        Self: 'a;
 
     /// The iterator over all of the fields and values within the doc.
     type FieldsValuesIter<'a>: Iterator<Item = (Field, Self::Value<'a>)>
-    where Self: 'a;
+    where
+        Self: 'a;
 
     /// Get an iterator iterating over all fields and values in a document.
     fn iter_fields_and_values(&self) -> Self::FieldsValuesIter<'_>;
@@ -240,6 +244,24 @@ pub trait Document: Send + Sync + 'static {
             field_map.insert(field_name.to_string(), values);
         }
         NamedFieldDocument(field_map)
+    }
+
+    ///
+    fn to_named_doc_hash(&self, schema: &Schema) -> NamedFieldDocumentHashMap {
+        let mut field_map: HashMap<String, Vec<OwnedValue>> =
+            HashMap::with_capacity(schema.num_fields());
+        for (field, field_value) in self.iter_fields_and_values() {
+            let field_name: &str = schema.get_field_name(field);
+            if let Some(map_value) = field_map.get_mut(field_name) {
+                map_value.push(OwnedValue::from(field_value.as_value()));
+            } else {
+                field_map.insert(
+                    field_name.to_string(),
+                    vec![OwnedValue::from(field_value.as_value())],
+                );
+            }
+        }
+        NamedFieldDocumentHashMap(field_map)
     }
 
     /// Encode the doc in JSON.

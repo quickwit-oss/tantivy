@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,3 +11,6 @@ use crate::schema::OwnedValue;
 /// as a `BTreeMap<String, Vec<Value>>`.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NamedFieldDocument(pub BTreeMap<String, Vec<OwnedValue>>);
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct NamedFieldDocumentHashMap(pub HashMap<String, Vec<OwnedValue>>);
