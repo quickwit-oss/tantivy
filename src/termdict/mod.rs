@@ -22,6 +22,8 @@
 mod fst_termdict;
 #[cfg(not(feature = "quickwit"))]
 use fst_termdict as termdict;
+#[cfg(not(feature = "quickwit"))]
+pub use fst_termdict::TermInfoStore;
 
 #[cfg(feature = "quickwit")]
 mod sstable_termdict;
@@ -44,7 +46,7 @@ use self::termdict::{
     TermDictionary as InnerTermDict, TermDictionaryBuilder as InnerTermDictBuilder,
     TermStreamerBuilder,
 };
-pub use self::termdict::{TermInfoStore, TermMerger, TermStreamer};
+pub use self::termdict::{TermMerger, TermStreamer};
 use crate::postings::TermInfo;
 
 #[repr(u32)]
