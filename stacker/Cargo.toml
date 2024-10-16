@@ -13,10 +13,11 @@ common = { version = "0.7", path = "../common/", package = "tantivy-common" }
 ahash = { version = "0.8.11", default-features = false, optional = true }
 rand_distr = "0.4.3"
 
+
 [[bench]]
 harness = false
-name = "crit_bench"
-path = "benches/crit_bench.rs"
+name = "bench"
+path = "benches/bench.rs"
 
 [[example]]
 name = "hashmap"
@@ -25,9 +26,9 @@ path = "example/hashmap.rs"
 [dev-dependencies]
 rand = "0.8.5"
 zipf = "7.0.0"
-criterion = { git = "https://github.com/PSeitz/criterion.rs/", rev = "e6f98ee"} # This fork includes stack randomization to reduce caching effects
 rustc-hash = "1.1.0"
 proptest = "1.2.0"
+binggan = { version = "0.12.0" }
 
 [features]
 compare_hash_only = ["ahash"] # Compare hash only, not the key in the Hashmap
