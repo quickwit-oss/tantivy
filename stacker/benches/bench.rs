@@ -1,3 +1,4 @@
+use binggan::plugins::PeakMemAllocPlugin;
 use binggan::{black_box, BenchRunner, PeakMemAlloc, INSTRUMENTED_SYSTEM};
 use rand::SeedableRng;
 use rustc_hash::FxHashMap;
@@ -10,7 +11,8 @@ pub static GLOBAL: &PeakMemAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
 
 fn bench_vint() {
     let mut runner = BenchRunner::new();
-    runner.set_alloc(GLOBAL); // Set the peak mem allocator. This will enable peak memory reporting.
+    // Set the peak mem allocator. This will enable peak memory reporting.
+    runner.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
 
     {
         let input_bytes = ALICE.len();
@@ -33,14 +35,14 @@ fn bench_vint() {
         group.set_input_size(input_bytes);
         group.register_with_input("hashmap", &alice_terms_as_bytes, move |data| {
             black_box(create_hash_map(data.iter()));
-            None
+            Some(())
         });
         group.register_with_input(
             "hasmap with postings",
             &alice_terms_as_bytes_with_docid,
             move |data| {
                 black_box(create_hash_map_with_expull(data.iter().cloned()));
-                None
+                Some(())
             },
         );
         group.register_with_input(
@@ -48,7 +50,7 @@ fn bench_vint() {
             &alice_terms_as_bytes,
             move |data| {
                 black_box(create_fx_hash_ref_map_with_expull(data.iter().cloned()));
-                None
+                Some(())
             },
         );
         group.register_with_input(
@@ -56,7 +58,7 @@ fn bench_vint() {
             &alice_terms_as_bytes,
             move |data| {
                 black_box(create_fx_hash_owned_map_with_expull(data.iter().cloned()));
-                None
+                Some(())
             },
         );
         group.run();
@@ -84,11 +86,11 @@ fn bench_vint() {
                 group.set_input_size(input_bytes);
                 group.register_with_input("only hashmap", &numbers, move |data| {
                     black_box(create_hash_map(data.iter()));
-                    None
+                    Some(())
                 });
                 group.register_with_input("hasmap with postings", &numbers_with_doc, move |data| {
                     black_box(create_hash_map_with_expull(data.iter().cloned()));
-                    None
+                    Some(())
                 });
                 group.run();
             }
@@ -113,11 +115,11 @@ fn bench_vint() {
                 group.set_input_size(input_bytes);
                 group.register_with_input("hashmap", &numbers, move |data| {
                     black_box(create_hash_map(data.iter()));
-                    None
+                    Some(())
                 });
                 group.register_with_input("hasmap with postings", &numbers_with_doc, move |data| {
                     black_box(create_hash_map_with_expull(data.iter().cloned()));
-                    None
+                    Some(())
                 });
                 group.run();
             }
