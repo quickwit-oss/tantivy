@@ -131,7 +131,7 @@ fn main() {
     bench_vint();
 }
 
-const HASHMAP_SIZE: usize = 1 << 20;
+const HASHMAP_CAPACITY: usize = 1 << 15;
 
 /// Only records the doc ids
 #[derive(Clone, Default, Copy)]
@@ -145,7 +145,7 @@ impl DocIdRecorder {
 }
 
 fn create_hash_map<T: AsRef<[u8]>>(terms: impl Iterator<Item = T>) -> ArenaHashMap {
-    let mut map = ArenaHashMap::with_capacity(HASHMAP_SIZE);
+    let mut map = ArenaHashMap::with_capacity(HASHMAP_CAPACITY);
     for term in terms {
         map.mutate_or_create(term.as_ref(), |val| {
             if let Some(mut val) = val {
@@ -164,7 +164,7 @@ fn create_hash_map_with_expull<T: AsRef<[u8]>>(
     terms: impl Iterator<Item = (u32, T)>,
 ) -> ArenaHashMap {
     let mut memory_arena = MemoryArena::default();
-    let mut map = ArenaHashMap::with_capacity(HASHMAP_SIZE);
+    let mut map = ArenaHashMap::with_capacity(HASHMAP_CAPACITY);
     for (i, term) in terms {
         map.mutate_or_create(term.as_ref(), |val: Option<DocIdRecorder>| {
             if let Some(mut rec) = val {
@@ -183,7 +183,7 @@ fn create_fx_hash_ref_map_with_expull(
     terms: impl Iterator<Item = &'static [u8]>,
 ) -> FxHashMap<&'static [u8], Vec<u32>> {
     let terms = terms.enumerate();
-    let mut map = FxHashMap::with_capacity_and_hasher(HASHMAP_SIZE, Default::default());
+    let mut map = FxHashMap::with_capacity_and_hasher(HASHMAP_CAPACITY, Default::default());
     for (i, term) in terms {
         map.entry(term.as_ref())
             .or_insert_with(Vec::new)
@@ -196,7 +196,7 @@ fn create_fx_hash_owned_map_with_expull(
     terms: impl Iterator<Item = &'static [u8]>,
 ) -> FxHashMap<Vec<u8>, Vec<u32>> {
     let terms = terms.enumerate();
-    let mut map = FxHashMap::with_capacity_and_hasher(HASHMAP_SIZE, Default::default());
+    let mut map = FxHashMap::with_capacity_and_hasher(HASHMAP_CAPACITY, Default::default());
     for (i, term) in terms {
         map.entry(term.as_ref().to_vec())
             .or_insert_with(Vec::new)
