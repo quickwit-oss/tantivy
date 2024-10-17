@@ -1,6 +1,6 @@
 # Json
 
-As of tantivy 0.17, tantivy supports a json object type.
+As of Tantivy 0.17, Tantivy supports a json object type.
 This type can be used to allow for a schema-less search index.
 
 When indexing a json object, we "flatten" the JSON. This operation emits terms that represent a triplet `(json_path, value_type, value)`
@@ -56,7 +56,7 @@ As seen in "pitfalls", we may end up having to search for a value for a same pat
 Json gives very little information about the type of the literals it stores.
 All numeric types end up mapped as a "Number" and there are no types for dates.
 
-At indexing, tantivy will try to interpret number and strings as different type with a
+At indexing, Tantivy will try to interpret number and strings as different type with a
 priority order.
 
 Numbers will be interpreted as u64, i64 and f64 in that order.
@@ -120,7 +120,7 @@ Let's take an example.
 }
 ```
 
-Despite the array structure, a document in tantivy is a bag of terms.
+Despite the array structure, a document in Tantivy is a bag of terms.
 The query:
 
 ```rust
