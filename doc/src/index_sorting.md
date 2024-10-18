@@ -31,13 +31,13 @@ Compression ratio is mainly affected on the fast field of the sorted property, e
 When data is presorted by a field and search queries request sorting by the same field, we can leverage the natural order of the documents.
 E.g. if the data is sorted by timestamp and want the top n newest docs containing a term, we can simply leveraging the order of the docids.
 
-Note: Tantivy 0.16 does not do this optimization yet.
+Note: tantivy 0.16 does not do this optimization yet.
 
 ### Pruning
 
 Let's say we want all documents and want to apply the filter `>= 2010-08-11`. When the data is sorted, we could make a lookup in the fast field to find the docid range and use this as the filter.
 
-Note: Tantivy 0.16 does not do this optimization yet.
+Note: tantivy 0.16 does not do this optimization yet.
 
 ### Other?
 
@@ -45,7 +45,7 @@ In principle there are many algorithms possible that exploit the monotonically i
 
 ## Usage
 
-The index sorting can be configured setting [`sort_by_field`](https://github.com/quickwit-oss/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/core/index_meta.rs#L238) on `IndexSettings` and passing it to a `IndexBuilder`. As of Tantivy 0.16 only fast fields are allowed to be used.
+The index sorting can be configured setting [`sort_by_field`](https://github.com/quickwit-oss/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/core/index_meta.rs#L238) on `IndexSettings` and passing it to a `IndexBuilder`. As of tantivy 0.16 only fast fields are allowed to be used.
 
 ```rust
 let settings = IndexSettings {
