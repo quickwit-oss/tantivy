@@ -4,7 +4,7 @@ use std::io::{self, Read, Write};
 use std::str;
 use std::string::FromUtf8Error;
 
-use common::BinarySerializable;
+use common::*;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::de::Error as _;

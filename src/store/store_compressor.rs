@@ -5,6 +5,7 @@ use std::{io, thread};
 
 use common::{BinarySerializable, CountingWriter, TerminatingWrite};
 
+use super::DOC_STORE_VERSION;
 use crate::directory::WritePtr;
 use crate::store::footer::DocStoreFooter;
 use crate::store::index::{Checkpoint, SkipIndexBuilder};
@@ -143,8 +144,11 @@ impl BlockCompressorImpl {
 
     fn close(mut self) -> io::Result<()> {
         let header_offset: u64 = self.writer.written_bytes();
-        let docstore_footer =
-            DocStoreFooter::new(header_offset, Decompressor::from(self.compressor));
+        let docstore_footer = DocStoreFooter::new(
+            header_offset,
+            Decompressor::from(self.compressor),
+            DOC_STORE_VERSION,
+        );
         self.offset_index_writer.serialize_into(&mut self.writer)?;
         docstore_footer.serialize(&mut self.writer)?;
         self.writer.terminate()

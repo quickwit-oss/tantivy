@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::io;
 use std::iter::Sum;
 use std::num::NonZeroUsize;
@@ -25,9 +26,43 @@ pub(crate) const DOCSTORE_CACHE_CAPACITY: usize = 100;
 
 type Block = OwnedBytes;
 
+/// The format version of the document store.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub(crate) enum DocStoreVersion {
+    V1 = 1,
+    V2 = 2,
+}
+impl Display for DocStoreVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DocStoreVersion::V1 => write!(f, "V1"),
+            DocStoreVersion::V2 => write!(f, "V2"),
+        }
+    }
+}
+impl BinarySerializable for DocStoreVersion {
+    fn serialize<W: io::Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
+        (*self as u32).serialize(writer)
+    }
+
+    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        Ok(match u32::deserialize(reader)? {
+            1 => DocStoreVersion::V1,
+            2 => DocStoreVersion::V2,
+            v => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Invalid doc store version {}", v),
+                ))
+            }
+        })
+    }
+}
+
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
     decompressor: Decompressor,
+    doc_store_version: DocStoreVersion,
     data: FileSlice,
     skip_index: Arc<SkipIndex>,
     space_usage: StoreSpaceUsage,
@@ -129,6 +164,7 @@ impl StoreReader {
         let skip_index = SkipIndex::open(index_data);
         Ok(StoreReader {
             decompressor: footer.decompressor,
+            doc_store_version: footer.doc_store_version,
             data: data_file,
             cache: BlockCache {
                 cache: NonZeroUsize::new(cache_num_blocks)
@@ -203,8 +239,9 @@ impl StoreReader {
     pub fn get<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
 
-        let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
-            .map_err(crate::TantivyError::from)?;
+        let deserializer =
+            BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
+                .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
 
@@ -244,8 +281,9 @@ impl StoreReader {
         self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
 
-            let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
-                .map_err(crate::TantivyError::from)?;
+            let deserializer =
+                BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
+                    .map_err(crate::TantivyError::from)?;
             D::deserialize(deserializer).map_err(crate::TantivyError::from)
         })
     }
@@ -391,8 +429,9 @@ impl StoreReader {
     ) -> crate::Result<D> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id, executor).await?;
 
-        let deserializer = BinaryDocumentDeserializer::from_reader(&mut doc_bytes)
-            .map_err(crate::TantivyError::from)?;
+        let deserializer =
+            BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
+                .map_err(crate::TantivyError::from)?;
         D::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
 }
@@ -412,6 +451,11 @@ mod tests {
 
     fn get_text_field<'a>(doc: &'a TantivyDocument, field: &'a Field) -> Option<&'a str> {
         doc.get_first(*field).and_then(|f| f.as_value().as_str())
+    }
+
+    #[test]
+    fn test_doc_store_version_ord() {
+        assert!(DocStoreVersion::V1 < DocStoreVersion::V2);
     }
 
     #[test]

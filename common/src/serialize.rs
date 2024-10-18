@@ -74,14 +74,14 @@ impl FixedSize for () {
 
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        VInt(self.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(self.len() as u64), writer)?;
         for it in self {
             it.serialize(writer)?;
         }
         Ok(())
     }
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Vec<T>> {
-        let num_items = VInt::deserialize(reader)?.val();
+        let num_items = <VInt as BinarySerializable>::deserialize(reader)?.val();
         let mut items: Vec<T> = Vec::with_capacity(num_items as usize);
         for _ in 0..num_items {
             let item = T::deserialize(reader)?;
@@ -236,12 +236,12 @@ impl FixedSize for bool {
 impl BinarySerializable for String {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let data: &[u8] = self.as_bytes();
-        VInt(data.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(data.len() as u64), writer)?;
         writer.write_all(data)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<String> {
-        let string_length = VInt::deserialize(reader)?.val() as usize;
+        let string_length = <VInt as BinarySerializable>::deserialize(reader)?.val() as usize;
         let mut result = String::with_capacity(string_length);
         reader
             .take(string_length as u64)
@@ -253,12 +253,12 @@ impl BinarySerializable for String {
 impl<'a> BinarySerializable for Cow<'a, str> {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         let data: &[u8] = self.as_bytes();
-        VInt(data.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(data.len() as u64), writer)?;
         writer.write_all(data)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Cow<'a, str>> {
-        let string_length = VInt::deserialize(reader)?.val() as usize;
+        let string_length = <VInt as BinarySerializable>::deserialize(reader)?.val() as usize;
         let mut result = String::with_capacity(string_length);
         reader
             .take(string_length as u64)
@@ -269,18 +269,18 @@ impl<'a> BinarySerializable for Cow<'a, str> {
 
 impl<'a> BinarySerializable for Cow<'a, [u8]> {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        VInt(self.len() as u64).serialize(writer)?;
+        BinarySerializable::serialize(&VInt(self.len() as u64), writer)?;
         for it in self.iter() {
-            it.serialize(writer)?;
+            BinarySerializable::serialize(it, writer)?;
         }
         Ok(())
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Cow<'a, [u8]>> {
-        let num_items = VInt::deserialize(reader)?.val();
+        let num_items = <VInt as BinarySerializable>::deserialize(reader)?.val();
         let mut items: Vec<u8> = Vec::with_capacity(num_items as usize);
         for _ in 0..num_items {
-            let item = u8::deserialize(reader)?;
+            let item = <u8 as BinarySerializable>::deserialize(reader)?;
             items.push(item);
         }
         Ok(Cow::Owned(items))
