@@ -68,7 +68,7 @@ impl RegexPhraseWeight {
         let inverted_index = reader.inverted_index(self.field)?;
         let mut num_terms = 0;
         for &(offset, ref term) in &self.phrase_terms {
-            let regex = Regex::new(&term)
+            let regex = Regex::new(term)
                 .map_err(|e| crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}")))?;
 
             let automaton: AutomatonWeight<Regex> =
