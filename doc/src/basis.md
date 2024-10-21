@@ -11,7 +11,7 @@ directory shipped with tantivy is the `MmapDirectory`.
 While this design has some downsides, this greatly simplifies the source code of
 tantivy. Caching is also entirely delegated to the OS.
 
-`tantivy` works entirely (or almost) by directly reading the datastructures as they are laid on disk. As a result, the act of opening an indexing does not involve loading different datastructures from the disk into random access memory : starting a process, opening an index, and performing your first query can typically be done in a matter of milliseconds.
+Tantivy works entirely (or almost) by directly reading the datastructures as they are laid on disk. As a result, the act of opening an indexing does not involve loading different datastructures from the disk into random access memory : starting a process, opening an index, and performing your first query can typically be done in a matter of milliseconds.
 
 This is an interesting property for a command line search engine, or for some multi-tenant log search engine : spawning a new process for each new query can be a perfectly sensible solution in some use case.
 
