@@ -28,7 +28,7 @@ impl Tokenizer for RawTokenizer {
     }
 }
 
-impl<'a> TokenStream for RawTokenStream<'a> {
+impl TokenStream for RawTokenStream<'_> {
     fn advance(&mut self) -> bool {
         let result = self.has_token;
         self.has_token = false;

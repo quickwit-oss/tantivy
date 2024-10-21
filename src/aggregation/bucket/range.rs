@@ -16,6 +16,7 @@ use crate::aggregation::*;
 use crate::TantivyError;
 
 /// Provide user-defined buckets to aggregate on.
+///
 /// Two special buckets will automatically be created to cover the whole range of values.
 /// The provided buckets have to be continuous.
 /// During the aggregation, the values extracted from the fast_field `field` will be checked

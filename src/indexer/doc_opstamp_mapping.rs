@@ -21,7 +21,7 @@ pub enum DocToOpstampMapping<'a> {
     None,
 }
 
-impl<'a> DocToOpstampMapping<'a> {
+impl DocToOpstampMapping<'_> {
     /// Assess whether a document should be considered deleted given that it contains
     /// a deleted term that was deleted at the opstamp: `delete_opstamp`.
     ///

@@ -1,6 +1,7 @@
 use std::slice;
 
 /// Enum describing each component of a tantivy segment.
+///
 /// Each component is stored in its own file,
 /// using the pattern `segment_uuid`.`component_extension`,
 /// except the delete component that takes an `segment_uuid`.`delete_opstamp`.`component_extension`

@@ -82,7 +82,7 @@ where A: Automaton
     current_value: TermInfo,
 }
 
-impl<'a, A> TermStreamer<'a, A>
+impl<A> TermStreamer<'_, A>
 where A: Automaton
 {
     /// Advance position the stream on the next item.

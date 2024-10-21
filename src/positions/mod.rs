@@ -1,4 +1,5 @@
 //! Tantivy can (if instructed to do so in the schema) store the term positions in a given field.
+//!
 //! This position is expressed as token ordinal. For instance,
 //! In "The beauty and the beast", the term "the" appears in position 0 and position 3.
 //! This information is useful to run phrase queries.

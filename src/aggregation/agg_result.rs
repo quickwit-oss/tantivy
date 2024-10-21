@@ -1,4 +1,5 @@
 //! Contains the final aggregation tree.
+//!
 //! This tree can be converted via the `into()` method from `IntermediateAggregationResults`.
 //! This conversion computes the final result. For example: The intermediate result contains
 //! intermediate average results, which is the sum and the number of values. The actual average is

@@ -190,7 +190,7 @@ impl<'a> MultiCollector<'a> {
     }
 }
 
-impl<'a> Collector for MultiCollector<'a> {
+impl Collector for MultiCollector<'_> {
     type Fruit = MultiFruit;
     type Child = MultiCollectorChild;
 

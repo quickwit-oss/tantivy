@@ -272,7 +272,7 @@ impl<'a> From<&'a mut TermScorer> for TermScorerWithMaxScore<'a> {
     }
 }
 
-impl<'a> Deref for TermScorerWithMaxScore<'a> {
+impl Deref for TermScorerWithMaxScore<'_> {
     type Target = TermScorer;
 
     fn deref(&self) -> &Self::Target {
@@ -280,7 +280,7 @@ impl<'a> Deref for TermScorerWithMaxScore<'a> {
     }
 }
 
-impl<'a> DerefMut for TermScorerWithMaxScore<'a> {
+impl DerefMut for TermScorerWithMaxScore<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.scorer
     }
