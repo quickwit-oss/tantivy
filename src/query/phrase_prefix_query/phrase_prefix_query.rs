@@ -83,8 +83,8 @@ impl PhrasePrefixQuery {
     }
 
     /// `Term`s in the phrase with the associated offsets.
-    pub fn phrase_terms_with_offsets(&self) -> Vec<(usize, Term)> {
-        self.phrase_terms.clone()
+    pub fn get_phrase_terms_with_offsets(&self) -> &[(usize, Term)] {
+        self.phrase_terms
     }
 
     /// The prefix `Term` in the phrase with the associated offset.

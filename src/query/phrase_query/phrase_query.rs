@@ -95,8 +95,8 @@ impl PhraseQuery {
     }
 
     /// `Term`s in the phrase with the associated offsets.
-    pub fn phrase_terms_with_offsets(&self) -> Vec<(usize, Term)> {
-        self.phrase_terms.clone()
+    pub fn get_phrase_terms_with_offsets(&self) -> &[(usize, Term)] {
+        self.phrase_terms
     }
 
     /// Returns the [`PhraseWeight`] for the given phrase query given a specific `searcher`.

@@ -20,13 +20,13 @@ impl ConstScoreQuery {
         ConstScoreQuery { query, score }
     }
 
-    /// The wrapped query.
-    pub fn query(&self) -> Box<dyn Query> {
+    /// The underlying query.
+    pub fn underlying_query(&self) -> Box<dyn Query> {
         self.query.box_clone()
     }
 
-    /// The constant score.
-    pub fn score(&self) -> Score {
+    /// Get the constant score.
+    pub fn get_const_score(&self) -> Score {
         self.score
     }
 }
