@@ -223,7 +223,7 @@ impl Postings for SegmentPostings {
     /// # Panics
     ///
     /// Will panics if called without having called advance before.
-    fn term_freq(&mut self) -> u32 {
+    fn term_freq(&self) -> u32 {
         debug_assert!(
             // Here we do not use the len of `freqs()`
             // because it is actually ok to request for the freq of doc
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_empty_postings_doc_term_freq_returns_0() {
-        let mut postings = SegmentPostings::empty();
+        let postings = SegmentPostings::empty();
         assert_eq!(postings.term_freq(), 1);
     }
 

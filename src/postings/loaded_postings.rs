@@ -87,7 +87,7 @@ impl DocSet for LoadedPostings {
     }
 }
 impl Postings for LoadedPostings {
-    fn term_freq(&mut self) -> u32 {
+    fn term_freq(&self) -> u32 {
         let start = self.position_offsets[self.cursor] as usize;
         let stop = self.position_offsets[self.cursor + 1] as usize;
         (stop - start) as u32

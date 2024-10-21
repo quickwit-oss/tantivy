@@ -74,7 +74,7 @@ impl TermScorer {
             .block_max_score(&self.fieldnorm_reader, &self.similarity_weight)
     }
 
-    pub fn term_freq(&mut self) -> u32 {
+    pub fn term_freq(&self) -> u32 {
         self.postings.term_freq()
     }
 

@@ -45,9 +45,9 @@ impl<TDocSet: DocSet> SimpleUnion<TDocSet> {
 }
 
 impl<TDocSet: Postings> Postings for SimpleUnion<TDocSet> {
-    fn term_freq(&mut self) -> u32 {
+    fn term_freq(&self) -> u32 {
         let mut term_freq = 0;
-        for docset in &mut self.docsets {
+        for docset in &self.docsets {
             let doc = docset.doc();
             if doc == self.doc {
                 term_freq += docset.term_freq();

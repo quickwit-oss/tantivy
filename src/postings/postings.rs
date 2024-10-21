@@ -12,7 +12,7 @@ use crate::docset::DocSet;
 /// for merging segments or for testing.
 pub trait Postings: DocSet + 'static {
     /// The number of times the term appears in the document.
-    fn term_freq(&mut self) -> u32;
+    fn term_freq(&self) -> u32;
 
     /// Returns the positions offsetted with a given value.
     /// It is not necessary to clear the `output` before calling this method.
@@ -34,7 +34,7 @@ pub trait Postings: DocSet + 'static {
 }
 
 impl Postings for Box<dyn Postings> {
-    fn term_freq(&mut self) -> u32 {
+    fn term_freq(&self) -> u32 {
         (**self).term_freq()
     }
 
