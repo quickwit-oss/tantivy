@@ -15,9 +15,9 @@ use crate::DocId;
 /// terms.
 /// E.g. 100_000 terms would need 184MB due to SegmentPostings.
 pub struct LoadedPostings {
-    doc_ids: Vec<DocId>,
-    position_offsets: Vec<u32>,
-    positions: Vec<u32>,
+    doc_ids: Box<[DocId]>,
+    position_offsets: Box<[u32]>,
+    positions: Box<[u32]>,
     cursor: usize,
 }
 
@@ -38,9 +38,9 @@ impl LoadedPostings {
         }
         position_offsets.push(positions.len() as u32);
         LoadedPostings {
-            doc_ids,
-            positions,
-            position_offsets,
+            doc_ids: doc_ids.into_boxed_slice(),
+            positions: positions.into_boxed_slice(),
+            position_offsets: position_offsets.into_boxed_slice(),
             cursor: 0,
         }
     }
@@ -57,9 +57,9 @@ impl From<(Vec<DocId>, Vec<Vec<u32>>)> for LoadedPostings {
         }
         position_offsets.push(positions.len() as u32);
         LoadedPostings {
-            doc_ids: doc_ids_and_positions.0,
-            positions,
-            position_offsets,
+            doc_ids: doc_ids_and_positions.0.into_boxed_slice(),
+            positions: positions.into_boxed_slice(),
+            position_offsets: position_offsets.into_boxed_slice(),
             cursor: 0,
         }
     }
