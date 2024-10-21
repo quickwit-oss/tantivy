@@ -26,7 +26,7 @@ where P: FnMut(&mut T) -> bool {
 }
 
 /// Creates a `DocSet` that iterate through the union of two or more `DocSet`s.
-pub struct Union<TScorer, TScoreCombiner = DoNothingCombiner> {
+pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     docsets: Vec<TScorer>,
     bitsets: Box<[TinySet; HORIZON_NUM_TINYBITSETS]>,
     scores: Box<[TScoreCombiner; HORIZON as usize]>,
@@ -61,16 +61,16 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     });
 }
 
-impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombiner> {
+impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer, TScoreCombiner> {
     pub(crate) fn build(
         docsets: Vec<TScorer>,
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
-    ) -> Union<TScorer, TScoreCombiner> {
+    ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
             .filter(|docset| docset.doc() != TERMINATED)
             .collect();
-        let mut union = Union {
+        let mut union = BufferedUnionScorer {
             docsets: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
             scores: Box::new([score_combiner_fn(); HORIZON as usize]),
@@ -121,7 +121,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
     }
 }
 
-impl<TScorer, TScoreCombiner> DocSet for Union<TScorer, TScoreCombiner>
+impl<TScorer, TScoreCombiner> DocSet for BufferedUnionScorer<TScorer, TScoreCombiner>
 where
     TScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
@@ -230,214 +230,12 @@ where
     }
 }
 
-impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
+impl<TScorer, TScoreCombiner> Scorer for BufferedUnionScorer<TScorer, TScoreCombiner>
 where
     TScoreCombiner: ScoreCombiner,
     TScorer: Scorer,
 {
     fn score(&mut self) -> Score {
         self.score
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use std::collections::BTreeSet;
-
-    use super::{Union, HORIZON};
-    use crate::docset::{DocSet, TERMINATED};
-    use crate::postings::tests::test_skip_against_unoptimized;
-    use crate::query::score_combiner::DoNothingCombiner;
-    use crate::query::{ConstScorer, VecDocSet};
-    use crate::{tests, DocId};
-
-    fn aux_test_union(vals: Vec<Vec<u32>>) {
-        let mut val_set: BTreeSet<u32> = BTreeSet::new();
-        for vs in &vals {
-            for &v in vs {
-                val_set.insert(v);
-            }
-        }
-        let union_vals: Vec<u32> = val_set.into_iter().collect();
-        let mut union_expected = VecDocSet::from(union_vals);
-        let make_union = || {
-            Union::build(
-                vals.iter()
-                    .cloned()
-                    .map(VecDocSet::from)
-                    .map(|docset| ConstScorer::new(docset, 1.0))
-                    .collect::<Vec<ConstScorer<VecDocSet>>>(),
-                DoNothingCombiner::default,
-            )
-        };
-        let mut union: Union<_, DoNothingCombiner> = make_union();
-        let mut count = 0;
-        while union.doc() != TERMINATED {
-            assert_eq!(union_expected.doc(), union.doc());
-            assert_eq!(union_expected.advance(), union.advance());
-            count += 1;
-        }
-        assert_eq!(union_expected.advance(), TERMINATED);
-        assert_eq!(count, make_union().count_including_deleted());
-    }
-
-    #[test]
-    fn test_union() {
-        aux_test_union(vec![
-            vec![1, 3333, 100000000u32],
-            vec![1, 2, 100000000u32],
-            vec![1, 2, 100000000u32],
-            vec![],
-        ]);
-        aux_test_union(vec![
-            vec![1, 3333, 100000000u32],
-            vec![1, 2, 100000000u32],
-            vec![1, 2, 100000000u32],
-            vec![],
-        ]);
-        aux_test_union(vec![
-            tests::sample_with_seed(100_000, 0.01, 1),
-            tests::sample_with_seed(100_000, 0.05, 2),
-            tests::sample_with_seed(100_000, 0.001, 3),
-        ]);
-    }
-
-    fn test_aux_union_skip(docs_list: &[Vec<DocId>], skip_targets: Vec<DocId>) {
-        let mut btree_set = BTreeSet::new();
-        for docs in docs_list {
-            btree_set.extend(docs.iter().cloned());
-        }
-        let docset_factory = || {
-            let res: Box<dyn DocSet> = Box::new(Union::build(
-                docs_list
-                    .iter()
-                    .cloned()
-                    .map(VecDocSet::from)
-                    .map(|docset| ConstScorer::new(docset, 1.0))
-                    .collect::<Vec<_>>(),
-                DoNothingCombiner::default,
-            ));
-            res
-        };
-        let mut docset = docset_factory();
-        for el in btree_set {
-            assert_eq!(el, docset.doc());
-            docset.advance();
-        }
-        assert_eq!(docset.doc(), TERMINATED);
-        test_skip_against_unoptimized(docset_factory, skip_targets);
-    }
-
-    #[test]
-    fn test_union_skip_corner_case() {
-        test_aux_union_skip(&[vec![165132, 167382], vec![25029, 25091]], vec![25029]);
-    }
-
-    #[test]
-    fn test_union_skip_corner_case2() {
-        test_aux_union_skip(
-            &[vec![1u32, 1u32 + HORIZON], vec![2u32, 1000u32, 10_000u32]],
-            vec![0u32, 1u32, 2u32, 3u32, 1u32 + HORIZON, 2u32 + HORIZON],
-        );
-    }
-
-    #[test]
-    fn test_union_skip_corner_case3() {
-        let mut docset = Union::build(
-            vec![
-                ConstScorer::from(VecDocSet::from(vec![0u32, 5u32])),
-                ConstScorer::from(VecDocSet::from(vec![1u32, 4u32])),
-            ],
-            DoNothingCombiner::default,
-        );
-        assert_eq!(docset.doc(), 0u32);
-        assert_eq!(docset.seek(0u32), 0u32);
-        assert_eq!(docset.seek(0u32), 0u32);
-        assert_eq!(docset.doc(), 0u32)
-    }
-
-    #[test]
-    fn test_union_skip_random() {
-        test_aux_union_skip(
-            &[
-                vec![1, 2, 3, 7],
-                vec![1, 3, 9, 10000],
-                vec![1, 3, 8, 9, 100],
-            ],
-            vec![1, 2, 3, 5, 6, 7, 8, 100],
-        );
-        test_aux_union_skip(
-            &[
-                tests::sample_with_seed(100_000, 0.001, 1),
-                tests::sample_with_seed(100_000, 0.002, 2),
-                tests::sample_with_seed(100_000, 0.005, 3),
-            ],
-            tests::sample_with_seed(100_000, 0.01, 4),
-        );
-    }
-
-    #[test]
-    fn test_union_skip_specific() {
-        test_aux_union_skip(
-            &[
-                vec![1, 2, 3, 7],
-                vec![1, 3, 9, 10000],
-                vec![1, 3, 8, 9, 100],
-            ],
-            vec![1, 2, 3, 7, 8, 9, 99, 100, 101, 500, 20000],
-        );
-    }
-}
-
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-
-    use test::Bencher;
-
-    use crate::query::score_combiner::DoNothingCombiner;
-    use crate::query::{ConstScorer, Union, VecDocSet};
-    use crate::{tests, DocId, DocSet, TERMINATED};
-
-    #[bench]
-    fn bench_union_3_high(bench: &mut Bencher) {
-        let union_docset: Vec<Vec<DocId>> = vec![
-            tests::sample_with_seed(100_000, 0.1, 0),
-            tests::sample_with_seed(100_000, 0.2, 1),
-        ];
-        bench.iter(|| {
-            let mut v = Union::build(
-                union_docset
-                    .iter()
-                    .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
-                    .map(|docset| ConstScorer::new(docset, 1.0))
-                    .collect::<Vec<_>>(),
-                DoNothingCombiner::default,
-            );
-            while v.doc() != TERMINATED {
-                v.advance();
-            }
-        });
-    }
-    #[bench]
-    fn bench_union_3_low(bench: &mut Bencher) {
-        let union_docset: Vec<Vec<DocId>> = vec![
-            tests::sample_with_seed(100_000, 0.01, 0),
-            tests::sample_with_seed(100_000, 0.05, 1),
-            tests::sample_with_seed(100_000, 0.001, 2),
-        ];
-        bench.iter(|| {
-            let mut v = Union::build(
-                union_docset
-                    .iter()
-                    .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
-                    .map(|docset| ConstScorer::new(docset, 1.0))
-                    .collect::<Vec<_>>(),
-                DoNothingCombiner::default,
-            );
-            while v.doc() != TERMINATED {
-                v.advance();
-            }
-        });
     }
 }

@@ -308,7 +308,7 @@ mod tests {
 
     use crate::query::score_combiner::SumCombiner;
     use crate::query::term_query::TermScorer;
-    use crate::query::{Bm25Weight, Scorer, Union};
+    use crate::query::{Bm25Weight, BufferedUnionScorer, Scorer};
     use crate::{DocId, DocSet, Score, TERMINATED};
 
     struct Float(Score);
@@ -371,7 +371,7 @@ mod tests {
     fn compute_checkpoints_manual(term_scorers: Vec<TermScorer>, n: usize) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
         let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
-        let mut scorer = Union::build(term_scorers, SumCombiner::default);
+        let mut scorer = BufferedUnionScorer::build(term_scorers, SumCombiner::default);
 
         let mut limit = Score::MIN;
         loop {

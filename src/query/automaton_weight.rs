@@ -6,6 +6,7 @@ use tantivy_fst::Automaton;
 
 use super::phrase_prefix_query::prefix_end;
 use crate::index::SegmentReader;
+use crate::postings::TermInfo;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
@@ -63,6 +64,18 @@ where
         }
 
         term_stream_builder.into_stream()
+    }
+
+    /// Returns the term infos that match the automaton
+    pub fn get_match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>> {
+        let inverted_index = reader.inverted_index(self.field)?;
+        let term_dict = inverted_index.terms();
+        let mut term_stream = self.automaton_stream(term_dict)?;
+        let mut term_infos = Vec::new();
+        while term_stream.advance() {
+            term_infos.push(term_stream.value().clone());
+        }
+        Ok(term_infos)
     }
 }
 
