@@ -25,8 +25,15 @@ pub struct RegexPhraseQuery {
     phrase_terms: Vec<(usize, String)>,
     slop: u32,
     max_expansions: u32,
-    /// wildcard_mode means query is interpeted as wildcard query instead of regex.
-    wildcard_mode: bool,
+}
+
+/// Transform a wildcard query to a regex string.
+///
+/// `AB*CD` for example is converted to `AB.*CD`
+///
+/// All other chars are regex escaped.
+pub fn wildcard_query_to_regex_str(term: &str) -> String {
+    regex::escape(term).replace(r"\*", ".*")
 }
 
 impl RegexPhraseQuery {
@@ -64,16 +71,7 @@ impl RegexPhraseQuery {
             phrase_terms: terms,
             slop,
             max_expansions: 1 << 14,
-            wildcard_mode: false,
         }
-    }
-
-    /// Sets the wildcard mode for the query.
-    /// If set to true, the terms will be interpreted as a wildcard query instead of regex.
-    /// E.g. "wol*" will match "wolf", "wolves", etc.
-    /// By default the wildcard mode is false.
-    pub fn set_wildcard_mode(&mut self, value: bool) {
-        self.wildcard_mode = value;
     }
 
     /// Slop allowed for the phrase.
@@ -158,7 +156,6 @@ impl RegexPhraseQuery {
             bm25_weight_opt,
             self.max_expansions,
             self.slop,
-            self.wildcard_mode,
         );
         Ok(weight)
     }

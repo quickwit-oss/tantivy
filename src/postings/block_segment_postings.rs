@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn test_empty_postings_doc_term_freq_returns_0() {
-        let mut postings = SegmentPostings::empty();
+        let postings = SegmentPostings::empty();
         assert_eq!(postings.term_freq(), 1);
     }
 

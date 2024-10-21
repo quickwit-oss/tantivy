@@ -24,9 +24,6 @@ pub struct RegexPhraseWeight {
     similarity_weight_opt: Option<Bm25Weight>,
     slop: u32,
     max_expansions: u32,
-    /// wildcard_mode is true if the query is interpeted as wildcard query instead of regex.
-    /// e.g. wol*
-    wildcard_mode: bool,
 }
 
 impl RegexPhraseWeight {
@@ -38,7 +35,6 @@ impl RegexPhraseWeight {
         similarity_weight_opt: Option<Bm25Weight>,
         max_expansions: u32,
         slop: u32,
-        wildcard_mode: bool,
     ) -> RegexPhraseWeight {
         RegexPhraseWeight {
             field,
@@ -46,7 +42,6 @@ impl RegexPhraseWeight {
             similarity_weight_opt,
             slop,
             max_expansions,
-            wildcard_mode,
         }
     }
 
@@ -73,13 +68,6 @@ impl RegexPhraseWeight {
         let inverted_index = reader.inverted_index(self.field)?;
         let mut num_terms = 0;
         for &(offset, ref term) in &self.phrase_terms {
-            let term = if self.wildcard_mode {
-                // Tranform a a wildcard query to a regex (`AB*CD`, for example) into a regex::Regex
-                // (`AB.*CD`) All other chars are regex escaped.
-                regex::escape(term).replace(r"\*", ".*")
-            } else {
-                term.clone()
-            };
             let regex = Regex::new(&term)
                 .map_err(|e| crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}")))?;
 
@@ -317,7 +305,7 @@ mod tests {
 
     use super::super::tests::create_index;
     use crate::docset::TERMINATED;
-    use crate::query::{EnableScoring, RegexPhraseQuery};
+    use crate::query::{wildcard_query_to_regex_str, EnableScoring, RegexPhraseQuery};
     use crate::DocSet;
 
     proptest! {
@@ -346,8 +334,7 @@ mod tests {
             let text_field = schema.get_field("text").unwrap();
             let searcher = index.reader()?.searcher();
 
-            let mut phrase_query = RegexPhraseQuery::new(text_field, vec!["a*".into(), "c*".into()]);
-            phrase_query.set_wildcard_mode(true);
+            let phrase_query = RegexPhraseQuery::new(text_field, vec![wildcard_query_to_regex_str("a*"), wildcard_query_to_regex_str("c*")]);
 
             let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
             let phrase_weight = phrase_query.regex_phrase_weight(enable_scoring).unwrap();
@@ -371,8 +358,7 @@ mod tests {
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
         let searcher = index.reader()?.searcher();
-        let mut phrase_query = RegexPhraseQuery::new(text_field, vec!["a".into(), "b".into()]);
-        phrase_query.set_wildcard_mode(true);
+        let phrase_query = RegexPhraseQuery::new(text_field, vec!["a".into(), "b".into()]);
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.regex_phrase_weight(enable_scoring).unwrap();
         let mut phrase_scorer = phrase_weight
@@ -393,8 +379,7 @@ mod tests {
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
         let searcher = index.reader()?.searcher();
-        let mut phrase_query = RegexPhraseQuery::new(text_field, vec!["a*".into(), "b".into()]);
-        phrase_query.set_wildcard_mode(true);
+        let phrase_query = RegexPhraseQuery::new(text_field, vec!["a.*".into(), "b".into()]);
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.regex_phrase_weight(enable_scoring).unwrap();
         let mut phrase_scorer = phrase_weight
@@ -440,9 +425,8 @@ mod tests {
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
         let searcher = index.reader()?.searcher();
-        let mut phrase_query = RegexPhraseQuery::new(text_field, vec!["a*".into(), "c*".into()]);
+        let mut phrase_query = RegexPhraseQuery::new(text_field, vec!["a.*".into(), "c.*".into()]);
         phrase_query.set_slop(1);
-        phrase_query.set_wildcard_mode(true);
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.regex_phrase_weight(enable_scoring).unwrap();
         let mut phrase_scorer = phrase_weight
@@ -453,7 +437,6 @@ mod tests {
         assert_eq!(phrase_scorer.advance(), TERMINATED);
 
         phrase_query.set_slop(2);
-        phrase_query.set_wildcard_mode(true);
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.regex_phrase_weight(enable_scoring).unwrap();
         let mut phrase_scorer = phrase_weight
@@ -472,8 +455,13 @@ mod tests {
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
         let searcher = index.reader()?.searcher();
-        let mut phrase_query = RegexPhraseQuery::new(text_field, vec!["*a*".into(), "*c*".into()]);
-        phrase_query.set_wildcard_mode(true);
+        let phrase_query = RegexPhraseQuery::new(
+            text_field,
+            vec![
+                wildcard_query_to_regex_str("*a*"),
+                wildcard_query_to_regex_str("*c*"),
+            ],
+        );
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.regex_phrase_weight(enable_scoring).unwrap();
         let mut phrase_scorer = phrase_weight

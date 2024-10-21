@@ -8,7 +8,7 @@ use crate::DocId;
 ///
 /// It exists mainly to reduce memory usage.
 /// `SegmentPostings` uses 1840 bytes per instance due to its caches.
-/// It you need to keep many terms around with few docs, it's cheaper to load all the
+/// If you need to keep many terms around with few docs, it's cheaper to load all the
 /// postings in memory.
 ///
 /// This is relevant for `RegexPhraseQuery`, which may have a lot of
@@ -50,15 +50,16 @@ impl LoadedPostings {
 impl From<(Vec<DocId>, Vec<Vec<u32>>)> for LoadedPostings {
     fn from(doc_ids_and_positions: (Vec<DocId>, Vec<Vec<u32>>)) -> LoadedPostings {
         let mut position_offsets = Vec::new();
-        let mut positions = Vec::new();
-        for pos in &doc_ids_and_positions.1 {
-            position_offsets.push(positions.len() as u32);
-            positions.extend_from_slice(pos);
+        let mut all_positions = Vec::new();
+        let (doc_ids, docid_positions) = doc_ids_and_positions;
+        for positions in docid_positions {
+            position_offsets.push(all_positions.len() as u32);
+            all_positions.extend_from_slice(&positions);
         }
-        position_offsets.push(positions.len() as u32);
+        position_offsets.push(all_positions.len() as u32);
         LoadedPostings {
-            doc_ids: doc_ids_and_positions.0.into_boxed_slice(),
-            positions: positions.into_boxed_slice(),
+            doc_ids: doc_ids.into_boxed_slice(),
+            positions: all_positions.into_boxed_slice(),
             position_offsets: position_offsets.into_boxed_slice(),
             cursor: 0,
         }
@@ -76,7 +77,7 @@ impl DocSet for LoadedPostings {
     }
 
     fn doc(&self) -> DocId {
-        if self.cursor == self.doc_ids.len() {
+        if self.cursor >= self.doc_ids.len() {
             return TERMINATED;
         }
         self.doc_ids[self.cursor]
@@ -89,8 +90,8 @@ impl DocSet for LoadedPostings {
 impl Postings for LoadedPostings {
     fn term_freq(&self) -> u32 {
         let start = self.position_offsets[self.cursor] as usize;
-        let stop = self.position_offsets[self.cursor + 1] as usize;
-        (stop - start) as u32
+        let end = self.position_offsets[self.cursor + 1] as usize;
+        (end - start) as u32
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {

@@ -250,6 +250,7 @@ impl Postings for SegmentPostings {
                     .iter()
                     .cloned()
                     .sum::<u32>() as u64);
+            // TODO: instead of zeroing the output, we could use MaybeUninit or similar.
             output.resize(prev_len + term_freq as usize, 0u32);
             position_reader.read(read_offset, &mut output[prev_len..]);
             let mut cum = offset;

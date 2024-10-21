@@ -421,7 +421,7 @@ fn test_non_text_json_term_freq() {
     let mut term = Term::from_field_json_path(field, "tenant_id", false);
     term.append_type_and_fast_value(75i64);
 
-    let mut postings = inv_idx
+    let postings = inv_idx
         .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
         .unwrap()
         .unwrap();

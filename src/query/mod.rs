@@ -51,7 +51,7 @@ pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::{intersect_scorers, Intersection};
 pub use self::more_like_this::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
 pub use self::phrase_prefix_query::PhrasePrefixQuery;
-pub use self::phrase_query::regex_phrase_query::RegexPhraseQuery;
+pub use self::phrase_query::regex_phrase_query::{wildcard_query_to_regex_str, RegexPhraseQuery};
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::{EnableScoring, Query, QueryClone};
 pub use self::query_parser::{QueryParser, QueryParserError};
