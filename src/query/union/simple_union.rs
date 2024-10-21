@@ -16,15 +16,15 @@ impl<TDocSet: DocSet> SimpleUnion<TDocSet> {
         docsets.retain(|docset| docset.doc() != TERMINATED);
         let mut docset = SimpleUnion { docsets, doc: 0 };
 
-        docset.update_current();
+        docset.initialize_first_doc_id();
 
         docset
     }
 
-    fn update_current(&mut self) {
+    fn initialize_first_doc_id(&mut self) {
         let mut next_doc = TERMINATED;
 
-        for docset in &mut self.docsets {
+        for docset in &self.docsets {
             next_doc = next_doc.min(docset.doc());
         }
         self.doc = next_doc;
@@ -100,11 +100,10 @@ impl<TDocSet: DocSet> DocSet for SimpleUnion<TDocSet> {
     }
 
     fn count_including_deleted(&mut self) -> u32 {
-        let mut count = 0;
-        if self.doc != TERMINATED {
-            count += 1;
+        if self.doc == TERMINATED {
+            return 0u32;
         }
-
+        let mut count = 1u32;
         while self.advance_to_next() != TERMINATED {
             count += 1;
         }

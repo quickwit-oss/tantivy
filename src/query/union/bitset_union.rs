@@ -11,7 +11,9 @@ use crate::DocId;
 /// terms, but need to keep the docsets for the postings.
 pub struct BitSetPostingUnion<TDocSet> {
     /// The docsets are required to load positions
-    docsets: Vec<RefCell<TDocSet>>,
+    ///
+    /// RefCell because we mutate in term_freq
+    docsets: RefCell<Vec<TDocSet>>,
     /// The already unionized BitSet of the docsets
     bitset: BitSetDocSet,
 }
@@ -22,7 +24,7 @@ impl<TDocSet: DocSet> BitSetPostingUnion<TDocSet> {
         bitset: BitSetDocSet,
     ) -> BitSetPostingUnion<TDocSet> {
         BitSetPostingUnion {
-            docsets: docsets.into_iter().map(RefCell::new).collect(),
+            docsets: RefCell::new(docsets),
             bitset,
         }
     }
@@ -32,8 +34,8 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
     fn term_freq(&self) -> u32 {
         let curr_doc = self.bitset.doc();
         let mut term_freq = 0;
-        for docset in &self.docsets {
-            let mut docset = docset.borrow_mut();
+        let mut docsets = self.docsets.borrow_mut();
+        for docset in docsets.iter_mut() {
             if docset.doc() < curr_doc {
                 docset.seek(curr_doc);
             }
@@ -46,8 +48,8 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         let curr_doc = self.bitset.doc();
-        for docset in &mut self.docsets {
-            let mut docset = docset.borrow_mut();
+        let mut docsets = self.docsets.borrow_mut();
+        for docset in docsets.iter_mut() {
             if docset.doc() < curr_doc {
                 docset.seek(curr_doc);
             }

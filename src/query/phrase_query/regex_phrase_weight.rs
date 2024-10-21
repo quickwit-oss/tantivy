@@ -73,7 +73,7 @@ impl RegexPhraseWeight {
 
             let automaton: AutomatonWeight<Regex> =
                 AutomatonWeight::new(self.field, Arc::new(regex));
-            let term_infos = automaton.get_term_infos(reader)?;
+            let term_infos = automaton.get_match_term_infos(reader)?;
             // If term_infos is empty, the phrase can not match any documents.
             if term_infos.is_empty() {
                 return Ok(None);

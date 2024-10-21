@@ -67,7 +67,7 @@ where
     }
 
     /// Returns the term infos that match the automaton
-    pub fn get_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>> {
+    pub fn get_match_term_infos(&self, reader: &SegmentReader) -> crate::Result<Vec<TermInfo>> {
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
         let mut term_stream = self.automaton_stream(term_dict)?;

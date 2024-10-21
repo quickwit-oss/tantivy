@@ -82,7 +82,7 @@ impl TermScorer {
         self.fieldnorm_reader.fieldnorm_id(self.doc())
     }
 
-    pub fn explain(&mut self) -> Explanation {
+    pub fn explain(&self) -> Explanation {
         let fieldnorm_id = self.fieldnorm_id();
         let term_freq = self.term_freq();
         self.similarity_weight.explain(fieldnorm_id, term_freq)
