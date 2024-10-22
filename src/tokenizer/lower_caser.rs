@@ -51,7 +51,7 @@ fn to_lowercase_unicode(text: &str, output: &mut String) {
     }
 }
 
-impl<'a, T: TokenStream> TokenStream for LowerCaserTokenStream<'a, T> {
+impl<T: TokenStream> TokenStream for LowerCaserTokenStream<'_, T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;

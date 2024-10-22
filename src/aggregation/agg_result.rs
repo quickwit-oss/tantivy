@@ -1,4 +1,5 @@
 //! Contains the final aggregation tree.
+//!
 //! This tree can be converted via the `into()` method from `IntermediateAggregationResults`.
 //! This conversion computes the final result. For example: The intermediate result contains
 //! intermediate average results, which is the sum and the number of values. The actual average is
@@ -187,7 +188,7 @@ pub enum BucketEntries<T> {
 }
 
 impl<T> BucketEntries<T> {
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &T> + 'a> {
+    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a T> + 'a> {
         match self {
             BucketEntries::Vec(vec) => Box::new(vec.iter()),
             BucketEntries::HashMap(map) => Box::new(map.values()),

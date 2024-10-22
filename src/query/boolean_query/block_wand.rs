@@ -272,7 +272,7 @@ impl<'a> From<&'a mut TermScorer> for TermScorerWithMaxScore<'a> {
     }
 }
 
-impl<'a> Deref for TermScorerWithMaxScore<'a> {
+impl Deref for TermScorerWithMaxScore<'_> {
     type Target = TermScorer;
 
     fn deref(&self) -> &Self::Target {
@@ -280,7 +280,7 @@ impl<'a> Deref for TermScorerWithMaxScore<'a> {
     }
 }
 
-impl<'a> DerefMut for TermScorerWithMaxScore<'a> {
+impl DerefMut for TermScorerWithMaxScore<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.scorer
     }
@@ -417,7 +417,7 @@ mod tests {
             .boxed()
     }
 
-    #[allow(clippy::type_complexity)]
+    #[expect(clippy::type_complexity)]
     fn gen_term_scorers(num_scorers: usize) -> BoxedStrategy<(Vec<Vec<(DocId, u32)>>, Vec<u32>)> {
         (1u32..100u32)
             .prop_flat_map(move |max_doc: u32| {

@@ -128,7 +128,7 @@ pub fn open_u128_as_compact_u64(mut bytes: OwnedBytes) -> io::Result<Arc<dyn Col
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::column_values::u64_based::{
         serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,

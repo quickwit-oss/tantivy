@@ -4,6 +4,7 @@ use super::{Token, TokenStream, Tokenizer};
 use crate::TantivyError;
 
 /// Tokenize the text by using a regex pattern to split.
+///
 /// Each match of the regex emits a distinct token, empty tokens will not be emitted. Anchors such
 /// as `\A` will match the text from the part where the last token was emitted or the beginning of
 /// the complete text if no token was emitted yet.
@@ -83,7 +84,7 @@ pub struct RegexTokenStream<'a> {
     cursor: usize,
 }
 
-impl<'a> TokenStream for RegexTokenStream<'a> {
+impl TokenStream for RegexTokenStream<'_> {
     fn advance(&mut self) -> bool {
         let Some(regex_match) = self.regex.find(self.text) else {
             return false;

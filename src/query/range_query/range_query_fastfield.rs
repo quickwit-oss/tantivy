@@ -402,7 +402,7 @@ fn search_on_u64_ff(
     boost: Score,
     bounds: BoundsRange<u64>,
 ) -> crate::Result<Box<dyn Scorer>> {
-    #[allow(clippy::reversed_empty_ranges)]
+    #[expect(clippy::reversed_empty_ranges)]
     let value_range = bound_to_value_range(
         &bounds.lower_bound,
         &bounds.upper_bound,
@@ -1386,7 +1386,7 @@ mod tests {
 }
 
 #[cfg(test)]
-pub mod ip_range_tests {
+pub(crate) mod ip_range_tests {
     use proptest::prelude::ProptestConfig;
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};

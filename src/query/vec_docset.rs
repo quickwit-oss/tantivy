@@ -50,7 +50,7 @@ impl HasLen for VecDocSet {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
 
     use super::*;
     use crate::docset::COLLECT_BLOCK_BUFFER_LEN;

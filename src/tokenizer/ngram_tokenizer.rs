@@ -159,7 +159,7 @@ impl Tokenizer for NgramTokenizer {
     }
 }
 
-impl<'a> TokenStream for NgramTokenStream<'a> {
+impl TokenStream for NgramTokenStream<'_> {
     fn advance(&mut self) -> bool {
         if let Some((offset_from, offset_to)) = self.ngram_charidx_iterator.next() {
             if self.prefix_only && offset_from > 0 {
@@ -283,7 +283,7 @@ impl<'a> CodepointFrontiers<'a> {
     }
 }
 
-impl<'a> Iterator for CodepointFrontiers<'a> {
+impl Iterator for CodepointFrontiers<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {

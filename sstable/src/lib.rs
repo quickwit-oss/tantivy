@@ -85,7 +85,6 @@ pub trait SSTable: Sized {
     }
 }
 
-#[allow(dead_code)]
 pub struct VoidSSTable;
 
 impl SSTable for VoidSSTable {
@@ -100,7 +99,6 @@ impl SSTable for VoidSSTable {
 /// In other words, two keys `k1` and `k2`
 /// such that `k1` <= `k2`, are required to observe
 /// `range_sstable[k1] <= range_sstable[k2]`.
-#[allow(dead_code)]
 pub struct MonotonicU64SSTable;
 
 impl SSTable for MonotonicU64SSTable {

@@ -34,7 +34,7 @@ impl<'a> VInt32Reader<'a> {
     }
 }
 
-impl<'a> Iterator for VInt32Reader<'a> {
+impl Iterator for VInt32Reader<'_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {

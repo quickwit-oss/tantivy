@@ -149,7 +149,7 @@ impl FieldNormReader {
     }
 
     #[cfg(test)]
-    pub fn for_test(field_norms: &[u32]) -> FieldNormReader {
+    pub(crate) fn for_test(field_norms: &[u32]) -> FieldNormReader {
         let field_norms_id = field_norms
             .iter()
             .cloned()

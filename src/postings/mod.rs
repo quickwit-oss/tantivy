@@ -31,7 +31,7 @@ pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::skip::{BlockInfo, SkipReader};
 pub use self::term_info::TermInfo;
 
-#[allow(clippy::enum_variant_names)]
+#[expect(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub(crate) enum FreqReadingOption {
     NoFreq,
@@ -40,7 +40,7 @@ pub(crate) enum FreqReadingOption {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use std::mem;
 
     use super::{InvertedIndexSerializer, Postings};

@@ -169,7 +169,7 @@ impl SharedArenaHashMap {
     }
 
     #[inline]
-    fn get_key_value<'a>(&'a self, addr: Addr, memory_arena: &'a MemoryArena) -> (&[u8], Addr) {
+    fn get_key_value<'a>(&'a self, addr: Addr, memory_arena: &'a MemoryArena) -> (&'a [u8], Addr) {
         let data = memory_arena.slice_from(addr);
         let key_bytes_len_bytes = unsafe { data.get_unchecked(..2) };
         let key_bytes_len = u16::from_le_bytes(key_bytes_len_bytes.try_into().unwrap());
@@ -233,7 +233,7 @@ impl SharedArenaHashMap {
     }
 
     #[inline]
-    pub fn iter<'a>(&'a self, memory_arena: &'a MemoryArena) -> Iter<'_> {
+    pub fn iter<'a>(&'a self, memory_arena: &'a MemoryArena) -> Iter<'a> {
         Iter {
             inner: self
                 .table

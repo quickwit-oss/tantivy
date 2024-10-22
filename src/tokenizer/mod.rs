@@ -166,7 +166,7 @@ pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use super::{
         Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, TokenizerManager,
     };

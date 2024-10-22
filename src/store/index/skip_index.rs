@@ -11,7 +11,7 @@ pub struct LayerCursor<'a> {
     cursor: usize,
 }
 
-impl<'a> Iterator for LayerCursor<'a> {
+impl Iterator for LayerCursor<'_> {
     type Item = Checkpoint;
 
     fn next(&mut self) -> Option<Checkpoint> {

@@ -10,7 +10,7 @@ pub use self::phrase_scorer::PhraseScorer;
 pub use self::phrase_weight::PhraseWeight;
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
 
     use serde_json::json;
 

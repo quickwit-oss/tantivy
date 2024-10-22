@@ -394,7 +394,7 @@ where R: Read
             type_codes::NULL_CODE => ValueType::Null,
             type_codes::ARRAY_CODE => ValueType::Array,
             type_codes::OBJECT_CODE => ValueType::Object,
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             type_codes::JSON_OBJ_CODE => ValueType::JSONObject,
             _ => {
                 return Err(DeserializeError::from(io::Error::new(

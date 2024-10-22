@@ -40,7 +40,7 @@ impl Tokenizer for FacetTokenizer {
     }
 }
 
-impl<'a> TokenStream for FacetTokenStream<'a> {
+impl TokenStream for FacetTokenStream<'_> {
     fn advance(&mut self) -> bool {
         match self.state {
             State::RootFacetNotEmitted => {

@@ -401,7 +401,7 @@ impl PartialEq for CompactDocValue<'_> {
         value1 == value2
     }
 }
-impl<'a> From<CompactDocValue<'a>> for OwnedValue {
+impl From<CompactDocValue<'_>> for OwnedValue {
     fn from(value: CompactDocValue) -> Self {
         value.as_value().into()
     }

@@ -122,7 +122,7 @@ pub struct SplitCompoundWordsTokenStream<'a, T> {
     parts: &'a mut Vec<Token>,
 }
 
-impl<'a, T: TokenStream> SplitCompoundWordsTokenStream<'a, T> {
+impl<T: TokenStream> SplitCompoundWordsTokenStream<'_, T> {
     // Will use `self.cuts` to fill `self.parts` if `self.tail.token()`
     // can fully be split into consecutive matches against `self.dict`.
     fn split(&mut self) {
@@ -158,7 +158,7 @@ impl<'a, T: TokenStream> SplitCompoundWordsTokenStream<'a, T> {
     }
 }
 
-impl<'a, T: TokenStream> TokenStream for SplitCompoundWordsTokenStream<'a, T> {
+impl<T: TokenStream> TokenStream for SplitCompoundWordsTokenStream<'_, T> {
     fn advance(&mut self) -> bool {
         self.parts.pop();
 
