@@ -130,7 +130,7 @@ pub fn replace_in_place(needle: u8, replacement: u8, bytes: &mut [u8]) {
 }
 
 #[cfg(test)]
-pub mod test {
+pub(crate) mod test {
 
     use proptest::prelude::*;
 
@@ -144,7 +144,7 @@ pub mod test {
         assert_eq!(u64_to_f64(f64_to_u64(val)), val);
     }
 
-    pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
+    pub(crate) fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
         O::default().serialize(&mut buffer).unwrap();
         assert_eq!(buffer.len(), O::SIZE_IN_BYTES);

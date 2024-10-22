@@ -104,7 +104,7 @@ impl Postings for LoadedPostings {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
 
     use super::*;
 

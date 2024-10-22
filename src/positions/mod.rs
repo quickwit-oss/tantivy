@@ -39,7 +39,7 @@ pub use self::serializer::PositionSerializer;
 const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
 
     use std::iter;
 

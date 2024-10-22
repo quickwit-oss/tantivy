@@ -40,7 +40,7 @@ pub(crate) enum FreqReadingOption {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use std::mem;
 
     use super::{InvertedIndexSerializer, Postings};
