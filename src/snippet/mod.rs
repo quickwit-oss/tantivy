@@ -1,5 +1,6 @@
 //! [`SnippetGenerator`]
 //! Generates a text snippet for a given document, and some highlighted parts inside it.
+//!
 //! Imagine you doing a text search in a document
 //! and want to show a preview of where in the document the search terms occur,
 //! along with some surrounding text to give context, and the search terms highlighted.

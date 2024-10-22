@@ -53,7 +53,7 @@ mod compression_lz4_block;
 mod compression_zstd_block;
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
 
     use std::path::Path;
 

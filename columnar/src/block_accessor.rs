@@ -66,7 +66,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         &'a self,
         docs: &'a [u32],
         accessor: &Column<T>,
-    ) -> impl Iterator<Item = (DocId, T)> + '_ {
+    ) -> impl Iterator<Item = (DocId, T)> + 'a {
         if accessor.index.get_cardinality().is_full() {
             docs.iter().cloned().zip(self.val_cache.iter().cloned())
         } else {
@@ -81,7 +81,9 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
 /// Given two sorted lists of docids `docs` and `hits`, hits is a subset of `docs`.
 /// Return all docs that are not in `hits`.
 fn find_missing_docs<F>(docs: &[u32], hits: &[u32], mut callback: F)
-where F: FnMut(u32) {
+where
+    F: FnMut(u32),
+{
     let mut docs_iter = docs.iter();
     let mut hits_iter = hits.iter();
 

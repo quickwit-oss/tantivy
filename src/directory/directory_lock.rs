@@ -48,6 +48,7 @@ pub static INDEX_WRITER_LOCK: Lazy<Lock> = Lazy::new(|| Lock {
 });
 /// The meta lock file is here to protect the segment files being opened by
 /// `IndexReader::reload()` from being garbage collected.
+///
 /// It makes it possible for another process to safely consume
 /// our index in-writing. Ideally, we may have preferred `RWLock` semantics
 /// here, but it is difficult to achieve on Windows.

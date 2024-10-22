@@ -372,7 +372,7 @@ macro_rules! fail_point {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use common::{BinarySerializable, FixedSize};
     use query_grammar::{UserInputAst, UserInputLeaf, UserInputLiteral};
     use rand::distributions::{Bernoulli, Uniform};
