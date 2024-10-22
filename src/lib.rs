@@ -180,7 +180,6 @@ pub type Result<T> = std::result::Result<T, TantivyError>;
 mod core;
 pub mod indexer;
 
-#[expect(unused_doc_comments)]
 pub mod error;
 pub mod tokenizer;
 
@@ -369,7 +368,7 @@ macro_rules! fail_point {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use common::{BinarySerializable, FixedSize};
     use query_grammar::{UserInputAst, UserInputLeaf, UserInputLiteral};
     use rand::distributions::{Bernoulli, Uniform};
@@ -433,6 +432,10 @@ pub(crate) mod tests {
             .enumerate()
             .filter_map(|(val, keep)| if keep { Some(val as u32) } else { None })
             .collect()
+    }
+
+    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
+        sample_with_seed(n, ratio, 4)
     }
 
     #[test]
