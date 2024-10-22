@@ -178,7 +178,6 @@ pub use crate::future_result::FutureResult;
 pub type Result<T> = std::result::Result<T, TantivyError>;
 
 mod core;
-#[allow(deprecated)] // Remove with index sorting
 pub mod indexer;
 
 #[expect(unused_doc_comments)]
@@ -190,7 +189,6 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
-#[allow(deprecated)] // Remove with index sorting
 pub mod index;
 pub mod positions;
 pub mod postings;
@@ -223,7 +221,6 @@ pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 pub use crate::core::json_utils;
 pub use crate::core::{Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
-#[allow(deprecated)] // Remove with index sorting
 pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader, Order, Segment,
     SegmentMeta, SegmentReader,

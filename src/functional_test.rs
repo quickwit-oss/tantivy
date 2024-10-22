@@ -1,5 +1,3 @@
-#![allow(deprecated)] // Remove with index sorting
-
 use std::collections::HashSet;
 
 use rand::{thread_rng, Rng};
