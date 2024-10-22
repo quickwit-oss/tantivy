@@ -46,7 +46,7 @@ The file of a segment has the format
 
  ```segment-id . ext```
 
-The extension signals which data structure (or [`SegmentComponent`](src/core/segment_component.rs)) is stored in the file.
+The extension signals which data structure (or [`SegmentComponent`](src/index/segment_component.rs)) is stored in the file.
 
 A small `meta.json` file is in charge of keeping track of the list of segments, as well as the schema.
 
@@ -102,7 +102,7 @@ but users can extend tantivy with their own implementation.
 
 Tantivy's document follows a very strict schema, decided before building any index.
 
-The schema defines all of the fields that the indexes [`Document`](src/schema/document.rs) may and should contain, their types (`text`, `i64`, `u64`, `Date`, ...) as well as how it should be indexed / represented in tantivy.
+The schema defines all of the fields that the indexes [`Document`](src/schema/document/mod.rs) may and should contain, their types (`text`, `i64`, `u64`, `Date`, ...) as well as how it should be indexed / represented in tantivy.
 
 Depending on the type of the field, you can decide to
 
