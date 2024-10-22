@@ -367,6 +367,7 @@ macro_rules! fail_point {
     }};
 }
 
+/// Common test utilities.
 #[cfg(test)]
 pub mod tests {
     use common::{BinarySerializable, FixedSize};
@@ -385,6 +386,7 @@ pub mod tests {
     use crate::schema::*;
     use crate::{DateTime, DocAddress, Index, IndexWriter, ReloadPolicy};
 
+    /// Asserts that the serialized value is the value in the trait.
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
         O::default().serialize(&mut buffer).unwrap();
@@ -417,6 +419,7 @@ pub mod tests {
         }};
     }
 
+    /// Generates random numbers
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
         let seed: [u8; 32] = [1; 32];
         StdRng::from_seed(seed)
@@ -425,6 +428,7 @@ pub mod tests {
             .collect::<Vec<u32>>()
     }
 
+    /// Sample `n` elements with Bernoulli distribution.
     pub fn sample_with_seed(n: u32, ratio: f64, seed_val: u8) -> Vec<u32> {
         StdRng::from_seed([seed_val; 32])
             .sample_iter(&Bernoulli::new(ratio).unwrap())
@@ -434,6 +438,7 @@ pub mod tests {
             .collect()
     }
 
+    /// Sample `n` elements with Bernoulli distribution.
     pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
         sample_with_seed(n, ratio, 4)
     }
