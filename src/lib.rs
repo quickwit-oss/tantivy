@@ -438,10 +438,6 @@ pub(crate) mod tests {
             .collect()
     }
 
-    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
-        sample_with_seed(n, ratio, 4)
-    }
-
     #[test]
     fn test_version_string() {
         use regex::Regex;

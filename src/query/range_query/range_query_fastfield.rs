@@ -1386,7 +1386,7 @@ mod tests {
 }
 
 #[cfg(test)]
-pub mod ip_range_tests {
+pub(crate) mod ip_range_tests {
     use proptest::prelude::ProptestConfig;
     use proptest::strategy::Strategy;
     use proptest::{prop_oneof, proptest};

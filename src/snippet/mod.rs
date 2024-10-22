@@ -437,7 +437,7 @@ impl SnippetGenerator {
     }
 
     #[cfg(test)]
-    pub fn terms_text(&self) -> &BTreeMap<String, Score> {
+    pub(crate) fn terms_text(&self) -> &BTreeMap<String, Score> {
         &self.terms_text
     }
 
