@@ -58,3 +58,9 @@ pub static META_LOCK: Lazy<Lock> = Lazy::new(|| Lock {
     filepath: PathBuf::from(".tantivy-meta.lock"),
     is_blocking: true,
 });
+
+#[allow(missing_docs)]
+pub static MANAGED_LOCK: Lazy<Lock> = Lazy::new(|| Lock {
+    filepath: PathBuf::from(".tantivy-managed.lock"),
+    is_blocking: true,
+});
