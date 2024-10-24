@@ -72,7 +72,7 @@ impl RegexPhraseWeight {
                 .map_err(|e| crate::TantivyError::InvalidArgument(format!("Invalid regex: {e}")))?;
 
             let automaton: AutomatonWeight<Regex> =
-                AutomatonWeight::new(self.field, Arc::new(regex));
+                AutomatonWeight::new(self.field, Arc::new(regex), None);
             let term_infos = automaton.get_match_term_infos(reader)?;
             // If term_infos is empty, the phrase can not match any documents.
             if term_infos.is_empty() {

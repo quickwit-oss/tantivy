@@ -6,6 +6,7 @@ use crate::query::{EnableScoring, Explanation, Query, Weight};
 use crate::schema::{IndexRecordOption, Schema};
 use crate::Term;
 
+///
 #[derive(Clone)]
 pub struct TermFilterQuery {
     term: Term,
