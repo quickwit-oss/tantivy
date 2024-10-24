@@ -15,7 +15,6 @@ fn bench_vint() {
             out += u64::from(buf[0]);
         }
         black_box(out);
-        None
     });
 
     let vals: Vec<u32> = (0..20_000).choose_multiple(&mut thread_rng(), 100_000);
@@ -27,7 +26,6 @@ fn bench_vint() {
             out += u64::from(buf[0]);
         }
         black_box(out);
-        None
     });
 }
 
@@ -43,24 +41,20 @@ fn bench_bitset() {
         tinyset.pop_lowest();
         tinyset.pop_lowest();
         black_box(tinyset);
-        None
     });
 
     let tiny_set = TinySet::empty().insert(10u32).insert(14u32).insert(21u32);
     runner.bench_function("bench_tinyset_sum", move |_| {
         assert_eq!(black_box(tiny_set).into_iter().sum::<u32>(), 45u32);
-        None
     });
 
     let v = [10u32, 14u32, 21u32];
     runner.bench_function("bench_tinyarr_sum", move |_| {
         black_box(v.iter().cloned().sum::<u32>());
-        None
     });
 
     runner.bench_function("bench_bitset_initialize", move |_| {
         black_box(BitSet::with_max_value(1_000_000));
-        None
     });
 }
 

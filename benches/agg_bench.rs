@@ -20,7 +20,6 @@ macro_rules! register {
     ($runner:expr, $func:ident) => {
         $runner.register(stringify!($func), move |index| {
             $func(index);
-            None
         })
     };
 }

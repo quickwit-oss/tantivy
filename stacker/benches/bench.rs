@@ -35,14 +35,12 @@ fn bench_vint() {
         group.set_input_size(input_bytes);
         group.register_with_input("hashmap", &alice_terms_as_bytes, move |data| {
             black_box(create_hash_map(data.iter()));
-            Some(())
         });
         group.register_with_input(
             "hasmap with postings",
             &alice_terms_as_bytes_with_docid,
             move |data| {
                 black_box(create_hash_map_with_expull(data.iter().cloned()));
-                Some(())
             },
         );
         group.register_with_input(
@@ -50,7 +48,6 @@ fn bench_vint() {
             &alice_terms_as_bytes,
             move |data| {
                 black_box(create_fx_hash_ref_map_with_expull(data.iter().cloned()));
-                Some(())
             },
         );
         group.register_with_input(
@@ -58,7 +55,6 @@ fn bench_vint() {
             &alice_terms_as_bytes,
             move |data| {
                 black_box(create_fx_hash_owned_map_with_expull(data.iter().cloned()));
-                Some(())
             },
         );
         group.run();
@@ -86,11 +82,9 @@ fn bench_vint() {
                 group.set_input_size(input_bytes);
                 group.register_with_input("only hashmap", &numbers, move |data| {
                     black_box(create_hash_map(data.iter()));
-                    Some(())
                 });
                 group.register_with_input("hasmap with postings", &numbers_with_doc, move |data| {
                     black_box(create_hash_map_with_expull(data.iter().cloned()));
-                    Some(())
                 });
                 group.run();
             }
@@ -115,11 +109,9 @@ fn bench_vint() {
                 group.set_input_size(input_bytes);
                 group.register_with_input("hashmap", &numbers, move |data| {
                     black_box(create_hash_map(data.iter()));
-                    Some(())
                 });
                 group.register_with_input("hasmap with postings", &numbers_with_doc, move |data| {
                     black_box(create_hash_map_with_expull(data.iter().cloned()));
-                    Some(())
                 });
                 group.run();
             }

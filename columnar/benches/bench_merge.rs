@@ -1,6 +1,6 @@
 pub mod common;
 
-use binggan::{black_box, BenchRunner};
+use binggan::BenchRunner;
 use common::{generate_columnar_with_name, Card};
 use tantivy_columnar::*;
 
@@ -29,7 +29,7 @@ fn main() {
     add_combo(Card::Multi, Card::Dense);
     add_combo(Card::Multi, Card::Sparse);
 
-    let runner: BenchRunner = BenchRunner::new();
+    let mut runner: BenchRunner = BenchRunner::new();
     let mut group = runner.new_group();
     for (input_name, columnar_readers) in inputs.iter() {
         group.register_with_input(
