@@ -11,16 +11,14 @@ use crate::termdict::TermOrdinal;
 /// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
 pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
-where
-    A: Automaton,
+where A: Automaton
 {
     fst_map: &'a TermDictionary,
     stream_builder: StreamBuilder<'a, A>,
 }
 
 impl<'a, A> TermStreamerBuilder<'a, A>
-where
-    A: Automaton,
+where A: Automaton
 {
     pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a, A>) -> Self {
         TermStreamerBuilder {
@@ -75,8 +73,7 @@ where
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
 pub struct TermStreamer<'a, A = AlwaysMatch>
-where
-    A: Automaton,
+where A: Automaton
 {
     pub(crate) fst_map: &'a TermDictionary,
     pub(crate) stream: Stream<'a, A>,
