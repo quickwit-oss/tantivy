@@ -22,6 +22,7 @@ use super::se::BinaryObjectSerializer;
 use super::{OwnedValue, Value};
 use crate::schema::document::type_codes;
 use crate::schema::{Facet, Field};
+use crate::store::DocStoreVersion;
 use crate::tokenizer::PreTokenizedString;
 
 #[derive(Debug, thiserror::Error, Clone)]
@@ -45,6 +46,9 @@ pub enum DeserializeError {
     #[error("{0}")]
     /// A custom error message.
     Custom(String),
+    #[error("Version {0}, Max version supported: {1}")]
+    /// Unsupported version error.
+    UnsupportedVersion(u32, u32),
 }
 
 impl DeserializeError {
@@ -291,6 +295,7 @@ pub trait ObjectAccess<'de> {
 pub struct BinaryDocumentDeserializer<'de, R> {
     length: usize,
     position: usize,
+    doc_store_version: DocStoreVersion,
     reader: &'de mut R,
 }
 
@@ -298,12 +303,16 @@ impl<'de, R> BinaryDocumentDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new document deserializer from a given reader.
-    pub(crate) fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
+    pub(crate) fn from_reader(
+        reader: &'de mut R,
+        doc_store_version: DocStoreVersion,
+    ) -> Result<Self, DeserializeError> {
         let length = VInt::deserialize(reader)?;
 
         Ok(Self {
             length: length.val() as usize,
             position: 0,
+            doc_store_version,
             reader,
         })
     }
@@ -329,8 +338,8 @@ where R: Read
         }
 
         let field = Field::deserialize(self.reader).map_err(DeserializeError::from)?;
-
-        let deserializer = BinaryValueDeserializer::from_reader(self.reader)?;
+        let deserializer =
+            BinaryValueDeserializer::from_reader(self.reader, self.doc_store_version)?;
         let value = V::deserialize(deserializer)?;
 
         self.position += 1;
@@ -344,13 +353,17 @@ where R: Read
 pub struct BinaryValueDeserializer<'de, R> {
     value_type: ValueType,
     reader: &'de mut R,
+    doc_store_version: DocStoreVersion,
 }
 
 impl<'de, R> BinaryValueDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new value deserializer from a given reader.
-    fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
+    fn from_reader(
+        reader: &'de mut R,
+        doc_store_version: DocStoreVersion,
+    ) -> Result<Self, DeserializeError> {
         let type_code = <u8 as BinarySerializable>::deserialize(reader)?;
 
         let value_type = match type_code {
@@ -381,7 +394,7 @@ where R: Read
             type_codes::NULL_CODE => ValueType::Null,
             type_codes::ARRAY_CODE => ValueType::Array,
             type_codes::OBJECT_CODE => ValueType::Object,
-            #[allow(deprecated)]
+            #[expect(deprecated)]
             type_codes::JSON_OBJ_CODE => ValueType::JSONObject,
             _ => {
                 return Err(DeserializeError::from(io::Error::new(
@@ -391,7 +404,11 @@ where R: Read
             }
         };
 
-        Ok(Self { value_type, reader })
+        Ok(Self {
+            value_type,
+            reader,
+            doc_store_version,
+        })
     }
 
     fn validate_type(&self, expected_type: ValueType) -> Result<(), DeserializeError> {
@@ -438,7 +455,16 @@ where R: Read
 
     fn deserialize_datetime(self) -> Result<DateTime, DeserializeError> {
         self.validate_type(ValueType::DateTime)?;
-        <DateTime as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        match self.doc_store_version {
+            DocStoreVersion::V1 => {
+                let timestamp_micros = <i64 as BinarySerializable>::deserialize(self.reader)?;
+                Ok(DateTime::from_timestamp_micros(timestamp_micros))
+            }
+            DocStoreVersion::V2 => {
+                let timestamp_nanos = <i64 as BinarySerializable>::deserialize(self.reader)?;
+                Ok(DateTime::from_timestamp_nanos(timestamp_nanos))
+            }
+        }
     }
 
     fn deserialize_facet(self) -> Result<Facet, DeserializeError> {
@@ -514,11 +540,13 @@ where R: Read
                 visitor.visit_pre_tokenized_string(val)
             }
             ValueType::Array => {
-                let access = BinaryArrayDeserializer::from_reader(self.reader)?;
+                let access =
+                    BinaryArrayDeserializer::from_reader(self.reader, self.doc_store_version)?;
                 visitor.visit_array(access)
             }
             ValueType::Object => {
-                let access = BinaryObjectDeserializer::from_reader(self.reader)?;
+                let access =
+                    BinaryObjectDeserializer::from_reader(self.reader, self.doc_store_version)?;
                 visitor.visit_object(access)
             }
             #[allow(deprecated)]
@@ -537,7 +565,8 @@ where R: Read
 
                 let out_rc = std::rc::Rc::new(out);
                 let mut slice: &[u8] = &out_rc;
-                let access = BinaryObjectDeserializer::from_reader(&mut slice)?;
+                let access =
+                    BinaryObjectDeserializer::from_reader(&mut slice, self.doc_store_version)?;
 
                 visitor.visit_object(access)
             }
@@ -551,19 +580,24 @@ pub struct BinaryArrayDeserializer<'de, R> {
     length: usize,
     position: usize,
     reader: &'de mut R,
+    doc_store_version: DocStoreVersion,
 }
 
 impl<'de, R> BinaryArrayDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new array deserializer from a given reader.
-    fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
+    fn from_reader(
+        reader: &'de mut R,
+        doc_store_version: DocStoreVersion,
+    ) -> Result<Self, DeserializeError> {
         let length = <VInt as BinarySerializable>::deserialize(reader)?;
 
         Ok(Self {
             length: length.val() as usize,
             position: 0,
             reader,
+            doc_store_version,
         })
     }
 
@@ -587,7 +621,8 @@ where R: Read
             return Ok(None);
         }
 
-        let deserializer = BinaryValueDeserializer::from_reader(self.reader)?;
+        let deserializer =
+            BinaryValueDeserializer::from_reader(self.reader, self.doc_store_version)?;
         let value = V::deserialize(deserializer)?;
 
         // Advance the position cursor.
@@ -610,8 +645,11 @@ impl<'de, R> BinaryObjectDeserializer<'de, R>
 where R: Read
 {
     /// Attempts to create a new object deserializer from a given reader.
-    fn from_reader(reader: &'de mut R) -> Result<Self, DeserializeError> {
-        let inner = BinaryArrayDeserializer::from_reader(reader)?;
+    fn from_reader(
+        reader: &'de mut R,
+        doc_store_version: DocStoreVersion,
+    ) -> Result<Self, DeserializeError> {
+        let inner = BinaryArrayDeserializer::from_reader(reader, doc_store_version)?;
         Ok(Self { inner })
     }
 }
@@ -819,6 +857,7 @@ mod tests {
     use crate::schema::document::existing_type_impls::JsonObjectIter;
     use crate::schema::document::se::BinaryValueSerializer;
     use crate::schema::document::{ReferenceValue, ReferenceValueLeaf};
+    use crate::store::DOC_STORE_VERSION;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
         let mut writer = Vec::new();
@@ -829,9 +868,19 @@ mod tests {
         writer
     }
 
+    fn serialize_owned_value<'a>(value: ReferenceValue<'a, &'a OwnedValue>) -> Vec<u8> {
+        let mut writer = Vec::new();
+
+        let mut serializer = BinaryValueSerializer::new(&mut writer);
+        serializer.serialize_value(value).expect("Serialize value");
+
+        writer
+    }
+
     fn deserialize_value(buffer: Vec<u8>) -> crate::schema::OwnedValue {
         let mut cursor = Cursor::new(buffer);
-        let deserializer = BinaryValueDeserializer::from_reader(&mut cursor).unwrap();
+        let deserializer =
+            BinaryValueDeserializer::from_reader(&mut cursor, DOC_STORE_VERSION).unwrap();
         crate::schema::OwnedValue::deserialize(deserializer).expect("Deserialize value")
     }
 
@@ -1008,6 +1057,17 @@ mod tests {
 
         let value = deserialize_value(data);
         assert_eq!(value, expected_val);
+    }
+
+    #[test]
+    fn test_nested_date_precision() {
+        let object = OwnedValue::Object(vec![(
+            "my-date".into(),
+            OwnedValue::Date(DateTime::from_timestamp_nanos(323456)),
+        )]);
+        let result = serialize_owned_value((&object).as_value());
+        let value = deserialize_value(result);
+        assert_eq!(value, object);
     }
 
     #[test]

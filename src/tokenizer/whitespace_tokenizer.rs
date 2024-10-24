@@ -26,7 +26,7 @@ impl Tokenizer for WhitespaceTokenizer {
     }
 }
 
-impl<'a> WhitespaceTokenStream<'a> {
+impl WhitespaceTokenStream<'_> {
     // search for the end of the current token.
     fn search_token_end(&mut self) -> usize {
         (&mut self.chars)
@@ -37,7 +37,7 @@ impl<'a> WhitespaceTokenStream<'a> {
     }
 }
 
-impl<'a> TokenStream for WhitespaceTokenStream<'a> {
+impl TokenStream for WhitespaceTokenStream<'_> {
     fn advance(&mut self) -> bool {
         self.token.text.clear();
         self.token.position = self.token.position.wrapping_add(1);

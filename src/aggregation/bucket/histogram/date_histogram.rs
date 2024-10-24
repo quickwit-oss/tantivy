@@ -244,7 +244,7 @@ fn parse_into_milliseconds(input: &str) -> Result<i64, AggregationError> {
 }
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;

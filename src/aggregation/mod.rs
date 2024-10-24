@@ -180,7 +180,7 @@ pub(crate) fn deserialize_option_f64<'de, D>(deserializer: D) -> Result<Option<f
 where D: Deserializer<'de> {
     struct StringOrFloatVisitor;
 
-    impl<'de> Visitor<'de> for StringOrFloatVisitor {
+    impl Visitor<'_> for StringOrFloatVisitor {
         type Value = Option<f64>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -226,7 +226,7 @@ pub(crate) fn deserialize_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where D: Deserializer<'de> {
     struct StringOrFloatVisitor;
 
-    impl<'de> Visitor<'de> for StringOrFloatVisitor {
+    impl Visitor<'_> for StringOrFloatVisitor {
         type Value = f64;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

@@ -11,7 +11,7 @@ repository = "https://github.com/quickwit-oss/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 edition = "2021"
-rust-version = "1.66"
+rust-version = "1.75"
 exclude = ["benches/*.json", "benches/*.txt"]
 
 [dependencies]
@@ -73,7 +73,7 @@ anyhow = "1.0.86"
 winapi = "0.3.9"
 
 [dev-dependencies]
-binggan = "0.10.0"
+binggan = "0.14.0"
 rand = "0.8.5"
 maplit = "1.0.2"
 matches = "0.1.9"

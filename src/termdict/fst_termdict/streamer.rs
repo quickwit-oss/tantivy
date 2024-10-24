@@ -82,7 +82,7 @@ where A: Automaton
     current_value: TermInfo,
 }
 
-impl<'a, A> TermStreamer<'a, A>
+impl<A> TermStreamer<'_, A>
 where A: Automaton
 {
     /// Advance position the stream on the next item.
@@ -136,7 +136,7 @@ where A: Automaton
     }
 
     /// Return the next `(key, value)` pair.
-    #[allow(clippy::should_implement_trait)]
+    #[expect(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<(&[u8], &TermInfo)> {
         if self.advance() {
             Some((self.key(), self.value()))

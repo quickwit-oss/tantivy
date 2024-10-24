@@ -9,8 +9,8 @@ use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
 use crate::query::{
-    intersect_scorers, EmptyScorer, Exclude, Explanation, Occur, RequiredOptionalScorer, Scorer,
-    Union, Weight,
+    intersect_scorers, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
+    RequiredOptionalScorer, Scorer, Weight,
 };
 use crate::{DocId, Score};
 
@@ -65,14 +65,17 @@ where
                 // Block wand is only available if we read frequencies.
                 return SpecializedScorer::TermUnion(scorers);
             } else {
-                return SpecializedScorer::Other(Box::new(Union::build(
+                return SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
                     scorers,
                     score_combiner_fn,
                 )));
             }
         }
     }
-    SpecializedScorer::Other(Box::new(Union::build(scorers, score_combiner_fn)))
+    SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
+        scorers,
+        score_combiner_fn,
+    )))
 }
 
 fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
@@ -81,7 +84,7 @@ fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
 ) -> Box<dyn Scorer> {
     match scorer {
         SpecializedScorer::TermUnion(term_scorers) => {
-            let union_scorer = Union::build(term_scorers, score_combiner_fn);
+            let union_scorer = BufferedUnionScorer::build(term_scorers, score_combiner_fn);
             Box::new(union_scorer)
         }
         SpecializedScorer::Other(scorer) => scorer,
@@ -296,7 +299,8 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
-                let mut union_scorer = Union::build(term_scorers, &self.score_combiner_fn);
+                let mut union_scorer =
+                    BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn);
                 for_each_scorer(&mut union_scorer, callback);
             }
             SpecializedScorer::Other(mut scorer) => {
@@ -316,7 +320,8 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
 
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
-                let mut union_scorer = Union::build(term_scorers, &self.score_combiner_fn);
+                let mut union_scorer =
+                    BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn);
                 for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
             }
             SpecializedScorer::Other(mut scorer) => {

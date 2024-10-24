@@ -182,6 +182,7 @@ where
 }
 
 /// A variant of the [`FilterCollector`] specialized for bytes fast fields, i.e.
+///
 /// it transparently wraps an inner [`Collector`] but filters documents
 /// based on the result of applying the predicate to the bytes fast field.
 ///

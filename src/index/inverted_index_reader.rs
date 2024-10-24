@@ -31,7 +31,6 @@ pub struct InvertedIndexReader {
 }
 
 impl InvertedIndexReader {
-    #[allow(clippy::needless_pass_by_value)] // for symmetry
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
@@ -202,16 +201,6 @@ impl InvertedIndexReader {
     ) -> io::Result<Option<SegmentPostings>> {
         self.get_term_info(term)?
             .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
-            .transpose()
-    }
-
-    pub(crate) fn read_postings_no_deletes(
-        &self,
-        term: &Term,
-        option: IndexRecordOption,
-    ) -> io::Result<Option<SegmentPostings>> {
-        self.get_term_info(term)?
-            .map(|term_info| self.read_postings_from_terminfo(&term_info, option))
             .transpose()
     }
 

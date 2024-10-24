@@ -13,7 +13,7 @@ struct Hit<'a> {
     facet: &'a Facet,
 }
 
-impl<'a> Eq for Hit<'a> {}
+impl Eq for Hit<'_> {}
 
 impl<'a> PartialEq<Hit<'a>> for Hit<'a> {
     fn eq(&self, other: &Hit<'_>) -> bool {
@@ -27,7 +27,7 @@ impl<'a> PartialOrd<Hit<'a>> for Hit<'a> {
     }
 }
 
-impl<'a> Ord for Hit<'a> {
+impl Ord for Hit<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         other
             .count

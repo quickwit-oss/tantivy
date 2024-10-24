@@ -39,7 +39,7 @@ Its representation is done by separating segments by a unicode char `\x01`, and 
 - `value`: The value representation is just the regular Value representation.
 
 This representation is designed to align the natural sort of Terms with the lexicographical sort
-of their binary representation (Tantivy's dictionary (whether fst or sstable) is sorted and does prefix encoding).
+of their binary representation (tantivy's dictionary (whether fst or sstable) is sorted and does prefix encoding).
 
 In the example above, the terms will be sorted as
 

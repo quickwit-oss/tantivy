@@ -1,3 +1,4 @@
+use binggan::plugins::PeakMemAllocPlugin;
 use binggan::{black_box, InputGroup, PeakMemAlloc, INSTRUMENTED_SYSTEM};
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
@@ -19,7 +20,6 @@ macro_rules! register {
     ($runner:expr, $func:ident) => {
         $runner.register(stringify!($func), move |index| {
             $func(index);
-            None
         })
     };
 }
@@ -45,7 +45,8 @@ fn main() {
 }
 
 fn bench_agg(mut group: InputGroup<Index>) {
-    group.set_alloc(GLOBAL); // Set the peak mem allocator. This will enable peak memory reporting.
+    group.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
+
     register!(group, average_u64);
     register!(group, average_f64);
     register!(group, average_f64_u64);

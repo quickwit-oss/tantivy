@@ -42,7 +42,7 @@ pub struct AsciiFoldingFilterTokenStream<'a, T> {
     tail: T,
 }
 
-impl<'a, T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<'a, T> {
+impl<T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<'_, T> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;

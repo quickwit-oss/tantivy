@@ -237,8 +237,9 @@ impl Postings for SegmentPostings {
         self.block_cursor.freq(self.cur)
     }
 
-    fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
+    fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         let term_freq = self.term_freq();
+        let prev_len = output.len();
         if let Some(position_reader) = self.position_reader.as_mut() {
             debug_assert!(
                 !self.block_cursor.freqs().is_empty(),
@@ -249,15 +250,14 @@ impl Postings for SegmentPostings {
                     .iter()
                     .cloned()
                     .sum::<u32>() as u64);
-            output.resize(term_freq as usize, 0u32);
-            position_reader.read(read_offset, &mut output[..]);
+            // TODO: instead of zeroing the output, we could use MaybeUninit or similar.
+            output.resize(prev_len + term_freq as usize, 0u32);
+            position_reader.read(read_offset, &mut output[prev_len..]);
             let mut cum = offset;
-            for output_mut in output.iter_mut() {
+            for output_mut in output[prev_len..].iter_mut() {
                 cum += *output_mut;
                 *output_mut = cum;
             }
-        } else {
-            output.clear();
         }
     }
 }

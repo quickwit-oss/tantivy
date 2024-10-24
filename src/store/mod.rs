@@ -35,15 +35,16 @@ mod footer;
 mod index;
 mod reader;
 mod writer;
+
 pub use self::compressors::{Compressor, ZstdCompressor};
 pub use self::decompressors::Decompressor;
-pub(crate) use self::reader::DOCSTORE_CACHE_CAPACITY;
 pub use self::reader::{CacheStats, StoreReader};
+pub(crate) use self::reader::{DocStoreVersion, DOCSTORE_CACHE_CAPACITY};
 pub use self::writer::StoreWriter;
 mod store_compressor;
 
 /// Doc store version in footer to handle format changes.
-pub(crate) const DOC_STORE_VERSION: u32 = 1;
+pub(crate) const DOC_STORE_VERSION: DocStoreVersion = DocStoreVersion::V2;
 
 #[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;
@@ -52,7 +53,7 @@ mod compression_lz4_block;
 mod compression_zstd_block;
 
 #[cfg(test)]
-pub mod tests {
+pub(crate) mod tests {
 
     use std::path::Path;
 

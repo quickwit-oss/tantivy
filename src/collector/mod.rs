@@ -495,4 +495,4 @@ where
 impl_downcast!(Fruit);
 
 #[cfg(test)]
-pub mod tests;
+pub(crate) mod tests;
