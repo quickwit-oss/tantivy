@@ -515,16 +515,26 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let mut current_sstable_delta_reader =
             self.sstable_delta_reader_block(current_block_addr.clone())?;
         let mut current_ordinal = 0;
+        let mut prev_ord = None;
         for ord in ord {
-            assert!(ord >= current_ordinal);
-            // check if block changed for new term_ord
-            let new_block_addr = self.sstable_index.get_block_with_ord(ord);
-            if new_block_addr != current_block_addr {
-                current_block_addr = new_block_addr;
-                current_ordinal = current_block_addr.first_ordinal;
-                current_sstable_delta_reader =
-                    self.sstable_delta_reader_block(current_block_addr.clone())?;
-                bytes.clear();
+
+            // only advance forward if the new ord is different than the one we just processed
+            //
+            // this allows the input TermOrdinal iterator to contain duplicates, so long as it's
+            // still sorted
+            if Some(ord) != prev_ord  {
+                assert!(ord >= current_ordinal);
+                // check if block changed for new term_ord
+                let new_block_addr = self.sstable_index.get_block_with_ord(ord);
+                if new_block_addr != current_block_addr {
+                    current_block_addr = new_block_addr;
+                    current_ordinal = current_block_addr.first_ordinal;
+                    current_sstable_delta_reader =
+                        self.sstable_delta_reader_block(current_block_addr.clone())?;
+                    bytes.clear();
+                }
+
+                prev_ord = Some(ord);
             }
 
             // move to ord inside that block
