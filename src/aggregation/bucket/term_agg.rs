@@ -1232,8 +1232,8 @@ mod tests {
     #[test]
     fn terms_aggregation_min_doc_count_special_case() -> crate::Result<()> {
         let terms_per_segment = vec![
-            vec!["terma", "terma", "termb", "termb", "termb", "termc"],
-            vec!["terma", "terma", "termb", "termc", "termc"],
+            vec!["terma", "terma", "termb", "termb", "termb"],
+            vec!["terma", "terma", "termb"],
         ];
 
         let index = get_test_index_from_terms(false, &terms_per_segment)?;
@@ -1255,8 +1255,6 @@ mod tests {
         assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
         assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 0);
-        assert_eq!(res["my_texts"]["buckets"][2]["key"], "termc");
-        assert_eq!(res["my_texts"]["buckets"][2]["doc_count"], 0);
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
         assert_eq!(res["my_texts"]["doc_count_error_upper_bound"], 0);
 

@@ -20,7 +20,7 @@ pub use datetime::{DateTime, DateTimePrecision};
 pub use group_by::GroupByIteratorExtended;
 pub use json_path_writer::JsonPathWriter;
 pub use ownedbytes::{OwnedBytes, StableDeref};
-pub use serialize::*;
+pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
     read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt, VIntU128,
 };
@@ -134,7 +134,7 @@ pub(crate) mod test {
 
     use proptest::prelude::*;
 
-    use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, BinarySerializable, FixedSize};
+    use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);
@@ -142,12 +142,6 @@ pub(crate) mod test {
 
     fn test_f64_converter_helper(val: f64) {
         assert_eq!(u64_to_f64(f64_to_u64(val)), val);
-    }
-
-    pub(crate) fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
-        let mut buffer = Vec::new();
-        O::default().serialize(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), O::SIZE_IN_BYTES);
     }
 
     proptest! {
