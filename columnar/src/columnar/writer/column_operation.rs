@@ -122,7 +122,6 @@ impl<T> From<T> for ColumnOperation<T> {
 // In order to limit memory usage, and in order
 // to benefit from the stacker, we do this by serialization our data
 // as "Symbols".
-#[expect(clippy::from_over_into)]
 pub(super) trait SymbolValue: Clone + Copy {
     // Serializes the symbol into the given buffer.
     // Returns the number of bytes written into the buffer.
