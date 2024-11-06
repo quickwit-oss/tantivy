@@ -62,6 +62,16 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
         self.current_doc = doc_id;
         doc_id
     }
+    fn seek(&mut self, target: DocId) -> DocId {
+        let doc_id = self.scorer.seek(target);
+        self.current_doc = doc_id;
+        doc_id
+    }
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        let found = self.scorer.seek_exact(target);
+        self.current_doc = self.scorer.doc();
+        found
+    }
 
     fn doc(&self) -> DocId {
         self.current_doc
@@ -69,6 +79,10 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
 
     fn size_hint(&self) -> u32 {
         self.scorer.size_hint()
+    }
+
+    fn cost(&self) -> u64 {
+        self.scorer.cost()
     }
 }
 
@@ -145,6 +159,14 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
             .map(|docset| docset.size_hint())
             .max()
             .unwrap_or(0u32)
+    }
+
+    fn cost(&self) -> u64 {
+        self.chains
+            .iter()
+            .map(|docset| docset.cost())
+            .max()
+            .unwrap_or(0u64)
     }
 }
 
