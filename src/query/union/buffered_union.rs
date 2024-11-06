@@ -2,6 +2,7 @@ use common::TinySet;
 
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
 use crate::{DocId, Score};
 
@@ -34,6 +35,7 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     offset: DocId,
     doc: DocId,
     score: Score,
+    num_docs: u32,
 }
 
 fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
@@ -65,6 +67,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
     pub(crate) fn build(
         docsets: Vec<TScorer>,
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
+        num_docs: u32,
     ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
@@ -78,6 +81,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
             offset: 0,
             doc: 0,
             score: 0.0,
+            num_docs,
         };
         if union.refill() {
             union.advance();
@@ -193,20 +197,19 @@ where
         }
     }
 
-    // TODO Also implement `count` with deletes efficiently.
-
     fn doc(&self) -> DocId {
         self.doc
     }
 
     fn size_hint(&self) -> u32 {
-        self.docsets
-            .iter()
-            .map(|docset| docset.size_hint())
-            .max()
-            .unwrap_or(0u32)
+        estimate_union(self.docsets.iter().map(DocSet::size_hint), self.num_docs)
     }
 
+    fn cost(&self) -> u64 {
+        self.docsets.iter().map(DocSet::cost).sum()
+    }
+
+    // TODO Also implement `count` with deletes efficiently.
     fn count_including_deleted(&mut self) -> u32 {
         if self.doc == TERMINATED {
             return 0;
