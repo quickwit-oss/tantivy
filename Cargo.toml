@@ -44,7 +44,7 @@ bitpacking = { version = "0.9.2", default-features = false, features = [
 ] }
 census = "0.4.2"
 rustc-hash = "2.0.0"
-thiserror = "1.0.30"
+thiserror = "2.0.0"
 htmlescape = "0.3.1"
 fail = { version = "0.5.0", optional = true }
 time = { version = "0.3.35", features = ["serde-well-known"] }
