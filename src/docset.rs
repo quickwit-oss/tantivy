@@ -49,6 +49,25 @@ pub trait DocSet: Send {
         doc
     }
 
+    /// Seeks to the target if possible and returns true if the target is in the DocSet.
+    ///
+    /// Implementations may choose to advance past the target if target does not exist.
+    ///
+    /// DocSets that already have an efficient `seek` method don't need to implement `seek_exact`.
+    /// All wapper DocSets should forward `seek_exact` to the underlying DocSet.
+    ///
+    /// ## API Behaviour
+    /// If `seek_exact` is returning true, a call to `doc()` has to return target.
+    /// If `seek_exact` is returning false, a call to `doc()` may return the previous doc,
+    /// which may be lower than target.
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        let current_doc = self.doc();
+        if current_doc < target {
+            self.seek(target);
+        }
+        self.doc() == target
+    }
+
     /// Fills a given mutable buffer with the next doc ids from the
     /// `DocSet`
     ///
@@ -94,6 +113,15 @@ pub trait DocSet: Send {
     /// which would be the number of documents in the DocSet.
     ///
     /// By default this returns `size_hint()`.
+    ///
+    /// DocSets may have vastly different cost depending on their type,
+    /// e.g. an intersection with 10 hits is much cheaper than
+    /// a phrase search with 10 hits, since it needs to load positions.
+    ///
+    /// ### Future Work
+    /// We may want to differentiate `DocSet` costs more more granular, e.g.
+    /// creation_cost, advance_cost, seek_cost on to get a good estimation
+    /// what query types to choose.
     fn cost(&self) -> u64 {
         self.size_hint() as u64
     }
@@ -137,6 +165,10 @@ impl DocSet for &mut dyn DocSet {
         (**self).seek(target)
     }
 
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        (**self).seek_exact(target)
+    }
+
     fn doc(&self) -> u32 {
         (**self).doc()
     }
@@ -167,6 +199,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn seek(&mut self, target: DocId) -> DocId {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.seek(target)
+    }
+
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.seek_exact(target)
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {

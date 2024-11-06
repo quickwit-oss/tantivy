@@ -217,8 +217,6 @@ where
         }
     }
 
-    // TODO Also implement `count` with deletes efficiently.
-
     fn doc(&self) -> DocId {
         self.doc
     }
@@ -231,6 +229,7 @@ where
         self.docsets.iter().map(|docset| docset.cost()).sum()
     }
 
+    // TODO Also implement `count` with deletes efficiently.
     fn count_including_deleted(&mut self) -> u32 {
         if self.doc == TERMINATED {
             return 0;

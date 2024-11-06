@@ -1,3 +1,4 @@
+use super::size_hint::estimate_intersection;
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::size_hint::estimate_intersection;
 use crate::query::term_query::TermScorer;
@@ -105,32 +106,39 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
     fn advance(&mut self) -> DocId {
         let (left, right) = (&mut self.left, &mut self.right);
         let mut candidate = left.advance();
+        if candidate == TERMINATED {
+            return TERMINATED;
+        }
 
-        'outer: loop {
+        loop {
             // In the first part we look for a document in the intersection
             // of the two rarest `DocSet` in the intersection.
 
             loop {
-                let right_doc = right.seek(candidate);
-                candidate = left.seek(right_doc);
-                if candidate == right_doc {
+                if right.seek_exact(candidate) {
                     break;
+                }
+                // `left.advance().max(right.doc())` yielded a regression in the search game
+                // benchmark It may make sense in certain scenarios though.
+                candidate = left.advance();
+                if candidate == TERMINATED {
+                    return TERMINATED;
                 }
             }
 
             debug_assert_eq!(left.doc(), right.doc());
-            // test the remaining scorers;
-            for docset in self.others.iter_mut() {
-                let seek_doc = docset.seek(candidate);
-                if seek_doc > candidate {
-                    candidate = left.seek(seek_doc);
-                    continue 'outer;
-                }
+            // test the remaining scorers
+            if self
+                .others
+                .iter_mut()
+                .all(|docset| docset.seek_exact(candidate))
+            {
+                debug_assert_eq!(candidate, self.left.doc());
+                debug_assert_eq!(candidate, self.right.doc());
+                debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));
+                return candidate;
             }
-            debug_assert_eq!(candidate, self.left.doc());
-            debug_assert_eq!(candidate, self.right.doc());
-            debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));
-            return candidate;
+            candidate = left.advance();
         }
     }
 
@@ -144,6 +152,19 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
         debug_assert!(docsets.iter().all(|docset| docset.doc() == doc));
         debug_assert!(doc >= target);
         doc
+    }
+
+    /// Seeks to the target if necessary and checks if the target is an exact match.
+    ///
+    /// Some implementations may choose to advance past the target if beneficial for performance.
+    /// The return value is `true` if the target is in the docset, and `false` otherwise.
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        self.left.seek_exact(target)
+            && self.right.seek_exact(target)
+            && self
+                .others
+                .iter_mut()
+                .all(|docset| docset.seek_exact(target))
     }
 
     fn doc(&self) -> DocId {
@@ -181,6 +202,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::Intersection;
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
@@ -269,5 +292,39 @@ mod tests {
         let c = VecDocSet::from(vec![3, 9]);
         let intersection = Intersection::new(vec![a, b, c], 10);
         assert_eq!(intersection.doc(), TERMINATED);
+    }
+
+    // Strategy to generate sorted and deduplicated vectors of u32 document IDs
+    fn sorted_deduped_vec(max_val: u32, max_size: usize) -> impl Strategy<Value = Vec<u32>> {
+        prop::collection::vec(0..max_val, 0..max_size).prop_map(|mut vec| {
+            vec.sort();
+            vec.dedup();
+            vec
+        })
+    }
+
+    proptest! {
+        #[test]
+        fn prop_test_intersection_consistency(
+            a in sorted_deduped_vec(100, 10),
+            b in sorted_deduped_vec(100, 10),
+            num_docs in 100u32..500u32
+        ) {
+            let left = VecDocSet::from(a.clone());
+            let right = VecDocSet::from(b.clone());
+            let mut intersection = Intersection::new(vec![left, right], num_docs);
+
+            let expected: Vec<u32> = a.iter()
+                .cloned()
+                .filter(|doc| b.contains(doc))
+                .collect();
+
+            for expected_doc in expected {
+                assert_eq!(intersection.doc(), expected_doc);
+                intersection.advance();
+            }
+            assert_eq!(intersection.doc(), TERMINATED);
+        }
+
     }
 }

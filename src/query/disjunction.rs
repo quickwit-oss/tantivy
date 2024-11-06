@@ -62,6 +62,16 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
         self.current_doc = doc_id;
         doc_id
     }
+    fn seek(&mut self, target: DocId) -> DocId {
+        let doc_id = self.scorer.seek(target);
+        self.current_doc = doc_id;
+        doc_id
+    }
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        let found = self.scorer.seek_exact(target);
+        self.current_doc = self.scorer.doc();
+        found
+    }
 
     fn doc(&self) -> DocId {
         self.current_doc

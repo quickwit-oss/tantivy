@@ -193,6 +193,14 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        if self.phrase_scorer.seek_exact(target) {
+            self.matches_prefix()
+        } else {
+            false
+        }
+    }
+
     fn doc(&self) -> DocId {
         self.phrase_scorer.doc()
     }

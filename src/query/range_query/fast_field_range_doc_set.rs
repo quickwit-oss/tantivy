@@ -92,6 +92,9 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
 
     /// Returns true if more data could be fetched
     fn fetch_block(&mut self) {
+        if self.next_fetch_start >= self.column.num_docs() {
+            return;
+        }
         const MAX_HORIZON: u32 = 100_000;
         while self.loaded_docs.is_empty() {
             let finished_to_end = self.fetch_horizon(self.fetch_horizon);
@@ -116,10 +119,10 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     fn fetch_horizon(&mut self, horizon: u32) -> bool {
         let mut finished_to_end = false;
 
-        let limit = self.column.num_docs();
-        let mut end = self.next_fetch_start + horizon;
-        if end >= limit {
-            end = limit;
+        let num_docs = self.column.num_docs();
+        let mut fetch_end = self.next_fetch_start + horizon;
+        if fetch_end >= num_docs {
+            fetch_end = num_docs;
             finished_to_end = true;
         }
 
@@ -127,7 +130,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
         let doc_buffer: &mut Vec<DocId> = self.loaded_docs.get_cleared_data();
         self.column.get_docids_for_value_range(
             self.value_range.clone(),
-            self.next_fetch_start..end,
+            self.next_fetch_start..fetch_end,
             doc_buffer,
         );
         if let Some(last_doc) = last_doc {
@@ -135,7 +138,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
                 self.loaded_docs.next();
             }
         }
-        self.next_fetch_start = end;
+        self.next_fetch_start = fetch_end;
 
         finished_to_end
     }
@@ -146,9 +149,6 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     fn advance(&mut self) -> DocId {
         if let Some(docid) = self.loaded_docs.next() {
             return docid;
-        }
-        if self.next_fetch_start >= self.column.num_docs() {
-            return TERMINATED;
         }
         self.fetch_block();
         self.loaded_docs.current().unwrap_or(TERMINATED)
@@ -185,7 +185,18 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     }
 
     fn size_hint(&self) -> u32 {
-        self.column.num_docs()
+        // TODO: Implement a better size hint
+        self.column.num_docs() / 10
+    }
+
+    /// Returns a best-effort hint of the
+    /// cost to drive the docset.
+    fn cost(&self) -> u64 {
+        // Advancing the docset is pretty expensive since it scans the whole column, there is no
+        // index currently (will change with an kd-tree)
+        // Since we use SIMD to scan the fast field range query we lower the cost a little bit.
+        // Ideally this would take the fast field codec into account
+        (self.column.num_docs() as f64 * 0.8) as u64
     }
 
     /// Returns a best-effort hint of the

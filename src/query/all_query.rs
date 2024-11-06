@@ -62,6 +62,15 @@ impl DocSet for AllScorer {
         self.doc
     }
 
+    fn seek(&mut self, target: DocId) -> DocId {
+        debug_assert!(target >= self.doc);
+        self.doc = target;
+        if self.doc >= self.max_doc {
+            self.doc = TERMINATED;
+        }
+        self.doc
+    }
+
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
         if self.doc() == TERMINATED {
             return 0;

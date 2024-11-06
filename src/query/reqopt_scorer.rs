@@ -56,6 +56,11 @@ where
         self.req_scorer.seek(target)
     }
 
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        self.score_cache = None;
+        self.req_scorer.seek_exact(target)
+    }
+
     fn doc(&self) -> DocId {
         self.req_scorer.doc()
     }

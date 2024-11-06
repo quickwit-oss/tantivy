@@ -483,7 +483,7 @@ mod tests {
             let checkpoints_for_each_pruning =
                 compute_checkpoints_for_each_pruning(term_scorers.clone(), top_k);
             let checkpoints_manual =
-                compute_checkpoints_manual(term_scorers.clone(), top_k, 100_000);
+                compute_checkpoints_manual(term_scorers.clone(), top_k, max_doc as u32);
             assert_eq!(checkpoints_for_each_pruning.len(), checkpoints_manual.len());
             for (&(left_doc, left_score), &(right_doc, right_score)) in checkpoints_for_each_pruning
                 .iter()
