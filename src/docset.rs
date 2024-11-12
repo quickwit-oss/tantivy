@@ -54,18 +54,15 @@ pub trait DocSet: Send {
     /// Implementations may choose to advance past the target if target does not exist.
     ///
     /// DocSets that already have an efficient `seek` method don't need to implement `seek_exact`.
-    /// All wapper DocSets should forward `seek_exact` to the underlying DocSet.
+    /// All wrapper DocSets should forward `seek_exact` to the underlying DocSet.
     ///
     /// ## API Behaviour
     /// If `seek_exact` is returning true, a call to `doc()` has to return target.
     /// If `seek_exact` is returning false, a call to `doc()` may return the previous doc,
     /// which may be lower than target.
     fn seek_exact(&mut self, target: DocId) -> bool {
-        let current_doc = self.doc();
-        if current_doc < target {
-            self.seek(target);
-        }
-        self.doc() == target
+        let doc = self.seek(target);
+        doc == target
     }
 
     /// Fills a given mutable buffer with the next doc ids from the
