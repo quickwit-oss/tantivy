@@ -13,6 +13,9 @@ use crate::{DocId, Score};
 /// For better performance, the function uses a
 /// specialized implementation if the two
 /// shortest scorers are `TermScorer`s.
+///
+/// num_docs_segment is the number of documents in the segment. It is used for estimating the
+/// `size_hint` of the intersection.
 pub fn intersect_scorers(
     mut scorers: Vec<Box<dyn Scorer>>,
     num_docs_segment: u32,

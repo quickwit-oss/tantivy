@@ -40,6 +40,8 @@ pub trait DocSet: Send {
     /// of `DocSet` should support it.
     ///
     /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a `DocSet`.
+    ///
+    /// `target` has to be larger or equal to `.doc()` when calling `seek`.
     fn seek(&mut self, target: DocId) -> DocId {
         let mut doc = self.doc();
         debug_assert!(doc <= target);
@@ -58,11 +60,22 @@ pub trait DocSet: Send {
     ///
     /// ## API Behaviour
     /// If `seek_exact` is returning true, a call to `doc()` has to return target.
-    /// If `seek_exact` is returning false, a call to `doc()` may return the previous doc,
-    /// which may be lower than target.
+    /// If `seek_exact` is returning false, a call to `doc()` may return any doc and should not be
+    /// used until `seek_exact` returns true again. The DocSet is considered to be in an invalid
+    /// state until `seek_exact` returns true again.
+    ///
+    /// target needs to be equal or larger than `doc` when in a valid state.
+    ///
+    /// Consecutive calls are not allowed to have decreasing `target` values.
+    ///
+    /// # Warning
+    /// This is an advanced API used by intersection. The API contract is tricky, avoid using it.
     fn seek_exact(&mut self, target: DocId) -> bool {
-        let doc = self.seek(target);
-        doc == target
+        let current_doc = self.doc();
+        if current_doc < target {
+            self.seek(target);
+        }
+        self.doc() == target
     }
 
     /// Fills a given mutable buffer with the next doc ids from the

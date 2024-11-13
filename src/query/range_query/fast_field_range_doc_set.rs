@@ -194,7 +194,14 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     fn cost(&self) -> u64 {
         // Advancing the docset is pretty expensive since it scans the whole column, there is no
         // index currently (will change with an kd-tree)
-        // Since we use SIMD to scan the fast field range query we lower the cost a little bit.
+        // Since we use SIMD to scan the fast field range query we lower the cost a little bit,
+        // assuming that we hit 10% of the docs like in size_hint.
+        //
+        // If we would return a cost higher than num_docs, we would never choose ff range query as
+        // the driver in a DocSet, when intersecting a term query with a fast field. But
+        // it's the faster choice when the term query has a lot of docids and the range
+        // query has not.
+        //
         // Ideally this would take the fast field codec into account
         (self.column.num_docs() as f64 * 0.8) as u64
     }
