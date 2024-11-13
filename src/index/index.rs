@@ -30,22 +30,30 @@ fn load_metas(
     directory: &dyn Directory,
     inventory: &SegmentMetaInventory,
 ) -> crate::Result<IndexMeta> {
-    let meta_data = directory.atomic_read(&META_FILEPATH)?;
-    let meta_string = String::from_utf8(meta_data).map_err(|_utf8_err| {
-        error!("Meta data is not valid utf8.");
-        DataCorruption::new(
-            META_FILEPATH.to_path_buf(),
-            "Meta file does not contain valid utf8 file.".to_string(),
-        )
-    })?;
-    IndexMeta::deserialize(&meta_string, inventory)
-        .map_err(|e| {
-            DataCorruption::new(
-                META_FILEPATH.to_path_buf(),
-                format!("Meta file cannot be deserialized. {e:?}. Content: {meta_string:?}"),
-            )
-        })
-        .map_err(From::from)
+    match directory.load_metas(inventory) {
+        Ok(metas) => Ok(metas),
+        Err(crate::TantivyError::InternalError(_)) => {
+            let meta_data = directory.atomic_read(&META_FILEPATH)?;
+            let meta_string = String::from_utf8(meta_data).map_err(|_utf8_err| {
+                error!("Meta data is not valid utf8.");
+                DataCorruption::new(
+                    META_FILEPATH.to_path_buf(),
+                    "Meta file does not contain valid utf8 file.".to_string(),
+                )
+            })?;
+            IndexMeta::deserialize(&meta_string, inventory)
+                .map_err(|e| {
+                    DataCorruption::new(
+                        META_FILEPATH.to_path_buf(),
+                        format!(
+                            "Meta file cannot be deserialized. {e:?}. Content: {meta_string:?}"
+                        ),
+                    )
+                })
+                .map_err(From::from)
+        }
+        Err(err) => Err(err),
+    }
 }
 
 /// Save the index meta file.
@@ -688,7 +696,7 @@ impl Index {
 
     /// Returns the set of corrupted files
     pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
-        let managed_files = self.directory.list_managed_files();
+        let managed_files = self.directory.list_managed_files()?;
         let active_segments_files: HashSet<PathBuf> = self
             .searchable_segment_metas()?
             .iter()

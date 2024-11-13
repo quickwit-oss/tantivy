@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -7,6 +8,8 @@ use std::{fmt, io, thread};
 use crate::directory::directory_lock::Lock;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
+use crate::index::SegmentMetaInventory;
+use crate::IndexMeta;
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -223,6 +226,40 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// `OnCommitWithDelay` `ReloadPolicy`. Not implementing watch in a `Directory` only prevents
     /// the `OnCommitWithDelay` `ReloadPolicy` to work properly.
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle>;
+
+    /// Allows the directory to list managed files, overriding the ManagedDirectory's default
+    /// list_managed_files
+    fn list_managed_files(&self) -> crate::Result<HashSet<PathBuf>> {
+        Err(crate::TantivyError::InternalError(
+            "list_managed_files not implemented".to_string(),
+        ))
+    }
+
+    /// Allows the directory to register a file as managed, overriding the ManagedDirectory's
+    /// default register_file_as_managed
+    fn register_files_as_managed(
+        &self,
+        _files: Vec<PathBuf>,
+        _overwrite: bool,
+    ) -> crate::Result<()> {
+        Err(crate::TantivyError::InternalError(
+            "register_files_as_managed not implemented".to_string(),
+        ))
+    }
+
+    /// Allows the directory to save IndexMeta, overriding the SegmentUpdater's default save_meta
+    fn save_metas(&self, _meta: &IndexMeta) -> crate::Result<()> {
+        Err(crate::TantivyError::InternalError(
+            "save_meta not implemented".to_string(),
+        ))
+    }
+
+    /// Allows the directory to load IndexMeta, overriding the SegmentUpdater's default load_meta
+    fn load_metas(&self, _inventory: &SegmentMetaInventory) -> crate::Result<IndexMeta> {
+        Err(crate::TantivyError::InternalError(
+            "load_metas not implemented".to_string(),
+        ))
+    }
 }
 
 /// DirectoryClone
@@ -232,7 +269,8 @@ pub trait DirectoryClone {
 }
 
 impl<T> DirectoryClone for T
-where T: 'static + Directory + Clone
+where
+    T: 'static + Directory + Clone,
 {
     fn box_clone(&self) -> Box<dyn Directory> {
         Box::new(self.clone())
