@@ -515,12 +515,11 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         let mut current_ordinal = 0;
         let mut prev_ord = None;
         for ord in ord {
-
             // only advance forward if the new ord is different than the one we just processed
             //
             // this allows the input TermOrdinal iterator to contain duplicates, so long as it's
             // still sorted
-            if Some(ord) != prev_ord  {
+            if Some(ord) != prev_ord {
                 assert!(ord >= current_ordinal);
                 // check if block changed for new term_ord
                 let new_block_addr = self.sstable_index.get_block_with_ord(ord);

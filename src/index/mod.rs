@@ -11,8 +11,9 @@ mod segment_id;
 mod segment_reader;
 
 pub use self::index::{Index, IndexBuilder};
-pub(crate) use self::index_meta::SegmentMetaInventory;
-pub use self::index_meta::{IndexMeta, IndexSettings, Order, SegmentMeta};
+pub use self::index_meta::{
+    IndexMeta, IndexSettings, InnerSegmentMeta, Order, SegmentMeta, SegmentMetaInventory,
+};
 pub use self::inverted_index_reader::InvertedIndexReader;
 pub use self::segment::Segment;
 pub use self::segment_component::SegmentComponent;
