@@ -10,7 +10,9 @@
 /// The estimated number of documents in the intersection.
 pub fn estimate_intersection<I>(mut docset_sizes: I, max_docs: u32) -> u32
 where I: Iterator<Item = u32> {
-     if max_doc == 0u32 { return 0u32; }
+    if max_docs == 0u32 {
+        return 0u32;
+    }
     // Terms tend to be not really randomly distributed.
     // This factor is used to adjust the estimate.
     let mut co_loc_factor: f64 = 1.3;

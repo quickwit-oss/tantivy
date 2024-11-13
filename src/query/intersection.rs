@@ -12,7 +12,13 @@ use crate::{DocId, Score};
 /// For better performance, the function uses a
 /// specialized implementation if the two
 /// shortest scorers are `TermScorer`s.
-pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>, num_docs: u32) -> Box<dyn Scorer> {
+///
+/// num_docs_segment is the number of documents in the segment. It is used for estimating the
+/// `size_hint` of the intersection.
+pub fn intersect_scorers(
+    mut scorers: Vec<Box<dyn Scorer>>,
+    num_docs_segment: u32,
+) -> Box<dyn Scorer> {
     if scorers.is_empty() {
         return Box::new(EmptyScorer);
     }
@@ -35,14 +41,14 @@ pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>, num_docs: u32) -> Bo
             left: *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             right: *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             others: scorers,
-            num_docs,
+            num_docs: num_docs_segment,
         });
     }
     Box::new(Intersection {
         left,
         right,
         others: scorers,
-        num_docs,
+        num_docs: num_docs_segment,
     })
 }
 
