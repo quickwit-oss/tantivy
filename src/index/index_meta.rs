@@ -17,7 +17,7 @@ pub struct DeleteMeta {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct SegmentMetaInventory {
+pub struct SegmentMetaInventory {
     inventory: Inventory<InnerSegmentMeta>,
 }
 
@@ -47,7 +47,7 @@ impl SegmentMetaInventory {
 /// how many are deleted, etc.
 #[derive(Clone)]
 pub struct SegmentMeta {
-    tracked: TrackedObject<InnerSegmentMeta>,
+    pub tracked: TrackedObject<InnerSegmentMeta>,
 }
 
 impl fmt::Debug for SegmentMeta {
@@ -184,8 +184,8 @@ impl SegmentMeta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct InnerSegmentMeta {
-    segment_id: SegmentId,
+pub struct InnerSegmentMeta {
+    pub segment_id: SegmentId,
     max_doc: u32,
     pub deletes: Option<DeleteMeta>,
 }

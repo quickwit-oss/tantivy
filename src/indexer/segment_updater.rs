@@ -37,19 +37,26 @@ const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 /// This method is not part of tantivy's public API
 pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
     info!("save metas");
-    let mut buffer = serde_json::to_vec_pretty(metas)?;
-    // Just adding a new line at the end of the buffer.
-    writeln!(&mut buffer)?;
-    crate::fail_point!("save_metas", |msg| Err(crate::TantivyError::from(
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            msg.unwrap_or_else(|| "Undefined".to_string())
-        )
-    )));
-    directory.sync_directory()?;
-    directory.atomic_write(&META_FILEPATH, &buffer[..])?;
-    debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
-    Ok(())
+
+    match directory.save_metas(metas) {
+        Ok(_) => Ok(()),
+        Err(crate::TantivyError::InternalError(_)) => {
+            let mut buffer = serde_json::to_vec_pretty(metas)?;
+            // Just adding a new line at the end of the buffer.
+            writeln!(&mut buffer)?;
+            crate::fail_point!("save_metas", |msg| Err(crate::TantivyError::from(
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    msg.unwrap_or_else(|| "Undefined".to_string())
+                )
+            )));
+            directory.sync_directory()?;
+            directory.atomic_write(&META_FILEPATH, &buffer[..])?;
+            debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
 }
 
 // The segment update runner is in charge of processing all

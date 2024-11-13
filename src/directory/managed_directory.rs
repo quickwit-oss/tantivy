@@ -14,7 +14,8 @@ use crate::directory::{
     WatchHandle, WritePtr, MANAGED_LOCK, META_LOCK,
 };
 use crate::error::DataCorruption;
-use crate::Directory;
+use crate::index::SegmentMetaInventory;
+use crate::{Directory, IndexMeta};
 
 /// Returns true if the file is "managed".
 /// Non-managed file are not subject to garbage collection.
@@ -65,27 +66,34 @@ impl ManagedDirectory {
         Ok(ManagedDirectory { directory })
     }
 
-    #[allow(missing_docs)]
-    pub fn get_managed_paths(&self) -> crate::Result<HashSet<PathBuf>> {
-        match self.directory.atomic_read(&MANAGED_FILEPATH) {
-            Ok(data) => {
-                let managed_files_json = String::from_utf8_lossy(&data);
-                let managed_files: HashSet<PathBuf> = serde_json::from_str(&managed_files_json)
-                    .map_err(|e| {
-                        DataCorruption::new(
-                            MANAGED_FILEPATH.to_path_buf(),
-                            format!("Managed file cannot be deserialized: {e:?}. "),
-                        )
-                    })?;
-                Ok(managed_files)
+    pub fn list_managed_files(&self) -> crate::Result<HashSet<PathBuf>> {
+        match self.directory.list_managed_files() {
+            Ok(managed_files) => Ok(managed_files),
+            Err(crate::TantivyError::InternalError(_)) => {
+                match self.directory.atomic_read(&MANAGED_FILEPATH) {
+                    Ok(data) => {
+                        let managed_files_json = String::from_utf8_lossy(&data);
+                        let managed_files: HashSet<PathBuf> =
+                            serde_json::from_str(&managed_files_json).map_err(|e| {
+                                DataCorruption::new(
+                                    MANAGED_FILEPATH.to_path_buf(),
+                                    format!("Managed file cannot be deserialized: {e:?}. "),
+                                )
+                            })?;
+                        Ok(managed_files)
+                    }
+                    Err(OpenReadError::FileDoesNotExist(_)) => Ok(HashSet::new()),
+                    io_err @ Err(OpenReadError::IoError { .. }) => {
+                        Err(io_err.err().unwrap().into())
+                    }
+                    Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
+                        // For the moment, this should never happen  `meta.json`
+                        // do not have any footer and cannot detect incompatibility.
+                        Err(crate::TantivyError::IncompatibleIndex(incompatibility))
+                    }
+                }
             }
-            Err(OpenReadError::FileDoesNotExist(_)) => Ok(HashSet::new()),
-            io_err @ Err(OpenReadError::IoError { .. }) => Err(io_err.err().unwrap().into()),
-            Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
-                // For the moment, this should never happen  `meta.json`
-                // do not have any footer and cannot detect incompatibility.
-                Err(crate::TantivyError::IncompatibleIndex(incompatibility))
-            }
+            Err(err) => Err(err),
         }
     }
 
@@ -111,7 +119,15 @@ impl ManagedDirectory {
 
         // We're about to do an atomic write to managed.json, lock it down
         let _lock = self.acquire_lock(&MANAGED_LOCK)?;
-        let managed_paths = self.get_managed_paths()?;
+        let managed_paths = match self.directory.list_managed_files() {
+            Ok(managed_paths) => managed_paths,
+            Err(crate::TantivyError::InternalError(_)) => {
+                // If the managed.json file does not exist, we consider
+                // that there is no managed file.
+                self.list_managed_files()?
+            }
+            Err(err) => return Err(err),
+        };
         // It is crucial to get the living files after acquiring the
         // read lock of meta information. That way, we
         // avoid the following scenario.
@@ -180,7 +196,13 @@ impl ManagedDirectory {
                 managed_paths_write.remove(delete_file);
             }
             self.directory.sync_directory()?;
-            save_managed_paths(self.directory.as_mut(), &managed_paths_write)?;
+
+            if let Err(crate::TantivyError::InternalError(_)) = self
+                .directory
+                .register_files_as_managed(managed_paths_write.clone().into_iter().collect(), true)
+            {
+                save_managed_paths(self.directory.as_mut(), &managed_paths_write)?;
+            }
         }
 
         Ok(GarbageCollectionResult {
@@ -211,25 +233,31 @@ impl ManagedDirectory {
             .acquire_lock(&MANAGED_LOCK)
             .expect("must be able to acquire lock for managed.json");
 
-        let mut managed_paths = self
-            .get_managed_paths()
-            .expect("reading managed files should not fail");
-        let has_changed = managed_paths.insert(filepath.to_owned());
-        if !has_changed {
-            return Ok(());
+        if let Err(crate::TantivyError::InternalError(_)) = self
+            .directory
+            .register_files_as_managed(vec![filepath.to_owned()], false)
+        {
+            let mut managed_paths = self
+                .list_managed_files()
+                .expect("reading managed files should not fail");
+            let has_changed = managed_paths.insert(filepath.to_owned());
+            if !has_changed {
+                return Ok(());
+            }
+            save_managed_paths(self.directory.as_ref(), &managed_paths)?;
+            // This is not the first file we add.
+            // Therefore, we are sure that `.managed.json` has been already
+            // properly created and we do not need to sync its parent directory.
+            //
+            // (It might seem like a nicer solution to create the managed_json on the
+            // creation of the ManagedDirectory instance but it would actually
+            // prevent the use of read-only directories..)
+            let managed_file_definitely_already_exists = managed_paths.len() > 1;
+            if managed_file_definitely_already_exists {
+                return Ok(());
+            }
         }
-        save_managed_paths(self.directory.as_ref(), &managed_paths)?;
-        // This is not the first file we add.
-        // Therefore, we are sure that `.managed.json` has been already
-        // properly created and we do not need to sync its parent directory.
-        //
-        // (It might seem like a nicer solution to create the managed_json on the
-        // creation of the ManagedDirectory instance but it would actually
-        // prevent the use of read-only directories..)
-        let managed_file_definitely_already_exists = managed_paths.len() > 1;
-        if managed_file_definitely_already_exists {
-            return Ok(());
-        }
+
         self.directory.sync_directory()?;
 
         Ok(())
@@ -250,15 +278,6 @@ impl ManagedDirectory {
         hasher.update(bytes.as_slice());
         let crc = hasher.finalize();
         Ok(footer.crc() == crc)
-    }
-
-    /// List all managed files
-    pub fn list_managed_files(&self) -> HashSet<PathBuf> {
-        let _lock = self
-            .acquire_lock(&MANAGED_LOCK)
-            .expect("must be able to acquire lock for managed.json");
-        self.get_managed_paths()
-            .expect("reading managed files should not fail")
     }
 }
 
@@ -316,6 +335,14 @@ impl Directory for ManagedDirectory {
     fn sync_directory(&self) -> io::Result<()> {
         self.directory.sync_directory()?;
         Ok(())
+    }
+
+    fn save_metas(&self, metas: &IndexMeta) -> crate::Result<()> {
+        self.directory.save_metas(metas)
+    }
+
+    fn load_metas(&self, inventory: &SegmentMetaInventory) -> crate::Result<IndexMeta> {
+        self.directory.load_metas(inventory)
     }
 }
 
