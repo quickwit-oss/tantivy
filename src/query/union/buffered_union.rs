@@ -197,6 +197,18 @@ where
         }
     }
 
+    fn seek_exact(&mut self, target: DocId) -> bool {
+        let is_hit = self
+            .docsets
+            .iter_mut()
+            .all(|docset| docset.seek_exact(target));
+        // The API requires the DocSet to be in a valid state when `seek_exact` returns true.
+        if is_hit {
+            self.seek(target);
+        }
+        is_hit
+    }
+
     fn doc(&self) -> DocId {
         self.doc
     }
