@@ -855,6 +855,7 @@ impl QueryParser {
                     .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
                 let field_entry = self.schema.get_field_entry(field);
                 let field_type = field_entry.field_type();
+                // `ExistsQuery` currently supports only FAST fields.
                 if !field_type.is_fast() {
                     // FIXME: FieldNotIndexed error is not accurate.
                     errors.push(QueryParserError::FieldNotIndexed(
@@ -862,7 +863,9 @@ impl QueryParser {
                     ));
                     return (None, errors);
                 }
-                if !json_path.is_empty() && field_type.is_json() {
+                // Though JSON fields cannot be FAST fields, `split_full_path`
+                // may still return a FAST field with a non-empty JSON path.
+                if !json_path.is_empty() {
                     errors.push(QueryParserError::UnsupportedQuery(format!(
                         "Json path is not supported for field {:?}",
                         field_entry.name()
