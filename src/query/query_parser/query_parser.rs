@@ -849,33 +849,36 @@ impl QueryParser {
                 (Some(logical_ast), errors)
             }
             UserInputLeaf::Exists { field: full_path } => {
-                let mut errors = Vec::<QueryParserError>::new();
                 let (field, json_path) = try_tuple!(self
                     .split_full_path(&full_path)
                     .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
                 let field_entry = self.schema.get_field_entry(field);
                 let field_type = field_entry.field_type();
-                // `ExistsQuery` currently supports only FAST fields.
                 if !field_type.is_fast() {
                     // FIXME: FieldNotIndexed error is not accurate.
-                    errors.push(QueryParserError::FieldNotIndexed(
-                        field_entry.name().to_string(),
-                    ));
-                    return (None, errors);
+                    return (
+                        None,
+                        vec![QueryParserError::FieldNotIndexed(
+                            field_entry.name().to_string(),
+                        )],
+                    );
                 }
-                // Though JSON fields cannot be FAST fields, `split_full_path`
-                // may still return a FAST field with a non-empty JSON path.
-                if !json_path.is_empty() {
-                    errors.push(QueryParserError::UnsupportedQuery(format!(
-                        "Json path is not supported for field {:?}",
-                        field_entry.name()
-                    )));
-                    return (None, errors);
+                if json_path.is_empty() == field_type.is_json() {
+                    let error = if field_type.is_json() {
+                        QueryParserError::UnsupportedQuery(format!(
+                            "JSON path must be provided when querying the existence of a JSON \
+                             field: {}",
+                            field_entry.name()
+                        ))
+                    } else {
+                        QueryParserError::FieldDoesNotExist(full_path.clone())
+                    };
+                    return (None, vec![error]);
                 }
                 let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Exist {
-                    field_name: field_entry.name().to_string(),
+                    field_name: full_path,
                 }));
-                (Some(logical_ast), errors)
+                (Some(logical_ast), Vec::new())
             }
         }
     }
@@ -1090,6 +1093,7 @@ mod test {
         schema_builder.add_bool_field("bool", INDEXED);
         schema_builder.add_bool_field("notindexed_bool", STORED);
         schema_builder.add_u64_field("u64_ff", FAST);
+        schema_builder.add_json_field("json_ff", TEXT | FAST);
         schema_builder.build()
     }
 
@@ -1967,6 +1971,34 @@ mod test {
         assert_matches!(
             query_parser.parse_query("text:*"),
             Err(QueryParserError::FieldNotIndexed(_))
+        );
+    }
+
+    #[test]
+    pub fn test_exist_query_with_json_field() {
+        let query_parser = make_query_parser_with_default_fields(&["u64_ff", "json_ff", "json"]);
+        // Basic function.
+        {
+            let query = query_parser.parse_query("json_ff.some.field:*").unwrap();
+            assert_eq!(
+                format!("{query:?}"),
+                r##"ExistsQuery { field_name: "json_ff.some.field" }"##
+            )
+        }
+        // Non-fast JSON field are not supported
+        assert_matches!(
+            query_parser.parse_query("json:*"),
+            Err(QueryParserError::FieldNotIndexed(_))
+        );
+        // JSON field must contain path.
+        assert_matches!(
+            query_parser.parse_query("json_ff:*"),
+            Err(QueryParserError::UnsupportedQuery(_))
+        );
+        // Fast but not JSON Field shouldn't include path.
+        assert_matches!(
+            query_parser.parse_query("u64_ff.some.field:*"),
+            Err(QueryParserError::FieldDoesNotExist(_))
         );
     }
 }
