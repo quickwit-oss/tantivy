@@ -570,7 +570,7 @@ impl Index {
         )
     }
 
-    /// Creates a multithreaded writer with a default number of merge threads.
+    /// Creates a multithreaded writer with 4 merge threads.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
