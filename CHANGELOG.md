@@ -1,11 +1,12 @@
 Tantivy 0.23 - Unreleased
 ================================
-Tantivy 0.23 will be backwards compatible with indices created with v0.22 and v0.21.
+Tantivy 0.23 will be backwards compatible with indices created with v0.22 and v0.21. The new minimum rust version will be 1.75.
 
 #### Bugfixes
 - fix potential endless loop in merge [#2457](https://github.com/quickwit-oss/tantivy/pull/2457)(@PSeitz)
 - fix bug that causes out-of-order sstable key. [#2445](https://github.com/quickwit-oss/tantivy/pull/2445)(@fulmicoton)
 - fix ReferenceValue API flaw [#2372](https://github.com/quickwit-oss/tantivy/pull/2372)(@PSeitz)
+- fix `OwnedBytes` debug panic [#2512](https://github.com/quickwit-oss/tantivy/pull/2512)(@b41sh)
 
 #### Breaking API Changes
 - remove index sorting [#2434](https://github.com/quickwit-oss/tantivy/pull/2434)(@PSeitz)
@@ -35,7 +36,15 @@ Tantivy 0.23 will be backwards compatible with indices created with v0.22 and v0
 - make find_field_with_default return json fields without path [#2476](https://github.com/quickwit-oss/tantivy/pull/2476)(@trinity-1686a)
 - feat(query): Make `BooleanQuery` support `minimum_number_should_match` [#2405](https://github.com/quickwit-oss/tantivy/pull/2405)(@LebranceBW)
 
-- **Optional Index in Multivalue Columnar Index** For mostly empty multivalued indices there was a large overhead during creation when iterating all docids (merge case). This is alleviated by placing an optional index in the multivalued index to mark documents that have values. This will slightly increase space and access time. [#2439](https://github.com/quickwit-oss/tantivy/pull/2439)(@PSeitz)
+- **RegexPhraseQuery** 
+`RegexPhraseQuery` supports phrase queries with regex. E.g. query "b.* b.* wolf" matches "big bad wolf". Slop is supported as well: "b.* wolf"~2 matches "big bad wolf" [#2516](https://github.com/quickwit-oss/tantivy/pull/2516)(@PSeitz)
+
+- **Optional Index in Multivalue Columnar Index** 
+For mostly empty multivalued indices there was a large overhead during creation when iterating all docids (merge case). 
+This is alleviated by placing an optional index in the multivalued index to mark documents that have values. 
+This will slightly increase space and access time. [#2439](https://github.com/quickwit-oss/tantivy/pull/2439)(@PSeitz)
+
+- **Store DateTime as nanoseconds in doc store** DateTime in the doc store was truncated to microseconds previously. This removes this truncation, while still keeping backwards compatibility. [#2486](https://github.com/quickwit-oss/tantivy/pull/2486)(@PSeitz)
 
 - **Performace/Memory**
     - lift clauses in LogicalAst for optimized ast during execution [#2449](https://github.com/quickwit-oss/tantivy/pull/2449)(@PSeitz)
@@ -57,12 +66,13 @@ Tantivy 0.23 will be backwards compatible with indices created with v0.22 and v0
 - add bench & test for columnar merging [#2428](https://github.com/quickwit-oss/tantivy/pull/2428)(@PSeitz)
 - Change in Executor API [#2391](https://github.com/quickwit-oss/tantivy/pull/2391)(@fulmicoton)
 - Removed usage of num_cpus [#2387](https://github.com/quickwit-oss/tantivy/pull/2387)(@fulmicoton)
-- use bingang for agg benchmark [#2378](https://github.com/quickwit-oss/tantivy/pull/2378)(@PSeitz)
+- use bingang for agg and stacker benchmark [#2378](https://github.com/quickwit-oss/tantivy/pull/2378)[#2492](https://github.com/quickwit-oss/tantivy/pull/2492)(@PSeitz) 
 - cleanup top level exports [#2382](https://github.com/quickwit-oss/tantivy/pull/2382)(@PSeitz)
 - make convert_to_fast_value_and_append_to_json_term pub [#2370](https://github.com/quickwit-oss/tantivy/pull/2370)(@PSeitz)
 - remove JsonTermWriter [#2238](https://github.com/quickwit-oss/tantivy/pull/2238)(@PSeitz)
 - validate sort by field type [#2336](https://github.com/quickwit-oss/tantivy/pull/2336)(@PSeitz)
 - Fix trait bound of StoreReader::iter [#2360](https://github.com/quickwit-oss/tantivy/pull/2360)(@adamreichold)
+- remove read_postings_no_deletes [#2526](https://github.com/quickwit-oss/tantivy/pull/2526)(@PSeitz)
 
 Tantivy 0.22
 ================================
@@ -717,7 +727,7 @@ Tantivy 0.4.0
 - Raise the limit of number of fields (previously 256 fields) (@fulmicoton)
 - Removed u32 fields. They are replaced by u64 and i64 fields (#65) (@fulmicoton)
 - Optimized skip in SegmentPostings (#130) (@lnicola)
-- Replacing rustc_serialize by serde. Kudos to @KodrAus and @lnicola
+- Replacing rustc_serialize by serde. Kudos to  benchmark@KodrAus and @lnicola
 - Using error-chain (@KodrAus)
 - QueryParser: (@fulmicoton)
   - Explicit error returned when searched for a term that is not indexed
