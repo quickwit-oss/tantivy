@@ -10,13 +10,13 @@ pub struct HeapItem<'a> {
     pub segment_ord: usize,
 }
 
-impl<'a> PartialEq for HeapItem<'a> {
+impl PartialEq for HeapItem<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.segment_ord == other.segment_ord
     }
 }
 
-impl<'a> Eq for HeapItem<'a> {}
+impl Eq for HeapItem<'_> {}
 
 impl<'a> PartialOrd for HeapItem<'a> {
     fn partial_cmp(&self, other: &HeapItem<'a>) -> Option<Ordering> {
