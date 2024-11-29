@@ -10,7 +10,7 @@ pub(crate) struct MergedColumnValues<'a, T> {
     pub(crate) merge_row_order: &'a MergeRowOrder,
 }
 
-impl<'a, T: Copy + PartialOrd + Debug + 'static> Iterable<T> for MergedColumnValues<'a, T> {
+impl<T: Copy + PartialOrd + Debug + 'static> Iterable<T> for MergedColumnValues<'_, T> {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = T> + '_> {
         match self.merge_row_order {
             MergeRowOrder::Stack(_) => Box::new(

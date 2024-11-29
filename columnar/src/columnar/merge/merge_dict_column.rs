@@ -39,7 +39,7 @@ struct RemappedTermOrdinalsValues<'a> {
     merge_row_order: &'a MergeRowOrder,
 }
 
-impl<'a> Iterable for RemappedTermOrdinalsValues<'a> {
+impl Iterable for RemappedTermOrdinalsValues<'_> {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u64> + '_> {
         match self.merge_row_order {
             MergeRowOrder::Stack(_) => self.boxed_iter_stacked(),
@@ -50,7 +50,7 @@ impl<'a> Iterable for RemappedTermOrdinalsValues<'a> {
     }
 }
 
-impl<'a> RemappedTermOrdinalsValues<'a> {
+impl RemappedTermOrdinalsValues<'_> {
     fn boxed_iter_stacked(&self) -> Box<dyn Iterator<Item = u64> + '_> {
         let iter = self
             .bytes_columns
