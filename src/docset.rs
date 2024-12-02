@@ -53,24 +53,22 @@ pub trait DocSet: Send {
 
     /// Seeks to the target if possible and returns true if the target is in the DocSet.
     ///
-    /// Implementations may choose to advance past the target if target does not exist.
-    ///
     /// DocSets that already have an efficient `seek` method don't need to implement `seek_exact`.
     /// All wrapper DocSets should forward `seek_exact` to the underlying DocSet.
     ///
     /// ## API Behaviour
     /// If `seek_exact` is returning true, a call to `doc()` has to return target.
-    /// If `seek_exact` is returning false, a call to `doc()` may return any doc and should not be
-    /// used until `seek_exact` returns true again. The DocSet is considered to be in an invalid
-    /// state until `seek_exact` returns true again.
+    /// If `seek_exact` is returning false, a call to `doc()` may return any doc between
+    /// the last doc that matched and target or a doc that is a valid next hit after target.
+    /// The DocSet is considered to be in an invalid state until `seek_exact` returns true again.
     ///
-    /// target needs to be equal or larger than `doc` when in a valid state.
+    /// `target` needs to be equal or larger than `doc` when in a valid state.
     ///
     /// Consecutive calls are not allowed to have decreasing `target` values.
     ///
     /// # Warning
     /// This is an advanced API used by intersection. The API contract is tricky, avoid using it.
-    fn seek_exact(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
         let current_doc = self.doc();
         if current_doc < target {
             self.seek(target);
@@ -175,8 +173,8 @@ impl DocSet for &mut dyn DocSet {
         (**self).seek(target)
     }
 
-    fn seek_exact(&mut self, target: DocId) -> bool {
-        (**self).seek_exact(target)
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        (**self).seek_into_the_danger_zone(target)
     }
 
     fn doc(&self) -> u32 {
@@ -211,9 +209,9 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.seek(target)
     }
 
-    fn seek_exact(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
         let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.seek_exact(target)
+        unboxed.seek_into_the_danger_zone(target)
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {

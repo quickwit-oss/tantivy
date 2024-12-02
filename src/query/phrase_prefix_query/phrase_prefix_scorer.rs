@@ -193,8 +193,8 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
-    fn seek_exact(&mut self, target: DocId) -> bool {
-        if self.phrase_scorer.seek_exact(target) {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        if self.phrase_scorer.seek_into_the_danger_zone(target) {
             self.matches_prefix()
         } else {
             false

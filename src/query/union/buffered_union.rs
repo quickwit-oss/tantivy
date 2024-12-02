@@ -217,11 +217,11 @@ where
         }
     }
 
-    fn seek_exact(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
         let is_hit = self
             .docsets
             .iter_mut()
-            .all(|docset| docset.seek_exact(target));
+            .all(|docset| docset.seek_into_the_danger_zone(target));
         // The API requires the DocSet to be in a valid state when `seek_exact` returns true.
         if is_hit {
             self.seek(target);

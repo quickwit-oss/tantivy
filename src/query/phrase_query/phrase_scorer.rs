@@ -530,9 +530,9 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         self.advance()
     }
 
-    fn seek_exact(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
         debug_assert!(target >= self.doc());
-        if self.intersection_docset.seek_exact(target) && self.phrase_match() {
+        if self.intersection_docset.seek_into_the_danger_zone(target) && self.phrase_match() {
             return true;
         }
         false

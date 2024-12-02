@@ -118,12 +118,17 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             // of the two rarest `DocSet` in the intersection.
 
             loop {
-                if right.seek_exact(candidate) {
+                if right.seek_into_the_danger_zone(candidate) {
                     break;
                 }
-                // `left.advance().max(right.doc())` yielded a regression in the search game
-                // benchmark It may make sense in certain scenarios though.
-                candidate = left.advance();
+                let right_doc = right.doc();
+                // TODO: Think about which value would make sense here
+                // It depends on the DocSet implementation, when a seek would outweigh an advance.
+                if right_doc > candidate.wrapping_add(100) {
+                    candidate = left.seek(right_doc);
+                } else {
+                    candidate = left.advance();
+                }
                 if candidate == TERMINATED {
                     return TERMINATED;
                 }
@@ -134,7 +139,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             if self
                 .others
                 .iter_mut()
-                .all(|docset| docset.seek_exact(candidate))
+                .all(|docset| docset.seek_into_the_danger_zone(candidate))
             {
                 debug_assert_eq!(candidate, self.left.doc());
                 debug_assert_eq!(candidate, self.right.doc());
@@ -161,13 +166,13 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
     ///
     /// Some implementations may choose to advance past the target if beneficial for performance.
     /// The return value is `true` if the target is in the docset, and `false` otherwise.
-    fn seek_exact(&mut self, target: DocId) -> bool {
-        self.left.seek_exact(target)
-            && self.right.seek_exact(target)
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        self.left.seek_into_the_danger_zone(target)
+            && self.right.seek_into_the_danger_zone(target)
             && self
                 .others
                 .iter_mut()
-                .all(|docset| docset.seek_exact(target))
+                .all(|docset| docset.seek_into_the_danger_zone(target))
     }
 
     fn doc(&self) -> DocId {
