@@ -1498,6 +1498,11 @@ mod test {
     }
 
     #[test]
+    fn field_re_specification() {
+        test_parse_query_to_ast_helper(r#"field:(abc AND b:cde)"#, r#"(+"field":abc +"b":cde)"#);
+    }
+
+    #[test]
     fn test_parse_query_single_term() {
         test_parse_query_to_ast_helper("abc", "abc");
     }
