@@ -104,8 +104,8 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
     fn seek(&mut self, target: DocId) -> DocId {
         self.underlying.seek(target)
     }
-    fn seek_exact(&mut self, target: DocId) -> bool {
-        self.underlying.seek_exact(target)
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        self.underlying.seek_into_the_danger_zone(target)
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
