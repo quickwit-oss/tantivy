@@ -67,8 +67,8 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
         self.current_doc = doc_id;
         doc_id
     }
-    fn seek_exact(&mut self, target: DocId) -> bool {
-        let found = self.scorer.seek_exact(target);
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        let found = self.scorer.seek_into_the_danger_zone(target);
         self.current_doc = self.scorer.doc();
         found
     }
