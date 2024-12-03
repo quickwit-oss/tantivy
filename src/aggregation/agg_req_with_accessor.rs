@@ -271,10 +271,6 @@ impl AggregationWithAccessor {
                 field: ref field_name,
                 ..
             })
-            | Count(CountAggregation {
-                field: ref field_name,
-                ..
-            })
             | Max(MaxAggregation {
                 field: ref field_name,
                 ..
@@ -297,6 +293,24 @@ impl AggregationWithAccessor {
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
+                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
+            }
+            Count(CountAggregation {
+                field: ref field_name,
+                ..
+            }) => {
+                let allowed_column_types = [
+                    ColumnType::I64,
+                    ColumnType::U64,
+                    ColumnType::F64,
+                    ColumnType::Str,
+                    ColumnType::DateTime,
+                    ColumnType::Bool,
+                    ColumnType::IpAddr,
+                    // ColumnType::Bytes Unsupported
+                ];
+                let (accessor, column_type) =
+                    get_ff_reader(reader, field_name, Some(&allowed_column_types))?;
                 add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Percentiles(ref percentiles) => {

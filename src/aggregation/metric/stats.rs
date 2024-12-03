@@ -220,9 +220,23 @@ impl SegmentStatsCollector {
                 .column_block_accessor
                 .fetch_block(docs, &agg_accessor.accessor);
         }
-        for val in agg_accessor.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, &self.field_type);
-            self.stats.collect(val1);
+        if [
+            ColumnType::I64,
+            ColumnType::U64,
+            ColumnType::F64,
+            ColumnType::DateTime,
+        ]
+        .contains(&self.field_type)
+        {
+            for val in agg_accessor.column_block_accessor.iter_vals() {
+                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                self.stats.collect(val1);
+            }
+        } else {
+            for _val in agg_accessor.column_block_accessor.iter_vals() {
+                // we ignore the value and simply record that we got something
+                self.stats.collect(0.0);
+            }
         }
     }
 }
