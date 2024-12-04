@@ -74,7 +74,7 @@ fn ensure_capacity<'a>(
     eull.remaining_cap = allocate as u16;
 }
 
-impl<'a> ExpUnrolledLinkedListWriter<'a> {
+impl ExpUnrolledLinkedListWriter<'_> {
     #[inline]
     pub fn write_u32_vint(&mut self, val: u32) {
         let mut buf = [0u8; 8];

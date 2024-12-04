@@ -58,7 +58,7 @@ struct ShuffledIndex<'a> {
     merge_order: &'a ShuffleMergeOrder,
 }
 
-impl<'a> Iterable<u32> for ShuffledIndex<'a> {
+impl Iterable<u32> for ShuffledIndex<'_> {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
         Box::new(
             self.merge_order
@@ -127,7 +127,7 @@ fn integrate_num_vals(num_vals: impl Iterator<Item = u32>) -> impl Iterator<Item
     )
 }
 
-impl<'a> Iterable<u32> for ShuffledMultivaluedIndex<'a> {
+impl Iterable<u32> for ShuffledMultivaluedIndex<'_> {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
         let num_vals_per_row = iter_num_values(self.column_indexes, self.merge_order);
         Box::new(integrate_num_vals(num_vals_per_row))

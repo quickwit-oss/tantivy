@@ -39,7 +39,7 @@ impl BinarySerializable for Block {
 }
 
 fn compute_num_blocks(num_vals: u32) -> u32 {
-    (num_vals + BLOCK_SIZE - 1) / BLOCK_SIZE
+    num_vals.div_ceil(BLOCK_SIZE)
 }
 
 pub struct BlockwiseLinearEstimator {

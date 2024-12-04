@@ -67,7 +67,7 @@ pub struct ColumnSerializer<'a, W: io::Write> {
     start_offset: u64,
 }
 
-impl<'a, W: io::Write> ColumnSerializer<'a, W> {
+impl<W: io::Write> ColumnSerializer<'_, W> {
     pub fn finalize(self) -> io::Result<()> {
         let end_offset: u64 = self.columnar_serializer.wrt.written_bytes();
         let byte_range = self.start_offset..end_offset;
@@ -80,7 +80,7 @@ impl<'a, W: io::Write> ColumnSerializer<'a, W> {
     }
 }
 
-impl<'a, W: io::Write> io::Write for ColumnSerializer<'a, W> {
+impl<W: io::Write> io::Write for ColumnSerializer<'_, W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.columnar_serializer.wrt.write(buf)
     }

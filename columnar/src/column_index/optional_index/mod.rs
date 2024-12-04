@@ -86,7 +86,7 @@ pub struct OptionalIndex {
     block_metas: Arc<[BlockMeta]>,
 }
 
-impl<'a> Iterable<u32> for &'a OptionalIndex {
+impl Iterable<u32> for &OptionalIndex {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
         Box::new(self.iter_rows())
     }
@@ -123,7 +123,7 @@ enum BlockSelectCursor<'a> {
     Sparse(<SparseBlock<'a> as Set<u16>>::SelectCursor<'a>),
 }
 
-impl<'a> BlockSelectCursor<'a> {
+impl BlockSelectCursor<'_> {
     fn select(&mut self, rank: u16) -> u16 {
         match self {
             BlockSelectCursor::Dense(dense_select_cursor) => dense_select_cursor.select(rank),
@@ -141,7 +141,7 @@ pub struct OptionalIndexSelectCursor<'a> {
     num_null_rows_before_block: RowId,
 }
 
-impl<'a> OptionalIndexSelectCursor<'a> {
+impl OptionalIndexSelectCursor<'_> {
     fn search_and_load_block(&mut self, rank: RowId) {
         if rank < self.current_block_end_rank {
             // we are already in the right block
@@ -165,7 +165,7 @@ impl<'a> OptionalIndexSelectCursor<'a> {
     }
 }
 
-impl<'a> SelectCursor<RowId> for OptionalIndexSelectCursor<'a> {
+impl SelectCursor<RowId> for OptionalIndexSelectCursor<'_> {
     fn select(&mut self, rank: RowId) -> RowId {
         self.search_and_load_block(rank);
         let index_in_block = (rank - self.num_null_rows_before_block) as u16;
@@ -505,7 +505,7 @@ fn deserialize_optional_index_block_metadatas(
         non_null_rows_before_block += num_non_null_rows;
     }
     block_metas.resize(
-        ((num_rows + ELEMENTS_PER_BLOCK - 1) / ELEMENTS_PER_BLOCK) as usize,
+        num_rows.div_ceil(ELEMENTS_PER_BLOCK) as usize,
         BlockMeta {
             non_null_rows_before_block,
             start_byte_offset,

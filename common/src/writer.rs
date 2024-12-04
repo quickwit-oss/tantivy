@@ -87,7 +87,7 @@ impl<W: TerminatingWrite> TerminatingWrite for BufWriter<W> {
     }
 }
 
-impl<'a> TerminatingWrite for &'a mut Vec<u8> {
+impl TerminatingWrite for &mut Vec<u8> {
     fn terminate_ref(&mut self, _a: AntiCallToken) -> io::Result<()> {
         self.flush()
     }

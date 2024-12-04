@@ -31,7 +31,7 @@ impl<'a> SelectCursor<u16> for SparseBlock<'a> {
     }
 }
 
-impl<'a> Set<u16> for SparseBlock<'a> {
+impl Set<u16> for SparseBlock<'_> {
     type SelectCursor<'b>
         = Self
     where Self: 'b;
@@ -69,7 +69,7 @@ fn get_u16(data: &[u8], byte_position: usize) -> u16 {
     u16::from_le_bytes(bytes)
 }
 
-impl<'a> SparseBlock<'a> {
+impl SparseBlock<'_> {
     #[inline(always)]
     fn value_at_idx(&self, data: &[u8], idx: u16) -> u16 {
         let start_offset: usize = idx as usize * 2;
