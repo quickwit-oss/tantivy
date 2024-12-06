@@ -11,9 +11,6 @@ keywords = []
 documentation = "https://docs.rs/tantivy-bitpacker/latest/tantivy_bitpacker"
 homepage = "https://github.com/quickwit-oss/tantivy"
 
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 bitpacking = { version = "0.9.2", default-features = false, features = ["bitpacker1x"] }
 
