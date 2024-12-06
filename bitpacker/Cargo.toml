@@ -11,13 +11,8 @@ keywords = []
 documentation = "https://docs.rs/tantivy-bitpacker/latest/tantivy_bitpacker"
 homepage = "https://github.com/quickwit-oss/tantivy"
 
-[features]
-default = ["pg17"]
-pg17 = ["pgrx/pg17"]
-
 [dependencies]
 bitpacking = { version = "0.9.2", default-features = false, features = ["bitpacker1x"] }
-pgrx = "0.12.7"
 
 [dev-dependencies]
 rand = "0.8"
