@@ -264,7 +264,6 @@ pub(crate) struct InnerSegmentUpdater {
     //
     // This should be up to date as all update happen through
     // the unique active `SegmentUpdater`.
-    active_index_meta: RwLock<Arc<IndexMeta>>,
     pool: ThreadPool,
     merge_thread_pool: ThreadPool,
 
@@ -314,7 +313,6 @@ impl SegmentUpdater {
             })?;
         let index_meta = index.load_metas()?;
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
-            active_index_meta: RwLock::new(Arc::new(index_meta)),
             pool,
             merge_thread_pool,
             index,
@@ -420,7 +418,6 @@ impl SegmentUpdater {
             };
             // TODO add context to the error.
             save_metas(&index_meta, directory.box_clone().borrow_mut())?;
-            self.store_meta(&index_meta);
         }
         Ok(())
     }
@@ -461,12 +458,8 @@ impl SegmentUpdater {
         })
     }
 
-    fn store_meta(&self, index_meta: &IndexMeta) {
-        *self.active_index_meta.write().unwrap() = Arc::new(index_meta.clone());
-    }
-
     fn load_meta(&self) -> Arc<IndexMeta> {
-        self.active_index_meta.read().unwrap().clone()
+        Arc::new(self.index.load_metas().expect("Failed to load meta"))
     }
 
     pub(crate) fn make_merge_operation(&self, segment_ids: &[SegmentId]) -> MergeOperation {
