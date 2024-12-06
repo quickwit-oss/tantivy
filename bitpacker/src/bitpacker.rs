@@ -114,10 +114,6 @@ impl BitUnpacker {
     fn get_slow_path(&self, addr: usize, bit_shift: u32, data: &[u8]) -> u64 {
         let mut bytes: [u8; 8] = [0u8; 8];
 
-        if addr > data.len() {
-            eprintln!("addr: {}, data.len(): {} tid: {}", addr, data.len(), unsafe { pgrx::pg_sys::GetCurrentTransactionId() });
-        }
-
         let available_bytes = data.len() - addr;
         // This function is meant to only be called if we did not have 8 bytes to load.
         debug_assert!(available_bytes < 8);
