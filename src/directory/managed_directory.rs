@@ -233,8 +233,9 @@ impl ManagedDirectory {
             .acquire_lock(&MANAGED_LOCK)
             .expect("must be able to acquire lock for managed.json");
 
-        if let Err(crate::TantivyError::InternalError(_)) =
-            self.directory.register_files_as_managed(vec![filepath.to_owned()], false)
+        if let Err(crate::TantivyError::InternalError(_)) = self
+            .directory
+            .register_files_as_managed(vec![filepath.to_owned()], false)
         {
             let mut managed_paths = self
                 .list_managed_files()
