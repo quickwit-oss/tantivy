@@ -248,7 +248,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     }
 
     /// Allows the directory to save IndexMeta, overriding the SegmentUpdater's default save_meta
-    fn save_metas(&self, _meta: &IndexMeta) -> crate::Result<()> {
+    fn save_metas(&self, _metas: &IndexMeta, _previous_metas: &IndexMeta) -> crate::Result<()> {
         Err(crate::TantivyError::InternalError(
             "save_meta not implemented".to_string(),
         ))

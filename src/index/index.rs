@@ -124,17 +124,15 @@ fn save_new_metas(
         .flat_map(|plugin| plugin.extensions().iter().copied())
         .map(str::to_string)
         .collect();
-    save_metas(
-        &IndexMeta {
-            index_settings,
-            persisted_custom_extensions,
-            segments: Vec::new(),
-            schema,
-            opstamp: 0u64,
-            payload: None,
-        },
-        directory,
-    )?;
+    let empty_metas = IndexMeta {
+        index_settings,
+        persisted_custom_extensions,
+        segments: Vec::new(),
+        schema,
+        opstamp: 0u64,
+        payload: None,
+    };
+    save_metas(&empty_metas, &empty_metas, directory)?;
     directory.sync_directory()?;
     Ok(())
 }
