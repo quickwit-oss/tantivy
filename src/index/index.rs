@@ -68,16 +68,14 @@ fn save_new_metas(
     index_settings: IndexSettings,
     directory: &dyn Directory,
 ) -> crate::Result<()> {
-    save_metas(
-        &IndexMeta {
-            index_settings,
-            segments: Vec::new(),
-            schema,
-            opstamp: 0u64,
-            payload: None,
-        },
-        directory,
-    )?;
+    let empty_metas = IndexMeta {
+        index_settings,
+        segments: Vec::new(),
+        schema,
+        opstamp: 0u64,
+        payload: None,
+    };
+    save_metas(&empty_metas, &empty_metas, directory)?;
     directory.sync_directory()?;
     Ok(())
 }
