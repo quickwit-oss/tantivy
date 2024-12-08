@@ -337,8 +337,8 @@ impl Directory for ManagedDirectory {
         Ok(())
     }
 
-    fn save_metas(&self, metas: &IndexMeta) -> crate::Result<()> {
-        self.directory.save_metas(metas)
+    fn save_metas(&self, metas: &IndexMeta, previous_metas: &IndexMeta) -> crate::Result<()> {
+        self.directory.save_metas(metas, previous_metas)
     }
 
     fn load_metas(&self, inventory: &SegmentMetaInventory) -> crate::Result<IndexMeta> {
