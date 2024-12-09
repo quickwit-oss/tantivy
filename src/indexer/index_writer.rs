@@ -71,6 +71,7 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
     worker_id: usize,
 
     num_threads: usize,
+    num_merge_threads: usize,
 
     delete_queue: DeleteQueue,
 
@@ -268,6 +269,7 @@ impl<D: Document> IndexWriter<D> {
         num_threads: usize,
         memory_budget_in_bytes_per_thread: usize,
         directory_lock: DirectoryLock,
+        num_merge_threads: usize,
     ) -> crate::Result<Self> {
         if memory_budget_in_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
             let err_msg = format!(
@@ -291,8 +293,12 @@ impl<D: Document> IndexWriter<D> {
 
         let stamper = Stamper::new(current_opstamp);
 
-        let segment_updater =
-            SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
+        let segment_updater = SegmentUpdater::create(
+            index.clone(),
+            stamper.clone(),
+            &delete_queue.cursor(),
+            num_merge_threads,
+        )?;
 
         let mut index_writer = Self {
             _directory_lock: Some(directory_lock),
@@ -306,6 +312,8 @@ impl<D: Document> IndexWriter<D> {
 
             workers_join_handle: vec![],
             num_threads,
+
+            num_merge_threads,
 
             delete_queue,
 
@@ -558,6 +566,7 @@ impl<D: Document> IndexWriter<D> {
             self.num_threads,
             self.memory_budget_in_bytes_per_thread,
             directory_lock,
+            self.num_merge_threads,
         )?;
 
         // the current `self` is dropped right away because of this call.
