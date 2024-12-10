@@ -160,6 +160,11 @@ use itertools::Itertools;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
+#[allow(unused)]
+pub(crate) fn invalid_agg_request(message: String) -> crate::TantivyError {
+    crate::TantivyError::AggregationError(AggregationError::InvalidRequest(message))
+}
+
 fn parse_str_into_f64<E: de::Error>(value: &str) -> Result<f64, E> {
     let parsed = value
         .parse::<f64>()

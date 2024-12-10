@@ -1,6 +1,5 @@
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::OnceCell;
-use tantivy_fst::automaton::StartsWith;
 use tantivy_fst::Automaton;
 
 use crate::query::{AutomatonWeight, EnableScoring, Query, Weight};
@@ -16,7 +15,9 @@ impl Str {
     /// Constructs automaton that matches an exact string.
     #[inline]
     pub fn new(string: &str) -> Str {
-        Str { string: string.as_bytes().to_vec() }
+        Str {
+            string: string.as_bytes().to_vec(),
+        }
     }
 }
 
@@ -54,32 +55,124 @@ impl Automaton for Str {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Intersection<A, B>(A, B);
+pub(crate) struct Intersection<A, B, StateA, StateB>
+where
+    A: Automaton<State = StateA>,
+    B: Automaton<State = StateB>,
+    StateA: Clone,
+    StateB: Clone,
+{
+    pub automaton_a: A,
+    pub automaton_b: B,
+}
 
 /// The `Automaton` state for `Intersection<A, B>`.
-pub struct IntersectionState<A: Automaton, B: Automaton>(A::State, B::State);
+#[derive(Clone, Debug)]
+pub(crate) struct IntersectionState<A: Clone, B: Clone>(pub A, pub B);
 
-impl<A: Automaton, B: Automaton> Automaton for Intersection<A, B> {
-    type State = IntersectionState<A, B>;
+impl<A, B, StateA, StateB> Automaton for Intersection<A, B, StateA, StateB>
+where
+    A: Automaton<State = StateA>,
+    B: Automaton<State = StateB>,
+    StateA: Clone,
+    StateB: Clone,
+{
+    type State = IntersectionState<StateA, StateB>;
 
-    fn start(&self) -> IntersectionState<A, B> {
-        IntersectionState(self.0.start(), self.1.start())
+    fn start(&self) -> Self::State {
+        IntersectionState(self.automaton_a.start(), self.automaton_b.start())
     }
 
-    fn is_match(&self, state: &IntersectionState<A, B>) -> bool {
-        self.0.is_match(&state.0) && self.1.is_match(&state.1)
+    fn is_match(&self, state: &Self::State) -> bool {
+        self.automaton_a.is_match(&state.0) && self.automaton_b.is_match(&state.1)
     }
 
-    fn can_match(&self, state: &IntersectionState<A, B>) -> bool {
-        self.0.can_match(&state.0) && self.1.can_match(&state.1)
+    fn can_match(&self, state: &Self::State) -> bool {
+        self.automaton_a.can_match(&state.0) && self.automaton_b.can_match(&state.1)
     }
 
-    fn will_always_match(&self, state: &IntersectionState<A, B>) -> bool {
-        self.0.will_always_match(&state.0) && self.1.will_always_match(&state.1)
+    fn will_always_match(&self, state: &Self::State) -> bool {
+        self.automaton_a.will_always_match(&state.0) && self.automaton_b.will_always_match(&state.1)
     }
 
-    fn accept(&self, state: &IntersectionState<A, B>, byte: u8) -> IntersectionState<A, B> {
-        IntersectionState(self.0.accept(&state.0, byte), self.1.accept(&state.1, byte))
+    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+        IntersectionState(
+            self.automaton_a.accept(&state.0, byte),
+            self.automaton_b.accept(&state.1, byte),
+        )
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct StartsWithAutomaton<A, StateA>
+where
+    A: Automaton<State = StateA>,
+    StateA: Clone,
+{
+    pub automaton: A,
+}
+
+/// The `Automaton` state for `StartsWith<A>`.
+#[derive(Clone, Debug)]
+pub struct StartsWithAutomatonState<A: Clone>(StartsWithAutomatonStateInternal<A>);
+
+#[derive(Clone, Debug)]
+enum StartsWithAutomatonStateInternal<A: Clone> {
+    Done,
+    Running(A),
+}
+
+impl<A, StateA> Automaton for StartsWithAutomaton<A, StateA>
+where
+    A: Automaton<State = StateA>,
+    StateA: Clone,
+{
+    type State = StartsWithAutomatonState<StateA>;
+
+    fn start(&self) -> Self::State {
+        StartsWithAutomatonState({
+            let inner = self.automaton.start();
+            if self.automaton.is_match(&inner) {
+                StartsWithAutomatonStateInternal::Done
+            } else {
+                StartsWithAutomatonStateInternal::Running(inner)
+            }
+        })
+    }
+
+    fn is_match(&self, state: &Self::State) -> bool {
+        match state.0 {
+            StartsWithAutomatonStateInternal::Done => true,
+            StartsWithAutomatonStateInternal::Running(_) => false,
+        }
+    }
+
+    fn can_match(&self, state: &Self::State) -> bool {
+        match state.0 {
+            StartsWithAutomatonStateInternal::Done => true,
+            StartsWithAutomatonStateInternal::Running(ref inner) => self.automaton.can_match(inner),
+        }
+    }
+
+    fn will_always_match(&self, state: &Self::State) -> bool {
+        match state.0 {
+            StartsWithAutomatonStateInternal::Done => true,
+            StartsWithAutomatonStateInternal::Running(_) => false,
+        }
+    }
+
+    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+        StartsWithAutomatonState(match state.0 {
+            StartsWithAutomatonStateInternal::Done => StartsWithAutomatonStateInternal::Done,
+            StartsWithAutomatonStateInternal::Running(ref inner) => {
+                let next_inner = self.automaton.accept(inner, byte);
+                if self.automaton.is_match(&next_inner) {
+                    StartsWithAutomatonStateInternal::Done
+                } else {
+                    StartsWithAutomatonStateInternal::Running(next_inner)
+                }
+            }
+        })
     }
 }
 
@@ -109,7 +202,6 @@ impl Automaton for DfaWrapper {
         self.0.transition(*state, byte)
     }
 }
-
 
 /// A Fuzzy Query matches all of the documents
 /// containing a specific term that is within
@@ -168,7 +260,9 @@ pub struct FuzzyTermQuery {
     prefix: bool,
     /// max expansions allowed
     max_expansions: Option<u32>,
-    prefix_length: Option<usize>
+    prefix_length: Option<usize>,
+    /// score based on edit distance
+    fuzzy_scoring: bool
 }
 
 impl FuzzyTermQuery {
@@ -181,6 +275,7 @@ impl FuzzyTermQuery {
             prefix: false,
             max_expansions: Some(DEFAULT_MAX_EXPANSIONS),
             prefix_length: None,
+            fuzzy_scoring: true
         }
     }
 
@@ -193,12 +288,18 @@ impl FuzzyTermQuery {
             prefix: true,
             max_expansions: Some(DEFAULT_MAX_EXPANSIONS),
             prefix_length: None,
+            fuzzy_scoring: true
         }
     }
 
     /// maximum expansions to allow for fuzzy match
     pub fn set_max_expansions(&mut self, max_expansions: Option<u32>) {
         self.max_expansions = max_expansions;
+    }
+
+    /// enable/disable fuzzy scoring
+    pub fn set_fuzzy_scoring(&mut self, fuzzy_scoring: bool) {
+        self.fuzzy_scoring = fuzzy_scoring;
     }
 
     /// prefix length to allow for fuzzy match
@@ -251,7 +352,6 @@ impl FuzzyTermQuery {
             })?
         };
 
-
         let automaton = if self.prefix {
             automaton_builder.build_prefix_dfa(&term_text)
         } else {
@@ -263,18 +363,31 @@ impl FuzzyTermQuery {
                 self.term.field(),
                 DfaWrapper(automaton),
                 json_path_bytes,
-                self.max_expansions
+                self.max_expansions,
+                self.fuzzy_scoring
             ))
         } else {
             Ok(AutomatonWeight::new(
                 self.term.field(),
                 DfaWrapper(automaton),
-                self.max_expansions
+                self.max_expansions,
+                self.fuzzy_scoring
             ))
         }
     }
 
-    fn prefix_weight(&self) -> crate::Result<AutomatonWeight<Intersection<DfaWrapper, StartsWith<Str>>>> {
+    fn prefix_weight(
+        &self,
+    ) -> crate::Result<
+        AutomatonWeight<
+            Intersection<
+                DfaWrapper,
+                StartsWithAutomaton<Str, Option<usize>>,
+                <DfaWrapper as tantivy_fst::Automaton>::State,
+                <StartsWithAutomaton<Str, Option<usize>> as tantivy_fst::Automaton>::State,
+            >,
+        >,
+    > {
         static AUTOMATON_BUILDER: [[OnceCell<LevenshteinAutomatonBuilder>; 2]; 3] = [
             [OnceCell::new(), OnceCell::new()],
             [OnceCell::new(), OnceCell::new()],
@@ -328,21 +441,30 @@ impl FuzzyTermQuery {
         };
 
         let prefix_text: &str = &term_text[..prefix_len];
-        let prefix_automaton = Str::new(prefix_text).starts_with();
-
+        let prefix_automaton = StartsWithAutomaton {
+            automaton: Str::new(prefix_text),
+        };
 
         if let Some((json_path_bytes, _)) = term_value.as_json() {
             Ok(AutomatonWeight::new_for_json_path(
                 self.term.field(),
-                Intersection(DfaWrapper(automaton), prefix_automaton),
+                Intersection {
+                    automaton_a: DfaWrapper(automaton),
+                    automaton_b: prefix_automaton,
+                },
                 json_path_bytes,
-                self.max_expansions
+                self.max_expansions,
+                self.fuzzy_scoring
             ))
         } else {
             Ok(AutomatonWeight::new(
                 self.term.field(),
-                Intersection(DfaWrapper(automaton), prefix_automaton),
-                self.max_expansions
+                Intersection {
+                    automaton_a: DfaWrapper(automaton),
+                    automaton_b: prefix_automaton,
+                },
+                self.max_expansions,
+                self.fuzzy_scoring
             ))
         }
     }
@@ -354,12 +476,11 @@ impl Query for FuzzyTermQuery {
             Some(prefix_len) => {
                 if prefix_len > 0 {
                     Ok(Box::new(self.prefix_weight()?))
-                }
-                else {
+                } else {
                     Ok(Box::new(self.specialized_weight()?))
                 }
-            },
-            None => Ok(Box::new(self.specialized_weight()?))
+            }
+            None => Ok(Box::new(self.specialized_weight()?)),
         }
     }
 }
@@ -498,7 +619,7 @@ mod test {
             let top_docs = searcher.search(&fuzzy_query, &TopDocs::with_limit(2))?;
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             let (score, _) = top_docs[0];
-            assert_nearly_equals!(1.0, score);
+            assert_nearly_equals!(0.5, score);
         }
         Ok(())
     }

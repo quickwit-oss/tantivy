@@ -135,13 +135,15 @@ async fn main() -> anyhow::Result<()> {
     // and release it right after your query is finished.
     let searcher = reader.searcher();
 
+    let start = std::time::Instant::now();
     // ### FuzzyTermQuery
     {
-        let term = Term::from_field_text(title, "help");
+        let term = Term::from_field_text(title, "hezl");
         let mut query = FuzzyTermQuery::new(term, 2, true);
         query.set_prefix_length(Some(2));
+        query.set_fuzzy_scoring(true);
 
-        let (top_docs, count) = searcher
+        let (top_docs, _count) = searcher
             .search(&query, &(TopDocs::with_limit(5), Count))
             .unwrap();
         for (score, doc_address) in top_docs {
@@ -156,6 +158,8 @@ async fn main() -> anyhow::Result<()> {
             // score 1.0 doc {"title":["A Dairy Cow"]}
         }
     }
+    let duration = start.elapsed();
+    println!("Function took: {:?}", duration);
 
     Ok(())
 }
