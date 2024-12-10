@@ -24,6 +24,8 @@ use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
 
+const DEFAULT_NUM_MERGE_THREADS: usize = 4;
+
 fn load_metas(
     directory: &dyn Directory,
     inventory: &SegmentMetaInventory,
@@ -538,10 +540,11 @@ impl Index {
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
-    pub fn writer_with_num_threads<D: Document>(
+    pub fn writer_with_num_threads_and_num_merge_threads<D: Document>(
         &self,
         num_threads: usize,
         overall_memory_budget_in_bytes: usize,
+        num_merge_threads: usize,
     ) -> crate::Result<IndexWriter<D>> {
         let directory_lock = self
             .directory
@@ -563,6 +566,25 @@ impl Index {
             num_threads,
             memory_arena_in_bytes_per_thread,
             directory_lock,
+            num_merge_threads,
+        )
+    }
+
+    /// Creates a multithreaded writer with 4 merge threads.
+    ///
+    /// # Errors
+    /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
+    /// If the memory arena per thread is too small or too big, returns
+    /// `TantivyError::InvalidArgument`
+    pub fn writer_with_num_threads<D: Document>(
+        &self,
+        num_threads: usize,
+        overall_memory_budget_in_bytes: usize,
+    ) -> crate::Result<IndexWriter<D>> {
+        self.writer_with_num_threads_and_num_merge_threads(
+            num_threads,
+            overall_memory_budget_in_bytes,
+            DEFAULT_NUM_MERGE_THREADS,
         )
     }
 
