@@ -422,6 +422,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::{Path, PathBuf};
 
+    use columnar::ColumnType;
     use tempfile::TempDir;
 
     use crate::collector::{Count, TopDocs};
@@ -431,15 +432,15 @@ mod tests {
     use crate::query::{PhraseQuery, QueryParser};
     use crate::schema::{
         Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value,
-        DATE_TIME_PRECISION_INDEXED, STORED, STRING, TEXT,
+        DATE_TIME_PRECISION_INDEXED, FAST, STORED, STRING, TEXT,
     };
     use crate::store::{Compressor, StoreReader, StoreWriter};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{
-        DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, TantivyDocument, Term,
-        TERMINATED,
+        DateTime, Directory, DocAddress, DocSet, Index, IndexWriter, SegmentReader,
+        TantivyDocument, Term, TERMINATED,
     };
 
     #[test]
@@ -839,6 +840,75 @@ mod tests {
         assert_eq!(searcher.search(&phrase_query, &Count).unwrap(), 1);
         let phrase_query = PhraseQuery::new(vec![nothello_term, happy_term]);
         assert_eq!(searcher.search(&phrase_query, &Count).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_json_fast() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let schema = schema_builder.build();
+        let json_val: serde_json::Value = serde_json::from_str(
+            r#"{
+            "toto": "titi",
+            "float": -0.2,
+            "bool": true,
+            "unsigned": 1,
+            "signed": -2,
+            "complexobject": {
+                "field.with.dot": 1
+            },
+            "date": "1985-04-12T23:20:50.52Z",
+            "my_arr": [2, 3, {"my_key": "two tokens"}, 4]
+        }"#,
+        )
+        .unwrap();
+        let doc = doc!(json_field=>json_val.clone());
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc).unwrap();
+        writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0u32);
+
+        fn assert_type(reader: &SegmentReader, field: &str, typ: ColumnType) {
+            let cols = reader.fast_fields().dynamic_column_handles(field).unwrap();
+            assert_eq!(cols.len(), 1, "{}", field);
+            assert_eq!(cols[0].column_type(), typ, "{}", field);
+        }
+        assert_type(segment_reader, "json.toto", ColumnType::Str);
+        assert_type(segment_reader, "json.float", ColumnType::F64);
+        assert_type(segment_reader, "json.bool", ColumnType::Bool);
+        assert_type(segment_reader, "json.unsigned", ColumnType::I64);
+        assert_type(segment_reader, "json.signed", ColumnType::I64);
+        assert_type(
+            segment_reader,
+            "json.complexobject.field\\.with\\.dot",
+            ColumnType::I64,
+        );
+        assert_type(segment_reader, "json.date", ColumnType::DateTime);
+        assert_type(segment_reader, "json.my_arr", ColumnType::I64);
+        assert_type(segment_reader, "json.my_arr.my_key", ColumnType::Str);
+
+        fn assert_empty(reader: &SegmentReader, field: &str) {
+            let cols = reader.fast_fields().dynamic_column_handles(field).unwrap();
+            assert_eq!(cols.len(), 0);
+        }
+        assert_empty(segment_reader, "unknown");
+        assert_empty(segment_reader, "json");
+        assert_empty(segment_reader, "json.toto.titi");
+
+        let sub_columns = segment_reader
+            .fast_fields()
+            .dynamic_subpath_column_handles("json")
+            .unwrap();
+        assert_eq!(sub_columns.len(), 9);
+
+        let subsub_columns = segment_reader
+            .fast_fields()
+            .dynamic_subpath_column_handles("json.complexobject")
+            .unwrap();
+        assert_eq!(subsub_columns.len(), 1);
     }
 
     #[test]
