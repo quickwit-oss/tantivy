@@ -285,7 +285,6 @@ impl ColumnarWriter {
                 .map(|(column_name, addr)| (column_name, ColumnType::DateTime, addr)),
         );
         columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
-
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
         for (column_name, column_type, addr) in columns {
