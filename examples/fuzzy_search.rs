@@ -139,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
     // ### FuzzyTermQuery
     {
         let term = Term::from_field_text(title, "hezl");
-        let mut query = FuzzyTermQuery::new(term, 2, true);
+        let mut query = FuzzyTermQuery::new(term, 3, true);
         query.set_prefix_length(Some(2));
         query.set_fuzzy_scoring(true);
 

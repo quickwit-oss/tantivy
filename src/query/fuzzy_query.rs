@@ -262,7 +262,7 @@ pub struct FuzzyTermQuery {
     max_expansions: Option<u32>,
     prefix_length: Option<usize>,
     /// score based on edit distance
-    fuzzy_scoring: bool
+    fuzzy_scoring: bool,
 }
 
 impl FuzzyTermQuery {
@@ -275,7 +275,7 @@ impl FuzzyTermQuery {
             prefix: false,
             max_expansions: Some(DEFAULT_MAX_EXPANSIONS),
             prefix_length: None,
-            fuzzy_scoring: true
+            fuzzy_scoring: true,
         }
     }
 
@@ -288,7 +288,7 @@ impl FuzzyTermQuery {
             prefix: true,
             max_expansions: Some(DEFAULT_MAX_EXPANSIONS),
             prefix_length: None,
-            fuzzy_scoring: true
+            fuzzy_scoring: true,
         }
     }
 
@@ -308,7 +308,8 @@ impl FuzzyTermQuery {
     }
 
     fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper>> {
-        static AUTOMATON_BUILDER: [[OnceCell<LevenshteinAutomatonBuilder>; 2]; 3] = [
+        static AUTOMATON_BUILDER: [[OnceCell<LevenshteinAutomatonBuilder>; 2]; 4] = [
+            [OnceCell::new(), OnceCell::new()],
             [OnceCell::new(), OnceCell::new()],
             [OnceCell::new(), OnceCell::new()],
             [OnceCell::new(), OnceCell::new()],
@@ -364,14 +365,14 @@ impl FuzzyTermQuery {
                 DfaWrapper(automaton),
                 json_path_bytes,
                 self.max_expansions,
-                self.fuzzy_scoring
+                self.fuzzy_scoring,
             ))
         } else {
             Ok(AutomatonWeight::new(
                 self.term.field(),
                 DfaWrapper(automaton),
                 self.max_expansions,
-                self.fuzzy_scoring
+                self.fuzzy_scoring,
             ))
         }
     }
@@ -388,7 +389,8 @@ impl FuzzyTermQuery {
             >,
         >,
     > {
-        static AUTOMATON_BUILDER: [[OnceCell<LevenshteinAutomatonBuilder>; 2]; 3] = [
+        static AUTOMATON_BUILDER: [[OnceCell<LevenshteinAutomatonBuilder>; 2]; 4] = [
+            [OnceCell::new(), OnceCell::new()],
             [OnceCell::new(), OnceCell::new()],
             [OnceCell::new(), OnceCell::new()],
             [OnceCell::new(), OnceCell::new()],
@@ -454,7 +456,7 @@ impl FuzzyTermQuery {
                 },
                 json_path_bytes,
                 self.max_expansions,
-                self.fuzzy_scoring
+                self.fuzzy_scoring,
             ))
         } else {
             Ok(AutomatonWeight::new(
@@ -464,7 +466,7 @@ impl FuzzyTermQuery {
                     automaton_b: prefix_automaton,
                 },
                 self.max_expansions,
-                self.fuzzy_scoring
+                self.fuzzy_scoring,
             ))
         }
     }
