@@ -14,7 +14,7 @@ use crate::{Inventory, Opstamp, TrackedObject};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeleteMeta {
-    num_deleted_docs: u32,
+    pub num_deleted_docs: u32,
     pub opstamp: Opstamp,
 }
 
@@ -212,13 +212,13 @@ impl SegmentMeta {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InnerSegmentMeta {
     pub segment_id: SegmentId,
-    max_doc: u32,
+    pub max_doc: u32,
     pub deletes: Option<DeleteMeta>,
     /// If you want to avoid the SegmentComponent::TempStore file to be covered by
     /// garbage collection and deleted, set this to true. This is used during merge.
     #[serde(skip)]
     #[serde(default = "default_temp_store")]
-    pub(crate) include_temp_doc_store: Arc<AtomicBool>,
+    pub include_temp_doc_store: Arc<AtomicBool>,
 }
 fn default_temp_store() -> Arc<AtomicBool> {
     Arc::new(AtomicBool::new(false))
