@@ -449,6 +449,11 @@ mod tests {
                     "field": "score",
                 },
             },
+            "count_str": {
+                "value_count": {
+                    "field": "text",
+                },
+            },
             "range": range_agg
         }))
         .unwrap();
@@ -511,6 +516,13 @@ mod tests {
                 "max": serde_json::Value::Null,
                 "min": serde_json::Value::Null,
                 "sum": 0.0,
+            })
+        );
+
+        assert_eq!(
+            res["count_str"],
+            json!({
+                "value": 7.0,
             })
         );
 
