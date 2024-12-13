@@ -3,7 +3,7 @@ use std::ops::RangeInclusive;
 
 use columnar::Column;
 
-use crate::{DocId, DocSet, TERMINATED};
+use crate::{query::Scorer, DocId, DocSet, Score, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 
 /// Helper to have a cursor over a vec of docids
 #[derive(Debug)]
@@ -128,6 +128,15 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
 
         finished_to_end
     }
+
+    pub fn fetch_doc_id_first_value(&self, doc_id: DocId) -> Option<T> {
+        if doc_id != TERMINATED {
+            let mut block: Vec<Option<T>> = vec![None; 1];
+            self.column.first_vals(&vec![doc_id], block.as_mut_slice());
+            return *block.first().unwrap_or(&None);
+        }
+        None
+    }
 }
 
 impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSet<T> {
@@ -178,6 +187,70 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     }
 }
 
+pub struct FastFieldRangeScorer<T> {
+    docset: RangeDocSet<T>,
+    score: Score,
+    scoring_callback: Option<fn(Option<T>, Option<T>, Score) -> Score>,
+    base_scoring_value: Option<T>,
+}
+
+impl<T> FastFieldRangeScorer<T> {
+    pub fn new(
+        docset: RangeDocSet<T>,
+        score: Score,
+        scoring_callback: Option<fn(Option<T>, Option<T>, Score) -> Score>,
+        base_scoring_value: Option<T>,
+    ) -> FastFieldRangeScorer<T> {
+        FastFieldRangeScorer {
+            docset,
+            score,
+            scoring_callback,
+            base_scoring_value,
+        }
+    }
+}
+
+impl<T> From<RangeDocSet<T>> for FastFieldRangeScorer<T> {
+    fn from(docset: RangeDocSet<T>) -> Self {
+        FastFieldRangeScorer::new(docset, 1.0, None, None)
+    }
+}
+
+impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for FastFieldRangeScorer<T> {
+    fn advance(&mut self) -> DocId {
+        self.docset.advance()
+    }
+
+    fn seek(&mut self, target: DocId) -> DocId {
+        self.docset.seek(target)
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
+        self.docset.fill_buffer(buffer)
+    }
+
+    fn doc(&self) -> DocId {
+        self.docset.doc()
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.docset.size_hint()
+    }
+}
+
+impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> Scorer for FastFieldRangeScorer<T> {
+    fn score(&mut self) -> Score {
+        match self.scoring_callback {
+            Some(scoring_callback) => scoring_callback(
+                self.docset.fetch_doc_id_first_value(self.doc()),
+                self.base_scoring_value,
+                self.score,
+            ),
+            None => self.score,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::ops::Bound;
@@ -223,6 +296,8 @@ mod tests {
         let query = RangeQuery::new(
             Bound::Included(Term::from_field_u64(score_field, 70)),
             Bound::Unbounded,
+            None,
+            None,
         );
 
         let count = searcher.search(&query, &Count).unwrap();

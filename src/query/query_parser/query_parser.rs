@@ -893,7 +893,7 @@ fn convert_literal_to_query(
                 Box::new(PhraseQuery::new_with_offset_and_slop(terms, slop))
             }
         }
-        LogicalLiteral::Range { lower, upper } => Box::new(RangeQuery::new(lower, upper)),
+        LogicalLiteral::Range { lower, upper } => Box::new(RangeQuery::new(lower, upper, None, None)),
         LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
     }
