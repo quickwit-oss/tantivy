@@ -3,6 +3,7 @@ use std::ops::Range;
 
 use merge::ValueMerger;
 
+mod block_match_automaton;
 mod delta;
 mod dictionary;
 pub mod merge;

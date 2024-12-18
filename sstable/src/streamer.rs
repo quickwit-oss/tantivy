@@ -86,16 +86,24 @@ where
             bound_as_byte_slice(&self.upper),
         );
         self.term_dict
-            .sstable_delta_reader_for_key_range(key_range, self.limit)
+            .sstable_delta_reader_for_key_range(key_range, self.limit, &self.automaton)
     }
 
-    async fn delta_reader_async(&self) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
+    async fn delta_reader_async(
+        &self,
+        merge_holes_under: usize,
+    ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let key_range = (
             bound_as_byte_slice(&self.lower),
             bound_as_byte_slice(&self.upper),
         );
         self.term_dict
-            .sstable_delta_reader_for_key_range_async(key_range, self.limit)
+            .sstable_delta_reader_for_key_range_async(
+                key_range,
+                self.limit,
+                &self.automaton,
+                merge_holes_under,
+            )
             .await
     }
 
@@ -129,8 +137,11 @@ where
     }
 
     /// See `into_stream(..)`
-    pub async fn into_stream_async(self) -> io::Result<Streamer<'a, TSSTable, A>> {
-        let delta_reader = self.delta_reader_async().await?;
+    pub async fn into_stream_async(
+        self,
+        merge_holes_undex: usize,
+    ) -> io::Result<Streamer<'a, TSSTable, A>> {
+        let delta_reader = self.delta_reader_async(merge_holes_undex).await?;
         self.into_stream_given_delta_reader(delta_reader)
     }
 
@@ -327,4 +338,7 @@ mod tests {
         assert!(!term_streamer.advance());
         Ok(())
     }
+
+    // TODO add test for sparse search with a block of poison (starts with 0xffffffff) => such a
+    // block instantly causes an unexpected EOF error
 }

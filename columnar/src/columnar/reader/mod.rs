@@ -170,7 +170,7 @@ impl ColumnarReader {
     ) -> io::Result<Vec<DynamicColumnHandle>> {
         let stream = self
             .stream_for_column_range(column_name)
-            .into_stream_async()
+            .into_stream_async(0)
             .await?;
         read_all_columns_in_stream(stream, &self.column_data, self.format_version)
     }
