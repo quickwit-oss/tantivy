@@ -137,11 +137,17 @@ where
     }
 
     /// See `into_stream(..)`
-    pub async fn into_stream_async(
+    pub async fn into_stream_async(self) -> io::Result<Streamer<'a, TSSTable, A>> {
+        self.into_stream_async_merging_holes(0).await
+    }
+
+    /// Same as `into_stream_async`, but tries to issue a single io operation when requesting
+    /// blocks that are not consecutive, but also less than `merge_holes_under` bytes appart.
+    pub async fn into_stream_async_merging_holes(
         self,
-        merge_holes_undex: usize,
+        merge_holes_under: usize,
     ) -> io::Result<Streamer<'a, TSSTable, A>> {
-        let delta_reader = self.delta_reader_async(merge_holes_undex).await?;
+        let delta_reader = self.delta_reader_async(merge_holes_under).await?;
         self.into_stream_given_delta_reader(delta_reader)
     }
 

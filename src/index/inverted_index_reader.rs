@@ -253,7 +253,9 @@ impl InvertedIndexReader {
             range_builder
         };
 
-        let mut stream = range_builder.into_stream_async(merge_holes_under).await?;
+        let mut stream = range_builder
+            .into_stream_async_merging_holes(merge_holes_under)
+            .await?;
 
         let iter = std::iter::from_fn(move || stream.next().map(|(_k, v)| v.clone()));
 
