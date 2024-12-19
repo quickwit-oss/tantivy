@@ -123,7 +123,7 @@ fn get_num_values_iterator<'a>(
     }
 }
 
-impl<'a> Iterable<u32> for StackedStartOffsets<'a> {
+impl Iterable<u32> for StackedStartOffsets<'_> {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
         let num_values_it = (0..self.column_indexes.len()).flat_map(|columnar_id| {
             let num_docs = self.stack_merge_order.columnar_range(columnar_id).len() as u32;

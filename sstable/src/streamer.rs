@@ -161,7 +161,7 @@ where
     _lifetime: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a, TSSTable> Streamer<'a, TSSTable, AlwaysMatch>
+impl<TSSTable> Streamer<'_, TSSTable, AlwaysMatch>
 where TSSTable: SSTable
 {
     pub fn empty() -> Self {
@@ -178,7 +178,7 @@ where TSSTable: SSTable
     }
 }
 
-impl<'a, TSSTable, A> Streamer<'a, TSSTable, A>
+impl<TSSTable, A> Streamer<'_, TSSTable, A>
 where
     A: Automaton,
     A::State: Clone,
