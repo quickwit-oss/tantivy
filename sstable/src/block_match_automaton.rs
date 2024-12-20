@@ -132,7 +132,7 @@ fn match_range_start<S, A: Automaton<State = S>>(
     automaton: &A,
     mut state: S,
 ) -> bool {
-    // case [abcdgj, abcpqr], `abcd` is already consumed, we need to handle:
+    // case ]abcdgj, abcpqr], `abcd` is already consumed, we need to handle:
     // - [h-\xff].*
     // - g[k-\xff].*
     // - gj.+ == gf[\0-\xff].*
