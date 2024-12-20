@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -248,7 +249,12 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     }
 
     /// Allows the directory to save IndexMeta, overriding the SegmentUpdater's default save_meta
-    fn save_metas(&self, _metas: &IndexMeta, _previous_metas: &IndexMeta) -> crate::Result<()> {
+    fn save_metas(
+        &self,
+        _metas: &IndexMeta,
+        _previous_metas: &IndexMeta,
+        _payload: &mut (dyn Any + '_),
+    ) -> crate::Result<()> {
         Err(crate::TantivyError::InternalError(
             "save_meta not implemented".to_string(),
         ))

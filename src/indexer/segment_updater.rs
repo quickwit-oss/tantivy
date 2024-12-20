@@ -42,7 +42,7 @@ pub(crate) fn save_metas(
 ) -> crate::Result<()> {
     info!("save metas");
 
-    match directory.save_metas(metas, previous_metas) {
+    match directory.save_metas(metas, previous_metas, &mut ()) {
         Ok(_) => Ok(()),
         Err(crate::TantivyError::InternalError(_)) => {
             let mut buffer = serde_json::to_vec_pretty(metas)?;
