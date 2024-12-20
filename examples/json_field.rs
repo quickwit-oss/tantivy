@@ -14,7 +14,7 @@ fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     schema_builder.add_date_field("timestamp", FAST | STORED);
     let event_type = schema_builder.add_text_field("event_type", STRING | STORED);
-    let attributes = schema_builder.add_json_field("attributes", STORED | TEXT);
+    let attributes = schema_builder.add_json_field("attributes", STORED | TEXT | FAST);
     let schema = schema_builder.build();
 
     // # Indexing documents
@@ -99,7 +99,7 @@ fn main() -> tantivy::Result<()> {
     }
     {
         // Default json fields can still be accessed by full path
-        let query = query_parser.parse_query("attributes.event_type:holiday-sale")?;
+        let query = query_parser.parse_query("attributes.event_type:*")?;
         let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
         assert_eq!(hits.len(), 1);
     }

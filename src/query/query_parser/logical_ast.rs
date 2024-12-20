@@ -20,6 +20,9 @@ pub enum LogicalLiteral {
     Set {
         elements: Vec<Term>,
     },
+    Exist {
+        field_name: String,
+    },
     All,
 }
 
@@ -147,6 +150,7 @@ impl fmt::Debug for LogicalLiteral {
                 write!(formatter, "]")
             }
             LogicalLiteral::All => write!(formatter, "*"),
+            LogicalLiteral::Exist { ref field_name } => write!(formatter, "{field_name:?}: *"),
         }
     }
 }
