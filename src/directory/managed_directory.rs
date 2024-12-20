@@ -1,10 +1,10 @@
+use crc32fast::Hasher;
+use std::any::Any;
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::{io, result};
-
-use crc32fast::Hasher;
 
 use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
@@ -337,8 +337,13 @@ impl Directory for ManagedDirectory {
         Ok(())
     }
 
-    fn save_metas(&self, metas: &IndexMeta, previous_metas: &IndexMeta) -> crate::Result<()> {
-        self.directory.save_metas(metas, previous_metas)
+    fn save_metas(
+        &self,
+        metas: &IndexMeta,
+        previous_metas: &IndexMeta,
+        payload: &mut (dyn Any + '_),
+    ) -> crate::Result<()> {
+        self.directory.save_metas(metas, previous_metas, payload)
     }
 
     fn load_metas(&self, inventory: &SegmentMetaInventory) -> crate::Result<IndexMeta> {

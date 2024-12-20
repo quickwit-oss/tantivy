@@ -1,15 +1,15 @@
+use crate::directory::directory_lock::Lock;
+use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
+use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
+use crate::index::SegmentMetaInventory;
+use crate::IndexMeta;
+use std::any::Any;
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io, thread};
-
-use crate::directory::directory_lock::Lock;
-use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
-use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
-use crate::index::SegmentMetaInventory;
-use crate::IndexMeta;
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -248,7 +248,12 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     }
 
     /// Allows the directory to save IndexMeta, overriding the SegmentUpdater's default save_meta
-    fn save_metas(&self, _metas: &IndexMeta, _previous_metas: &IndexMeta) -> crate::Result<()> {
+    fn save_metas(
+        &self,
+        _metas: &IndexMeta,
+        _previous_metas: &IndexMeta,
+        _payload: &mut (dyn Any + '_),
+    ) -> crate::Result<()> {
         Err(crate::TantivyError::InternalError(
             "save_meta not implemented".to_string(),
         ))
