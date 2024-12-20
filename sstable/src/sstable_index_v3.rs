@@ -7,7 +7,7 @@ use tantivy_bitpacker::{compute_num_bits, BitPacker};
 use tantivy_fst::raw::Fst;
 use tantivy_fst::{Automaton, IntoStreamer, Map, MapBuilder, Streamer};
 
-use crate::block_match_automaton::block_match_automaton;
+use crate::block_match_automaton::can_block_match_automaton;
 use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
 
 #[derive(Debug, Clone)]
@@ -190,7 +190,7 @@ impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((new_key, block_id)) = self.streamer.next() {
             if let Some(prev_key) = self.prev_key.as_mut() {
-                if block_match_automaton(Some(prev_key), new_key, self.automaton) {
+                if can_block_match_automaton(Some(prev_key), new_key, self.automaton) {
                     prev_key.clear();
                     prev_key.extend_from_slice(new_key);
                     return Some((block_id, self.block_addr_store.get(block_id).unwrap()));
@@ -201,7 +201,7 @@ impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
                 prev_key.extend_from_slice(new_key);
             } else {
                 self.prev_key = Some(new_key.to_owned());
-                if block_match_automaton(None, new_key, self.automaton) {
+                if can_block_match_automaton(None, new_key, self.automaton) {
                     return Some((block_id, self.block_addr_store.get(block_id).unwrap()));
                 }
             }

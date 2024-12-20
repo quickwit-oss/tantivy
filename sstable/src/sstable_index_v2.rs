@@ -1,7 +1,7 @@
 use common::OwnedBytes;
 use tantivy_fst::Automaton;
 
-use crate::block_match_automaton::block_match_automaton;
+use crate::block_match_automaton::can_block_match_automaton;
 use crate::{BlockAddr, SSTable, SSTableDataCorruption, TermOrdinal};
 
 #[derive(Default, Debug, Clone)]
@@ -90,7 +90,11 @@ impl SSTableIndex {
             }))
             .enumerate()
             .filter_map(move |(pos, (prev_key, current_block))| {
-                if block_match_automaton(prev_key, &current_block.last_key_or_greater, automaton) {
+                if can_block_match_automaton(
+                    prev_key,
+                    &current_block.last_key_or_greater,
+                    automaton,
+                ) {
                     Some((pos as u64, current_block.block_addr.clone()))
                 } else {
                     None
