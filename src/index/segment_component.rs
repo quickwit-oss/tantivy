@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 /// Each component is stored in its own file,
 /// using the pattern `segment_uuid`.`component_extension`,
 /// except the delete component that takes an `segment_uuid`.`delete_opstamp`.`component_extension`
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub enum SegmentComponent {
     /// Postings (or inverted list). Sorted lists of document ids, associated with terms
     Postings,
