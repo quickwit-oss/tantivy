@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -337,8 +338,13 @@ impl Directory for ManagedDirectory {
         Ok(())
     }
 
-    fn save_metas(&self, metas: &IndexMeta, previous_metas: &IndexMeta) -> crate::Result<()> {
-        self.directory.save_metas(metas, previous_metas)
+    fn save_metas(
+        &self,
+        metas: &IndexMeta,
+        previous_metas: &IndexMeta,
+        payload: &mut (dyn Any + '_),
+    ) -> crate::Result<()> {
+        self.directory.save_metas(metas, previous_metas, payload)
     }
 
     fn load_metas(&self, inventory: &SegmentMetaInventory) -> crate::Result<IndexMeta> {
