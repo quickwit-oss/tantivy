@@ -23,7 +23,7 @@ impl BlockReader {
 
     pub fn from_multiple_blocks(readers: Vec<OwnedBytes>) -> BlockReader {
         let mut next_readers = readers.into_iter();
-        let reader = next_readers.next().unwrap_or_else(|| OwnedBytes::empty());
+        let reader = next_readers.next().unwrap_or_else(OwnedBytes::empty);
         BlockReader {
             buffer: Vec::new(),
             reader,

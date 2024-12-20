@@ -176,15 +176,21 @@ impl SSTableIndexV3 {
     }
 }
 
+// TODO we iterate over the entire Map to find matching blocks,
+// we could manually iterate on the underlying Fst and skip whole branches if our Automaton says
+// cannot match. this isn't as bad as it sounds given the fst is a lot smaller than the rest of the
+// sstable.
+// To do that, we can't use tantivy_fst's Stream with an automaton, as we need to know 2 consecutive
+// fst keys to form a proper opinion on whether this is a match, which we wan't translate into a
+// single automaton
 struct GetBlockForAutomaton<'a, A: Automaton> {
     streamer: tantivy_fst::map::Stream<'a>,
-    // TODO we could be more efficient by streaming the store
     block_addr_store: &'a BlockAddrStore,
     prev_key: Option<Vec<u8>>,
     automaton: &'a A,
 }
 
-impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
+impl<A: Automaton> Iterator for GetBlockForAutomaton<'_, A> {
     type Item = (u64, BlockAddr);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -195,8 +201,6 @@ impl<'a, A: Automaton> Iterator for GetBlockForAutomaton<'a, A> {
                     prev_key.extend_from_slice(new_key);
                     return Some((block_id, self.block_addr_store.get(block_id).unwrap()));
                 }
-                // actually we could not write here, and it would still be correct, but it might
-                // lead to checking more keys than necessary which in itself can be a slowdown.
                 prev_key.clear();
                 prev_key.extend_from_slice(new_key);
             } else {
