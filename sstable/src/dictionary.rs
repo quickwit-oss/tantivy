@@ -101,7 +101,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
         automaton: &impl Automaton,
-        merge_holes_under: usize,
+        merge_holes_under_bytes: usize,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let match_all = automaton.will_always_match(&automaton.start());
         if match_all {
@@ -112,7 +112,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             let blocks = stream::iter(self.get_block_iterator_for_range_and_automaton(
                 key_range,
                 automaton,
-                merge_holes_under,
+                merge_holes_under_bytes,
             ));
             let data = blocks
                 .map(|block_addr| {
@@ -242,7 +242,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         &'a self,
         key_range: impl RangeBounds<[u8]>,
         automaton: &'a impl Automaton,
-        merge_holes_under: usize,
+        merge_holes_under_bytes: usize,
     ) -> impl Iterator<Item = BlockAddr> + 'a {
         let lower_bound = match key_range.start_bound() {
             Bound::Included(key) | Bound::Excluded(key) => {
@@ -263,7 +263,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             .filter(move |(block_id, _)| block_range.contains(block_id))
             .map(|(_, block_addr)| block_addr)
             .coalesce(move |first, second| {
-                if first.byte_range.end + merge_holes_under >= second.byte_range.start {
+                if first.byte_range.end + merge_holes_under_bytes >= second.byte_range.start {
                     Ok(BlockAddr {
                         first_ordinal: first.first_ordinal,
                         byte_range: first.byte_range.start..second.byte_range.end,

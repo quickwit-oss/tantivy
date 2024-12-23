@@ -230,7 +230,7 @@ impl InvertedIndexReader {
         terms: impl std::ops::RangeBounds<Term>,
         automaton: A,
         limit: Option<u64>,
-        merge_holes_under: usize,
+        merge_holes_under_bytes: usize,
     ) -> io::Result<impl Iterator<Item = TermInfo> + 'a>
     where
         A::State: Clone,
@@ -254,7 +254,7 @@ impl InvertedIndexReader {
         };
 
         let mut stream = range_builder
-            .into_stream_async_merging_holes(merge_holes_under)
+            .into_stream_async_merging_holes(merge_holes_under_bytes)
             .await?;
 
         let iter = std::iter::from_fn(move || stream.next().map(|(_k, v)| v.clone()));
@@ -345,11 +345,11 @@ impl InvertedIndexReader {
     {
         // merge holes under 4MiB, that's how many bytes we can hope to receive during a TTFB from
         // S3 (~80MiB/s, and 50ms latency)
-        let merge_holes_under = (80 * 1024 * 1024 * 50) / 1000;
+        let merge_holes_under_bytes = (80 * 1024 * 1024 * 50) / 1000;
         // we build a first iterator to download everything. Simply calling the function already
         // loads everything, but doesn't start iterating over the sstable.
         let mut _term_info = self
-            .get_term_range_async(.., automaton.clone(), None, merge_holes_under)
+            .get_term_range_async(.., automaton.clone(), None, merge_holes_under_bytes)
             .await?;
 
         // we build a 2nd iterator, this one with no holes, so we don't go through blocks we can't
@@ -364,7 +364,7 @@ impl InvertedIndexReader {
         let range_to_load = term_info
             .map(|term_info| term_info.postings_range)
             .coalesce(|range1, range2| {
-                if range1.end + merge_holes_under >= range2.start {
+                if range1.end + merge_holes_under_bytes >= range2.start {
                     Ok(range1.start..range2.end)
                 } else {
                     Err((range1, range2))

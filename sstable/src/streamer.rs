@@ -91,7 +91,7 @@ where
 
     async fn delta_reader_async(
         &self,
-        merge_holes_under: usize,
+        merge_holes_under_bytes: usize,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
         let key_range = (
             bound_as_byte_slice(&self.lower),
@@ -102,7 +102,7 @@ where
                 key_range,
                 self.limit,
                 &self.automaton,
-                merge_holes_under,
+                merge_holes_under_bytes,
             )
             .await
     }
@@ -142,12 +142,12 @@ where
     }
 
     /// Same as `into_stream_async`, but tries to issue a single io operation when requesting
-    /// blocks that are not consecutive, but also less than `merge_holes_under` bytes appart.
+    /// blocks that are not consecutive, but also less than `merge_holes_under_bytes` bytes appart.
     pub async fn into_stream_async_merging_holes(
         self,
-        merge_holes_under: usize,
+        merge_holes_under_bytes: usize,
     ) -> io::Result<Streamer<'a, TSSTable, A>> {
-        let delta_reader = self.delta_reader_async(merge_holes_under).await?;
+        let delta_reader = self.delta_reader_async(merge_holes_under_bytes).await?;
         self.into_stream_given_delta_reader(delta_reader)
     }
 
