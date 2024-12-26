@@ -533,7 +533,7 @@ impl Index {
     ///   indexer threads, etc...
     ///
     /// # Errors
-    /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
+    /// If the lockfile already exists, returns `TantivyError::LockFailure`.
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
     pub fn writer_with_options<D: Document>(
