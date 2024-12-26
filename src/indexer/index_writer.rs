@@ -45,6 +45,29 @@ fn error_in_index_worker_thread(context: &str) -> TantivyError {
     ))
 }
 
+#[derive(Clone, bon::Builder)]
+/// A builder for creating a new [IndexWriter] for an index.
+pub struct IndexWriterOptions {
+    #[builder(default = MEMORY_BUDGET_NUM_BYTES_MIN)]
+    /// The memory budget per indexer thread.
+    ///
+    /// When an indexer thread has buffered this much data in memory
+    /// it will flush the segment to disk (although this is not searchable until commit is called.)
+    memory_budget_per_thread: usize,
+    /// The number of indexer worker threads to use.
+    num_worker_threads: usize,
+    /// Use an existing [Stamper] for tracking the opstamp of the writer.
+    ///
+    /// WARNING: This is a _very_ advanced API and you should not specify this
+    /// option unless you absolutely know what you are doing.
+    stamper: Option<Stamper>,
+    #[builder(default = false)]
+    /// Defers the creation of the indexing threads until a operation that
+    /// requires them is submitted. This can be useful for avoiding
+    /// creating threads you don't need when using the writer i.e. `merge`.
+    defer_indexing_threads: bool,
+}
+
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
 /// It manages a small number of indexing thread, as well as a shared
@@ -58,8 +81,7 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
 
     index: Index,
 
-    // The memory budget per thread, after which a commit is triggered.
-    memory_budget_in_bytes_per_thread: usize,
+    options: IndexWriterOptions,
 
     workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
 
@@ -69,8 +91,6 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
     segment_updater: SegmentUpdater,
 
     worker_id: usize,
-
-    num_threads: usize,
 
     delete_queue: DeleteQueue,
 
@@ -265,18 +285,17 @@ impl<D: Document> IndexWriter<D> {
     /// `TantivyError::InvalidArgument`
     pub(crate) fn new(
         index: &Index,
-        num_threads: usize,
-        memory_budget_in_bytes_per_thread: usize,
+        options: IndexWriterOptions,
         directory_lock: DirectoryLock,
     ) -> crate::Result<Self> {
-        if memory_budget_in_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
+        if options.memory_budget_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
             let err_msg = format!(
                 "The memory arena in bytes per thread needs to be at least \
                  {MEMORY_BUDGET_NUM_BYTES_MIN}."
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
-        if memory_budget_in_bytes_per_thread >= MEMORY_BUDGET_NUM_BYTES_MAX {
+        if options.memory_budget_per_thread >= MEMORY_BUDGET_NUM_BYTES_MAX {
             let err_msg = format!(
                 "The memory arena in bytes per thread cannot exceed {MEMORY_BUDGET_NUM_BYTES_MAX}"
             );
@@ -289,7 +308,10 @@ impl<D: Document> IndexWriter<D> {
 
         let current_opstamp = index.load_metas()?.opstamp;
 
-        let stamper = Stamper::new(current_opstamp);
+        let stamper = options
+            .stamper
+            .clone()
+            .unwrap_or_else(|| Stamper::new(current_opstamp));
 
         let segment_updater =
             SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
@@ -297,7 +319,7 @@ impl<D: Document> IndexWriter<D> {
         let mut index_writer = Self {
             _directory_lock: Some(directory_lock),
 
-            memory_budget_in_bytes_per_thread,
+            options: options.clone(),
             index: index.clone(),
             index_writer_status: IndexWriterStatus::from(document_receiver),
             operation_sender: document_sender,
@@ -305,7 +327,6 @@ impl<D: Document> IndexWriter<D> {
             segment_updater,
 
             workers_join_handle: vec![],
-            num_threads,
 
             delete_queue,
 
@@ -314,7 +335,11 @@ impl<D: Document> IndexWriter<D> {
 
             worker_id: 0,
         };
-        index_writer.start_workers()?;
+
+        if !options.defer_indexing_threads {
+            index_writer.start_workers()?;
+        }
+
         Ok(index_writer)
     }
 
@@ -398,7 +423,7 @@ impl<D: Document> IndexWriter<D> {
 
         let mut delete_cursor = self.delete_queue.cursor();
 
-        let mem_budget = self.memory_budget_in_bytes_per_thread;
+        let mem_budget = self.options.memory_budget_per_thread;
         let index = self.index.clone();
         let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
@@ -451,7 +476,7 @@ impl<D: Document> IndexWriter<D> {
     }
 
     fn start_workers(&mut self) -> crate::Result<()> {
-        for _ in 0..self.num_threads {
+        for _ in 0..self.options.num_worker_threads {
             self.add_indexing_worker()?;
         }
         Ok(())
@@ -553,12 +578,7 @@ impl<D: Document> IndexWriter<D> {
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
-        let new_index_writer = IndexWriter::new(
-            &self.index,
-            self.num_threads,
-            self.memory_budget_in_bytes_per_thread,
-            directory_lock,
-        )?;
+        let new_index_writer = IndexWriter::new(&self.index, self.options.clone(), directory_lock)?;
 
         // the current `self` is dropped right away because of this call.
         //
@@ -623,7 +643,10 @@ impl<D: Document> IndexWriter<D> {
                 .join()
                 .map_err(|e| TantivyError::ErrorInThread(format!("{e:?}")))?;
             indexing_worker_result?;
-            self.add_indexing_worker()?;
+
+            if !self.options.defer_indexing_threads {
+                self.add_indexing_worker()?;
+            }
         }
 
         let commit_opstamp = self.stamper.stamp();
@@ -708,7 +731,11 @@ impl<D: Document> IndexWriter<D> {
     /// The opstamp is an increasing `u64` that can
     /// be used by the client to align commits with its own
     /// document queue.
-    pub fn add_document(&self, document: D) -> crate::Result<Opstamp> {
+    pub fn add_document(&mut self, document: D) -> crate::Result<Opstamp> {
+        if self.workers_join_handle.is_empty() {
+            self.start_workers()?;
+        }
+
         let opstamp = self.stamper.stamp();
         self.send_add_documents_batch(smallvec![AddOperation { opstamp, document }])?;
         Ok(opstamp)
