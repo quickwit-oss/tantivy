@@ -56,6 +56,9 @@ pub struct IndexWriterOptions {
     memory_budget_per_thread: usize,
     /// The number of indexer worker threads to use.
     num_worker_threads: usize,
+    #[builder(default = 4)]
+    /// Defines the number of merger threads to use.
+    num_merge_threads: usize,
     /// Use an existing [Stamper] for tracking the opstamp of the writer.
     ///
     /// WARNING: This is a _very_ advanced API and you should not specify this
@@ -313,8 +316,12 @@ impl<D: Document> IndexWriter<D> {
             .clone()
             .unwrap_or_else(|| Stamper::new(current_opstamp));
 
-        let segment_updater =
-            SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
+        let segment_updater = SegmentUpdater::create(
+            index.clone(),
+            stamper.clone(),
+            &delete_queue.cursor(),
+            options.num_merge_threads,
+        )?;
 
         let mut index_writer = Self {
             _directory_lock: Some(directory_lock),

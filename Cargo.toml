@@ -53,7 +53,7 @@ rayon = "1.5.2"
 lru = "0.12.0"
 fastdivide = "0.4.0"
 itertools = "0.13.0"
-measure_time = "0.8.2"
+measure_time = "0.9.0"
 arc-swap = "1.5.0"
 bon = "3.3.1"
 

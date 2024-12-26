@@ -25,8 +25,6 @@ use crate::indexer::{
 };
 use crate::{FutureResult, Opstamp};
 
-const NUM_MERGE_THREADS: usize = 4;
-
 /// Save the index meta file.
 /// This operation is atomic:
 /// Either
@@ -273,6 +271,7 @@ impl SegmentUpdater {
         index: Index,
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
+        num_merge_threads: usize,
     ) -> crate::Result<SegmentUpdater> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
@@ -287,7 +286,7 @@ impl SegmentUpdater {
             })?;
         let merge_thread_pool = ThreadPoolBuilder::new()
             .thread_name(|i| format!("merge_thread_{i}"))
-            .num_threads(NUM_MERGE_THREADS)
+            .num_threads(num_merge_threads)
             .build()
             .map_err(|_| {
                 crate::TantivyError::SystemError(
