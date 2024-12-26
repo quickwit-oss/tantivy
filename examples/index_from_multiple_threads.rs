@@ -48,8 +48,7 @@ fn main() -> tantivy::Result<()> {
         // we index 100 times the document... for the sake of the example.
         for i in 0..100 {
             let opstamp = index_writer_clone_1
-                .write()
-                .unwrap() //< A read lock is sufficient here.
+                .read().unwrap() //< A read lock is sufficient here.
                 .add_document(
                     doc!(
                         title => "Of Mice and Men",
@@ -75,9 +74,9 @@ fn main() -> tantivy::Result<()> {
     thread::spawn(move || {
         // we index 100 times the document... for the sake of the example.
         for i in 0..100 {
-            // A write lock is required here.
+            // A read lock is sufficient here.
             let opstamp = {
-                let mut index_writer_rlock = index_writer_clone_2.write().unwrap();
+                let index_writer_rlock = index_writer_clone_2.read().unwrap();
                 index_writer_rlock.add_document(doc!(
                     title => "Manufacturing consent",
                     body => "Some great book description..."

@@ -59,16 +59,6 @@ pub struct IndexWriterOptions {
     #[builder(default = 4)]
     /// Defines the number of merger threads to use.
     num_merge_threads: usize,
-    /// Use an existing [Stamper] for tracking the opstamp of the writer.
-    ///
-    /// WARNING: This is a _very_ advanced API and you should not specify this
-    /// option unless you absolutely know what you are doing.
-    stamper: Option<Stamper>,
-    #[builder(default = false)]
-    /// Defers the creation of the indexing threads until a operation that
-    /// requires them is submitted. This can be useful for avoiding
-    /// creating threads you don't need when using the writer i.e. `merge`.
-    defer_indexing_threads: bool,
 }
 
 /// `IndexWriter` is the user entry-point to add document to an index.
@@ -311,10 +301,7 @@ impl<D: Document> IndexWriter<D> {
 
         let current_opstamp = index.load_metas()?.opstamp;
 
-        let stamper = options
-            .stamper
-            .clone()
-            .unwrap_or_else(|| Stamper::new(current_opstamp));
+        let stamper = Stamper::new(current_opstamp);
 
         let segment_updater = SegmentUpdater::create(
             index.clone(),
@@ -342,11 +329,7 @@ impl<D: Document> IndexWriter<D> {
 
             worker_id: 0,
         };
-
-        if !options.defer_indexing_threads {
-            index_writer.start_workers()?;
-        }
-
+        index_writer.start_workers()?;
         Ok(index_writer)
     }
 
@@ -650,10 +633,7 @@ impl<D: Document> IndexWriter<D> {
                 .join()
                 .map_err(|e| TantivyError::ErrorInThread(format!("{e:?}")))?;
             indexing_worker_result?;
-
-            if !self.options.defer_indexing_threads {
-                self.add_indexing_worker()?;
-            }
+            self.add_indexing_worker()?;
         }
 
         let commit_opstamp = self.stamper.stamp();
@@ -738,11 +718,7 @@ impl<D: Document> IndexWriter<D> {
     /// The opstamp is an increasing `u64` that can
     /// be used by the client to align commits with its own
     /// document queue.
-    pub fn add_document(&mut self, document: D) -> crate::Result<Opstamp> {
-        if self.workers_join_handle.is_empty() {
-            self.start_workers()?;
-        }
-
+    pub fn add_document(&self, document: D) -> crate::Result<Opstamp> {
         let opstamp = self.stamper.stamp();
         self.send_add_documents_batch(smallvec![AddOperation { opstamp, document }])?;
         Ok(opstamp)
