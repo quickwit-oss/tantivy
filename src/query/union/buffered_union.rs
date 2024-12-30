@@ -15,7 +15,7 @@ const HORIZON: u32 = 64u32 * 64u32;
 // This function is similar except that it does is not unstable, and
 // it does not keep the original vector ordering.
 //
-// Also, it does not "yield" any elements.
+// Elements are dropped and not yielded.
 fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
 where P: FnMut(&mut T) -> bool {
     let mut i = 0;
@@ -143,6 +143,11 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         }
         false
     }
+
+    fn is_in_horizon(&self, target: DocId) -> bool {
+        let gap = target - self.offset;
+        gap < HORIZON
+    }
 }
 
 impl<TScorer, TScoreCombiner> DocSet for BufferedUnionScorer<TScorer, TScoreCombiner>
@@ -218,15 +223,25 @@ where
     }
 
     fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        let is_hit = self
-            .docsets
-            .iter_mut()
-            .all(|docset| docset.seek_into_the_danger_zone(target));
-        // The API requires the DocSet to be in a valid state when `seek_exact` returns true.
-        if is_hit {
-            self.seek(target);
+        if self.is_in_horizon(target) {
+            // Our value is within the buffered horizon and the docset may already have been
+            // processed and removed, so we need to use seek, which uses the regular advance.
+            self.seek(target) == target
+        } else {
+            // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
+            // of the underlying docsets
+            let is_hit = self
+                .docsets
+                .iter_mut()
+                .any(|docset| docset.seek_into_the_danger_zone(target));
+
+            // The API requires the DocSet to be in a valid state when `seek_into_the_danger_zone`
+            // returns true.
+            if is_hit {
+                self.seek(target);
+            }
+            is_hit
         }
-        is_hit
     }
 
     fn doc(&self) -> DocId {
