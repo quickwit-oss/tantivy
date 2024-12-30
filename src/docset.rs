@@ -53,14 +53,16 @@ pub trait DocSet: Send {
 
     /// Seeks to the target if possible and returns true if the target is in the DocSet.
     ///
-    /// DocSets that already have an efficient `seek` method don't need to implement `seek_exact`.
-    /// All wrapper DocSets should forward `seek_exact` to the underlying DocSet.
+    /// DocSets that already have an efficient `seek` method don't need to implement
+    /// `seek_into_the_danger_zone`. All wrapper DocSets should forward
+    /// `seek_into_the_danger_zone` to the underlying DocSet.
     ///
     /// ## API Behaviour
-    /// If `seek_exact` is returning true, a call to `doc()` has to return target.
-    /// If `seek_exact` is returning false, a call to `doc()` may return any doc between
-    /// the last doc that matched and target or a doc that is a valid next hit after target.
-    /// The DocSet is considered to be in an invalid state until `seek_exact` returns true again.
+    /// If `seek_into_the_danger_zone` is returning true, a call to `doc()` has to return target.
+    /// If `seek_into_the_danger_zone` is returning false, a call to `doc()` may return any doc
+    /// between the last doc that matched and target or a doc that is a valid next hit after
+    /// target. The DocSet is considered to be in an invalid state until
+    /// `seek_into_the_danger_zone` returns true again.
     ///
     /// `target` needs to be equal or larger than `doc` when in a valid state.
     ///
