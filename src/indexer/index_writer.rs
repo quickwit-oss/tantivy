@@ -54,6 +54,7 @@ pub struct IndexWriterOptions {
     /// When an indexer thread has buffered this much data in memory
     /// it will flush the segment to disk (although this is not searchable until commit is called.)
     memory_budget_per_thread: usize,
+    #[builder(default = 1)]
     /// The number of indexer worker threads to use.
     num_worker_threads: usize,
     #[builder(default = 4)]
@@ -294,6 +295,11 @@ impl<D: Document> IndexWriter<D> {
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
+        if options.num_worker_threads == 0 {
+            let err_msg = "At least one worker thread is required, got 0".to_string();
+            return Err(TantivyError::InvalidArgument(err_msg));
+        }
+
         let (document_sender, document_receiver) =
             crossbeam_channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
@@ -822,7 +828,7 @@ mod tests {
     use crate::directory::error::LockError;
     use crate::error::*;
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
-    use crate::indexer::NoMergePolicy;
+    use crate::indexer::{IndexWriterOptions, NoMergePolicy};
     use crate::query::{QueryParser, TermQuery};
     use crate::schema::{
         self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, JsonObjectOptions,
@@ -2542,5 +2548,37 @@ mod tests {
             .unwrap();
         index_writer.commit().unwrap();
         Ok(())
+    }
+
+    #[test]
+    fn test_writer_options_validation() {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_bool_field("example", STORED);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        let opt_wo_threads = IndexWriterOptions::builder().num_worker_threads(0).build();
+        let result = index.writer_with_options::<TantivyDocument>(opt_wo_threads);
+        assert!(result.is_err(), "Writer should reject 0 thread count");
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_))));
+
+        let opt_with_low_memory = IndexWriterOptions::builder()
+            .memory_budget_per_thread(10 << 10)
+            .build();
+        let result = index.writer_with_options::<TantivyDocument>(opt_with_low_memory);
+        assert!(
+            result.is_err(),
+            "Writer should reject options with too low memory size"
+        );
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_))));
+
+        let opt_with_low_memory = IndexWriterOptions::builder()
+            .memory_budget_per_thread(5 << 30)
+            .build();
+        let result = index.writer_with_options::<TantivyDocument>(opt_with_low_memory);
+        assert!(
+            result.is_err(),
+            "Writer should reject options with too high memory size"
+        );
+        assert!(matches!(result, Err(TantivyError::InvalidArgument(_))));
     }
 }
