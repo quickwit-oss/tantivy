@@ -348,20 +348,20 @@ impl InvertedIndexReader {
         let merge_holes_under_bytes = (80 * 1024 * 1024 * 50) / 1000;
         // we build a first iterator to download everything. Simply calling the function already
         // loads everything, but doesn't start iterating over the sstable.
-        let mut _term_info = self
+        let mut _term_infos = self
             .get_term_range_async(.., automaton.clone(), None, merge_holes_under_bytes)
             .await?;
 
         // we build a 2nd iterator, this one with no holes, so we don't go through blocks we can't
         // match, and just download them to reduce our query count. This makes the assumption
         // there is a caching layer below, which might not always be true, but is in Quickwit.
-        let term_info = self.get_term_range_async(.., automaton, None, 0).await?;
+        let term_infos = self.get_term_range_async(.., automaton, None, 0).await?;
 
         // TODO this operation is often cheap for "friendly" automatons, but can be very costly for
         // "unfriendly" ones such as ".*a{50}" (very few terms if any  match this pattern, but we
         // can't know early). In this case, we decompress and iterate over the entire sstable, while
         // still being in async context. Ideally we should spawn this on a threadpool.
-        let range_to_load = term_info
+        let posting_ranges_to_load = term_infos
             .map(|term_info| term_info.postings_range)
             .coalesce(|range1, range2| {
                 if range1.end + merge_holes_under_bytes >= range2.start {
@@ -371,7 +371,7 @@ impl InvertedIndexReader {
                 }
             });
 
-        let slices_downloaded = futures_util::stream::iter(range_to_load)
+        let slices_downloaded = futures_util::stream::iter(postings_ranges_to_load)
             .map(|posting_slice| {
                 self.postings_file_slice
                     .read_bytes_slice_async(posting_slice)

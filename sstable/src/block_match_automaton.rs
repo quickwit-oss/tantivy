@@ -52,10 +52,10 @@ fn can_block_match_automaton_with_start(
     // - keys are `abcd` and `abce` => we test for abc[d-e].*
     // - keys are `abcd` and `abc` => contradiction with start_key < end_key.
     //
-    // ideally for ]abc, abcde] we could test for abc([\0-c].*|d([\0-d].*|e)?)
+    // ideally for (abc, abcde] we could test for abc([\0-c].*|d([\0-d].*|e)?)
     // but let's start simple (and correct), and tighten our bounds latter
     //
-    // and for ]abcde, abcfg] we could test for abc(d(e.+|[f-\xff].*)|e.*|f([\0-f].*|g)?)
+    // and for (abcde, abcfg] we could test for abc(d(e.+|[f-\xff].*)|e.*|f([\0-f].*|g)?)
     // abc (
     //  d(e.+|[f-\xff].*) |
     //  e.* |
@@ -69,8 +69,8 @@ fn can_block_match_automaton_with_start(
     // - ? is a the thing before can_match(), or current state.is_match()
     // - | means test both side
 
-    // we have two cases, either start_key is a prefix of end_key (e.g. ]abc, abcjp]),
-    // or it is not (e.g. ]abcdg, abcjp]). It is not possible however that end_key be a prefix of
+    // we have two cases, either start_key is a prefix of end_key (e.g. (abc, abcjp]),
+    // or it is not (e.g. (abcdg, abcjp]). It is not possible however that end_key be a prefix of
     // start_key (or that both are equal) because we already handled start_key >= end_key.
     //
     // if we are in the first case, we want to visit the following states:
@@ -103,7 +103,7 @@ fn can_block_match_automaton_with_start(
 
     // things starting with start_range were handled in match_range_start
     // this starting with end_range are handled bellow.
-    // this can run for 0 iteration in cases such as ]abc, abd]
+    // this can run for 0 iteration in cases such as (abc, abd]
     for rb in (start_range + 1)..end_range {
         let new_state = automaton.accept(&base_state, rb);
         if automaton.can_match(&new_state) {
@@ -132,7 +132,7 @@ fn match_range_start<S, A: Automaton<State = S>>(
     automaton: &A,
     mut state: S,
 ) -> bool {
-    // case ]abcdgj, abcpqr], `abcd` is already consumed, we need to handle:
+    // case (abcdgj, abcpqr], `abcd` is already consumed, we need to handle:
     // - [h-\xff].*
     // - g[k-\xff].*
     // - gj.+ == gf[\0-\xff].*
@@ -177,7 +177,7 @@ fn match_range_end<S, A: Automaton<State = S>>(
     automaton: &A,
     mut state: S,
 ) -> bool {
-    // for ]abcdef, abcmps]. the prefix `abcm` has been consumed, `[d-l].*` was handled elsewhere,
+    // for (abcdef, abcmps]. the prefix `abcm` has been consumed, `[d-l].*` was handled elsewhere,
     // we just need to handle
     // - [\0-o].*
     // - p
