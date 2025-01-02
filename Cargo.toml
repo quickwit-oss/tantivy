@@ -55,6 +55,7 @@ fastdivide = "0.4.0"
 itertools = "0.13.0"
 measure_time = "0.9.0"
 arc-swap = "1.5.0"
+bon = "3.3.1"
 
 columnar = { version = "0.3", path = "./columnar", package = "tantivy-columnar" }
 sstable = { version = "0.3", path = "./sstable", package = "tantivy-sstable", optional = true }
