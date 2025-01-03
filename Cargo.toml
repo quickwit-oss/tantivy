@@ -66,6 +66,7 @@ tokenizer-api = { version = "0.3", path = "./tokenizer-api", package = "tantivy-
 sketches-ddsketch = { version = "0.3.0", features = ["use_serde"] }
 hyperloglogplus = { version = "0.4.1", features = ["const-loop"] }
 futures-util = { version = "0.3.28", optional = true }
+futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 
 [target.'cfg(windows)'.dependencies]
@@ -120,7 +121,7 @@ zstd-compression = ["zstd"]
 failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.
 
-quickwit = ["sstable", "futures-util"]
+quickwit = ["sstable", "futures-util", "futures-channel"]
 
 # Compares only the hash of a string when indexing data.
 # Increases indexing speed, but may lead to extremely rare missing terms, when there's a hash collision.

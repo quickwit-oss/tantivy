@@ -334,44 +334,65 @@ impl InvertedIndexReader {
     /// This method is for an advanced usage only.
     ///
     /// returns a boolean, whether a term matching the range was found in the dictionary
-    pub async fn warm_postings_automaton<A: Automaton + Clone>(
+    pub async fn warm_postings_automaton<
+        A: Automaton + Clone + Send + 'static,
+        E: FnOnce(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
+        F: std::future::Future<Output = io::Result<()>>,
+    >(
         &self,
         automaton: A,
         // with_positions: bool, at the moment we have no use for it, and supporting it would add
         // complexity to the coalesce
+        executor: E,
     ) -> io::Result<bool>
     where
         A::State: Clone,
     {
         // merge holes under 4MiB, that's how many bytes we can hope to receive during a TTFB from
         // S3 (~80MiB/s, and 50ms latency)
-        let merge_holes_under_bytes = (80 * 1024 * 1024 * 50) / 1000;
+        const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
         // we build a first iterator to download everything. Simply calling the function already
-        // loads everything, but doesn't start iterating over the sstable.
-        let mut _term_infos = self
-            .get_term_range_async(.., automaton.clone(), None, merge_holes_under_bytes)
+        // download everything we need from the sstable, but doesn't start iterating over it.
+        let _term_info_iter = self
+            .get_term_range_async(.., automaton.clone(), None, MERGE_HOLES_UNDER_BYTES)
             .await?;
 
-        // we build a 2nd iterator, this one with no holes, so we don't go through blocks we can't
-        // match, and just download them to reduce our query count. This makes the assumption
-        // there is a caching layer below, which might not always be true, but is in Quickwit.
-        let term_infos = self.get_term_range_async(.., automaton, None, 0).await?;
+        let (sender, posting_ranges_to_load_stream) = futures_channel::mpsc::unbounded();
+        let termdict = self.termdict.clone();
+        let cpu_bound_task = move || {
+            // then we build a 2nd iterator, this one with no holes, so we don't go through blocks
+            // we can't match.
+            // This makes the assumption there is a caching layer below us, which gives sync read
+            // for free after the initial async access. This might not always be true, but is in
+            // Quickwit.
+            // We build things from this closure otherwise we get into lifetime issues that can only
+            // be solved with self referential strucs. Returning an io::Result from here is a bit
+            // more leaky abstraction-wise, but a lot better than the alternative
+            let mut stream = termdict.search(automaton).into_stream()?;
 
-        // TODO this operation is often cheap for "friendly" automatons, but can be very costly for
-        // "unfriendly" ones such as ".*a{50}" (very few terms if any  match this pattern, but we
-        // can't know early). In this case, we decompress and iterate over the entire sstable, while
-        // still being in async context. Ideally we should spawn this on a threadpool.
-        let posting_ranges_to_load = term_infos
-            .map(|term_info| term_info.postings_range)
-            .coalesce(|range1, range2| {
-                if range1.end + merge_holes_under_bytes >= range2.start {
-                    Ok(range1.start..range2.end)
-                } else {
-                    Err((range1, range2))
+            // we could do without an iterator, but this allows us access to coalesce which simplify
+            // things
+            let posting_ranges_iter =
+                std::iter::from_fn(move || stream.next().map(|(_k, v)| v.postings_range.clone()))
+                    .coalesce(|range1, range2| {
+                        if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
+                            Ok(range1.start..range2.end)
+                        } else {
+                            Err((range1, range2))
+                        }
+                    });
+
+            for posting_range in posting_ranges_iter {
+                if let Err(_) = sender.unbounded_send(posting_range) {
+                    // this should happen only when search is cancelled
+                    return Err(io::Error::other("failed to send posting range back"));
                 }
-            });
+            }
+            Ok(())
+        };
+        let task_handle = executor(Box::new(cpu_bound_task));
 
-        let slices_downloaded = futures_util::stream::iter(postings_ranges_to_load)
+        let slices_downloaded = posting_ranges_to_load_stream
             .map(|posting_slice| {
                 self.postings_file_slice
                     .read_bytes_slice_async(posting_slice)
@@ -380,6 +401,10 @@ impl InvertedIndexReader {
             .buffer_unordered(5)
             .try_collect::<Vec<()>>()
             .await?;
+
+        // we don't need to pull that sooner, its future is only used to make sure we didn't miss
+        // an error, but the channel gets filled even before this is polled.
+        task_handle.await?;
 
         Ok(!slices_downloaded.is_empty())
     }
