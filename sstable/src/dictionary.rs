@@ -521,6 +521,25 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         StreamerBuilder::new(self, AlwaysMatch)
     }
 
+    /// Returns a range builder filtered with a prefix.
+    pub fn prefix_range<K: AsRef<[u8]>>(&self, prefix: K) -> StreamerBuilder<TSSTable> {
+        let lower_bound = prefix.as_ref();
+        let mut upper_bound = lower_bound.to_vec();
+        for idx in (0..upper_bound.len()).rev() {
+            if upper_bound[idx] == 255 {
+                upper_bound.pop();
+            } else {
+                upper_bound[idx] += 1;
+                break;
+            }
+        }
+        let mut builder = self.range().ge(lower_bound);
+        if !upper_bound.is_empty() {
+            builder = builder.lt(upper_bound);
+        }
+        builder
+    }
+
     /// A stream of all the sorted terms.
     pub fn stream(&self) -> io::Result<Streamer<TSSTable>> {
         self.range().into_stream()
@@ -926,6 +945,64 @@ mod tests {
             assert_eq!(stream.value(), &i);
             assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
         }
+        assert!(!stream.advance());
+    }
+
+    #[test]
+    fn test_prefix() {
+        let (dic, _slice) = make_test_sstable();
+        {
+            let mut stream = dic.prefix_range("1").into_stream().unwrap();
+            for i in 0x10000..0x20000 {
+                assert!(stream.advance());
+                assert_eq!(stream.term_ord(), i);
+                assert_eq!(stream.value(), &i);
+                assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+            }
+            assert!(!stream.advance());
+        }
+        {
+            let mut stream = dic.prefix_range("").into_stream().unwrap();
+            for i in 0..0x3ffff {
+                assert!(stream.advance(), "failed at {i:05X}");
+                assert_eq!(stream.term_ord(), i);
+                assert_eq!(stream.value(), &i);
+                assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+            }
+            assert!(!stream.advance());
+        }
+        {
+            let mut stream = dic.prefix_range("0FF").into_stream().unwrap();
+            for i in 0x0ff00..=0x0ffff {
+                assert!(stream.advance(), "failed at {i:05X}");
+                assert_eq!(stream.term_ord(), i);
+                assert_eq!(stream.value(), &i);
+                assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+            }
+            assert!(!stream.advance());
+        }
+    }
+
+    #[test]
+    fn test_prefix_edge() {
+        let dict = {
+            let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+            builder.insert(&[0, 254], &0).unwrap();
+            builder.insert(&[0, 255], &1).unwrap();
+            builder.insert(&[0, 255, 12], &2).unwrap();
+            builder.insert(&[1], &2).unwrap();
+            builder.insert(&[1, 0], &2).unwrap();
+            let table = builder.finish().unwrap();
+            let table = Arc::new(PermissionedHandle::new(table));
+            let slice = common::file_slice::FileSlice::new(table.clone());
+            Dictionary::<MonotonicU64SSTable>::open(slice).unwrap()
+        };
+
+        let mut stream = dict.prefix_range(&[0, 255]).into_stream().unwrap();
+        assert!(stream.advance());
+        assert_eq!(stream.key(), &[0, 255]);
+        assert!(stream.advance());
+        assert_eq!(stream.key(), &[0, 255, 12]);
         assert!(!stream.advance());
     }
 }
