@@ -392,19 +392,17 @@ impl InvertedIndexReader {
         };
         let task_handle = executor(Box::new(cpu_bound_task));
 
-        let slices_downloaded = posting_ranges_to_load_stream
+        let posting_downloader = posting_ranges_to_load_stream
             .map(|posting_slice| {
                 self.postings_file_slice
                     .read_bytes_slice_async(posting_slice)
                     .map(|result| result.map(|_slice| ()))
             })
             .buffer_unordered(5)
-            .try_collect::<Vec<()>>()
-            .await?;
+            .try_collect::<Vec<()>>();
 
-        // we don't need to pull that sooner, its future is only used to make sure we didn't miss
-        // an error, but the channel gets filled even before this is polled.
-        task_handle.await?;
+        let (_, slices_downloaded) =
+            futures_util::future::try_join(task_handle, posting_downloader).await?;
 
         Ok(!slices_downloaded.is_empty())
     }
