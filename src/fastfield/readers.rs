@@ -217,7 +217,7 @@ impl FastFieldReaders {
         Ok(dynamic_column.into())
     }
 
-    /// Returning a `dynamic_column_handle`.
+    /// Returns a `dynamic_column_handle`.
     pub fn dynamic_column_handle(
         &self,
         field_name: &str,
@@ -234,7 +234,7 @@ impl FastFieldReaders {
         Ok(dynamic_column_handle_opt)
     }
 
-    /// Returning all `dynamic_column_handle`.
+    /// Returns all `dynamic_column_handle` that match the given field name.
     pub fn dynamic_column_handles(
         &self,
         field_name: &str,
@@ -245,6 +245,22 @@ impl FastFieldReaders {
         let dynamic_column_handles = self
             .columnar
             .read_columns(&resolved_field_name)?
+            .into_iter()
+            .collect();
+        Ok(dynamic_column_handles)
+    }
+
+    /// Returns all `dynamic_column_handle` that are inner fields of the provided JSON path.
+    pub fn dynamic_subpath_column_handles(
+        &self,
+        root_path: &str,
+    ) -> crate::Result<Vec<DynamicColumnHandle>> {
+        let Some(resolved_field_name) = self.resolve_field(root_path)? else {
+            return Ok(Vec::new());
+        };
+        let dynamic_column_handles = self
+            .columnar
+            .read_subpath_columns(&resolved_field_name)?
             .into_iter()
             .collect();
         Ok(dynamic_column_handles)

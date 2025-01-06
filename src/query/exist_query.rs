@@ -7,9 +7,23 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::schema::Type;
 use crate::{DocId, Score, TantivyError};
 
-/// Query that matches all documents with a non-null value in the specified field.
+/// Query that matches all documents with a non-null value in the specified
+/// field.
+///
+/// If the field path is at the root or inside JSON field, all subpath will also be
+/// checked and the document will be matched if a non-null value exists in any subpath.
+/// For example, assuming the following document where `myfield` is a JSON fast field:
+/// ```json
+/// {
+///   "myfield": {
+///     "mysubfield": "hello"
+///   }
+/// }
+/// ```
+/// "exists" queries on either `myfield` or `myfield.mysubfield` will match the document.
 ///
 /// All of the matched documents get the score 1.0.
 #[derive(Clone, Debug)]
@@ -43,6 +57,7 @@ impl Query for ExistsQuery {
         }
         Ok(Box::new(ExistsWeight {
             field_name: self.field_name.clone(),
+            field_type: field_type.value_type(),
         }))
     }
 }
@@ -50,13 +65,19 @@ impl Query for ExistsQuery {
 /// Weight associated with the `ExistsQuery` query.
 pub struct ExistsWeight {
     field_name: String,
+    field_type: Type,
 }
 
 impl Weight for ExistsWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let fast_field_reader = reader.fast_fields();
-        let dynamic_columns: crate::Result<Vec<DynamicColumn>> = fast_field_reader
-            .dynamic_column_handles(&self.field_name)?
+        let mut column_handles = fast_field_reader.dynamic_column_handles(&self.field_name)?;
+        if self.field_type == Type::Json {
+            let mut sub_columns =
+                fast_field_reader.dynamic_subpath_column_handles(&self.field_name)?;
+            column_handles.append(&mut sub_columns);
+        }
+        let dynamic_columns: crate::Result<Vec<DynamicColumn>> = column_handles
             .into_iter()
             .map(|handle| handle.open().map_err(|io_error| io_error.into()))
             .collect();
@@ -233,6 +254,7 @@ mod tests {
         assert_eq!(count_existing_fields(&searcher, "json.all")?, 100);
         assert_eq!(count_existing_fields(&searcher, "json.even")?, 50);
         assert_eq!(count_existing_fields(&searcher, "json.odd")?, 50);
+        assert_eq!(count_existing_fields(&searcher, "json")?, 100);
 
         // Handling of non-existing fields:
         assert_eq!(count_existing_fields(&searcher, "json.absent")?, 0);
