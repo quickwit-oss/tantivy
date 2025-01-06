@@ -281,6 +281,21 @@ impl FastFieldReaders {
         Ok(columns)
     }
 
+    #[doc(hidden)]
+    pub async fn list_subpath_dynamic_column_handles(
+        &self,
+        root_path: &str,
+    ) -> crate::Result<Vec<DynamicColumnHandle>> {
+        let Some(resolved_field_name) = self.resolve_field(root_path)? else {
+            return Ok(Vec::new());
+        };
+        let columns = self
+            .columnar
+            .read_subpath_columns_async(&resolved_field_name)
+            .await?;
+        Ok(columns)
+    }
+
     /// Returns the `u64` column used to represent any `u64`-mapped typed (String/Bytes term ids,
     /// i64, u64, f64, DateTime).
     ///
@@ -492,6 +507,15 @@ mod tests {
             .iter()
             .any(|column| column.column_type() == ColumnType::Str));
 
-        println!("*** {:?}", fast_fields.columnar().list_columns());
+        let json_columns = fast_fields.dynamic_column_handles("json").unwrap();
+        assert_eq!(json_columns.len(), 0);
+
+        let json_subcolumns = fast_fields.dynamic_subpath_column_handles("json").unwrap();
+        assert_eq!(json_subcolumns.len(), 3);
+
+        let foo_subcolumns = fast_fields
+            .dynamic_subpath_column_handles("json.foo")
+            .unwrap();
+        assert_eq!(foo_subcolumns.len(), 0);
     }
 }
