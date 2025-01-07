@@ -1,6 +1,7 @@
 use std::{fmt, io, mem};
 
 use common::file_slice::FileSlice;
+use common::json_path_writer::JSON_PATH_SEGMENT_SEP;
 use common::BinarySerializable;
 use sstable::{Dictionary, RangeSSTable};
 
@@ -76,6 +77,19 @@ fn read_all_columns_in_stream(
     Ok(results)
 }
 
+fn column_dictionary_prefix_for_column_name(column_name: &str) -> String {
+    // Each column is a associated to a given `column_key`,
+    // that starts by `column_name\0column_header`.
+    //
+    // Listing the columns associated to the given column name is therefore equivalent to
+    // listing `column_key` with the prefix `column_name\0`.
+    format!("{}{}", column_name, '\0')
+}
+
+fn column_dictionary_prefix_for_subpath(root_path: &str) -> String {
+    format!("{}{}", root_path, JSON_PATH_SEGMENT_SEP as char)
+}
+
 impl ColumnarReader {
     /// Opens a new Columnar file.
     pub fn open<F>(file_slice: F) -> io::Result<ColumnarReader>
@@ -144,32 +158,14 @@ impl ColumnarReader {
         Ok(self.iter_columns()?.collect())
     }
 
-    fn stream_for_column_range(&self, column_name: &str) -> sstable::StreamerBuilder<RangeSSTable> {
-        // Each column is a associated to a given `column_key`,
-        // that starts by `column_name\0column_header`.
-        //
-        // Listing the columns associated to the given column name is therefore equivalent to
-        // listing `column_key` with the prefix `column_name\0`.
-        //
-        // This is in turn equivalent to searching for the range
-        // `[column_name,\0`..column_name\1)`.
-        // TODO can we get some more generic `prefix(..)` logic in the dictionary.
-        let mut start_key = column_name.to_string();
-        start_key.push('\0');
-        let mut end_key = column_name.to_string();
-        end_key.push(1u8 as char);
-        self.column_dictionary
-            .range()
-            .ge(start_key.as_bytes())
-            .lt(end_key.as_bytes())
-    }
-
     pub async fn read_columns_async(
         &self,
         column_name: &str,
     ) -> io::Result<Vec<DynamicColumnHandle>> {
+        let prefix = column_dictionary_prefix_for_column_name(column_name);
         let stream = self
-            .stream_for_column_range(column_name)
+            .column_dictionary
+            .prefix_range(prefix)
             .into_stream_async()
             .await?;
         read_all_columns_in_stream(stream, &self.column_data, self.format_version)
@@ -180,7 +176,35 @@ impl ColumnarReader {
     /// There can be more than one column associated to a given column name, provided they have
     /// different types.
     pub fn read_columns(&self, column_name: &str) -> io::Result<Vec<DynamicColumnHandle>> {
-        let stream = self.stream_for_column_range(column_name).into_stream()?;
+        let prefix = column_dictionary_prefix_for_column_name(column_name);
+        let stream = self.column_dictionary.prefix_range(prefix).into_stream()?;
+        read_all_columns_in_stream(stream, &self.column_data, self.format_version)
+    }
+
+    pub async fn read_subpath_columns_async(
+        &self,
+        root_path: &str,
+    ) -> io::Result<Vec<DynamicColumnHandle>> {
+        let prefix = column_dictionary_prefix_for_subpath(root_path);
+        let stream = self
+            .column_dictionary
+            .prefix_range(prefix)
+            .into_stream_async()
+            .await?;
+        read_all_columns_in_stream(stream, &self.column_data, self.format_version)
+    }
+
+    /// Get all inner columns for a given JSON prefix, i.e columns for which the name starts
+    /// with the prefix then contain the [`JSON_PATH_SEGMENT_SEP`].
+    ///
+    /// There can be more than one column associated to each path within the JSON structure,
+    /// provided they have different types.
+    pub fn read_subpath_columns(&self, root_path: &str) -> io::Result<Vec<DynamicColumnHandle>> {
+        let prefix = column_dictionary_prefix_for_subpath(root_path);
+        let stream = self
+            .column_dictionary
+            .prefix_range(prefix.as_bytes())
+            .into_stream()?;
         read_all_columns_in_stream(stream, &self.column_data, self.format_version)
     }
 
@@ -192,6 +216,8 @@ impl ColumnarReader {
 
 #[cfg(test)]
 mod tests {
+    use common::json_path_writer::JSON_PATH_SEGMENT_SEP;
+
     use crate::{ColumnType, ColumnarReader, ColumnarWriter};
 
     #[test]
@@ -222,6 +248,64 @@ mod tests {
         assert_eq!(columns.len(), 1);
         assert_eq!(&columns[0].0, "count");
         assert_eq!(columns[0].1.column_type(), ColumnType::U64);
+    }
+
+    #[test]
+    fn test_read_columns() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_column_type("col", ColumnType::U64, false);
+        columnar_writer.record_numerical(1, "col", 1u64);
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(2, &mut buffer).unwrap();
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        {
+            let columns = columnar.read_columns("col").unwrap();
+            assert_eq!(columns.len(), 1);
+            assert_eq!(columns[0].column_type(), ColumnType::U64);
+        }
+        {
+            let columns = columnar.read_columns("other").unwrap();
+            assert_eq!(columns.len(), 0);
+        }
+    }
+
+    #[test]
+    fn test_read_subpath_columns() {
+        let mut columnar_writer = ColumnarWriter::default();
+        columnar_writer.record_str(
+            0,
+            &format!("col1{}subcol1", JSON_PATH_SEGMENT_SEP as char),
+            "hello",
+        );
+        columnar_writer.record_numerical(
+            0,
+            &format!("col1{}subcol2", JSON_PATH_SEGMENT_SEP as char),
+            1i64,
+        );
+        columnar_writer.record_str(1, "col1", "hello");
+        columnar_writer.record_str(0, "col2", "hello");
+        let mut buffer = Vec::new();
+        columnar_writer.serialize(2, &mut buffer).unwrap();
+
+        let columnar = ColumnarReader::open(buffer).unwrap();
+        {
+            let columns = columnar.read_subpath_columns("col1").unwrap();
+            assert_eq!(columns.len(), 2);
+            assert_eq!(columns[0].column_type(), ColumnType::Str);
+            assert_eq!(columns[1].column_type(), ColumnType::I64);
+        }
+        {
+            let columns = columnar.read_subpath_columns("col1.subcol1").unwrap();
+            assert_eq!(columns.len(), 0);
+        }
+        {
+            let columns = columnar.read_subpath_columns("col2").unwrap();
+            assert_eq!(columns.len(), 0);
+        }
+        {
+            let columns = columnar.read_subpath_columns("other").unwrap();
+            assert_eq!(columns.len(), 0);
+        }
     }
 
     #[test]

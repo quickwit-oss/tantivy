@@ -217,7 +217,7 @@ impl FastFieldReaders {
         Ok(dynamic_column.into())
     }
 
-    /// Returning a `dynamic_column_handle`.
+    /// Returns a `dynamic_column_handle`.
     pub fn dynamic_column_handle(
         &self,
         field_name: &str,
@@ -234,7 +234,7 @@ impl FastFieldReaders {
         Ok(dynamic_column_handle_opt)
     }
 
-    /// Returning all `dynamic_column_handle`.
+    /// Returns all `dynamic_column_handle` that match the given field name.
     pub fn dynamic_column_handles(
         &self,
         field_name: &str,
@@ -245,6 +245,22 @@ impl FastFieldReaders {
         let dynamic_column_handles = self
             .columnar
             .read_columns(&resolved_field_name)?
+            .into_iter()
+            .collect();
+        Ok(dynamic_column_handles)
+    }
+
+    /// Returns all `dynamic_column_handle` that are inner fields of the provided JSON path.
+    pub fn dynamic_subpath_column_handles(
+        &self,
+        root_path: &str,
+    ) -> crate::Result<Vec<DynamicColumnHandle>> {
+        let Some(resolved_field_name) = self.resolve_field(root_path)? else {
+            return Ok(Vec::new());
+        };
+        let dynamic_column_handles = self
+            .columnar
+            .read_subpath_columns(&resolved_field_name)?
             .into_iter()
             .collect();
         Ok(dynamic_column_handles)
@@ -261,6 +277,21 @@ impl FastFieldReaders {
         let columns = self
             .columnar
             .read_columns_async(&resolved_field_name)
+            .await?;
+        Ok(columns)
+    }
+
+    #[doc(hidden)]
+    pub async fn list_subpath_dynamic_column_handles(
+        &self,
+        root_path: &str,
+    ) -> crate::Result<Vec<DynamicColumnHandle>> {
+        let Some(resolved_field_name) = self.resolve_field(root_path)? else {
+            return Ok(Vec::new());
+        };
+        let columns = self
+            .columnar
+            .read_subpath_columns_async(&resolved_field_name)
             .await?;
         Ok(columns)
     }
@@ -476,6 +507,15 @@ mod tests {
             .iter()
             .any(|column| column.column_type() == ColumnType::Str));
 
-        println!("*** {:?}", fast_fields.columnar().list_columns());
+        let json_columns = fast_fields.dynamic_column_handles("json").unwrap();
+        assert_eq!(json_columns.len(), 0);
+
+        let json_subcolumns = fast_fields.dynamic_subpath_column_handles("json").unwrap();
+        assert_eq!(json_subcolumns.len(), 3);
+
+        let foo_subcolumns = fast_fields
+            .dynamic_subpath_column_handles("json.foo")
+            .unwrap();
+        assert_eq!(foo_subcolumns.len(), 0);
     }
 }
