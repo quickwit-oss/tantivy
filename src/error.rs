@@ -110,6 +110,9 @@ pub enum TantivyError {
     #[error("Deserialize error: {0}")]
     /// An error occurred while attempting to deserialize a document.
     DeserializeError(DeserializeError),
+    /// Index is read-only.
+    #[error("Index is read-only")]
+    IndexReadOnly,
 }
 
 impl From<io::Error> for TantivyError {

@@ -272,6 +272,7 @@ pub struct Index {
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
+    read_only: bool
 }
 
 impl Index {
@@ -391,7 +392,18 @@ impl Index {
             fast_field_tokenizers: TokenizerManager::default(),
             executor: Executor::single_thread(),
             inventory,
+            read_only: false,
         }
+    }
+
+    /// Get whether or not this index was opened in read-only mode.
+    pub fn is_read_only(&self) -> bool {
+        self.read_only
+    }
+
+    /// Set the index to be in read-only mode.
+    pub fn set_read_only(&mut self, read_only: bool) {
+        self.read_only = read_only;
     }
 
     /// Setter for the tokenizer manager.
@@ -516,6 +528,13 @@ impl Index {
         Ok(index)
     }
 
+    /// Open the index as read only
+    pub fn open_read_only<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+        let mut index = Index::open(directory)?;
+        index.set_read_only(true);
+        Ok(index)
+    }
+
     /// Reads the index meta file from the directory.
     pub fn load_metas(&self) -> crate::Result<IndexMeta> {
         load_metas(self.directory(), &self.inventory)
@@ -540,6 +559,9 @@ impl Index {
         &self,
         options: IndexWriterOptions,
     ) -> crate::Result<IndexWriter<D>> {
+        if self.read_only {
+            return Err(TantivyError::IndexReadOnly);
+        }
         let directory_lock = self
             .directory
             .acquire_lock(&INDEX_WRITER_LOCK)
