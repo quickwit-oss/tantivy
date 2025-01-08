@@ -373,16 +373,17 @@ impl InvertedIndexReader {
             // we could do without an iterator, but this allows us access to coalesce which simplify
             // things
             let posting_ranges_iter =
-                std::iter::from_fn(move || stream.next().map(|(_k, v)| v.postings_range.clone()))
-                    .coalesce(|range1, range2| {
-                        if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
-                            Ok(range1.start..range2.end)
-                        } else {
-                            Err((range1, range2))
-                        }
-                    });
+                std::iter::from_fn(move || stream.next().map(|(_k, v)| v.postings_range.clone()));
 
-            for posting_range in posting_ranges_iter {
+            let merged_posting_ranges_iter = posting_ranges_iter.coalesce(|range1, range2| {
+                if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
+                    Ok(range1.start..range2.end)
+                } else {
+                    Err((range1, range2))
+                }
+            });
+
+            for posting_range in merged_posting_ranges_iter {
                 if let Err(_) = sender.unbounded_send(posting_range) {
                     // this should happen only when search is cancelled
                     return Err(io::Error::other("failed to send posting range back"));
