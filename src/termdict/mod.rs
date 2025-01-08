@@ -77,6 +77,7 @@ const CURRENT_TYPE: DictionaryType = DictionaryType::SSTable;
 
 // TODO in the future this should become an enum of supported dictionaries
 /// A TermDictionary wrapping either an FST based dictionary or a SSTable based one.
+#[derive(Clone)]
 pub struct TermDictionary(InnerTermDict);
 
 impl TermDictionary {

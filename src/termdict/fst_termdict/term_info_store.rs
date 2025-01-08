@@ -93,6 +93,7 @@ impl TermInfoBlockMeta {
     }
 }
 
+#[derive(Clone)]
 pub struct TermInfoStore {
     num_terms: usize,
     block_meta_bytes: OwnedBytes,
