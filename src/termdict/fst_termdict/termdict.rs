@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::sync::Arc;
 
 use common::{BinarySerializable, CountingWriter};
 use once_cell::sync::Lazy;
@@ -113,8 +114,9 @@ static EMPTY_TERM_DICT_FILE: Lazy<FileSlice> = Lazy::new(|| {
 /// The `Fst` crate is used to associate terms to their
 /// respective `TermOrdinal`. The `TermInfoStore` then makes it
 /// possible to fetch the associated `TermInfo`.
+#[derive(Clone)]
 pub struct TermDictionary {
-    fst_index: tantivy_fst::Map<OwnedBytes>,
+    fst_index: Arc<tantivy_fst::Map<OwnedBytes>>,
     term_info_store: TermInfoStore,
 }
 
@@ -136,7 +138,7 @@ impl TermDictionary {
         let fst_index = open_fst_index(fst_file_slice)?;
         let term_info_store = TermInfoStore::open(values_file_slice)?;
         Ok(TermDictionary {
-            fst_index,
+            fst_index: Arc::new(fst_index),
             term_info_store,
         })
     }
