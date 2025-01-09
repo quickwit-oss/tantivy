@@ -68,6 +68,16 @@ impl SegmentId {
         self.0.as_simple().to_string()
     }
 
+    /// Returns the bytes of a segment uuid
+    pub fn uuid_bytes(&self) -> &[u8; 16] {
+        self.0.as_bytes()
+    }
+
+    /// Returns only the first four bytes of a segment uuid
+    pub fn short_uuid_bytes(&self) -> &[u8] {
+        &self.0.as_bytes()[0..4]
+    }
+
     /// Build a `SegmentId` string from the full uuid string.
     ///
     /// E.g. "a5c4dfcbdfe645089129e308e26d5523"

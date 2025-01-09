@@ -114,6 +114,7 @@ impl SegmentManager {
     }
 
     /// Deletes all empty segments
+    #[allow(dead_code)]
     fn remove_empty_segments(&self) {
         let mut registers_lock = self.write();
         registers_lock
