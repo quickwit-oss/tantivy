@@ -372,7 +372,8 @@ impl SegmentUpdater {
         let segment_updater = self.clone();
         self.schedule_task(move || {
             segment_updater.segment_manager.add_segment(segment_entry);
-            segment_updater.consider_merge_options();
+            // mingy98: We don't need to consider merge options for every segment, just at the very
+            // end segment_updater.consider_merge_options();
             Ok(())
         })
     }
@@ -487,7 +488,6 @@ impl SegmentUpdater {
             {
                 segment_updater.set_merge_policy(new_merge_policy);
             }
-
             segment_updater.consider_merge_options();
             Ok(opstamp)
         })
