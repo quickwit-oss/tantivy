@@ -13,6 +13,7 @@ use crate::directory::{
     DirectoryLock, FileHandle, FileSlice, GarbageCollectionResult, Lock, WatchCallback,
     WatchHandle, WritePtr, MANAGED_LOCK, META_LOCK,
 };
+use crate::merge_policy::MergePolicy;
 use crate::error::DataCorruption;
 use crate::index::SegmentMetaInventory;
 use crate::{Directory, IndexMeta};
@@ -348,6 +349,14 @@ impl Directory for ManagedDirectory {
 
     fn load_metas(&self, inventory: &SegmentMetaInventory) -> crate::Result<IndexMeta> {
         self.directory.load_metas(inventory)
+    }
+
+    fn reconsider_merge_policy(
+        &self,
+        metas: &IndexMeta,
+        previous_metas: &IndexMeta,
+    ) -> Option<Box<dyn MergePolicy>> {
+        self.directory.reconsider_merge_policy(metas, previous_metas)
     }
 }
 

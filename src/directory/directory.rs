@@ -2,6 +2,7 @@ use crate::directory::directory_lock::Lock;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
 use crate::index::SegmentMetaInventory;
+use crate::merge_policy::MergePolicy;
 use crate::IndexMeta;
 use std::any::Any;
 use std::collections::HashSet;
@@ -264,6 +265,16 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
         Err(crate::TantivyError::InternalError(
             "load_metas not implemented".to_string(),
         ))
+    }
+
+    // Allows the directory to change the writer's merge policy right before the merge happens
+    // This is useful for directories that need to change the merge policy based on how many segments were created
+    fn reconsider_merge_policy(
+        &self,
+        _metas: &IndexMeta,
+        _previous_metas: &IndexMeta,
+    ) -> Option<Box<dyn MergePolicy>> {
+        None
     }
 }
 
