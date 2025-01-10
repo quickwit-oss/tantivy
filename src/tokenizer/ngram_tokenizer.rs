@@ -205,7 +205,8 @@ struct StutteringIterator<T> {
 }
 
 impl<T> StutteringIterator<T>
-where T: Iterator<Item = usize>
+where
+    T: Iterator<Item = usize>,
 {
     pub fn new(mut underlying: T, min_gram: usize, max_gram: usize) -> StutteringIterator<T> {
         assert!(min_gram > 0);
@@ -234,7 +235,8 @@ where T: Iterator<Item = usize>
 }
 
 impl<T> Iterator for StutteringIterator<T>
-where T: Iterator<Item = usize>
+where
+    T: Iterator<Item = usize>,
 {
     type Item = (usize, usize);
 
@@ -313,7 +315,6 @@ fn utf8_codepoint_width(b: u8) -> usize {
 
 #[cfg(test)]
 mod tests {
-
     use super::{utf8_codepoint_width, CodepointFrontiers, NgramTokenizer, StutteringIterator};
     use crate::tokenizer::tests::assert_token;
     use crate::tokenizer::{Token, TokenStream, Tokenizer};

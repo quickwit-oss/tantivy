@@ -1,8 +1,6 @@
 use std::io;
 use std::io::Write;
 
-use common::{CountingWriter, OwnedBytes};
-
 use super::multivalued_index::SerializableMultivalueIndex;
 use super::OptionalIndex;
 use crate::column_index::multivalued_index::serialize_multivalued_index;
@@ -10,6 +8,8 @@ use crate::column_index::optional_index::serialize_optional_index;
 use crate::column_index::ColumnIndex;
 use crate::iterable::Iterable;
 use crate::{Cardinality, RowId, Version};
+use common::file_slice::FileSlice;
+use common::{CountingWriter, HasLen};
 
 pub struct SerializableOptionalIndex<'a> {
     pub non_null_row_ids: Box<dyn Iterable<RowId> + 'a>,
@@ -65,27 +65,28 @@ pub fn serialize_column_index(
 
 /// Open a serialized column index.
 pub fn open_column_index(
-    mut bytes: OwnedBytes,
+    file_slice: FileSlice,
     format_version: Version,
 ) -> io::Result<ColumnIndex> {
-    if bytes.is_empty() {
+    if file_slice.len() == 0 {
         return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
             "Failed to deserialize column index. Empty buffer.",
         ));
     }
-    let cardinality_code = bytes[0];
+    let (header, body) = file_slice.split(1);
+    let cardinality_code = header.read_bytes()?.as_slice()[0];
     let cardinality = Cardinality::try_from_code(cardinality_code)?;
-    bytes.advance(1);
+
     match cardinality {
         Cardinality::Full => Ok(ColumnIndex::Full),
         Cardinality::Optional => {
-            let optional_index = super::optional_index::open_optional_index(bytes)?;
+            let optional_index = super::optional_index::open_optional_index(body)?;
             Ok(ColumnIndex::Optional(optional_index))
         }
         Cardinality::Multivalued => {
             let multivalue_index =
-                super::multivalued_index::open_multivalued_index(bytes, format_version)?;
+                super::multivalued_index::open_multivalued_index(body, format_version)?;
             Ok(ColumnIndex::Multivalued(multivalue_index))
         }
     }

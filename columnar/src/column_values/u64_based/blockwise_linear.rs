@@ -1,9 +1,11 @@
+use common::file_slice::FileSlice;
+use common::{BinarySerializable, CountingWriter, DeserializeFrom, HasLen, OwnedBytes};
+use fastdivide::DividerU64;
+use parking_lot::Mutex;
 use std::io::Write;
+use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{io, iter};
-
-use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
-use fastdivide::DividerU64;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
 use crate::column_values::u64_based::line::Line;
@@ -172,32 +174,75 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
 
     type Estimator = BlockwiseLinearEstimator;
 
-    fn load(mut bytes: OwnedBytes) -> io::Result<Self::ColumnValues> {
-        let stats = ColumnStats::deserialize(&mut bytes)?;
-        let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
-        let footer_offset = bytes.len() - 4 - footer_len as usize;
-        let (data, mut footer) = bytes.split(footer_offset);
+    fn load(file_slice: FileSlice) -> io::Result<Self::ColumnValues> {
+        // let mut bytes = file_slice.read_bytes()?;
+        let (stats, _) = file_slice.clone().split(20); // hope that's enough bytes
+        let mut stats = stats.read_bytes()?;
+        let (stats, stats_nbytes) = ColumnStats::deserialize_with_size(&mut stats)?;
+
+        let (_, body) = file_slice.split(stats_nbytes as usize);
+
+        let (_, footer) = body.clone().split_from_end(4);
+
+        let footer_len: u32 = footer.read_bytes()?.as_slice().deserialize()?;
+        let (data, footer) = body.split_from_end(footer_len as usize + 4);
+
+        let mut footer = footer.read_bytes()?;
         let num_blocks = compute_num_blocks(stats.num_rows);
-        let mut blocks: Vec<Block> = iter::repeat_with(|| Block::deserialize(&mut footer))
-            .take(num_blocks as usize)
-            .collect::<io::Result<_>>()?;
+        let mut blocks: Vec<BlockWithLength> =
+            iter::repeat_with(|| Block::deserialize(&mut footer))
+                .take(num_blocks as usize)
+                .map(|block| {
+                    block.map(|block| BlockWithLength {
+                        block,
+                        data: (None, Mutex::new(None)),
+                    })
+                })
+                .collect::<io::Result<_>>()?;
+
         let mut start_offset = 0;
         for block in &mut blocks {
+            let len = (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
             block.data_start_offset = start_offset;
-            start_offset += (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
+            block.data = (
+                Some(
+                    data.clone()
+                        .slice(start_offset..(start_offset + len).min(data.len())),
+                ),
+                Mutex::new(None),
+            );
+            start_offset += len;
         }
+
         Ok(BlockwiseLinearReader {
             blocks: blocks.into_boxed_slice().into(),
-            data,
             stats,
         })
     }
 }
 
+struct BlockWithLength {
+    block: Block,
+    data: (Option<FileSlice>, Mutex<Option<OwnedBytes>>),
+}
+
+impl Deref for BlockWithLength {
+    type Target = Block;
+
+    fn deref(&self) -> &Self::Target {
+        &self.block
+    }
+}
+
+impl DerefMut for BlockWithLength {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.block
+    }
+}
+
 #[derive(Clone)]
 pub struct BlockwiseLinearReader {
-    blocks: Arc<[Block]>,
-    data: OwnedBytes,
+    blocks: Arc<[BlockWithLength]>,
     stats: ColumnStats,
 }
 
@@ -208,7 +253,10 @@ impl ColumnValues for BlockwiseLinearReader {
         let idx_within_block = idx % BLOCK_SIZE;
         let block = &self.blocks[block_id];
         let interpoled_val: u64 = block.line.eval(idx_within_block);
-        let block_bytes = &self.data[block.data_start_offset..];
+        let (file_slice, mutex) = &block.data;
+        let mut lock = mutex.lock();
+        let block_bytes =
+            lock.get_or_insert_with(|| file_slice.as_ref().unwrap().read_bytes().unwrap());
         let bitpacked_diff = block.bit_unpacker.get(idx_within_block, block_bytes);
         // TODO optimize me! the line parameters could be tweaked to include the multiplication and
         // remove the dependency.

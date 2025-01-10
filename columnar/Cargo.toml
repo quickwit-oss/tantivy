@@ -19,6 +19,9 @@ tantivy-bitpacker = { version= "0.6", path = "../bitpacker/" }
 serde = "1.0.152"
 downcast-rs = "1.2.0"
 
+parking_lot = "0.12.3"
+
+
 [dev-dependencies]
 proptest = "1"
 more-asserts = "0.3.1"

@@ -273,7 +273,6 @@ impl Recorder for TfAndPositionRecorder {
 
 #[cfg(test)]
 mod tests {
-
     use common::write_u32_vint;
 
     use super::{BufferLender, VInt32Reader};

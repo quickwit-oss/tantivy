@@ -1,9 +1,8 @@
+use common::file_slice::FileSlice;
+use sstable::Dictionary;
 use std::io;
 use std::io::Write;
 use std::sync::Arc;
-
-use common::OwnedBytes;
-use sstable::Dictionary;
 
 use crate::column::{BytesColumn, Column};
 use crate::column_index::{serialize_column_index, SerializableColumnIndex};
@@ -41,12 +40,13 @@ pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64>(
 }
 
 pub fn open_column_u64<T: MonotonicallyMappableToU64>(
-    bytes: OwnedBytes,
+    file_slice: FileSlice,
     format_version: Version,
 ) -> io::Result<Column<T>> {
-    let (body, column_index_num_bytes_payload) = bytes.rsplit(4);
+    let (body, column_index_num_bytes_payload) = file_slice.split_from_end(4);
     let column_index_num_bytes = u32::from_le_bytes(
         column_index_num_bytes_payload
+            .read_bytes()?
             .as_slice()
             .try_into()
             .unwrap(),
@@ -61,12 +61,13 @@ pub fn open_column_u64<T: MonotonicallyMappableToU64>(
 }
 
 pub fn open_column_u128<T: MonotonicallyMappableToU128>(
-    bytes: OwnedBytes,
+    file_slice: FileSlice,
     format_version: Version,
 ) -> io::Result<Column<T>> {
-    let (body, column_index_num_bytes_payload) = bytes.rsplit(4);
+    let (body, column_index_num_bytes_payload) = file_slice.split_from_end(4);
     let column_index_num_bytes = u32::from_le_bytes(
         column_index_num_bytes_payload
+            .read_bytes()?
             .as_slice()
             .try_into()
             .unwrap(),
@@ -84,12 +85,13 @@ pub fn open_column_u128<T: MonotonicallyMappableToU128>(
 ///
 /// See [`open_u128_as_compact_u64`] for more details.
 pub fn open_column_u128_as_compact_u64(
-    bytes: OwnedBytes,
+    file_slice: FileSlice,
     format_version: Version,
 ) -> io::Result<Column<u64>> {
-    let (body, column_index_num_bytes_payload) = bytes.rsplit(4);
+    let (body, column_index_num_bytes_payload) = file_slice.split_from_end(4);
     let column_index_num_bytes = u32::from_le_bytes(
         column_index_num_bytes_payload
+            .read_bytes()?
             .as_slice()
             .try_into()
             .unwrap(),
@@ -103,10 +105,21 @@ pub fn open_column_u128_as_compact_u64(
     })
 }
 
-pub fn open_column_bytes(data: OwnedBytes, format_version: Version) -> io::Result<BytesColumn> {
-    let (body, dictionary_len_bytes) = data.rsplit(4);
-    let dictionary_len = u32::from_le_bytes(dictionary_len_bytes.as_slice().try_into().unwrap());
+pub fn open_column_bytes(
+    file_slice: FileSlice,
+    format_version: Version,
+) -> io::Result<BytesColumn> {
+    let (body, dictionary_len_bytes) = file_slice.split_from_end(4);
+    let dictionary_len = u32::from_le_bytes(
+        dictionary_len_bytes
+            .read_bytes()?
+            .as_slice()
+            .try_into()
+            .unwrap(),
+    );
     let (dictionary_bytes, column_bytes) = body.split(dictionary_len as usize);
+
+    let dictionary_bytes = dictionary_bytes.read_bytes()?;
     let dictionary = Arc::new(Dictionary::from_bytes(dictionary_bytes)?);
     let term_ord_column = crate::column::open_column_u64::<u64>(column_bytes, format_version)?;
     Ok(BytesColumn {
@@ -115,7 +128,7 @@ pub fn open_column_bytes(data: OwnedBytes, format_version: Version) -> io::Resul
     })
 }
 
-pub fn open_column_str(data: OwnedBytes, format_version: Version) -> io::Result<StrColumn> {
-    let bytes_column = open_column_bytes(data, format_version)?;
+pub fn open_column_str(file_slice: FileSlice, format_version: Version) -> io::Result<StrColumn> {
+    let bytes_column = open_column_bytes(file_slice, format_version)?;
     Ok(StrColumn::wrap(bytes_column))
 }

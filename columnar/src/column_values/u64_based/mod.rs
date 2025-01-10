@@ -8,8 +8,6 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 
-use common::{BinarySerializable, OwnedBytes};
-
 use crate::column_values::monotonic_mapping::{
     StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
 };
@@ -20,6 +18,8 @@ pub use crate::column_values::u64_based::stats_collector::StatsCollector;
 use crate::column_values::{monotonic_map_column, ColumnStats};
 use crate::iterable::Iterable;
 use crate::{ColumnValues, MonotonicallyMappableToU64};
+use common::file_slice::FileSlice;
+use common::BinarySerializable;
 
 /// A `ColumnCodecEstimator` is in charge of gathering all
 /// data required to serialize a column.
@@ -60,7 +60,7 @@ pub trait ColumnCodec<T: PartialOrd = u64> {
     type Estimator: ColumnCodecEstimator + Default;
 
     /// Loads a column that has been serialized using this codec.
-    fn load(bytes: OwnedBytes) -> io::Result<Self::ColumnValues>;
+    fn load(file_slice: FileSlice) -> io::Result<Self::ColumnValues>;
 
     /// Returns an estimator.
     fn estimator() -> Self::Estimator {
@@ -111,20 +111,22 @@ impl CodecType {
 
     fn load<T: MonotonicallyMappableToU64>(
         &self,
-        bytes: OwnedBytes,
+        file_slice: FileSlice,
     ) -> io::Result<Arc<dyn ColumnValues<T>>> {
         match self {
-            CodecType::Bitpacked => load_specific_codec::<BitpackedCodec, T>(bytes),
-            CodecType::Linear => load_specific_codec::<LinearCodec, T>(bytes),
-            CodecType::BlockwiseLinear => load_specific_codec::<BlockwiseLinearCodec, T>(bytes),
+            CodecType::Bitpacked => load_specific_codec::<BitpackedCodec, T>(file_slice),
+            CodecType::Linear => load_specific_codec::<LinearCodec, T>(file_slice),
+            CodecType::BlockwiseLinear => {
+                load_specific_codec::<BlockwiseLinearCodec, T>(file_slice)
+            }
         }
     }
 }
 
 fn load_specific_codec<C: ColumnCodec, T: MonotonicallyMappableToU64>(
-    bytes: OwnedBytes,
+    file_slice: FileSlice,
 ) -> io::Result<Arc<dyn ColumnValues<T>>> {
-    let reader = C::load(bytes)?;
+    let reader = C::load(file_slice)?;
     let reader_typed = monotonic_map_column(
         reader,
         StrictlyMonotonicMappingInverter::from(StrictlyMonotonicMappingToInternal::<T>::new()),
@@ -189,25 +191,29 @@ pub fn serialize_u64_based_column_values<T: MonotonicallyMappableToU64>(
 ///
 /// This method first identifies the codec off the first byte.
 pub fn load_u64_based_column_values<T: MonotonicallyMappableToU64>(
-    mut bytes: OwnedBytes,
+    file_slice: FileSlice,
 ) -> io::Result<Arc<dyn ColumnValues<T>>> {
-    let codec_type: CodecType = bytes
-        .first()
-        .copied()
+    let (header, body) = file_slice.split(1);
+    let codec_type: CodecType = header
+        .read_bytes()?
+        .as_slice()
+        .get(0)
+        .cloned()
         .and_then(CodecType::try_from_code)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Failed to read codec type"))?;
-    bytes.advance(1);
-    codec_type.load(bytes)
+    codec_type.load(body)
 }
 
 /// Helper function to serialize a column (autodetect from all codecs) and then open it
+#[cfg(test)]
 pub fn serialize_and_load_u64_based_column_values<T: MonotonicallyMappableToU64>(
     vals: &dyn Iterable,
     codec_types: &[CodecType],
 ) -> Arc<dyn ColumnValues<T>> {
-    let mut buffer = Vec::new();
-    serialize_u64_based_column_values(vals, codec_types, &mut buffer).unwrap();
-    load_u64_based_column_values::<T>(OwnedBytes::new(buffer)).unwrap()
+    todo!("fix serialize_and_load_u64_based_column_values() for tests");
+    // let mut buffer = Vec::new();
+    // serialize_u64_based_column_values(vals, codec_types, &mut buffer).unwrap();
+    // load_u64_based_column_values::<T>(OwnedBytes::new(buffer)).unwrap()
 }
 
 #[cfg(test)]
