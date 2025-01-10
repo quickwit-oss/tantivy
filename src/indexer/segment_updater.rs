@@ -372,7 +372,8 @@ impl SegmentUpdater {
         let segment_updater = self.clone();
         self.schedule_task(move || {
             segment_updater.segment_manager.add_segment(segment_entry);
-            segment_updater.consider_merge_options();
+            // mingy98: We don't need to consider merge options for every segment, just at the very
+            // end segment_updater.consider_merge_options();
             Ok(())
         })
     }
@@ -478,6 +479,15 @@ impl SegmentUpdater {
             segment_updater.segment_manager.commit(segment_entries);
             segment_updater.save_metas(opstamp, payload, &previous_metas)?;
             let _ = garbage_collect_files(segment_updater.clone());
+
+            let index_meta = segment_updater.load_meta();
+            if let Some(new_merge_policy) = segment_updater
+                .index
+                .directory()
+                .reconsider_merge_policy(&index_meta, &previous_metas)
+            {
+                segment_updater.set_merge_policy(new_merge_policy);
+            }
             segment_updater.consider_merge_options();
             Ok(opstamp)
         })
