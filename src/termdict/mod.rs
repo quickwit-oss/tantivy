@@ -40,10 +40,11 @@ use common::file_slice::FileSlice;
 use common::BinarySerializable;
 use tantivy_fst::Automaton;
 
-use self::fst_termdict::TermWithStateStreamerBuilder;
+#[cfg(feature = "quickwit")]
+use self::termdict::TermDictionaryExt;
 use self::termdict::{
     TermDictionary as InnerTermDict, TermDictionaryBuilder as InnerTermDictBuilder,
-    TermStreamerBuilder,
+    TermStreamerBuilder, TermWithStateStreamerBuilder,
 };
 pub use self::termdict::{TermMerger, TermStreamer, TermWithStateStreamer};
 use crate::postings::TermInfo;
