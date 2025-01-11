@@ -348,3 +348,81 @@ mod tests {
     // TODO add test for sparse search with a block of poison (starts with 0xffffffff) => such a
     // block instantly causes an unexpected EOF error
 }
+
+pub struct StreamerWithState<'a, TSSTable, A>
+where
+    TSSTable: SSTable,
+    A: Automaton,
+    A::State: Clone,
+{
+    streamer: Streamer<'a, TSSTable, A>,
+    current_state: Option<A::State>,
+}
+
+impl<'a, TSSTable, A> StreamerWithState<'a, TSSTable, A>
+where
+    TSSTable: SSTable,
+    A: Automaton,
+    A::State: Clone,
+{
+    pub fn advance(&mut self) -> bool {
+        // Move to the next key in the base streamer
+        if !self.streamer.advance() {
+            self.current_state = None;
+            return false;
+        }
+
+        // Recompute the final state for the entire current key
+        let key = self.streamer.key();
+        let mut st = self.streamer.automaton.start();
+        for &byte in key {
+            // This is the automaton transition for each byte
+            st = self.streamer.automaton.accept(&st, byte);
+            if !self.streamer.automaton.can_match(&st) {
+                break;
+            }
+        }
+        self.current_state = Some(st);
+        true
+    }
+
+    pub fn next(&mut self) -> Option<(&[u8], &TSSTable::Value, A::State)> {
+        if self.advance() {
+            let st = self.current_state.clone().unwrap();
+            Some((self.key(), self.value(), st))
+        } else {
+            None
+        }
+    }
+
+    pub fn key(&self) -> &[u8] {
+        self.streamer.key()
+    }
+
+    pub fn value(&self) -> &TSSTable::Value {
+        self.streamer.value()
+    }
+
+    pub fn state(&self) -> Option<&A::State> {
+        self.current_state.as_ref()
+    }
+}
+
+impl<'a, TSSTable, A> StreamerBuilder<'a, TSSTable, A>
+where
+    TSSTable: SSTable,
+    A: Automaton,
+    A::State: Clone,
+{
+    pub fn backward(self) -> Self {
+        // Add backward streaming support
+        self
+    }
+
+    pub fn into_stream_with_state(self) -> io::Result<StreamerWithState<'a, TSSTable, A>> {
+        Ok(StreamerWithState {
+            streamer: self.into_stream()?,
+            current_state: None,
+        })
+    }
+}

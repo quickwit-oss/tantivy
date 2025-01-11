@@ -5,12 +5,116 @@ mod merger;
 use std::iter::ExactSizeIterator;
 
 use common::VInt;
+use sstable::streamer::StreamerWithState;
 use sstable::value::{ValueReader, ValueWriter};
 use sstable::SSTable;
 use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::Automaton;
 
 pub use self::merger::TermMerger;
 use crate::postings::TermInfo;
+
+pub struct TermWithStateStreamerBuilder<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    streamer_builder: TermStreamerBuilder<'a, A>,
+}
+
+pub trait TermDictionaryExt {
+    fn search_with_state<'a, A>(&'a self, automaton: A) -> TermWithStateStreamerBuilder<'a, A>
+    where
+        A: Automaton + 'a,
+        A::State: Clone;
+}
+
+impl TermDictionaryExt for TermDictionary {
+    fn search_with_state<'a, A>(&'a self, automaton: A) -> TermWithStateStreamerBuilder<'a, A>
+    where
+        A: Automaton + 'a,
+        A::State: Clone,
+    {
+        let streamer_builder = self.search(automaton);
+        TermWithStateStreamerBuilder::new(streamer_builder)
+    }
+}
+
+impl<'a, A> TermWithStateStreamerBuilder<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    pub fn new(streamer_builder: TermStreamerBuilder<'a, A>) -> Self {
+        TermWithStateStreamerBuilder { streamer_builder }
+    }
+
+    pub fn ge<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
+        self.streamer_builder = self.streamer_builder.ge(bound);
+        self
+    }
+
+    pub fn gt<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
+        self.streamer_builder = self.streamer_builder.gt(bound);
+        self
+    }
+
+    pub fn le<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
+        self.streamer_builder = self.streamer_builder.le(bound);
+        self
+    }
+
+    pub fn lt<T: AsRef<[u8]>>(mut self, bound: T) -> Self {
+        self.streamer_builder = self.streamer_builder.lt(bound);
+        self
+    }
+
+    pub fn backward(mut self) -> Self {
+        self.streamer_builder = self.streamer_builder.backward();
+        self
+    }
+
+    pub fn into_stream(self) -> io::Result<TermWithStateStreamer<'a, A>> {
+        let streamer_with_state = self.streamer_builder.into_stream_with_state()?;
+        Ok(TermWithStateStreamer {
+            streamer_with_state,
+        })
+    }
+}
+
+pub struct TermWithStateStreamer<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    streamer_with_state: StreamerWithState<'a, TermSSTable, A>,
+}
+
+impl<'a, A> TermWithStateStreamer<'a, A>
+where
+    A: Automaton,
+    A::State: Clone,
+{
+    pub fn advance(&mut self) -> bool {
+        self.streamer_with_state.advance()
+    }
+
+    pub fn next(&mut self) -> Option<(&[u8], &TermInfo, A::State)> {
+        self.streamer_with_state.next()
+    }
+
+    pub fn key(&self) -> &[u8] {
+        self.streamer_with_state.key()
+    }
+
+    pub fn value(&self) -> &TermInfo {
+        self.streamer_with_state.value()
+    }
+
+    pub fn state(&self) -> Option<&A::State> {
+        self.streamer_with_state.state()
+    }
+}
 
 /// The term dictionary contains all of the terms in
 /// `tantivy index` in a sorted manner.
