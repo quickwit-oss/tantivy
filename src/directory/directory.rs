@@ -1,9 +1,3 @@
-use crate::directory::directory_lock::Lock;
-use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
-use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
-use crate::index::SegmentMetaInventory;
-use crate::merge_policy::MergePolicy;
-use crate::IndexMeta;
 use std::any::Any;
 use std::collections::HashSet;
 use std::io::Write;
@@ -11,6 +5,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io, thread};
+
+use crate::directory::directory_lock::Lock;
+use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
+use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
+use crate::index::SegmentMetaInventory;
+use crate::merge_policy::MergePolicy;
+use crate::IndexMeta;
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -268,7 +269,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     }
 
     // Allows the directory to change the writer's merge policy right before the merge happens
-    // This is useful for directories that need to change the merge policy based on how many segments were created
+    // This is useful for directories that need to change the merge policy based on how many
+    // segments were created
     fn reconsider_merge_policy(
         &self,
         _metas: &IndexMeta,
@@ -285,8 +287,7 @@ pub trait DirectoryClone {
 }
 
 impl<T> DirectoryClone for T
-where
-    T: 'static + Directory + Clone,
+where T: 'static + Directory + Clone
 {
     fn box_clone(&self) -> Box<dyn Directory> {
         Box::new(self.clone())

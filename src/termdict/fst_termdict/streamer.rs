@@ -83,8 +83,7 @@ where A: Automaton
 }
 
 impl<A> TermStreamer<'_, A>
-where
-    A: Automaton,
+where A: Automaton
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
