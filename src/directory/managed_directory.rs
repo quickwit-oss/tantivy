@@ -1,10 +1,11 @@
-use crc32fast::Hasher;
 use std::any::Any;
 use std::collections::HashSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::{io, result};
+
+use crc32fast::Hasher;
 
 use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
@@ -13,9 +14,9 @@ use crate::directory::{
     DirectoryLock, FileHandle, FileSlice, GarbageCollectionResult, Lock, WatchCallback,
     WatchHandle, WritePtr, MANAGED_LOCK, META_LOCK,
 };
-use crate::merge_policy::MergePolicy;
 use crate::error::DataCorruption;
 use crate::index::SegmentMetaInventory;
+use crate::merge_policy::MergePolicy;
 use crate::{Directory, IndexMeta};
 
 /// Returns true if the file is "managed".
@@ -356,7 +357,8 @@ impl Directory for ManagedDirectory {
         metas: &IndexMeta,
         previous_metas: &IndexMeta,
     ) -> Option<Box<dyn MergePolicy>> {
-        self.directory.reconsider_merge_policy(metas, previous_metas)
+        self.directory
+            .reconsider_merge_policy(metas, previous_metas)
     }
 }
 

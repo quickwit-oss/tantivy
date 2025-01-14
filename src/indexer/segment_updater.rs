@@ -360,8 +360,8 @@ impl SegmentUpdater {
         let segment_updater = self.clone();
         self.schedule_task(move || {
             segment_updater.segment_manager.add_segment(segment_entry);
-            // mingy98: We don't need to consider merge options for every segment, just at the very end
-            // segment_updater.consider_merge_options();
+            // mingy98: We don't need to consider merge options for every segment, just at the very
+            // end segment_updater.consider_merge_options();
             Ok(())
         })
     }
@@ -776,9 +776,11 @@ mod tests {
         }
         index_writer.commit()?;
 
-        let seg_ids = index.searchable_segment_ids()?;
-        // docs exist, should have at least 1 segment
-        assert!(!seg_ids.is_empty());
+        let _seg_ids = index.searchable_segment_ids()?;
+        // In Tantivy upstream, this test results in 0 segments after delete.
+        // However, due to our custom, visibility rules, we leave the segment.
+        // See committed_segment_metas in segment_manager.rs.
+        // assert!(!seg_ids.is_empty());
 
         let term = Term::from_field_text(text_field, "a");
         index_writer.delete_term(term);
@@ -793,14 +795,15 @@ mod tests {
         let reader = index.reader()?;
         assert_eq!(reader.searcher().num_docs(), 0);
 
-        let seg_ids = index.searchable_segment_ids()?;
-        assert!(seg_ids.is_empty());
+        let _seg_ids = index.searchable_segment_ids()?;
+        // Skipped due to custom ParadeDB visibility rules.
+        // assert!(seg_ids.is_empty());
 
         reader.reload()?;
         assert_eq!(reader.searcher().num_docs(), 0);
-        // empty segments should be erased
-        assert!(index.searchable_segment_metas()?.is_empty());
-        assert!(reader.searcher().segment_readers().is_empty());
+        // Skipped due to custom ParadeDB visibility rules.
+        // assert!(index.searchable_segment_metas()?.is_empty());
+        // assert!(reader.searcher().segment_readers().is_empty());
 
         Ok(())
     }
@@ -830,9 +833,11 @@ mod tests {
         index_writer.add_document(doc!(text_field=>"f"))?;
         index_writer.commit()?;
 
-        let seg_ids = index.searchable_segment_ids()?;
-        // docs exist, should have at least 1 segment
-        assert!(!seg_ids.is_empty());
+        let _seg_ids = index.searchable_segment_ids()?;
+        // In Tantivy upstream, this test results in 0 segments after delete.
+        // However, due to our custom, visibility rules, we leave the segment.
+        // See committed_segment_metas in segment_manager.rs.
+        // assert!(!seg_ids.is_empty());
 
         let term_vals = vec!["a", "b", "c", "d", "e", "f"];
         for term_val in term_vals {
@@ -846,14 +851,15 @@ mod tests {
         let reader = index.reader()?;
         assert_eq!(reader.searcher().num_docs(), 0);
 
-        let seg_ids = index.searchable_segment_ids()?;
-        assert!(seg_ids.is_empty());
+        let _seg_ids = index.searchable_segment_ids()?;
+        // Skipped due to custom ParadeDB visibility rules.
+        // assert!(seg_ids.is_empty());
 
         reader.reload()?;
         assert_eq!(reader.searcher().num_docs(), 0);
-        // empty segments should be erased
-        assert!(index.searchable_segment_metas()?.is_empty());
-        assert!(reader.searcher().segment_readers().is_empty());
+        // Skipped due to custom ParadeDB visibility rules.
+        // assert!(index.searchable_segment_metas()?.is_empty());
+        // assert!(reader.searcher().segment_readers().is_empty());
 
         Ok(())
     }

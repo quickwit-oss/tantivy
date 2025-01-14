@@ -5,13 +5,13 @@ mod merger;
 use std::iter::ExactSizeIterator;
 
 use common::VInt;
+use sstable::streamer::StreamerWithState;
 use sstable::value::{ValueReader, ValueWriter};
 use sstable::SSTable;
 use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::Automaton;
 
 pub use self::merger::TermMerger;
-use tantivy_fst::Automaton;
-use sstable::streamer::StreamerWithState;
 use crate::postings::TermInfo;
 
 pub struct TermWithStateStreamerBuilder<'a, A>
@@ -75,9 +75,7 @@ where
     }
 
     pub fn into_stream(self) -> io::Result<TermWithStateStreamer<'a, A>> {
-        let streamer_with_state = self
-            .streamer_builder
-            .into_stream_with_state()?;
+        let streamer_with_state = self.streamer_builder.into_stream_with_state()?;
         Ok(TermWithStateStreamer {
             streamer_with_state,
         })

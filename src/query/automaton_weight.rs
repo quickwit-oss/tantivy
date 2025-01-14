@@ -1,5 +1,3 @@
-use crate::query::fuzzy_query::DfaWrapper;
-use crate::query::score_combiner::SumCombiner;
 use std::any::{Any, TypeId};
 use std::io;
 use std::sync::Arc;
@@ -10,6 +8,8 @@ use super::phrase_prefix_query::prefix_end;
 use super::BufferedUnionScorer;
 use crate::index::SegmentReader;
 use crate::postings::TermInfo;
+use crate::query::fuzzy_query::DfaWrapper;
+use crate::query::score_combiner::SumCombiner;
 use crate::query::{ConstScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermWithStateStreamer};

@@ -491,10 +491,12 @@ pub(crate) mod tests {
         }
         let searcher = index.reader()?.searcher();
 
-        // finally, check that it's empty
+        // In Tantivy upstream, this test results in 0 segments after delete.
+        // However, due to our custom, visibility rules, we leave the segment.
+        // See committed_segment_metas in segment_manager.rs.
         {
-            let searchable_segment_ids = index.searchable_segment_ids()?;
-            assert!(searchable_segment_ids.is_empty());
+            let _searchable_segment_ids = index.searchable_segment_ids()?;
+            // assert!(searchable_segment_ids.is_empty());
             assert_eq!(searcher.num_docs(), 0);
         }
         Ok(())
