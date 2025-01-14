@@ -1089,7 +1089,10 @@ mod tests {
         index_writer.commit()?;
 
         reader.reload().unwrap();
-        assert_eq!(num_docs_containing("a"), 0);
+        // In Tantivy upstream, this test results in 0 segments after delete.
+        // However, due to our custom, visibility rules, we leave the segment.
+        // See committed_segment_metas in segment_manager.rs.
+        assert_eq!(num_docs_containing("a"), 1);
 
         index_writer.merge(&segments);
         index_writer.wait_merging_threads().unwrap();
@@ -1135,7 +1138,10 @@ mod tests {
         index_writer.commit()?;
 
         reader.reload().unwrap();
-        assert_eq!(num_docs_containing("a"), 0);
+        // In Tantivy upstream, this test results in 0 segments after delete.
+        // However, due to our custom, visibility rules, we leave the segment.
+        // See committed_segment_metas in segment_manager.rs.
+        assert_eq!(num_docs_containing("a"), 4);
 
         index_writer.merge(&segments);
         index_writer.wait_merging_threads().unwrap();

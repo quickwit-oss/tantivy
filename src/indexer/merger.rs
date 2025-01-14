@@ -1032,12 +1032,15 @@ mod tests {
             // Test removing all docs
             index_writer.delete_term(Term::from_field_text(text_field, "g"));
             index_writer.commit()?;
-            let segment_ids = index.searchable_segment_ids()?;
+            let _segment_ids = index.searchable_segment_ids()?;
             reader.reload()?;
 
             let searcher = reader.searcher();
-            assert!(segment_ids.is_empty());
-            assert!(searcher.segment_readers().is_empty());
+            // In Tantivy upstream, this test results in 0 segments after delete.
+            // However, due to our custom, visibility rules, we leave the segment.
+            // See committed_segment_metas in segment_manager.rs.
+            // assert!(segment_ids.is_empty());
+            // assert!(searcher.segment_readers().is_empty());
             assert_eq!(searcher.num_docs(), 0);
         }
         Ok(())
