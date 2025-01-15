@@ -58,6 +58,33 @@ impl BinarySerializable for VIntU128 {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
 
+impl VInt {
+    pub fn deserialize_with_size<R: Read>(reader: &mut R) -> io::Result<(Self, usize)> {
+        let mut nbytes = 0;
+        let mut bytes = reader.bytes();
+        let mut result = 0u64;
+        let mut shift = 0u64;
+        loop {
+            match bytes.next() {
+                Some(Ok(b)) => {
+                    nbytes += 1;
+                    result |= u64::from(b % 128u8) << shift;
+                    if b >= STOP_BIT {
+                        return Ok((VInt(result), nbytes));
+                    }
+                    shift += 7;
+                }
+                _ => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Reach end of buffer while reading VInt",
+                    ));
+                }
+            }
+        }
+    }
+}
+
 const STOP_BIT: u8 = 128;
 
 #[inline]
@@ -225,7 +252,6 @@ impl BinarySerializable for VInt {
 
 #[cfg(test)]
 mod tests {
-
     use super::{BinarySerializable, VInt, serialize_vint_u32};
 
     fn aux_test_vint(val: u64) {

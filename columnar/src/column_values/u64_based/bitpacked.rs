@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::num::NonZeroU64;
 use std::ops::{Range, RangeInclusive};
 
+use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
@@ -127,7 +128,8 @@ impl ColumnCodec for BitpackedCodec {
     type Estimator = BitpackedCodecEstimator;
 
     /// Opens a fast field given a file.
-    fn load(mut data: OwnedBytes) -> io::Result<Self::ColumnValues> {
+    fn load(file_slice: FileSlice) -> io::Result<Self::ColumnValues> {
+        let mut data = file_slice.read_bytes()?;
         let stats = ColumnStats::deserialize(&mut data)?;
         let num_bits = num_bits(&stats);
         let bit_unpacker = BitUnpacker::new(num_bits);

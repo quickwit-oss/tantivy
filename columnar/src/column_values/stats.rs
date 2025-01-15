@@ -27,6 +27,43 @@ impl ColumnStats {
     }
 }
 
+impl ColumnStats {
+    /// Same as [`BinarySeerializable::deserialize`] but also returns the number of bytes
+    /// consumed from the reader `R`
+    pub fn deserialize_with_size<R: io::Read>(reader: &mut R) -> io::Result<(Self, usize)> {
+        let mut nbytes = 0;
+
+        let (min_value, len) = VInt::deserialize_with_size(reader)?;
+        let min_value = min_value.0;
+        nbytes += len;
+
+        let (gcd, len) = VInt::deserialize_with_size(reader)?;
+        let gcd = gcd.0;
+        let gcd = NonZeroU64::new(gcd)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "GCD of 0 is forbidden"))?;
+        nbytes += len;
+
+        let (amplitude, len) = VInt::deserialize_with_size(reader)?;
+        let amplitude = amplitude.0 * gcd.get();
+        let max_value = min_value + amplitude;
+        nbytes += len;
+
+        let (num_rows, len) = VInt::deserialize_with_size(reader)?;
+        let num_rows = num_rows.0 as RowId;
+        nbytes += len;
+
+        Ok((
+            ColumnStats {
+                min_value,
+                max_value,
+                num_rows,
+                gcd,
+            },
+            nbytes,
+        ))
+    }
+}
+
 impl BinarySerializable for ColumnStats {
     fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
         VInt(self.min_value).serialize(writer)?;
