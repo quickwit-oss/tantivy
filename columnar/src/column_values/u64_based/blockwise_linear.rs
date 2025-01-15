@@ -175,12 +175,13 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
     type Estimator = BlockwiseLinearEstimator;
 
     fn load(file_slice: FileSlice) -> io::Result<Self::ColumnValues> {
-        // let mut bytes = file_slice.read_bytes()?;
-        let (stats, _) = file_slice.clone().split(20); // hope that's enough bytes
+        // column stats deserializes 4 variable-width encoded u64s, which could end up being, in the
+        // worst case, 9 bytes each.  this is where the 72 comes from
+        let (stats, _) = file_slice.clone().split(72.min(file_slice.len())); // hope that's enough bytes
         let mut stats = stats.read_bytes()?;
         let (stats, stats_nbytes) = ColumnStats::deserialize_with_size(&mut stats)?;
 
-        let (_, body) = file_slice.split(stats_nbytes as usize);
+        let (_, body) = file_slice.split(stats_nbytes);
 
         let (_, footer) = body.clone().split_from_end(4);
 
