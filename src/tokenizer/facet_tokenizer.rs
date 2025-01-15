@@ -84,7 +84,6 @@ impl TokenStream for FacetTokenStream<'_> {
 
 #[cfg(test)]
 mod tests {
-
     use super::FacetTokenizer;
     use crate::schema::Facet;
     use crate::tokenizer::{Token, TokenStream, Tokenizer};
