@@ -40,7 +40,6 @@ impl DocToOpstampMapping<'_> {
 
 #[cfg(test)]
 mod tests {
-
     use super::DocToOpstampMapping;
 
     #[test]

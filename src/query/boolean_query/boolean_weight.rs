@@ -529,7 +529,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
+        let scorer = self.complex_scorer(reader, 1.0, DoNothingCombiner::default)?;
         let num_docs = reader.num_docs();
         let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
 

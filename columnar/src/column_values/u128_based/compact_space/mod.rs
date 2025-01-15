@@ -531,10 +531,12 @@ mod tests {
 
     use common::file_slice::FileSlice;
     use itertools::Itertools;
+    use proptest::prelude::*;
 
     use super::*;
     use crate::column_values::u128_based::U128Header;
     use crate::column_values::{open_u128_mapped, serialize_column_values_u128};
+    use common::file_slice::FileSlice;
 
     #[test]
     fn compact_space_test() {
@@ -803,7 +805,7 @@ mod tests {
         ];
         let mut out = Vec::new();
         serialize_column_values_u128(&&vals[..], &mut out).unwrap();
-        let decomp = open_u128_mapped(OwnedBytes::new(out)).unwrap();
+        let decomp = open_u128_mapped(FileSlice::from(out)).unwrap();
         let complete_range = 0..vals.len() as u32;
 
         assert_eq!(
@@ -891,8 +893,6 @@ mod tests {
             CompactHit::AfterLast
         );
     }
-
-    use proptest::prelude::*;
 
     fn num_strategy() -> impl Strategy<Value = u128> {
         prop_oneof![

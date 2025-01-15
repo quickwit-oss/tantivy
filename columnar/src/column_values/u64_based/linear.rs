@@ -1,5 +1,6 @@
 use std::io;
 
+use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
@@ -190,7 +191,8 @@ impl ColumnCodec for LinearCodec {
 
     type Estimator = LinearCodecEstimator;
 
-    fn load(mut data: OwnedBytes) -> io::Result<Self::ColumnValues> {
+    fn load(file_slice: FileSlice) -> io::Result<Self::ColumnValues> {
+        let mut data = file_slice.read_bytes()?;
         let stats = ColumnStats::deserialize(&mut data)?;
         let linear_params = LinearParams::deserialize(&mut data)?;
         Ok(LinearReader {

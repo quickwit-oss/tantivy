@@ -312,7 +312,6 @@ fn utf8_codepoint_width(b: u8) -> usize {
 
 #[cfg(test)]
 mod tests {
-
     use super::{utf8_codepoint_width, CodepointFrontiers, NgramTokenizer, StutteringIterator};
     use crate::tokenizer::tests::assert_token;
     use crate::tokenizer::{Token, TokenStream, Tokenizer};

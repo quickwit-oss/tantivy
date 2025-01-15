@@ -63,7 +63,7 @@ impl TermSetQuery {
         Ok(BooleanWeight::new(
             sub_queries,
             false,
-            Box::new(|| DoNothingCombiner),
+            Box::new(DoNothingCombiner::default),
         ))
     }
 }
