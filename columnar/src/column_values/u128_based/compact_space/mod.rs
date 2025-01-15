@@ -767,7 +767,7 @@ mod tests {
         ];
         let mut out = Vec::new();
         serialize_column_values_u128(&&vals[..], &mut out).unwrap();
-        let decomp = open_u128_mapped(OwnedBytes::new(out)).unwrap();
+        let decomp = open_u128_mapped(FileSlice::from(out)).unwrap();
         let complete_range = 0..vals.len() as u32;
 
         assert_eq!(
@@ -821,6 +821,7 @@ mod tests {
         let _data = test_aux_vals(vals);
     }
 
+    use common::file_slice::FileSlice;
     use proptest::prelude::*;
 
     fn num_strategy() -> impl Strategy<Value = u128> {

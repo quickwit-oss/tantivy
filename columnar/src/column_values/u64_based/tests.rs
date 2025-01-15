@@ -1,3 +1,4 @@
+use common::HasLen;
 use proptest::prelude::*;
 use proptest::{prop_oneof, proptest};
 
@@ -12,7 +13,7 @@ fn test_serialize_and_load_simple() {
     )
     .unwrap();
     assert_eq!(buffer.len(), 7);
-    let col = load_u64_based_column_values::<u64>(OwnedBytes::new(buffer)).unwrap();
+    let col = load_u64_based_column_values::<u64>(FileSlice::from(buffer)).unwrap();
     assert_eq!(col.num_vals(), 3);
     assert_eq!(col.get_val(0), 1);
     assert_eq!(col.get_val(1), 2);
@@ -29,7 +30,7 @@ fn test_empty_column_i64() {
             continue;
         }
         num_acceptable_codecs += 1;
-        let col = load_u64_based_column_values::<i64>(OwnedBytes::new(buffer)).unwrap();
+        let col = load_u64_based_column_values::<i64>(FileSlice::from(buffer)).unwrap();
         assert_eq!(col.num_vals(), 0);
         assert_eq!(col.min_value(), i64::MIN);
         assert_eq!(col.max_value(), i64::MIN);
@@ -47,7 +48,7 @@ fn test_empty_column_u64() {
             continue;
         }
         num_acceptable_codecs += 1;
-        let col = load_u64_based_column_values::<u64>(OwnedBytes::new(buffer)).unwrap();
+        let col = load_u64_based_column_values::<u64>(FileSlice::from(buffer)).unwrap();
         assert_eq!(col.num_vals(), 0);
         assert_eq!(col.min_value(), u64::MIN);
         assert_eq!(col.max_value(), u64::MIN);
@@ -65,7 +66,7 @@ fn test_empty_column_f64() {
             continue;
         }
         num_acceptable_codecs += 1;
-        let col = load_u64_based_column_values::<f64>(OwnedBytes::new(buffer)).unwrap();
+        let col = load_u64_based_column_values::<f64>(FileSlice::from(buffer)).unwrap();
         assert_eq!(col.num_vals(), 0);
         // FIXME. f64::MIN would be better!
         assert!(col.min_value().is_nan());
@@ -96,7 +97,7 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
 
     let actual_compression = buffer.len() as u64;
 
-    let reader = TColumnCodec::load(OwnedBytes::new(buffer)).unwrap();
+    let reader = TColumnCodec::load(FileSlice::from(buffer)).unwrap();
     assert_eq!(reader.num_vals(), vals.len() as u32);
     let mut buffer = Vec::new();
     for (doc, orig_val) in vals.iter().copied().enumerate() {
@@ -325,7 +326,7 @@ fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> 
         &[codec_type],
         &mut buffer,
     )?;
-    let buffer = OwnedBytes::new(buffer);
+    let buffer = FileSlice::from(buffer);
     let column = crate::column_values::load_u64_based_column_values::<i64>(buffer.clone())?;
     assert_eq!(column.get_val(0), -4000i64);
     assert_eq!(column.get_val(1), -3000i64);
@@ -342,7 +343,7 @@ fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> 
         &[codec_type],
         &mut buffer_without_gcd,
     )?;
-    let buffer_without_gcd = OwnedBytes::new(buffer_without_gcd);
+    let buffer_without_gcd = FileSlice::from(buffer_without_gcd);
     assert!(buffer_without_gcd.len() > buffer.len());
 
     Ok(())
@@ -368,7 +369,7 @@ fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> 
         &[codec_type],
         &mut buffer,
     )?;
-    let buffer = OwnedBytes::new(buffer);
+    let buffer = FileSlice::from(buffer);
     let column = crate::column_values::load_u64_based_column_values::<u64>(buffer.clone())?;
     assert_eq!(column.get_val(0), 1000u64);
     assert_eq!(column.get_val(1), 2000u64);
@@ -385,7 +386,7 @@ fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> 
         &[codec_type],
         &mut buffer_without_gcd,
     )?;
-    let buffer_without_gcd = OwnedBytes::new(buffer_without_gcd);
+    let buffer_without_gcd = FileSlice::from(buffer_without_gcd);
     assert!(buffer_without_gcd.len() > buffer.len());
     Ok(())
 }
@@ -404,7 +405,7 @@ fn test_fastfield_gcd_u64() -> io::Result<()> {
 
 #[test]
 pub fn test_fastfield2() {
-    let test_fastfield = crate::column_values::serialize_and_load_u64_based_column_values::<u64>(
+    let test_fastfield = serialize_and_load_u64_based_column_values::<u64>(
         &&[100u64, 200u64, 300u64][..],
         &ALL_U64_CODEC_TYPES,
     );

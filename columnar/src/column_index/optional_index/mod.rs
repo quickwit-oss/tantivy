@@ -4,6 +4,7 @@ use std::sync::Arc;
 mod set;
 mod set_block;
 
+use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes, VInt};
 pub use set::{SelectCursor, Set, SetCodec};
 use set_block::{
@@ -266,8 +267,8 @@ impl OptionalIndex {
             .unwrap_or(true));
         let mut buffer = Vec::new();
         serialize_optional_index(&row_ids, num_rows, &mut buffer).unwrap();
-        let bytes = OwnedBytes::new(buffer);
-        open_optional_index(bytes).unwrap()
+        let file_slice = FileSlice::from(buffer);
+        open_optional_index(file_slice).unwrap()
     }
 
     pub fn num_docs(&self) -> RowId {
@@ -515,10 +516,17 @@ fn deserialize_optional_index_block_metadatas(
     (block_metas.into_boxed_slice(), non_null_rows_before_block)
 }
 
-pub fn open_optional_index(bytes: OwnedBytes) -> io::Result<OptionalIndex> {
-    let (mut bytes, num_non_empty_blocks_bytes) = bytes.rsplit(2);
-    let num_non_empty_block_bytes =
-        u16::from_le_bytes(num_non_empty_blocks_bytes.as_slice().try_into().unwrap());
+pub fn open_optional_index(file_slice: FileSlice) -> io::Result<OptionalIndex> {
+    let (bytes, num_non_empty_blocks_bytes) = file_slice.split_from_end(2);
+    let num_non_empty_block_bytes = u16::from_le_bytes(
+        num_non_empty_blocks_bytes
+            .read_bytes()?
+            .as_slice()
+            .try_into()
+            .unwrap(),
+    );
+
+    let mut bytes = bytes.read_bytes()?;
     let num_rows = VInt::deserialize_u64(&mut bytes)? as u32;
     let block_metas_num_bytes =
         num_non_empty_block_bytes as usize * SERIALIZED_BLOCK_META_NUM_BYTES;

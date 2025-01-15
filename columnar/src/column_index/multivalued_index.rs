@@ -3,7 +3,8 @@ use std::io::Write;
 use std::ops::Range;
 use std::sync::Arc;
 
-use common::{CountingWriter, OwnedBytes};
+use common::file_slice::FileSlice;
+use common::CountingWriter;
 
 use super::optional_index::{open_optional_index, serialize_optional_index};
 use super::{OptionalIndex, SerializableOptionalIndex, Set};
@@ -44,21 +45,26 @@ pub fn serialize_multivalued_index(
 }
 
 pub fn open_multivalued_index(
-    bytes: OwnedBytes,
+    file_slice: FileSlice,
     format_version: Version,
 ) -> io::Result<MultiValueIndex> {
     match format_version {
         Version::V1 => {
             let start_index_column: Arc<dyn ColumnValues<RowId>> =
-                load_u64_based_column_values(bytes)?;
+                load_u64_based_column_values(file_slice)?;
             Ok(MultiValueIndex::MultiValueIndexV1(MultiValueIndexV1 {
                 start_index_column,
             }))
         }
         Version::V2 => {
-            let (body_bytes, optional_index_len) = bytes.rsplit(4);
-            let optional_index_len =
-                u32::from_le_bytes(optional_index_len.as_slice().try_into().unwrap());
+            let (body_bytes, optional_index_len) = file_slice.split_from_end(4);
+            let optional_index_len = u32::from_le_bytes(
+                optional_index_len
+                    .read_bytes()?
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
+            );
             let (optional_index_bytes, start_index_bytes) =
                 body_bytes.split(optional_index_len as usize);
             let optional_index = open_optional_index(optional_index_bytes)?;
@@ -185,8 +191,8 @@ impl MultiValueIndex {
         };
         let mut buffer = Vec::new();
         serialize_multivalued_index(&serializable_multivalued_index, &mut buffer).unwrap();
-        let bytes = OwnedBytes::new(buffer);
-        open_multivalued_index(bytes, Version::V2).unwrap()
+        let file_slice = FileSlice::from(buffer);
+        open_multivalued_index(file_slice, Version::V2).unwrap()
     }
 
     pub fn get_start_index_column(&self) -> &Arc<dyn crate::ColumnValues<RowId>> {

@@ -822,7 +822,6 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-
     use rand::seq::SliceRandom;
     use rand::thread_rng;
     use test::Bencher;
