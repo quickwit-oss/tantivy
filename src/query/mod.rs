@@ -1,6 +1,7 @@
 mod all_query;
 mod automaton_weight;
 mod bitset;
+mod block_join_query;
 mod bm25;
 mod boolean_query;
 mod boost_query;
@@ -14,6 +15,7 @@ mod explanation;
 mod fuzzy_query;
 mod intersection;
 mod more_like_this;
+mod nested_document_query;
 mod phrase_prefix_query;
 mod phrase_query;
 mod query;
@@ -36,6 +38,9 @@ pub use query_grammar::Occur;
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
+pub use self::block_join_query::{
+    BlockJoinQuery, BlockJoinScoreMode, BlockJoinScorer, BlockJoinWeight,
+};
 pub use self::bm25::{Bm25StatisticsProvider, Bm25Weight};
 pub use self::boolean_query::{BooleanQuery, BooleanWeight};
 pub use self::boost_query::{BoostQuery, BoostWeight};

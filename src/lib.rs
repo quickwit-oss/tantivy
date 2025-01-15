@@ -1,3 +1,4 @@
+#![allow(warnings)]
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]

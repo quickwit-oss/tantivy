@@ -730,6 +730,28 @@ impl<D: Document> IndexWriter<D> {
         Ok(opstamp)
     }
 
+    /// Adds multiple documents as a block.
+    ///
+    /// This method allows adding multiple documents together as a single block.
+    /// This is important for nested documents, where child documents need to be
+    /// added before their parent document, and they need to be stored together
+    /// in the same block.
+    ///
+    /// The opstamp returned is the opstamp of the last document added.
+    pub fn add_documents(&self, documents: Vec<D>) -> crate::Result<Opstamp> {
+        let count = documents.len() as u64;
+        if count == 0 {
+            return Ok(self.stamper.stamp());
+        }
+        let (batch_opstamp, stamps) = self.get_batch_opstamps(count);
+        let mut adds = AddBatch::default();
+        for (document, opstamp) in documents.into_iter().zip(stamps) {
+            adds.push(AddOperation { opstamp, document });
+        }
+        self.send_add_documents_batch(adds)?;
+        Ok(batch_opstamp)
+    }
+
     /// Gets a range of stamps from the stamper and "pops" the last stamp
     /// from the range returning a tuple of the last optstamp and the popped
     /// range.
@@ -836,6 +858,7 @@ mod tests {
         STRING, TEXT,
     };
     use crate::store::DOCSTORE_CACHE_CAPACITY;
+    use crate::Result;
     use crate::{
         DateTime, DocAddress, Index, IndexSettings, IndexWriter, ReloadPolicy, TantivyDocument,
         Term,
@@ -1253,6 +1276,188 @@ mod tests {
         };
         assert_eq!(num_docs_containing("a")?, 0);
         assert_eq!(num_docs_containing("b")?, 100);
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_documents() -> Result<()> {
+        // Create a simple schema with one text field
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        // Create an index in RAM
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+
+        // Create multiple documents
+        let docs = vec![
+            doc!(text_field => "hello"),
+            doc!(text_field => "world"),
+            doc!(text_field => "tantivy"),
+        ];
+
+        // Add documents using add_documents
+        let opstamp = index_writer.add_documents(docs)?;
+        assert_eq!(opstamp, 3u64); // Since we have three documents, opstamp should be 3
+
+        // Commit the changes
+        index_writer.commit()?;
+
+        // Create a reader and searcher
+        let reader = index.reader()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+
+        // Verify that the documents are indexed correctly
+        let term = Term::from_field_text(text_field, "hello");
+        let query = TermQuery::new(term, IndexRecordOption::Basic);
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        assert_eq!(top_docs.len(), 1);
+
+        let term = Term::from_field_text(text_field, "world");
+        let query = TermQuery::new(term, IndexRecordOption::Basic);
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        assert_eq!(top_docs.len(), 1);
+
+        let term = Term::from_field_text(text_field, "tantivy");
+        let query = TermQuery::new(term, IndexRecordOption::Basic);
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        assert_eq!(top_docs.len(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_documents_empty() -> Result<()> {
+        // Test adding an empty list of documents
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+
+        let docs: Vec<TantivyDocument> = Vec::new();
+        let opstamp = index_writer.add_documents(docs)?;
+        assert_eq!(opstamp, 0u64);
+
+        // Since no documents were added, committing should not change anything
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+
+        // Search for any documents, expecting none
+        let term = Term::from_field_text(text_field, "any");
+        let query = TermQuery::new(term, IndexRecordOption::Basic);
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        assert_eq!(top_docs.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_documents_order() -> Result<()> {
+        // Test that documents are indexed in the order they are added
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT | STORED);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+
+        // Create multiple documents
+        let docs = vec![
+            doc!(text_field => "doc1"),
+            doc!(text_field => "doc2"),
+            doc!(text_field => "doc3"),
+        ];
+
+        // Add documents using add_documents
+        index_writer.add_documents(docs)?;
+        index_writer.commit()?;
+
+        // Create a reader and searcher
+        let reader = index.reader()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+
+        // Collect documents and verify their order
+        let all_docs = searcher
+            .segment_readers()
+            .iter()
+            .flat_map(|segment_reader| {
+                let store_reader = segment_reader.get_store_reader(1000).unwrap();
+                segment_reader
+                    .doc_ids_alive()
+                    .map(move |doc_id| store_reader.get::<TantivyDocument>(doc_id).unwrap())
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(all_docs.len(), 3);
+        assert_eq!(
+            all_docs[0].get_first(text_field).unwrap().as_str(),
+            Some("doc1")
+        );
+        assert_eq!(
+            all_docs[1].get_first(text_field).unwrap().as_str(),
+            Some("doc2")
+        );
+        assert_eq!(
+            all_docs[2].get_first(text_field).unwrap().as_str(),
+            Some("doc3")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_documents_concurrency() -> Result<()> {
+        // Test adding documents concurrently
+        use std::sync::mpsc;
+        use std::thread;
+
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+
+        // Create a channel to send documents to the indexer
+        let (doc_sender, doc_receiver) = mpsc::channel();
+
+        // Spawn a thread to add documents
+        let sender_clone = doc_sender.clone();
+        let handle = thread::spawn(move || {
+            let docs = vec![doc!(text_field => "threaded")];
+            for doc in docs {
+                sender_clone.send(doc).unwrap();
+            }
+        });
+
+        // Drop the extra sender to close the channel when done
+        drop(doc_sender);
+
+        // Indexer thread
+        for doc in doc_receiver {
+            index_writer.add_document(doc)?;
+        }
+
+        index_writer.commit()?;
+        handle.join().unwrap();
+
+        let reader = index.reader()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+
+        let term = Term::from_field_text(text_field, "threaded");
+        let query = TermQuery::new(term, IndexRecordOption::Basic);
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        assert_eq!(top_docs.len(), 1);
+
         Ok(())
     }
 

@@ -257,6 +257,28 @@ impl BooleanQuery {
     pub fn clauses(&self) -> &[(Occur, Box<dyn Query>)] {
         &self.subqueries[..]
     }
+
+    /// Adds a clause (occurrence, query) to the boolean query
+    pub fn add_clause(&mut self, occur: Occur, query: Box<dyn Query>) {
+        self.subqueries.push((occur, query));
+        // Update minimum_number_should_match based on new clause
+        if occur == Occur::Should {
+            // If we only have SHOULD clauses, require at least one match
+            let mut has_other = false;
+            for (other_occur, _) in &self.subqueries {
+                if *other_occur != Occur::Should {
+                    has_other = true;
+                    break;
+                }
+            }
+            if !has_other {
+                self.minimum_number_should_match = 1;
+            }
+        } else {
+            // If we have any MUST/MUST_NOT, don't require SHOULD matches
+            self.minimum_number_should_match = 0;
+        }
+    }
 }
 
 #[cfg(test)]
