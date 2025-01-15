@@ -321,7 +321,7 @@ fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
         UserInputLeaf::Exists {
             field: String::new(),
         },
-        tuple((multispace0, char('*'))),
+        tuple((multispace0, char('*'), peek(alt((multispace1, eof))))),
     )(inp)
 }
 
@@ -331,7 +331,8 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
         peek(tuple((
             field_name,
             multispace0,
-            char('*'), // when we are here, we know it can't be anything but a exists
+            char('*'),
+            peek(alt((multispace1, eof))), // we need to check this isn't a wildcard query
         ))),
     )(inp)
     .map_err(|e| e.map(|_| ()))
@@ -1626,11 +1627,11 @@ mod test {
     fn test_exist_query() {
         test_parse_query_to_ast_helper("a:*", "\"a\":*");
         test_parse_query_to_ast_helper("a: *", "\"a\":*");
-        // an exist followed by default term being b
-        test_is_parse_err("a:*b", "(*\"a\":* *b)");
 
-        // this is a term query (not a phrase prefix)
+        // these are term/wildcard query (not a phrase prefix)
         test_parse_query_to_ast_helper("a:b*", "\"a\":b*");
+        test_parse_query_to_ast_helper("a:*b", "\"a\":*b");
+        test_parse_query_to_ast_helper(r#"a:*def*"#, "\"a\":*def*");
     }
 
     #[test]
