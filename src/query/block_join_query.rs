@@ -78,11 +78,8 @@ impl fmt::Debug for BlockJoinQuery {
 
 impl Query for BlockJoinQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> Result<Box<dyn Weight>> {
-        println!("BlockJoinQuery::weight() - Creating weights");
         let child_weight = self.child_query.weight(enable_scoring.clone())?;
-        println!("BlockJoinQuery::weight() - Created child weight");
         let parents_weight = self.parents_filter.weight(enable_scoring)?;
-        println!("BlockJoinQuery::weight() - Created parent weight");
 
         Ok(Box::new(BlockJoinWeight {
             child_weight,
@@ -139,19 +136,11 @@ pub struct BlockJoinWeight {
 
 impl Weight for BlockJoinWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        println!(
-            "BlockJoinWeight::scorer() - Creating scorer with boost {}",
-            boost
-        );
-
         let max_doc = reader.max_doc();
-        println!("BlockJoinWeight::scorer() - Max doc value: {}", max_doc);
         let mut parents_bitset = BitSet::with_max_value(max_doc);
 
         // Create a scorer for parent documents
-        println!("BlockJoinWeight::scorer() - Creating parent scorer");
         let mut parents_scorer = self.parents_weight.scorer(reader, boost.clone())?;
-        println!("BlockJoinWeight::scorer() - Parent scorer created");
 
         // Iterate through all parent documents and filter based on child matches
         let mut found_parent = false;
@@ -160,10 +149,6 @@ impl Weight for BlockJoinWeight {
 
         while parents_scorer.doc() != TERMINATED {
             let parent_doc = parents_scorer.doc();
-            println!(
-                "BlockJoinWeight::scorer() - Found parent doc: {}",
-                parent_doc
-            );
 
             // Define the range of child documents for this parent
             let start_doc = if previous_parent == TERMINATED {
@@ -201,13 +186,7 @@ impl Weight for BlockJoinWeight {
             parents_scorer.advance();
         }
 
-        println!(
-            "BlockJoinWeight::scorer() - Found {} parent documents with matching children",
-            parent_count
-        );
-
         if !found_parent {
-            println!("BlockJoinWeight::scorer() - No parents found with matching children, returning empty scorer");
             return Ok(Box::new(EmptyScorer));
         }
 
@@ -220,10 +199,6 @@ impl Weight for BlockJoinWeight {
             }
         }
 
-        println!(
-            "BlockJoinWeight::scorer() - Creating BlockJoinScorer (first_parent: {})",
-            first_parent
-        );
         let scorer = BlockJoinScorer {
             child_scorer: self.child_weight.scorer(reader, boost)?,
             parent_docs: parents_bitset,
@@ -258,24 +233,14 @@ impl Weight for BlockJoinWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        println!(
-            "BlockJoinWeight::for_each_pruning() - Starting with threshold {}",
-            threshold
-        );
-
         // Create a scorer for parent documents
         let mut parents_scorer = self.parents_weight.scorer(reader, 1.0)?;
-        println!("BlockJoinWeight::for_each_pruning() - Parent scorer created");
 
         let mut previous_parent = TERMINATED;
 
         // Iterate through all parent documents
         while parents_scorer.doc() != TERMINATED {
             let parent_doc = parents_scorer.doc();
-            println!(
-                "BlockJoinWeight::for_each_pruning() - Found parent doc: {}",
-                parent_doc
-            );
 
             // Define the range of child documents for this parent
             let start_doc = if previous_parent == TERMINATED {
@@ -315,23 +280,11 @@ impl Weight for BlockJoinWeight {
                 };
 
                 if score >= threshold {
-                    println!(
-                        "BlockJoinWeight::for_each_pruning() - Processing parent doc: {}, score: {}",
-                        parent_doc, score
-                    );
                     let new_threshold = callback(parent_doc, score);
-                    println!(
-                        "BlockJoinWeight::for_each_pruning() - New threshold after callback: {}",
-                        new_threshold
-                    );
 
                     // Update the threshold
                     if new_threshold > score {
                         // If the new threshold is higher than the current score, we can stop early
-                        println!(
-                            "BlockJoinWeight::for_each_pruning() - Early termination as new threshold {} > score {}",
-                            new_threshold, score
-                        );
                         break;
                     }
                 }
@@ -343,7 +296,6 @@ impl Weight for BlockJoinWeight {
             parents_scorer.advance();
         }
 
-        println!("BlockJoinWeight::for_each_pruning() - Completed");
         Ok(())
     }
 }
@@ -425,7 +377,6 @@ impl DocSet for BlockJoinScorer {
 
 impl BlockJoinScorer {
     fn initialize(&mut self) {
-        println!("Initializing BlockJoinScorer...");
         if !self.initialized {
             // Initialize the child scorer
             let _child_doc = self.child_scorer.advance();
@@ -442,26 +393,19 @@ impl BlockJoinScorer {
             }
 
             self.initialized = true;
-            println!(
-                "Initialization complete: current_parent={}, has_more={}",
-                self.current_parent, self.has_more
-            );
         }
     }
 
     fn find_next_parent(&self, from: DocId) -> DocId {
-        println!("Finding next parent from {}", from);
         let mut current = from;
         let max_val = self.parent_docs.max_value();
 
         while current <= max_val {
             if self.parent_docs.contains(current) {
-                println!("Found parent at {}", current);
                 return current;
             }
             current += 1;
         }
-        println!("No more parents found");
         TERMINATED
     }
 
@@ -1099,11 +1043,8 @@ mod first_advance_tests {
 
         let mut scorer = block_join_weight.scorer(segment_reader, 1.0)?;
 
-        println!("Initial doc: {}", scorer.doc());
-
         // First advance should find the parent
         let first_doc = scorer.advance();
-        println!("After first advance: {}", first_doc);
 
         assert_eq!(
             first_doc, 1,
@@ -1112,7 +1053,6 @@ mod first_advance_tests {
 
         // Subsequent advance should find TERMINATED
         let next_doc = scorer.advance();
-        println!("After second advance: {}", next_doc);
 
         assert_eq!(
             next_doc, TERMINATED,
@@ -1396,16 +1336,8 @@ mod block_membership_tests {
 
         // First verify parents are correctly indexed
         let parent_docs = searcher.search(&parent_query, &TopDocs::with_limit(10))?;
-        println!(
-            "\n=== Parent documents found directly ({} results) ===",
-            parent_docs.len()
-        );
-        for (i, doc) in parent_docs.iter().enumerate() {
-            println!("Parent {}: doc_id={}, score={}", i, doc.1.doc_id, doc.0);
-        }
 
         // Test the block join query scoring
-        println!("\n=== Testing block join query ===");
         let block_join_query = BlockJoinQuery::new(
             Box::new(child_query.clone()),
             Box::new(parent_query.clone()),
@@ -1413,24 +1345,12 @@ mod block_membership_tests {
         );
 
         let collector = TopDocs::with_limit(10);
-        println!("\n=== Searching with collector (limit: 10) ===");
 
         let top_docs = searcher.search(&block_join_query, &collector)?;
-        println!(
-            "\n=== Search completed, found {} results ===",
-            top_docs.len()
-        );
-
-        for (i, doc) in top_docs.iter().enumerate() {
-            println!("Result {}: doc_id={}, score={}", i, doc.1.doc_id, doc.0);
-        }
-
-        println!("\nAsserting results...");
         assert_eq!(top_docs.len(), 2, "Should find both parent documents");
 
         let mut result_ids: Vec<DocId> = top_docs.iter().map(|(_score, doc)| doc.doc_id).collect();
         result_ids.sort_unstable();
-        println!("Sorted result IDs: {:?}", result_ids);
 
         assert_eq!(result_ids[0], 2, "Should find parent at position 2");
         assert_eq!(result_ids[1], 4, "Should find parent at position 4");
@@ -1454,7 +1374,6 @@ mod block_membership_tests {
             IndexRecordOption::Basic,
         );
 
-        println!("\n=== Creating block join scorer ===");
         let block_join_query = BlockJoinQuery::new(
             Box::new(child_query),
             Box::new(parent_query),
@@ -1464,22 +1383,17 @@ mod block_membership_tests {
         let weight = block_join_query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
         let mut scorer = weight.scorer(segment_reader, 1.0)?;
 
-        println!("\n=== Testing scorer directly ===");
         let mut docs = Vec::new();
         let initial_doc = scorer.doc();
-        println!("Initial doc: {}", initial_doc);
 
         // First advance
         let mut current = scorer.advance();
-        println!("First advance: {}", current);
 
         while current != TERMINATED {
             docs.push(current);
             current = scorer.advance();
-            println!("Advanced to: {}", current);
         }
 
-        println!("\nCollected docs: {:?}", docs);
         assert!(!docs.is_empty(), "Scorer should find documents");
         assert_eq!(docs.len(), 2, "Should find both parents");
         assert_eq!(docs[0], 2, "First parent should be at position 2");
