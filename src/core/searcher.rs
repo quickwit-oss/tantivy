@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::{fmt, io};
 
 use crate::collector::Collector;
@@ -86,7 +86,7 @@ impl Searcher {
     /// The searcher uses the segment ordinal to route the
     /// request to the right `Segment`.
     pub fn doc<D: DocumentDeserialize>(&self, doc_address: DocAddress) -> crate::Result<D> {
-        let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
+        let store_reader = &self.inner.store_readers()[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
     }
 
@@ -96,7 +96,7 @@ impl Searcher {
     pub fn doc_store_cache_stats(&self) -> CacheStats {
         let cache_stats: CacheStats = self
             .inner
-            .store_readers
+            .store_readers()
             .iter()
             .map(|reader| reader.cache_stats())
             .sum();
@@ -110,7 +110,7 @@ impl Searcher {
         doc_address: DocAddress,
     ) -> crate::Result<D> {
         let executor = self.inner.index.search_executor();
-        let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
+        let store_reader = &self.inner.store_readers()[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id, executor).await
     }
 
@@ -258,8 +258,9 @@ impl From<Arc<SearcherInner>> for Searcher {
 pub(crate) struct SearcherInner {
     schema: Schema,
     index: Index,
+    doc_store_cache_num_blocks: usize,
     segment_readers: Vec<SegmentReader>,
-    store_readers: Vec<StoreReader>,
+    store_readers: OnceLock<Vec<StoreReader>>,
     generation: TrackedObject<SearcherGeneration>,
 }
 
@@ -280,17 +281,28 @@ impl SearcherInner {
             generation.segments(),
             "Set of segments referenced by this Searcher and its SearcherGeneration must match"
         );
-        let store_readers: Vec<StoreReader> = segment_readers
-            .iter()
-            .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_num_blocks))
-            .collect::<io::Result<Vec<_>>>()?;
 
         Ok(SearcherInner {
             schema,
             index,
+            doc_store_cache_num_blocks,
             segment_readers,
-            store_readers,
+            store_readers: OnceLock::default(),
             generation,
+        })
+    }
+
+    #[inline]
+    fn store_readers(&self) -> &[StoreReader] {
+        self.store_readers.get_or_init(|| {
+            self.segment_readers
+                .iter()
+                .map(|segment_reader| {
+                    segment_reader
+                        .get_store_reader(self.doc_store_cache_num_blocks)
+                        .expect("should be able to get store reader")
+                })
+                .collect()
         })
     }
 }
