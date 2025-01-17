@@ -1,12 +1,15 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::ops::BitOrAssign;
+use std::path::PathBuf;
+use std::sync::{Arc, OnceLock, RwLock};
 use std::{fmt, io};
 
 use common::{ByteCount, HasLen};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 
-use crate::directory::{CompositeFile, FileSlice};
+use crate::directory::error::OpenReadError;
+use crate::directory::{CompositeFile, FileSlice, ManagedDirectory};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
@@ -16,7 +19,7 @@ use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
-use crate::{DocId, Opstamp};
+use crate::{Directory, DocId, Index, Opstamp, SegmentMeta};
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -30,22 +33,25 @@ use crate::{DocId, Opstamp};
 /// as close to all of the memory data is mmapped.
 #[derive(Clone)]
 pub struct SegmentReader {
-    inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
-
+    index: Index,
     segment_id: SegmentId,
+    custom_alive_bitset: Option<AliveBitSet>,
+
+    inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
     delete_opstamp: Option<Opstamp>,
 
     max_doc: DocId,
-    num_docs: DocId,
+    num_docs: Arc<OnceLock<DocId>>,
 
-    termdict_composite: CompositeFile,
-    postings_composite: CompositeFile,
-    positions_composite: CompositeFile,
-    fast_fields_readers: FastFieldReaders,
-    fieldnorm_readers: FieldNormReaders,
+    termdict_composite: Arc<OnceLock<CompositeFile>>,
+    postings_composite: Arc<OnceLock<CompositeFile>>,
+    positions_composite: Arc<OnceLock<CompositeFile>>,
+    fast_fields_readers: Arc<OnceLock<FastFieldReaders>>,
+    fieldnorm_readers: Arc<OnceLock<FieldNormReaders>>,
 
-    store_file: FileSlice,
-    alive_bitset_opt: Option<AliveBitSet>,
+    store_file: Arc<OnceLock<FileSlice>>,
+    has_deletes: bool,
+    alive_bitset_opt: Arc<OnceLock<Option<AliveBitSet>>>,
     schema: Schema,
 }
 
@@ -59,7 +65,12 @@ impl SegmentReader {
     /// Returns the number of alive documents.
     /// Deleted documents are not counted.
     pub fn num_docs(&self) -> DocId {
-        self.num_docs
+        *self.num_docs.get_or_init(|| {
+            self.alive_bitset_opt()
+                .as_ref()
+                .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
+                .unwrap_or(self.max_doc)
+        })
     }
 
     /// Returns the schema of the index this segment belongs to.
@@ -70,7 +81,7 @@ impl SegmentReader {
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
-        self.max_doc - self.num_docs
+        self.max_doc - self.num_docs()
     }
 
     /// Returns true if some of the documents of the segment have been deleted.
@@ -89,7 +100,7 @@ impl SegmentReader {
     /// # Panics
     /// May panic if the index is corrupted.
     pub fn fast_fields(&self) -> &FastFieldReaders {
-        &self.fast_fields_readers
+        self.fast_fields_readers()
     }
 
     /// Accessor to the `FacetReader` associated with a given `Field`.
@@ -116,7 +127,7 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
     pub fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader> {
-        self.fieldnorm_readers.get_field(field)?.ok_or_else(|| {
+        self.fieldnorm_readers().get_field(field)?.ok_or_else(|| {
             let field_name = self.schema.get_field_name(field);
             let err_msg = format!(
                 "Field norm not found for field {field_name:?}. Was the field set to record norm \
@@ -128,7 +139,7 @@ impl SegmentReader {
 
     #[doc(hidden)]
     pub fn fieldnorms_readers(&self) -> &FieldNormReaders {
-        &self.fieldnorm_readers
+        self.fieldnorm_readers()
     }
 
     /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
@@ -136,7 +147,7 @@ impl SegmentReader {
     /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
     /// The size of blocks is configurable, this should be reflexted in the
     pub fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone(), cache_num_blocks)
+        StoreReader::open(self.store_file().clone(), cache_num_blocks)
     }
 
     /// Open a new segment for reading.
@@ -149,61 +160,27 @@ impl SegmentReader {
         segment: &Segment,
         custom_bitset: Option<AliveBitSet>,
     ) -> crate::Result<SegmentReader> {
-        let termdict_file = segment.open_read(SegmentComponent::Terms)?;
-        let termdict_composite = CompositeFile::open(&termdict_file)?;
-
-        let store_file = segment.open_read(SegmentComponent::Store)?;
-
-        crate::fail_point!("SegmentReader::open#middle");
-
-        let postings_file = segment.open_read(SegmentComponent::Postings)?;
-        let postings_composite = CompositeFile::open(&postings_file)?;
-
-        let positions_composite = {
-            if let Ok(positions_file) = segment.open_read(SegmentComponent::Positions) {
-                CompositeFile::open(&positions_file)?
-            } else {
-                CompositeFile::empty()
-            }
-        };
-
-        let schema = segment.schema();
-
-        let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
-        let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
-        let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
-        let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-
-        let original_bitset = if segment.meta().has_deletes() {
-            let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
-            let alive_doc_data = alive_doc_file_slice.read_bytes()?;
-            Some(AliveBitSet::open(alive_doc_data))
-        } else {
-            None
-        };
-
-        let alive_bitset_opt = intersect_alive_bitset(original_bitset, custom_bitset);
-
-        let max_doc = segment.meta().max_doc();
-        let num_docs = alive_bitset_opt
-            .as_ref()
-            .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
-            .unwrap_or(max_doc);
-
         Ok(SegmentReader {
-            inv_idx_reader_cache: Default::default(),
-            num_docs,
-            max_doc,
-            termdict_composite,
-            postings_composite,
-            fast_fields_readers,
-            fieldnorm_readers,
+            index: segment.index().clone(),
             segment_id: segment.id(),
+            custom_alive_bitset: custom_bitset,
+
+            inv_idx_reader_cache: Default::default(),
             delete_opstamp: segment.meta().delete_opstamp(),
-            store_file,
-            alive_bitset_opt,
-            positions_composite,
-            schema,
+
+            max_doc: segment.meta().max_doc(),
+            num_docs: Default::default(),
+
+            termdict_composite: Default::default(),
+            postings_composite: Default::default(),
+            positions_composite: Default::default(),
+            fast_fields_readers: Default::default(),
+            fieldnorm_readers: Default::default(),
+
+            store_file: Default::default(),
+            has_deletes: segment.meta().has_deletes(),
+            alive_bitset_opt: Default::default(),
+            schema: segment.schema(),
         })
     }
 
@@ -236,7 +213,7 @@ impl SegmentReader {
             warn!("Field {:?} does not seem indexed.", field_entry.name());
         }
 
-        let postings_file_opt = self.postings_composite.open_read(field);
+        let postings_file_opt = self.postings_composite().open_read(field);
 
         if postings_file_opt.is_none() || record_option_opt.is_none() {
             // no documents in the segment contained this field.
@@ -251,7 +228,7 @@ impl SegmentReader {
         let postings_file = postings_file_opt.unwrap();
 
         let termdict_file: FileSlice =
-            self.termdict_composite.open_read(field).ok_or_else(|| {
+            self.termdict_composite().open_read(field).ok_or_else(|| {
                 DataCorruption::comment_only(format!(
                     "Failed to open field {:?}'s term dictionary in the composite file. Has the \
                      schema been modified?",
@@ -259,7 +236,7 @@ impl SegmentReader {
                 ))
             })?;
 
-        let positions_file = self.positions_composite.open_read(field).ok_or_else(|| {
+        let positions_file = self.positions_composite().open_read(field).ok_or_else(|| {
             let error_msg = format!(
                 "Failed to open field {:?}'s positions in the composite file. Has the schema been \
                  modified?",
@@ -431,7 +408,7 @@ impl SegmentReader {
 
     /// Returns the bitset representing the alive `DocId`s.
     pub fn alive_bitset(&self) -> Option<&AliveBitSet> {
-        self.alive_bitset_opt.as_ref()
+        self.alive_bitset_opt().as_ref()
     }
 
     /// Returns true if the `doc` is marked
@@ -444,7 +421,7 @@ impl SegmentReader {
 
     /// Returns an iterator that will iterate over the alive document ids
     pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_> {
-        if let Some(alive_bitset) = &self.alive_bitset_opt {
+        if let Some(alive_bitset) = self.alive_bitset_opt() {
             Box::new(alive_bitset.iter_alive())
         } else {
             Box::new(0u32..self.max_doc)
@@ -455,17 +432,122 @@ impl SegmentReader {
     pub fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
         Ok(SegmentSpaceUsage::new(
             self.num_docs(),
-            self.termdict_composite.space_usage(self.schema()),
-            self.postings_composite.space_usage(self.schema()),
-            self.positions_composite.space_usage(self.schema()),
-            self.fast_fields_readers.space_usage()?,
-            self.fieldnorm_readers.space_usage(self.schema()),
+            self.termdict_composite().space_usage(self.schema()),
+            self.postings_composite().space_usage(self.schema()),
+            self.positions_composite().space_usage(self.schema()),
+            self.fast_fields_readers().space_usage()?,
+            self.fieldnorm_readers().space_usage(self.schema()),
             self.get_store_reader(0)?.space_usage(),
-            self.alive_bitset_opt
+            self.alive_bitset_opt()
                 .as_ref()
                 .map(AliveBitSet::space_usage)
                 .unwrap_or_default(),
         ))
+    }
+
+    fn relative_path(&self, component: SegmentComponent) -> PathBuf {
+        let mut path = self.segment_id().uuid_string();
+        path.push_str(&match component {
+            SegmentComponent::Postings => ".idx".to_string(),
+            SegmentComponent::Positions => ".pos".to_string(),
+            SegmentComponent::Terms => ".term".to_string(),
+            SegmentComponent::Store => ".store".to_string(),
+            SegmentComponent::TempStore => ".store.temp".to_string(),
+            SegmentComponent::FastFields => ".fast".to_string(),
+            SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
+            SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+        });
+        PathBuf::from(path)
+    }
+
+    fn open_read(&self, component: SegmentComponent) -> Result<FileSlice, OpenReadError> {
+        let path = self.relative_path(component);
+        self.index.directory().open_read(&path)
+    }
+
+    #[inline]
+    fn store_file(&self) -> &FileSlice {
+        self.store_file.get_or_init(move || {
+            self.open_read(SegmentComponent::Store)
+                .expect("should be able to open store segment component")
+        })
+    }
+
+    #[inline]
+    fn termdict_composite(&self) -> &CompositeFile {
+        self.termdict_composite.get_or_init(move || {
+            CompositeFile::open(
+                &self
+                    .open_read(SegmentComponent::Terms)
+                    .expect("should be able to open termdict segment component"),
+            )
+            .expect("should be able to open termdict composite file")
+        })
+    }
+
+    #[inline]
+    fn postings_composite(&self) -> &CompositeFile {
+        self.postings_composite.get_or_init(move || {
+            CompositeFile::open(
+                &self
+                    .open_read(SegmentComponent::Postings)
+                    .expect("should be able to open postings segment component"),
+            )
+            .expect("should be able to open postings composite file")
+        })
+    }
+
+    #[inline]
+    fn positions_composite(&self) -> &CompositeFile {
+        self.positions_composite.get_or_init(move || {
+            if let Ok(positions_file) = &self.open_read(SegmentComponent::Positions) {
+                CompositeFile::open(&positions_file)
+                    .expect("should be able to open positions composite component")
+            } else {
+                CompositeFile::empty()
+            }
+        })
+    }
+
+    #[inline]
+    fn fast_fields_readers(&self) -> &FastFieldReaders {
+        self.fast_fields_readers.get_or_init(move || {
+            FastFieldReaders::open(
+                self.open_read(SegmentComponent::FastFields)
+                    .expect("should be able to open fast fields segment component"),
+                self.schema.clone(),
+            )
+            .expect("should be able to open fast fields readers")
+        })
+    }
+
+    #[inline]
+    fn fieldnorm_readers(&self) -> &FieldNormReaders {
+        self.fieldnorm_readers.get_or_init(move || {
+            FieldNormReaders::open(
+                self.open_read(SegmentComponent::FieldNorms)
+                    .expect("should be able to open field norms segment component"),
+            )
+            .expect("should be able to open field norms readers")
+        })
+    }
+
+    #[inline]
+    fn alive_bitset_opt(&self) -> &Option<AliveBitSet> {
+        self.alive_bitset_opt.get_or_init(move || {
+            let physical_alive_bitset = if self.has_deletes {
+                Some(AliveBitSet::open(
+                    self.open_read(SegmentComponent::Delete)
+                        .expect("should be able to open deletes segment component")
+                        .read_bytes()
+                        .expect("should be able to read deletes segment component"),
+                ))
+            } else {
+                None
+            };
+
+            intersect_alive_bitset(physical_alive_bitset, self.custom_alive_bitset.clone())
+        })
     }
 }
 
@@ -473,12 +555,12 @@ impl SegmentReader {
 /// FieldMetadata
 pub struct FieldMetadata {
     /// The field name
-    // Notice: Don't reorder the declaration of 1.field_name 2.typ, as it is used for ordering by
-    // field_name then typ.
+    /// Notice: Don't reorder the declaration of 1.field_name 2.typ, as it is used for ordering by
+    /// field_name then typ.
     pub field_name: String,
     /// The field type
-    // Notice: Don't reorder the declaration of 1.field_name 2.typ, as it is used for ordering by
-    // field_name then typ.
+    /// Notice: Don't reorder the declaration of 1.field_name 2.typ, as it is used for ordering by
+    /// field_name then typ.
     pub typ: Type,
     /// Is the field stored in the doc store
     pub stored: bool,
@@ -577,8 +659,8 @@ fn intersect_alive_bitset(
 }
 
 impl fmt::Debug for SegmentReader {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SegmentReader({:?})", self.segment_id)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SegmentReader({:?})", self.segment_id())
     }
 }
 
