@@ -20,6 +20,7 @@ pub struct BlockJoinCollector {
 
 impl BlockJoinCollector {
     pub fn new() -> BlockJoinCollector {
+        println!("BlockJoinCollector::new => Creating a new BlockJoinCollector with empty groups.");
         BlockJoinCollector {
             groups: Vec::new(),
             current_reader_base: 0,
@@ -41,8 +42,11 @@ impl Collector for BlockJoinCollector {
         reader: &SegmentReader,
     ) -> Result<Box<dyn crate::collector::SegmentCollector<Fruit = ()>>> {
         let base = self.current_reader_base;
+        println!("BlockJoinCollector::set_segment => segment_id: {}, max_doc: {}", _segment_id, reader.max_doc());
         self.current_reader_base += reader.max_doc();
+        println!("BlockJoinCollector::set_segment => Updated current_reader_base to: {}", self.current_reader_base);
         let mut parent_bitset = BitSet::with_max_value(reader.max_doc());
+        println!("BlockJoinCollector::set_segment => Creating new BlockJoinSegmentCollector with base: {}", base);
         // In a real scenario, you'd identify the parent docs here using a filter.
         // For this conceptual example, we assume parents are known externally.
         // You might need to pass that information in or have a filter pre-applied.
@@ -58,12 +62,14 @@ impl Collector for BlockJoinCollector {
         true
     }
 
-    fn collect(&mut self, _doc: DocId, _score: Score) -> Result<()> {
+    fn collect(&mut self, doc: DocId, score: Score) -> Result<()> {
         // This method won't be called directly if we rely on segment collectors.
+        println!("BlockJoinCollector::collect => WARNING: This shouldn't be called! doc: {}, score: {}", doc, score);
         Ok(())
     }
 
     fn harvest(self) -> Result<Self::Fruit> {
+        println!("BlockJoinCollector::harvest => final groups len = {}", self.groups.len());
         Ok(())
     }
 }
@@ -78,6 +84,8 @@ impl<'a> crate::collector::SegmentCollector for BlockJoinSegmentCollector<'a> {
     type Fruit = ();
 
     fn collect(&mut self, doc: DocId, score: Score) {
+        println!("BlockJoinSegmentCollector::collect => Processing doc: {}, score: {}", doc, score);
+        
         // In a more complete implementation, you'd need
         // logic to detect transitions from child docs to parent doc.
         //
@@ -92,13 +100,17 @@ impl<'a> crate::collector::SegmentCollector for BlockJoinSegmentCollector<'a> {
         // we hit them:
         if self.parent_bitset.contains(doc) {
             // It's a parent doc
+            println!("BlockJoinSegmentCollector::collect => doc {} is a parent; starting new group", doc);
             self.parent_groups
                 .push((self.base + doc, Vec::new(), Vec::new()));
         } else {
             // It's a child doc - associate it with last parent
             if let Some(last) = self.parent_groups.last_mut() {
+                println!("BlockJoinSegmentCollector::collect => doc {} is a child; appending to last group", doc);
                 last.1.push(self.base + doc);
                 last.2.push(score);
+            } else {
+                println!("BlockJoinSegmentCollector::collect => WARNING: Found child doc {} but no parent group exists!", doc);
             }
         }
     }
@@ -108,6 +120,7 @@ impl<'a> crate::collector::SegmentCollector for BlockJoinSegmentCollector<'a> {
     }
 
     fn harvest(self) -> Result<Self::Fruit> {
+        println!("BlockJoinSegmentCollector::harvest => harvesting, total parent_groups: {}", self.parent_groups.len());
         Ok(())
     }
 }
