@@ -582,7 +582,7 @@ impl FieldType {
             JsonValue::Number(field_val_num) => {
                 println!("Processing Number value: {}", field_val_num);
                 match self {
-                FieldType::I64(_) | FieldType::Date(_) => {
+                    FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
                         Ok(OwnedValue::I64(field_val_i64))
                     } else {
@@ -646,7 +646,7 @@ impl FieldType {
             JsonValue::Object(json_map) => {
                 println!("Processing Object value: {:?}", json_map);
                 match self {
-                FieldType::Str(_) => {
+                    FieldType::Str(_) => {
                     if let Ok(tok_str_val) = serde_json::from_value::<PreTokenizedString>(
                         serde_json::Value::Object(json_map.clone()),
                     ) {
@@ -667,8 +667,8 @@ impl FieldType {
             JsonValue::Bool(json_bool_val) => {
                 println!("Processing Bool value: {}", json_bool_val);
                 match self {
-                FieldType::Bool(_) => Ok(OwnedValue::Bool(json_bool_val)),
-                FieldType::Str(opt) => {
+                    FieldType::Bool(_) => Ok(OwnedValue::Bool(json_bool_val)),
+                    FieldType::Str(opt) => {
                     if opt.should_coerce() {
                         Ok(OwnedValue::Str(json_bool_val.to_string()))
                     } else {
@@ -687,7 +687,7 @@ impl FieldType {
             JsonValue::Null => {
                 println!("Processing Null value");
                 match self {
-                FieldType::Str(opt) => {
+                    FieldType::Str(opt) => {
                     if opt.should_coerce() {
                         Ok(OwnedValue::Str("null".to_string()))
                     } else {
