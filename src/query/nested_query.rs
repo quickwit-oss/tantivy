@@ -60,6 +60,10 @@ impl NestedQuery {
         score_mode: NestedScoreMode,
         collect_inner_hits: bool,
     ) -> Self {
+        println!(
+            "NestedQuery::new => child_query={:?}, parent_flag_field={:?}, score_mode={:?}, collect_inner_hits={}",
+            child_query, parent_flag_field, score_mode, collect_inner_hits
+        );
         NestedQuery {
             child_query,
             parent_flag_field,
@@ -162,17 +166,21 @@ impl Weight for NestedWeight {
         // 1) identify parents (docs where parent_flag_field == true)
         let max_doc = reader.max_doc();
         let mut parent_bitset = BitSet::with_max_value(max_doc);
+        println!("NestedWeight::scorer => building parent_bitset, max_doc={}", max_doc);
 
         let mut parent_scorer = self.parents_weight.scorer(reader, boost)?;
         let mut found_parent = false;
 
         while parent_scorer.doc() != TERMINATED {
-            parent_bitset.insert(parent_scorer.doc());
+            let doc_id = parent_scorer.doc();
+            println!("Found parent doc_id={}", doc_id);
+            parent_bitset.insert(doc_id);
             parent_scorer.advance();
             found_parent = true;
         }
 
         if !found_parent {
+            println!("No parents => returning EmptyScorer");
             // No parent => no matches
             return Ok(Box::new(EmptyScorer));
         }
@@ -254,10 +262,14 @@ pub struct NestedScorer {
 
 impl DocSet for NestedScorer {
     fn advance(&mut self) -> DocId {
+        println!("NestedScorer::advance called, current_parent={}, doc_has_more={}, initialized={}", 
+                self.current_parent, self.doc_has_more, self.initialized);
         if !self.doc_has_more {
+            println!("No more docs, returning TERMINATED");
             return TERMINATED;
         }
         if !self.initialized {
+            println!("First advance() call, initializing");
             self.initialized = true;
             // child_scorer at first doc
             self.child_scorer.advance();
@@ -298,18 +310,22 @@ impl Scorer for NestedScorer {
 
 impl NestedScorer {
     fn find_next_parent(&self, start_doc: DocId) -> DocId {
+        println!("find_next_parent: searching from start_doc={}", start_doc);
         let max_val = self.parent_docs.max_value();
         let mut d = start_doc;
         while d <= max_val {
             if self.parent_docs.contains(d) {
+                println!("find_next_parent: found parent at doc_id={}", d);
                 return d;
             }
             d += 1;
         }
+        println!("find_next_parent: no more parents found, returning TERMINATED");
         TERMINATED
     }
 
     fn collect_children_for_parent(&mut self) {
+        println!("collect_children_for_parent: starting collection for parent={}", self.current_parent);
         self.last_collected_hits.child_doc_ids.clear();
 
         let start_doc = if self.current_parent == 0 {
@@ -319,6 +335,7 @@ impl NestedScorer {
             // But for simplicity, we just keep advancing the child_scorer while child_scorer.doc < current_parent
             0
         };
+        println!("collect_children_for_parent: searching from start_doc={} to parent={}", start_doc, self.current_parent);
 
         // gather all child docs in [start_doc .. parent_doc)
         let mut child_scores = vec![];
@@ -326,20 +343,27 @@ impl NestedScorer {
         while self.child_scorer.doc() != TERMINATED && self.child_scorer.doc() < self.current_parent
         {
             let cd = self.child_scorer.doc();
+            println!("Examining potential child doc_id={}", cd);
             // But skip if there's an intervening parent doc
             if !self.is_intervening_parent(cd, self.current_parent) {
                 let s = self.child_scorer.score();
+                println!("Found valid child doc_id={} with score={}", cd, s);
                 child_scores.push(s);
                 if self.collect_inner_hits {
                     self.last_collected_hits.child_doc_ids.push(cd);
+                    println!("Added to inner_hits, current child_doc_ids={:?}", self.last_collected_hits.child_doc_ids);
                 }
+            } else {
+                println!("Skipping doc_id={} due to intervening parent", cd);
             }
             self.child_scorer.advance();
         }
 
         if child_scores.is_empty() {
+            println!("No valid children found, setting score=0.0");
             self.current_score = 0.0;
         } else {
+            println!("Computing final score from child_scores={:?}", child_scores);
             self.current_score = match self.score_mode {
                 NestedScoreMode::Avg => {
                     let sum: f32 = child_scores.iter().sum();
