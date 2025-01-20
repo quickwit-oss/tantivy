@@ -244,19 +244,54 @@ impl FieldType {
 
     /// returns true if the field is indexed.
     pub fn is_indexed(&self) -> bool {
-        match *self {
-            FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => int_options.is_indexed(),
-            FieldType::Date(ref date_options) => date_options.is_indexed(),
-            FieldType::Facet(ref _facet_options) => true,
-            FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
-            FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
-            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
-            FieldType::Nested(ref nested_options) => nested_options.is_indexed(),
-        }
+        let result = match *self {
+            FieldType::Str(ref text_options) => {
+                println!("Checking if Str field is indexed: {:?}", text_options);
+                text_options.get_indexing_options().is_some()
+            }
+            FieldType::U64(ref int_options) => {
+                println!("Checking if U64 field is indexed: {:?}", int_options);
+                int_options.is_indexed()
+            }
+            FieldType::I64(ref int_options) => {
+                println!("Checking if I64 field is indexed: {:?}", int_options);
+                int_options.is_indexed()
+            }
+            FieldType::F64(ref int_options) => {
+                println!("Checking if F64 field is indexed: {:?}", int_options);
+                int_options.is_indexed()
+            }
+            FieldType::Bool(ref int_options) => {
+                println!("Checking if Bool field is indexed: {:?}", int_options);
+                int_options.is_indexed()
+            }
+            FieldType::Date(ref date_options) => {
+                println!("Checking if Date field is indexed: {:?}", date_options);
+                date_options.is_indexed()
+            }
+            FieldType::Facet(ref facet_options) => {
+                println!("Checking if Facet field is indexed: {:?}", facet_options);
+                true
+            }
+            FieldType::Bytes(ref bytes_options) => {
+                println!("Checking if Bytes field is indexed: {:?}", bytes_options);
+                bytes_options.is_indexed()
+            }
+            FieldType::JsonObject(ref json_object_options) => {
+                println!("Checking if JsonObject field is indexed: {:?}", json_object_options);
+                json_object_options.is_indexed()
+            }
+            FieldType::IpAddr(ref ip_addr_options) => {
+                println!("Checking if IpAddr field is indexed: {:?}", ip_addr_options);
+                ip_addr_options.is_indexed()
+            }
+            FieldType::Nested(ref nested_options) => {
+                println!("Checking if Nested field is indexed: {:?}", nested_options);
+                nested_options.is_indexed()
+            }
+        };
+        println!("is_indexed() returning: {}", result);
+        result
     }
 
     /// Returns the index record option for the field.
@@ -282,19 +317,54 @@ impl FieldType {
 
     /// returns true if the field is fast.
     pub fn is_fast(&self) -> bool {
-        match *self {
-            FieldType::Bytes(ref bytes_options) => bytes_options.is_fast(),
-            FieldType::Str(ref text_options) => text_options.is_fast(),
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => int_options.is_fast(),
-            FieldType::Date(ref date_options) => date_options.is_fast(),
-            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
-            FieldType::Facet(_) => true,
-            FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
-            FieldType::Nested(ref nested_options) => nested_options.is_fast(),
-        }
+        let result = match *self {
+            FieldType::Bytes(ref bytes_options) => {
+                println!("Checking if Bytes field is fast: {:?}", bytes_options);
+                bytes_options.is_fast()
+            }
+            FieldType::Str(ref text_options) => {
+                println!("Checking if Str field is fast: {:?}", text_options);
+                text_options.is_fast()
+            }
+            FieldType::U64(ref int_options) => {
+                println!("Checking if U64 field is fast: {:?}", int_options);
+                int_options.is_fast()
+            }
+            FieldType::I64(ref int_options) => {
+                println!("Checking if I64 field is fast: {:?}", int_options);
+                int_options.is_fast()
+            }
+            FieldType::F64(ref int_options) => {
+                println!("Checking if F64 field is fast: {:?}", int_options);
+                int_options.is_fast()
+            }
+            FieldType::Bool(ref int_options) => {
+                println!("Checking if Bool field is fast: {:?}", int_options);
+                int_options.is_fast()
+            }
+            FieldType::Date(ref date_options) => {
+                println!("Checking if Date field is fast: {:?}", date_options);
+                date_options.is_fast()
+            }
+            FieldType::IpAddr(ref ip_addr_options) => {
+                println!("Checking if IpAddr field is fast: {:?}", ip_addr_options);
+                ip_addr_options.is_fast()
+            }
+            FieldType::Facet(ref facet_options) => {
+                println!("Checking if Facet field is fast: {:?}", facet_options);
+                true
+            }
+            FieldType::JsonObject(ref json_object_options) => {
+                println!("Checking if JsonObject field is fast: {:?}", json_object_options);
+                json_object_options.is_fast()
+            }
+            FieldType::Nested(ref nested_options) => {
+                println!("Checking if Nested field is fast: {:?}", nested_options);
+                nested_options.is_fast()
+            }
+        };
+        println!("is_fast() returning: {}", result);
+        result
     }
 
     /// returns true if the field is normed (see [fieldnorms](crate::fieldnorm)).
@@ -382,13 +452,20 @@ impl FieldType {
         &self,
         json: serde_json::Value,
     ) -> Result<OwnedValue, ValueParsingError> {
+        println!("\nvalue_from_json called with JSON: {:?}", json);
+        println!("Field type is: {:?}", self);
+        
         if let FieldType::Nested(_nested_opts) = self {
+            println!("Nested field detected - returning error");
             return Err(ValueParsingError::TypeError {
                 expected: "nested field must be expanded via custom logic",
                 json,
             });
         }
-        self.value_from_json_non_nested(json)
+        println!("Delegating to value_from_json_non_nested");
+        let result = self.value_from_json_non_nested(json);
+        println!("value_from_json returning: {:?}", result);
+        result
     }
 
     /// Parses a field value from json, given the target FieldType.
@@ -401,8 +478,12 @@ impl FieldType {
         &self,
         json: JsonValue,
     ) -> Result<OwnedValue, ValueParsingError> {
-        match json {
+        println!("\nvalue_from_json_non_nested called with JSON: {:?}", json);
+        println!("Field type is: {:?}", self);
+        
+        let result = match json {
             JsonValue::String(field_text) => {
+                println!("Processing String value: {}", field_text);
                 match self {
                     FieldType::Date(_) => {
                         let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
@@ -498,7 +579,9 @@ impl FieldType {
                     }),
                 }
             }
-            JsonValue::Number(field_val_num) => match self {
+            JsonValue::Number(field_val_num) => {
+                println!("Processing Number value: {}", field_val_num);
+                match self {
                 FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
                         Ok(OwnedValue::I64(field_val_i64))
@@ -560,7 +643,9 @@ impl FieldType {
                     json: JsonValue::Number(field_val_num),
                 }),
             },
-            JsonValue::Object(json_map) => match self {
+            JsonValue::Object(json_map) => {
+                println!("Processing Object value: {:?}", json_map);
+                match self {
                 FieldType::Str(_) => {
                     if let Ok(tok_str_val) = serde_json::from_value::<PreTokenizedString>(
                         serde_json::Value::Object(json_map.clone()),
@@ -579,7 +664,9 @@ impl FieldType {
                     json: JsonValue::Object(json_map),
                 }),
             },
-            JsonValue::Bool(json_bool_val) => match self {
+            JsonValue::Bool(json_bool_val) => {
+                println!("Processing Bool value: {}", json_bool_val);
+                match self {
                 FieldType::Bool(_) => Ok(OwnedValue::Bool(json_bool_val)),
                 FieldType::Str(opt) => {
                     if opt.should_coerce() {
@@ -597,7 +684,9 @@ impl FieldType {
                 }),
             },
             // Could also just filter them
-            JsonValue::Null => match self {
+            JsonValue::Null => {
+                println!("Processing Null value");
+                match self {
                 FieldType::Str(opt) => {
                     if opt.should_coerce() {
                         Ok(OwnedValue::Str("null".to_string()))
