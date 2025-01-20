@@ -157,6 +157,12 @@ impl SegmentWriter {
             let values = field_values.map(|el| el.1);
 
             let field_entry = self.schema.get_field_entry(field);
+            debug!(
+                "SegmentWriter => doc_id={}, field={}, field_type={:?}",
+                doc_id,
+                field_entry.name(),
+                field_entry.field_type()
+            );
             let make_schema_error = || {
                 TantivyError::SchemaError(format!(
                     "Expected a {:?} for field {:?}",
@@ -197,12 +203,24 @@ impl SegmentWriter {
                         let value = value.as_value();
 
                         let mut token_stream = if let Some(text) = value.as_str() {
+                            debug!(
+                                "SegmentWriter => tokenizing text for doc_id={}, field={}: '{}'",
+                                doc_id, field_entry.name(), text
+                            );
                             let text_analyzer =
                                 &mut self.per_field_text_analyzers[field.field_id() as usize];
                             text_analyzer.token_stream(text)
                         } else if let Some(tok_str) = value.into_pre_tokenized_text() {
+                            debug!(
+                                "SegmentWriter => using pre-tokenized text for doc_id={}, field={}",
+                                doc_id, field_entry.name()
+                            );
                             BoxTokenStream::new(PreTokenizedStream::from(*tok_str.clone()))
                         } else {
+                            debug!(
+                                "SegmentWriter => skipping non-text value for doc_id={}, field={}",
+                                doc_id, field_entry.name()
+                            );
                             continue;
                         };
 
@@ -227,9 +245,19 @@ impl SegmentWriter {
 
                         num_vals += 1;
                         let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
+                        debug!(
+                            "SegmentWriter => indexing u64 value for doc_id={}, field={}: {}",
+                            doc_id, field_entry.name(), u64_val
+                        );
                         term_buffer.set_u64(u64_val);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
+                    debug!(
+                        "SegmentWriter => indexing normal field: field={}, doc_id={}, num_vals={}",
+                        field_entry.name(),
+                        doc_id,
+                        num_vals
+                    );
                     if field_entry.has_fieldnorms() {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
@@ -282,6 +310,10 @@ impl SegmentWriter {
                         let value = value.as_value();
                         num_vals += 1;
                         let bool_val = value.as_bool().ok_or_else(make_schema_error)?;
+                        debug!(
+                            "SegmentWriter => indexing bool value for doc_id={}, field={}: {}",
+                            doc_id, field_entry.name(), bool_val
+                        );
                         term_buffer.set_bool(bool_val);
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, ctx);
                     }
@@ -339,6 +371,10 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::Nested(_nested_opts) => {
+                    debug!(
+                        "SegmentWriter => skipping nested field indexing for doc_id={}",
+                        doc_id
+                    );
                     // Here, we skip indexing because these fields
                     // have already been expanded into child docs
                     // at parse time (parse_json_for_nested).
