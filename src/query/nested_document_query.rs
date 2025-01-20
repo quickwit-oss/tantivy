@@ -40,6 +40,10 @@ impl NestedDocumentQuery {
         parents_filter: Box<dyn Query>,
         score_mode: ScoreMode,
     ) -> NestedDocumentQuery {
+        println!(
+            "NestedDocumentQuery => creating with child_query={:?}, parents_filter={:?}, score_mode={:?}",
+            child_query, parents_filter, score_mode
+        );
         NestedDocumentQuery {
             child_query,
             parents_filter,
@@ -60,9 +64,10 @@ impl fmt::Debug for NestedDocumentQuery {
 
 impl Query for NestedDocumentQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> Result<Box<dyn Weight>> {
-        println!("Creating weights for NestedDocumentQuery");
+        println!("NestedDocumentQuery::weight => building child_weight and parents_weight");
         let child_weight = self.child_query.weight(enable_scoring)?;
         let parents_weight = self.parents_filter.weight(enable_scoring)?;
+        println!("NestedDocumentQuery::weight => done building weights");
 
         Ok(Box::new(NestedDocumentWeight {
             child_weight,
@@ -102,13 +107,14 @@ struct NestedDocumentWeight {
 
 impl Weight for NestedDocumentWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
-        println!("\n=== Creating NestedDocumentScorer for segment ===");
+        println!("\n=== NestedDocumentWeight::scorer => Creating scorer for segment ===");
         println!("Max doc in segment: {}", reader.max_doc());
+        println!("Boost value: {}", boost);
 
         // Create parents bitset
         let mut parents_bitset = BitSet::with_max_value(reader.max_doc());
 
-        println!("Building parents bitset with boost: {}", boost);
+        println!("Building parents bitset...");
         let mut parents_scorer = self.parents_weight.scorer(reader, boost)?;
 
         // Collect all parent documents
@@ -127,11 +133,12 @@ impl Weight for NestedDocumentWeight {
 
         // If no parents in this segment, return empty scorer
         if !found_parent {
-            println!("No parents found in segment, returning empty scorer");
+            println!("NestedDocumentWeight::scorer => No parents found in segment, returning empty scorer");
             return Ok(Box::new(EmptyScorer));
         }
 
-        println!("Total parent docs found: {}", parents_bitset.len());
+        println!("NestedDocumentWeight::scorer => Found {} parent docs in segment", parents_bitset.len());
+        println!("Parent doc IDs: {:?}", parents_bitset.iter().collect::<Vec<_>>());
 
         // Get child scorer
         let child_scorer = self.child_weight.scorer(reader, boost)?;
@@ -196,11 +203,14 @@ struct NestedDocumentScorer {
 
 impl DocSet for NestedDocumentScorer {
     fn advance(&mut self) -> DocId {
+        println!("\nNestedDocumentScorer::advance => Starting advance");
         // If we are out of docs, just return TERMINATED.
         if !self.has_more {
+            println!("NestedDocumentScorer::advance => No more docs available");
             return TERMINATED;
         }
 
+        println!("NestedDocumentScorer::advance => Current parent: {}", self.current_parent);
         // If this is the first time we advance, initialize the child scorer.
         if !self.initialized {
             // Advance the child scorer once to position it properly.
@@ -264,14 +274,13 @@ impl NestedDocumentScorer {
 
     fn collect_matches(&mut self) -> DocId {
         println!(
-            "\n>>> Collecting matches for parent: {}",
+            "\nNestedDocumentScorer::collect_matches => Processing parent doc: {}",
             self.current_parent
         );
 
         let mut child_doc = self.child_scorer.doc();
-        println!(">>> Using current child doc: {}", child_doc);
-        println!(">>> Current parent: {}", self.current_parent);
-        println!(">>> Has more: {}", self.has_more);
+        println!("Current child doc: {}", child_doc);
+        println!("Has more docs: {}", self.has_more);
 
         let mut child_scores = Vec::new();
 
@@ -332,21 +341,24 @@ impl NestedDocumentScorer {
                 ScoreMode::Avg => {
                     let avg = child_scores.iter().sum::<Score>() / child_scores.len() as Score;
                     println!(
-                        ">>> Average score for parent {}: {}",
-                        self.current_parent, avg
+                        "Score computation: mode=Avg, scores={:?}, final_score={}",
+                        child_scores, avg
                     );
                     avg
                 }
                 ScoreMode::Max => {
                     let max = child_scores.iter().copied().fold(f32::MIN, f32::max);
-                    println!(">>> Max score for parent {}: {}", self.current_parent, max);
+                    println!(
+                        "Score computation: mode=Max, scores={:?}, final_score={}",
+                        child_scores, max
+                    );
                     max
                 }
                 ScoreMode::Total => {
                     let sum: Score = child_scores.iter().sum();
                     println!(
-                        ">>> Total score for parent {}: {}",
-                        self.current_parent, sum
+                        "Score computation: mode=Total, scores={:?}, final_score={}",
+                        child_scores, sum
                     );
                     sum
                 }
