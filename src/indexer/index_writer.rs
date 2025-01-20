@@ -346,14 +346,17 @@ impl<D: Document> IndexWriter<D> {
 
     /// Accessor to the index.
     pub fn index(&self) -> &Index {
+        println!("IndexWriter::index() => returning reference to index");
         &self.index
     }
 
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
     pub fn wait_merging_threads(mut self) -> crate::Result<()> {
+        println!("IndexWriter::wait_merging_threads() => starting");
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
+        println!("IndexWriter::wait_merging_threads() => dropping sender");
         self.drop_sender();
 
         let former_workers_handles = std::mem::take(&mut self.workers_join_handle);
@@ -378,11 +381,15 @@ impl<D: Document> IndexWriter<D> {
 
     #[doc(hidden)]
     pub fn add_segment(&self, segment_meta: SegmentMeta) -> crate::Result<()> {
+        println!("IndexWriter::add_segment() => adding segment {:?}", segment_meta);
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        self.segment_updater
+        println!("IndexWriter::add_segment() => scheduling segment addition");
+        let result = self.segment_updater
             .schedule_add_segment(segment_entry)
-            .wait()
+            .wait();
+        println!("IndexWriter::add_segment() => completed with result: {:?}", result);
+        result
     }
 
     /// Creates a new segment.
@@ -394,7 +401,10 @@ impl<D: Document> IndexWriter<D> {
     /// These will not be garbage collected as long as an instance object of
     /// `SegmentMeta` object associated with the new `Segment` is "alive".
     pub fn new_segment(&self) -> Segment {
-        self.index.new_segment()
+        println!("IndexWriter::new_segment() => creating new segment");
+        let segment = self.index.new_segment();
+        println!("IndexWriter::new_segment() => created segment {:?}", segment);
+        segment
     }
 
     fn operation_receiver(&self) -> crate::Result<AddBatchReceiver<D>> {
@@ -463,11 +473,13 @@ impl<D: Document> IndexWriter<D> {
 
     /// Accessor to the merge policy.
     pub fn get_merge_policy(&self) -> Arc<dyn MergePolicy> {
+        println!("IndexWriter::get_merge_policy() => retrieving merge policy");
         self.segment_updater.get_merge_policy()
     }
 
     /// Setter for the merge policy.
     pub fn set_merge_policy(&self, merge_policy: Box<dyn MergePolicy>) {
+        println!("IndexWriter::set_merge_policy() => setting new merge policy: {:?}", merge_policy);
         self.segment_updater.set_merge_policy(merge_policy);
     }
 
@@ -480,6 +492,7 @@ impl<D: Document> IndexWriter<D> {
 
     /// Detects and removes the files that are not used by the index anymore.
     pub fn garbage_collect_files(&self) -> FutureResult<GarbageCollectionResult> {
+        println!("IndexWriter::garbage_collect_files() => scheduling garbage collection");
         self.segment_updater.schedule_garbage_collect()
     }
 
@@ -520,10 +533,14 @@ impl<D: Document> IndexWriter<D> {
     /// }
     /// ```
     pub fn delete_all_documents(&self) -> crate::Result<Opstamp> {
+        println!("IndexWriter::delete_all_documents() => starting deletion of all documents");
         // Delete segments
+        println!("IndexWriter::delete_all_documents() => removing all segments");
         self.segment_updater.remove_all_segments();
         // Return new stamp - reverted stamp
+        println!("IndexWriter::delete_all_documents() => reverting stamper to committed opstamp: {}", self.committed_opstamp);
         self.stamper.revert(self.committed_opstamp);
+        println!("IndexWriter::delete_all_documents() => completed with opstamp: {}", self.committed_opstamp);
         Ok(self.committed_opstamp)
     }
 
@@ -533,8 +550,11 @@ impl<D: Document> IndexWriter<D> {
     ///
     /// `segment_ids` is required to be non-empty.
     pub fn merge(&mut self, segment_ids: &[SegmentId]) -> FutureResult<Option<SegmentMeta>> {
+        println!("IndexWriter::merge() => starting merge for segments: {:?}", segment_ids);
         let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
+        println!("IndexWriter::merge() => created merge operation");
         let segment_updater = self.segment_updater.clone();
+        println!("IndexWriter::merge() => initiating merge operation");
         segment_updater.start_merge(merge_operation)
     }
 
@@ -739,21 +759,35 @@ impl<D: Document> IndexWriter<D> {
     ///
     /// The opstamp returned is the opstamp of the last document added.
     pub fn add_documents(&self, documents: Vec<D>) -> crate::Result<Opstamp> {
+        println!("\n=== IndexWriter::add_documents() ===");
         let count = documents.len() as u64;
-        println!("IndexWriter::add_documents => adding {} documents", count);
+        println!("Adding {} documents to index", count);
+        
         if count == 0 {
-            println!("IndexWriter::add_documents => no documents to add, returning single stamp");
-            return Ok(self.stamper.stamp());
+            println!("No documents to add, returning single stamp");
+            let stamp = self.stamper.stamp();
+            println!("Generated single stamp: {}", stamp);
+            return Ok(stamp);
         }
+
         let (batch_opstamp, stamps) = self.get_batch_opstamps(count);
-        println!("IndexWriter::add_documents => got opstamp range: batch_opstamp={}, stamps={:?}", batch_opstamp, stamps);
+        println!("Generated opstamp range:");
+        println!("  - Batch opstamp: {}", batch_opstamp);
+        println!("  - Document stamps: {:?}", stamps);
+
         let mut adds = AddBatch::default();
-        println!("IndexWriter::add_documents => about to push docs into AddBatch...");
+        println!("\nPushing documents into batch:");
         for (idx, (document, opstamp)) in documents.into_iter().zip(stamps).enumerate() {
-            println!(" pushing doc #{} with opstamp={}", idx, opstamp);
+            println!("Doc #{}: opstamp={}", idx, opstamp);
             adds.push(AddOperation { opstamp, document });
         }
+
+        println!("\nSending batch to indexing channel...");
         self.send_add_documents_batch(adds)?;
+        
+        println!("Batch sent successfully");
+        println!("Returning batch opstamp: {}", batch_opstamp);
+        println!("=== End add_documents() ===\n");
         Ok(batch_opstamp)
     }
 
@@ -823,20 +857,33 @@ impl<D: Document> IndexWriter<D> {
     }
 
     fn send_add_documents_batch(&self, add_ops: AddBatch<D>) -> crate::Result<()> {
-        println!("IndexWriter::send_add_documents_batch => attempting to send batch");
+        println!("\n=== IndexWriter::send_add_documents_batch() ===");
+        println!("Batch size: {} operations", add_ops.len());
+        
+        println!("Checking index writer status...");
         if self.index_writer_status.is_alive() {
+            println!("Index writer is alive");
+            println!("Channel state:");
+            println!("  - Is operation sender disconnected: {}", self.operation_sender.is_disconnected());
+            println!("  - Operation receiver exists: {}", self.index_writer_status.operation_receiver().is_some());
+            
+            println!("Attempting to send batch through channel...");
             match self.operation_sender.send(add_ops) {
                 Ok(_) => {
-                    println!("IndexWriter::send_add_documents_batch => successfully sent batch");
+                    println!("Successfully sent batch through channel");
+                    println!("=== End send_add_documents_batch() ===\n");
                     Ok(())
                 }
-                Err(_) => {
-                    println!("IndexWriter::send_add_documents_batch => failed to send batch through channel");
+                Err(err) => {
+                    println!("ERROR: Failed to send batch through channel");
+                    println!("Error details: {:?}", err);
+                    println!("=== End send_add_documents_batch() with error ===\n");
                     Err(error_in_index_worker_thread("An index writer was killed."))
                 }
             }
         } else {
-            println!("IndexWriter::send_add_documents_batch => index writer is not alive");
+            println!("ERROR: Index writer is not alive");
+            println!("=== End send_add_documents_batch() with error ===\n");
             Err(error_in_index_worker_thread("An index writer was killed."))
         }
     }
