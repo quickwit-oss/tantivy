@@ -71,6 +71,7 @@ impl SegmentWriter {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
+        debug!("SegmentWriter::for_segment => Creating new segment writer with memory_budget={}", memory_budget_in_bytes);
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
@@ -123,6 +124,7 @@ impl SegmentWriter {
     /// Finalize consumes the `SegmentWriter`, so that it cannot
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
+        debug!("SegmentWriter::finalize => Finalizing segment with max_doc={}", self.max_doc);
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         remap_and_write(
             self.schema,
@@ -146,6 +148,7 @@ impl SegmentWriter {
 
     fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
         let doc_id = self.max_doc;
+        debug!("SegmentWriter::index_document => Starting to index document {}", doc_id);
 
         // TODO: Can this be optimised a bit?
         let vals_grouped_by_field = doc
@@ -158,7 +161,7 @@ impl SegmentWriter {
 
             let field_entry = self.schema.get_field_entry(field);
             debug!(
-                "SegmentWriter => doc_id={}, field={}, field_type={:?}",
+                "SegmentWriter => Processing field: doc_id={}, field={}, field_type={:?}",
                 doc_id,
                 field_entry.name(),
                 field_entry.field_type()
@@ -171,6 +174,10 @@ impl SegmentWriter {
                 ))
             };
             if !field_entry.is_indexed() {
+                debug!(
+                    "SegmentWriter => Skipping non-indexed field: doc_id={}, field={}",
+                    doc_id, field_entry.name()
+                );
                 continue;
             }
 
@@ -199,10 +206,18 @@ impl SegmentWriter {
                 }
                 FieldType::Str(_) => {
                     let mut indexing_position = IndexingPosition::default();
-                    for value in values {
+                    for (i, value) in values.enumerate() {
                         let value = value.as_value();
+                        debug!(
+                            "SegmentWriter => Processing string value #{} for doc_id={}, field={}", 
+                            i, doc_id, field_entry.name()
+                        );
 
                         let mut token_stream = if let Some(text) = value.as_str() {
+                            debug!(
+                                "SegmentWriter => Tokenizing text for doc_id={}, field={}: '{}'",
+                                doc_id, field_entry.name(), text
+                            );
                             debug!(
                                 "SegmentWriter => tokenizing text for doc_id={}, field={}: '{}'",
                                 doc_id, field_entry.name(), text
@@ -240,11 +255,15 @@ impl SegmentWriter {
                 }
                 FieldType::U64(_) => {
                     let mut num_vals = 0;
-                    for value in values {
+                    for (i, value) in values.enumerate() {
                         let value = value.as_value();
 
                         num_vals += 1;
                         let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
+                        debug!(
+                            "SegmentWriter => Processing U64 value #{} for doc_id={}, field={}: {}",
+                            i, doc_id, field_entry.name(), u64_val
+                        );
                         debug!(
                             "SegmentWriter => indexing u64 value for doc_id={}, field={}: {}",
                             doc_id, field_entry.name(), u64_val
@@ -259,6 +278,10 @@ impl SegmentWriter {
                         num_vals
                     );
                     if field_entry.has_fieldnorms() {
+                        debug!(
+                            "SegmentWriter => Recording fieldnorms for doc_id={}, field={}: {} values",
+                            doc_id, field_entry.name(), num_vals
+                        );
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
@@ -372,8 +395,8 @@ impl SegmentWriter {
                 }
                 FieldType::Nested(_nested_opts) => {
                     debug!(
-                        "SegmentWriter => skipping nested field indexing for doc_id={}",
-                        doc_id
+                        "SegmentWriter => Skipping nested field indexing for doc_id={}, field={} (already expanded into child docs)",
+                        doc_id, field_entry.name()
                     );
                     // Here, we skip indexing because these fields
                     // have already been expanded into child docs
