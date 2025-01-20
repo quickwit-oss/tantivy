@@ -196,16 +196,27 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
-    /// Adds a new nested field with the given name and options.
-    pub fn add_nested_field<T: Into<NestedOptions>>(
-        &mut self,
-        field_name_str: &str,
-        nested_options: T,
-    ) -> Field {
-        let field_name = field_name_str.to_string();
-        let nested_opts = nested_options.into();
-        let field_entry = FieldEntry::new_nested(field_name, nested_opts);
-        self.add_field(field_entry)
+    /// Adds a new nested field to the schema, with the given name and NestedOptions.
+    /// Also, if `NestedOptions::store_parent_flag` is true, we create an internal field
+    /// named `_is_parent_<field_name>` so we can easily detect parent docs.
+    pub fn add_nested_field(&mut self, field_name: &str, nested_opts: NestedOptions) -> Field {
+        let field_entry = FieldEntry::new_nested(field_name.to_string(), nested_opts.clone());
+        let field = self.add_field(field_entry);
+        let mut bool_options = if nested_opts.is_indexed() {
+            NumericOptions::default().set_indexed()
+        } else {
+            NumericOptions::default().set_indexed()
+        };
+
+        // If requested, create a boolean field `_is_parent_<field_name>` that the user can set to `true`
+        // when indexing the "parent" doc in a block of docs. This can help us build a parent bitset.
+        if nested_opts.store_parent_flag {
+            let parent_field_name = format!("_is_parent_{}", field_name);
+            let bool_field_entry =
+                FieldEntry::new(parent_field_name.clone(), FieldType::Bool(bool_options));
+            self.add_field(bool_field_entry);
+        }
+        field
     }
 
     /// Adds a field entry to the schema in build.

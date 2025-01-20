@@ -1,13 +1,17 @@
+// src/schema/nested_options.rs
+use crate::schema::TextFieldIndexing;
 use serde::{Deserialize, Serialize};
 
-use super::TextFieldIndexing;
-
+/// Options for a "nested" field in Tantivy.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NestedOptions {
-    /// If true, fields in the nested doc also appear in the parent doc.
+    /// If true, nested child fields also appear in the parent doc.
     pub include_in_parent: bool,
-    /// If true, fields also appear in the root doc (if multiple levels).
+    /// If true, nested child fields also appear in the root doc (if multiple levels).
     pub include_in_root: bool,
+    /// If true, we store a hidden parent flag for each doc.
+    /// Some users may prefer to do parent-detection in a different way.
+    pub store_parent_flag: bool,
 }
 
 impl NestedOptions {
@@ -15,6 +19,7 @@ impl NestedOptions {
         NestedOptions {
             include_in_parent: false,
             include_in_root: false,
+            store_parent_flag: true, // default to true
         }
     }
 
@@ -26,33 +31,30 @@ impl NestedOptions {
         self.include_in_root = val;
         self
     }
+    pub fn set_store_parent_flag(mut self, val: bool) -> Self {
+        self.store_parent_flag = val;
+        self
+    }
 
-    #[inline]
+    pub fn is_indexed(&self) -> bool {
+        // By default, we do not index the nested field itself
+        // because we rely on expansions. If you want to index it,
+        // you'd change this logic.
+        false
+    }
+
     pub fn is_stored(&self) -> bool {
         false
     }
 
-    #[inline]
     pub fn is_fast(&self) -> bool {
         false
     }
 
-    #[inline]
-    pub fn is_indexed(&self) -> bool {
-        false
-    }
-
-    #[inline]
     pub fn fieldnorms(&self) -> bool {
         false
     }
 
-    #[inline]
-    pub fn should_coerce(&self) -> bool {
-        false
-    }
-
-    #[inline]
     pub fn get_text_indexing_options(&self) -> Option<&TextFieldIndexing> {
         None
     }
