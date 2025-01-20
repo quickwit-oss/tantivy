@@ -34,6 +34,7 @@ impl Term {
     pub fn with_capacity(capacity: usize) -> Term {
         let mut data = Vec::with_capacity(TERM_METADATA_LENGTH + capacity);
         data.resize(TERM_METADATA_LENGTH, 0u8);
+        eprintln!("Creating new Term with capacity {}, initial bytes: {:?}", capacity, data);
         Term(data)
     }
 
@@ -107,8 +108,12 @@ impl Term {
     /// Sets field and the type.
     pub(crate) fn set_field_and_type(&mut self, field: Field, typ: Type) {
         assert!(self.is_empty());
-        self.0[0..4].clone_from_slice(field.field_id().to_be_bytes().as_ref());
+        let field_bytes = field.field_id().to_be_bytes();
+        eprintln!("Setting field {:?} (bytes: {:?}) and type {:?} (code: {})", 
+            field, field_bytes, typ, typ.to_code());
+        self.0[0..4].clone_from_slice(field_bytes.as_ref());
         self.0[4] = typ.to_code();
+        eprintln!("Term bytes after setting field and type: {:?}", self.0);
     }
 
     /// Is empty if there are no value bytes.
@@ -303,7 +308,9 @@ where
     /// Returns the field.
     pub fn field(&self) -> Field {
         let field_id_bytes: [u8; 4] = (&self.0.as_ref()[..4]).try_into().unwrap();
-        Field::from_field_id(u32::from_be_bytes(field_id_bytes))
+        let field = Field::from_field_id(u32::from_be_bytes(field_id_bytes));
+        eprintln!("Getting field from Term bytes {:?} -> Field({})", &self.0.as_ref()[..4], field.field_id());
+        field
     }
 
     /// Returns the serialized representation of the value.
@@ -356,6 +363,7 @@ where
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> ValueBytes<B> {
+        eprintln!("Creating ValueBytes wrapper for {:?}", data.as_ref());
         ValueBytes(data)
     }
 
@@ -428,9 +436,21 @@ where
     /// or if the bytes are not valid utf-8.
     pub fn as_str(&self) -> Option<&str> {
         if self.typ() != Type::Str {
+            eprintln!("as_str: Type mismatch - expected Str, got {:?}", self.typ());
             return None;
         }
-        str::from_utf8(self.raw_value_bytes_payload()).ok()
+        let bytes = self.raw_value_bytes_payload();
+        eprintln!("as_str: Converting bytes {:?} to string", bytes);
+        match str::from_utf8(bytes) {
+            Ok(s) => {
+                eprintln!("as_str: Successfully converted to \"{}\"", s);
+                Some(s)
+            }
+            Err(e) => {
+                eprintln!("as_str: Failed to convert bytes to string: {}", e);
+                None
+            }
+        }
     }
 
     /// Returns the facet associated with the term.
@@ -576,7 +596,10 @@ where
     B: AsRef<[u8]>,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.serialized_term().cmp(other.serialized_term())
+        let result = self.serialized_term().cmp(other.serialized_term());
+        eprintln!("Comparing Terms:\n  Left:  {:?}\n  Right: {:?}\n  Result: {:?}", 
+            self.serialized_term(), other.serialized_term(), result);
+        result
     }
 }
 
