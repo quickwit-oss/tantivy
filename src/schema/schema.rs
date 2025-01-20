@@ -40,7 +40,10 @@ pub struct SchemaBuilder {
 impl SchemaBuilder {
     /// Create a new `SchemaBuilder`
     pub fn new() -> SchemaBuilder {
-        SchemaBuilder::default()
+        println!("Creating new SchemaBuilder");
+        let builder = SchemaBuilder::default();
+        println!("Created empty SchemaBuilder");
+        builder
     }
 
     /// Adds a new u64 field.
@@ -200,11 +203,22 @@ impl SchemaBuilder {
     /// Also, if `NestedOptions::store_parent_flag` is true, we create an internal field
     /// named `_is_parent_<field_name>` so we can easily detect parent docs.
     pub fn add_nested_field(&mut self, field_name: &str, nested_opts: NestedOptions) -> Field {
+        println!("Adding nested field '{}' with options:", field_name);
+        println!("  - include_in_parent: {}", nested_opts.include_in_parent);
+        println!("  - include_in_root: {}", nested_opts.include_in_root);
+        println!("  - store_parent_flag: {}", nested_opts.store_parent_flag);
+        
         let field_entry = FieldEntry::new_nested(field_name.to_string(), nested_opts.clone());
+        println!("Created nested field entry");
+        
         let field = self.add_field(field_entry);
+        println!("Added main nested field with ID: {}", field.field_id());
+        
         let mut bool_options = if nested_opts.is_indexed() {
+            println!("Field is indexed, setting indexed bool options");
             NumericOptions::default().set_indexed()
         } else {
+            println!("Field is not indexed, setting default bool options");
             NumericOptions::default().set_indexed()
         };
 
@@ -212,31 +226,45 @@ impl SchemaBuilder {
         // when indexing the "parent" doc in a block of docs. This can help us build a parent bitset.
         if nested_opts.store_parent_flag {
             let parent_field_name = format!("_is_parent_{}", field_name);
+            println!("Creating parent flag field '{}'", parent_field_name);
             let bool_field_entry =
                 FieldEntry::new(parent_field_name.clone(), FieldType::Bool(bool_options));
-            self.add_field(bool_field_entry);
+            let parent_field = self.add_field(bool_field_entry);
+            println!("Added parent flag field with ID: {}", parent_field.field_id());
         }
+        
+        println!("Completed nested field setup for '{}'", field_name);
         field
     }
 
     /// Adds a field entry to the schema in build.
     pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
+        println!("Adding field '{}' of type {:?}", field_entry.name(), field_entry.field_type());
         let field = Field::from_field_id(self.fields.len() as u32);
+        println!("Assigned field ID: {}", field.field_id());
+        
         let field_name = field_entry.name().to_string();
-        if let Some(_previous_value) = self.fields_map.insert(field_name, field) {
+        if let Some(_previous_value) = self.fields_map.insert(field_name.clone(), field) {
             panic!("Field already exists in schema {}", field_entry.name());
         };
         self.fields.push(field_entry);
+        println!("Successfully added field '{}' with ID {}", field_name, field.field_id());
         field
     }
 
     /// Finalize the creation of a `Schema`
     /// This will consume your `SchemaBuilder`
     pub fn build(self) -> Schema {
-        Schema(Arc::new(InnerSchema {
+        println!("Building schema with {} fields:", self.fields.len());
+        for (i, field) in self.fields.iter().enumerate() {
+            println!("  {}: {} ({:?})", i, field.name(), field.field_type());
+        }
+        let schema = Schema(Arc::new(InnerSchema {
             fields: self.fields,
             fields_map: self.fields_map,
-        }))
+        }));
+        println!("Schema built successfully");
+        schema
     }
 }
 #[derive(Debug)]
@@ -333,11 +361,18 @@ impl Schema {
 
     /// Returns the field option associated with a given name.
     pub fn get_field(&self, field_name: &str) -> crate::Result<Field> {
-        self.0
+        println!("Looking up field '{}'", field_name);
+        let result = self.0
             .fields_map
             .get(field_name)
             .cloned()
-            .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()))
+            .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()));
+            
+        match &result {
+            Ok(field) => println!("Found field '{}' with ID {}", field_name, field.field_id()),
+            Err(_) => println!("Field '{}' not found in schema", field_name),
+        }
+        result
     }
 
     /// Searches for a full_path in the schema, returning the field name and a JSON path.
@@ -400,10 +435,13 @@ impl Serialize for Schema {
     where
         S: Serializer,
     {
+        println!("Serializing schema with {} fields", self.0.fields.len());
         let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
-        for e in &self.0.fields {
+        for (i, e) in self.0.fields.iter().enumerate() {
+            println!("Serializing field {}: {} ({:?})", i, e.name(), e.field_type());
             seq.serialize_element(e)?;
         }
+        println!("Schema serialization complete");
         seq.end()
     }
 }
