@@ -26,6 +26,7 @@ impl FieldEntry {
     /// Creates a new field entry given a name and a field type
     pub fn new(field_name: String, field_type: FieldType) -> FieldEntry {
         assert!(is_valid_field_name(&field_name));
+        println!("Creating new FieldEntry with name: {}, type: {:?}", field_name, field_type);
         FieldEntry {
             name: field_name,
             field_type,
@@ -89,11 +90,13 @@ impl FieldEntry {
 
     /// Returns the name of the field
     pub fn name(&self) -> &str {
+        println!("Accessing field name: {}", self.name);
         &self.name
     }
 
     /// Returns the field type
     pub fn field_type(&self) -> &FieldType {
+        println!("Accessing field type: {:?}", self.field_type);
         &self.field_type
     }
 
@@ -101,31 +104,39 @@ impl FieldEntry {
     ///
     /// An indexed field is searchable.
     pub fn is_indexed(&self) -> bool {
-        self.field_type.is_indexed()
+        let indexed = self.field_type.is_indexed();
+        println!("Field {} is_indexed: {}", self.name, indexed);
+        indexed
     }
 
     /// Returns true if the field is normed
     pub fn has_fieldnorms(&self) -> bool {
-        self.field_type.has_fieldnorms()
+        let has_norms = self.field_type.has_fieldnorms();
+        println!("Field {} has_fieldnorms: {}", self.name, has_norms);
+        has_norms
     }
 
     /// Returns true if the field is a fast field
     pub fn is_fast(&self) -> bool {
-        self.field_type.is_fast()
+        let is_fast = self.field_type.is_fast();
+        println!("Field {} is_fast: {}", self.name, is_fast);
+        is_fast
     }
 
     /// Returns true if the field has the expand dots option set (for json fields)
     pub fn is_expand_dots_enabled(&self) -> bool {
-        match self.field_type {
+        let expand_dots = match self.field_type {
             FieldType::JsonObject(ref options) => options.is_expand_dots_enabled(),
             _ => false,
-        }
+        };
+        println!("Field {} is_expand_dots_enabled: {}", self.name, expand_dots);
+        expand_dots
     }
 
     /// Returns true if the field is stored
     #[inline]
     pub fn is_stored(&self) -> bool {
-        match self.field_type {
+        let stored = match self.field_type {
             FieldType::U64(ref options)
             | FieldType::I64(ref options)
             | FieldType::F64(ref options)
@@ -137,7 +148,9 @@ impl FieldEntry {
             FieldType::JsonObject(ref options) => options.is_stored(),
             FieldType::IpAddr(ref options) => options.is_stored(),
             FieldType::Nested(ref options) => options.is_stored(),
-        }
+        };
+        println!("Field {} is_stored: {} (type: {:?})", self.name, stored, self.field_type);
+        stored
     }
 }
 
