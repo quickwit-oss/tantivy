@@ -1,3 +1,4 @@
+// src/query/query_parser/query_parser.rs
 use std::net::{AddrParseError, IpAddr};
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
@@ -428,6 +429,12 @@ impl QueryParser {
         let field_supports_ff_range_queries = field_type.is_fast()
             && is_type_valid_for_fastfield_range_query(field_type.value_type());
 
+        if field_type.is_nested() {
+            return Err(QueryParserError::UnsupportedQuery(
+                "Range query on a nested field is not supported.".to_string(),
+            ));
+        }
+
         if !field_type.is_indexed() && !field_supports_ff_range_queries {
             return Err(QueryParserError::FieldNotIndexed(
                 field_entry.name().to_string(),
@@ -522,6 +529,12 @@ impl QueryParser {
                 let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
                 Ok(Term::from_field_ip_addr(field, ip_v6))
             }
+
+            FieldType::Nested(_) => {
+                return Err(QueryParserError::UnsupportedQuery(
+                    "Range query on a nested field is not supported.".into(),
+                ));
+            }
         }
     }
 
@@ -536,6 +549,13 @@ impl QueryParser {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let field_name = field_entry.name();
+
+        if field_type.is_nested() {
+            return Err(QueryParserError::UnsupportedQuery(
+                "Cannot run direct text search on a `nested` field.".to_string(),
+            ));
+        }
+
         if !field_type.is_indexed() {
             return Err(QueryParserError::FieldNotIndexed(field_name.to_string()));
         }
@@ -621,6 +641,11 @@ impl QueryParser {
                 let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
                 let term = Term::from_field_ip_addr(field, ip_v6);
                 Ok(vec![LogicalLiteral::Term(term)])
+            }
+            FieldType::Nested(_) => {
+                return Err(QueryParserError::UnsupportedQuery(format!(
+                    "Cannot run direct text search on a `nested` field."
+                )));
             }
         }
     }
@@ -1031,8 +1056,8 @@ mod test {
     use super::{QueryParser, QueryParserError};
     use crate::query::Query;
     use crate::schema::{
-        FacetOptions, Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, FAST,
-        INDEXED, STORED, STRING, TEXT,
+        FacetOptions, Field, IndexRecordOption, NestedOptions, Schema, Term, TextFieldIndexing,
+        TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
     };
     use crate::tokenizer::{
         LowerCaser, SimpleTokenizer, StopWordFilter, TextAnalyzer, TokenizerManager,
@@ -1920,6 +1945,35 @@ mod test {
                  distance: 2, transposition_cost_one: false, prefix: true })], \
                  minimum_number_should_match: 1 }"
             );
+        }
+    }
+
+    #[test]
+    fn test_query_parser_nested_errors() {
+        let mut schema_builder = Schema::builder();
+        let nested_opts = NestedOptions::new().set_include_in_parent(true);
+        let nested_field = schema_builder.add_nested_field("nested", nested_opts);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema.clone());
+        let query_parser = QueryParser::for_index(&index, vec![]);
+
+        // range query on nested => error
+        let range_res = query_parser.parse_query("nested:[a TO z]");
+        match range_res {
+            Err(crate::query::QueryParserError::UnsupportedQuery(msg)) => {
+                assert!(msg.contains("Range query on a nested field is not supported"));
+            }
+            other => panic!("Expected an UnsupportedQuery error, got {:?}", other),
+        }
+
+        // direct text on nested => error
+        let text_res = query_parser.parse_query("nested:hello");
+        match text_res {
+            Err(crate::query::QueryParserError::UnsupportedQuery(msg)) => {
+                assert!(msg.contains("Cannot run direct text search on a `nested` field"));
+            }
+            other => panic!("Expected an UnsupportedQuery error, got {:?}", other),
         }
     }
 }

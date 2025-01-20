@@ -202,6 +202,8 @@ pub mod termdict;
 mod docset;
 mod reader;
 
+mod nested_query_test;
+
 #[cfg(test)]
 mod compat_tests;
 

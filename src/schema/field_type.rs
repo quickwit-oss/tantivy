@@ -1,3 +1,4 @@
+// src/schema/field_type.rs
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -9,6 +10,7 @@ use serde_json::Value as JsonValue;
 use thiserror::Error;
 
 use super::ip_options::IpAddrOptions;
+use super::nested_options::{self, NestedOptions};
 use super::IntoIpv6Addr;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
@@ -189,6 +191,8 @@ pub enum FieldType {
     JsonObject(JsonObjectOptions),
     /// IpAddr field
     IpAddr(IpAddrOptions),
+    /// Nested field
+    Nested(NestedOptions),
 }
 
 impl FieldType {
@@ -205,6 +209,11 @@ impl FieldType {
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
             FieldType::IpAddr(_) => Type::IpAddr,
+
+            // For simplicity, treat `Nested` as if it were JSON if code attempts
+            // direct 'value_from_json'. We'll actually do the real expansion logic
+            // separately in `parse_json_for_nested`.
+            FieldType::Nested(_) => Type::Json,
         }
     }
 
@@ -228,6 +237,11 @@ impl FieldType {
         matches!(self, FieldType::Date(_))
     }
 
+    /// returns true if this field is "nested"
+    pub fn is_nested(&self) -> bool {
+        matches!(self, FieldType::Nested(_))
+    }
+
     /// returns true if the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {
@@ -241,6 +255,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
+            FieldType::Nested(ref nested_options) => nested_options.is_indexed(),
         }
     }
 
@@ -278,6 +293,7 @@ impl FieldType {
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
+            FieldType::Nested(ref nested_options) => nested_options.is_fast(),
         }
     }
 
@@ -297,6 +313,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
+            FieldType::Nested(ref nested_options) => nested_options.fieldnorms(),
         }
     }
 
@@ -348,7 +365,30 @@ impl FieldType {
                     None
                 }
             }
+            FieldType::Nested(ref nested_options) => {
+                if nested_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
         }
+    }
+
+    /// In normal usage, a user might attempt to parse the raw JSON field directly.
+    /// If they do so on a `Nested` field, we typically *error* or treat it as object,
+    /// because we want custom block expansions. For demonstration, we return an error here:
+    pub fn value_from_json(
+        &self,
+        json: serde_json::Value,
+    ) -> Result<OwnedValue, ValueParsingError> {
+        if let FieldType::Nested(_nested_opts) = self {
+            return Err(ValueParsingError::TypeError {
+                expected: "nested field must be expanded via custom logic",
+                json,
+            });
+        }
+        self.value_from_json_non_nested(json)
     }
 
     /// Parses a field value from json, given the target FieldType.
@@ -357,7 +397,10 @@ impl FieldType {
     /// For instance, If the json value is the integer `3` and the
     /// target field is a `Str`, this method will return an Error if `coerce`
     /// is not enabled.
-    pub fn value_from_json(&self, json: JsonValue) -> Result<OwnedValue, ValueParsingError> {
+    pub fn value_from_json_non_nested(
+        &self,
+        json: JsonValue,
+    ) -> Result<OwnedValue, ValueParsingError> {
         match json {
             JsonValue::String(field_text) => {
                 match self {
@@ -449,6 +492,10 @@ impl FieldType {
 
                         Ok(OwnedValue::IpAddr(ip_addr.into_ipv6_addr()))
                     }
+                    FieldType::Nested(_) => Err(ValueParsingError::TypeError {
+                        expected: "a nested object",
+                        json: JsonValue::String(field_text),
+                    }),
                 }
             }
             JsonValue::Number(field_val_num) => match self {
@@ -506,6 +553,10 @@ impl FieldType {
                 }),
                 FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
                     expected: "a string with an ip addr",
+                    json: JsonValue::Number(field_val_num),
+                }),
+                FieldType::Nested(_) => Err(ValueParsingError::TypeError {
+                    expected: "a nested object",
                     json: JsonValue::Number(field_val_num),
                 }),
             },

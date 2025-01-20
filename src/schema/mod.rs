@@ -1,3 +1,4 @@
+// src/schema/mod.rs
 //! Schema definition for tantivy's indices.
 //!
 //! # Setting your schema in Tantivy
@@ -123,6 +124,7 @@ mod index_record_option;
 mod ip_options;
 mod json_object_options;
 mod named_field_document;
+mod nested_options;
 mod numeric_options;
 mod text_options;
 
@@ -142,6 +144,7 @@ pub use self::index_record_option::IndexRecordOption;
 pub use self::ip_options::{IntoIpv6Addr, IpAddrOptions};
 pub use self::json_object_options::JsonObjectOptions;
 pub use self::named_field_document::NamedFieldDocument;
+pub use self::nested_options::NestedOptions;
 pub use self::numeric_options::NumericOptions;
 pub use self::schema::{Schema, SchemaBuilder};
 pub use self::term::{Term, ValueBytes};

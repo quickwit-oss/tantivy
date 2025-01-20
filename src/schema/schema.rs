@@ -1,3 +1,4 @@
+// src/schema/schema.rs
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -6,6 +7,7 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use super::nested_options::NestedOptions;
 use super::*;
 use crate::json_utils::split_json_path;
 use crate::TantivyError;
@@ -194,6 +196,18 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a new nested field with the given name and options.
+    pub fn add_nested_field<T: Into<NestedOptions>>(
+        &mut self,
+        field_name_str: &str,
+        nested_options: T,
+    ) -> Field {
+        let field_name = field_name_str.to_string();
+        let nested_opts = nested_options.into();
+        let field_entry = FieldEntry::new_nested(field_name, nested_opts);
+        self.add_field(field_entry)
+    }
+
     /// Adds a field entry to the schema in build.
     pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field::from_field_id(self.fields.len() as u32);
@@ -372,7 +386,9 @@ impl Schema {
 
 impl Serialize for Schema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
         for e in &self.0.fields {
             seq.serialize_element(e)?;
@@ -383,7 +399,9 @@ impl Serialize for Schema {
 
 impl<'de> Deserialize<'de> for Schema {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         struct SchemaVisitor;
 
         impl<'de> Visitor<'de> for SchemaVisitor {
@@ -394,7 +412,9 @@ impl<'de> Deserialize<'de> for Schema {
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where A: SeqAccess<'de> {
+            where
+                A: SeqAccess<'de>,
+            {
                 let mut schema = SchemaBuilder {
                     fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
                     fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),
@@ -1019,5 +1039,35 @@ mod tests {
             schema.find_field_with_default("foobar", Some(default)),
             Some((default, "foobar"))
         );
+    }
+}
+
+mod test_nested_code {
+    use super::*;
+    use crate::index::Index;
+    use crate::query::QueryParser;
+    use crate::schema::document::DocParsingError;
+    use crate::schema::field_type::ValueParsingError;
+    use crate::schema::{
+        self, nested_options::NestedOptions, BytesOptions, DateOptions, FacetOptions, Field,
+        FieldEntry, FieldType, IndexRecordOption, JsonObjectOptions, NumericOptions, Schema,
+        SchemaBuilder, TantivyDocument, TextOptions, Type, STRING, TEXT,
+    };
+    use crate::tokenizer::TokenizerManager;
+    use crate::TantivyError;
+
+    // Test that `FieldEntry::new_nested` creates an entry that is recognized as Nested,
+    // is correctly stored or indexed depending on its NestedOptions, etc.
+    #[test]
+    fn test_field_entry_new_nested() {
+        let nested_opts = NestedOptions::new().set_include_in_parent(false);
+        let field_entry = FieldEntry::new_nested("my_nested".to_string(), nested_opts.clone());
+        assert_eq!(field_entry.name(), "my_nested");
+        assert!(matches!(field_entry.field_type(), FieldType::Nested(_)));
+        // by default, Nested fields might not be "stored" or "indexed" unless you define logic for that:
+        // Here we rely on nested_options' is_stored/is_indexed methods to see what it does.
+        assert_eq!(field_entry.is_indexed(), nested_opts.is_indexed());
+        assert_eq!(field_entry.is_stored(), nested_opts.is_stored());
+        // etc.
     }
 }

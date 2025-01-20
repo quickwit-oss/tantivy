@@ -1,3 +1,4 @@
+// src/indexer/segment_writer.rs
 use columnar::MonotonicallyMappableToU64;
 use common::JsonPathWriter;
 use itertools::Itertools;
@@ -336,6 +337,12 @@ impl SegmentWriter {
                     if field_entry.has_fieldnorms() {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
+                }
+                FieldType::Nested(_nested_opts) => {
+                    // Here, we skip indexing because these fields
+                    // have already been expanded into child docs
+                    // at parse time (parse_json_for_nested).
+                    continue;
                 }
             }
         }

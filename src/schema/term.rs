@@ -1,3 +1,4 @@
+// src/schema/term.rs
 use std::hash::{Hash, Hasher};
 use std::net::Ipv6Addr;
 use std::{fmt, str};
@@ -22,7 +23,8 @@ use crate::DateTime;
 /// The serialized value `ValueBytes` is considered everything after the 4 first bytes (term id).
 #[derive(Clone)]
 pub struct Term<B = Vec<u8>>(B)
-where B: AsRef<[u8]>;
+where
+    B: AsRef<[u8]>;
 
 /// The number of bytes used as metadata by `Term`.
 const TERM_METADATA_LENGTH: usize = 5;
@@ -285,7 +287,8 @@ impl Term {
 }
 
 impl<B> Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {
@@ -344,10 +347,12 @@ where B: AsRef<[u8]>
 /// The nested ValueBytes in JSON is never of type JSON. (there's no recursion)
 #[derive(Clone)]
 pub struct ValueBytes<B>(B)
-where B: AsRef<[u8]>;
+where
+    B: AsRef<[u8]>;
 
 impl<B> ValueBytes<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> ValueBytes<B> {
@@ -567,7 +572,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> Ord for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.serialized_term().cmp(other.serialized_term())
@@ -575,7 +581,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> PartialOrd for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -583,7 +590,8 @@ where B: AsRef<[u8]>
 }
 
 impl<B> PartialEq for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.serialized_term() == other.serialized_term()
@@ -593,7 +601,8 @@ where B: AsRef<[u8]>
 impl<B> Eq for Term<B> where B: AsRef<[u8]> {}
 
 impl<B> Hash for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.as_ref().hash(state)
@@ -608,7 +617,8 @@ fn write_opt<T: std::fmt::Debug>(f: &mut fmt::Formatter, val_opt: Option<T>) -> 
 }
 
 impl<B> fmt::Debug for Term<B>
-where B: AsRef<[u8]>
+where
+    B: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let field_id = self.field().field_id();

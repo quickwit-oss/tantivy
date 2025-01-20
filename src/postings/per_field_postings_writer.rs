@@ -1,3 +1,4 @@
+// src/postings/per_field_postings_writer.rs
 use crate::postings::json_postings_writer::JsonPostingsWriter;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{DocIdRecorder, TermFrequencyRecorder, TfAndPositionRecorder};
@@ -51,7 +52,8 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
         | FieldType::Date(_)
         | FieldType::Bytes(_)
         | FieldType::IpAddr(_)
-        | FieldType::Facet(_) => Box::<SpecializedPostingsWriter<DocIdRecorder>>::default(),
+        | FieldType::Facet(_)
+        | FieldType::Nested(_) => Box::<SpecializedPostingsWriter<DocIdRecorder>>::default(),
         FieldType::JsonObject(ref json_object_options) => {
             if let Some(text_indexing_option) = json_object_options.get_text_indexing_options() {
                 match text_indexing_option.index_option() {
