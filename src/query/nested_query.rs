@@ -10,6 +10,9 @@ use common::BitSet;
 use std::fmt;
 use std::sync::Arc;
 
+/// A sentinel indicating we have not positioned on any doc yet.
+const UNPOSITIONED: DocId = u32::MAX;
+
 /// Score modes for how to compute the parent's score from matched children
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NestedScoreMode {
@@ -98,8 +101,7 @@ impl Clone for NestedQuery {
 impl Query for NestedQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
         let child_weight = self.child_query.weight(enable_scoring)?;
-        // We also build a TermQuery or a specialized query for `parent_flag_field == true`
-        // so we can identify all parent docs. The field must be typed boolean in your schema.
+        // Build a TermQuery for `parent_flag_field == true` to identify parent docs.
         let term = Term::from_field_bool(self.parent_flag_field, true);
         let parents_filter = Box::new(TermQuery::new(
             term,
@@ -124,6 +126,8 @@ impl Query for NestedQuery {
             .scorer(reader, 1.0)?;
 
         let mut doc_id = scorer.doc();
+        // If doc_id == TERMINATED, we might attempt to advance. But typically,
+        // the collector calls `advance()` itself. For "explain," let's do it manually:
         while doc_id != TERMINATED && doc_id < doc_address.doc_id {
             doc_id = scorer.advance();
         }
@@ -147,8 +151,7 @@ impl Query for NestedQuery {
 
     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
         self.child_query.query_terms(visitor);
-        // We also have a hidden parent query we built, if you want to reveal it:
-        // but typically we skip that for user-level query terms
+        // We have a hidden parent query, but typically we skip exposing that to the user.
     }
 }
 
@@ -166,7 +169,10 @@ impl Weight for NestedWeight {
         // 1) identify parents (docs where parent_flag_field == true)
         let max_doc = reader.max_doc();
         let mut parent_bitset = BitSet::with_max_value(max_doc);
-        println!("NestedWeight::scorer => building parent_bitset, max_doc={}", max_doc);
+        println!(
+            "NestedWeight::scorer => building parent_bitset, max_doc={}",
+            max_doc
+        );
 
         let mut parent_scorer = self.parents_weight.scorer(reader, boost)?;
         let mut found_parent = false;
@@ -194,9 +200,12 @@ impl Weight for NestedWeight {
             child_scorer,
             score_mode: self.score_mode,
             collect_inner_hits: self.collect_inner_hits,
-            current_parent: TERMINATED,
+
+            // We start unpositioned.
+            current_parent: UNPOSITIONED,
             doc_has_more: true,
             initialized: false,
+
             last_collected_hits: InnerHits::new(),
             current_score: 0.0,
         };
@@ -214,6 +223,7 @@ impl Weight for NestedWeight {
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         let mut scorer = self.scorer(reader, 1.0)?;
         let mut count = 0u32;
+        // The collector approach: loop while doc != TERMINATED
         while scorer.doc() != TERMINATED {
             count += 1;
             scorer.advance();
@@ -260,44 +270,46 @@ pub struct NestedScorer {
     current_score: f32,
 }
 
+/// The "unpositioned" doc approach is simpler and does not rely on unsafe pointer casts:
 impl DocSet for NestedScorer {
+    fn doc(&self) -> DocId {
+        // If we haven't advanced at all or we are done, we return TERMINATED.
+        if !self.doc_has_more || self.current_parent == UNPOSITIONED {
+            TERMINATED
+        } else {
+            self.current_parent
+        }
+    }
+
     fn advance(&mut self) -> DocId {
-        println!("NestedScorer::advance called, current_parent={}, doc_has_more={}, initialized={}", 
-                self.current_parent, self.doc_has_more, self.initialized);
+        // If we've exhausted our docset, return TERMINATED
         if !self.doc_has_more {
-            println!("No more docs, returning TERMINATED");
             return TERMINATED;
         }
+        // If it's our first advance, also "initialize" child_scorer by skipping to doc=0
+        // or just calling child_scorer.advance() once. (We only do it once.)
         if !self.initialized {
-            println!("First advance() call, initializing");
             self.initialized = true;
-            // child_scorer at first doc
-            self.child_scorer.advance();
+            self.child_scorer.advance(); // position at the first child doc
         }
-        // find the next parent doc
         let next_parent = self.find_next_parent(match self.current_parent {
-            TERMINATED => 0,
+            UNPOSITIONED => 0,
             _ => self.current_parent + 1,
         });
         if next_parent == TERMINATED {
+            // no more parents
             self.doc_has_more = false;
             self.current_parent = TERMINATED;
-            return TERMINATED;
-        }
-        self.current_parent = next_parent;
-        self.collect_children_for_parent();
-        self.current_parent
-    }
-
-    fn doc(&self) -> DocId {
-        if self.doc_has_more {
-            self.current_parent
-        } else {
             TERMINATED
+        } else {
+            self.current_parent = next_parent;
+            self.collect_children_for_parent();
+            self.current_parent
         }
     }
 
     fn size_hint(&self) -> u32 {
+        // Return total # of parent docs
         self.parent_docs.len() as u32
     }
 }
@@ -320,63 +332,55 @@ impl NestedScorer {
             }
             d += 1;
         }
-        println!("find_next_parent: no more parents found, returning TERMINATED");
+        println!("find_next_parent: no more parents found => TERMINATED");
         TERMINATED
     }
 
     fn collect_children_for_parent(&mut self) {
-        println!("collect_children_for_parent: starting collection for parent={}", self.current_parent);
+        println!(
+            "collect_children_for_parent => for parent doc_id={}",
+            self.current_parent
+        );
         self.last_collected_hits.child_doc_ids.clear();
 
-        let start_doc = if self.current_parent == 0 {
-            0
-        } else {
-            // We want child docs in the range (prev_parent+1 .. current_parent).
-            // But for simplicity, we just keep advancing the child_scorer while child_scorer.doc < current_parent
-            0
-        };
-        println!("collect_children_for_parent: searching from start_doc={} to parent={}", start_doc, self.current_parent);
-
-        // gather all child docs in [start_doc .. parent_doc)
-        let mut child_scores = vec![];
-
+        // gather all child docs in [current child_scorer.doc() .. self.current_parent)
+        // Because child_scorer is never reset, it continues from the last position.
         while self.child_scorer.doc() != TERMINATED && self.child_scorer.doc() < self.current_parent
         {
             let cd = self.child_scorer.doc();
             println!("Examining potential child doc_id={}", cd);
-            // But skip if there's an intervening parent doc
+
+            // skip if there's an intervening parent doc
             if !self.is_intervening_parent(cd, self.current_parent) {
                 let s = self.child_scorer.score();
                 println!("Found valid child doc_id={} with score={}", cd, s);
-                child_scores.push(s);
                 if self.collect_inner_hits {
                     self.last_collected_hits.child_doc_ids.push(cd);
-                    println!("Added to inner_hits, current child_doc_ids={:?}", self.last_collected_hits.child_doc_ids);
                 }
+                // accumulate child score
+                self.accumulate_score(s);
             } else {
-                println!("Skipping doc_id={} due to intervening parent", cd);
+                println!(
+                    "Skipping doc_id={} => there's an intervening parent between {} and {}",
+                    cd, cd, self.current_parent
+                );
             }
             self.child_scorer.advance();
         }
 
-        if child_scores.is_empty() {
-            println!("No valid children found, setting score=0.0");
-            self.current_score = 0.0;
-        } else {
-            println!("Computing final score from child_scores={:?}", child_scores);
-            self.current_score = match self.score_mode {
-                NestedScoreMode::Avg => {
-                    let sum: f32 = child_scores.iter().sum();
-                    sum / (child_scores.len() as f32)
+        // If no children matched, for *some* modes we set score=0, else 1.0.
+        if self.last_collected_hits.child_doc_ids.is_empty() {
+            match self.score_mode {
+                NestedScoreMode::None => {
+                    self.current_score = 1.0;
                 }
-                NestedScoreMode::Max => child_scores.into_iter().fold(std::f32::MIN, f32::max),
-                NestedScoreMode::Sum => child_scores.into_iter().sum(),
-                NestedScoreMode::None => 1.0,
-            };
+                _ => {
+                    self.current_score = 0.0;
+                }
+            }
         }
     }
 
-    /// Returns true if there's another parent doc p where cd < p < current_parent.
     fn is_intervening_parent(&self, cd: DocId, current_parent: DocId) -> bool {
         // This is the “block boundary” check
         for doc_id in (cd + 1)..current_parent {
@@ -386,10 +390,41 @@ impl NestedScorer {
         }
         false
     }
-}
 
-// tests/test_nested_query.rs
-// Example standalone test file or test mod.
+    fn accumulate_score(&mut self, child_score: Score) {
+        match self.score_mode {
+            NestedScoreMode::Avg => {
+                // We'll store partial sum in current_score, and partial count in last_collected_hits?
+                // Simpler for now: re-sum child_doc_ids each time or store them in a Vec.
+                let new_len = self.last_collected_hits.child_doc_ids.len();
+                let prev_len = new_len - 1; // we just added 1 child
+                                            // old average was self.current_score * (prev_len),
+                                            // so sum_of_scores = old_avg * (prev_len)
+                let old_sum = self.current_score * (prev_len as f32);
+                let new_sum = old_sum + child_score;
+                self.current_score = new_sum / (new_len as f32);
+            }
+            NestedScoreMode::Max => {
+                if self.last_collected_hits.child_doc_ids.len() == 1 {
+                    self.current_score = child_score;
+                } else if child_score > self.current_score {
+                    self.current_score = child_score;
+                }
+            }
+            NestedScoreMode::Sum => {
+                if self.last_collected_hits.child_doc_ids.len() == 1 {
+                    self.current_score = child_score;
+                } else {
+                    self.current_score += child_score;
+                }
+            }
+            NestedScoreMode::None => {
+                // we keep it at 1.0 or 0.0; but once we have children, it's definitely 1.0
+                self.current_score = 1.0;
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod test_nested_query {
@@ -437,7 +472,7 @@ mod test_nested_query {
         let (index, group_field, is_parent_user_field) = create_user_nested_index();
         let mut writer = index.writer_for_tests()?;
 
-        // Instead of storing is_parent_user_field => "false", store bool => false
+        // child => is_parent_user=false, parent => is_parent_user=true
         let child1 = doc!(is_parent_user_field => false);
         let child2 = doc!(is_parent_user_field => false);
         let parent = doc!(
@@ -448,9 +483,9 @@ mod test_nested_query {
         writer.add_documents(vec![child1, child2, parent])?;
         writer.commit()?;
 
-        // Child query => "is_parent_user:false"
+        // Child query => is_parent_user:false (now using from_field_bool)
         let child_query = Box::new(TermQuery::new(
-            Term::from_field_text(is_parent_user_field, "false"),
+            Term::from_field_bool(is_parent_user_field, false),
             IndexRecordOption::Basic,
         ));
 
@@ -690,7 +725,7 @@ mod test_nested_query {
 
         // Step1: nested against user => doc with is_parent_user_field=false => that yields doc2
         let child_of_user = Box::new(TermQuery::new(
-            Term::from_field_text(is_parent_user_field, "false"),
+            Term::from_field_bool(is_parent_user_field, false),
             IndexRecordOption::Basic,
         ));
         let nested_user = NestedQuery::new(
@@ -740,10 +775,12 @@ mod test_nested_query {
         writer.add_documents(vec![child1, child2, parent])?;
         writer.commit()?;
 
+        // We'll search for child docs that have msg="World"
         let child_query = Box::new(TermQuery::new(
             Term::from_field_text(msg_field, "World"),
             IndexRecordOption::Basic,
         ));
+
         let nested_query = NestedQuery::new(
             child_query,
             is_parent_comment_field,
@@ -807,9 +844,9 @@ mod test_nested_query {
         let reader = index.reader()?;
         let searcher = reader.searcher();
 
-        // We'll just do "child query => is_parent_user:false" => confirm we find 1 parent
+        // We'll just do "child query => is_parent_user:false" (using from_field_bool)
         let child_query = Box::new(TermQuery::new(
-            Term::from_field_text(is_parent_user_field, "false"),
+            Term::from_field_bool(is_parent_user_field, false),
             IndexRecordOption::Basic,
         ));
         let nested_q = NestedQuery::new(
