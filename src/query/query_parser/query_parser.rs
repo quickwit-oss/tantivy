@@ -430,8 +430,9 @@ impl QueryParser {
             && is_type_valid_for_fastfield_range_query(field_type.value_type());
 
         if field_type.is_nested() {
+            println!("QueryParser => found nested field: {}, raising range query error", field_entry.name());
             return Err(QueryParserError::UnsupportedQuery(
-                "Range query on a nested field is not supported.".to_string(),
+                format!("Range query on a nested field is not supported. Query: {}", phrase)
             ));
         }
 
@@ -446,6 +447,7 @@ impl QueryParser {
                 field_entry.name()
             )));
         }
+        println!("QueryParser => normal parse of field={} text={}", field_entry.name(), phrase);
         match *field_type {
             FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
@@ -551,8 +553,9 @@ impl QueryParser {
         let field_name = field_entry.name();
 
         if field_type.is_nested() {
+            println!("QueryParser => found nested field: {}, raising direct text search error", field_name);
             return Err(QueryParserError::UnsupportedQuery(
-                "Cannot run direct text search on a `nested` field.".to_string(),
+                format!("Cannot run direct text search on a `nested` field. Field: {}, Query: {}", field_name, phrase)
             ));
         }
 
@@ -1958,8 +1961,10 @@ mod test {
         let index = Index::create_in_ram(schema.clone());
         let query_parser = QueryParser::for_index(&index, vec![]);
 
+        println!("\nTesting range query on nested field...");
         // range query on nested => error
         let range_res = query_parser.parse_query("nested:[a TO z]");
+        println!("Expecting range query error for nested field");
         match range_res {
             Err(crate::query::QueryParserError::UnsupportedQuery(msg)) => {
                 assert!(msg.contains("Range query on a nested field is not supported"));
@@ -1967,8 +1972,10 @@ mod test {
             other => panic!("Expected an UnsupportedQuery error, got {:?}", other),
         }
 
+        println!("\nTesting direct text search on nested field...");
         // direct text on nested => error
         let text_res = query_parser.parse_query("nested:hello");
+        println!("Expecting direct text search error for nested field");
         match text_res {
             Err(crate::query::QueryParserError::UnsupportedQuery(msg)) => {
                 assert!(msg.contains("Cannot run direct text search on a `nested` field"));
