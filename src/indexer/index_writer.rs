@@ -740,12 +740,17 @@ impl<D: Document> IndexWriter<D> {
     /// The opstamp returned is the opstamp of the last document added.
     pub fn add_documents(&self, documents: Vec<D>) -> crate::Result<Opstamp> {
         let count = documents.len() as u64;
+        println!("IndexWriter::add_documents => adding {} documents", count);
         if count == 0 {
+            println!("IndexWriter::add_documents => no documents to add, returning single stamp");
             return Ok(self.stamper.stamp());
         }
         let (batch_opstamp, stamps) = self.get_batch_opstamps(count);
+        println!("IndexWriter::add_documents => got opstamp range: batch_opstamp={}, stamps={:?}", batch_opstamp, stamps);
         let mut adds = AddBatch::default();
-        for (document, opstamp) in documents.into_iter().zip(stamps) {
+        println!("IndexWriter::add_documents => about to push docs into AddBatch...");
+        for (idx, (document, opstamp)) in documents.into_iter().zip(stamps).enumerate() {
+            println!(" pushing doc #{} with opstamp={}", idx, opstamp);
             adds.push(AddOperation { opstamp, document });
         }
         self.send_add_documents_batch(adds)?;
@@ -818,9 +823,20 @@ impl<D: Document> IndexWriter<D> {
     }
 
     fn send_add_documents_batch(&self, add_ops: AddBatch<D>) -> crate::Result<()> {
-        if self.index_writer_status.is_alive() && self.operation_sender.send(add_ops).is_ok() {
-            Ok(())
+        println!("IndexWriter::send_add_documents_batch => attempting to send batch");
+        if self.index_writer_status.is_alive() {
+            match self.operation_sender.send(add_ops) {
+                Ok(_) => {
+                    println!("IndexWriter::send_add_documents_batch => successfully sent batch");
+                    Ok(())
+                }
+                Err(_) => {
+                    println!("IndexWriter::send_add_documents_batch => failed to send batch through channel");
+                    Err(error_in_index_worker_thread("An index writer was killed."))
+                }
+            }
         } else {
+            println!("IndexWriter::send_add_documents_batch => index writer is not alive");
             Err(error_in_index_worker_thread("An index writer was killed."))
         }
     }
@@ -1281,6 +1297,7 @@ mod tests {
 
     #[test]
     fn test_add_documents() -> Result<()> {
+        println!("test_add_documents => starting test");
         // Create a simple schema with one text field
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -1330,6 +1347,7 @@ mod tests {
 
     #[test]
     fn test_add_documents_empty() -> Result<()> {
+        println!("test_add_documents_empty => starting test with empty document list");
         // Test adding an empty list of documents
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -1360,6 +1378,7 @@ mod tests {
 
     #[test]
     fn test_add_documents_order() -> Result<()> {
+        println!("test_add_documents_order => starting order verification test");
         // Test that documents are indexed in the order they are added
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT | STORED);
