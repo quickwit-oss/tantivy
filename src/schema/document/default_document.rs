@@ -519,56 +519,81 @@ fn parse_nested_inner(
     schema: &Schema,
     val: &serde_json::Value,
 ) -> Result<Vec<TantivyDocument>, DocParsingError> {
+    println!("\nENTER parse_nested_inner()");
+    println!("Input value: {}", val);
+
     let mut child_docs = Vec::new();
     let mut parent_doc = TantivyDocument::default();
 
     let obj = val.as_object().ok_or_else(|| {
+        println!("ERROR: Input was not a JSON object");
         DocParsingError::InvalidJson("Expected top-level object for nested parse".into())
     })?;
 
+    println!("Processing top-level object with {} fields", obj.len());
+
     // We'll iterate over top-level fields. If the field is nested, we expand it.
     for (key, val_json) in obj {
+        println!("\nProcessing field '{}' with value: {}", key, val_json);
+        
         let field_opt = schema.get_field(key).ok(); // if unknown, skip or handle
         if let Some(field) = field_opt {
+            println!("Found schema field id={}", field.field_id());
             let fentry = schema.get_field_entry(field);
             match fentry.field_type() {
                 FieldType::Nested(nested_opts) => {
+                    println!("Field is NESTED type with include_in_parent={}", nested_opts.include_in_parent);
                     // Expect array-of-objects.
                     if let Some(arr) = val_json.as_array() {
-                        for child_object in arr {
+                        println!("Processing nested array with {} elements", arr.len());
+                        for (i, child_object) in arr.iter().enumerate() {
+                            println!("\nProcessing array element {} of {}", i+1, arr.len());
                             if !child_object.is_object() {
-                                // We can decide how to handle errors if not an object
+                                println!("WARNING: Skipping non-object element: {}", child_object);
                                 continue;
                             }
+                            println!("Child object: {}", child_object);
+                            
                             // parse child doc
                             let mut child_doc = TantivyDocument::default();
+                            println!("Created new child doc");
+                            
                             // flatten fields from that object into child_doc
                             parse_into_doc(schema, child_object, &mut child_doc)?;
+                            println!("Parsed fields into child doc");
 
                             // If include_in_parent is set, also add these child fields to parent doc
                             if nested_opts.include_in_parent {
+                                println!("Copying child fields to parent (include_in_parent=true)");
                                 parse_into_doc(schema, child_object, &mut parent_doc)?;
                             }
+                            
+                            println!("Adding child doc to collection (now {} children)", child_docs.len() + 1);
                             child_docs.push(child_doc);
                         }
                     } else {
+                        println!("WARNING: Expected array for nested field '{}' but got: {}", key, val_json);
                         // The user might supply a single object or invalid data
                         // For simplicity, skip or handle error
                     }
                 }
                 // Otherwise, parse as normal
                 _ => {
+                    println!("Processing regular (non-nested) field");
                     parse_single_field(schema, field, val_json, &mut parent_doc)?;
                 }
             }
         } else {
+            println!("WARNING: Unknown field '{}' - skipping", key);
             // unknown field => your policy. We can skip or parse with heuristics
         }
     }
 
     // The parent doc goes last.
+    println!("\nAdding parent doc (after {} children)", child_docs.len());
     child_docs.push(parent_doc);
 
+    println!("EXIT parse_nested_inner(): returning {} total docs", child_docs.len());
     Ok(child_docs)
 }
 
@@ -578,16 +603,27 @@ fn parse_into_doc(
     val: &serde_json::Value,
     doc: &mut TantivyDocument,
 ) -> Result<(), DocParsingError> {
+    println!("\nENTER parse_into_doc()");
+    println!("Input value: {}", val);
+    
     if let Some(m) = val.as_object() {
+        println!("Processing object with {} fields", m.len());
         for (k, v) in m {
+            println!("Processing field '{}' with value: {}", k, v);
             let field_opt = schema.get_field(k).ok();
             if let Some(field) = field_opt {
+                println!("Found schema field id={}", field.field_id());
                 parse_single_field(schema, field, v, doc)?;
             } else {
+                println!("WARNING: Unknown field '{}' - skipping", k);
                 // unknown field => skip or handle
             }
         }
+    } else {
+        println!("WARNING: Input was not a JSON object: {}", val);
     }
+    
+    println!("EXIT parse_into_doc()");
     Ok(())
 }
 
@@ -599,10 +635,23 @@ fn parse_single_field(
     json_val: &serde_json::Value,
     doc: &mut TantivyDocument,
 ) -> Result<(), DocParsingError> {
+    println!("\nENTER parse_single_field()");
+    println!("Field id={}, value={}", field.field_id(), json_val);
+    
     // If you have a standard parse function (like `parse_json_field` in Tantivy),
     // call it here. We'll do a naive approach:
-    doc.parse_and_add_json(field, json_val, schema)?;
-    Ok(())
+    match doc.parse_and_add_json(field, json_val, schema) {
+        Ok(_) => {
+            println!("Successfully parsed and added field");
+            println!("EXIT parse_single_field()");
+            Ok(())
+        }
+        Err(e) => {
+            println!("ERROR parsing field: {:?}", e);
+            println!("EXIT parse_single_field() with error");
+            Err(e)
+        }
+    }
 }
 
 impl PartialEq for CompactDoc {
