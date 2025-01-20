@@ -80,6 +80,8 @@ impl Query for BlockJoinQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> Result<Box<dyn Weight>> {
         let child_weight = self.child_query.weight(enable_scoring.clone())?;
         let parents_weight = self.parents_filter.weight(enable_scoring)?;
+        
+        println!("BlockJoinQuery::weight => got child_weight and parents_weight, score_mode={:?}", self.score_mode);
 
         Ok(Box::new(BlockJoinWeight {
             child_weight,
@@ -137,6 +139,7 @@ pub struct BlockJoinWeight {
 impl Weight for BlockJoinWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
+        println!("BlockJoinWeight::scorer => max_doc={}, creating parents_bitset", max_doc);
         let mut parents_bitset = BitSet::with_max_value(max_doc);
 
         // Create a scorer for parent documents
@@ -177,6 +180,7 @@ impl Weight for BlockJoinWeight {
             }
 
             if has_matching_child {
+                println!("BlockJoin => child_doc={}, has_matching_child=true for parent_doc={}", child_scorer.doc(), parent_doc);
                 parents_bitset.insert(parent_doc);
                 found_parent = true;
                 parent_count += 1;
@@ -187,6 +191,7 @@ impl Weight for BlockJoinWeight {
         }
 
         if !found_parent {
+            println!("No parents matched => returning EmptyScorer");
             return Ok(Box::new(EmptyScorer));
         }
 
@@ -335,6 +340,7 @@ pub struct BlockJoinScorer {
 
 impl DocSet for BlockJoinScorer {
     fn advance(&mut self) -> DocId {
+        println!("BlockJoinScorer => advance from current_parent={}", self.current_parent);
         if !self.has_more {
             return TERMINATED;
         }
@@ -349,6 +355,7 @@ impl DocSet for BlockJoinScorer {
         // Find next parent after current one
         let next_parent = self.find_next_parent(self.current_parent + 1);
         if next_parent == TERMINATED {
+            println!("BlockJoinScorer => no more parents, has_more=false");
             self.has_more = false;
             self.current_parent = TERMINATED;
             return TERMINATED;
@@ -428,7 +435,9 @@ impl BlockJoinScorer {
 
         // Collect all child documents between start_doc and end_doc
         while current_child != TERMINATED && current_child < end_doc {
-            child_scores.push(self.child_scorer.score());
+            let score = self.child_scorer.score();
+            println!("BlockJoinScorer => collecting child_doc={} with score={}", current_child, score);
+            child_scores.push(score);
             current_child = self.child_scorer.advance();
         }
 
@@ -457,6 +466,7 @@ impl BlockJoinScorer {
             }
             BlockJoinScoreMode::None => 1.0,
         };
+        println!("BlockJoinScorer => aggregated score={} for parent={}", self.current_score, self.current_parent);
     }
 }
 
@@ -562,6 +572,7 @@ mod tests {
         );
 
         let top_docs = searcher.search(&block_join_query, &TopDocs::with_limit(1))?;
+        println!("test_simple_block_join => found {} documents", top_docs.len());
         assert_eq!(top_docs.len(), 1, "Should find 1 top document");
 
         let doc: TantivyDocument = searcher.doc(top_docs[0].1)?;
