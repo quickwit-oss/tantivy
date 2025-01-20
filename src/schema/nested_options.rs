@@ -16,6 +16,10 @@ pub struct NestedOptions {
 
 impl NestedOptions {
     pub fn new() -> Self {
+        println!("Creating new NestedOptions with defaults:");
+        println!("  include_in_parent: false");
+        println!("  include_in_root: false"); 
+        println!("  store_parent_flag: true");
         NestedOptions {
             include_in_parent: false,
             include_in_root: false,
@@ -24,14 +28,17 @@ impl NestedOptions {
     }
 
     pub fn set_include_in_parent(mut self, val: bool) -> Self {
+        println!("Setting include_in_parent: {} -> {}", self.include_in_parent, val);
         self.include_in_parent = val;
         self
     }
     pub fn set_include_in_root(mut self, val: bool) -> Self {
+        println!("Setting include_in_root: {} -> {}", self.include_in_root, val);
         self.include_in_root = val;
         self
     }
     pub fn set_store_parent_flag(mut self, val: bool) -> Self {
+        println!("Setting store_parent_flag: {} -> {}", self.store_parent_flag, val);
         self.store_parent_flag = val;
         self
     }
@@ -40,22 +47,27 @@ impl NestedOptions {
         // By default, we do not index the nested field itself
         // because we rely on expansions. If you want to index it,
         // you'd change this logic.
+        println!("Checking is_indexed() -> false");
         false
     }
 
     pub fn is_stored(&self) -> bool {
+        println!("Checking is_stored() -> false");
         false
     }
 
     pub fn is_fast(&self) -> bool {
+        println!("Checking is_fast() -> false");
         false
     }
 
     pub fn fieldnorms(&self) -> bool {
+        println!("Checking fieldnorms() -> false");
         false
     }
 
     pub fn get_text_indexing_options(&self) -> Option<&TextFieldIndexing> {
+        println!("Getting text_indexing_options() -> None");
         None
     }
 }
