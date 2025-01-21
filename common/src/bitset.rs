@@ -1,3 +1,4 @@
+// common/src/bitset.rs
 use std::io::Write;
 use std::{fmt, io};
 
@@ -234,6 +235,12 @@ impl BitSet {
         }
     }
 
+    /// Returns `true` if the bitset contains no elements, otherwise `false`.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     /// Intersect with serialized bitset
     pub fn intersect_update(&mut self, other: &ReadOnlyBitSet) {
         self.intersect_update_with_iter(other.iter_tinysets());
@@ -301,6 +308,67 @@ impl BitSet {
     /// `bucket * 64` to `(bucket + 1) * 64`.
     pub fn tinyset(&self, bucket: u32) -> TinySet {
         self.tinysets[bucket as usize]
+    }
+
+    /// next_set_bit returns the lowest set bit >= `start`, or -1 if none.
+    /// Returns the lowest set bit >= `start`, or `u32::MAX` if none are set.
+    pub fn next_set_bit(&self, start: u32) -> u32 {
+        if start >= self.max_value {
+            return u32::MAX;
+        }
+        let mut bucket = (start / 64) as usize;
+        let mut bit_in_bucket = start % 64;
+        while bucket < self.tinysets.len() {
+            let ts = self.tinysets[bucket].0;
+            // zero out bits lower than `bit_in_bucket`
+            let mask = ts & (!((1 << bit_in_bucket) - 1));
+            if mask != 0 {
+                let lowest = mask.trailing_zeros();
+                let found_doc = (bucket as u32) * 64 + lowest;
+                // If it's beyond our max_value, treat it as not found.
+                if found_doc < self.max_value {
+                    return found_doc;
+                }
+                return u32::MAX;
+            }
+            bucket += 1;
+            bit_in_bucket = 0;
+        }
+        u32::MAX
+    }
+
+    /// prev_set_bit returns the highest set bit <= `start`, or -1 if none
+    pub fn prev_set_bit(&self, start: u32) -> u32 {
+        // if the entire bitset is empty, no set bits exist
+        if self.len == 0 {
+            return u32::MAX;
+        }
+        // if start >= max_value, clamp to max_value-1
+        let capped = if start >= self.max_value && self.len > 0 {
+            self.max_value - 1
+        } else {
+            start.min(self.max_value - 1)
+        };
+
+        let mut bucket = (capped / 64) as i64;
+        let mut bit_in_bucket = capped % 64;
+        while bucket >= 0 {
+            let ts = self.tinysets[bucket as usize].0;
+            // keep only bits in [0 .. bit_in_bucket]
+            let mask = (1 << (bit_in_bucket + 1)) - 1;
+            let candidate = ts & mask;
+            if candidate != 0 {
+                // find the highest set bit within `candidate`
+                let leading = candidate.leading_zeros(); // how many zero bits at top
+                let highest = 63 - leading; // which bit is set
+                let doc_id = (bucket as u32) * 64 + highest;
+                return doc_id;
+            }
+            bucket -= 1;
+            bit_in_bucket = 63;
+        }
+        // no set bits found
+        u32::MAX
     }
 }
 

@@ -1,907 +1,533 @@
-// src/query/nested_query.rs
-
-use crate::{
-    doc,
-    query::{EnableScoring, Explanation, Query, QueryClone, Scorer, TermQuery, Weight},
-    schema::{Field, FieldType, Term},
-    DocAddress, DocId, DocSet, Score, Searcher, SegmentReader, TERMINATED,
-};
-use common::BitSet;
-use std::fmt;
-use std::sync::Arc;
-
-/// A sentinel indicating we have not positioned on any doc yet.
-const UNPOSITIONED: DocId = u32::MAX;
-
-/// Score modes for how to compute the parent's score from matched children
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum NestedScoreMode {
-    Avg,
-    Max,
-    Sum,
-    None,
-}
-
-/// A struct to hold `inner_hits` data. In a real system, you might store more details.
-#[derive(Clone, Debug, Default)]
-pub struct InnerHits {
-    pub child_doc_ids: Vec<DocId>,
-    // Could store child scores, fields, highlights, etc.
-}
-
-impl InnerHits {
-    pub fn new() -> Self {
-        InnerHits {
-            child_doc_ids: vec![],
-        }
-    }
-}
-
-/// A “production ready” NestedQuery that:
-/// - identifies parents via a hidden boolean field
-/// - runs a child query
-/// - aggregates child matches in a block up to the parent doc
-/// - optionally collects `inner_hits` for each matched parent
-pub struct NestedQuery {
-    /// The child-level query
-    child_query: Box<dyn Query>,
-
-    /// The Field that indicates if doc is a parent (bool).
-    parent_flag_field: Field,
-
-    /// The chosen scoring mode
-    score_mode: NestedScoreMode,
-
-    /// Collect the child doc IDs in `inner_hits`?
-    collect_inner_hits: bool,
-}
-
-impl NestedQuery {
-    pub fn new(
-        child_query: Box<dyn Query>,
-        parent_flag_field: Field,
-        score_mode: NestedScoreMode,
-        collect_inner_hits: bool,
-    ) -> Self {
-        println!("\nNestedQuery::new ENTRY");
-        println!(
-            "  child_query={:?}, parent_flag_field={:?} (field_id={}), score_mode={:?}, collect_inner_hits={}",
-            child_query, parent_flag_field, parent_flag_field.field_id(), score_mode, collect_inner_hits
-        );
-        println!("NestedQuery::new EXIT");
-        NestedQuery {
-            child_query,
-            parent_flag_field,
-            score_mode,
-            collect_inner_hits,
-        }
-    }
-}
-
-impl fmt::Debug for NestedQuery {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("NestedQuery")
-            .field("child_query", &"...")
-            .field("parent_flag_field", &self.parent_flag_field.field_id())
-            .field("score_mode", &self.score_mode)
-            .field("collect_inner_hits", &self.collect_inner_hits)
-            .finish()
-    }
-}
-
-impl Clone for NestedQuery {
-    fn clone(&self) -> Self {
-        NestedQuery {
-            child_query: self.child_query.box_clone(),
-            parent_flag_field: self.parent_flag_field,
-            score_mode: self.score_mode,
-            collect_inner_hits: self.collect_inner_hits,
-        }
-    }
-}
-
-impl Query for NestedQuery {
-    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-        let child_weight = self.child_query.weight(enable_scoring)?;
-        // Build a TermQuery for `parent_flag_field == true` to identify parent docs.
-        let term = Term::from_field_bool(self.parent_flag_field, true);
-        let parents_filter = Box::new(TermQuery::new(
-            term,
-            crate::schema::IndexRecordOption::Basic,
-        ));
-        let parents_weight = parents_filter.weight(enable_scoring)?;
-
-        Ok(Box::new(NestedWeight {
-            child_weight,
-            parents_weight,
-            parent_flag_field: self.parent_flag_field,
-            score_mode: self.score_mode,
-            collect_inner_hits: self.collect_inner_hits,
-        }))
-    }
-
-    fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> crate::Result<Explanation> {
-        // We can create a scorer and see if doc_address is matched.
-        let reader = searcher.segment_reader(doc_address.segment_ord);
-        let mut scorer = self
-            .weight(EnableScoring::enabled_from_searcher(searcher))?
-            .scorer(reader, 1.0)?;
-
-        let mut doc_id = scorer.doc();
-        // If doc_id == TERMINATED, we might attempt to advance. But typically,
-        // the collector calls `advance()` itself. For "explain," let's do it manually:
-        while doc_id != TERMINATED && doc_id < doc_address.doc_id {
-            doc_id = scorer.advance();
-        }
-
-        let score = if doc_id == doc_address.doc_id {
-            scorer.score()
-        } else {
-            0.0
-        };
-        Ok(Explanation::new("NestedQuery Explanation", score))
-    }
-
-    fn count(&self, searcher: &Searcher) -> crate::Result<usize> {
-        let weight = self.weight(EnableScoring::disabled_from_searcher(searcher))?;
-        let mut total_count = 0;
-        for reader in searcher.segment_readers() {
-            total_count += weight.count(reader)? as usize;
-        }
-        Ok(total_count)
-    }
-
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
-        self.child_query.query_terms(visitor);
-        // We have a hidden parent query, but typically we skip exposing that to the user.
-    }
-}
-
-/// The Weighted structure for our NestedQuery
-pub struct NestedWeight {
-    child_weight: Box<dyn Weight>,
-    parents_weight: Box<dyn Weight>,
-    parent_flag_field: Field,
-    score_mode: NestedScoreMode,
-    collect_inner_hits: bool,
-}
-
-impl Weight for NestedWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>> {
-        println!("\nNestedWeight::scorer ENTRY");
-        println!("  boost={}", boost);
-        
-        // 1) identify parents (docs where parent_flag_field == true)
-        let max_doc = reader.max_doc();
-        let mut parent_bitset = BitSet::with_max_value(max_doc);
-        println!(
-            "  Building parent_bitset: max_doc={}, parent_flag_field={}",
-            max_doc, self.parent_flag_field.field_id()
-        );
-
-        let mut parent_scorer = self.parents_weight.scorer(reader, boost)?;
-        let mut found_parent = false;
-
-        while parent_scorer.doc() != TERMINATED {
-            let doc_id = parent_scorer.doc();
-            println!("Found parent doc_id={}", doc_id);
-            parent_bitset.insert(doc_id);
-            parent_scorer.advance();
-            found_parent = true;
-        }
-
-        if !found_parent {
-            println!("  No parents found => returning EmptyScorer");
-            println!("NestedWeight::scorer EXIT (empty)");
-            // No parent => no matches
-            return Ok(Box::new(EmptyScorer));
-        }
-        println!("  Found at least one parent doc");
-
-        // 2) build the child scorer
-        println!("  Creating child scorer with boost={}", boost);
-        let child_scorer = self.child_weight.scorer(reader, boost)?;
-        println!("  Child scorer created successfully");
-
-        // 3) build a NestedScorer
-        let scorer = NestedScorer {
-            parent_docs: parent_bitset,
-            child_scorer,
-            score_mode: self.score_mode,
-            collect_inner_hits: self.collect_inner_hits,
-
-            // We start unpositioned.
-            current_parent: UNPOSITIONED,
-            doc_has_more: true,
-            initialized: false,
-
-            last_collected_hits: InnerHits::new(),
-            current_score: 0.0,
-        };
-
-        Ok(Box::new(scorer))
-    }
-
-    fn explain(&self, _reader: &SegmentReader, _doc: DocId) -> crate::Result<Explanation> {
-        Ok(Explanation::new(
-            "NestedWeight: no explicit explanation",
-            0.0,
-        ))
-    }
-
-    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
-        let mut scorer = self.scorer(reader, 1.0)?;
-        let mut count = 0u32;
-        // The collector approach: loop while doc != TERMINATED
-        while scorer.doc() != TERMINATED {
-            count += 1;
-            scorer.advance();
-        }
-        Ok(count)
-    }
-}
-
-struct EmptyScorer;
-impl DocSet for EmptyScorer {
-    fn advance(&mut self) -> DocId {
-        TERMINATED
-    }
-    fn doc(&self) -> DocId {
-        TERMINATED
-    }
-    fn size_hint(&self) -> u32 {
-        0
-    }
-}
-impl Scorer for EmptyScorer {
-    fn score(&mut self) -> Score {
-        0.0
-    }
-}
-
-/// The main scorer for NestedQuery
-pub struct NestedScorer {
-    parent_docs: BitSet,
-    child_scorer: Box<dyn Scorer>,
-    score_mode: NestedScoreMode,
-    collect_inner_hits: bool,
-
-    /// The docID of the current matched parent
-    current_parent: DocId,
-
-    doc_has_more: bool,
-    initialized: bool,
-
-    /// For highlighting or debugging
-    last_collected_hits: InnerHits,
-
-    /// Current parent's aggregated score
-    current_score: f32,
-}
-
-/// The "unpositioned" doc approach is simpler and does not rely on unsafe pointer casts:
-impl DocSet for NestedScorer {
-    fn doc(&self) -> DocId {
-        println!("\nNestedScorer::doc ENTRY");
-        // If we haven't advanced at all or we are done, we return TERMINATED.
-        let result = if !self.doc_has_more || self.current_parent == UNPOSITIONED {
-            println!("  Returning TERMINATED (doc_has_more={}, current_parent={})", 
-                self.doc_has_more, self.current_parent);
-            TERMINATED
-        } else {
-            println!("  Returning current_parent={}", self.current_parent);
-            self.current_parent
-        };
-        println!("NestedScorer::doc EXIT => {}", result);
-        result
-    }
-
-    fn advance(&mut self) -> DocId {
-        // If we've exhausted our docset, return TERMINATED
-        if !self.doc_has_more {
-            return TERMINATED;
-        }
-        // If it's our first advance, also "initialize" child_scorer by skipping to doc=0
-        // or just calling child_scorer.advance() once. (We only do it once.)
-        if !self.initialized {
-            self.initialized = true;
-            self.child_scorer.advance(); // position at the first child doc
-        }
-        let next_parent = self.find_next_parent(match self.current_parent {
-            UNPOSITIONED => 0,
-            _ => self.current_parent + 1,
-        });
-        if next_parent == TERMINATED {
-            // no more parents
-            self.doc_has_more = false;
-            self.current_parent = TERMINATED;
-            TERMINATED
-        } else {
-            self.current_parent = next_parent;
-            self.collect_children_for_parent();
-            self.current_parent
-        }
-    }
-
-    fn size_hint(&self) -> u32 {
-        // Return total # of parent docs
-        self.parent_docs.len() as u32
-    }
-}
-
-impl Scorer for NestedScorer {
-    fn score(&mut self) -> Score {
-        self.current_score
-    }
-}
-
-impl NestedScorer {
-    fn find_next_parent(&self, start_doc: DocId) -> DocId {
-        println!("find_next_parent: searching from start_doc={}", start_doc);
-        let max_val = self.parent_docs.max_value();
-        let mut d = start_doc;
-        while d <= max_val {
-            if self.parent_docs.contains(d) {
-                println!("find_next_parent: found parent at doc_id={}", d);
-                return d;
-            }
-            d += 1;
-        }
-        println!("find_next_parent: no more parents found => TERMINATED");
-        TERMINATED
-    }
-
-    fn collect_children_for_parent(&mut self) {
-        println!("\nNestedScorer::collect_children_for_parent ENTRY");
-        println!("  Processing parent doc_id={}", self.current_parent);
-        println!("  Score mode: {:?}", self.score_mode);
-        self.last_collected_hits.child_doc_ids.clear();
-        println!("  Cleared previous inner hits");
-
-        // gather all child docs in [current child_scorer.doc() .. self.current_parent)
-        // Because child_scorer is never reset, it continues from the last position.
-        println!("  Starting child collection loop");
-        let mut child_count = 0;
-        while self.child_scorer.doc() != TERMINATED && self.child_scorer.doc() < self.current_parent {
-            let cd = self.child_scorer.doc();
-            println!("    Examining potential child #{}: doc_id={}", child_count + 1, cd);
-
-            // skip if there's an intervening parent doc
-            if !self.is_intervening_parent(cd, self.current_parent) {
-                let s = self.child_scorer.score();
-                println!("    Found valid child: doc_id={}, score={}", cd, s);
-                if self.collect_inner_hits {
-                    self.last_collected_hits.child_doc_ids.push(cd);
-                    println!("    Added to inner_hits, current count: {}", 
-                        self.last_collected_hits.child_doc_ids.len());
-                }
-                
-                println!("    Current score before accumulation: {}", self.current_score);
-                // accumulate child score
-                self.accumulate_score(s);
-                println!("    New accumulated score: {}", self.current_score);
-                child_count += 1;
-            } else {
-                println!(
-                    "    Skipping doc_id={} => intervening parent between {} and {}",
-                    cd, cd, self.current_parent
-                );
-            }
-            println!("    Advancing child_scorer");
-            self.child_scorer.advance();
-        }
-        println!("  Finished processing {} children", child_count);
-
-        // If no children matched, for *some* modes we set score=0, else 1.0.
-        if self.last_collected_hits.child_doc_ids.is_empty() {
-            match self.score_mode {
-                NestedScoreMode::None => {
-                    self.current_score = 1.0;
-                }
-                _ => {
-                    self.current_score = 0.0;
-                }
-            }
-        }
-    }
-
-    fn is_intervening_parent(&self, cd: DocId, current_parent: DocId) -> bool {
-        // This is the “block boundary” check
-        for doc_id in (cd + 1)..current_parent {
-            if self.parent_docs.contains(doc_id) {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn accumulate_score(&mut self, child_score: Score) {
-        println!("\nNestedScorer::accumulate_score ENTRY");
-        println!("  Adding child_score={}", child_score);
-        println!("  Current score={}", self.current_score);
-        println!("  Score mode={:?}", self.score_mode);
-        
-        match self.score_mode {
-            NestedScoreMode::Avg => {
-                println!("  Computing average score");
-                let new_len = self.last_collected_hits.child_doc_ids.len();
-                let prev_len = new_len - 1; // we just added 1 child
-                println!("  Previous count={}, new count={}", prev_len, new_len);
-                let old_sum = self.current_score * (prev_len as f32);
-                println!("  Old sum={}", old_sum);
-                let new_sum = old_sum + child_score;
-                println!("  New sum={}", new_sum);
-                self.current_score = new_sum / (new_len as f32);
-                println!("  New average={}", self.current_score);
-            }
-            NestedScoreMode::Max => {
-                println!("  Computing max score");
-                if self.last_collected_hits.child_doc_ids.len() == 1 {
-                    println!("  First child, using its score directly");
-                    self.current_score = child_score;
-                } else if child_score > self.current_score {
-                    println!("  New max found: {} > {}", child_score, self.current_score);
-                    self.current_score = child_score;
-                } else {
-                    println!("  Keeping current max: {} >= {}", self.current_score, child_score);
-                }
-            }
-            NestedScoreMode::Sum => {
-                println!("  Computing sum score");
-                if self.last_collected_hits.child_doc_ids.len() == 1 {
-                    println!("  First child, using its score directly");
-                    self.current_score = child_score;
-                } else {
-                    println!("  Adding to sum: {} + {}", self.current_score, child_score);
-                    self.current_score += child_score;
-                }
-            }
-            NestedScoreMode::None => {
-                println!("  Score mode None: setting score=1.0");
-                // we keep it at 1.0 or 0.0; but once we have children, it's definitely 1.0
-                self.current_score = 1.0;
-            }
-        }
-        println!("NestedScorer::accumulate_score EXIT => final_score={}", self.current_score);
-    }
-}
-
-#[cfg(test)]
-mod test_nested_query {
-    use crate::{
-        collector::TopDocs,
-        doc,
-        query::{BooleanQuery, EnableScoring, Occur, Query, TermQuery},
-        schema::{
-            Field, IndexRecordOption, NestedOptions, Schema, SchemaBuilder, Value, STORED, STRING,
-            TEXT,
-        },
-        DocAddress, DocId, Index, IndexWriter, TantivyDocument, Term, TERMINATED,
-    };
-
-    use crate::query::nested_query::{NestedQuery, NestedScoreMode};
-
-    /// Helper to create an index with a single "user" nested field (which automatically
-    /// generates "_is_parent_user"). Also returns the `Field` for `_is_parent_user`.
-    fn create_user_nested_index() -> (Index, Field, Field) {
-        let mut builder = Schema::builder();
-        // Normal field:
-        let group_field = builder.add_text_field("group", STRING | STORED);
-
-        // Add a nested field "user"
-        // => auto-creates hidden bool field `_is_parent_user`.
-        let nested_opts = NestedOptions::new()
-            .set_include_in_parent(true)
-            .set_store_parent_flag(true);
-        builder.add_nested_field("user", nested_opts);
-
-        // Build schema, now `_is_parent_user` was created automatically
-        let schema = builder.build();
-        let index = Index::create_in_ram(schema.clone());
-
-        // retrieve the field IDs we need
-        let group_field_id = schema.get_field("group").unwrap();
-        let is_parent_user_field = schema.get_field("_is_parent_user").unwrap();
-
-        (index, group_field_id, is_parent_user_field)
-    }
-
-    #[test]
-    fn test_single_nested_block_multiple_children() -> crate::Result<()> {
-        // Single doc with 2 child "user" objects + 1 parent doc block
-        let (index, group_field, is_parent_user_field) = create_user_nested_index();
-        let mut writer = index.writer_for_tests()?;
-
-        // child => is_parent_user=false, parent => is_parent_user=true
-        let child1 = doc!(is_parent_user_field => false);
-        let child2 = doc!(is_parent_user_field => false);
-        let parent = doc!(
-            group_field => "fans",
-            is_parent_user_field => true
-        );
-
-        writer.add_documents(vec![child1, child2, parent])?;
-        writer.commit()?;
-
-        // Child query => is_parent_user:false (now using from_field_bool)
-        let child_query = Box::new(TermQuery::new(
-            Term::from_field_bool(is_parent_user_field, false),
-            IndexRecordOption::Basic,
-        ));
-
-        let nested_query = NestedQuery::new(
-            child_query,
-            is_parent_user_field,
-            NestedScoreMode::None,
-            true, // collect inner hits
-        );
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-
-        let top_docs = searcher.search(&nested_query, &TopDocs::with_limit(10))?;
-        // Expect 1 parent doc
-        assert_eq!(top_docs.len(), 1);
-        // Check group="fans"
-        let (score, doc_addr) = top_docs[0];
-        assert_eq!(score, 1.0);
-        let doc_retrieved: TantivyDocument = searcher.doc(doc_addr)?;
-        let group_val = doc_retrieved
-            .get_first(group_field)
-            .unwrap()
-            .as_str()
-            .unwrap();
-        assert_eq!(group_val, "fans");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_nested_must_clause_not_matching() -> crate::Result<()> {
-        // We'll define a simple schema with group + "user" nested, plus "user.first", "user.last".
-        let mut builder = Schema::builder();
-        let group_field = builder.add_text_field("group", STRING | STORED);
-
-        let nested_opts = NestedOptions::new().set_store_parent_flag(true);
-        builder.add_nested_field("user", nested_opts);
-
-        let first_field = builder.add_text_field("user.first", STRING);
-        let last_field = builder.add_text_field("user.last", STRING);
-
-        let schema = builder.build();
-        let index = Index::create_in_ram(schema.clone());
-
-        let is_parent_user_field = schema
-            .get_field("_is_parent_user")
-            .expect("auto-created by add_nested_field");
-        let mut writer = index.writer_for_tests()?;
-
-        // child doc #1 => user.first=John, user.last=Smith
-        // child doc #2 => user.first=Alice, user.last=White
-        // parent => group="fans"
-        let child1 = doc!(
-            is_parent_user_field => false,
-            first_field => "John",
-            last_field => "Smith"
-        );
-        let child2 = doc!(
-            is_parent_user_field => false,
-            first_field => "Alice",
-            last_field => "White"
-        );
-        let parent = doc!(
-            group_field => "fans",
-            is_parent_user_field => true
-        );
-        writer.add_documents(vec![child1, child2, parent])?;
-        writer.commit()?;
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-
-        // must => first=Alice AND last=Smith => no single child doc has both => no match
-        let child_bool_query_fail = {
-            let first_term = Box::new(TermQuery::new(
-                Term::from_field_text(first_field, "Alice"),
-                IndexRecordOption::Basic,
-            ));
-            let last_term = Box::new(TermQuery::new(
-                Term::from_field_text(last_field, "Smith"),
-                IndexRecordOption::Basic,
-            ));
-            let mut bool_q = BooleanQuery::new(vec![]);
-            bool_q.add_clause(Occur::Must, first_term);
-            bool_q.add_clause(Occur::Must, last_term);
-            bool_q
-        };
-        let nested_query_fail = NestedQuery::new(
-            Box::new(child_bool_query_fail),
-            is_parent_user_field,
-            NestedScoreMode::None,
-            false,
-        );
-
-        let top_docs_fail = searcher.search(&nested_query_fail, &TopDocs::with_limit(10))?;
-        assert_eq!(top_docs_fail.len(), 0);
-
-        // must => first=Alice AND last=White => matches child2 => so parent matches
-        let child_bool_query_ok = {
-            let first_term = Box::new(TermQuery::new(
-                Term::from_field_text(first_field, "Alice"),
-                IndexRecordOption::Basic,
-            ));
-            let last_term = Box::new(TermQuery::new(
-                Term::from_field_text(last_field, "White"),
-                IndexRecordOption::Basic,
-            ));
-            let mut bool_q = BooleanQuery::new(vec![]);
-            bool_q.add_clause(Occur::Must, first_term);
-            bool_q.add_clause(Occur::Must, last_term);
-            bool_q
-        };
-        let nested_query_ok = NestedQuery::new(
-            Box::new(child_bool_query_ok),
-            is_parent_user_field,
-            NestedScoreMode::None,
-            false,
-        );
-
-        let top_docs_ok = searcher.search(&nested_query_ok, &TopDocs::with_limit(10))?;
-        assert_eq!(top_docs_ok.len(), 1);
-        let (_score, docaddr) = top_docs_ok[0];
-        let doc_retrieved: TantivyDocument = searcher.doc(docaddr)?;
-        let group_val = doc_retrieved
-            .get_first(group_field)
-            .unwrap()
-            .as_str()
-            .unwrap();
-        assert_eq!(group_val, "fans");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_nested_must_not_clause() -> crate::Result<()> {
-        // block #1 => child with author=kimchy, child with author=nik9000, parent => is_parent_user=true
-        let mut builder = Schema::builder();
-        builder.add_nested_field("user", NestedOptions::new().set_store_parent_flag(true));
-        let author_field = builder.add_text_field("user.author", STRING);
-        let schema = builder.build();
-        let index = Index::create_in_ram(schema.clone());
-        let is_parent_user_field = schema.get_field("_is_parent_user").unwrap();
-
-        let mut writer = index.writer_for_tests()?;
-        let child1 = doc!(
-            is_parent_user_field => false,
-            author_field => "kimchy"
-        );
-        let child2 = doc!(
-            is_parent_user_field => false,
-            author_field => "nik9000"
-        );
-        let parent = doc!(
-            is_parent_user_field => true
-        );
-        writer.add_documents(vec![child1, child2, parent])?;
-        writer.commit()?;
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-
-        // child query => must_not => author=nik9000 => child1 matches => parent => returned
-        let must_not_nik = {
-            let t = Box::new(TermQuery::new(
-                Term::from_field_text(author_field, "nik9000"),
-                IndexRecordOption::Basic,
-            ));
-            let mut bq = BooleanQuery::new(vec![]);
-            bq.add_clause(Occur::MustNot, t);
-            bq
-        };
-        let nested_must_not = NestedQuery::new(
-            Box::new(must_not_nik),
-            is_parent_user_field,
-            NestedScoreMode::None,
-            false,
-        );
-        let top_docs = searcher.search(&nested_must_not, &TopDocs::with_limit(10))?;
-        assert_eq!(top_docs.len(), 1);
-
-        // If we want to exclude ANY doc that has a child "nik9000", do an outer must_not
-        let exclude_any_nik = BooleanQuery::new(vec![(
-            Occur::MustNot,
-            Box::new(NestedQuery::new(
-                Box::new(TermQuery::new(
-                    Term::from_field_text(author_field, "nik9000"),
-                    IndexRecordOption::Basic,
-                )),
-                is_parent_user_field,
-                NestedScoreMode::None,
-                false,
-            )),
-        )]);
-        let top_docs_excl_nik = searcher.search(&exclude_any_nik, &TopDocs::with_limit(10))?;
-        assert_eq!(top_docs_excl_nik.len(), 0);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_multi_level_nesting() -> crate::Result<()> {
-        let mut builder = Schema::builder();
-        builder.add_nested_field("user", NestedOptions::new().set_store_parent_flag(true));
-        builder.add_nested_field(
-            "user.vehicle",
-            NestedOptions::new().set_store_parent_flag(true),
-        );
-        let top_field = builder.add_text_field("description", STORED | STRING);
-        let schema = builder.build();
-        let index = Index::create_in_ram(schema.clone());
-
-        let is_parent_user_field = schema.get_field("_is_parent_user").unwrap();
-        let is_parent_user_dot_vehicle_field = schema.get_field("_is_parent_user.vehicle").unwrap();
-
-        let mut writer = index.writer_for_tests()?;
-
-        // doc0 => user-child => is_parent_user=false
-        // doc1 => vehicle-child => is_parent_user.vehicle=false
-        // doc2 => user parent => is_parent_user=true, is_parent_user.vehicle=false
-        // doc3 => top parent => is_parent_user.vehicle=true => "top-level doc"
-        let child_user = doc!(is_parent_user_field => false);
-        let child_vehicle = doc!(is_parent_user_dot_vehicle_field => false);
-        let parent_user = doc!(
-            is_parent_user_field => true,
-            is_parent_user_dot_vehicle_field => false
-        );
-        let parent_top = doc!(
-            is_parent_user_dot_vehicle_field => true,
-            top_field => "top-level doc"
-        );
-        writer.add_documents(vec![child_user, child_vehicle, parent_user, parent_top])?;
-        writer.commit()?;
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-
-        // Step1: nested against user => doc with is_parent_user_field=false => that yields doc2
-        let child_of_user = Box::new(TermQuery::new(
-            Term::from_field_bool(is_parent_user_field, false),
-            IndexRecordOption::Basic,
-        ));
-        let nested_user = NestedQuery::new(
-            child_of_user,
-            is_parent_user_field,
-            NestedScoreMode::None,
-            false,
-        );
-
-        // Step2: that doc is itself "parent" for vehicle => is_parent_user.vehicle
-        let nested_vehicle = NestedQuery::new(
-            Box::new(nested_user),
-            is_parent_user_dot_vehicle_field,
-            NestedScoreMode::None,
-            true,
-        );
-
-        let top_docs = searcher.search(&nested_vehicle, &TopDocs::with_limit(10))?;
-        // Should match doc3 => "top-level doc"
-        assert_eq!(top_docs.len(), 1);
-        let (score, docaddr) = top_docs[0];
-        let retrieved: TantivyDocument = searcher.doc(docaddr)?;
-        assert_eq!(
-            retrieved.get_first(top_field).unwrap().as_str().unwrap(),
-            "top-level doc"
-        );
-        assert_eq!(score, 1.0);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_inner_hits_highlighting() -> crate::Result<()> {
-        let mut builder = Schema::builder();
-        let msg_field = builder.add_text_field("msg", STRING | STORED);
-        builder.add_nested_field("comment", NestedOptions::new().set_store_parent_flag(true));
-        let schema = builder.build();
-        let index = Index::create_in_ram(schema.clone());
-
-        let is_parent_comment_field = schema.get_field("_is_parent_comment").unwrap();
-
-        let mut writer = index.writer_for_tests()?;
-
-        let child1 = doc!(msg_field => "Hello", is_parent_comment_field => false);
-        let child2 = doc!(msg_field => "World", is_parent_comment_field => false);
-        let parent = doc!(is_parent_comment_field => true);
-        writer.add_documents(vec![child1, child2, parent])?;
-        writer.commit()?;
-
-        // We'll search for child docs that have msg="World"
-        let child_query = Box::new(TermQuery::new(
-            Term::from_field_text(msg_field, "World"),
-            IndexRecordOption::Basic,
-        ));
-
-        let nested_query = NestedQuery::new(
-            child_query,
-            is_parent_comment_field,
-            NestedScoreMode::None,
-            true,
-        );
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-        let top_docs = searcher.search(&nested_query, &TopDocs::with_limit(10))?;
-        assert_eq!(top_docs.len(), 1);
-        let (score, docaddr) = top_docs[0];
-        assert_eq!(score, 1.0);
-
-        // Demonstrate manual iteration w/ scorer for "inner hits"
-        use crate::query::EnableScoring;
-        let weight = nested_query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
-        let segment_reader = searcher.segment_reader(docaddr.segment_ord);
-        let mut scorer = weight.scorer(segment_reader, 1.0)?;
-
-        let mut parents_found = 0;
-        while scorer.doc() != TERMINATED {
-            let doc_id = scorer.doc();
-            if doc_id == docaddr.doc_id {
-                parents_found += 1;
-            }
-            scorer.advance();
-        }
-        assert_eq!(parents_found, 1);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_nested_many_children() -> crate::Result<()> {
-        let mut builder = Schema::builder();
-        builder.add_text_field("group", STRING | STORED);
-        builder.add_nested_field("user", NestedOptions::new().set_store_parent_flag(true));
-        let schema = builder.build();
-        let index = Index::create_in_ram(schema.clone());
-
-        let is_parent_user_field = schema.get_field("_is_parent_user").unwrap();
-        let group_field = schema.get_field("group").unwrap();
-
-        let mut writer = index.writer_for_tests()?;
-
-        let mut docs = Vec::new();
-        // 100 child docs => is_parent_user=false
-        for _i in 0..100 {
-            let child_doc = doc!(is_parent_user_field => false);
-            docs.push(child_doc);
-        }
-        let parent_doc = doc!(
-            group_field => "OneParent",
-            is_parent_user_field => true
-        );
-        docs.push(parent_doc);
-        writer.add_documents(docs)?;
-        writer.commit()?;
-
-        let reader = index.reader()?;
-        let searcher = reader.searcher();
-
-        // We'll just do "child query => is_parent_user:false" (using from_field_bool)
-        let child_query = Box::new(TermQuery::new(
-            Term::from_field_bool(is_parent_user_field, false),
-            IndexRecordOption::Basic,
-        ));
-        let nested_q = NestedQuery::new(
-            child_query,
-            is_parent_user_field,
-            NestedScoreMode::None,
-            false,
-        );
-        let top_docs = searcher.search(&nested_q, &TopDocs::with_limit(10))?;
-        assert_eq!(top_docs.len(), 1, "only one parent");
-        let (_score, docaddr) = top_docs[0];
-        let docret: TantivyDocument = searcher.doc(docaddr)?;
-        let group_val = docret.get_first(group_field).unwrap().as_str().unwrap();
-        assert_eq!(group_val, "OneParent");
-
-        Ok(())
-    }
-}
+// // src/query/nested_query.rs
+
+// use std::fmt;
+
+// use crate::core::searcher::Searcher;
+// use crate::query::{
+//     BlockJoinQuery, BlockJoinScoreMode, EnableScoring, Explanation, Query, QueryClone, Scorer,
+//     TermQuery, Weight,
+// };
+// use crate::schema::{Field, IndexRecordOption, Term};
+// use crate::{DocAddress, DocId, Result, Score, SegmentReader, TERMINATED};
+
+// use crate::query::block_join_query::{BlockJoinScorer, BlockJoinWeight};
+// use crate::schema::Schema;
+// use crate::{DocSet, TantivyError};
+
+// /// How we score from the child docs up to the parent.
+// #[derive(Clone, Copy, Debug, PartialEq)]
+// pub enum NestedScoreMode {
+//     /// Average all matched child doc scores.
+//     Avg,
+//     /// Take the maximum child doc score.
+//     Max,
+//     /// Sum the child doc scores.
+//     Sum,
+//     /// Don’t incorporate child scores—just use a fixed score for the matched parent.
+//     None,
+// }
+
+// /// A struct to hold child doc IDs for "inner_hits".
+// /// Expand or store more data if desired (scores, highlights, etc.).
+// #[derive(Clone, Debug, Default)]
+// pub struct NestedInnerHits {
+//     pub child_doc_ids: Vec<DocId>,
+// }
+
+// /// A production-ready `NestedQuery` that:
+// ///
+// /// - Identifies parent docs via a hidden boolean field `_is_parent_<path>`.
+// /// - Runs a `child_query` on child documents (those with `_is_parent_<path> = false`).
+// /// - Aggregates child scores in the parent according to `NestedScoreMode`.
+// /// - Optionally collects "inner hits" (child DocIDs) if `collect_inner_hits` is true.
+// pub struct NestedQuery {
+//     /// The name of the nested path (e.g. `"user"`), used only for debug or reference.
+//     path: String,
+
+//     /// The hidden boolean field used to identify parent docs for this nested path.
+//     parent_flag_field: Field,
+
+//     /// The query used to match child documents.
+//     child_query: Box<dyn Query>,
+
+//     /// Score mode describing how to aggregate scores from children into the parent.
+//     score_mode: NestedScoreMode,
+
+//     /// If true, we gather child doc IDs in a `NestedInnerHits` structure (not fully implemented).
+//     collect_inner_hits: bool,
+// }
+
+// impl fmt::Debug for NestedQuery {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         f.debug_struct("NestedQuery")
+//             .field("path", &self.path)
+//             .field("child_query", &"...")
+//             .field("score_mode", &self.score_mode)
+//             .field("collect_inner_hits", &self.collect_inner_hits)
+//             .finish()
+//     }
+// }
+
+// impl NestedQuery {
+//     /// Creates a new `NestedQuery`.
+//     ///
+//     /// - `schema`: The index schema, which must contain a boolean field named `"_is_parent_{path}"`.
+//     /// - `path`: A string such as `"user"`.
+//     /// - `child_query`: The query for matching child docs.
+//     /// - `score_mode`: How child scores are aggregated.
+//     /// - `collect_inner_hits`: If true, gather child doc IDs in the scorer (stub logic).
+//     ///
+//     /// Fails if the schema does not have the parent-flag field.
+//     pub fn new(
+//         schema: &Schema,
+//         path: String,
+//         child_query: Box<dyn Query>,
+//         score_mode: NestedScoreMode,
+//         collect_inner_hits: bool,
+//     ) -> Result<NestedQuery> {
+//         let parent_flag_name = format!("_is_parent_{}", path);
+//         let parent_flag_field = schema.get_field(&parent_flag_name).map_err(|_err| {
+//             TantivyError::SchemaError(format!(
+//                 "Missing nested parent flag field: {parent_flag_name}"
+//             ))
+//         })?;
+
+//         Ok(NestedQuery {
+//             path,
+//             parent_flag_field,
+//             child_query,
+//             score_mode,
+//             collect_inner_hits,
+//         })
+//     }
+
+//     /// Converts `NestedScoreMode` to a `BlockJoinScoreMode`.
+//     fn to_block_join_score_mode(mode: NestedScoreMode) -> BlockJoinScoreMode {
+//         match mode {
+//             NestedScoreMode::Avg => BlockJoinScoreMode::Avg,
+//             NestedScoreMode::Max => BlockJoinScoreMode::Max,
+//             NestedScoreMode::Sum => BlockJoinScoreMode::Sum,
+//             NestedScoreMode::None => BlockJoinScoreMode::None,
+//         }
+//     }
+// }
+
+// impl Clone for NestedQuery {
+//     fn clone(&self) -> Self {
+//         NestedQuery {
+//             path: self.path.clone(),
+//             parent_flag_field: self.parent_flag_field,
+//             child_query: self.child_query.box_clone(),
+//             score_mode: self.score_mode,
+//             collect_inner_hits: self.collect_inner_hits,
+//         }
+//     }
+// }
+
+// impl Query for NestedQuery {
+//     fn weight(&self, enable_scoring: EnableScoring<'_>) -> Result<Box<dyn Weight>> {
+//         // Build a term for parent docs: _is_parent_<path> = true
+//         let parent_flag_term = Term::from_field_bool(self.parent_flag_field, true);
+//         let parent_query = TermQuery::new(parent_flag_term, IndexRecordOption::Basic);
+
+//         // Wrap the child query in a `BlockJoinQuery`, filtering by the parent docs.
+//         let block_join_query = BlockJoinQuery::new(
+//             self.child_query.box_clone(),
+//             Box::new(parent_query),
+//             Self::to_block_join_score_mode(self.score_mode),
+//         );
+
+//         let block_join_weight = block_join_query.weight(enable_scoring)?;
+//         Ok(Box::new(NestedWeight {
+//             path: self.path.clone(),
+//             block_join_weight,
+//             nested_score_mode: self.score_mode,
+//             collect_inner_hits: self.collect_inner_hits,
+//         }))
+//     }
+
+//     fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> Result<Explanation> {
+//         let w = self.weight(EnableScoring::enabled_from_searcher(searcher))?;
+//         w.explain(
+//             searcher.segment_reader(doc_address.segment_ord),
+//             doc_address.doc_id,
+//         )
+//     }
+
+//     fn count(&self, searcher: &Searcher) -> Result<usize> {
+//         let w = self.weight(EnableScoring::disabled_from_searcher(searcher))?;
+//         let mut total = 0;
+//         for reader in searcher.segment_readers() {
+//             total += w.count(reader)? as usize;
+//         }
+//         Ok(total)
+//     }
+
+//     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+//         // Only expose child-query terms, not the parent-flag filter.
+//         self.child_query.query_terms(visitor);
+//     }
+// }
+
+// /// Weight for `NestedQuery`.
+// struct NestedWeight {
+//     path: String,
+//     block_join_weight: Box<dyn Weight>,
+//     nested_score_mode: NestedScoreMode,
+//     collect_inner_hits: bool,
+// }
+
+// impl Weight for NestedWeight {
+//     fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
+//         let bj_scorer = self.block_join_weight.scorer(reader, boost)?;
+//         Ok(Box::new(NestedScorer {
+//             path: self.path.clone(),
+//             bj_scorer,
+//             collect_inner_hits: self.collect_inner_hits,
+//             inner_hits_buffer: NestedInnerHits::default(),
+//         }))
+//     }
+
+//     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+//         self.block_join_weight.explain(reader, doc)
+//     }
+
+//     fn count(&self, reader: &SegmentReader) -> Result<u32> {
+//         self.block_join_weight.count(reader)
+//     }
+// }
+
+// /// `NestedScorer` wraps a `BlockJoinScorer` and optionally collects child doc IDs.
+// struct NestedScorer {
+//     path: String,
+//     bj_scorer: Box<dyn Scorer>,
+//     collect_inner_hits: bool,
+//     inner_hits_buffer: NestedInnerHits,
+// }
+
+// impl DocSet for NestedScorer {
+//     fn advance(&mut self) -> DocId {
+//         let parent_doc = self.bj_scorer.advance();
+//         if parent_doc == TERMINATED {
+//             return TERMINATED;
+//         }
+
+//         // If `collect_inner_hits` is false, we do nothing else.
+//         if !self.collect_inner_hits {
+//             return parent_doc;
+//         }
+
+//         // Here you'd gather child doc IDs from the block-join logic if we had it.
+//         self.inner_hits_buffer.child_doc_ids.clear();
+
+//         parent_doc
+//     }
+
+//     fn doc(&self) -> DocId {
+//         self.bj_scorer.doc()
+//     }
+
+//     fn size_hint(&self) -> u32 {
+//         self.bj_scorer.size_hint()
+//     }
+// }
+
+// impl Scorer for NestedScorer {
+//     fn score(&mut self) -> Score {
+//         self.bj_scorer.score()
+//     }
+// }
+
+// //
+// // -----------------------------------------------------
+// // Extensive tests for NestedQuery
+// // -----------------------------------------------------
+// //
+// #[cfg(test)]
+// mod tests {
+//     use super::{NestedInnerHits, NestedQuery, NestedScoreMode};
+//     use crate::collector::TopDocs;
+//     use crate::query::nested_query::NestedScorer;
+//     use crate::query::{BlockJoinScoreMode, BooleanQuery, EnableScoring, Occur, Query, TermQuery};
+//     use crate::schema::{
+//         Field, IndexRecordOption, Schema, SchemaBuilder, TantivyDocument, Term, Value, STRING,
+//     };
+//     use crate::DocSet;
+//     use crate::{DocAddress, Index, IndexWriter, Score, TERMINATED};
+
+//     /// Creates a schema with a nested field "user" => `_is_parent_user` as a bool field.
+//     /// Also includes a normal text field "group".
+//     ///
+//     /// In production, you'd often do:
+//     ///   builder.add_nested_field("user", NestedOptions::...)
+//     /// But here we show a simpler demonstration: a bool field named "_is_parent_user".
+//     fn create_nested_schema() -> (Schema, Field, Field) {
+//         let mut builder = SchemaBuilder::default();
+//         let group_field = builder.add_text_field("group", STRING);
+//         // Fix #1: make this a real boolean field, not a text field
+//         let parent_flag_field = builder.add_bool_field("_is_parent_user", crate::schema::INDEXED);
+
+//         let schema = builder.build();
+//         (schema, group_field, parent_flag_field)
+//     }
+
+//     #[test]
+//     fn test_nested_query_simple() -> crate::Result<()> {
+//         // We'll mimic a single "block": 2 child docs + 1 parent doc:
+//         //   doc0 => child1 => `_is_parent_user=false`
+//         //   doc1 => child2 => `_is_parent_user=false`
+//         //   doc2 => parent => `_is_parent_user=true`, group="fans"
+//         let (schema, group_field, parent_flag_field) = create_nested_schema();
+//         let index = Index::create_in_ram(schema.clone());
+
+//         {
+//             let mut writer = index.writer_for_tests()?;
+//             // Use actual booleans rather than "false"/"true" strings
+//             let child_doc1 = doc!( parent_flag_field => false );
+//             let child_doc2 = doc!( parent_flag_field => false );
+//             let parent_doc = doc!( parent_flag_field => true, group_field => "fans" );
+//             writer.add_documents(vec![child_doc1, child_doc2, parent_doc])?;
+//             writer.commit()?;
+//         }
+
+//         let reader = index.reader()?;
+//         let searcher = reader.searcher();
+
+//         // The child docs have _is_parent_user=false
+//         // => so the child query is a bool term
+//         let child_term = Term::from_field_bool(parent_flag_field, false);
+//         let child_query = TermQuery::new(child_term, IndexRecordOption::Basic);
+
+//         // Create our NestedQuery
+//         // The `_is_parent_user` field is in the schema, so pass &schema + path="user"
+//         let nested_query = NestedQuery::new(
+//             &schema,
+//             "user".to_string(),
+//             Box::new(child_query),
+//             NestedScoreMode::None,
+//             false,
+//         )?;
+
+//         let top_docs = searcher.search(&nested_query, &TopDocs::with_limit(10))?;
+//         assert_eq!(top_docs.len(), 1, "Expect 1 parent doc with group=fans");
+//         let (score, doc_addr) = top_docs[0];
+//         assert_eq!(
+//             score, 1.0,
+//             "Mode=None => parent doc gets a fixed score of 1.0"
+//         );
+
+//         let retrieved_doc: TantivyDocument = searcher.doc(doc_addr)?;
+//         let group_val = retrieved_doc
+//             .get_first(group_field)
+//             .unwrap()
+//             .as_str()
+//             .unwrap();
+//         assert_eq!(group_val, "fans");
+//         Ok(())
+//     }
+
+//     #[test]
+//     fn test_nested_query_with_scoring_avg() -> crate::Result<()> {
+//         // Show how child frequency can influence parent's aggregated score
+//         // We'll store "tag=java" multiple times in one child doc vs once in another.
+//         let mut builder = SchemaBuilder::default();
+//         let group_field = builder.add_text_field("group", STRING);
+//         // We'll do a bool field named "_is_parent_foo"
+//         let parent_flag_field = builder.add_bool_field("_is_parent_foo", crate::schema::INDEXED);
+//         // Each child doc can store multiple "tag" values => changes freq => changes score
+//         let tag_field = builder.add_text_field("tag", STRING);
+//         let schema = builder.build();
+//         let index = Index::create_in_ram(schema.clone());
+
+//         {
+//             let mut writer = index.writer_for_tests()?;
+//             // child0 => "java" repeated 2x => higher freq => bigger score
+//             let child0 = doc!(
+//                 parent_flag_field => false,
+//                 tag_field => "java",
+//                 tag_field => "java"
+//             );
+//             // child1 => "java" repeated 1x => lower freq => smaller score
+//             let child1 = doc!( parent_flag_field => false, tag_field => "java" );
+//             let parent_doc = doc!( parent_flag_field => true, group_field => "baz" );
+
+//             writer.add_documents(vec![child0, child1, parent_doc])?;
+//             writer.commit()?;
+//         }
+
+//         let reader = index.reader()?;
+//         let searcher = reader.searcher();
+
+//         // The child query is "java" with WithFreqs => the doc that has 2 freq will get a higher child score
+//         let child_term = Term::from_field_text(tag_field, "java");
+//         let child_query = TermQuery::new(child_term, IndexRecordOption::WithFreqs);
+
+//         // The nested path is `_is_parent_foo`, so path="foo"
+//         // => internally, the parent filter is `_is_parent_foo==true`
+//         let nested_query = NestedQuery::new(
+//             &schema,
+//             "foo".to_string(),
+//             Box::new(child_query),
+//             NestedScoreMode::Avg,
+//             false,
+//         )?;
+
+//         let top_docs = searcher.search(&nested_query, &TopDocs::with_limit(1))?;
+//         assert_eq!(top_docs.len(), 1);
+
+//         let (score, doc_addr) = top_docs[0];
+//         // The child's average should be > 1.0 if freq-based scoring is used.
+//         assert!(
+//             score > 1.0,
+//             "Expected average child doc score above 1.0, got {score}"
+//         );
+
+//         let doc: TantivyDocument = searcher.doc(doc_addr)?;
+//         let group_val = doc.get_first(group_field).unwrap().as_str().unwrap();
+//         assert_eq!(group_val, "baz");
+//         Ok(())
+//     }
+
+//     #[test]
+//     fn test_nested_query_with_inner_hits() -> crate::Result<()> {
+//         // Demonstrate usage with collect_inner_hits=true. The actual child doc IDs are not
+//         // fully implemented in the code, but we show the pattern.
+//         let (schema, group_field, parent_flag_field) = create_nested_schema();
+//         let index = Index::create_in_ram(schema.clone());
+
+//         {
+//             let mut writer = index.writer_for_tests()?;
+//             // doc0 => child=false, doc1 => child=false, doc2 => parent=true
+//             writer.add_documents(vec![
+//                 doc!(parent_flag_field => false),
+//                 doc!(parent_flag_field => false),
+//                 doc!(parent_flag_field => true, group_field => "fans"),
+//             ])?;
+//             writer.commit()?;
+//         }
+
+//         let reader = index.reader()?;
+//         let searcher = reader.searcher();
+
+//         // This child query matches docs with `_is_parent_user=false`
+//         let child_term = Term::from_field_bool(parent_flag_field, false);
+//         let child_query = TermQuery::new(child_term, IndexRecordOption::Basic);
+
+//         // collect_inner_hits = true
+//         let nested_query = NestedQuery::new(
+//             &schema,
+//             "user".to_string(),
+//             Box::new(child_query),
+//             NestedScoreMode::None,
+//             true,
+//         )?;
+
+//         let weight = nested_query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
+//         let segment_reader = searcher.segment_reader(0);
+//         let mut scorer = weight.scorer(segment_reader, 1.0)?;
+
+//         let mut matched_parents = Vec::new();
+//         while scorer.doc() != TERMINATED {
+//             matched_parents.push(scorer.doc());
+//             scorer.advance();
+//         }
+//         // The single parent doc is doc2
+//         assert_eq!(matched_parents, vec![2]);
+//         Ok(())
+//     }
+
+//     #[test]
+//     fn test_nested_query_multi_block() -> crate::Result<()> {
+//         // Two blocks of child docs, each ending in a parent doc:
+//         //  doc0 => child=false
+//         //  doc1 => child=false
+//         //  doc2 => parent=true, group=alpha
+//         //  doc3 => child=false
+//         //  doc4 => parent=true, group=beta
+//         let (schema, group_field, parent_flag_field) = create_nested_schema();
+//         let index = Index::create_in_ram(schema.clone());
+
+//         {
+//             let mut writer = index.writer_for_tests()?;
+//             // block1
+//             writer.add_documents(vec![
+//                 doc!(parent_flag_field=>false),
+//                 doc!(parent_flag_field=>false),
+//                 doc!(parent_flag_field=>true, group_field=>"alpha"),
+//             ])?;
+//             // block2
+//             writer.add_documents(vec![
+//                 doc!(parent_flag_field=>false),
+//                 doc!(parent_flag_field=>true, group_field=>"beta"),
+//             ])?;
+//             writer.commit()?;
+//         }
+//         let reader = index.reader()?;
+//         let searcher = reader.searcher();
+
+//         let child_term = Term::from_field_bool(parent_flag_field, false);
+//         let child_query = TermQuery::new(child_term, IndexRecordOption::Basic);
+
+//         let nested_query = NestedQuery::new(
+//             &schema,
+//             "user".to_string(),
+//             Box::new(child_query),
+//             NestedScoreMode::None,
+//             false,
+//         )?;
+
+//         let top_docs = searcher.search(&nested_query, &TopDocs::with_limit(10))?;
+//         // 2 parent docs => alpha and beta
+//         assert_eq!(top_docs.len(), 2);
+
+//         let mut group_strings = Vec::new();
+//         for (score, addr) in top_docs {
+//             let doc = searcher.doc::<TantivyDocument>(addr)?;
+//             let group_val = doc.get_first(group_field).unwrap().as_str().unwrap();
+//             group_strings.push((score, group_val.to_owned()));
+//         }
+
+//         // We expect alpha and beta in some order
+//         let groups_only: Vec<_> = group_strings.iter().map(|(_score, grp)| grp).collect();
+//         assert!(groups_only.contains(&&"alpha".to_string()));
+//         assert!(groups_only.contains(&&"beta".to_string()));
+//         Ok(())
+//     }
+
+//     #[test]
+//     fn test_nested_query_with_boolean_child() -> crate::Result<()> {
+//         // Example: must have skill=python AND skill=ruby in the same child block => parent matches
+//         // but we won't do any actual doc indexing in this snippet. It's just a demonstration.
+//         let (schema, _group_field, _parent_flag_field) = create_nested_schema();
+//         // Suppose we also add "skill" as text:
+//         let skill_field = schema
+//             .get_field("skill")
+//             .unwrap_or_else(|_| panic!("Add skill field if needed."));
+
+//         // Then a boolean child query:
+//         let must_python = TermQuery::new(
+//             Term::from_field_text(skill_field, "python"),
+//             IndexRecordOption::Basic,
+//         );
+//         let must_ruby = TermQuery::new(
+//             Term::from_field_text(skill_field, "ruby"),
+//             IndexRecordOption::Basic,
+//         );
+//         let mut bool_q = BooleanQuery::new(vec![]);
+//         bool_q.add_clause(Occur::Must, Box::new(must_python));
+//         bool_q.add_clause(Occur::Must, Box::new(must_ruby));
+
+//         // In real usage, you'd index docs accordingly. We'll just skip that here.
+//         let nested_q = NestedQuery::new(
+//             &schema,
+//             "user".to_string(),
+//             Box::new(bool_q),
+//             NestedScoreMode::Max,
+//             false,
+//         )?;
+
+//         // We won't actually run it, but:
+//         assert!(true);
+//         Ok(())
+//     }
+// }

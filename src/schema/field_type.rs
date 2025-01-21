@@ -1,4 +1,5 @@
 // src/schema/field_type.rs
+
 use std::net::IpAddr;
 use std::str::FromStr;
 
@@ -278,7 +279,10 @@ impl FieldType {
                 bytes_options.is_indexed()
             }
             FieldType::JsonObject(ref json_object_options) => {
-                println!("Checking if JsonObject field is indexed: {:?}", json_object_options);
+                println!(
+                    "Checking if JsonObject field is indexed: {:?}",
+                    json_object_options
+                );
                 json_object_options.is_indexed()
             }
             FieldType::IpAddr(ref ip_addr_options) => {
@@ -355,7 +359,10 @@ impl FieldType {
                 true
             }
             FieldType::JsonObject(ref json_object_options) => {
-                println!("Checking if JsonObject field is fast: {:?}", json_object_options);
+                println!(
+                    "Checking if JsonObject field is fast: {:?}",
+                    json_object_options
+                );
                 json_object_options.is_fast()
             }
             FieldType::Nested(ref nested_options) => {
@@ -454,7 +461,7 @@ impl FieldType {
     ) -> Result<OwnedValue, ValueParsingError> {
         println!("\nvalue_from_json called with JSON: {:?}", json);
         println!("Field type is: {:?}", self);
-        
+
         if let FieldType::Nested(_nested_opts) = self {
             println!("Nested field detected - returning error");
             return Err(ValueParsingError::TypeError {
@@ -480,7 +487,7 @@ impl FieldType {
     ) -> Result<OwnedValue, ValueParsingError> {
         println!("\nvalue_from_json_non_nested called with JSON: {:?}", json);
         println!("Field type is: {:?}", self);
-        
+
         let result = match json {
             JsonValue::String(field_text) => {
                 println!("Processing String value: {}", field_text);
@@ -489,7 +496,7 @@ impl FieldType {
                         let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
                             .map_err(|_err| ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
-                                json: JsonValue::String(field_text),
+                                json: JsonValue::String(field_text.clone()),
                             })?;
                         Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
@@ -499,7 +506,7 @@ impl FieldType {
                             Ok(OwnedValue::U64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a u64 or a u64 as string",
-                                    json: JsonValue::String(field_text),
+                                    json: JsonValue::String(field_text.clone()),
                                 }
                             })?))
                         } else {
@@ -514,7 +521,7 @@ impl FieldType {
                             Ok(OwnedValue::I64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a i64 or a i64 as string",
-                                    json: JsonValue::String(field_text),
+                                    json: JsonValue::String(field_text.clone()),
                                 }
                             })?))
                         } else {
@@ -529,7 +536,7 @@ impl FieldType {
                             Ok(OwnedValue::F64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a f64 or a f64 as string",
-                                    json: JsonValue::String(field_text),
+                                    json: JsonValue::String(field_text.clone()),
                                 }
                             })?))
                         } else {
@@ -544,7 +551,7 @@ impl FieldType {
                             Ok(OwnedValue::Bool(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
                                     expected: "a i64 or a bool as string",
-                                    json: JsonValue::String(field_text),
+                                    json: JsonValue::String(field_text.clone()),
                                 }
                             })?))
                         } else {
@@ -567,7 +574,7 @@ impl FieldType {
                         let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
                             ValueParsingError::ParseError {
                                 error: err.to_string(),
-                                json: JsonValue::String(field_text),
+                                json: JsonValue::String(field_text.clone()),
                             }
                         })?;
 
@@ -583,137 +590,142 @@ impl FieldType {
                 println!("Processing Number value: {}", field_val_num);
                 match self {
                     FieldType::I64(_) | FieldType::Date(_) => {
-                    if let Some(field_val_i64) = field_val_num.as_i64() {
-                        Ok(OwnedValue::I64(field_val_i64))
-                    } else {
-                        Err(ValueParsingError::OverflowError {
-                            expected: "an i64 int",
-                            json: JsonValue::Number(field_val_num),
-                        })
+                        if let Some(field_val_i64) = field_val_num.as_i64() {
+                            Ok(OwnedValue::I64(field_val_i64))
+                        } else {
+                            Err(ValueParsingError::OverflowError {
+                                expected: "an i64 int",
+                                json: JsonValue::Number(field_val_num),
+                            })
+                        }
                     }
-                }
-                FieldType::U64(_) => {
-                    if let Some(field_val_u64) = field_val_num.as_u64() {
-                        Ok(OwnedValue::U64(field_val_u64))
-                    } else {
-                        Err(ValueParsingError::OverflowError {
-                            expected: "u64",
-                            json: JsonValue::Number(field_val_num),
-                        })
+                    FieldType::U64(_) => {
+                        if let Some(field_val_u64) = field_val_num.as_u64() {
+                            Ok(OwnedValue::U64(field_val_u64))
+                        } else {
+                            Err(ValueParsingError::OverflowError {
+                                expected: "u64",
+                                json: JsonValue::Number(field_val_num),
+                            })
+                        }
                     }
-                }
-                FieldType::F64(_) => {
-                    if let Some(field_val_f64) = field_val_num.as_f64() {
-                        Ok(OwnedValue::F64(field_val_f64))
-                    } else {
-                        Err(ValueParsingError::OverflowError {
-                            expected: "a f64",
-                            json: JsonValue::Number(field_val_num),
-                        })
+                    FieldType::F64(_) => {
+                        if let Some(field_val_f64) = field_val_num.as_f64() {
+                            Ok(OwnedValue::F64(field_val_f64))
+                        } else {
+                            Err(ValueParsingError::OverflowError {
+                                expected: "a f64",
+                                json: JsonValue::Number(field_val_num),
+                            })
+                        }
                     }
-                }
-                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
-                    expected: "a boolean",
-                    json: JsonValue::Number(field_val_num),
-                }),
-                FieldType::Str(opt) => {
-                    if opt.should_coerce() {
-                        Ok(OwnedValue::Str(field_val_num.to_string()))
-                    } else {
+                    FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                        expected: "a boolean",
+                        json: JsonValue::Number(field_val_num),
+                    }),
+                    FieldType::Str(opt) => {
+                        if opt.should_coerce() {
+                            Ok(OwnedValue::Str(field_val_num.to_string()))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a string",
+                                json: JsonValue::Number(field_val_num),
+                            })
+                        }
+                    }
+                    FieldType::Facet(_) | FieldType::Bytes(_) => {
                         Err(ValueParsingError::TypeError {
                             expected: "a string",
                             json: JsonValue::Number(field_val_num),
                         })
                     }
+                    FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                        expected: "a json object",
+                        json: JsonValue::Number(field_val_num),
+                    }),
+                    FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
+                        expected: "a string with an ip addr",
+                        json: JsonValue::Number(field_val_num),
+                    }),
+                    FieldType::Nested(_) => Err(ValueParsingError::TypeError {
+                        expected: "a nested object",
+                        json: JsonValue::Number(field_val_num),
+                    }),
                 }
-                FieldType::Facet(_) | FieldType::Bytes(_) => Err(ValueParsingError::TypeError {
-                    expected: "a string",
-                    json: JsonValue::Number(field_val_num),
-                }),
-                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
-                    expected: "a json object",
-                    json: JsonValue::Number(field_val_num),
-                }),
-                FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
-                    expected: "a string with an ip addr",
-                    json: JsonValue::Number(field_val_num),
-                }),
-                FieldType::Nested(_) => Err(ValueParsingError::TypeError {
-                    expected: "a nested object",
-                    json: JsonValue::Number(field_val_num),
-                }),
-            },
+            }
             JsonValue::Object(json_map) => {
                 println!("Processing Object value: {:?}", json_map);
                 match self {
                     FieldType::Str(_) => {
-                    if let Ok(tok_str_val) = serde_json::from_value::<PreTokenizedString>(
-                        serde_json::Value::Object(json_map.clone()),
-                    ) {
-                        Ok(OwnedValue::PreTokStr(tok_str_val))
-                    } else {
-                        Err(ValueParsingError::TypeError {
-                            expected: "a string or an pretokenized string",
-                            json: JsonValue::Object(json_map),
-                        })
+                        if let Ok(tok_str_val) = serde_json::from_value::<PreTokenizedString>(
+                            JsonValue::Object(json_map.clone()),
+                        ) {
+                            Ok(OwnedValue::PreTokStr(tok_str_val))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a string or an pretokenized string",
+                                json: JsonValue::Object(json_map),
+                            })
+                        }
                     }
+                    FieldType::JsonObject(_) => Ok(OwnedValue::from(json_map)),
+                    _ => Err(ValueParsingError::TypeError {
+                        expected: self.value_type().name(),
+                        json: JsonValue::Object(json_map),
+                    }),
                 }
-                FieldType::JsonObject(_) => Ok(OwnedValue::from(json_map)),
-                _ => Err(ValueParsingError::TypeError {
-                    expected: self.value_type().name(),
-                    json: JsonValue::Object(json_map),
-                }),
-            },
+            }
             JsonValue::Bool(json_bool_val) => {
                 println!("Processing Bool value: {}", json_bool_val);
                 match self {
                     FieldType::Bool(_) => Ok(OwnedValue::Bool(json_bool_val)),
                     FieldType::Str(opt) => {
-                    if opt.should_coerce() {
-                        Ok(OwnedValue::Str(json_bool_val.to_string()))
-                    } else {
-                        Err(ValueParsingError::TypeError {
-                            expected: "a string",
-                            json: JsonValue::Bool(json_bool_val),
-                        })
+                        if opt.should_coerce() {
+                            Ok(OwnedValue::Str(json_bool_val.to_string()))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a string",
+                                json: JsonValue::Bool(json_bool_val),
+                            })
+                        }
                     }
+                    _ => Err(ValueParsingError::TypeError {
+                        expected: self.value_type().name(),
+                        json: JsonValue::Bool(json_bool_val),
+                    }),
                 }
-                _ => Err(ValueParsingError::TypeError {
-                    expected: self.value_type().name(),
-                    json: JsonValue::Bool(json_bool_val),
-                }),
-            },
+            }
             // Could also just filter them
             JsonValue::Null => {
                 println!("Processing Null value");
                 match self {
                     FieldType::Str(opt) => {
-                    if opt.should_coerce() {
-                        Ok(OwnedValue::Str("null".to_string()))
-                    } else {
-                        Err(ValueParsingError::TypeError {
-                            expected: "a string",
-                            json: JsonValue::Null,
-                        })
+                        if opt.should_coerce() {
+                            Ok(OwnedValue::Str("null".to_string()))
+                        } else {
+                            Err(ValueParsingError::TypeError {
+                                expected: "a string",
+                                json: JsonValue::Null,
+                            })
+                        }
                     }
+                    _ => Err(ValueParsingError::TypeError {
+                        expected: self.value_type().name(),
+                        json: JsonValue::Null,
+                    }),
                 }
-                _ => Err(ValueParsingError::TypeError {
-                    expected: self.value_type().name(),
-                    json: JsonValue::Null,
-                }),
-            },
+            }
             _ => Err(ValueParsingError::TypeError {
                 expected: self.value_type().name(),
                 json: json.clone(),
             }),
-        }
+        };
+        result
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::{
@@ -722,6 +734,7 @@ mod tests {
     use crate::time::{Date, Month, PrimitiveDateTime, Time};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, TantivyDocument};
+    use serde_json::json;
 
     #[test]
     fn test_to_string_coercion() {

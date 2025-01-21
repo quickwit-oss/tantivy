@@ -30,9 +30,12 @@ impl PerFieldPostingsWriter {
 }
 
 fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
-    match *field_entry.field_type() {
+    match field_entry.field_type() {
         FieldType::Str(ref text_options) => {
-            println!("FieldType::Str - Processing text field with options: {:?}", text_options);
+            println!(
+                "FieldType::Str - Processing text field with options: {:?}",
+                text_options
+            );
             text_options
                 .get_indexing_options()
                 .map(|indexing_options| match indexing_options.index_option() {
@@ -55,15 +58,24 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
                 })
         }
         FieldType::U64(opts) => {
-            println!("FieldType::U64 - Creating default DocIdRecorder for u64 field with options: {:?}", opts);
+            println!(
+                "FieldType::U64 - Creating default DocIdRecorder for u64 field with options: {:?}",
+                opts
+            );
             Box::<SpecializedPostingsWriter<DocIdRecorder>>::default()
         }
         FieldType::I64(opts) => {
-            println!("FieldType::I64 - Creating default DocIdRecorder for i64 field with options: {:?}", opts);
+            println!(
+                "FieldType::I64 - Creating default DocIdRecorder for i64 field with options: {:?}",
+                opts
+            );
             Box::<SpecializedPostingsWriter<DocIdRecorder>>::default()
         }
         FieldType::F64(opts) => {
-            println!("FieldType::F64 - Creating default DocIdRecorder for f64 field with options: {:?}", opts);
+            println!(
+                "FieldType::F64 - Creating default DocIdRecorder for f64 field with options: {:?}",
+                opts
+            );
             Box::<SpecializedPostingsWriter<DocIdRecorder>>::default()
         }
         FieldType::Bool(opts) => {
@@ -92,7 +104,10 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
             Box::<SpecializedPostingsWriter<DocIdRecorder>>::default()
         }
         FieldType::JsonObject(ref json_object_options) => {
-            println!("FieldType::JsonObject - Processing JSON field with options: {:?}", json_object_options);
+            println!(
+                "FieldType::JsonObject - Processing JSON field with options: {:?}",
+                json_object_options
+            );
             if let Some(text_indexing_option) = json_object_options.get_text_indexing_options() {
                 match text_indexing_option.index_option() {
                     IndexRecordOption::Basic => {

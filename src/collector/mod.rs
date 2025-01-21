@@ -85,6 +85,9 @@ use downcast_rs::impl_downcast;
 
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 
+mod block_join_collector;
+pub use self::block_join_collector::BlockJoinCollector;
+
 mod count_collector;
 pub use self::count_collector::Count;
 
