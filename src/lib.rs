@@ -237,10 +237,10 @@ pub const INDEX_FORMAT_OLDEST_SUPPORTED_VERSION: u32 = 4;
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Version {
-    major: u32,
-    minor: u32,
-    patch: u32,
-    index_format_version: u32,
+    pub(crate) major: u32,
+    pub(crate) minor: u32,
+    pub(crate) patch: u32,
+    pub(crate) index_format_version: u32,
 }
 
 impl fmt::Debug for Version {
