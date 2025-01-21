@@ -1,15 +1,14 @@
 use std::io;
 use std::io::Write;
 
-use common::{BinarySerializable, CountingWriter, DeserializeFrom, FixedSize, HasLen};
+use common::{BinarySerializable, HasLen};
 use crc32fast::Hasher;
-use serde::{Deserialize, Serialize};
 
 use crate::directory::error::Incompatibility;
 use crate::directory::{AntiCallToken, FileSlice, TerminatingWrite};
 use crate::{Version, INDEX_FORMAT_OLDEST_SUPPORTED_VERSION, INDEX_FORMAT_VERSION};
 
-const FOOTER_MAX_LEN: u32 = 50_000;
+pub const FOOTER_LEN: usize = 24;
 
 /// The magic byte of the footer to identify corruption
 /// or an old version of the footer.
@@ -18,7 +17,7 @@ const FOOTER_MAGIC_NUMBER: u32 = 1337;
 type CrcHashU32 = u32;
 
 /// A Footer is appended to every file
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Footer {
     pub version: Version,
     pub crc: CrcHashU32,
@@ -33,33 +32,44 @@ impl Footer {
     pub fn crc(&self) -> CrcHashU32 {
         self.crc
     }
-    pub fn append_footer<W: io::Write>(&self, mut write: &mut W) -> io::Result<()> {
-        let mut counting_write = CountingWriter::wrap(&mut write);
-        counting_write.write_all(serde_json::to_string(&self)?.as_ref())?;
-        let footer_payload_len = counting_write.written_bytes();
-        BinarySerializable::serialize(&(footer_payload_len as u32), write)?;
+    pub fn append_footer<W: io::Write>(&self, write: &mut W) -> io::Result<()> {
+        // 24 bytes
+        BinarySerializable::serialize(&self.version.major, write)?;
+        BinarySerializable::serialize(&self.version.minor, write)?;
+        BinarySerializable::serialize(&self.version.patch, write)?;
+        BinarySerializable::serialize(&self.version.index_format_version, write)?;
+        BinarySerializable::serialize(&self.crc, write)?;
         BinarySerializable::serialize(&FOOTER_MAGIC_NUMBER, write)?;
         Ok(())
     }
 
     pub fn extract_footer(file: FileSlice) -> io::Result<(Footer, FileSlice)> {
-        if file.len() < 4 {
+        if file.len() < FOOTER_LEN {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
-                    "File corrupted. The file is smaller than 4 bytes (len={}).",
+                    "File corrupted. The file is too small to contain the {FOOTER_LEN} byte \
+                     footer (len={}).",
                     file.len()
                 ),
             ));
         }
 
-        let footer_metadata_len = <(u32, u32)>::SIZE_IN_BYTES;
-        let (footer_len, footer_magic_byte): (u32, u32) = file
-            .slice_from_end(footer_metadata_len)
-            .read_bytes()?
-            .as_ref()
-            .deserialize()?;
+        let (body_slice, footer_slice) = file.split_from_end(FOOTER_LEN);
+        let footer_bytes = footer_slice.read_bytes()?;
+        let mut footer_bytes = footer_bytes.as_slice();
 
+        let footer = Footer {
+            version: Version {
+                major: u32::deserialize(&mut footer_bytes)?,
+                minor: u32::deserialize(&mut footer_bytes)?,
+                patch: u32::deserialize(&mut footer_bytes)?,
+                index_format_version: u32::deserialize(&mut footer_bytes)?,
+            },
+            crc: u32::deserialize(&mut footer_bytes)?,
+        };
+
+        let footer_magic_byte = u32::deserialize(&mut footer_bytes)?;
         if footer_magic_byte != FOOTER_MAGIC_NUMBER {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -69,38 +79,12 @@ impl Footer {
             ));
         }
 
-        if footer_len > FOOTER_MAX_LEN {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Footer seems invalid as it suggests a footer len of {footer_len}. File is \
-                     corrupted, or the index was created with a different & old version of \
-                     tantivy."
-                ),
-            ));
-        }
-        let total_footer_size = footer_len as usize + footer_metadata_len;
-        if file.len() < total_footer_size {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                format!(
-                    "File corrupted. The file is smaller than it's footer bytes \
-                     (len={total_footer_size})."
-                ),
-            ));
-        }
-
-        let footer: Footer =
-            serde_json::from_slice(&file.read_bytes_slice(
-                file.len() - total_footer_size..file.len() - footer_metadata_len,
-            )?)?;
-
-        let body = file.slice_to(file.len() - total_footer_size);
-        Ok((footer, body))
+        Ok((footer, body_slice))
     }
 
     /// Confirms that the index will be read correctly by this version of tantivy
     /// Has to be called after `extract_footer` to make sure it's not accessing uninitialised memory
+    #[allow(dead_code)]
     pub fn is_compatible(&self) -> Result<(), Incompatibility> {
         const SUPPORTED_INDEX_FORMAT_VERSION_RANGE: std::ops::RangeInclusive<u32> =
             INDEX_FORMAT_OLDEST_SUPPORTED_VERSION..=INDEX_FORMAT_VERSION;
@@ -179,6 +163,10 @@ mod tests {
     fn test_deserialize_footer_missing_magic_byte() {
         let mut buf: Vec<u8> = vec![];
         BinarySerializable::serialize(&0_u32, &mut buf).unwrap();
+        BinarySerializable::serialize(&0_u32, &mut buf).unwrap();
+        BinarySerializable::serialize(&0_u32, &mut buf).unwrap();
+        BinarySerializable::serialize(&0_u32, &mut buf).unwrap();
+        BinarySerializable::serialize(&0_u32, &mut buf).unwrap();
         let wrong_magic_byte: u32 = 5555;
         BinarySerializable::serialize(&wrong_magic_byte, &mut buf).unwrap();
 
@@ -196,7 +184,6 @@ mod tests {
     #[test]
     fn test_deserialize_footer_wrong_filesize() {
         let mut buf: Vec<u8> = vec![];
-        BinarySerializable::serialize(&100_u32, &mut buf).unwrap();
         BinarySerializable::serialize(&FOOTER_MAGIC_NUMBER, &mut buf).unwrap();
 
         let owned_bytes = OwnedBytes::new(buf);
@@ -206,27 +193,7 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
         assert_eq!(
             err.to_string(),
-            "File corrupted. The file is smaller than it\'s footer bytes (len=108)."
-        );
-    }
-
-    #[test]
-    fn test_deserialize_too_large_footer() {
-        let mut buf: Vec<u8> = vec![];
-
-        let footer_length = super::FOOTER_MAX_LEN + 1;
-        BinarySerializable::serialize(&footer_length, &mut buf).unwrap();
-        BinarySerializable::serialize(&FOOTER_MAGIC_NUMBER, &mut buf).unwrap();
-
-        let owned_bytes = OwnedBytes::new(buf);
-
-        let fileslice = FileSlice::new(Arc::new(owned_bytes));
-        let err = Footer::extract_footer(fileslice).unwrap_err();
-        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
-        assert_eq!(
-            err.to_string(),
-            "Footer seems invalid as it suggests a footer len of 50001. File is corrupted, or the \
-             index was created with a different & old version of tantivy."
+            "File corrupted. The file is too small to contain the 24 byte footer (len=4)."
         );
     }
 }
