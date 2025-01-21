@@ -8,7 +8,7 @@ use fnv::FnvHashMap;
 use itertools::Itertools;
 
 use crate::directory::error::OpenReadError;
-use crate::directory::{CompositeFile, FileSlice, ManagedDirectory};
+use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
@@ -18,7 +18,7 @@ use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
-use crate::{Directory, DocId, Index, Opstamp, SegmentMeta};
+use crate::{Directory, DocId, Index, Opstamp};
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///

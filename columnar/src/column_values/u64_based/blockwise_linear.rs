@@ -1,7 +1,7 @@
+use std::io;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, OnceLock};
-use std::{io, iter};
 
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, CountingWriter, DeserializeFrom, HasLen, OwnedBytes};
@@ -190,28 +190,23 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
 
         let mut footer = footer.read_bytes()?;
         let num_blocks = compute_num_blocks(stats.num_rows);
-        let mut blocks: Vec<BlockWithLength> =
-            iter::repeat_with(|| Block::deserialize(&mut footer))
-                .take(num_blocks as usize)
-                .map(|block| {
-                    block.map(|block| BlockWithLength {
-                        block,
-                        file_slice: FileSlice::from(Vec::new()),
-                        data: OnceLock::default(),
-                    })
-                })
-                .collect::<io::Result<_>>()?;
 
         let mut start_offset = 0;
-        for block in &mut blocks {
+        let mut blocks = Vec::with_capacity(num_blocks as usize);
+
+        for _ in 0..num_blocks {
+            let mut block = Block::deserialize(&mut footer)?;
             let len = (block.bit_unpacker.bit_width() as usize) * BLOCK_SIZE as usize / 8;
+
             block.data_start_offset = start_offset;
-            block.file_slice = data
-                .clone()
-                .slice(start_offset..(start_offset + len).min(data.len()));
+            blocks.push(BlockWithData {
+                block,
+                file_slice: data.slice(start_offset..(start_offset + len).min(data.len())),
+                data: Default::default(),
+            });
+
             start_offset += len;
         }
-
         Ok(BlockwiseLinearReader {
             blocks: blocks.into_boxed_slice().into(),
             stats,
@@ -219,13 +214,13 @@ impl ColumnCodec<u64> for BlockwiseLinearCodec {
     }
 }
 
-struct BlockWithLength {
+struct BlockWithData {
     block: Block,
     file_slice: FileSlice,
     data: OnceLock<OwnedBytes>,
 }
 
-impl Deref for BlockWithLength {
+impl Deref for BlockWithData {
     type Target = Block;
 
     fn deref(&self) -> &Self::Target {
@@ -233,7 +228,7 @@ impl Deref for BlockWithLength {
     }
 }
 
-impl DerefMut for BlockWithLength {
+impl DerefMut for BlockWithData {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.block
     }
@@ -241,7 +236,7 @@ impl DerefMut for BlockWithLength {
 
 #[derive(Clone)]
 pub struct BlockwiseLinearReader {
-    blocks: Arc<[BlockWithLength]>,
+    blocks: Arc<[BlockWithData]>,
     stats: ColumnStats,
 }
 
