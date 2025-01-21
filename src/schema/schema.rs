@@ -35,6 +35,7 @@ use crate::TantivyError;
 pub struct SchemaBuilder {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>,
+    nested_paths: HashMap<String, String>,
 }
 
 impl SchemaBuilder {
@@ -203,74 +204,70 @@ impl SchemaBuilder {
     /// Also, if `NestedOptions::store_parent_flag` is true, we create an internal field
     /// named `_is_parent_<field_name>` so we can easily detect parent docs.
     pub fn add_nested_field(&mut self, field_name: &str, nested_opts: NestedOptions) -> Field {
-        println!("Adding nested field '{}' with options:", field_name);
-        println!("  - include_in_parent: {}", nested_opts.include_in_parent);
-        println!("  - include_in_root: {}", nested_opts.include_in_root);
-        println!("  - store_parent_flag: {}", nested_opts.store_parent_flag);
-        
-        let field_entry = FieldEntry::new_nested(field_name.to_string(), nested_opts.clone());
-        println!("Created nested field entry");
-        
-        let field = self.add_field(field_entry);
-        println!("Added main nested field with ID: {}", field.field_id());
-        
-        let mut bool_options = if nested_opts.is_indexed() {
-            println!("Field is indexed, setting indexed bool options");
-            NumericOptions::default().set_indexed()
-        } else {
-            println!("Field is not indexed, setting default bool options");
-            NumericOptions::default().set_indexed()
-        };
+        println!(
+            "Adding nested field '{}' with options: {:?}",
+            field_name, nested_opts
+        );
 
-        // If requested, create a boolean field `_is_parent_<field_name>` that the user can set to `true`
-        // when indexing the "parent" doc in a block of docs. This can help us build a parent bitset.
+        let field_entry = FieldEntry::new_nested(field_name.to_string(), nested_opts.clone());
+        let field = self.add_field(field_entry);
+
         if nested_opts.store_parent_flag {
             let parent_field_name = format!("_is_parent_{}", field_name);
             println!("Creating parent flag field '{}'", parent_field_name);
+
+            // We'll store it as an indexed bool, for the parent doc
+            let bool_options = NumericOptions::default().set_indexed();
             let bool_field_entry =
                 FieldEntry::new(parent_field_name.clone(), FieldType::Bool(bool_options));
             let parent_field = self.add_field(bool_field_entry);
-            println!("Added parent flag field with ID: {}", parent_field.field_id());
+
+            // Record the mapping in nested_paths
+            self.nested_paths
+                .insert(field_name.to_string(), parent_field_name);
         }
-        
-        println!("Completed nested field setup for '{}'", field_name);
+
         field
     }
 
     /// Adds a field entry to the schema in build.
     pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
-        println!("Adding field '{}' of type {:?}", field_entry.name(), field_entry.field_type());
+        println!(
+            "Adding field '{}' of type {:?}",
+            field_entry.name(),
+            field_entry.field_type()
+        );
         let field = Field::from_field_id(self.fields.len() as u32);
         println!("Assigned field ID: {}", field.field_id());
-        
+
         let field_name = field_entry.name().to_string();
         if let Some(_previous_value) = self.fields_map.insert(field_name.clone(), field) {
             panic!("Field already exists in schema {}", field_entry.name());
         };
         self.fields.push(field_entry);
-        println!("Successfully added field '{}' with ID {}", field_name, field.field_id());
+        println!(
+            "Successfully added field '{}' with ID {}",
+            field_name,
+            field.field_id()
+        );
         field
     }
 
     /// Finalize the creation of a `Schema`
     /// This will consume your `SchemaBuilder`
     pub fn build(self) -> Schema {
-        println!("Building schema with {} fields:", self.fields.len());
-        for (i, field) in self.fields.iter().enumerate() {
-            println!("  {}: {} ({:?})", i, field.name(), field.field_type());
-        }
-        let schema = Schema(Arc::new(InnerSchema {
+        Schema(Arc::new(InnerSchema {
             fields: self.fields,
             fields_map: self.fields_map,
-        }));
-        println!("Schema built successfully");
-        schema
+            nested_paths: self.nested_paths, // <==== store it
+        }))
     }
 }
 #[derive(Debug)]
 struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
+    nested_paths: HashMap<String, String>,
 }
 
 impl PartialEq for InnerSchema {
@@ -354,6 +351,10 @@ impl Schema {
             .map(|(field_id, field_entry)| (Field::from_field_id(field_id as u32), field_entry))
     }
 
+    pub fn nested_paths(&self) -> &HashMap<String, String> {
+        &self.0.nested_paths
+    }
+
     /// Creates a new builder.
     pub fn builder() -> SchemaBuilder {
         SchemaBuilder::default()
@@ -362,17 +363,22 @@ impl Schema {
     /// Returns the field option associated with a given name.
     pub fn get_field(&self, field_name: &str) -> crate::Result<Field> {
         println!("Looking up field '{}'", field_name);
-        let result = self.0
+        let result = self
+            .0
             .fields_map
             .get(field_name)
             .cloned()
             .ok_or_else(|| TantivyError::FieldNotFound(field_name.to_string()));
-            
+
         match &result {
             Ok(field) => println!("Found field '{}' with ID {}", field_name, field.field_id()),
             Err(_) => println!("Field '{}' not found in schema", field_name),
         }
         result
+    }
+
+    pub fn lookup_parent_flag_name(&self, nested_path: &str) -> Option<&str> {
+        self.0.nested_paths.get(nested_path).map(|s| s.as_str())
     }
 
     /// Searches for a full_path in the schema, returning the field name and a JSON path.
@@ -438,7 +444,12 @@ impl Serialize for Schema {
         println!("Serializing schema with {} fields", self.0.fields.len());
         let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
         for (i, e) in self.0.fields.iter().enumerate() {
-            println!("Serializing field {}: {} ({:?})", i, e.name(), e.field_type());
+            println!(
+                "Serializing field {}: {} ({:?})",
+                i,
+                e.name(),
+                e.field_type()
+            );
             seq.serialize_element(e)?;
         }
         println!("Schema serialization complete");
@@ -457,26 +468,36 @@ impl<'de> Deserialize<'de> for Schema {
             type Value = Schema;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("struct Schema")
+                formatter.write_str("a sequence of field entries representing a Schema")
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
             where
                 A: SeqAccess<'de>,
             {
-                let mut schema = SchemaBuilder {
-                    fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
-                    fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),
+                // Pre-size our vectors/maps based on the size hint if available
+                let capacity = seq.size_hint().unwrap_or(0);
+
+                // Build a temporary SchemaBuilder
+                let mut schema_builder = SchemaBuilder {
+                    fields: Vec::with_capacity(capacity),
+                    fields_map: HashMap::with_capacity(capacity),
+                    // If you also store nested_paths in JSON, you'd parse it differently
+                    // but for now we assume it's not in the same seq.
+                    nested_paths: HashMap::new(),
                 };
 
-                while let Some(value) = seq.next_element()? {
-                    schema.add_field(value);
+                // Read each FieldEntry from the sequence
+                while let Some(field_entry) = seq.next_element::<FieldEntry>()? {
+                    schema_builder.add_field(field_entry);
                 }
 
-                Ok(schema.build())
+                // Finally, build the actual Schema
+                Ok(schema_builder.build())
             }
         }
 
+        // We delegate to our `SchemaVisitor` to parse a sequence of FieldEntry
         deserializer.deserialize_seq(SchemaVisitor)
     }
 }

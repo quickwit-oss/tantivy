@@ -1,5 +1,5 @@
+// src/query/block_join_query.rs
 use std::cell::{Cell, RefCell};
-/// use std::cell::{Cell, RefCell};
 use std::fmt;
 use std::sync::Arc;
 
@@ -10,11 +10,6 @@ use crate::index::SegmentId;
 use crate::query::{EnableScoring, Explanation, Query, QueryClone, Scorer, Weight};
 use crate::schema::Term;
 use crate::{DocAddress, DocId, DocSet, Result, Score, SegmentReader, TERMINATED};
-
-// ScoreMode, ParentBitSetProducer, etc. remain the same as your code:
-///////////////////////////////////////////////////////////////////////////////
-// ScoreMode
-///////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScoreMode {
@@ -1327,7 +1322,7 @@ mod test {
                 .set_index_option(IndexRecordOption::Basic),
         );
 
-        // 2) Build your schema, specifying raw tokenizer for skill, docType, country
+        // 2) Build schema, specifying raw tokenizer for skill, docType, country
         //    while "year" is i64, "name" is just stored text, etc.
         let mut sb = SchemaBuilder::default();
 

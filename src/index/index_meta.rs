@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
@@ -356,10 +357,11 @@ impl IndexMeta {
     /// Opstamp will the value `0u64`.
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
-            index_settings: IndexSettings::default(),
+            // other fields:
+            schema: schema.clone(),
+            opstamp: 0,
             segments: vec![],
-            schema,
-            opstamp: 0u64,
+            index_settings: IndexSettings::default(),
             payload: None,
         }
     }
