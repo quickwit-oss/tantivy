@@ -148,7 +148,7 @@ struct ToParentBlockJoinWeight {
     score_mode: ScoreMode,
 }
 
-/// The scorer that lazily initializes on `doc()`.
+/// The scorer that lazily initializes on doc().
 struct ToParentBlockJoinScorer {
     child_scorer: RefCell<Box<dyn Scorer>>,
     parents: BitSet,
@@ -412,83 +412,63 @@ impl ToParentBlockJoinScorer {
         println!("[ToParentBlockJoinScorer::find_next_parent] ENTER");
         let mut child_scorer = self.child_scorer.borrow_mut();
 
-        loop {
-            // Get current child doc, but don't advance yet
-            let mut child_doc = child_scorer.doc();
-            println!("  => child_doc={}", child_doc);
+        // Get current child doc
+        let mut child_doc = child_scorer.doc();
+        println!("  => child_doc={}", child_doc);
 
-            // Find the *next* parent bit at or after the current child_doc
-            // (or at the start if no current child)
-            let start_pos = if child_doc == TERMINATED {
-                0
-            } else {
-                child_doc
-            };
-            let parent_doc = self.parents.next_set_bit(start_pos);
-            println!(
-                "  => next_set_bit({}) => parent_doc={}",
-                start_pos, parent_doc
-            );
+        // Find the next parent bit
+        let parent_doc = self.parents.next_set_bit(child_doc);
+        println!(
+            "  => next_set_bit({}) => parent_doc={}",
+            child_doc, parent_doc
+        );
 
-            if parent_doc == u32::MAX {
-                println!("  => no more parent bits => return TERMINATED");
-                return TERMINATED;
-            }
+        if parent_doc == u32::MAX {
+            println!("  => no more parent bits => return TERMINATED");
+            return TERMINATED;
+        }
 
-            // Reset accumulators for this parent
-            self.current_score.set(0.0);
-            self.child_count.set(0);
+        // Reset accumulators for this parent
+        self.current_score.set(0.0);
+        self.child_count.set(0);
 
-            // If child_scorer is already exhausted, we'll return this parent with score 0
-            if child_doc == TERMINATED {
-                println!("  => child_scorer exhausted => return parent_doc with score 0");
-                return parent_doc;
-            }
-
-            // Collect all child docs up until (but not including) parent_doc
-            while child_doc != TERMINATED && child_doc < parent_doc {
-                let cscore = child_scorer.score();
-                println!(
-                    "    => child_doc={}, child_score={}, accum_so_far={}, child_count={}",
-                    child_doc,
-                    cscore,
-                    self.current_score.get(),
-                    self.child_count.get()
-                );
-
-                // Combine child score into the parent's aggregator
-                let new_sum = self.score_mode.combine(
-                    cscore,
-                    self.current_score.get(),
-                    self.child_count.get(),
-                );
-                self.current_score.set(new_sum);
-                self.child_count
-                    .set(self.child_count.get().saturating_add(1));
-
-                // Advance the child scorer
-                child_doc = child_scorer.advance();
-                println!("    => advanced child => {}", child_doc);
-            }
-
-            // If child happens to be exactly at parent_doc, skip it
-            if child_doc == parent_doc {
-                println!("  => child_doc==parent_doc => skip the parent doc in child scorer");
-                child_doc = child_scorer.advance();
-                println!("  => advanced child => {}", child_doc);
-            }
-
-            let found_count = self.child_count.get();
-            println!(
-                "  => found_count={} for parent_doc={}",
-                found_count, parent_doc
-            );
-
-            // Always return the parent, even with found_count=0
-            // This maintains outer-join semantics
-            println!("  => returning parent_doc={}", parent_doc);
+        // If we have no children, just return the parent with score 0
+        if child_doc == TERMINATED {
+            println!("  => no children => return parent_doc with score 0");
             return parent_doc;
         }
+
+        // Process all children up until this parent
+        while child_doc != TERMINATED && child_doc < parent_doc {
+            let cscore = child_scorer.score();
+            println!(
+                "    => child_doc={}, child_score={}, accum_so_far={}, child_count={}",
+                child_doc,
+                cscore,
+                self.current_score.get(),
+                self.child_count.get()
+            );
+
+            // Combine child score
+            let new_sum =
+                self.score_mode
+                    .combine(cscore, self.current_score.get(), self.child_count.get());
+            self.current_score.set(new_sum);
+            self.child_count
+                .set(self.child_count.get().saturating_add(1));
+
+            // Advance child
+            child_doc = child_scorer.advance();
+            println!("    => advanced child => {}", child_doc);
+        }
+
+        // Skip if child is exactly at parent
+        if child_doc == parent_doc {
+            child_scorer.advance();
+        }
+
+        println!("  => returning parent_doc={}", parent_doc);
+        parent_doc
     }
 }
 
@@ -537,7 +517,7 @@ struct ToChildBlockJoinWeight {
 }
 
 struct ToChildBlockJoinScorer {
-    // Must be wrapped in RefCell if you call `.advance()` from a &self context
+    // Must be wrapped in RefCell if you call .advance() from a &self context
     parent_scorer: RefCell<Box<dyn Scorer>>,
     bits: BitSet,
     boost: f32,
@@ -813,7 +793,7 @@ impl ToChildBlockJoinScorer {
 /// parent document (by parent segment ID + doc_id).
 ///
 /// The parent doc must be indexed in "block" form with its children
-/// preceding it, and `parent_filter` must mark docs that are parents.
+/// preceding it, and parent_filter must mark docs that are parents.
 pub struct ParentChildrenBlockJoinQuery {
     parent_filter: Arc<dyn ParentBitSetProducer>,
     child_query: Box<dyn Query>,
@@ -826,10 +806,10 @@ pub struct ParentChildrenBlockJoinQuery {
 impl ParentChildrenBlockJoinQuery {
     /// Create a new parent->children block-join query.
     ///
-    /// - `parent_filter`: marks which docs are parents
-    /// - `child_query`:   the underlying child query
-    /// - `parent_segment_id`: which segment the parent doc is in
-    /// - `parent_doc_id`: the doc ID of that parent in that segment
+    /// - parent_filter: marks which docs are parents
+    /// - child_query:   the underlying child query
+    /// - parent_segment_id: which segment the parent doc is in
+    /// - parent_doc_id: the doc ID of that parent in that segment
     pub fn new(
         parent_filter: Arc<dyn ParentBitSetProducer>,
         child_query: Box<dyn Query>,
@@ -888,7 +868,7 @@ impl Query for ParentChildrenBlockJoinQuery {
     }
 
     fn count(&self, searcher: &Searcher) -> Result<usize> {
-        // Only the single segment that matches `parent_segment_id` can have child matches
+        // Only the single segment that matches parent_segment_id can have child matches
         let seg_reader_opt = searcher
             .segment_readers()
             .iter()
@@ -935,7 +915,7 @@ impl Weight for ParentChildrenBlockJoinWeight {
             return Ok(Box::new(super::EmptyScorer));
         }
 
-        // The preceding parent doc is found via `prev_set_bit(parent_doc_id - 1)`.
+        // The preceding parent doc is found via prev_set_bit(parent_doc_id - 1).
         // Then children are from that doc+1 up to parent_doc_id-1.
         let prev_parent = parent_bits.prev_set_bit(self.parent_doc_id - 1);
         let first_child = if prev_parent == u32::MAX {
@@ -1164,7 +1144,7 @@ mod test {
 
     #[test]
     /// This test checks that if we have a child filter that matches zero child docs,
-    /// then `ToParentBlockJoinQuery` should produce no parent documents.
+    /// then ToParentBlockJoinQuery should produce no parent documents.
     #[test]
     fn test_empty_child_filter() -> crate::Result<()> {
         // 1) Set up the schema and index as before
