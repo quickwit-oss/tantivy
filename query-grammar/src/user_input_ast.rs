@@ -101,7 +101,7 @@ impl Debug for UserInputLeaf {
             }
             UserInputLeaf::All => write!(formatter, "*"),
             UserInputLeaf::Exists { field } => {
-                write!(formatter, "\"{field}\":*")
+                write!(formatter, "$exists(\"{field}\")")
             }
         }
     }
