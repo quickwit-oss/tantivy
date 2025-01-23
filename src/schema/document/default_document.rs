@@ -204,130 +204,187 @@ impl CompactDoc {
         Self::from_json_object(schema, json_obj)
     }
 
-    /// Parse a JSON object, expanding any `FieldType::Nested` fields
-    /// into multiple child docs, returning `(child_docs + 1 parent_doc)`.
+    /// Parse a top-level JSON *object* that may contain nested fields.
+    /// Returns all docs in a `Vec`: child docs first, then the “parent” doc last.
     ///
-    /// The parent doc is appended last, child docs come first, in a single block.
-    /// Expands a single JSON object that may contain nested arrays.
-    /// Returns one or more `TantivyDocument`: all child docs first, then the parent doc last.
+    /// Example:
+    /// ```
+    /// let expanded = TantivyDocument::parse_json_for_nested(&schema, r#"{
+    ///     "driver": {
+    ///       "last_name": "McQueen",
+    ///       "vehicle": [
+    ///          { "make":"Powell Motors", "model":"Canyonero" },
+    ///          { "make":"Miller-Meteor", "model":"Ecto-1" }
+    ///       ]
+    ///     },
+    ///     "doc_tag": "Doc1"
+    /// }"#)?;
+    ///
+    /// // expanded[0] => child doc #0 (vehicle #1)
+    /// // expanded[1] => child doc #1 (vehicle #2)
+    /// // expanded[2] => parent doc (fields: driver.last_name, doc_tag, plus `_is_parent_driver.vehicle`=true)
+    /// ```
     pub fn parse_json_for_nested(
         schema: &Schema,
-        top_level_json_str: &str,
+        json_str: &str,
     ) -> Result<Vec<TantivyDocument>, DocParsingError> {
-        let value: serde_json::Value = serde_json::from_str(top_level_json_str)
+        // 1) Parse the top-level JSON to a serde_json::Value
+        let top_val: serde_json::Value = serde_json::from_str(json_str)
             .map_err(|e| DocParsingError::InvalidJson(e.to_string()))?;
 
-        if !value.is_object() {
-            return Err(DocParsingError::InvalidJson(
-                "Top-level JSON must be an object".to_string(),
-            ));
-        }
+        let obj = top_val.as_object().ok_or_else(|| {
+            DocParsingError::InvalidJson("Top-level JSON must be an object".to_string())
+        })?;
 
-        // We'll keep a Vec of child docs, plus a "parent doc."
-        let mut child_docs: Vec<TantivyDocument> = Vec::new();
+        // We'll accumulate child docs in `child_docs`, plus one "parent doc"
+        let mut child_docs = Vec::new();
         let mut parent_doc = TantivyDocument::default();
 
-        // For each key => json_value in the top-level object
-        let obj = value.as_object().unwrap();
-        for (field_name, json_value) in obj {
-            let field_opt = schema.get_field(field_name).ok();
-            if field_opt.is_none() {
-                // unknown field => skip or handle
+        // Flattened recursion: parse the top object with an empty prefix
+        Self::parse_object_with_prefix(schema, "", obj, &mut parent_doc, &mut child_docs)?;
+
+        // Finally push the parent doc last
+        child_docs.push(parent_doc);
+        Ok(child_docs)
+    }
+
+    /// Recursively parse key→value pairs. If we detect a `FieldType::Nested(...)`,
+    /// we expand any array-of-objects into child docs. Otherwise we parse normally.
+    /// Recursively flattens sub-keys to match dotted fields in the schema.
+    /// Also expands any `Nested` fields by creating child docs.
+    fn parse_object_with_prefix(
+        schema: &Schema,
+        parent_prefix: &str,
+        object: &Map<String, serde_json::Value>,
+        parent_doc: &mut TantivyDocument,
+        child_docs: &mut Vec<TantivyDocument>,
+    ) -> Result<(), DocParsingError> {
+        for (sub_key, sub_val) in object {
+            // Build the dotted name. e.g. if parent_prefix="driver",
+            // and sub_key="last_name", then full_key="driver.last_name".
+            let full_key = if parent_prefix.is_empty() {
+                sub_key.clone()
+            } else {
+                format!("{}.{}", parent_prefix, sub_key)
+            };
+
+            // Try to find a field in the schema with that dotted name
+            let field_res = schema.get_field(&full_key);
+            if field_res.is_err() {
+                // No field found => skip or log
+                eprintln!("Skipping unknown field '{}' in JSON", full_key);
                 continue;
             }
-            let field = field_opt.unwrap();
+            let field = field_res.unwrap();
             let field_entry = schema.get_field_entry(field);
+            let ftype = field_entry.field_type();
 
-            match field_entry.field_type() {
+            match ftype {
                 FieldType::Nested(nested_opts) => {
-                    // 1) Mark the parent doc if store_parent_flag == true
+                    // Mark the parent doc if store_parent_flag = true
                     if nested_opts.store_parent_flag {
-                        let parent_flag_name = format!("_is_parent_{}", field_name);
+                        let parent_flag_name = format!("_is_parent_{}", full_key);
                         if let Ok(parent_flag_field) = schema.get_field(&parent_flag_name) {
-                            // Set bool = true for the parent doc so that block-join can find it
+                            // Set bool=true on the parent
                             parent_doc.add_field_value(parent_flag_field, &OwnedValue::from(true));
                         }
                     }
 
-                    // 2) We expect either an array of objects or maybe a single object
-                    if let Some(arr) = json_value.as_array() {
-                        // Array-of-objects
-                        for child_object in arr {
-                            if !child_object.is_object() {
-                                // skip non-object child
-                                continue;
-                            }
-                            let child_obj_map = child_object.as_object().unwrap();
+                    // Expand array-of-objects or a single object
+                    if let Some(arr) = sub_val.as_array() {
+                        for arr_item in arr {
+                            if let Some(child_obj) = arr_item.as_object() {
+                                // Create a new child doc
+                                let mut child_doc = TantivyDocument::default();
 
-                            // Build a child doc
-                            let mut child_doc = TantivyDocument::default();
-
-                            // parse each subfield from `child_object` into `child_doc`
-                            for (child_key, child_val) in child_obj_map {
-                                if let Ok(child_field) = schema.get_field(child_key) {
-                                    // parse normally
-                                    Self::parse_one_field(
-                                        schema,
-                                        child_field,
-                                        child_val,
-                                        &mut child_doc,
-                                    )?;
-
-                                    // If include_in_parent => also copy to the parent's doc
-                                    if nested_opts.include_in_parent {
-                                        Self::parse_one_field(
-                                            schema,
-                                            child_field,
-                                            child_val,
-                                            &mut parent_doc,
-                                        )?;
-                                    }
-                                }
-                            }
-                            child_docs.push(child_doc);
-                        }
-                    } else if let Some(single_obj) = json_value.as_object() {
-                        // Single object => treat as array-of-one
-                        let mut child_doc = TantivyDocument::default();
-                        for (child_key, child_val) in single_obj {
-                            if let Ok(child_field) = schema.get_field(child_key) {
-                                Self::parse_one_field(
-                                    schema,
-                                    child_field,
-                                    child_val,
-                                    &mut child_doc,
-                                )?;
+                                // If you want `include_in_parent==true` to also copy
+                                // these subfields up to the parent doc, do that here:
                                 if nested_opts.include_in_parent {
-                                    Self::parse_one_field(
-                                        schema,
-                                        child_field,
-                                        child_val,
-                                        &mut parent_doc,
+                                    Self::parse_object_with_prefix(
+                                        schema, &full_key, // pass the same prefix
+                                        child_obj, parent_doc, child_docs,
                                     )?;
                                 }
+
+                                // Now parse the child's fields
+                                Self::parse_object_with_prefix(
+                                    schema,
+                                    &full_key, // pass the same prefix
+                                    child_obj,
+                                    &mut child_doc,
+                                    child_docs,
+                                )?;
+                                child_docs.push(child_doc);
+                            } else {
+                                eprintln!(
+                                    "WARNING: nested field '{}' expected object, got {:?}",
+                                    full_key, arr_item
+                                );
                             }
                         }
+                    } else if let Some(single_obj) = sub_val.as_object() {
+                        // single nested object => treat like array-of-one
+                        let mut child_doc = TantivyDocument::default();
+
+                        if nested_opts.include_in_parent {
+                            Self::parse_object_with_prefix(
+                                schema, &full_key, single_obj, parent_doc, child_docs,
+                            )?;
+                        }
+                        Self::parse_object_with_prefix(
+                            schema,
+                            &full_key,
+                            single_obj,
+                            &mut child_doc,
+                            child_docs,
+                        )?;
                         child_docs.push(child_doc);
                     } else {
-                        // If it's something else => skip or handle error
                         eprintln!(
-                            "WARNING: Expected array/object for nested field '{}' but got: {}",
-                            field_name, json_value
+                            "WARNING: nested field '{}' expected array-of-objects, got: {:?}",
+                            full_key, sub_val
                         );
                     }
                 }
 
-                // For non-nested fields => parse normally
+                // If it's a normal (non-nested) field => parse & add to the current doc
                 _ => {
-                    Self::parse_one_field(schema, field, json_value, &mut parent_doc)?;
+                    Self::parse_regular_field(schema, field, sub_val, parent_doc)?;
                 }
             }
         }
+        Ok(())
+    }
 
-        // Finally, add the parent doc last
-        child_docs.push(parent_doc);
+    /// Parse a single normal field (non-nested) from `sub_val` and add it to `doc`.
+    fn parse_regular_field(
+        schema: &Schema,
+        field: Field,
+        json_val: &serde_json::Value,
+        doc: &mut TantivyDocument,
+    ) -> Result<(), DocParsingError> {
+        let field_entry = schema.get_field_entry(field);
+        if field_entry.field_type().is_nested() {
+            // Means user put a raw object in a nested field but didn't expand it => error
+            return Err(DocParsingError::ValueError(
+                schema.get_field_name(field).to_string(),
+                ValueParsingError::TypeError {
+                    expected: "array-of-objects for nested fields",
+                    json: json_val.clone(),
+                },
+            ));
+        }
 
-        Ok(child_docs)
+        // Otherwise parse normally
+        let typed_val = field_entry
+            .field_type()
+            .value_from_json_non_nested(json_val.clone())
+            .map_err(|err| {
+                DocParsingError::ValueError(schema.get_field_name(field).to_string(), err)
+            })?;
+
+        doc.add_field_value(field, &typed_val);
+        Ok(())
     }
 
     /// Helper to parse a single field's JSON value & insert into doc

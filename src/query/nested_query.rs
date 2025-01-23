@@ -289,8 +289,8 @@ mod nested_query_tests {
 
         // child fields "first" and "last"
         // CHANGED: Use STRING, so the exact token "Alice" is indexed.
-        let first_field = builder.add_text_field("first", STRING);
-        let last_field = builder.add_text_field("last", STRING);
+        let first_field = builder.add_text_field("user.first", STRING);
+        let last_field = builder.add_text_field("user.last", STRING);
 
         let schema = builder.build();
         (
@@ -558,8 +558,8 @@ mod nested_query_equiv_tests {
         let user_nested_f = builder.add_nested_field("user", nested_opts);
 
         // Child fields: "first" and "last"
-        let first_f = builder.add_text_field("first", STRING);
-        let last_f = builder.add_text_field("last", STRING);
+        let first_f = builder.add_text_field("user.first", STRING);
+        let last_f = builder.add_text_field("user.last", STRING);
 
         let schema = builder.build();
         (schema, user_nested_f, first_f, last_f, group_f)
