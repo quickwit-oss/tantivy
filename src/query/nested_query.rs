@@ -265,7 +265,7 @@ mod nested_query_tests {
     };
     use crate::schema::{
         DocParsingError, Field, FieldType, IndexRecordOption, NestedOptions, Schema, SchemaBuilder,
-        TantivyDocument, TextOptions, Value, STRING, TEXT,
+        TantivyDocument, TextOptions, Value, STORED, STRING, TEXT,
     };
     use crate::IndexWriter;
     use crate::Term;
@@ -275,30 +275,22 @@ mod nested_query_tests {
     /// - `user` is a nested field (with `include_in_parent=true` for demonstration).
     /// - We'll also add "user.first" and "user.last" fields as TEXT,
     ///   plus a top-level "group" field as STRING, etc.
-    fn make_nested_schema() -> (
-        Schema,
-        Field, /* user field */
-        Field, /* first */
-        Field, /* last */
-        Field, /* group */
-    ) {
+    fn make_nested_schema() -> (Schema, Field, Field, Field, Field) {
         let mut builder = Schema::builder();
 
         // normal top-level field
-        let group_field = builder.add_text_field("group", STRING);
+        let group_field = builder.add_text_field("group", STRING | STORED);
 
-        // define `NestedOptions`
+        // nested field
         let nested_opts = NestedOptions::new()
-            .set_include_in_parent(true) // auto-copy child fields up to parent
-            .set_store_parent_flag(true); // auto-add `_is_parent_user` bool
-
-        // the "user" nested field
+            .set_include_in_parent(true) // or false as you need
+            .set_store_parent_flag(true);
         let user_nested_field = builder.add_nested_field("user", nested_opts);
 
-        // define child fields user.first and user.last as text
-        // For a real schema, you'd typically name them "first" etc. then store them inside the JSON objects.
-        let first_field = builder.add_text_field("first", TEXT);
-        let last_field = builder.add_text_field("last", TEXT);
+        // child fields "first" and "last"
+        // CHANGED: Use STRING, so the exact token "Alice" is indexed.
+        let first_field = builder.add_text_field("first", STRING);
+        let last_field = builder.add_text_field("last", STRING);
 
         let schema = builder.build();
         (
