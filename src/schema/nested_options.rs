@@ -3,7 +3,7 @@ use crate::schema::TextFieldIndexing;
 use serde::{Deserialize, Serialize};
 
 /// Options for a "nested" field in Tantivy.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct NestedOptions {
     /// If true, nested child fields also appear in the parent doc.
     pub include_in_parent: bool,
@@ -18,7 +18,7 @@ impl NestedOptions {
     pub fn new() -> Self {
         println!("Creating new NestedOptions with defaults:");
         println!("  include_in_parent: false");
-        println!("  include_in_root: false"); 
+        println!("  include_in_root: false");
         println!("  store_parent_flag: true");
         NestedOptions {
             include_in_parent: false,
@@ -28,17 +28,26 @@ impl NestedOptions {
     }
 
     pub fn set_include_in_parent(mut self, val: bool) -> Self {
-        println!("Setting include_in_parent: {} -> {}", self.include_in_parent, val);
+        println!(
+            "Setting include_in_parent: {} -> {}",
+            self.include_in_parent, val
+        );
         self.include_in_parent = val;
         self
     }
     pub fn set_include_in_root(mut self, val: bool) -> Self {
-        println!("Setting include_in_root: {} -> {}", self.include_in_root, val);
+        println!(
+            "Setting include_in_root: {} -> {}",
+            self.include_in_root, val
+        );
         self.include_in_root = val;
         self
     }
     pub fn set_store_parent_flag(mut self, val: bool) -> Self {
-        println!("Setting store_parent_flag: {} -> {}", self.store_parent_flag, val);
+        println!(
+            "Setting store_parent_flag: {} -> {}",
+            self.store_parent_flag, val
+        );
         self.store_parent_flag = val;
         self
     }

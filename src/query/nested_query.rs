@@ -1102,7 +1102,7 @@ mod nested_query_extended_examples {
     /// Then we do the second approach: an outer must_not => nested => term => ...
     /// => that excludes any doc that has *any* child doc with "nik9000."
     #[test]
-    #[ignore]
+    #[ignore = "must not queries not working to block join semantics"]
     fn test_comments_must_not_nested() -> crate::Result<()> {
         let (schema, doc_num_f, _comments_f, author_f) = make_comments_schema();
         let index = Index::create_in_ram(schema.clone());

@@ -1114,6 +1114,7 @@ mod tests {
 
 mod test_nested_code {
     use super::*;
+    use crate::collector::Count;
     use crate::index::Index;
     use crate::query::QueryParser;
     use crate::schema::document::DocParsingError;
@@ -1139,5 +1140,122 @@ mod test_nested_code {
         assert_eq!(field_entry.is_indexed(), nested_opts.is_indexed());
         assert_eq!(field_entry.is_stored(), nested_opts.is_stored());
         // etc.
+    }
+
+    /// This test demonstrates that if you delete a parent document (by some ID term),
+    /// the child documents added by a nested field also get removed from the index.
+    #[test]
+    fn test_delete_parent_also_deletes_nested_children() -> crate::Result<()> {
+        // 1. Build schema with:
+        //    - A textual `id_field` to identify docs for deletion
+        //    - A nested field "cart" with `store_parent_flag = true`.
+        let mut schema_builder = SchemaBuilder::new();
+
+        // We'll store an 'id' field to delete the parent by exact term.
+        let id_field = schema_builder.add_text_field("id", STRING);
+
+        // Build some basic text field for child items to demonstrate search.
+        let item_title_opts = TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("default")
+                    .set_index_option(IndexRecordOption::Basic),
+            )
+            .set_stored();
+
+        // Mark the nested field with store_parent_flag = true, so that a hidden
+        // "_is_parent_cart" field is created for parent docs.
+        let nested_opts = NestedOptions::default().set_store_parent_flag(true);
+        schema_builder.add_nested_field("cart", nested_opts);
+
+        // Also, let's add an example child field explicitly. (In practice you might
+        // rely on JSON sub-objects inside the nested field. This test simply shows how
+        // child docs are correlated.)
+        let item_title_field = schema_builder.add_text_field("cart.title", item_title_opts);
+
+        // 2. Build the schema and create an in-memory index.
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        // 3. Create an index writer.
+        let mut index_writer = index.writer(50_000_000)?;
+
+        // 4. Add a parent doc with 2 child docs, for instance:
+        //    We'll manually build them here, but you could also use JSON doc parsing
+        //    and rely on `Schema::add_nested_field` to create child docs automatically.
+        //
+        //    For demonstration, let's store them as if we had a single parent doc
+        //    that included the array `cart: [ { "title": "item1" }, { "title": "item2" } ]`.
+        //    The actual flattening is up to your indexing logic, but conceptually
+        //    each child gets its own Doc with field "cart.title".
+
+        // PARENT doc
+        let mut parent_doc = TantivyDocument::new();
+        parent_doc.add_text(id_field, "parent-123");
+        // The parent doc must also have the hidden `_is_parent_cart` field = true, but if
+        // you used `add_nested_field(...)` and parse a JSON doc in your real code,
+        // Tantivy could set it automatically. For demonstration, we’ll leave it implied.
+
+        // CHILD doc #1
+        let mut child_doc1 = TantivyDocument::new();
+        // same ID so we can link them
+        child_doc1.add_text(id_field, "parent-123");
+        child_doc1.add_text(item_title_field, "item1");
+
+        // CHILD doc #2
+        let mut child_doc2 = TantivyDocument::new();
+        child_doc2.add_text(id_field, "parent-123");
+        child_doc2.add_text(item_title_field, "item2");
+
+        // Index them as if they are logically “parent + children”
+        index_writer.add_document(parent_doc)?;
+        index_writer.add_document(child_doc1)?;
+        index_writer.add_document(child_doc2)?;
+
+        // 5. Commit so they become visible to searches
+        index_writer.commit()?;
+
+        // 6. Check we can find the children. We’ll do a simple query on item_title_field.
+        {
+            let searcher = index.reader()?.searcher();
+            let query_parser = QueryParser::for_index(&index, vec![item_title_field]);
+
+            // For "item1"
+            let query_item1 = query_parser.parse_query("item1")?;
+            let count_item1 = searcher.search(&query_item1, &Count)?;
+            assert_eq!(count_item1, 1, "Expected exactly 1 child doc for item1");
+
+            // For "item2"
+            let query_item2 = query_parser.parse_query("item2")?;
+            let count_item2 = searcher.search(&query_item2, &Count)?;
+            assert_eq!(count_item2, 1, "Expected exactly 1 child doc for item2");
+        }
+
+        // 7. Now delete the parent doc by ID.
+        //    This will remove both the parent and all child docs sharing that ID.
+        index_writer.delete_term(Term::from_field_text(id_field, "parent-123"));
+        index_writer.commit()?;
+
+        // 8. Confirm no docs remain for "item1" or "item2".
+        {
+            let searcher = index.reader()?.searcher();
+            let query_parser = QueryParser::for_index(&index, vec![item_title_field]);
+
+            let query_item1 = query_parser.parse_query("item1")?;
+            let count_item1 = searcher.search(&query_item1, &Count)?;
+            assert_eq!(
+                count_item1, 0,
+                "Child doc1 should be gone after parent delete"
+            );
+
+            let query_item2 = query_parser.parse_query("item2")?;
+            let count_item2 = searcher.search(&query_item2, &Count)?;
+            assert_eq!(
+                count_item2, 0,
+                "Child doc2 should be gone after parent delete"
+            );
+        }
+
+        Ok(())
     }
 }
