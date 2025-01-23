@@ -240,23 +240,32 @@ impl CompactDoc {
 
             match field_entry.field_type() {
                 FieldType::Nested(nested_opts) => {
-                    // We expect an array of objects
+                    // 1) Mark the parent doc if store_parent_flag == true
+                    if nested_opts.store_parent_flag {
+                        let parent_flag_name = format!("_is_parent_{}", field_name);
+                        if let Ok(parent_flag_field) = schema.get_field(&parent_flag_name) {
+                            // Set bool = true for the parent doc so that block-join can find it
+                            parent_doc.add_field_value(parent_flag_field, &OwnedValue::from(true));
+                        }
+                    }
+
+                    // 2) We expect either an array of objects or maybe a single object
                     if let Some(arr) = json_value.as_array() {
+                        // Array-of-objects
                         for child_object in arr {
                             if !child_object.is_object() {
-                                // skip or handle error
+                                // skip non-object child
                                 continue;
                             }
+                            let child_obj_map = child_object.as_object().unwrap();
 
                             // Build a child doc
                             let mut child_doc = TantivyDocument::default();
 
                             // parse each subfield from `child_object` into `child_doc`
-                            // also flatten into parent if needed
-                            let child_obj_map = child_object.as_object().unwrap();
                             for (child_key, child_val) in child_obj_map {
                                 if let Ok(child_field) = schema.get_field(child_key) {
-                                    // parse the child's field normally
+                                    // parse normally
                                     Self::parse_one_field(
                                         schema,
                                         child_field,
@@ -264,7 +273,7 @@ impl CompactDoc {
                                         &mut child_doc,
                                     )?;
 
-                                    // If include_in_parent => also copy to the parent
+                                    // If include_in_parent => also copy to the parent's doc
                                     if nested_opts.include_in_parent {
                                         Self::parse_one_field(
                                             schema,
@@ -273,25 +282,42 @@ impl CompactDoc {
                                             &mut parent_doc,
                                         )?;
                                     }
-                                } else {
-                                    // unknown field => skip or handle
                                 }
                             }
                             child_docs.push(child_doc);
                         }
-                    }
-                    // else skip or handle if user gave non-array
-
-                    // -- ADD THIS to mark the parent doc as `_is_parent_user:true` (or whatever your path is) --
-                    if nested_opts.store_parent_flag {
-                        let parent_flag_name = format!("_is_parent_{}", field_name);
-                        if let Ok(parent_flag_field) = schema.get_field(&parent_flag_name) {
-                            // Set bool = true for the parent doc
-                            parent_doc.add_field_value(parent_flag_field, &OwnedValue::from(true));
+                    } else if let Some(single_obj) = json_value.as_object() {
+                        // Single object => treat as array-of-one
+                        let mut child_doc = TantivyDocument::default();
+                        for (child_key, child_val) in single_obj {
+                            if let Ok(child_field) = schema.get_field(child_key) {
+                                Self::parse_one_field(
+                                    schema,
+                                    child_field,
+                                    child_val,
+                                    &mut child_doc,
+                                )?;
+                                if nested_opts.include_in_parent {
+                                    Self::parse_one_field(
+                                        schema,
+                                        child_field,
+                                        child_val,
+                                        &mut parent_doc,
+                                    )?;
+                                }
+                            }
                         }
+                        child_docs.push(child_doc);
+                    } else {
+                        // If it's something else => skip or handle error
+                        eprintln!(
+                            "WARNING: Expected array/object for nested field '{}' but got: {}",
+                            field_name, json_value
+                        );
                     }
                 }
-                // normal field => parse directly into the parent doc
+
+                // For non-nested fields => parse normally
                 _ => {
                     Self::parse_one_field(schema, field, json_value, &mut parent_doc)?;
                 }
