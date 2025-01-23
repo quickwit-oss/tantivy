@@ -206,24 +206,6 @@ impl CompactDoc {
 
     /// Parse a top-level JSON *object* that may contain nested fields.
     /// Returns all docs in a `Vec`: child docs first, then the “parent” doc last.
-    ///
-    /// Example:
-    /// ```
-    /// let expanded = TantivyDocument::parse_json_for_nested(&schema, r#"{
-    ///     "driver": {
-    ///       "last_name": "McQueen",
-    ///       "vehicle": [
-    ///          { "make":"Powell Motors", "model":"Canyonero" },
-    ///          { "make":"Miller-Meteor", "model":"Ecto-1" }
-    ///       ]
-    ///     },
-    ///     "doc_tag": "Doc1"
-    /// }"#)?;
-    ///
-    /// // expanded[0] => child doc #0 (vehicle #1)
-    /// // expanded[1] => child doc #1 (vehicle #2)
-    /// // expanded[2] => parent doc (fields: driver.last_name, doc_tag, plus `_is_parent_driver.vehicle`=true)
-    /// ```
     pub fn parse_json_for_nested(
         schema: &Schema,
         json_str: &str,
@@ -1207,8 +1189,8 @@ mod nested_tests {
         let user_nested_field = builder.add_nested_field("user", nested_opts);
 
         // Also define the fields "first", "last", "group"
-        let first_field = builder.add_text_field("first", STRING);
-        let last_field = builder.add_text_field("last", STRING);
+        let first_field = builder.add_text_field("user.first", STRING);
+        let last_field = builder.add_text_field("user.last", STRING);
         let group_field = builder.add_text_field("group", STRING);
 
         let schema = builder.build();
