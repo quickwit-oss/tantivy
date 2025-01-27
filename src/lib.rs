@@ -1173,6 +1173,77 @@ pub mod tests {
     }
 
     #[test]
+    fn test_delete_by_address() -> crate::Result<()> {
+        use crate::collector::Count;
+        use crate::index::SegmentId;
+        use crate::indexer::NoMergePolicy;
+        use crate::query::AllQuery;
+
+        const DOC_COUNT: u64 = 2u64;
+
+        let mut schema_builder = SchemaBuilder::default();
+        let id = schema_builder.add_u64_field("id", INDEXED);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let index_reader = index.reader()?;
+
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        for doc_id in 0u64..DOC_COUNT {
+            index_writer.add_document(doc!(id => doc_id))?;
+        }
+        index_writer.commit()?;
+
+        index_reader.reload()?;
+        let searcher = index_reader.searcher();
+
+        assert_eq!(
+            searcher.search(&AllQuery, &Count).unwrap(),
+            DOC_COUNT as usize
+        );
+
+        let segment_readers = searcher.segment_readers();
+        assert!(segment_readers.len() == 1);
+        let segment_id = segment_readers[0].segment_id();
+
+        // update the 10 elements by deleting and re-adding
+        for doc_id in 0u64..DOC_COUNT {
+            index_writer.delete_by_address(
+                segment_id,
+                doc_id
+                    .try_into()
+                    .expect("test doc_id should fit as a DocId"),
+            );
+            index_writer.commit()?;
+            index_reader.reload()?;
+            index_writer.add_document(doc!(id =>  doc_id))?;
+            index_writer.commit()?;
+            index_reader.reload()?;
+            let searcher = index_reader.searcher();
+            // The number of document should be stable.
+            assert_eq!(
+                searcher.search(&AllQuery, &Count).unwrap(),
+                DOC_COUNT as usize
+            );
+        }
+
+        index_reader.reload()?;
+        let searcher = index_reader.searcher();
+        let segment_ids: Vec<SegmentId> = searcher
+            .segment_readers()
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect();
+        index_writer.merge(&segment_ids).wait()?;
+        index_reader.reload()?;
+        let searcher = index_reader.searcher();
+        assert_eq!(searcher.search(&AllQuery, &Count)?, DOC_COUNT as usize);
+        Ok(())
+    }
+
+    #[test]
     fn test_validate_checksum() -> crate::Result<()> {
         let mut builder = Schema::builder();
         let body = builder.add_text_field("body", TEXT | STORED);

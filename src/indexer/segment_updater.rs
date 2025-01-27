@@ -672,7 +672,7 @@ impl SegmentUpdater {
                     let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
                     if let Some(delete_operation) = delete_cursor.get() {
                         let committed_opstamp = segment_updater.load_meta().opstamp;
-                        if delete_operation.opstamp < committed_opstamp {
+                        if delete_operation.opstamp() < committed_opstamp {
                             // We are not up to date! Let's create a new tombstone file for our
                             // freshly create split.
                             let index = &segment_updater.index;
