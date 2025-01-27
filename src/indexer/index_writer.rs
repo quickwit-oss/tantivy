@@ -22,7 +22,7 @@ use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::query::{EnableScoring, Query, TermQuery};
 use crate::schema::document::Document;
 use crate::schema::{IndexRecordOption, TantivyDocument, Term};
-use crate::{FutureResult, Opstamp};
+use crate::{DocId, FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
 // in the `memory_arena` goes below MARGIN_IN_BYTES.
@@ -101,24 +101,41 @@ fn compute_deleted_bitset(
 ) -> crate::Result<bool> {
     let mut might_have_changed = false;
     while let Some(delete_op) = delete_cursor.get() {
-        if delete_op.opstamp > target_opstamp {
+        if delete_op.opstamp() > target_opstamp {
             break;
         }
 
-        // A delete operation should only affect
-        // document that were inserted before it.
-        delete_op
-            .target
-            .for_each_no_score(segment_reader, &mut |docs_matching_delete_query| {
-                for doc_matching_delete_query in docs_matching_delete_query.iter().cloned() {
-                    if doc_opstamps.is_deleted(doc_matching_delete_query, delete_op.opstamp) {
-                        alive_bitset.remove(doc_matching_delete_query);
+        match delete_op {
+            DeleteOperation::ByWeight { opstamp, target } => {
+                // A delete operation should only affect
+                // document that were inserted before it.
+                target.for_each_no_score(segment_reader, &mut |docs_matching_delete_query| {
+                    for doc_matching_delete_query in docs_matching_delete_query.iter().cloned() {
+                        if doc_opstamps.is_deleted(doc_matching_delete_query, *opstamp) {
+                            alive_bitset.remove(doc_matching_delete_query);
+                            might_have_changed = true;
+                        }
+                    }
+                })?;
+            }
+
+            DeleteOperation::ByAddress {
+                opstamp,
+                segment_id,
+                doc_id,
+            } => {
+                if *segment_id == segment_reader.segment_id() {
+                    if doc_opstamps.is_deleted(*doc_id, *opstamp) {
+                        alive_bitset.remove(*doc_id);
                         might_have_changed = true;
                     }
                 }
-            })?;
+            }
+        }
+
         delete_cursor.advance();
     }
+
     Ok(might_have_changed)
 }
 
@@ -698,12 +715,23 @@ impl<D: Document> IndexWriter<D> {
     pub fn delete_query(&self, query: Box<dyn Query>) -> crate::Result<Opstamp> {
         let weight = query.weight(EnableScoring::disabled_from_schema(&self.index.schema()))?;
         let opstamp = self.stamper.stamp();
-        let delete_operation = DeleteOperation {
+        let delete_operation = DeleteOperation::ByWeight {
             opstamp,
             target: weight,
         };
         self.delete_queue.push(delete_operation);
         Ok(opstamp)
+    }
+
+    /// Delete a specific document by its already-known [`DocAddress`]
+    pub fn delete_by_address(&self, segment_id: SegmentId, doc_id: DocId) -> Opstamp {
+        let opstamp = self.stamper.stamp();
+        self.delete_queue.push(DeleteOperation::ByAddress {
+            opstamp,
+            segment_id,
+            doc_id,
+        });
+        opstamp
     }
 
     /// Returns the opstamp of the last successful commit.
@@ -779,7 +807,7 @@ impl<D: Document> IndexWriter<D> {
                     let query = TermQuery::new(term, IndexRecordOption::Basic);
                     let weight =
                         query.weight(EnableScoring::disabled_from_schema(&self.index.schema()))?;
-                    let delete_operation = DeleteOperation {
+                    let delete_operation = DeleteOperation::ByWeight {
                         opstamp,
                         target: weight,
                     };
@@ -788,6 +816,13 @@ impl<D: Document> IndexWriter<D> {
                 UserOperation::Add(document) => {
                     let add_operation = AddOperation { opstamp, document };
                     adds.push(add_operation);
+                }
+                UserOperation::DeleteByAddress(segment_id, doc_id) => {
+                    self.delete_queue.push(DeleteOperation::ByAddress {
+                        opstamp,
+                        segment_id,
+                        doc_id,
+                    });
                 }
             }
         }
