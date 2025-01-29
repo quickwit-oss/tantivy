@@ -1441,7 +1441,7 @@ mod test {
     fn test_json_field_possibly_a_date() {
         test_parse_query_to_logical_ast_helper(
             r#"json.date:"2019-10-12T07:20:50.52Z""#,
-            r#"(Term(field=14, type=Json, path=date, type=Date, 2019-10-12T07:20:50Z) "[(0, Term(field=14, type=Json, path=date, type=Str, "2019")), (1, Term(field=14, type=Json, path=date, type=Str, "10")), (2, Term(field=14, type=Json, path=date, type=Str, "12t07")), (3, Term(field=14, type=Json, path=date, type=Str, "20")), (4, Term(field=14, type=Json, path=date, type=Str, "50")), (5, Term(field=14, type=Json, path=date, type=Str, "52z"))]")"#,
+            r#"(Term(field=14, type=Json, path=date, type=Date, 2019-10-12T07:20:50.52Z) "[(0, Term(field=14, type=Json, path=date, type=Str, "2019")), (1, Term(field=14, type=Json, path=date, type=Str, "10")), (2, Term(field=14, type=Json, path=date, type=Str, "12t07")), (3, Term(field=14, type=Json, path=date, type=Str, "20")), (4, Term(field=14, type=Json, path=date, type=Str, "50")), (5, Term(field=14, type=Json, path=date, type=Str, "52z"))]")"#,
             true,
         );
     }
@@ -1734,7 +1734,7 @@ mod test {
         );
         test_parse_query_to_logical_ast_helper(
             r#"date:"1985-04-12T23:20:50.52Z""#,
-            r#"Term(field=9, type=Date, 1985-04-12T23:20:50Z)"#,
+            r#"Term(field=9, type=Date, 1985-04-12T23:20:50.52Z)"#,
             true,
         );
     }
