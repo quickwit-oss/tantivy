@@ -117,6 +117,13 @@ impl ManagedDirectory {
         &mut self,
         get_living_files: L,
     ) -> crate::Result<GarbageCollectionResult> {
+        if !self.supports_garbage_collection() {
+            // the underlying directory does not support garbage collection.
+            return Ok(GarbageCollectionResult {
+                deleted_files: vec![],
+                failed_to_delete_files: vec![],
+            });
+        }
         let mut files_to_delete = vec![];
 
         // We're about to do an atomic write to managed.json, lock it down
@@ -358,6 +365,10 @@ impl Directory for ManagedDirectory {
     ) -> Option<Box<dyn MergePolicy>> {
         self.directory
             .reconsider_merge_policy(metas, previous_metas)
+    }
+
+    fn supports_garbage_collection(&self) -> bool {
+        self.directory.supports_garbage_collection()
     }
 }
 
