@@ -278,6 +278,12 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ) -> Option<Box<dyn MergePolicy>> {
         None
     }
+
+    /// Returns true if this directory supports garbage collection.  The default assumption is
+    /// `true`
+    fn supports_garbage_collection(&self) -> bool {
+        true
+    }
 }
 
 /// DirectoryClone
