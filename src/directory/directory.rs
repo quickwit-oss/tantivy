@@ -102,6 +102,8 @@ fn retry_policy(is_blocking: bool) -> RetryPolicy {
     }
 }
 
+pub type DirectoryPanicHandler = Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync + 'static>;
+
 /// Write-once read many (WORM) abstraction for where
 /// tantivy's data should be stored.
 ///
@@ -283,6 +285,14 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// `true`
     fn supports_garbage_collection(&self) -> bool {
         true
+    }
+
+    /// Return a panic handler to be assigned to the various thread pools that may be created
+    ///
+    /// The default is [`None`], which indicates that an unhandled panic from a thread pool will
+    /// abort the process
+    fn panic_handler(&self) -> Option<DirectoryPanicHandler> {
+        None
     }
 }
 

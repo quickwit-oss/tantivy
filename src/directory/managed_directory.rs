@@ -11,8 +11,8 @@ use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy, FOOTER_LEN};
 use crate::directory::{
-    DirectoryLock, FileHandle, FileSlice, GarbageCollectionResult, Lock, WatchCallback,
-    WatchHandle, WritePtr, MANAGED_LOCK, META_LOCK,
+    DirectoryLock, DirectoryPanicHandler, FileHandle, FileSlice, GarbageCollectionResult, Lock,
+    WatchCallback, WatchHandle, WritePtr, MANAGED_LOCK, META_LOCK,
 };
 use crate::error::DataCorruption;
 use crate::index::SegmentMetaInventory;
@@ -369,6 +369,10 @@ impl Directory for ManagedDirectory {
 
     fn supports_garbage_collection(&self) -> bool {
         self.directory.supports_garbage_collection()
+    }
+
+    fn panic_handler(&self) -> Option<DirectoryPanicHandler> {
+        self.directory.panic_handler()
     }
 }
 
