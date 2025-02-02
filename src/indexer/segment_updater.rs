@@ -10,7 +10,7 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use super::segment_manager::SegmentManager;
 use crate::core::META_FILEPATH;
-use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
+use crate::directory::{Directory, DirectoryClone, DirectoryPanicHandler, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
 use crate::index::{Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta};
 use crate::indexer::delete_queue::DeleteCursor;
@@ -295,27 +295,37 @@ impl SegmentUpdater {
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
         num_merge_threads: usize,
+        panic_handler: Option<DirectoryPanicHandler>,
     ) -> crate::Result<SegmentUpdater> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
-        let pool = ThreadPoolBuilder::new()
+        let mut builder = ThreadPoolBuilder::new()
             .thread_name(|_| "segment_updater".to_string())
-            .num_threads(1)
-            .build()
-            .map_err(|_| {
-                crate::TantivyError::SystemError(
-                    "Failed to spawn segment updater thread".to_string(),
-                )
-            })?;
-        let merge_thread_pool = ThreadPoolBuilder::new()
+            .num_threads(1);
+
+        if let Some(panic_handler) = panic_handler.as_ref() {
+            let panic_handler = panic_handler.clone();
+            builder = builder.panic_handler(move |any| {
+                panic_handler(any);
+            });
+        }
+
+        let pool = builder.build().map_err(|_| {
+            crate::TantivyError::SystemError("Failed to spawn segment updater thread".to_string())
+        })?;
+        let mut builder = ThreadPoolBuilder::new()
             .thread_name(|i| format!("merge_thread_{i}"))
-            .num_threads(num_merge_threads)
-            .build()
-            .map_err(|_| {
-                crate::TantivyError::SystemError(
-                    "Failed to spawn segment merging thread".to_string(),
-                )
-            })?;
+            .num_threads(num_merge_threads);
+        if let Some(panic_handler) = panic_handler {
+            let panic_handler = panic_handler.clone();
+            builder = builder.panic_handler(move |any| {
+                panic_handler(any);
+            });
+        }
+
+        let merge_thread_pool = builder.build().map_err(|_| {
+            crate::TantivyError::SystemError("Failed to spawn segment merging thread".to_string())
+        })?;
         let index_meta = index.load_metas()?;
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
             active_index_meta: RwLock::new(Arc::new(index_meta)),
