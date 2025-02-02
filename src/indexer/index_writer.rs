@@ -22,7 +22,7 @@ use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::query::{EnableScoring, Query, TermQuery};
 use crate::schema::document::Document;
 use crate::schema::{IndexRecordOption, TantivyDocument, Term};
-use crate::{DocId, FutureResult, Opstamp};
+use crate::{Directory, DocId, FutureResult, Opstamp};
 
 // Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
 // in the `memory_arena` goes below MARGIN_IN_BYTES.
@@ -331,6 +331,7 @@ impl<D: Document> IndexWriter<D> {
             stamper.clone(),
             &delete_queue.cursor(),
             options.num_merge_threads,
+            index.directory().panic_handler(),
         )?;
 
         let mut index_writer = Self {
