@@ -223,6 +223,7 @@ impl InvertedIndexReader {
     ///
     /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] or
     /// [`Self::warm_postings`] instead.
+    #[cfg(not(feature = "quickwit"))]
     pub async fn warm_postings_full(&self, with_positions: bool) -> io::Result<()> {
         self.postings_file_slice.read_bytes_async().await?;
         if with_positions {
@@ -235,6 +236,7 @@ impl InvertedIndexReader {
     /// This method is for an advanced usage only.
     ///
     /// returns a boolean, whether the term was found in the dictionary
+    #[cfg(not(feature = "quickwit"))]
     pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<bool> {
         let term_info_opt: Option<TermInfo> = self.get_term_info(term)?;
         if let Some(term_info) = term_info_opt {

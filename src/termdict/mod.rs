@@ -40,14 +40,13 @@ use common::file_slice::FileSlice;
 use common::BinarySerializable;
 use tantivy_fst::Automaton;
 
-pub use self::termdict::{TermMerger, TermStreamer, TermWithStateStreamer};
-use self::{
-    fst_termdict::TermWithStateStreamerBuilder,
-    termdict::{
-        TermDictionary as InnerTermDict, TermDictionaryBuilder as InnerTermDictBuilder,
-        TermStreamerBuilder,
-    },
+#[cfg(feature = "quickwit")]
+use self::termdict::TermDictionaryExt;
+use self::termdict::{
+    TermDictionary as InnerTermDict, TermDictionaryBuilder as InnerTermDictBuilder,
+    TermStreamerBuilder, TermWithStateStreamerBuilder,
 };
+pub use self::termdict::{TermMerger, TermStreamer, TermWithStateStreamer};
 use crate::postings::TermInfo;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -161,6 +160,7 @@ impl TermDictionary {
     /// Returns a search builder, to stream all of the terms
     /// within the Automaton
     pub fn search<'a, A: Automaton + 'a>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A>
+        where A::State: Clone
     {
         self.0.search(automaton)
     }

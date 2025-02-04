@@ -138,7 +138,7 @@ async fn main() -> anyhow::Result<()> {
     let start = std::time::Instant::now();
     // ### FuzzyTermQuery
     {
-        let term = Term::from_field_text(title, "hezl");
+        let term = Term::from_field_text(title, "help");
         let mut query = FuzzyTermQuery::new(term, 3, true);
         query.set_prefix_length(Some(2));
         query.set_fuzzy_scoring(true);

@@ -91,9 +91,7 @@ where
         let mut term_stream = self.automaton_stream(term_dict)?;
         let mut term_infos = Vec::new();
         while term_stream.advance() {
-            if let Some((_term, term_info, _state)) = term_stream.value() {
-                term_infos.push(term_info.clone());
-            }
+            term_infos.push(term_stream.value().clone());
         }
         Ok(term_infos)
     }
@@ -104,20 +102,18 @@ where
         inverted_index: &Arc<crate::InvertedIndexReader>,
         doc_bitset: &mut BitSet,
     ) -> Result<(), TantivyError> {
-        if let Some((_term, term_info, _state)) = term_stream.value() {
-            let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+        let mut block_segment_postings = inverted_index
+            .read_block_postings_from_terminfo(term_stream.value(), IndexRecordOption::Basic)?;
 
-            loop {
-                let docs = block_segment_postings.docs();
-                if docs.is_empty() {
-                    break;
-                }
-                for &doc in docs {
-                    doc_bitset.insert(doc);
-                }
-                block_segment_postings.advance();
+        loop {
+            let docs = block_segment_postings.docs();
+            if docs.is_empty() {
+                break;
             }
+            for &doc in docs {
+                doc_bitset.insert(doc);
+            }
+            block_segment_postings.advance();
         }
         Ok(())
     }
@@ -129,10 +125,10 @@ where
         boost: f32,
         scorers: &mut Vec<ConstScorer<crate::postings::SegmentPostings>>,
     ) -> Result<(), TantivyError> {
-        if let Some((_term, term_info, state)) = term_stream.value() {
+        if let Some(state) = term_stream.state() {
             let score = automaton_score(self.automaton.as_ref(), state);
             let segment_postings =
-                inverted_index.read_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+                inverted_index.read_postings_from_terminfo(term_stream.value(), IndexRecordOption::Basic)?;
             let scorer = ConstScorer::new(segment_postings, boost * score);
             scorers.push(scorer);
         }
@@ -212,7 +208,7 @@ where
     }
 }
 
-fn automaton_score<A>(automaton: &A, state: A::State) -> f32
+fn automaton_score<A>(automaton: &A, state: &A::State) -> f32
 where
     A: Automaton + Send + Sync + 'static,
     A::State: Clone,
@@ -220,7 +216,7 @@ where
     if TypeId::of::<DfaWrapper>() == automaton.type_id() && TypeId::of::<u32>() == state.type_id() {
         let dfa = automaton as *const A as *const DfaWrapper;
         let dfa = unsafe { &*dfa };
-        let id = &state as *const A::State as *const u32;
+        let id = state as *const A::State as *const u32;
         let id = unsafe { *id };
         let dist = dfa.0.distance(id).to_u8() as f32;
         1.0 / (1.0 + dist)
@@ -242,7 +238,7 @@ where
             <StartsWithAutomaton<super::fuzzy_query::Str, Option<usize>> as tantivy_fst::Automaton>::State,
         >;
         let dfa = unsafe { &*dfa };
-        let id = &state as *const A::State as *const IntersectionState<u32, StartsWithAutomatonState<Option<usize>>>;
+        let id = state as *const A::State as *const IntersectionState<u32, StartsWithAutomatonState<Option<usize>>>;
         let id = unsafe { &*id };
         let dist = dfa.automaton_a.0.distance(id.0).to_u8() as f32;
         1.0 / (1.0 + dist)

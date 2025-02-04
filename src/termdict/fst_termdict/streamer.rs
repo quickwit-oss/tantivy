@@ -273,17 +273,22 @@ where
     ///
     /// Calling `.value()` before the first call to `.advance()` returns
     /// `V::default()`.
-    pub fn value(&mut self) -> Option<(&[u8], &TermInfo, A::State)> {
-        let state = self.current_state.take().unwrap(); // always Some(_) after advance
-        Some((self.key(), &self.current_value, state))
+    pub fn value(&self) -> &TermInfo {
+        &self.current_value
     }
 
     /// Return the next `(key, value, state)` triplet.
     pub fn next(&mut self) -> Option<(&[u8], &TermInfo, A::State)> {
         if self.advance() {
-            self.value()
+            let state = self.current_state.take().unwrap(); // always Some(_) after advance
+            Some((self.key(), self.value(), state))
         } else {
             None
         }
+    }
+
+    /// Returns state
+    pub fn state(&self) -> Option<&A::State> {
+        self.current_state.as_ref()
     }
 }
