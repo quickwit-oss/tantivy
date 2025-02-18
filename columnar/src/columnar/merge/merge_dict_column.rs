@@ -191,6 +191,7 @@ fn serialize_merged_dict(
 
 #[derive(Default, Debug)]
 struct TermOrdinalMapping {
+    /// Contains the new term ordinals for each segment.
     per_segment_new_term_ordinals: Vec<Vec<TermOrdinal>>,
 }
 

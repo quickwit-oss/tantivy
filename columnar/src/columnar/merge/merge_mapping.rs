@@ -26,7 +26,7 @@ impl StackMergeOrder {
         let mut cumulated_row_ids: Vec<RowId> = Vec::with_capacity(columnars.len());
         let mut cumulated_row_id = 0;
         for columnar in columnars {
-            cumulated_row_id += columnar.num_rows();
+            cumulated_row_id += columnar.num_docs();
             cumulated_row_ids.push(cumulated_row_id);
         }
         StackMergeOrder { cumulated_row_ids }

@@ -81,14 +81,14 @@ impl BlockVariant {
 #[derive(Clone)]
 pub struct OptionalIndex {
     num_rows: RowId,
-    num_non_null_rows: RowId,
+    num_non_null_docs: RowId,
     block_data: OwnedBytes,
     block_metas: Arc<[BlockMeta]>,
 }
 
 impl Iterable<u32> for &OptionalIndex {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
-        Box::new(self.iter_rows())
+        Box::new(self.iter_docs())
     }
 }
 
@@ -96,7 +96,7 @@ impl std::fmt::Debug for OptionalIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("OptionalIndex")
             .field("num_rows", &self.num_rows)
-            .field("num_non_null_rows", &self.num_non_null_rows)
+            .field("num_non_null_rows", &self.num_non_null_docs)
             .finish_non_exhaustive()
     }
 }
@@ -275,13 +275,13 @@ impl OptionalIndex {
     }
 
     pub fn num_non_nulls(&self) -> RowId {
-        self.num_non_null_rows
+        self.num_non_null_docs
     }
 
-    pub fn iter_rows(&self) -> impl Iterator<Item = RowId> + '_ {
+    pub fn iter_docs(&self) -> impl Iterator<Item = RowId> + '_ {
         // TODO optimize
         let mut select_batch = self.select_cursor();
-        (0..self.num_non_null_rows).map(move |rank| select_batch.select(rank))
+        (0..self.num_non_null_docs).map(move |rank| select_batch.select(rank))
     }
     pub fn select_batch(&self, ranks: &mut [RowId]) {
         let mut select_cursor = self.select_cursor();
@@ -527,7 +527,7 @@ pub fn open_optional_index(bytes: OwnedBytes) -> io::Result<OptionalIndex> {
         deserialize_optional_index_block_metadatas(block_metas.as_slice(), num_rows);
     let optional_index = OptionalIndex {
         num_rows,
-        num_non_null_rows,
+        num_non_null_docs: num_non_null_rows,
         block_data,
         block_metas: block_metas.into(),
     };

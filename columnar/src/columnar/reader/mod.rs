@@ -18,13 +18,13 @@ fn io_invalid_data(msg: String) -> io::Error {
 pub struct ColumnarReader {
     column_dictionary: Dictionary<RangeSSTable>,
     column_data: FileSlice,
-    num_rows: RowId,
+    num_docs: RowId,
     format_version: Version,
 }
 
 impl fmt::Debug for ColumnarReader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let num_rows = self.num_rows();
+        let num_rows = self.num_docs();
         let columns = self.list_columns().unwrap();
         let num_cols = columns.len();
         let mut debug_struct = f.debug_struct("Columnar");
@@ -98,13 +98,13 @@ impl ColumnarReader {
         Ok(ColumnarReader {
             column_dictionary,
             column_data,
-            num_rows,
+            num_docs: num_rows,
             format_version,
         })
     }
 
-    pub fn num_rows(&self) -> RowId {
-        self.num_rows
+    pub fn num_docs(&self) -> RowId {
+        self.num_docs
     }
     // Iterate over the columns in a sorted way
     pub fn iter_columns(
