@@ -1,7 +1,10 @@
 use itertools::Itertools;
+use proptest::collection::vec;
+use proptest::prelude::*;
 
 use super::*;
-use crate::{Cardinality, ColumnarWriter, HasAssociatedColumnType, RowId};
+use crate::columnar::{merge_columnar, ColumnarReader, MergeRowOrder, StackMergeOrder};
+use crate::{Cardinality, ColumnarWriter, DynamicColumn, HasAssociatedColumnType, RowId};
 
 fn make_columnar<T: Into<NumericalValue> + HasAssociatedColumnType + Copy>(
     column_name: &str,
@@ -466,4 +469,120 @@ fn test_merge_columnar_different_empty_cardinality() {
     // text column
     let dynamic_column = cols[1].open().unwrap();
     assert_eq!(dynamic_column.get_cardinality(), Cardinality::Optional);
+}
+
+#[derive(Debug, Clone)]
+struct ColumnSpec {
+    column_name: String,
+    /// (row_id, term)
+    terms: Vec<(RowId, Vec<u8>)>,
+}
+
+#[derive(Clone, Debug)]
+struct ColumnarSpec {
+    columns: Vec<ColumnSpec>,
+}
+
+/// Generate a random (row_id, term) pair:
+///  - row_id in [0..10]
+///  - term is either from POSSIBLE_TERMS or random bytes
+fn rowid_and_term_strategy() -> impl Strategy<Value = (RowId, Vec<u8>)> {
+    const POSSIBLE_TERMS: &[&[u8]] = &[b"a", b"b", b"allo"];
+
+    let term_strat = prop_oneof![
+        // pick from the fixed list
+        (0..POSSIBLE_TERMS.len()).prop_map(|i| POSSIBLE_TERMS[i].to_vec()),
+        // or random bytes (length 0..10)
+        prop::collection::vec(any::<u8>(), 0..10),
+    ];
+
+    (0u32..11, term_strat)
+}
+
+/// Generate one ColumnSpec, with a random name and a random list of (row_id, term).
+/// We sort it by row_id so that data is in ascending order.
+fn column_spec_strategy() -> impl Strategy<Value = ColumnSpec> {
+    let column_name = prop_oneof![
+        Just("col".to_string()),
+        Just("col2".to_string()),
+        "col.*".prop_map(|s| s),
+    ];
+
+    // We'll produce 0..8 (rowid,term) entries for this column
+    let data_strat = vec(rowid_and_term_strategy(), 0..8).prop_map(|mut pairs| {
+        // Sort by row_id
+        pairs.sort_by_key(|(row_id, _)| *row_id);
+        pairs
+    });
+
+    (column_name, data_strat).prop_map(|(name, data)| ColumnSpec {
+        column_name: name,
+        terms: data,
+    })
+}
+
+/// Strategy to generate an ColumnarSpec
+fn columnar_strategy() -> impl Strategy<Value = ColumnarSpec> {
+    vec(column_spec_strategy(), 0..3).prop_map(|columns| ColumnarSpec { columns })
+}
+
+/// Strategy to generate multiple ColumnarSpecs, each of which we will treat
+/// as one "columnar" to be merged together.
+fn columnars_strategy() -> impl Strategy<Value = Vec<ColumnarSpec>> {
+    vec(columnar_strategy(), 1..4)
+}
+
+/// Build a `ColumnarReader` from a `ColumnarSpec`
+fn build_columnar(spec: &ColumnarSpec) -> ColumnarReader {
+    let mut writer = ColumnarWriter::default();
+    let mut max_row_id = 0;
+    for col in &spec.columns {
+        for &(row_id, ref term) in &col.terms {
+            writer.record_bytes(row_id, &col.column_name, term);
+            max_row_id = max_row_id.max(row_id);
+        }
+    }
+
+    let mut buffer = Vec::new();
+    writer.serialize(max_row_id + 1, &mut buffer).unwrap();
+    ColumnarReader::open(buffer).unwrap()
+}
+
+proptest! {
+    // We just test that the merge_columnar function doesn't crash.
+    #![proptest_config(ProptestConfig::with_cases(256))]
+    #[test]
+    fn test_merge_columnar_bytes_no_crash(columnars in columnars_strategy(), second_merge_columnars in columnars_strategy()) {
+        let columnars: Vec<ColumnarReader> = columnars.iter()
+            .map(build_columnar)
+            .collect();
+
+        let mut out = Vec::new();
+        let columnar_refs: Vec<&ColumnarReader> = columnars.iter().collect();
+        let stack_merge_order = StackMergeOrder::stack(&columnar_refs);
+        merge_columnar(
+            &columnar_refs,
+            &[],
+            MergeRowOrder::Stack(stack_merge_order),
+            &mut out,
+        ).unwrap();
+
+        let merged_reader = ColumnarReader::open(out).unwrap();
+
+        // Merge the second set of columnars with the result of the first merge
+        let mut columnars: Vec<ColumnarReader> = second_merge_columnars.iter()
+            .map(build_columnar)
+            .collect();
+        columnars.push(merged_reader);
+        let mut out = Vec::new();
+        let columnar_refs: Vec<&ColumnarReader> = columnars.iter().collect();
+        let stack_merge_order = StackMergeOrder::stack(&columnar_refs);
+        merge_columnar(
+            &columnar_refs,
+            &[],
+            MergeRowOrder::Stack(stack_merge_order),
+            &mut out,
+        ).unwrap();
+
+    }
 }
