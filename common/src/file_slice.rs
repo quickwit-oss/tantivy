@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::ops::{Deref, Range, RangeBounds};
+use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -177,6 +178,12 @@ fn combine_ranges<R: RangeBounds<usize>>(orig_range: Range<usize>, rel_range: R)
 }
 
 impl FileSlice {
+    /// Creates a FileSlice from a path.
+    pub fn open(path: &Path) -> io::Result<FileSlice> {
+        let wrap_file = WrapFile::new(File::open(path)?)?;
+        Ok(FileSlice::new(Arc::new(wrap_file)))
+    }
+
     /// Wraps a FileHandle.
     pub fn new(file_handle: Arc<dyn FileHandle>) -> Self {
         let num_bytes = file_handle.len();

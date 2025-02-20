@@ -94,14 +94,14 @@ impl BitUnpacker {
 
     #[inline]
     pub fn get(&self, idx: u32, data: &[u8]) -> u64 {
-        let addr_in_bits = idx * self.num_bits;
-        let addr = (addr_in_bits >> 3) as usize;
+        let addr_in_bits = idx as usize * self.num_bits as usize;
+        let addr = addr_in_bits >> 3;
         if addr + 8 > data.len() {
             if self.num_bits == 0 {
                 return 0;
             }
             let bit_shift = addr_in_bits & 7;
-            return self.get_slow_path(addr, bit_shift, data);
+            return self.get_slow_path(addr, bit_shift as u32, data);
         }
         let bit_shift = addr_in_bits & 7;
         let bytes: [u8; 8] = (&data[addr..addr + 8]).try_into().unwrap();
