@@ -1,3 +1,9 @@
+//! The footer is a small metadata structure that is appended at the end of every file.
+//!
+//! The footer is used to store a checksum of the file content.
+//! The footer also stores the version of the index format.
+//! This version is used to detect incompatibility between the index and the library version.
+
 use std::io;
 use std::io::Write;
 
@@ -20,20 +26,22 @@ type CrcHashU32 = u32;
 /// A Footer is appended to every file
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Footer {
+    /// The version of the index format
     pub version: Version,
+    /// The crc32 hash of the body
     pub crc: CrcHashU32,
 }
 
 impl Footer {
-    pub fn new(crc: CrcHashU32) -> Self {
+    pub(crate) fn new(crc: CrcHashU32) -> Self {
         let version = crate::VERSION.clone();
         Footer { version, crc }
     }
 
-    pub fn crc(&self) -> CrcHashU32 {
+    pub(crate) fn crc(&self) -> CrcHashU32 {
         self.crc
     }
-    pub fn append_footer<W: io::Write>(&self, mut write: &mut W) -> io::Result<()> {
+    pub(crate) fn append_footer<W: io::Write>(&self, mut write: &mut W) -> io::Result<()> {
         let mut counting_write = CountingWriter::wrap(&mut write);
         counting_write.write_all(serde_json::to_string(&self)?.as_ref())?;
         let footer_payload_len = counting_write.written_bytes();
@@ -42,6 +50,7 @@ impl Footer {
         Ok(())
     }
 
+    /// Extracts the tantivy Footer from the file and returns the footer and the rest of the file
     pub fn extract_footer(file: FileSlice) -> io::Result<(Footer, FileSlice)> {
         if file.len() < 4 {
             return Err(io::Error::new(
