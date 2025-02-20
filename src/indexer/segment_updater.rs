@@ -287,6 +287,17 @@ impl SegmentUpdater {
         let merge_thread_pool = ThreadPoolBuilder::new()
             .thread_name(|i| format!("merge_thread_{i}"))
             .num_threads(num_merge_threads)
+            .panic_handler(move |panic| {
+                let message = if let Some(msg) = panic.downcast_ref::<&str>() {
+                   *msg
+                } else if let Some(msg) = panic.downcast_ref::<String>() {
+                    msg.as_str()
+                } else {
+                    "UNKNOWN"
+                };
+                eprintln!("merge thread panicked with: {message}")
+
+            })
             .build()
             .map_err(|_| {
                 crate::TantivyError::SystemError(
