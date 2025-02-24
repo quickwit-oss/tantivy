@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use common::{BitSet, CountingWriter, ReadOnlyBitSet};
 use sstable::{SSTable, Streamer, TermOrdinal, VoidSSTable};
 
-use super::term_merger::TermMerger;
+use super::term_merger::{TermMerger, TermsWithSegmentOrd};
 use crate::column::serialize_column_mappable_to_u64;
 use crate::column_index::SerializableColumnIndex;
 use crate::iterable::Iterable;
@@ -126,14 +126,17 @@ fn serialize_merged_dict(
     let mut term_ord_mapping = TermOrdinalMapping::default();
 
     let mut field_term_streams = Vec::new();
-    for column_opt in bytes_columns.iter() {
+    for (segment_ord, column_opt) in bytes_columns.iter().enumerate() {
         if let Some(column) = column_opt {
             term_ord_mapping.add_segment(column.dictionary.num_terms());
             let terms: Streamer<VoidSSTable> = column.dictionary.stream()?;
-            field_term_streams.push(terms);
+            field_term_streams.push(TermsWithSegmentOrd { terms, segment_ord });
         } else {
             term_ord_mapping.add_segment(0);
-            field_term_streams.push(Streamer::empty());
+            field_term_streams.push(TermsWithSegmentOrd {
+                terms: Streamer::empty(),
+                segment_ord,
+            });
         }
     }
 
@@ -191,6 +194,7 @@ fn serialize_merged_dict(
 
 #[derive(Default, Debug)]
 struct TermOrdinalMapping {
+    /// Contains the new term ordinals for each segment.
     per_segment_new_term_ordinals: Vec<Vec<TermOrdinal>>,
 }
 
@@ -205,6 +209,6 @@ impl TermOrdinalMapping {
     }
 
     fn get_segment(&self, segment_ord: u32) -> &[TermOrdinal] {
-        &(self.per_segment_new_term_ordinals[segment_ord as usize])[..]
+        &self.per_segment_new_term_ordinals[segment_ord as usize]
     }
 }

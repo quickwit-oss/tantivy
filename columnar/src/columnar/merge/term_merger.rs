@@ -5,28 +5,29 @@ use sstable::TermOrdinal;
 
 use crate::Streamer;
 
-pub struct HeapItem<'a> {
-    pub streamer: Streamer<'a>,
+/// The terms of a column with the ordinal of the segment.
+pub struct TermsWithSegmentOrd<'a> {
+    pub terms: Streamer<'a>,
     pub segment_ord: usize,
 }
 
-impl PartialEq for HeapItem<'_> {
+impl PartialEq for TermsWithSegmentOrd<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.segment_ord == other.segment_ord
     }
 }
 
-impl Eq for HeapItem<'_> {}
+impl Eq for TermsWithSegmentOrd<'_> {}
 
-impl<'a> PartialOrd for HeapItem<'a> {
-    fn partial_cmp(&self, other: &HeapItem<'a>) -> Option<Ordering> {
+impl<'a> PartialOrd for TermsWithSegmentOrd<'a> {
+    fn partial_cmp(&self, other: &TermsWithSegmentOrd<'a>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> Ord for HeapItem<'a> {
-    fn cmp(&self, other: &HeapItem<'a>) -> Ordering {
-        (&other.streamer.key(), &other.segment_ord).cmp(&(&self.streamer.key(), &self.segment_ord))
+impl<'a> Ord for TermsWithSegmentOrd<'a> {
+    fn cmp(&self, other: &TermsWithSegmentOrd<'a>) -> Ordering {
+        (&other.terms.key(), &other.segment_ord).cmp(&(&self.terms.key(), &self.segment_ord))
     }
 }
 
@@ -37,39 +38,32 @@ impl<'a> Ord for HeapItem<'a> {
 /// - the term
 /// - a slice with the ordinal of the segments containing the terms.
 pub struct TermMerger<'a> {
-    heap: BinaryHeap<HeapItem<'a>>,
-    current_streamers: Vec<HeapItem<'a>>,
+    heap: BinaryHeap<TermsWithSegmentOrd<'a>>,
+    term_streams_with_segment: Vec<TermsWithSegmentOrd<'a>>,
 }
 
 impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
-    pub fn new(streams: Vec<Streamer<'a>>) -> TermMerger<'a> {
+    pub fn new(term_streams_with_segment: Vec<TermsWithSegmentOrd<'a>>) -> TermMerger<'a> {
         TermMerger {
             heap: BinaryHeap::new(),
-            current_streamers: streams
-                .into_iter()
-                .enumerate()
-                .map(|(ord, streamer)| HeapItem {
-                    streamer,
-                    segment_ord: ord,
-                })
-                .collect(),
+            term_streams_with_segment,
         }
     }
 
     pub(crate) fn matching_segments<'b: 'a>(
         &'b self,
     ) -> impl 'b + Iterator<Item = (usize, TermOrdinal)> {
-        self.current_streamers
+        self.term_streams_with_segment
             .iter()
-            .map(|heap_item| (heap_item.segment_ord, heap_item.streamer.term_ord()))
+            .map(|heap_item| (heap_item.segment_ord, heap_item.terms.term_ord()))
     }
 
     fn advance_segments(&mut self) {
-        let streamers = &mut self.current_streamers;
+        let streamers = &mut self.term_streams_with_segment;
         let heap = &mut self.heap;
         for mut heap_item in streamers.drain(..) {
-            if heap_item.streamer.advance() {
+            if heap_item.terms.advance() {
                 heap.push(heap_item);
             }
         }
@@ -81,13 +75,13 @@ impl<'a> TermMerger<'a> {
     pub fn advance(&mut self) -> bool {
         self.advance_segments();
         if let Some(head) = self.heap.pop() {
-            self.current_streamers.push(head);
+            self.term_streams_with_segment.push(head);
             while let Some(next_streamer) = self.heap.peek() {
-                if self.current_streamers[0].streamer.key() != next_streamer.streamer.key() {
+                if self.term_streams_with_segment[0].terms.key() != next_streamer.terms.key() {
                     break;
                 }
                 let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
-                self.current_streamers.push(next_heap_it);
+                self.term_streams_with_segment.push(next_heap_it);
             }
             true
         } else {
@@ -101,6 +95,6 @@ impl<'a> TermMerger<'a> {
     /// if and only if advance() has been called before
     /// and "true" was returned.
     pub fn key(&self) -> &[u8] {
-        self.current_streamers[0].streamer.key()
+        self.term_streams_with_segment[0].terms.key()
     }
 }

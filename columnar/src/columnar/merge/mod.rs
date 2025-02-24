@@ -80,13 +80,12 @@ pub fn merge_columnar(
     output: &mut impl io::Write,
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
-    let num_rows_per_columnar = columnar_readers
+    let num_docs_per_columnar = columnar_readers
         .iter()
-        .map(|reader| reader.num_rows())
+        .map(|reader| reader.num_docs())
         .collect::<Vec<u32>>();
 
-    let columns_to_merge =
-        group_columns_for_merge(columnar_readers, required_columns, &merge_row_order)?;
+    let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
     for res in columns_to_merge {
         let ((column_name, _column_type_category), grouped_columns) = res;
         let grouped_columns = grouped_columns.open(&merge_row_order)?;
@@ -94,15 +93,18 @@ pub fn merge_columnar(
             continue;
         }
 
-        let column_type = grouped_columns.column_type_after_merge();
+        let column_type_after_merge = grouped_columns.column_type_after_merge();
         let mut columns = grouped_columns.columns;
-        coerce_columns(column_type, &mut columns)?;
+        // Make sure the number of columns is the same as the number of columnar readers.
+        // Or num_docs_per_columnar would be incorrect.
+        assert_eq!(columns.len(), columnar_readers.len());
+        coerce_columns(column_type_after_merge, &mut columns)?;
 
         let mut column_serializer =
-            serializer.start_serialize_column(column_name.as_bytes(), column_type);
+            serializer.start_serialize_column(column_name.as_bytes(), column_type_after_merge);
         merge_column(
-            column_type,
-            &num_rows_per_columnar,
+            column_type_after_merge,
+            &num_docs_per_columnar,
             columns,
             &merge_row_order,
             &mut column_serializer,
@@ -128,7 +130,7 @@ fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Colu
 fn merge_column(
     column_type: ColumnType,
     num_docs_per_column: &[u32],
-    columns: Vec<Option<DynamicColumn>>,
+    columns_to_merge: Vec<Option<DynamicColumn>>,
     merge_row_order: &MergeRowOrder,
     wrt: &mut impl io::Write,
 ) -> io::Result<()> {
@@ -138,10 +140,10 @@ fn merge_column(
         | ColumnType::F64
         | ColumnType::DateTime
         | ColumnType::Bool => {
-            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns_to_merge.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues>>> =
-                Vec::with_capacity(columns.len());
-            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
+                Vec::with_capacity(columns_to_merge.len());
+            for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
                 if let Some(Column { index: idx, values }) =
                     dynamic_column_opt.and_then(dynamic_column_to_u64_monotonic)
                 {
@@ -164,10 +166,10 @@ fn merge_column(
             serialize_column_mappable_to_u64(merged_column_index, &merge_column_values, wrt)?;
         }
         ColumnType::IpAddr => {
-            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns_to_merge.len());
             let mut column_values: Vec<Option<Arc<dyn ColumnValues<Ipv6Addr>>>> =
-                Vec::with_capacity(columns.len());
-            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
+                Vec::with_capacity(columns_to_merge.len());
+            for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
                 if let Some(DynamicColumn::IpAddr(Column { index: idx, values })) =
                     dynamic_column_opt
                 {
@@ -192,9 +194,10 @@ fn merge_column(
             serialize_column_mappable_to_u128(merged_column_index, &merge_column_values, wrt)?;
         }
         ColumnType::Bytes | ColumnType::Str => {
-            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns.len());
-            let mut bytes_columns: Vec<Option<BytesColumn>> = Vec::with_capacity(columns.len());
-            for (i, dynamic_column_opt) in columns.into_iter().enumerate() {
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns_to_merge.len());
+            let mut bytes_columns: Vec<Option<BytesColumn>> =
+                Vec::with_capacity(columns_to_merge.len());
+            for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
                 match dynamic_column_opt {
                     Some(DynamicColumn::Str(str_column)) => {
                         column_indexes.push(str_column.term_ord_column.index.clone());
@@ -248,7 +251,7 @@ impl GroupedColumns {
         if column_type.len() == 1 {
             return column_type.into_iter().next().unwrap();
         }
-        // At the moment, only the numerical categorical column type has more than one possible
+        // At the moment, only the numerical column type category has more than one possible
         // column type.
         assert!(self
             .columns
@@ -361,7 +364,7 @@ fn is_empty_after_merge(
                     ColumnIndex::Empty { .. } => true,
                     ColumnIndex::Full => alive_bitset.len() == 0,
                     ColumnIndex::Optional(optional_index) => {
-                        for doc in optional_index.iter_rows() {
+                        for doc in optional_index.iter_docs() {
                             if alive_bitset.contains(doc) {
                                 return false;
                             }
@@ -391,7 +394,6 @@ fn is_empty_after_merge(
 fn group_columns_for_merge<'a>(
     columnar_readers: &'a [&'a ColumnarReader],
     required_columns: &'a [(String, ColumnType)],
-    _merge_row_order: &'a MergeRowOrder,
 ) -> io::Result<BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle>> {
     let mut columns: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> = BTreeMap::new();
 
