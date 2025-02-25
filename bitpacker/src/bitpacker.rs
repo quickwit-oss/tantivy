@@ -48,7 +48,7 @@ impl BitPacker {
 
     pub fn flush<TWrite: io::Write + ?Sized>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
-            let num_bytes = (self.mini_buffer_written + 7) / 8;
+            let num_bytes = self.mini_buffer_written.div_ceil(8);
             let bytes = self.mini_buffer.to_le_bytes();
             output.write_all(&bytes[..num_bytes])?;
             self.mini_buffer_written = 0;
@@ -137,7 +137,7 @@ impl BitUnpacker {
         let end_idx = start_idx + output.len() as u32;
 
         let end_bit_read = end_idx * self.num_bits;
-        let end_byte_read = (end_bit_read + 7) / 8;
+        let end_byte_read = end_bit_read.div_ceil(8);
         assert!(
             end_byte_read as usize <= data.len(),
             "Requested index is out of bounds."
@@ -257,7 +257,7 @@ mod test {
             bitpacker.write(val, num_bits, &mut data).unwrap();
         }
         bitpacker.close(&mut data).unwrap();
-        assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8);
+        assert_eq!(data.len(), ((num_bits as usize) * len).div_ceil(8));
         let bitunpacker = BitUnpacker::new(num_bits);
         (bitunpacker, vals, data)
     }
@@ -303,7 +303,7 @@ mod test {
             bitpacker.write(val, num_bits, &mut buffer).unwrap();
         }
         bitpacker.flush(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), (vals.len() * num_bits as usize + 7) / 8);
+        assert_eq!(buffer.len(), (vals.len() * num_bits as usize).div_ceil(8));
         let bitunpacker = BitUnpacker::new(num_bits);
         let max_val = if num_bits == 64 {
             u64::MAX

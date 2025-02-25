@@ -1057,18 +1057,18 @@ mod tests {
     fn test_prefix_edge() {
         let dict = {
             let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
-            builder.insert(&[0, 254], &0).unwrap();
-            builder.insert(&[0, 255], &1).unwrap();
-            builder.insert(&[0, 255, 12], &2).unwrap();
-            builder.insert(&[1], &2).unwrap();
-            builder.insert(&[1, 0], &2).unwrap();
+            builder.insert([0, 254], &0).unwrap();
+            builder.insert([0, 255], &1).unwrap();
+            builder.insert([0, 255, 12], &2).unwrap();
+            builder.insert([1], &2).unwrap();
+            builder.insert([1, 0], &2).unwrap();
             let table = builder.finish().unwrap();
             let table = Arc::new(PermissionedHandle::new(table));
             let slice = common::file_slice::FileSlice::new(table.clone());
             Dictionary::<MonotonicU64SSTable>::open(slice).unwrap()
         };
 
-        let mut stream = dict.prefix_range(&[0, 255]).into_stream().unwrap();
+        let mut stream = dict.prefix_range([0, 255]).into_stream().unwrap();
         assert!(stream.advance());
         assert_eq!(stream.key(), &[0, 255]);
         assert!(stream.advance());

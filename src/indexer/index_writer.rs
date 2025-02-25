@@ -2553,7 +2553,7 @@ mod tests {
     #[test]
     fn test_writer_options_validation() {
         let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_bool_field("example", STORED);
+        let _field = schema_builder.add_bool_field("example", STORED);
         let index = Index::create_in_ram(schema_builder.build());
 
         let opt_wo_threads = IndexWriterOptions::builder().num_worker_threads(0).build();
