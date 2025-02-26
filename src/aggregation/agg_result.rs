@@ -125,9 +125,26 @@ impl MetricResult {
 }
 
 /// BucketEntry holds bucket aggregation result types.
+// the order of fields is important to deserialize properly
+// Terms must be first because all Terms are valid Range (we ignore unknown fields)
+// Range and Histogram are always ambiguous, they contain the same 3 required fields, and all else
+// is optional Having Range is usually more useful (contains more fields, missing field from
+// Histogram can be obtained by key.to_string())
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BucketResult {
+    /// This is the term result
+    Terms {
+        /// The buckets.
+        ///
+        /// See [`TermsAggregation`](super::bucket::TermsAggregation)
+        buckets: Vec<BucketEntry>,
+        /// The number of documents that didn’t make it into to TOP N due to shard_size or size
+        sum_other_doc_count: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        /// The upper bound error for the doc count of each term.
+        doc_count_error_upper_bound: Option<u64>,
+    },
     /// This is the range entry for a bucket, which contains a key, count, from, to, and optionally
     /// sub-aggregations.
     Range {
@@ -143,18 +160,6 @@ pub enum BucketResult {
         /// holes between the first and last bucket.
         /// See [`HistogramAggregation`](super::bucket::HistogramAggregation)
         buckets: BucketEntries<BucketEntry>,
-    },
-    /// This is the term result
-    Terms {
-        /// The buckets.
-        ///
-        /// See [`TermsAggregation`](super::bucket::TermsAggregation)
-        buckets: Vec<BucketEntry>,
-        /// The number of documents that didn’t make it into to TOP N due to shard_size or size
-        sum_other_doc_count: u64,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        /// The upper bound error for the doc count of each term.
-        doc_count_error_upper_bound: Option<u64>,
     },
 }
 
