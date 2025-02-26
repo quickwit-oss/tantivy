@@ -89,7 +89,7 @@ where
 
     fn encode_keep_add(&mut self, keep_len: usize, add_len: usize) {
         if keep_len < FOUR_BIT_LIMITS && add_len < FOUR_BIT_LIMITS {
-            let b = (keep_len | add_len << 4) as u8;
+            let b = (keep_len | (add_len << 4)) as u8;
             self.block.extend_from_slice(&[b])
         } else {
             let mut buf = [VINT_MODE; 20];
