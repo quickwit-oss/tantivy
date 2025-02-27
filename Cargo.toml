@@ -37,7 +37,7 @@ fs4 = { version = "0.8.0", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
-rust-stemmers = "1.2.0"
+rust-stemmers = { git = "https://github.com/silver-ymz/rust-stemmers.git", rev = "51696378e352688b7ffd4fface615370ff5e8768"  }
 downcast-rs = "2.0.1"
 bitpacking = { version = "0.9.2", default-features = false, features = [
     "bitpacker4x",
