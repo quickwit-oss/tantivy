@@ -4,6 +4,7 @@ mod term_merger;
 
 use std::collections::{BTreeMap, HashSet};
 use std::io;
+use std::io::ErrorKind;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
@@ -78,6 +79,7 @@ pub fn merge_columnar(
     required_columns: &[(String, ColumnType)],
     merge_row_order: MergeRowOrder,
     output: &mut impl io::Write,
+    cancel: impl Fn() -> bool,
 ) -> io::Result<()> {
     let mut serializer = ColumnarSerializer::new(output);
     let num_docs_per_columnar = columnar_readers
@@ -87,6 +89,9 @@ pub fn merge_columnar(
 
     let columns_to_merge = group_columns_for_merge(columnar_readers, required_columns)?;
     for res in columns_to_merge {
+        if cancel() {
+            return Err(io::Error::new(ErrorKind::Interrupted, "Merge cancelled"));
+        }
         let ((column_name, _column_type_category), grouped_columns) = res;
         let grouped_columns = grouped_columns.open(&merge_row_order)?;
         if grouped_columns.is_empty() {
