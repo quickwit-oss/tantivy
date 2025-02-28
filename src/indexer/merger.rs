@@ -7,6 +7,7 @@ use itertools::Itertools;
 use crate::fastfield::{AliveBitSet, FastFieldNotAvailableError};
 use crate::index::{builtin_plugins, Segment, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
+use crate::indexer::segment_updater::CancelSentinel;
 use crate::plugin::{PluginMergeContext, SegmentPlugin};
 use crate::schema::{Schema, Type};
 use crate::termdict::TermOrdinal;
@@ -57,6 +58,7 @@ pub struct IndexMerger {
     pub(crate) readers: Vec<SegmentReader>,
     max_doc: u32,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
+    cancel: Box<dyn CancelSentinel>,
 }
 
 impl IndexMerger {
@@ -99,9 +101,10 @@ impl IndexMerger {
         schema: Schema,
         index_settings: IndexSettings,
         segments: &[Segment],
+        cancel: Box<dyn CancelSentinel>,
     ) -> crate::Result<IndexMerger> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
-        Self::open_with_custom_alive_set(schema, index_settings, segments, alive_bitset)
+        Self::open_with_custom_alive_set(schema, index_settings, segments, alive_bitset, cancel)
     }
 
     // Create merge with a custom delete set.
@@ -121,6 +124,7 @@ impl IndexMerger {
         index_settings: IndexSettings,
         segments: &[Segment],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
+        cancel: Box<dyn CancelSentinel>,
     ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
@@ -160,6 +164,7 @@ impl IndexMerger {
             readers,
             max_doc,
             custom_plugins,
+            cancel,
         })
     }
 
@@ -522,6 +527,7 @@ impl IndexMerger {
                 target_segment,
                 schema: &self.schema,
                 settings: &self.index_settings,
+                cancel: &*self.cancel,
             })?;
         }
 

@@ -130,6 +130,9 @@ pub enum TantivyError {
          segments; create a new index to change it."
     )]
     UnexpectedPlugin(String),
+    /// The user requested the current operation be cancelled
+    #[error("User requested cancel")]
+    Cancelled,
 }
 
 impl From<io::Error> for TantivyError {

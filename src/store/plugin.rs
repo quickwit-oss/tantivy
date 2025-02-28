@@ -104,6 +104,9 @@ impl SegmentPlugin for StorePlugin {
         } else {
             debug!("trivial-doc-id-mapping");
             for reader in ctx.readers {
+                if ctx.cancel.wants_cancel() {
+                    return Err(crate::TantivyError::Cancelled);
+                }
                 let store_reader = reader.get_store_reader(1)?;
                 if reader.has_deletes()
                     // If there is not enough data in the store, we avoid stacking in order to
@@ -113,6 +116,9 @@ impl SegmentPlugin for StorePlugin {
                     || store_reader.decompressor() != store_writer.compressor().into()
                 {
                     for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
+                        if ctx.cancel.wants_cancel() {
+                            return Err(crate::TantivyError::Cancelled);
+                        }
                         let doc_bytes = doc_bytes_res?;
                         store_writer.store_bytes(&doc_bytes)?;
                     }

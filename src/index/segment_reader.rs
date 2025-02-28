@@ -18,7 +18,7 @@ use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::{ComponentSpaceUsage, SegmentSpaceUsage};
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
-use crate::{Directory, DocId, Index, Opstamp};
+use crate::{DocId, Opstamp};
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///

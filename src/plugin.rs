@@ -14,6 +14,7 @@ use common::HasLen;
 
 use crate::index::{IndexSettings, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
+use crate::indexer::segment_updater::CancelSentinel;
 use crate::schema::{Schema, TantivyDocument};
 use crate::space_usage::ComponentSpaceUsage;
 use crate::{DocId, Segment};
@@ -131,6 +132,7 @@ pub struct PluginMergeContext<'a> {
     pub target_segment: &'a Segment,
     pub schema: &'a Schema,
     pub settings: &'a IndexSettings,
+    pub cancel: &'a dyn CancelSentinel,
 }
 
 #[cfg(test)]

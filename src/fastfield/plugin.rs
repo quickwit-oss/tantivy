@@ -64,11 +64,13 @@ impl SegmentPlugin for FastFieldsPlugin {
         let doc_id_mapping = ctx.doc_id_mapping.clone();
         let merge_row_order = convert_to_merge_order(&columnars[..], doc_id_mapping);
 
+        let cancel = ctx.cancel;
         columnar::merge_columnar(
             &columnars[..],
             &required_columns,
             merge_row_order,
             &mut fast_field_wrt,
+            || cancel.wants_cancel(),
         )?;
 
         fast_field_wrt.terminate()?;

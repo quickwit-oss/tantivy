@@ -43,6 +43,9 @@ impl SegmentPlugin for FieldNormsPlugin {
         let mut fieldnorms_data = Vec::with_capacity(max_doc);
 
         for field in fields {
+            if ctx.cancel.wants_cancel() {
+                return Err(crate::TantivyError::Cancelled);
+            }
             fieldnorms_data.clear();
             let fieldnorms_readers: Vec<FieldNormReader> = ctx
                 .readers

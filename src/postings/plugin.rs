@@ -19,6 +19,7 @@ use crate::error::DataCorruption;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
 use crate::index::{Segment, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{DocIdMapping, SegmentDocIdMapping};
+use crate::indexer::segment_updater::CancelSentinel;
 use crate::plugin::{PluginMergeContext, PluginWriter, PluginWriterContext, SegmentPlugin};
 use crate::postings::{
     serialize_postings, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter, Postings,
@@ -65,6 +66,7 @@ impl SegmentPlugin for PostingsPlugin {
             &mut serializer,
             fieldnorm_readers,
             ctx.doc_id_mapping,
+            ctx.cancel,
         )?;
 
         serializer.close()?;
@@ -173,6 +175,7 @@ fn write_postings_for_field(
     serializer: &mut InvertedIndexSerializer,
     fieldnorm_reader: Option<FieldNormReader>,
     doc_id_mapping: &SegmentDocIdMapping,
+    cancel: &dyn CancelSentinel,
 ) -> crate::Result<()> {
     debug_time!("write-postings-for-field");
     let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
@@ -222,7 +225,12 @@ fn write_postings_for_field(
     let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
     let mut doc_id_and_positions = vec![];
 
+    let mut cnt = 0;
     while merged_terms.advance() {
+        if cnt % 1000 == 0 && cancel.wants_cancel() {
+            return Err(crate::TantivyError::Cancelled);
+        }
+        cnt += 1;
         segment_postings_containing_the_term.clear();
         let term_bytes: &[u8] = merged_terms.key();
 
@@ -275,6 +283,9 @@ fn write_postings_for_field(
 
             let mut doc = segment_postings.doc();
             while doc != TERMINATED {
+                if doc % 1000 == 0 && cancel.wants_cancel() {
+                    return Err(crate::TantivyError::Cancelled);
+                }
                 if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
                     let term_freq = if has_term_freq {
                         segment_postings.positions(&mut positions_buffer);
@@ -320,8 +331,12 @@ fn write_postings_merge(
     serializer: &mut InvertedIndexSerializer,
     fieldnorm_readers: FieldNormReaders,
     doc_id_mapping: &SegmentDocIdMapping,
+    cancel: &dyn CancelSentinel,
 ) -> crate::Result<()> {
     for (field, field_entry) in schema.fields() {
+        if cancel.wants_cancel() {
+            return Err(crate::TantivyError::Cancelled);
+        }
         let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
         if field_entry.is_indexed() {
             write_postings_for_field(
@@ -331,6 +346,7 @@ fn write_postings_merge(
                 serializer,
                 fieldnorm_reader,
                 doc_id_mapping,
+                cancel,
             )?;
         }
     }

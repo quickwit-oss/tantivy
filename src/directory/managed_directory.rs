@@ -374,6 +374,10 @@ impl Directory for ManagedDirectory {
     fn panic_handler(&self) -> Option<DirectoryPanicHandler> {
         self.directory.panic_handler()
     }
+
+    fn wants_cancel(&self) -> bool {
+        self.directory.wants_cancel()
+    }
 }
 
 impl Clone for ManagedDirectory {
