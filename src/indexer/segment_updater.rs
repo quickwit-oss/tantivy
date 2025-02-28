@@ -60,6 +60,26 @@ pub(crate) fn save_metas(
     }
 }
 
+/// Describes a routine for allowing an operation in tantivy to be cleanly cancelled
+///
+/// We provide an implementation for `Fn() -> bool`.
+pub trait CancelSentinel: Send + Sync + 'static {
+    fn box_clone(&self) -> Box<dyn CancelSentinel>;
+    fn wants_cancel(&self) -> bool;
+}
+
+impl<F: Fn() -> bool + Send + Sync + 'static> CancelSentinel for F
+where F: Clone
+{
+    fn box_clone(&self) -> Box<dyn CancelSentinel> {
+        Box::new(self.clone())
+    }
+
+    fn wants_cancel(&self) -> bool {
+        self()
+    }
+}
+
 // The segment update runner is in charge of processing all
 //  of the `SegmentUpdate`s.
 //
@@ -68,15 +88,26 @@ pub(crate) fn save_metas(
 //
 // We voluntarily pass a merge_operation ref to guarantee that
 // the merge_operation is alive during the process
-#[derive(Clone)]
-pub(crate) struct SegmentUpdater(Arc<InnerSegmentUpdater>);
+pub(crate) struct SegmentUpdater {
+    inner: Arc<InnerSegmentUpdater>,
+    cancel: Box<dyn CancelSentinel>,
+}
+
+impl Clone for SegmentUpdater {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            cancel: self.cancel.box_clone(),
+        }
+    }
+}
 
 impl Deref for SegmentUpdater {
     type Target = InnerSegmentUpdater;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inner
     }
 }
 
@@ -96,6 +127,7 @@ fn merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
+    cancel: Box<dyn CancelSentinel>,
 ) -> crate::Result<Option<SegmentEntry>> {
     let num_docs = segment_entries
         .iter()
@@ -122,7 +154,7 @@ fn merge(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
+    let merger = IndexMerger::open(index.schema(), &segments[..], cancel)?;
 
     // ... we just serialize this index merger in our new segment to merge the segments.
     let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
@@ -150,6 +182,7 @@ fn merge(
 pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     indices: &[Index],
     output_directory: T,
+    cancel: Box<dyn CancelSentinel>,
 ) -> crate::Result<Index> {
     if indices.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
@@ -177,7 +210,13 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     }
 
     let non_filter = segments.iter().map(|_| None).collect::<Vec<_>>();
-    merge_filtered_segments(&segments, target_settings, non_filter, output_directory)
+    merge_filtered_segments(
+        &segments,
+        target_settings,
+        non_filter,
+        output_directory,
+        cancel,
+    )
 }
 
 /// Advanced: Merges a list of segments from different indices in a new index.
@@ -198,6 +237,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     target_settings: IndexSettings,
     filter_doc_ids: Vec<Option<AliveBitSet>>,
     output_directory: T,
+    cancel: Box<dyn CancelSentinel>,
 ) -> crate::Result<Index> {
     if segments.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
@@ -226,8 +266,12 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     )?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger =
-        IndexMerger::open_with_custom_alive_set(merged_index.schema(), segments, filter_doc_ids)?;
+    let merger = IndexMerger::open_with_custom_alive_set(
+        merged_index.schema(),
+        segments,
+        filter_doc_ids,
+        cancel,
+    )?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
     let num_docs = merger.write(segment_serializer)?;
 
@@ -296,6 +340,7 @@ impl SegmentUpdater {
         delete_cursor: &DeleteCursor,
         num_merge_threads: usize,
         panic_handler: Option<DirectoryPanicHandler>,
+        cancel: impl Fn() -> bool + 'static + Send + Sync + Clone,
     ) -> crate::Result<SegmentUpdater> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
@@ -327,17 +372,20 @@ impl SegmentUpdater {
             crate::TantivyError::SystemError("Failed to spawn segment merging thread".to_string())
         })?;
         let index_meta = index.load_metas()?;
-        Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
-            active_index_meta: RwLock::new(Arc::new(index_meta)),
-            pool,
-            merge_thread_pool,
-            index,
-            segment_manager,
-            merge_policy: RwLock::new(Arc::new(DefaultMergePolicy::default())),
-            killed: AtomicBool::new(false),
-            stamper,
-            merge_operations: Default::default(),
-        })))
+        Ok(SegmentUpdater {
+            inner: Arc::new(InnerSegmentUpdater {
+                active_index_meta: RwLock::new(Arc::new(index_meta)),
+                pool,
+                merge_thread_pool,
+                index,
+                segment_manager,
+                merge_policy: RwLock::new(Arc::new(DefaultMergePolicy::default())),
+                killed: AtomicBool::new(false),
+                stamper,
+                merge_operations: Default::default(),
+            }),
+            cancel: Box::new(cancel),
+        })
     }
 
     pub fn get_merge_policy(&self) -> Arc<dyn MergePolicy> {
@@ -470,7 +518,7 @@ impl SegmentUpdater {
         opstamp: Opstamp,
         payload: Option<String>,
     ) -> FutureResult<Opstamp> {
-        let segment_updater: SegmentUpdater = self.clone();
+        let segment_updater = self.clone();
         self.schedule_task(move || {
             let segment_entries = segment_updater.purge_deletes(opstamp)?;
             let previous_metas = segment_updater.load_meta();
@@ -550,6 +598,7 @@ impl SegmentUpdater {
         let (scheduled_result, merging_future_send) =
             FutureResult::create("Merge operation failed.");
 
+        let cancel = self.cancel.box_clone();
         self.merge_thread_pool.spawn(move || {
             // The fact that `merge_operation` is moved here is important.
             // Its lifetime is used to track how many merging thread are currently running,
@@ -559,6 +608,7 @@ impl SegmentUpdater {
                 &segment_updater.index,
                 segment_entries,
                 merge_operation.target_opstamp(),
+                cancel,
             ) {
                 Ok(after_merge_segment_entry) => {
                     let res = segment_updater.end_merge(merge_operation, after_merge_segment_entry);
@@ -925,7 +975,7 @@ mod tests {
 
         assert_eq!(indices.len(), 3);
         let output_directory: Box<dyn Directory> = Box::<RamDirectory>::default();
-        let index = merge_indices(&indices, output_directory)?;
+        let index = merge_indices(&indices, output_directory, Box::new(|| false))?;
         assert_eq!(index.schema(), schema);
 
         let segments = index.searchable_segments()?;
@@ -939,7 +989,7 @@ mod tests {
 
     #[test]
     fn test_merge_empty_indices_array() {
-        let merge_result = merge_indices(&[], RamDirectory::default());
+        let merge_result = merge_indices(&[], RamDirectory::default(), Box::new(|| false));
         assert!(merge_result.is_err());
     }
 
@@ -966,7 +1016,11 @@ mod tests {
         };
 
         // mismatched schema index list
-        let result = merge_indices(&[first_index, second_index], RamDirectory::default());
+        let result = merge_indices(
+            &[first_index, second_index],
+            RamDirectory::default(),
+            Box::new(|| false),
+        );
         assert!(result.is_err());
 
         Ok(())
@@ -1014,6 +1068,7 @@ mod tests {
             target_settings,
             filter_segments,
             RamDirectory::default(),
+            Box::new(|| false),
         )?;
 
         let segments = merged_index.searchable_segments()?;
@@ -1059,6 +1114,7 @@ mod tests {
             target_settings,
             filter_segments,
             RamDirectory::default(),
+            Box::new(|| false),
         )?;
 
         let segments = index.searchable_segments()?;
@@ -1121,10 +1177,11 @@ mod tests {
                 target_schema,
                 target_settings.clone(),
             )?;
-            let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
+            let merger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
                 &segments[..],
                 filter_segments,
+                Box::new(|| false),
             )?;
 
             let doc_ids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();
@@ -1136,10 +1193,11 @@ mod tests {
             let target_schema = segments[0].schema();
             let merged_index =
                 Index::create(RamDirectory::default(), target_schema, target_settings)?;
-            let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
+            let merger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
                 &segments[..],
                 filter_segments,
+                Box::new(|| false),
             )?;
 
             let doc_ids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();

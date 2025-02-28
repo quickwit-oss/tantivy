@@ -110,6 +110,9 @@ pub enum TantivyError {
     #[error("Deserialize error: {0}")]
     /// An error occurred while attempting to deserialize a document.
     DeserializeError(DeserializeError),
+    /// The user requested the current operation be cancelled
+    #[error("User requested cancel")]
+    Cancelled,
 }
 
 impl From<io::Error> for TantivyError {

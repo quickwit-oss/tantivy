@@ -294,6 +294,13 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     fn panic_handler(&self) -> Option<DirectoryPanicHandler> {
         None
     }
+
+    /// Returns true if this directory is in a position of requiring that tantivy cancel
+    /// whatever operation(s) it might be doing  Typically this is just for the background
+    /// merge processes but could be used for anything
+    fn wants_cancel(&self) -> bool {
+        false
+    }
 }
 
 /// DirectoryClone

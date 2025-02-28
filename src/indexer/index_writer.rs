@@ -332,6 +332,10 @@ impl<D: Document> IndexWriter<D> {
             &delete_queue.cursor(),
             options.num_merge_threads,
             index.directory().panic_handler(),
+            {
+                let index = index.clone();
+                move || index.directory().wants_cancel()
+            },
         )?;
 
         let mut index_writer = Self {
