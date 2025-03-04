@@ -71,7 +71,14 @@ fn test_format(path: &str) {
     let columnar_readers = vec![&reader, &reader2];
     let merge_row_order = StackMergeOrder::stack(&columnar_readers[..]);
     let mut out = Vec::new();
-    merge_columnar(&columnar_readers, &[], merge_row_order.into(), &mut out).unwrap();
+    merge_columnar(
+        &columnar_readers,
+        &[],
+        merge_row_order.into(),
+        &mut out,
+        || false,
+    )
+    .unwrap();
     let reader = ColumnarReader::open(out).unwrap();
     check_columns(&reader);
 }

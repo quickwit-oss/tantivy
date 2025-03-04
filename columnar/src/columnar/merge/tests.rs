@@ -211,6 +211,7 @@ fn test_merge_columnar_numbers() {
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
+        || false,
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
@@ -239,6 +240,7 @@ fn test_merge_columnar_texts() {
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
+        || false,
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
@@ -288,6 +290,7 @@ fn test_merge_columnar_byte() {
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
+        || false,
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
@@ -344,6 +347,7 @@ fn test_merge_columnar_byte_with_missing() {
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
+        || false,
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
@@ -396,6 +400,7 @@ fn test_merge_columnar_different_types() {
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
+        || false,
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
@@ -461,6 +466,7 @@ fn test_merge_columnar_different_empty_cardinality() {
         &[],
         MergeRowOrder::Stack(stack_merge_order),
         &mut buffer,
+        || false,
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();

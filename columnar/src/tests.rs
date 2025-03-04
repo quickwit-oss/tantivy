@@ -832,7 +832,7 @@ proptest! {
         let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
         let mut output: Vec<u8> = Vec::new();
         let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]).into();
-        crate::merge_columnar(&columnar_readers_arr[..], &[], stack_merge_order, &mut output).unwrap();
+        crate::merge_columnar(&columnar_readers_arr[..], &[], stack_merge_order, &mut output, || false,).unwrap();
         let merged_columnar = ColumnarReader::open(output).unwrap();
         let concat_rows: Vec<Vec<(&'static str, ColumnValue)>> = columnar_docs.iter().flatten().cloned().collect();
         let expected_merged_columnar = build_columnar(&concat_rows[..]);
@@ -856,6 +856,7 @@ fn test_columnar_merging_empty_columnar() {
         &[],
         crate::MergeRowOrder::Stack(stack_merge_order),
         &mut output,
+        || false,
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
@@ -893,6 +894,7 @@ fn test_columnar_merging_number_columns() {
         &[],
         crate::MergeRowOrder::Stack(stack_merge_order),
         &mut output,
+        || false,
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
@@ -966,6 +968,7 @@ fn test_columnar_merge_and_remap(
         &[],
         shuffle_merge_order.into(),
         &mut output,
+        || false,
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
@@ -1008,6 +1011,7 @@ fn test_columnar_merge_empty() {
         &[],
         shuffle_merge_order.into(),
         &mut output,
+        || false,
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
@@ -1034,6 +1038,7 @@ fn test_columnar_merge_single_str_column() {
         &[],
         shuffle_merge_order.into(),
         &mut output,
+        || false,
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
@@ -1066,6 +1071,7 @@ fn test_delete_decrease_cardinality() {
         &[],
         shuffle_merge_order.into(),
         &mut output,
+        || false,
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();

@@ -27,7 +27,7 @@ use crate::postings::{
 };
 use crate::schema::{Field, Schema};
 use crate::space_usage::{ComponentSpaceUsage, POSITIONS, POSTINGS, TERMDICT};
-use crate::InvertedIndexReader;
+use crate::index::merge_optimized_inverted_index_reader::MergeOptimizedInvertedIndexReader;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::DocId;
 
@@ -183,9 +183,9 @@ fn write_postings_for_field(
 
     let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
 
-    let field_readers: Vec<Arc<InvertedIndexReader>> = readers
+    let field_readers: Vec<Arc<MergeOptimizedInvertedIndexReader>> = readers
         .iter()
-        .map(|reader| reader.inverted_index(indexed_field))
+        .map(|reader| reader.merge_optimized_inverted_index(indexed_field))
         .collect::<crate::Result<Vec<_>>>()?;
 
     let mut field_term_streams = Vec::new();
@@ -238,7 +238,7 @@ fn write_postings_for_field(
 
         for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
             let segment_reader = &readers[segment_ord];
-            let inverted_index: &InvertedIndexReader = &field_readers[segment_ord];
+            let inverted_index: &MergeOptimizedInvertedIndexReader = &field_readers[segment_ord];
             let segment_postings =
                 inverted_index.read_postings_from_terminfo(&term_info, segment_postings_option)?;
             let alive_bitset_opt = segment_reader.alive_bitset();
