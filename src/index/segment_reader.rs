@@ -12,6 +12,7 @@ use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
+use crate::index::merge_optimized_inverted_index_reader::MergeOptimizedInvertedIndexReader;
 use crate::index::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
@@ -257,6 +258,76 @@ impl SegmentReader {
             .write()
             .expect("Field reader cache lock poisoned. This should never happen.")
             .insert(field, Arc::clone(&inv_idx_reader));
+
+        Ok(inv_idx_reader)
+    }
+
+    /// Returns a field reader associated with the field given in argument that is optimized for
+    /// Tantivy's merge process.
+    ///
+    /// If the field was not present in the index during indexing time,
+    /// the InvertedIndexReader is empty.
+    ///
+    /// The field reader is in charge of iterating through the
+    /// term dictionary associated with a specific field,
+    /// and opening the posting list associated with any term.
+    ///
+    /// If the field is not marked as index, a warning is logged and an empty
+    /// `MergeOptimizedInvertedIndexReader` is returned.
+    /// Similarly, if the field is marked as indexed but no term has been indexed for the given
+    /// index, an empty `MergeOptimizedInvertedIndexReader` is returned (but no warning is logged).
+    pub(crate) fn merge_optimized_inverted_index(
+        &self,
+        field: Field,
+    ) -> crate::Result<Arc<MergeOptimizedInvertedIndexReader>> {
+        let field_entry = self.schema.get_field_entry(field);
+        let field_type = field_entry.field_type();
+        let record_option_opt = field_type.get_index_record_option();
+
+        if record_option_opt.is_none() {
+            warn!("Field {:?} does not seem indexed.", field_entry.name());
+        }
+
+        let postings_file_opt = self.postings_composite().open_read(field);
+
+        if postings_file_opt.is_none() || record_option_opt.is_none() {
+            // no documents in the segment contained this field.
+            // As a result, no data is associated with the inverted index.
+            //
+            // Returns an empty inverted index.
+            let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
+            return Ok(Arc::new(MergeOptimizedInvertedIndexReader::empty(
+                record_option,
+            )));
+        }
+
+        let record_option = record_option_opt.unwrap();
+        let postings_file = postings_file_opt.unwrap();
+
+        let termdict_file: FileSlice =
+            self.termdict_composite().open_read(field).ok_or_else(|| {
+                DataCorruption::comment_only(format!(
+                    "Failed to open field {:?}'s term dictionary in the composite file. Has the \
+                     schema been modified?",
+                    field_entry.name()
+                ))
+            })?;
+
+        let positions_file = self.positions_composite().open_read(field).ok_or_else(|| {
+            let error_msg = format!(
+                "Failed to open field {:?}'s positions in the composite file. Has the schema been \
+                 modified?",
+                field_entry.name()
+            );
+            DataCorruption::comment_only(error_msg)
+        })?;
+
+        let inv_idx_reader = Arc::new(MergeOptimizedInvertedIndexReader::new(
+            TermDictionary::open(termdict_file)?,
+            postings_file,
+            positions_file,
+            record_option,
+        )?);
 
         Ok(inv_idx_reader)
     }
