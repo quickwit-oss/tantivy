@@ -149,7 +149,7 @@ impl InvertedIndexReader {
             .slice(term_info.postings_range.clone());
         BlockSegmentPostings::open(
             term_info.doc_freq,
-            postings_data,
+            postings_data.read_bytes()?,
             self.record_option,
             requested_option,
         )

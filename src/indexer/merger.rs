@@ -12,6 +12,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
+use crate::index::merge_optimized_inverted_index_reader::MergeOptimizedInvertedIndexReader;
 use crate::index::{Segment, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::segment_updater::CancelSentinel;
@@ -20,7 +21,7 @@ use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
-use crate::{DocAddress, DocId, InvertedIndexReader};
+use crate::{DocAddress, DocId};
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
 ///
@@ -309,10 +310,10 @@ impl IndexMerger {
 
         let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
 
-        let field_readers: Vec<Arc<InvertedIndexReader>> = self
+        let field_readers: Vec<Arc<MergeOptimizedInvertedIndexReader>> = self
             .readers
             .iter()
-            .map(|reader| reader.inverted_index(indexed_field))
+            .map(|reader| reader.merge_optimized_inverted_index(indexed_field))
             .collect::<crate::Result<Vec<_>>>()?;
 
         let mut field_term_streams = Vec::new();
@@ -369,10 +370,16 @@ impl IndexMerger {
 
         let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
 
+        let mut cnt = 0;
         while merged_terms.advance() {
-            if self.cancel.wants_cancel() {
-                return Err(crate::TantivyError::Cancelled);
+            // calling `wants_cancel()` could be expensive so only do it so often
+            if cnt % 1000 == 0 {
+                if self.cancel.wants_cancel() {
+                    return Err(crate::TantivyError::Cancelled);
+                }
             }
+            cnt += 1;
+
             segment_postings_containing_the_term.clear();
             let term_bytes: &[u8] = merged_terms.key();
 
@@ -381,7 +388,8 @@ impl IndexMerger {
             // Let's compute the list of non-empty posting lists
             for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
-                let inverted_index: &InvertedIndexReader = &field_readers[segment_ord];
+                let inverted_index: &MergeOptimizedInvertedIndexReader =
+                    &field_readers[segment_ord];
                 let segment_postings = inverted_index
                     .read_postings_from_terminfo(&term_info, segment_postings_option)?;
                 let alive_bitset_opt = segment_reader.alive_bitset();
@@ -451,8 +459,11 @@ impl IndexMerger {
 
                 let mut doc = segment_postings.doc();
                 while doc != TERMINATED {
-                    if self.cancel.wants_cancel() {
-                        return Err(crate::TantivyError::Cancelled);
+                    if doc % 1000 == 0 {
+                        // calling `wants_cancel()` could be expensive so only do it so often
+                        if self.cancel.wants_cancel() {
+                            return Err(crate::TantivyError::Cancelled);
+                        }
                     }
                     // deleted doc are skipped as they do not have a `remapped_doc_id`.
                     if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {

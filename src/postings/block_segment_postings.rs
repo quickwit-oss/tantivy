@@ -2,7 +2,7 @@ use std::io;
 
 use common::VInt;
 
-use crate::directory::{FileSlice, OwnedBytes};
+use crate::directory::OwnedBytes;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
@@ -96,11 +96,10 @@ impl BlockSegmentPostings {
     /// term frequency blocks.
     pub(crate) fn open(
         doc_freq: u32,
-        data: FileSlice,
+        bytes: OwnedBytes,
         mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
-        let bytes = data.read_bytes()?;
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
         let skip_reader = match skip_data_opt {
             Some(skip_data) => {

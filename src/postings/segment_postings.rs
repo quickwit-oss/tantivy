@@ -81,7 +81,7 @@ impl SegmentPostings {
         }
         let block_segment_postings = BlockSegmentPostings::open(
             docs.len() as u32,
-            FileSlice::from(buffer),
+            FileSlice::from(buffer).read_bytes().unwrap(),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
         )
@@ -129,7 +129,7 @@ impl SegmentPostings {
             .unwrap();
         let block_segment_postings = BlockSegmentPostings::open(
             doc_and_tfs.len() as u32,
-            FileSlice::from(buffer),
+            FileSlice::from(buffer).read_bytes().unwrap(),
             IndexRecordOption::WithFreqs,
             IndexRecordOption::WithFreqs,
         )
