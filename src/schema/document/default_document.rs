@@ -15,7 +15,7 @@ use crate::schema::field_type::ValueParsingError;
 use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
 use crate::tokenizer::PreTokenizedString;
 
-#[repr(packed)]
+#[repr(C, packed)]
 #[derive(Debug, Clone)]
 /// A field value pair in the compact tantivy document
 struct FieldValueAddr {
@@ -480,7 +480,7 @@ impl<'a> CompactDocValue<'a> {
 type Addr = u32;
 
 #[derive(Clone, Copy, Default)]
-#[repr(packed)]
+#[repr(C, packed)]
 /// The value type and the address to its payload in the container.
 struct ValueAddr {
     type_id: ValueType,
@@ -734,7 +734,7 @@ mod tests {
 
     #[test]
     fn test_json_value() {
-        let json_str = r#"{ 
+        let json_str = r#"{
             "toto": "titi",
             "float": -0.2,
             "bool": true,

@@ -34,7 +34,7 @@ struct BlockedBitpackerEntryMetaData {
 
 impl BlockedBitpackerEntryMetaData {
     fn new(offset: u64, num_bits: u8, base_value: u64) -> Self {
-        let encoded = offset | (num_bits as u64) << (64 - 8);
+        let encoded = offset | (u64::from(num_bits) << (64 - 8));
         Self {
             encoded,
             base_value,

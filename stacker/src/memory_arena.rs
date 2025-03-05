@@ -54,7 +54,7 @@ impl Addr {
 
     #[inline]
     fn new(page_id: usize, local_addr: usize) -> Addr {
-        Addr((page_id << NUM_BITS_PAGE_ADDR | local_addr) as u32)
+        Addr(((page_id << NUM_BITS_PAGE_ADDR) | local_addr) as u32)
     }
 
     #[inline]

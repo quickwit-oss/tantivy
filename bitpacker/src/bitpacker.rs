@@ -129,15 +129,15 @@ impl BitUnpacker {
     //
     // This methods panics if `num_bits` is > 32.
     fn get_batch_u32s(&self, start_idx: u32, data: &[u8], output: &mut [u32]) {
-        let start_idx = start_idx as usize;
         assert!(
             self.bit_width() <= 32,
             "Bitwidth must be <= 32 to use this method."
         );
 
-        let end_idx = start_idx + output.len();
+        let end_idx: u32 = start_idx + output.len() as u32;
 
-        let end_bit_read = end_idx * self.num_bits;
+        // We use `usize` here to avoid overflow issues.
+        let end_bit_read = (end_idx as usize) * self.num_bits;
         let end_byte_read = (end_bit_read + 7) / 8;
         assert!(
             end_byte_read <= data.len(),
@@ -145,9 +145,9 @@ impl BitUnpacker {
         );
 
         // Simple slow implementation of get_batch_u32s, to deal with our ramps.
-        let get_batch_ramp = |start_idx: usize, output: &mut [u32]| {
+        let get_batch_ramp = |start_idx: u32, output: &mut [u32]| {
             for (out, idx) in output.iter_mut().zip(start_idx..) {
-                *out = self.get(idx as u32, data) as u32;
+                *out = self.get(idx, data) as u32;
             }
         };
 
@@ -160,25 +160,25 @@ impl BitUnpacker {
         // We want the start of the fast track to start align with bytes.
         // A sufficient condition is to start with an idx that is a multiple of 8,
         // so highway start is the closest multiple of 8 that is >= start_idx.
-        let entrance_ramp_len = 8 - (start_idx % 8) % 8;
+        let entrance_ramp_len: u32 = 8 - (start_idx % 8) % 8;
 
-        let highway_start: usize = start_idx + entrance_ramp_len;
+        let highway_start: u32 = start_idx + entrance_ramp_len;
 
-        if highway_start + BitPacker1x::BLOCK_LEN > end_idx {
+        if highway_start + (BitPacker1x::BLOCK_LEN as u32) > end_idx {
             // We don't have enough values to have even a single block of highway.
             // Let's just supply the values the simple way.
             get_batch_ramp(start_idx, output);
             return;
         }
 
-        let num_blocks: usize = (end_idx - highway_start) / BitPacker1x::BLOCK_LEN;
+        let num_blocks: usize = (end_idx - highway_start) as usize / BitPacker1x::BLOCK_LEN;
 
         // Entrance ramp
-        get_batch_ramp(start_idx, &mut output[..entrance_ramp_len]);
+        get_batch_ramp(start_idx, &mut output[..entrance_ramp_len as usize]);
 
         // Highway
-        let mut offset = (highway_start * self.num_bits) / 8;
-        let mut output_cursor = highway_start - start_idx;
+        let mut offset = (highway_start as usize * self.num_bits) / 8;
+        let mut output_cursor = (highway_start - start_idx) as usize;
         for _ in 0..num_blocks {
             offset += BitPacker1x.decompress(
                 &data[offset..],
@@ -189,7 +189,7 @@ impl BitUnpacker {
         }
 
         // Exit ramp
-        let highway_end = highway_start + num_blocks * BitPacker1x::BLOCK_LEN;
+        let highway_end: u32 = highway_start + (num_blocks * BitPacker1x::BLOCK_LEN) as u32;
         get_batch_ramp(highway_end, &mut output[output_cursor..]);
     }
 
