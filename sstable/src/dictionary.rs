@@ -1,3 +1,5 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
+
 use std::cmp::Ordering;
 use std::io;
 use std::marker::PhantomData;

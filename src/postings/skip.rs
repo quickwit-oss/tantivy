@@ -15,7 +15,7 @@ fn encode_bitwidth(bitwidth: u8, delta_1: bool) -> u8 {
 }
 
 fn decode_bitwidth(raw_bitwidth: u8) -> (u8, bool) {
-    let delta_1 = (raw_bitwidth >> 6 & 1) != 0;
+    let delta_1 = ((raw_bitwidth >> 6) & 1) != 0;
     let bitwidth = raw_bitwidth & 0x3f;
     (bitwidth, delta_1)
 }
