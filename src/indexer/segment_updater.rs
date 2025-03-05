@@ -291,7 +291,7 @@ impl SegmentUpdater {
             .thread_name(|i| format!("merge_thread_{i}"))
             .num_threads(num_merge_threads)
             .panic_handler(move |panic| {
-                // We don't print the panic content itself, 
+                // We don't print the panic content itself,
                 // it is already printed during the unwinding
                 if let Some(message) = panic.downcast_ref::<&str>() {
                     if *message != PANIC_CAUGHT {
