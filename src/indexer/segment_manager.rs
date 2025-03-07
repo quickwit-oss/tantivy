@@ -7,6 +7,7 @@ use crate::error::TantivyError;
 use crate::index::{SegmentId, SegmentMeta};
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
+use crate::Index;
 
 #[derive(Default)]
 struct SegmentRegisters {
@@ -135,7 +136,7 @@ impl SegmentManager {
         registers_lock.uncommitted.clear();
     }
 
-    pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
+    pub fn commit(&self, _index: &Index, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
         registers_lock.committed.clear();
         registers_lock.uncommitted.clear();
@@ -149,7 +150,11 @@ impl SegmentManager {
     /// Returns an error if some segments are missing, or if
     /// the `segment_ids` are not either all committed or all
     /// uncommitted.
-    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> crate::Result<Vec<SegmentEntry>> {
+    pub fn start_merge(
+        &self,
+        _index: &Index,
+        segment_ids: &[SegmentId],
+    ) -> crate::Result<Vec<SegmentEntry>> {
         let registers_lock = self.read();
         let mut segment_entries = vec![];
         if registers_lock.uncommitted.contains_all(segment_ids) {
@@ -166,6 +171,7 @@ impl SegmentManager {
                     "Segment id not found {}. Should never happen because of the contains all \
                      if-block.",
                 );
+
                 segment_entries.push(segment_entry);
             }
         } else {
