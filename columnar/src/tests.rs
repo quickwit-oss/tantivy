@@ -380,7 +380,7 @@ fn assert_columnar_eq(
     right: &ColumnarReader,
     lenient_on_numerical_value: bool,
 ) {
-    assert_eq!(left.num_rows(), right.num_rows());
+    assert_eq!(left.num_docs(), right.num_docs());
     let left_columns = left.list_columns().unwrap();
     let right_columns = right.list_columns().unwrap();
     assert_eq!(left_columns.len(), right_columns.len());
@@ -588,7 +588,7 @@ proptest! {
     #[test]
     fn test_single_columnar_builder_proptest(docs in columnar_docs_strategy()) {
         let columnar = build_columnar(&docs[..]);
-        assert_eq!(columnar.num_rows() as usize, docs.len());
+        assert_eq!(columnar.num_docs() as usize, docs.len());
         let mut expected_columns: HashMap<(&str, ColumnTypeCategory), HashMap<u32, Vec<&ColumnValue>> > = Default::default();
         for (doc_id, doc_vals) in docs.iter().enumerate() {
             for (col_name, col_val) in doc_vals {
@@ -820,7 +820,7 @@ fn test_columnar_merge_empty() {
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
-    assert_eq!(merged_columnar.num_rows(), 0);
+    assert_eq!(merged_columnar.num_docs(), 0);
     assert_eq!(merged_columnar.num_columns(), 0);
 }
 
@@ -846,7 +846,7 @@ fn test_columnar_merge_single_str_column() {
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
-    assert_eq!(merged_columnar.num_rows(), 1);
+    assert_eq!(merged_columnar.num_docs(), 1);
     assert_eq!(merged_columnar.num_columns(), 1);
 }
 
@@ -878,7 +878,7 @@ fn test_delete_decrease_cardinality() {
     )
     .unwrap();
     let merged_columnar = ColumnarReader::open(output).unwrap();
-    assert_eq!(merged_columnar.num_rows(), 1);
+    assert_eq!(merged_columnar.num_docs(), 1);
     assert_eq!(merged_columnar.num_columns(), 1);
     let cols = merged_columnar.read_columns("c").unwrap();
     assert_eq!(cols.len(), 1);
