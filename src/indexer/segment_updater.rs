@@ -525,18 +525,11 @@ impl SegmentUpdater {
         self.schedule_task(move || {
             let segment_entries = segment_updater.purge_deletes(opstamp)?;
             let previous_metas = segment_updater.load_meta();
-            segment_updater.segment_manager.commit(segment_entries);
+            segment_updater
+                .segment_manager
+                .commit(&segment_updater.index, segment_entries);
             segment_updater.save_metas(opstamp, payload, &previous_metas)?;
             let _ = garbage_collect_files(segment_updater.clone());
-
-            let index_meta = segment_updater.load_meta();
-            if let Some(new_merge_policy) = segment_updater
-                .index
-                .directory()
-                .reconsider_merge_policy(&index_meta, &previous_metas)
-            {
-                segment_updater.set_merge_policy(new_merge_policy);
-            }
             segment_updater.consider_merge_options();
             Ok(opstamp)
         })
@@ -584,7 +577,7 @@ impl SegmentUpdater {
         let segment_updater = self.clone();
         let segment_entries: Vec<SegmentEntry> = match self
             .segment_manager
-            .start_merge(merge_operation.segment_ids())
+            .start_merge(&self.index, merge_operation.segment_ids())
         {
             Ok(segment_entries) => segment_entries,
             Err(err) => {
@@ -654,7 +647,7 @@ impl SegmentUpdater {
 
         let current_opstamp = self.stamper.stamp();
         let mut merge_candidates: Vec<MergeOperation> = merge_policy
-            .compute_merge_candidates(&uncommitted_segments)
+            .compute_merge_candidates(Some(self.index.directory()), &uncommitted_segments)
             .into_iter()
             .map(|merge_candidate| {
                 MergeOperation::new(&self.merge_operations, current_opstamp, merge_candidate.0)
@@ -663,7 +656,7 @@ impl SegmentUpdater {
 
         let commit_opstamp = self.load_meta().opstamp;
         let committed_merge_candidates = merge_policy
-            .compute_merge_candidates(&committed_segments)
+            .compute_merge_candidates(Some(self.index.directory()), &committed_segments)
             .into_iter()
             .map(|merge_candidate: MergeCandidate| {
                 MergeOperation::new(&self.merge_operations, commit_opstamp, merge_candidate.0)
