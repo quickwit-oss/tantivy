@@ -109,7 +109,7 @@ impl ColumnCodecEstimator for BitpackedCodecEstimator {
 
     fn estimate(&self, stats: &ColumnStats) -> Option<u64> {
         let num_bits_per_value = num_bits(stats);
-        Some(stats.num_bytes() + (stats.num_rows as u64 * (num_bits_per_value as u64) + 7) / 8)
+        Some(stats.num_bytes() + (stats.num_rows as u64 * (num_bits_per_value as u64)).div_ceil(8))
     }
 
     fn serialize(
