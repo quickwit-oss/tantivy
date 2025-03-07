@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -19,6 +20,14 @@ pub struct DeleteMeta {
 #[derive(Clone, Default)]
 pub struct SegmentMetaInventory {
     inventory: Inventory<InnerSegmentMeta>,
+}
+
+impl Debug for SegmentMetaInventory {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SegmentMetaInventory")
+            .field("inventory", &self.inventory.list())
+            .finish()
+    }
 }
 
 impl SegmentMetaInventory {

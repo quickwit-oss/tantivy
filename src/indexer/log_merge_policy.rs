@@ -4,6 +4,7 @@ use itertools::Itertools;
 
 use super::merge_policy::{MergeCandidate, MergePolicy};
 use crate::index::SegmentMeta;
+use crate::Directory;
 
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
@@ -91,7 +92,11 @@ fn deletes_ratio(segment: &SegmentMeta) -> f32 {
 }
 
 impl MergePolicy for LogMergePolicy {
-    fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
+    fn compute_merge_candidates(
+        &self,
+        _directory: Option<&dyn Directory>,
+        segments: &[SegmentMeta],
+    ) -> Vec<MergeCandidate> {
         let size_sorted_segments = segments
             .iter()
             .filter(|seg| seg.num_docs() <= (self.max_docs_before_merge as u32))
@@ -222,7 +227,7 @@ mod tests {
     #[test]
     fn test_log_merge_policy_empty() {
         let y = Vec::new();
-        let result_list = test_merge_policy().compute_merge_candidates(&y);
+        let result_list = test_merge_policy().compute_merge_candidates(None, &y);
         assert!(result_list.is_empty());
     }
 
@@ -237,7 +242,7 @@ mod tests {
             create_random_segment_meta(10),
             create_random_segment_meta(10),
         ];
-        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        let result_list = test_merge_policy().compute_merge_candidates(None, &test_input);
         assert_eq!(result_list.len(), 1);
     }
 
@@ -261,7 +266,7 @@ mod tests {
             create_random_segment_meta(10),
             create_random_segment_meta(10),
         ];
-        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        let result_list = test_merge_policy().compute_merge_candidates(None, &test_input);
         assert_eq!(result_list.len(), 2);
     }
 
@@ -276,7 +281,7 @@ mod tests {
             create_random_segment_meta(1000), // log2(1000) = ~9.97
             create_random_segment_meta(1000),
         ]; // log2(1000) = ~9.97
-        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        let result_list = test_merge_policy().compute_merge_candidates(None, &test_input);
         assert_eq!(result_list.len(), 2);
     }
 
@@ -291,7 +296,7 @@ mod tests {
             create_random_segment_meta(2),
             create_random_segment_meta(2),
         ];
-        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        let result_list = test_merge_policy().compute_merge_candidates(None, &test_input);
         assert_eq!(result_list.len(), 1);
     }
 
@@ -302,7 +307,7 @@ mod tests {
                 .take(8)
                 .collect();
         assert!(test_merge_policy()
-            .compute_merge_candidates(&eight_large_segments)
+            .compute_merge_candidates(None, &eight_large_segments)
             .is_empty());
     }
 
@@ -317,7 +322,7 @@ mod tests {
             create_random_segment_meta(100_000),
             create_random_segment_meta(1_500_000),
         ];
-        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        let result_list = test_merge_policy().compute_merge_candidates(None, &test_input);
         // Do not include large segments
         assert_eq!(result_list.len(), 1);
         assert_eq!(result_list[0].0.len(), 3);
@@ -333,7 +338,7 @@ mod tests {
         let mut test_merge_policy = test_merge_policy();
         test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
         let test_input = vec![create_random_segment_meta(40_000).with_delete_meta(10_000, 1)];
-        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
+        let merge_candidates = test_merge_policy.compute_merge_candidates(None, &test_input);
         assert!(merge_candidates.is_empty());
     }
 
@@ -342,7 +347,7 @@ mod tests {
         let mut test_merge_policy = test_merge_policy();
         test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
         let test_input = vec![create_random_segment_meta(40_000).with_delete_meta(10_001, 1)];
-        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
+        let merge_candidates = test_merge_policy.compute_merge_candidates(None, &test_input);
         assert_eq!(merge_candidates.len(), 1);
     }
 
@@ -354,7 +359,7 @@ mod tests {
             create_random_segment_meta(40_000).with_delete_meta(10_001, 1),
             create_random_segment_meta(40_000),
         ];
-        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
+        let merge_candidates = test_merge_policy.compute_merge_candidates(None, &test_input);
         assert_eq!(merge_candidates.len(), 1);
         assert_eq!(merge_candidates[0].0.len(), 2);
     }
@@ -367,7 +372,7 @@ mod tests {
             create_random_segment_meta(100),
             create_random_segment_meta(40_000).with_delete_meta(10_001, 1),
         ];
-        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
+        let merge_candidates = test_merge_policy.compute_merge_candidates(None, &test_input);
         assert_eq!(merge_candidates.len(), 1);
         assert_eq!(merge_candidates[0].0.len(), 1);
         assert_eq!(merge_candidates[0].0[0], test_input[1].id());

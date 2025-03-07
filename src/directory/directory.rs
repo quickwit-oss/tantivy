@@ -6,11 +6,12 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io, thread};
 
+use log::Level;
+
 use crate::directory::directory_lock::Lock;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
 use crate::index::SegmentMetaInventory;
-use crate::merge_policy::MergePolicy;
 use crate::IndexMeta;
 
 /// Retry the logic of acquiring locks is pretty simple.
@@ -270,17 +271,6 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
         ))
     }
 
-    // Allows the directory to change the writer's merge policy right before the merge happens
-    // This is useful for directories that need to change the merge policy based on how many
-    // segments were created
-    fn reconsider_merge_policy(
-        &self,
-        _metas: &IndexMeta,
-        _previous_metas: &IndexMeta,
-    ) -> Option<Box<dyn MergePolicy>> {
-        None
-    }
-
     /// Returns true if this directory supports garbage collection.  The default assumption is
     /// `true`
     fn supports_garbage_collection(&self) -> bool {
@@ -300,6 +290,11 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// merge processes but could be used for anything
     fn wants_cancel(&self) -> bool {
         false
+    }
+
+    /// Send a logging message to the Directory to handle in its own way
+    fn log(&self, message: &str) {
+        log!(Level::Info, "{message}");
     }
 }
 
