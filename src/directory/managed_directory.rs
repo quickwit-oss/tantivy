@@ -16,7 +16,6 @@ use crate::directory::{
 };
 use crate::error::DataCorruption;
 use crate::index::SegmentMetaInventory;
-use crate::merge_policy::MergePolicy;
 use crate::{Directory, IndexMeta};
 
 /// Returns true if the file is "managed".
@@ -358,15 +357,6 @@ impl Directory for ManagedDirectory {
         self.directory.load_metas(inventory)
     }
 
-    fn reconsider_merge_policy(
-        &self,
-        metas: &IndexMeta,
-        previous_metas: &IndexMeta,
-    ) -> Option<Box<dyn MergePolicy>> {
-        self.directory
-            .reconsider_merge_policy(metas, previous_metas)
-    }
-
     fn supports_garbage_collection(&self) -> bool {
         self.directory.supports_garbage_collection()
     }
@@ -377,6 +367,10 @@ impl Directory for ManagedDirectory {
 
     fn wants_cancel(&self) -> bool {
         self.directory.wants_cancel()
+    }
+
+    fn log(&self, message: &str) {
+        self.directory.log(message);
     }
 }
 

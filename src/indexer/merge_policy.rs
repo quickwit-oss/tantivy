@@ -2,9 +2,10 @@ use std::fmt::Debug;
 use std::marker;
 
 use crate::index::{SegmentId, SegmentMeta};
+use crate::Directory;
 
 /// Set of segment suggested for a merge.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MergeCandidate(pub Vec<SegmentId>);
 
 /// The `MergePolicy` defines which segments should be merged.
@@ -16,7 +17,11 @@ pub trait MergePolicy: marker::Send + marker::Sync + Debug {
     ///
     /// This call happens on the segment updater thread, and will block
     /// other segment updates, so all implementations should happen rapidly.
-    fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate>;
+    fn compute_merge_candidates(
+        &self,
+        directory: Option<&dyn Directory>,
+        segments: &[SegmentMeta],
+    ) -> Vec<MergeCandidate>;
 }
 
 /// Never merge segments.
@@ -30,7 +35,11 @@ impl Default for NoMergePolicy {
 }
 
 impl MergePolicy for NoMergePolicy {
-    fn compute_merge_candidates(&self, _segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
+    fn compute_merge_candidates(
+        &self,
+        _directory: Option<&dyn Directory>,
+        _segments: &[SegmentMeta],
+    ) -> Vec<MergeCandidate> {
         Vec::new()
     }
 }
@@ -48,7 +57,11 @@ pub(crate) mod tests {
     pub struct MergeWheneverPossible;
 
     impl MergePolicy for MergeWheneverPossible {
-        fn compute_merge_candidates(&self, segment_metas: &[SegmentMeta]) -> Vec<MergeCandidate> {
+        fn compute_merge_candidates(
+            &self,
+            _directory: Option<&dyn Directory>,
+            segment_metas: &[SegmentMeta],
+        ) -> Vec<MergeCandidate> {
             let segment_ids = segment_metas
                 .iter()
                 .map(|segment_meta| segment_meta.id())
