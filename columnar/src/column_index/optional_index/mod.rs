@@ -80,7 +80,7 @@ impl BlockVariant {
 /// index is the block index. For each block `byte_start` and `offset` is computed.
 #[derive(Clone)]
 pub struct OptionalIndex {
-    num_rows: RowId,
+    num_docs: RowId,
     num_non_null_docs: RowId,
     block_data: OwnedBytes,
     block_metas: Arc<[BlockMeta]>,
@@ -95,8 +95,8 @@ impl Iterable<u32> for &OptionalIndex {
 impl std::fmt::Debug for OptionalIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("OptionalIndex")
-            .field("num_rows", &self.num_rows)
-            .field("num_non_null_rows", &self.num_non_null_docs)
+            .field("num_docs", &self.num_docs)
+            .field("num_non_null_docs", &self.num_non_null_docs)
             .finish_non_exhaustive()
     }
 }
@@ -271,7 +271,7 @@ impl OptionalIndex {
     }
 
     pub fn num_docs(&self) -> RowId {
-        self.num_rows
+        self.num_docs
     }
 
     pub fn num_non_nulls(&self) -> RowId {
@@ -519,15 +519,15 @@ pub fn open_optional_index(bytes: OwnedBytes) -> io::Result<OptionalIndex> {
     let (mut bytes, num_non_empty_blocks_bytes) = bytes.rsplit(2);
     let num_non_empty_block_bytes =
         u16::from_le_bytes(num_non_empty_blocks_bytes.as_slice().try_into().unwrap());
-    let num_rows = VInt::deserialize_u64(&mut bytes)? as u32;
+    let num_docs = VInt::deserialize_u64(&mut bytes)? as u32;
     let block_metas_num_bytes =
         num_non_empty_block_bytes as usize * SERIALIZED_BLOCK_META_NUM_BYTES;
     let (block_data, block_metas) = bytes.rsplit(block_metas_num_bytes);
-    let (block_metas, num_non_null_rows) =
-        deserialize_optional_index_block_metadatas(block_metas.as_slice(), num_rows);
+    let (block_metas, num_non_null_docs) =
+        deserialize_optional_index_block_metadatas(block_metas.as_slice(), num_docs);
     let optional_index = OptionalIndex {
-        num_rows,
-        num_non_null_docs: num_non_null_rows,
+        num_docs,
+        num_non_null_docs,
         block_data,
         block_metas: block_metas.into(),
     };
