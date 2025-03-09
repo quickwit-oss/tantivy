@@ -351,7 +351,7 @@ impl<D: Document> IndexWriter<D> {
 
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
-    pub fn wait_merging_threads(mut self) -> crate::Result<()> {
+    pub fn wait_merging_threads(&mut self) -> crate::Result<()> {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
         self.drop_sender();
