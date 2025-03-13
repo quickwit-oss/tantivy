@@ -190,29 +190,32 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
 pub struct FastFieldRangeScorer<T> {
     docset: RangeDocSet<T>,
     score: Score,
-    scoring_callback: Option<fn(Option<T>, Option<T>, Score) -> Score>,
+    scoring_callback: Option<fn(Option<T>, Option<T>, Score, Option<u8>) -> Score>,
     base_scoring_value: Option<T>,
+    base_scoring_value_sort_order: Option<u8>,
 }
 
 impl<T> FastFieldRangeScorer<T> {
     pub fn new(
         docset: RangeDocSet<T>,
         score: Score,
-        scoring_callback: Option<fn(Option<T>, Option<T>, Score) -> Score>,
+        scoring_callback: Option<fn(Option<T>, Option<T>, Score, Option<u8>) -> Score>,
         base_scoring_value: Option<T>,
+        base_scoring_value_sort_order: Option<u8>,
     ) -> FastFieldRangeScorer<T> {
         FastFieldRangeScorer {
             docset,
             score,
             scoring_callback,
             base_scoring_value,
+            base_scoring_value_sort_order
         }
     }
 }
 
 impl<T> From<RangeDocSet<T>> for FastFieldRangeScorer<T> {
     fn from(docset: RangeDocSet<T>) -> Self {
-        FastFieldRangeScorer::new(docset, 1.0, None, None)
+        FastFieldRangeScorer::new(docset, 1.0, None, None, None)
     }
 }
 
@@ -245,6 +248,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> Scorer for FastFieldR
                 self.docset.fetch_doc_id_first_value(self.doc()),
                 self.base_scoring_value,
                 self.score,
+                self.base_scoring_value_sort_order
             ),
             None => self.score,
         }
@@ -298,6 +302,7 @@ mod tests {
             Bound::Unbounded,
             None,
             None,
+            None
         );
 
         let count = searcher.search(&query, &Count).unwrap();

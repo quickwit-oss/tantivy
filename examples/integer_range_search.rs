@@ -170,6 +170,7 @@ fn main() -> Result<()> {
             search_hnr,
         )),
         None,
+        None,
         None
     );
     let to_query = RangeQuery::new(
@@ -178,6 +179,7 @@ fn main() -> Result<()> {
             search_hnr,
         )),
         Bound::Unbounded,
+        None,
         None,
         None
     );
