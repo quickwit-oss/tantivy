@@ -12,4 +12,4 @@ keywords = ["search", "information", "retrieval"]
 edition = "2021"
 
 [dependencies]
-nom = "7"
+nom = "8"
