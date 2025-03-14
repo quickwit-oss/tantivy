@@ -22,7 +22,7 @@ zstd = { version = "0.13", features = ["experimental"] }
 proptest = "1"
 criterion = { version = "0.5", default-features = false }
 names = "0.14"
-rand = "0.8"
+rand = "0.9"
 
 [[bench]]
 name = "stream_bench"

@@ -24,7 +24,7 @@ name = "hashmap"
 path = "example/hashmap.rs"
 
 [dev-dependencies]
-rand = "0.8.5"
+rand = "0.9.0"
 zipf = "7.0.0"
 rustc-hash = "2.1.0"
 proptest = "1.2.0"
