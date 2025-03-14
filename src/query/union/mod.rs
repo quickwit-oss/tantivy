@@ -27,11 +27,17 @@ mod tests {
         docs_list.iter().cloned().map(VecDocSet::from)
     }
     fn union_from_docs_list(docs_list: &[Vec<DocId>]) -> Box<dyn DocSet> {
+        let max_doc = docs_list
+            .iter()
+            .flat_map(|docs| docs.iter().copied())
+            .max()
+            .unwrap_or(0);
         Box::new(BufferedUnionScorer::build(
             vec_doc_set_from_docs_list(docs_list)
                 .map(|docset| ConstScorer::new(docset, 1.0))
                 .collect::<Vec<ConstScorer<VecDocSet>>>(),
             DoNothingCombiner::default,
+            max_doc,
         ))
     }
 
@@ -273,6 +279,7 @@ mod bench {
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
                 DoNothingCombiner::default,
+                100_000,
             );
             while v.doc() != TERMINATED {
                 v.advance();
@@ -294,6 +301,7 @@ mod bench {
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
                 DoNothingCombiner::default,
+                100_000,
             );
             while v.doc() != TERMINATED {
                 v.advance();

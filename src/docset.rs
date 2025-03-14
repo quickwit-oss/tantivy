@@ -40,6 +40,8 @@ pub trait DocSet: Send {
     /// of `DocSet` should support it.
     ///
     /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a `DocSet`.
+    ///
+    /// `target` has to be larger or equal to `.doc()` when calling `seek`.
     fn seek(&mut self, target: DocId) -> DocId {
         let mut doc = self.doc();
         debug_assert!(doc <= target);
@@ -47,6 +49,33 @@ pub trait DocSet: Send {
             doc = self.advance();
         }
         doc
+    }
+
+    /// Seeks to the target if possible and returns true if the target is in the DocSet.
+    ///
+    /// DocSets that already have an efficient `seek` method don't need to implement
+    /// `seek_into_the_danger_zone`. All wrapper DocSets should forward
+    /// `seek_into_the_danger_zone` to the underlying DocSet.
+    ///
+    /// ## API Behaviour
+    /// If `seek_into_the_danger_zone` is returning true, a call to `doc()` has to return target.
+    /// If `seek_into_the_danger_zone` is returning false, a call to `doc()` may return any doc
+    /// between the last doc that matched and target or a doc that is a valid next hit after
+    /// target. The DocSet is considered to be in an invalid state until
+    /// `seek_into_the_danger_zone` returns true again.
+    ///
+    /// `target` needs to be equal or larger than `doc` when in a valid state.
+    ///
+    /// Consecutive calls are not allowed to have decreasing `target` values.
+    ///
+    /// # Warning
+    /// This is an advanced API used by intersection. The API contract is tricky, avoid using it.
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        let current_doc = self.doc();
+        if current_doc < target {
+            self.seek(target);
+        }
+        self.doc() == target
     }
 
     /// Fills a given mutable buffer with the next doc ids from the
@@ -87,6 +116,26 @@ pub trait DocSet: Send {
     /// length of the docset.
     fn size_hint(&self) -> u32;
 
+    /// Returns a best-effort hint of the cost to consume the entire docset.
+    ///
+    /// Consuming means calling advance until [`TERMINATED`] is returned.
+    /// The cost should be relative to the cost of driving a Term query,
+    /// which would be the number of documents in the DocSet.
+    ///
+    /// By default this returns `size_hint()`.
+    ///
+    /// DocSets may have vastly different cost depending on their type,
+    /// e.g. an intersection with 10 hits is much cheaper than
+    /// a phrase search with 10 hits, since it needs to load positions.
+    ///
+    /// ### Future Work
+    /// We may want to differentiate `DocSet` costs more more granular, e.g.
+    /// creation_cost, advance_cost, seek_cost on to get a good estimation
+    /// what query types to choose.
+    fn cost(&self) -> u64 {
+        self.size_hint() as u64
+    }
+
     /// Returns the number documents matching.
     /// Calling this method consumes the `DocSet`.
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
@@ -126,12 +175,20 @@ impl DocSet for &mut dyn DocSet {
         (**self).seek(target)
     }
 
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        (**self).seek_into_the_danger_zone(target)
+    }
+
     fn doc(&self) -> u32 {
         (**self).doc()
     }
 
     fn size_hint(&self) -> u32 {
         (**self).size_hint()
+    }
+
+    fn cost(&self) -> u64 {
+        (**self).cost()
     }
 
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
@@ -154,6 +211,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.seek(target)
     }
 
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.seek_into_the_danger_zone(target)
+    }
+
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.fill_buffer(buffer)
@@ -167,6 +229,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn size_hint(&self) -> u32 {
         let unboxed: &TDocSet = self.borrow();
         unboxed.size_hint()
+    }
+
+    fn cost(&self) -> u64 {
+        let unboxed: &TDocSet = self.borrow();
+        unboxed.cost()
     }
 
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
