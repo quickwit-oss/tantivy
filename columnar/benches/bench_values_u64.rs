@@ -141,7 +141,7 @@ fn bench_intfastfield_stride7_vec(b: &mut Bencher) {
     b.iter(|| {
         let mut a = 0u64;
         for i in (0..n / 7).map(|val| val * 7) {
-            a += permutation[i as usize];
+            a += permutation[i];
         }
         a
     });
@@ -196,7 +196,7 @@ fn bench_intfastfield_scan_all_vec(b: &mut Bencher) {
     b.iter(|| {
         let mut a = 0u64;
         for i in 0..permutation.len() {
-            a += permutation[i as usize] as u64;
+            a += permutation[i] as u64;
         }
         a
     });
