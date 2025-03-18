@@ -1,5 +1,5 @@
 use super::boolean_weight::BooleanWeight;
-use crate::query::{EnableScoring, Occur, Query, SumCombiner, TermQuery, Weight};
+use crate::query::{BoostedSumCombiner, EnableScoring, Occur, Query, TermQuery, Weight};
 use crate::schema::{IndexRecordOption, Term};
 
 /// The boolean query returns a set of documents
@@ -164,7 +164,7 @@ impl Query for BooleanQuery {
             sub_weights,
             self.minimum_number_should_match,
             enable_scoring.is_scoring_enabled(),
-            Box::new(SumCombiner::default),
+            Box::new(BoostedSumCombiner::default),
         )))
     }
 

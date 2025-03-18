@@ -54,6 +54,35 @@ impl ScoreCombiner for SumCombiner {
     }
 }
 
+/// Sums the score of different scorers and boosts it by the number of matching subqueries.
+///
+/// This approach improves the ranking of multiple `Should` queries as results
+/// with multiple matching subqueries are ranked higher than those with fewer matches.
+///
+/// Without the boost, it is easier for the score of a single subquery to dominate the
+/// overall score even though there multiple other matching subqueries.
+#[derive(Default, Clone, Copy)]
+pub struct BoostedSumCombiner {
+    score: Score,
+    matching_subqueries: usize,
+}
+
+impl ScoreCombiner for BoostedSumCombiner {
+    fn update<TScorer: Scorer>(&mut self, scorer: &mut TScorer) {
+        self.score += scorer.score();
+        self.matching_subqueries += 1;
+    }
+
+    fn clear(&mut self) {
+        self.score = 0.0;
+        self.matching_subqueries = 0;
+    }
+
+    fn score(&self) -> Score {
+        self.score * self.matching_subqueries as Score
+    }
+}
+
 /// Take max score of different scorers
 /// and optionally sum it with other matches multiplied by `tie_breaker`
 #[derive(Default, Clone, Copy)]
