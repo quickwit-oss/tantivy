@@ -1,3 +1,5 @@
+use std::mem;
+
 use super::boolean_weight::BooleanWeight;
 use crate::query::{EnableScoring, Occur, Query, SumCombiner, TermQuery, Weight};
 use crate::schema::{IndexRecordOption, Term};
@@ -256,6 +258,11 @@ impl BooleanQuery {
     /// Deconstructed view of the clauses making up this query.
     pub fn clauses(&self) -> &[(Occur, Box<dyn Query>)] {
         &self.subqueries[..]
+    }
+
+    /// Take the clauses making up this query for reuse.
+    pub fn take_clauses(&mut self) -> impl Iterator<Item=(Occur, Box<dyn Query>)> {
+        mem::take(&mut self.subqueries).into_iter()
     }
 }
 
