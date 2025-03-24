@@ -113,6 +113,8 @@ pub enum TantivyError {
     /// The user requested the current operation be cancelled
     #[error("User requested cancel")]
     Cancelled,
+    #[error("Segment Merging failed: {0:#?}")]
+    MergeErrors(Vec<TantivyError>),
 }
 
 impl From<io::Error> for TantivyError {

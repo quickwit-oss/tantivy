@@ -395,6 +395,10 @@ impl<D: Document> IndexWriter<D> {
             error!("Some merging thread failed {e:?}");
         }
 
+        let merge_errors = self.segment_updater.get_merge_errors();
+        if !merge_errors.is_empty() {
+            return Err(TantivyError::MergeErrors(merge_errors));
+        }
         result
     }
 
