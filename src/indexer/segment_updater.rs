@@ -26,8 +26,6 @@ use crate::indexer::{
 };
 use crate::{FutureResult, Opstamp, TantivyError};
 
-const PANIC_CAUGHT: &str = "Panic caught in merge thread";
-
 /// Save the index meta file.
 /// This operation is atomic:
 /// Either
@@ -327,6 +325,7 @@ pub(crate) struct InnerSegmentUpdater {
     active_index_meta: RwLock<Arc<IndexMeta>>,
     pool: ThreadPool,
     merge_thread_pool: ThreadPool,
+    merge_errors: Arc<RwLock<Vec<TantivyError>>>,
 
     index: Index,
     segment_manager: SegmentManager,
@@ -380,6 +379,7 @@ impl SegmentUpdater {
                 active_index_meta: RwLock::new(Arc::new(index_meta)),
                 pool,
                 merge_thread_pool,
+                merge_errors: Default::default(),
                 index,
                 segment_manager,
                 merge_policy: RwLock::new(Arc::new(DefaultMergePolicy::default())),
@@ -594,6 +594,7 @@ impl SegmentUpdater {
             FutureResult::create("Merge operation failed.");
 
         let cancel = self.cancel.box_clone();
+        let merge_errors = self.merge_errors.clone();
         self.merge_thread_pool.spawn(move || {
             // The fact that `merge_operation` is moved here is important.
             // Its lifetime is used to track how many merging thread are currently running,
@@ -618,6 +619,8 @@ impl SegmentUpdater {
                     if cfg!(test) {
                         panic!("{merge_error:?}");
                     }
+
+                    merge_errors.write().unwrap().push(merge_error.clone());
                     let _send_result = merging_future_send.send(Err(merge_error));
                 }
             }
@@ -630,6 +633,10 @@ impl SegmentUpdater {
         let merge_segment_ids: HashSet<SegmentId> = self.merge_operations.segment_in_merge();
         self.segment_manager
             .get_mergeable_segments(&merge_segment_ids)
+    }
+
+    pub(crate) fn get_merge_errors(&self) -> Vec<TantivyError> {
+        self.merge_errors.read().unwrap().clone()
     }
 
     fn consider_merge_options(&self) {
