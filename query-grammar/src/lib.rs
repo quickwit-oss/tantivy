@@ -12,6 +12,7 @@ pub use crate::user_input_ast::{
     Delimiter, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
 };
 
+#[derive(Debug)]
 pub struct Error;
 
 /// Parse a query
