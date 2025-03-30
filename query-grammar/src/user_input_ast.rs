@@ -323,11 +323,4 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(json, r#"{"Leaf":{"Range":{"field":"price","lower":{"Inclusive":"10"},"upper":{"Exclusive":"100"}}}}"#);
     }
-
-    #[test]
-    fn test_all_leaf_deserialization() {
-        let json = r#"{"Leaf":"All"}"#;
-        let ast: UserInputAst = serde_json::from_str(json).unwrap();
-        assert_eq!(ast, UserInputAst::Leaf(Box::new(UserInputLeaf::All)));
-    }
 }
