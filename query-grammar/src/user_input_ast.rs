@@ -286,3 +286,48 @@ impl fmt::Debug for UserInputAst {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_leaf_serialization() {
+        let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(json, r#"{"Leaf":"All"}"#);
+    }
+
+    #[test]
+    fn test_literal_leaf_serialization() {
+        let literal = UserInputLiteral {
+            field_name: Some("title".to_string()),
+            phrase: "hello".to_string(),
+            delimiter: Delimiter::None,
+            slop: 0,
+            prefix: false,
+        };
+        let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(literal)));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(json, r#"{"Leaf":{"Literal":{"field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}}"#);
+    }
+
+    #[test]
+    fn test_range_leaf_serialization() {
+        let range = UserInputLeaf::Range {
+            field: Some("price".to_string()),
+            lower: UserInputBound::Inclusive("10".to_string()),
+            upper: UserInputBound::Exclusive("100".to_string()),
+        };
+        let ast = UserInputAst::Leaf(Box::new(range));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(json, r#"{"Leaf":{"Range":{"field":"price","lower":{"Inclusive":"10"},"upper":{"Exclusive":"100"}}}}"#);
+    }
+
+    #[test]
+    fn test_all_leaf_deserialization() {
+        let json = r#"{"Leaf":"All"}"#;
+        let ast: UserInputAst = serde_json::from_str(json).unwrap();
+        assert_eq!(ast, UserInputAst::Leaf(Box::new(UserInputLeaf::All)));
+    }
+}
