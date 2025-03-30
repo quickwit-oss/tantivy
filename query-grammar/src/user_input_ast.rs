@@ -1,9 +1,10 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use serde::{Serialize, Deserialize};
 
 use crate::Occur;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Serialize, Deserialize)]
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -107,14 +108,14 @@ impl Debug for UserInputLeaf {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Delimiter {
     SingleQuotes,
     DoubleQuotes,
     None,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Serialize, Deserialize)]
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
@@ -152,7 +153,7 @@ impl fmt::Debug for UserInputLiteral {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
@@ -187,7 +188,7 @@ impl UserInputBound {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Serialize, Deserialize)]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
     Leaf(Box<UserInputLeaf>),
