@@ -60,7 +60,7 @@ bon = "3.3.1"
 columnar = { version = "0.3", path = "./columnar", package = "tantivy-columnar" }
 sstable = { version = "0.3", path = "./sstable", package = "tantivy-sstable", optional = true }
 stacker = { version = "0.3", path = "./stacker", package = "tantivy-stacker" }
-query-grammar = { version = "0.22.0", path = "./query-grammar", package = "tantivy-query-grammar" }
+query-grammar = { version = "0.23.0", path = "./query-grammar", package = "tantivy-query-grammar" }
 tantivy-bitpacker = { version = "0.6", path = "./bitpacker" }
 common = { version = "0.7", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version = "0.3", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
