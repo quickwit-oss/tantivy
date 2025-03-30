@@ -1,7 +1,7 @@
 //! nom combinators for infallible operations
 
 use std::convert::Infallible;
-
+use serde::Serialize;
 use nom::{AsChar, IResult, InputLength, InputTakeAtPosition};
 
 pub(crate) type ErrorList = Vec<LenientErrorInternal>;
@@ -15,7 +15,7 @@ pub(crate) struct LenientErrorInternal {
 }
 
 /// A recoverable error and the position it happened at
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct LenientError {
     pub pos: usize,
     pub message: String,

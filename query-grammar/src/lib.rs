@@ -47,5 +47,7 @@ mod tests {
     fn test_parse_query_lenient_wrong_query() {
         let (_, errors) = parse_query_lenient("title:");
         assert!(errors.len() == 1);
+        let json = serde_json::to_string(&errors).unwrap();
+        assert_eq!(json, r#"[{"pos":6,"message":"expected word"}]"#);
     }
 }
