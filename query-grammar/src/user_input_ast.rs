@@ -1,6 +1,7 @@
-use serde::Serialize;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+
+use serde::Serialize;
 
 use crate::Occur;
 
