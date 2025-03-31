@@ -940,6 +940,7 @@ mod tests {
             .unwrap()
             .first_or_default_col(0);
 
+        println!("hello");
         let numbers = [100, 200, 300];
         let test_range = |range: RangeInclusive<u64>| {
             let expected_count = numbers.iter().filter(|num| range.contains(num)).count();
