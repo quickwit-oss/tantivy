@@ -26,7 +26,6 @@ pub fn parse_query_lenient(query: &str) -> (UserInputAst, Vec<LenientError>) {
     parse_to_ast_lenient(query)
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::{parse_query, parse_query_lenient};
@@ -35,7 +34,10 @@ mod tests {
     fn test_parse_query_serialization() {
         let ast = parse_query("title:hello").unwrap();
         let json = serde_json::to_string(&ast).unwrap();
-        assert_eq!(json, r#"{"Leaf":{"Literal":{"field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}}"#);
+        assert_eq!(
+            json,
+            r#"{"Leaf":{"Literal":{"field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}}"#
+        );
     }
 
     #[test]

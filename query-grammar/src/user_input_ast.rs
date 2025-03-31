@@ -1,6 +1,6 @@
+use serde::Serialize;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use serde::{Serialize};
 
 use crate::Occur;
 
@@ -309,7 +309,10 @@ mod tests {
         };
         let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(literal)));
         let json = serde_json::to_string(&ast).unwrap();
-        assert_eq!(json, r#"{"Leaf":{"Literal":{"field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}}"#);
+        assert_eq!(
+            json,
+            r#"{"Leaf":{"Literal":{"field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}}"#
+        );
     }
 
     #[test]
@@ -321,6 +324,9 @@ mod tests {
         };
         let ast = UserInputAst::Leaf(Box::new(range));
         let json = serde_json::to_string(&ast).unwrap();
-        assert_eq!(json, r#"{"Leaf":{"Range":{"field":"price","lower":{"Inclusive":"10"},"upper":{"Exclusive":"100"}}}}"#);
+        assert_eq!(
+            json,
+            r#"{"Leaf":{"Range":{"field":"price","lower":{"Inclusive":"10"},"upper":{"Exclusive":"100"}}}}"#
+        );
     }
 }

@@ -1,6 +1,6 @@
+use serde::Serialize;
 use std::fmt;
 use std::fmt::Write;
-use serde::{Serialize};
 
 /// Defines whether a term in a query must be present,
 /// should be present or must not be present.
