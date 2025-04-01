@@ -139,7 +139,7 @@ mod tests {
             missing_docs.push(missing_doc);
         });
 
-        assert_eq!(missing_docs, vec![]);
+        assert_eq!(missing_docs, Vec::<u32>::new());
     }
 
     #[test]
