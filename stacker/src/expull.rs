@@ -160,7 +160,7 @@ mod tests {
         {
             let mut buffer = Vec::new();
             stack.read_to_end(&arena, &mut buffer);
-            assert_eq!(&buffer[..], &[]);
+            assert_eq!(&buffer[..], &[] as &[u8]);
         }
     }
 
