@@ -6,6 +6,7 @@ use serde::Serialize;
 use crate::Occur;
 
 #[derive(PartialEq, Clone, Serialize)]
+#[serde(rename_all_fields = "snake_case")]
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -110,6 +111,7 @@ impl Debug for UserInputLeaf {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize)]
+#[serde(rename_all_fields = "snake_case")]
 pub enum Delimiter {
     SingleQuotes,
     DoubleQuotes,
@@ -155,6 +157,7 @@ impl fmt::Debug for UserInputLiteral {
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize)]
+#[serde(rename_all_fields = "snake_case")]
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
@@ -190,6 +193,7 @@ impl UserInputBound {
 }
 
 #[derive(PartialEq, Clone, Serialize)]
+#[serde(rename_all_fields = "snake_case")]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
     Leaf(Box<UserInputLeaf>),

@@ -797,6 +797,7 @@ fn operand_occur_leaf_infallible(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all_fields = "snake_case")]
 enum BinaryOperand {
     Or,
     And,
