@@ -334,6 +334,21 @@ mod tests {
     }
 
     #[test]
+    fn test_range_leaf_unbounded_serialization() {
+        let range = UserInputLeaf::Range {
+            field: Some("price".to_string()),
+            lower: UserInputBound::Inclusive("10".to_string()),
+            upper: UserInputBound::Unbounded,
+        };
+        let ast = UserInputAst::Leaf(Box::new(range));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"Leaf":{"type":"Range","field":"price","lower":{"type":"Inclusive","value":"10"},"upper":{"type":"Unbounded"}}}"#
+        );
+    }
+
+    #[test]
     fn test_boost_serialization() {
         let inner_ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
         let boost_ast = UserInputAst::Boost(
