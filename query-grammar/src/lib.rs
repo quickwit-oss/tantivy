@@ -1,5 +1,7 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use serde::Serialize;
+
 mod infallible;
 mod occur;
 mod query_grammar;
@@ -12,7 +14,7 @@ pub use crate::user_input_ast::{
     Delimiter, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Error;
 
 /// Parse a query
