@@ -564,6 +564,20 @@ impl<D: Document> IndexWriter<D> {
         segment_updater.start_merge(merge_operation)
     }
 
+    /// Merges a given list of segments.  This is a blocking operation that performs
+    /// the merge in the calling thread (foreground).
+    ///
+    /// If all segments are empty no new segment will be created.
+    ///
+    /// `segment_ids` is required to be non-empty.
+    pub fn merge_foreground(
+        &mut self,
+        segment_ids: &[SegmentId],
+    ) -> crate::Result<Option<SegmentMeta>> {
+        let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
+        self.segment_updater.merge_foreground(merge_operation)
+    }
+
     /// Closes the current document channel send.
     /// and replace all the channels by new ones.
     ///

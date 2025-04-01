@@ -770,6 +770,163 @@ mod tests {
         Ok(())
     }
 
+    // NB:  this is the same as `test_index_merger_no_deletes` above, but using `merge_foreground()`
+    #[test]
+    fn test_foreground_merge() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_fieldtype = schema::TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+            )
+            .set_stored();
+        let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let date_field = schema_builder.add_date_field("date", INDEXED);
+        let score_fieldtype = schema::NumericOptions::default().set_fast();
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype);
+        let bytes_score_field = schema_builder.add_bytes_field("score_bytes", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index.reader()?;
+        let curr_time = OffsetDateTime::now_utc();
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            // writing the segment
+            index_writer.add_document(doc!(
+                text_field => "af b",
+                score_field => 3u64,
+                date_field => DateTime::from_utc(curr_time),
+                bytes_score_field => 3u32.to_be_bytes().as_ref()
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "a b c",
+                score_field => 5u64,
+                bytes_score_field => 5u32.to_be_bytes().as_ref()
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "a b c d",
+                score_field => 7u64,
+                bytes_score_field => 7u32.to_be_bytes().as_ref()
+            ))?;
+            index_writer.commit()?;
+            // writing the segment
+            index_writer.add_document(doc!(
+                text_field => "af b",
+                date_field => DateTime::from_utc(curr_time),
+                score_field => 11u64,
+                bytes_score_field => 11u32.to_be_bytes().as_ref()
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "a b c g",
+                score_field => 13u64,
+                bytes_score_field => 13u32.to_be_bytes().as_ref()
+            ))?;
+            index_writer.commit()?;
+        }
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.merge_foreground(&segment_ids)?;
+        }
+        {
+            reader.reload()?;
+            let searcher = reader.searcher();
+            let get_doc_ids = |terms: Vec<Term>| {
+                let query = BooleanQuery::new_multiterms_query(terms);
+                searcher
+                    .search(&query, &TEST_COLLECTOR_WITH_SCORE)
+                    .map(|top_docs| top_docs.docs().to_vec())
+            };
+            {
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "a")])?,
+                    vec![
+                        DocAddress::new(0, 1),
+                        DocAddress::new(0, 2),
+                        DocAddress::new(0, 4)
+                    ]
+                );
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "af")])?,
+                    vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
+                );
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "g")])?,
+                    vec![DocAddress::new(0, 4)]
+                );
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_text(text_field, "b")])?,
+                    vec![
+                        DocAddress::new(0, 0),
+                        DocAddress::new(0, 1),
+                        DocAddress::new(0, 2),
+                        DocAddress::new(0, 3),
+                        DocAddress::new(0, 4)
+                    ]
+                );
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_date_for_search(
+                        date_field,
+                        DateTime::from_utc(curr_time)
+                    )])?,
+                    vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
+                );
+            }
+            {
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+                assert_eq!(
+                    doc.get_first(text_field).unwrap().as_value().as_str(),
+                    Some("af b")
+                );
+            }
+            {
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+                assert_eq!(
+                    doc.get_first(text_field).unwrap().as_value().as_str(),
+                    Some("a b c")
+                );
+            }
+            {
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+                assert_eq!(
+                    doc.get_first(text_field).unwrap().as_value().as_str(),
+                    Some("a b c d")
+                );
+            }
+            {
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 3))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
+            }
+            {
+                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 4))?;
+                assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c g"));
+            }
+
+            {
+                let get_fast_vals = |terms: Vec<Term>| {
+                    let query = BooleanQuery::new_multiterms_query(terms);
+                    searcher.search(&query, &FastFieldTestCollector::for_field("score"))
+                };
+                let get_fast_vals_bytes = |terms: Vec<Term>| {
+                    let query = BooleanQuery::new_multiterms_query(terms);
+                    searcher.search(
+                        &query,
+                        &BytesFastFieldTestCollector::for_field("score_bytes"),
+                    )
+                };
+                assert_eq!(
+                    get_fast_vals(vec![Term::from_field_text(text_field, "a")])?,
+                    vec![5, 7, 13]
+                );
+                assert_eq!(
+                    get_fast_vals_bytes(vec![Term::from_field_text(text_field, "a")])?,
+                    vec![0, 0, 0, 5, 0, 0, 0, 7, 0, 0, 0, 13]
+                );
+            }
+        }
+        Ok(())
+    }
+
     #[test]
     fn test_index_merger_with_deletes() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();

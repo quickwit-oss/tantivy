@@ -629,6 +629,36 @@ impl SegmentUpdater {
         scheduled_result
     }
 
+    pub(crate) fn merge_foreground(
+        &self,
+        merge_operation: MergeOperation,
+    ) -> crate::Result<Option<SegmentMeta>> {
+        assert!(
+            !merge_operation.segment_ids().is_empty(),
+            "Segment_ids cannot be empty."
+        );
+
+        let segment_updater = self.clone();
+        let segment_entries = self
+            .segment_manager
+            .start_merge(&self.index, merge_operation.segment_ids())?;
+
+        info!("Starting merge  - {:?}", merge_operation.segment_ids());
+
+        let cancel = self.cancel.box_clone();
+        match merge(
+            &segment_updater.index,
+            segment_entries,
+            merge_operation.target_opstamp(),
+            cancel,
+        ) {
+            Ok(after_merge_segment_entry) => {
+                segment_updater.end_merge_foreground(merge_operation, after_merge_segment_entry)
+            }
+            Err(merge_error) => Err(merge_error),
+        }
+    }
+
     pub(crate) fn get_mergeable_segments(&self) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
         let merge_segment_ids: HashSet<SegmentId> = self.merge_operations.segment_in_merge();
         self.segment_manager
@@ -745,6 +775,71 @@ impl SegmentUpdater {
             Ok(())
         })
         .wait()?;
+        Ok(after_merge_segment_meta)
+    }
+
+    fn end_merge_foreground(
+        &self,
+        merge_operation: MergeOperation,
+        mut after_merge_segment_entry: Option<SegmentEntry>,
+    ) -> crate::Result<Option<SegmentMeta>> {
+        let segment_updater = self.clone();
+        let after_merge_segment_meta = after_merge_segment_entry
+            .as_ref()
+            .map(|after_merge_segment_entry| after_merge_segment_entry.meta().clone());
+        info!(
+            "End merge {:?}",
+            after_merge_segment_entry.as_ref().map(|entry| entry.meta())
+        );
+        {
+            if let Some(after_merge_segment_entry) = after_merge_segment_entry.as_mut() {
+                // Deletes and commits could have happened as we were merging.
+                // We need to make sure we are up to date with deletes before accepting the
+                // segment.
+                let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+                if let Some(delete_operation) = delete_cursor.get() {
+                    let committed_opstamp = segment_updater.load_meta().opstamp;
+                    if delete_operation.opstamp() < committed_opstamp {
+                        // We are not up to date! Let's create a new tombstone file for our
+                        // freshly create split.
+                        let index = &segment_updater.index;
+                        let segment = index.segment(after_merge_segment_entry.meta().clone());
+                        if let Err(advance_deletes_err) =
+                            advance_deletes(segment, after_merge_segment_entry, committed_opstamp)
+                        {
+                            error!(
+                                "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
+                                merge_operation.segment_ids(),
+                                advance_deletes_err
+                            );
+                            assert!(!cfg!(test), "Merge failed.");
+
+                            // ... cancel merge
+                            // `merge_operations` are tracked. As it is dropped, the
+                            // the segment_ids will be available again for merge.
+                            return Err(advance_deletes_err);
+                        }
+                    }
+                }
+            }
+            let previous_metas = segment_updater.load_meta();
+            let segments_status = segment_updater
+                .segment_manager
+                .end_merge(merge_operation.segment_ids(), after_merge_segment_entry)?;
+
+            if segments_status == SegmentsStatus::Committed {
+                segment_updater.save_metas(
+                    previous_metas.opstamp,
+                    previous_metas.payload.clone(),
+                    &previous_metas,
+                )?;
+            }
+
+            // NB:  We don't want to consider merging again after we just did a merge
+            // segment_updater.consider_merge_options();
+        } // we drop all possible handle to a now useless `SegmentMeta`.
+
+        let _ = garbage_collect_files(segment_updater);
         Ok(after_merge_segment_meta)
     }
 

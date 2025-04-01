@@ -297,6 +297,14 @@ impl Directory for ManagedDirectory {
 
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
         let file_slice = self.directory.open_read(path)?;
+        debug_assert!(
+            {
+                use common::HasLen;
+                file_slice.len() >= FOOTER_LEN
+            },
+            "{} is too short",
+            path.display()
+        );
         let (reader, _) = file_slice.split_from_end(FOOTER_LEN);
         // NB:  We do not read/validate the footer here -- we blindly skip it entirely
         Ok(reader)
@@ -385,7 +393,6 @@ impl Clone for ManagedDirectory {
 #[cfg(feature = "mmap")]
 #[cfg(test)]
 mod tests_mmap_specific {
-
     use std::collections::HashSet;
     use std::io::Write;
     use std::path::{Path, PathBuf};
