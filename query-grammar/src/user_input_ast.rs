@@ -345,4 +345,23 @@ mod tests {
             r#"{"Boost":[{"Leaf":{"type":"All"}},2.5]}"#
         );
     }
+
+    #[test]
+    fn test_clause_serialization() {
+        let clause = UserInputAst::Clause(vec![
+            (Some(Occur::Must), UserInputAst::Leaf(Box::new(UserInputLeaf::All))),
+            (Some(Occur::Should), UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(UserInputLiteral {
+                field_name: Some("title".to_string()),
+                phrase: "hello".to_string(),
+                delimiter: Delimiter::None,
+                slop: 0,
+                prefix: false,
+            }))))
+        ]);
+        let json = serde_json::to_string(&clause).unwrap();
+        assert_eq!(
+            json,
+            r#"{"Clause":[["Must",{"Leaf":{"type":"All"}}],["Should",{"Leaf":{"type":"Literal","field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}]]}"#
+        );
+    }
 }
