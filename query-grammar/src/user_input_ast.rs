@@ -156,6 +156,7 @@ impl fmt::Debug for UserInputLiteral {
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize)]
+#[serde(tag = "type", content = "value")]
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
@@ -328,7 +329,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"type":"Range","field":"price","lower":{"Inclusive":"10"},"upper":{"Exclusive":"100"}}}"#
+            r#"{"Leaf":{"type":"Range","field":"price","lower":{"type":"Inclusive","value":"10"},"upper":{"type":"Exclusive","value":"100"}}}"#
         );
     }
 
