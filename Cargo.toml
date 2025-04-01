@@ -48,6 +48,10 @@ thiserror = "2.0.1"
 htmlescape = "0.3.1"
 fail = { version = "0.5.0", optional = true }
 time = { version = "0.3.35", features = ["serde-well-known"] }
+# TODO: We have integer wrappers with PartialOrd, and a misfeature of
+# `deranged` causes inference to fail in a bunch of cases. See
+# https://github.com/jhpratt/deranged/issues/18#issuecomment-2746844093
+deranged = "=0.4.0"
 smallvec = "1.8.0"
 rayon = "1.5.2"
 lru = "0.12.0"
