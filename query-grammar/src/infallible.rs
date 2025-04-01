@@ -354,3 +354,18 @@ where
 {
     move |i: I| l.choice(i.clone()).unwrap_or_else(|| default.parse(i))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lenient_error_serialization() {
+        let error = LenientError {
+            pos: 42,
+            message: "test error message".to_string(),
+        };
+
+        assert_eq!(serde_json::to_string(&error).unwrap(), "{\"pos\":42,\"message\":\"test error message\"}");
+    }
+}
