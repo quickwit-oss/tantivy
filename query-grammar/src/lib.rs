@@ -38,7 +38,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"Literal":{"field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}}"#
+            r#"{"Leaf":{"type":"Literal","field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}"#
         );
     }
 

@@ -6,6 +6,7 @@ use serde::Serialize;
 use crate::Occur;
 
 #[derive(PartialEq, Clone, Serialize)]
+#[serde(tag = "type")]
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -296,7 +297,7 @@ mod tests {
     fn test_all_leaf_serialization() {
         let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
         let json = serde_json::to_string(&ast).unwrap();
-        assert_eq!(json, r#"{"Leaf":"All"}"#);
+        assert_eq!(json, r#"{"Leaf":{"type":"All"}}"#);
     }
 
     #[test]
@@ -312,7 +313,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"Literal":{"field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}}"#
+            r#"{"Leaf":{"type":"Literal","field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}"#
         );
     }
 
@@ -327,7 +328,21 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"Range":{"field":"price","lower":{"Inclusive":"10"},"upper":{"Exclusive":"100"}}}}"#
+            r#"{"Leaf":{"type":"Range","field":"price","lower":{"Inclusive":"10"},"upper":{"Exclusive":"100"}}}"#
+        );
+    }
+
+    #[test]
+    fn test_boost_serialization() {
+        let inner_ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
+        let boost_ast = UserInputAst::Boost(
+            Box::new(inner_ast),
+            2.5,
+        );
+        let json = serde_json::to_string(&boost_ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"Boost":[{"Leaf":{"type":"All"}},2.5]}"#
         );
     }
 }
