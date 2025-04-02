@@ -197,7 +197,6 @@ impl UserInputBound {
 
 #[derive(PartialEq, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
-//#[serde(tag = "type", content = "value")]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
     Boost(Box<UserInputAst>, f64),
@@ -366,6 +365,28 @@ mod tests {
         assert_eq!(
             json,
             r#"{"boost":[{"type":"all"},2.5]}"#
+        );
+    }
+
+    #[test]
+    fn test_boost_serialization2() {
+        let boost_ast = UserInputAst::Boost(
+            Box::new(UserInputAst::Clause(vec![
+                (Some(Occur::Must), UserInputAst::Leaf(Box::new(UserInputLeaf::All))),
+                (Some(Occur::Should), UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(UserInputLiteral {
+                    field_name: Some("title".to_string()),
+                    phrase: "hello".to_string(),
+                    delimiter: Delimiter::None,
+                    slop: 0,
+                    prefix: false,
+                }))))
+            ])),
+            2.5,
+        );
+        let json = serde_json::to_string(&boost_ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"boost":[{"clause":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]},2.5]}"#
         );
     }
 
