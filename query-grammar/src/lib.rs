@@ -15,6 +15,7 @@ pub use crate::user_input_ast::{
 };
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct Error;
 
 /// Parse a query
@@ -38,7 +39,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"type":"Literal","field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}"#
+            r#"{"leaf":{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}}"#
         );
     }
 

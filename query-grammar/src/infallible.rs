@@ -17,6 +17,7 @@ pub(crate) struct LenientErrorInternal {
 
 /// A recoverable error and the position it happened at
 #[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct LenientError {
     pub pos: usize,
     pub message: String,

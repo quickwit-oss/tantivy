@@ -7,6 +7,7 @@ use crate::Occur;
 
 #[derive(PartialEq, Clone, Serialize)]
 #[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -111,6 +112,7 @@ impl Debug for UserInputLeaf {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Delimiter {
     SingleQuotes,
     DoubleQuotes,
@@ -118,6 +120,7 @@ pub enum Delimiter {
 }
 
 #[derive(PartialEq, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
@@ -157,6 +160,7 @@ impl fmt::Debug for UserInputLiteral {
 
 #[derive(PartialEq, Debug, Clone, Serialize)]
 #[serde(tag = "type", content = "value")]
+#[serde(rename_all = "snake_case")]
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
@@ -192,6 +196,7 @@ impl UserInputBound {
 }
 
 #[derive(PartialEq, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
     Leaf(Box<UserInputLeaf>),
@@ -298,7 +303,7 @@ mod tests {
     fn test_all_leaf_serialization() {
         let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
         let json = serde_json::to_string(&ast).unwrap();
-        assert_eq!(json, r#"{"Leaf":{"type":"All"}}"#);
+        assert_eq!(json, r#"{"leaf":{"type":"all"}}"#);
     }
 
     #[test]
@@ -314,7 +319,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"type":"Literal","field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}"#
+            r#"{"leaf":{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}}"#
         );
     }
 
@@ -329,7 +334,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"type":"Range","field":"price","lower":{"type":"Inclusive","value":"10"},"upper":{"type":"Exclusive","value":"100"}}}"#
+            r#"{"leaf":{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"exclusive","value":"100"}}}"#
         );
     }
 
@@ -344,7 +349,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Leaf":{"type":"Range","field":"price","lower":{"type":"Inclusive","value":"10"},"upper":{"type":"Unbounded"}}}"#
+            r#"{"leaf":{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"unbounded"}}}"#
         );
     }
 
@@ -358,7 +363,7 @@ mod tests {
         let json = serde_json::to_string(&boost_ast).unwrap();
         assert_eq!(
             json,
-            r#"{"Boost":[{"Leaf":{"type":"All"}},2.5]}"#
+            r#"{"boost":[{"leaf":{"type":"all"}},2.5]}"#
         );
     }
 
@@ -377,7 +382,7 @@ mod tests {
         let json = serde_json::to_string(&clause).unwrap();
         assert_eq!(
             json,
-            r#"{"Clause":[["Must",{"Leaf":{"type":"All"}}],["Should",{"Leaf":{"type":"Literal","field_name":"title","phrase":"hello","delimiter":"None","slop":0,"prefix":false}}]]}"#
+            r#"{"clause":[["must",{"leaf":{"type":"all"}}],["should",{"leaf":{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}}]]}"#
         );
     }
 }
