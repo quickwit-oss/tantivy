@@ -35,11 +35,11 @@ mod tests {
 
     #[test]
     fn test_parse_query_serialization() {
-        let ast = parse_query("title:hello").unwrap();
+        let ast = parse_query("title:hello OR title:x").unwrap();
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"leaf":{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}}"#
+            r#"{"clause":[["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}],["should",{"type":"literal","field_name":"title","phrase":"x","delimiter":"none","slop":0,"prefix":false}]]}"#
         );
     }
 

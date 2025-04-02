@@ -197,10 +197,12 @@ impl UserInputBound {
 
 #[derive(PartialEq, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
+//#[serde(tag = "type", content = "value")]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
-    Leaf(Box<UserInputLeaf>),
     Boost(Box<UserInputAst>, f64),
+    #[serde(untagged)]
+    Leaf(Box<UserInputLeaf>),
 }
 
 impl UserInputAst {
@@ -303,7 +305,7 @@ mod tests {
     fn test_all_leaf_serialization() {
         let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
         let json = serde_json::to_string(&ast).unwrap();
-        assert_eq!(json, r#"{"leaf":{"type":"all"}}"#);
+        assert_eq!(json, r#"{"type":"all"}"#);
     }
 
     #[test]
@@ -319,7 +321,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"leaf":{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}}"#
+            r#"{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}"#
         );
     }
 
@@ -334,7 +336,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"leaf":{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"exclusive","value":"100"}}}"#
+            r#"{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"exclusive","value":"100"}}"#
         );
     }
 
@@ -349,7 +351,7 @@ mod tests {
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
-            r#"{"leaf":{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"unbounded"}}}"#
+            r#"{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"unbounded"}}"#
         );
     }
 
@@ -363,7 +365,7 @@ mod tests {
         let json = serde_json::to_string(&boost_ast).unwrap();
         assert_eq!(
             json,
-            r#"{"boost":[{"leaf":{"type":"all"}},2.5]}"#
+            r#"{"boost":[{"type":"all"},2.5]}"#
         );
     }
 
@@ -382,7 +384,7 @@ mod tests {
         let json = serde_json::to_string(&clause).unwrap();
         assert_eq!(
             json,
-            r#"{"clause":[["must",{"leaf":{"type":"all"}}],["should",{"leaf":{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}}]]}"#
+            r#"{"clause":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]}"#
         );
     }
 }
