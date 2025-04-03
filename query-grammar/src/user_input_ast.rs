@@ -206,8 +206,8 @@ pub enum UserInputAst {
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum UserInputAstSerde {
-    Clause {
-        clause: Vec<(Option<Occur>, UserInputAst)>,
+    Bool {
+        clauses: Vec<(Option<Occur>, UserInputAst)>,
     },
     Boost {
         underlying: Box<UserInputAst>,
@@ -220,7 +220,7 @@ enum UserInputAstSerde {
 impl From<UserInputAst> for UserInputAstSerde {
     fn from(ast: UserInputAst) -> Self {
         match ast {
-            UserInputAst::Clause(clause) => UserInputAstSerde::Clause { clause },
+            UserInputAst::Clause(clause) => UserInputAstSerde::Bool { clauses: clause },
             UserInputAst::Boost(underlying, boost) => {
                 UserInputAstSerde::Boost { underlying, boost }
             }
@@ -414,7 +414,7 @@ mod tests {
         let json = serde_json::to_string(&boost_ast).unwrap();
         assert_eq!(
             json,
-            r#"{"type":"boost","underlying":{"type":"clause","clause":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]},"boost":2.5}"#
+            r#"{"type":"boost","underlying":{"type":"bool","clauses":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]},"boost":2.5}"#
         );
     }
 
@@ -439,7 +439,7 @@ mod tests {
         let json = serde_json::to_string(&clause).unwrap();
         assert_eq!(
             json,
-            r#"{"type":"clause","clause":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]}"#
+            r#"{"type":"bool","clauses":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]}"#
         );
     }
 }
