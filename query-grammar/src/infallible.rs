@@ -367,6 +367,9 @@ mod tests {
             message: "test error message".to_string(),
         };
 
-        assert_eq!(serde_json::to_string(&error).unwrap(), "{\"pos\":42,\"message\":\"test error message\"}");
+        assert_eq!(
+            serde_json::to_string(&error).unwrap(),
+            "{\"pos\":42,\"message\":\"test error message\"}"
+        );
     }
 }
