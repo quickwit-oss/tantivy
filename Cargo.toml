@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.23.0"
+version = "0.24.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
