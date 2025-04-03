@@ -1,9 +1,13 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
+use serde::Serialize;
+
 use crate::Occur;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Serialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -107,14 +111,16 @@ impl Debug for UserInputLeaf {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Delimiter {
     SingleQuotes,
     DoubleQuotes,
     None,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
@@ -152,7 +158,9 @@ impl fmt::Debug for UserInputLiteral {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize)]
+#[serde(tag = "type", content = "value")]
+#[serde(rename_all = "snake_case")]
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
@@ -187,11 +195,38 @@ impl UserInputBound {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Serialize)]
+#[serde(into = "UserInputAstSerde")]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
-    Leaf(Box<UserInputLeaf>),
     Boost(Box<UserInputAst>, f64),
+    Leaf(Box<UserInputLeaf>),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum UserInputAstSerde {
+    Bool {
+        clauses: Vec<(Option<Occur>, UserInputAst)>,
+    },
+    Boost {
+        underlying: Box<UserInputAst>,
+        boost: f64,
+    },
+    #[serde(untagged)]
+    Leaf(Box<UserInputLeaf>),
+}
+
+impl From<UserInputAst> for UserInputAstSerde {
+    fn from(ast: UserInputAst) -> Self {
+        match ast {
+            UserInputAst::Clause(clause) => UserInputAstSerde::Bool { clauses: clause },
+            UserInputAst::Boost(underlying, boost) => {
+                UserInputAstSerde::Boost { underlying, boost }
+            }
+            UserInputAst::Leaf(leaf) => UserInputAstSerde::Leaf(leaf),
+        }
+    }
 }
 
 impl UserInputAst {
@@ -283,5 +318,128 @@ impl fmt::Debug for UserInputAst {
             UserInputAst::Leaf(ref subquery) => write!(formatter, "{subquery:?}"),
             UserInputAst::Boost(ref leaf, boost) => write!(formatter, "({leaf:?})^{boost}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_leaf_serialization() {
+        let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(json, r#"{"type":"all"}"#);
+    }
+
+    #[test]
+    fn test_literal_leaf_serialization() {
+        let literal = UserInputLiteral {
+            field_name: Some("title".to_string()),
+            phrase: "hello".to_string(),
+            delimiter: Delimiter::None,
+            slop: 0,
+            prefix: false,
+        };
+        let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(literal)));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}"#
+        );
+    }
+
+    #[test]
+    fn test_range_leaf_serialization() {
+        let range = UserInputLeaf::Range {
+            field: Some("price".to_string()),
+            lower: UserInputBound::Inclusive("10".to_string()),
+            upper: UserInputBound::Exclusive("100".to_string()),
+        };
+        let ast = UserInputAst::Leaf(Box::new(range));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"exclusive","value":"100"}}"#
+        );
+    }
+
+    #[test]
+    fn test_range_leaf_unbounded_serialization() {
+        let range = UserInputLeaf::Range {
+            field: Some("price".to_string()),
+            lower: UserInputBound::Inclusive("10".to_string()),
+            upper: UserInputBound::Unbounded,
+        };
+        let ast = UserInputAst::Leaf(Box::new(range));
+        let json = serde_json::to_string(&ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"range","field":"price","lower":{"type":"inclusive","value":"10"},"upper":{"type":"unbounded"}}"#
+        );
+    }
+
+    #[test]
+    fn test_boost_serialization() {
+        let inner_ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
+        let boost_ast = UserInputAst::Boost(Box::new(inner_ast), 2.5);
+        let json = serde_json::to_string(&boost_ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"boost","underlying":{"type":"all"},"boost":2.5}"#
+        );
+    }
+
+    #[test]
+    fn test_boost_serialization2() {
+        let boost_ast = UserInputAst::Boost(
+            Box::new(UserInputAst::Clause(vec![
+                (
+                    Some(Occur::Must),
+                    UserInputAst::Leaf(Box::new(UserInputLeaf::All)),
+                ),
+                (
+                    Some(Occur::Should),
+                    UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(UserInputLiteral {
+                        field_name: Some("title".to_string()),
+                        phrase: "hello".to_string(),
+                        delimiter: Delimiter::None,
+                        slop: 0,
+                        prefix: false,
+                    }))),
+                ),
+            ])),
+            2.5,
+        );
+        let json = serde_json::to_string(&boost_ast).unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"boost","underlying":{"type":"bool","clauses":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]},"boost":2.5}"#
+        );
+    }
+
+    #[test]
+    fn test_clause_serialization() {
+        let clause = UserInputAst::Clause(vec![
+            (
+                Some(Occur::Must),
+                UserInputAst::Leaf(Box::new(UserInputLeaf::All)),
+            ),
+            (
+                Some(Occur::Should),
+                UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(UserInputLiteral {
+                    field_name: Some("title".to_string()),
+                    phrase: "hello".to_string(),
+                    delimiter: Delimiter::None,
+                    slop: 0,
+                    prefix: false,
+                }))),
+            ),
+        ]);
+        let json = serde_json::to_string(&clause).unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"bool","clauses":[["must",{"type":"all"}],["should",{"type":"literal","field_name":"title","phrase":"hello","delimiter":"none","slop":0,"prefix":false}]]}"#
+        );
     }
 }

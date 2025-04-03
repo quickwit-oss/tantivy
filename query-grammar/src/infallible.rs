@@ -3,6 +3,7 @@
 use std::convert::Infallible;
 
 use nom::{AsChar, IResult, InputLength, InputTakeAtPosition};
+use serde::Serialize;
 
 pub(crate) type ErrorList = Vec<LenientErrorInternal>;
 pub(crate) type JResult<I, O> = IResult<I, (O, ErrorList), Infallible>;
@@ -15,7 +16,8 @@ pub(crate) struct LenientErrorInternal {
 }
 
 /// A recoverable error and the position it happened at
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct LenientError {
     pub pos: usize,
     pub message: String,
@@ -352,4 +354,22 @@ where
     F: nom::Parser<I, (O, ErrorList), Infallible>,
 {
     move |i: I| l.choice(i.clone()).unwrap_or_else(|| default.parse(i))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lenient_error_serialization() {
+        let error = LenientError {
+            pos: 42,
+            message: "test error message".to_string(),
+        };
+
+        assert_eq!(
+            serde_json::to_string(&error).unwrap(),
+            "{\"pos\":42,\"message\":\"test error message\"}"
+        );
+    }
 }
