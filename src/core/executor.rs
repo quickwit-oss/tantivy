@@ -41,15 +41,10 @@ impl Executor {
     ///
     /// Regardless of the executor (`SingleThread` or `ThreadPool`), panics in the task
     /// will propagate to the caller.
-    pub fn map<
-        A: Send,
-        R: Send,
-        AIterator: Iterator<Item = A>,
-        F: Sized + Sync + Fn(A) -> crate::Result<R>,
-    >(
+    pub fn map<A: Send, R: Send, F: Sync + Fn(A) -> crate::Result<R>>(
         &self,
         f: F,
-        args: AIterator,
+        args: impl Iterator<Item = A>,
     ) -> crate::Result<Vec<R>> {
         match self {
             Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),

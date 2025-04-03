@@ -419,11 +419,11 @@ fn test_merge_columnar_different_types() {
         panic!()
     };
     assert_eq!(vals.get_cardinality(), Cardinality::Optional);
-    assert_eq!(vals.values_for_doc(0).collect_vec(), vec![]);
-    assert_eq!(vals.values_for_doc(1).collect_vec(), vec![]);
-    assert_eq!(vals.values_for_doc(2).collect_vec(), vec![]);
+    assert_eq!(vals.values_for_doc(0).count(), 0);
+    assert_eq!(vals.values_for_doc(1).count(), 0);
+    assert_eq!(vals.values_for_doc(2).count(), 0);
     assert_eq!(vals.values_for_doc(3).collect_vec(), vec![1]);
-    assert_eq!(vals.values_for_doc(4).collect_vec(), vec![]);
+    assert_eq!(vals.values_for_doc(4).count(), 0);
 
     // text column
     let dynamic_column = cols[1].open().unwrap();
