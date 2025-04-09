@@ -1,6 +1,6 @@
 [package]
 name = "tantivy-columnar"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
@@ -12,10 +12,10 @@ categories = ["database-implementations", "data-structures", "compression"]
 itertools = "0.14.0"
 fastdivide = "0.4.0"
 
-stacker = { version= "0.3", path = "../stacker", package="tantivy-stacker"}
-sstable = { version= "0.3", path = "../sstable", package = "tantivy-sstable" }
-common = { version= "0.7", path = "../common", package = "tantivy-common" }
-tantivy-bitpacker = { version= "0.6", path = "../bitpacker/" }
+stacker = { version= "0.4", path = "../stacker", package="tantivy-stacker"}
+sstable = { version= "0.4", path = "../sstable", package = "tantivy-sstable" }
+common = { version= "0.8", path = "../common", package = "tantivy-common" }
+tantivy-bitpacker = { version= "0.7", path = "../bitpacker/" }
 serde = "1.0.152"
 downcast-rs = "2.0.1"
 
