@@ -6,13 +6,13 @@ use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
-use common::bounds::{transform_bound_inner_res, TransformBound};
+use common::bounds::{TransformBound, transform_bound_inner_res};
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
-use futures_util::{stream, StreamExt, TryStreamExt};
+use futures_util::{StreamExt, TryStreamExt, stream};
 use itertools::Itertools;
-use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
+use tantivy_fst::automaton::AlwaysMatch;
 
 use crate::sstable_index_v3::SSTableIndexV3Empty;
 use crate::streamer::{Streamer, StreamerBuilder};
@@ -311,7 +311,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     format!("Unsupported sstable version, expected one of [2, 3], found {version}"),
-                ))
+                ));
             }
         };
 
@@ -644,8 +644,8 @@ mod tests {
     use common::OwnedBytes;
 
     use super::Dictionary;
-    use crate::dictionary::TermOrdHit;
     use crate::MonotonicU64SSTable;
+    use crate::dictionary::TermOrdHit;
 
     #[derive(Debug)]
     struct PermissionedHandle {
@@ -914,30 +914,33 @@ mod tests {
 
         // Single term
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(100_000..100_001, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(100_000..100_001, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(terms, vec![format!("{:05X}", 100_000).into_bytes(),]);
         // Single term
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(100_001..100_002, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(100_001..100_002, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(terms, vec![format!("{:05X}", 100_001).into_bytes(),]);
         // both terms
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(100_000..100_002, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(100_000..100_002, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(
             terms,
             vec![
@@ -947,12 +950,13 @@ mod tests {
         );
         // Test cross block
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(98653..=98655, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(98653..=98655, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(
             terms,
             vec![

@@ -3,12 +3,12 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use common::{BinarySerializable, FixedSize, OwnedBytes};
-use tantivy_bitpacker::{compute_num_bits, BitPacker};
+use tantivy_bitpacker::{BitPacker, compute_num_bits};
 use tantivy_fst::raw::Fst;
 use tantivy_fst::{Automaton, IntoStreamer, Map, MapBuilder, Streamer};
 
 use crate::block_match_automaton::can_block_match_automaton;
-use crate::{common_prefix_len, SSTableDataCorruption, TermOrdinal};
+use crate::{SSTableDataCorruption, TermOrdinal, common_prefix_len};
 
 #[derive(Debug, Clone)]
 pub enum SSTableIndex {
@@ -824,8 +824,8 @@ mod tests {
     use common::OwnedBytes;
 
     use super::*;
-    use crate::block_match_automaton::tests::EqBuffer;
     use crate::SSTableDataCorruption;
+    use crate::block_match_automaton::tests::EqBuffer;
 
     #[test]
     fn test_sstable_index() {
