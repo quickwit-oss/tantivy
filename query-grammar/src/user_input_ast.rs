@@ -51,7 +51,7 @@ impl UserInputLeaf {
 
     pub(crate) fn set_default_field(&mut self, default_field: String) {
         match self {
-            UserInputLeaf::Literal(ref mut literal) if literal.field_name.is_none() => {
+            UserInputLeaf::Literal(literal) if literal.field_name.is_none() => {
                 literal.field_name = Some(default_field)
             }
             UserInputLeaf::All => {
@@ -59,12 +59,8 @@ impl UserInputLeaf {
                     field: default_field,
                 }
             }
-            UserInputLeaf::Range { ref mut field, .. } if field.is_none() => {
-                *field = Some(default_field)
-            }
-            UserInputLeaf::Set { ref mut field, .. } if field.is_none() => {
-                *field = Some(default_field)
-            }
+            UserInputLeaf::Range { field, .. } if field.is_none() => *field = Some(default_field),
+            UserInputLeaf::Set { field, .. } if field.is_none() => *field = Some(default_field),
             _ => (), // field was already set, do nothing
         }
     }
@@ -75,11 +71,11 @@ impl Debug for UserInputLeaf {
         match self {
             UserInputLeaf::Literal(literal) => literal.fmt(formatter),
             UserInputLeaf::Range {
-                ref field,
-                ref lower,
-                ref upper,
+                field,
+                lower,
+                upper,
             } => {
-                if let Some(ref field) = field {
+                if let Some(field) = field {
                     // TODO properly escape field (in case of \")
                     write!(formatter, "\"{field}\":")?;
                 }
@@ -89,7 +85,7 @@ impl Debug for UserInputLeaf {
                 Ok(())
             }
             UserInputLeaf::Set { field, elements } => {
-                if let Some(ref field) = field {
+                if let Some(field) = field {
                     // TODO properly escape field (in case of \")
                     write!(formatter, "\"{field}\": ")?;
                 }
@@ -267,7 +263,7 @@ impl UserInputAst {
                 .iter_mut()
                 .for_each(|(_, ast)| ast.set_default_field(field.clone())),
             UserInputAst::Leaf(leaf) => leaf.set_default_field(field),
-            UserInputAst::Boost(ref mut ast, _) => ast.set_default_field(field),
+            UserInputAst::Boost(ast, _) => ast.set_default_field(field),
         }
     }
 }
