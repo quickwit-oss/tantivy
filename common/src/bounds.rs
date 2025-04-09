@@ -65,11 +65,11 @@ pub fn transform_bound_inner_res<TFrom, TTo>(
 ) -> io::Result<Bound<TTo>> {
     use self::Bound::*;
     Ok(match bound {
-        Excluded(ref from_val) => match transform(from_val)? {
+        Excluded(from_val) => match transform(from_val)? {
             TransformBound::NewBound(new_val) => new_val,
             TransformBound::Existing(new_val) => Excluded(new_val),
         },
-        Included(ref from_val) => match transform(from_val)? {
+        Included(from_val) => match transform(from_val)? {
             TransformBound::NewBound(new_val) => new_val,
             TransformBound::Existing(new_val) => Included(new_val),
         },
@@ -85,11 +85,11 @@ pub fn transform_bound_inner<TFrom, TTo>(
 ) -> Bound<TTo> {
     use self::Bound::*;
     match bound {
-        Excluded(ref from_val) => match transform(from_val) {
+        Excluded(from_val) => match transform(from_val) {
             TransformBound::NewBound(new_val) => new_val,
             TransformBound::Existing(new_val) => Excluded(new_val),
         },
-        Included(ref from_val) => match transform(from_val) {
+        Included(from_val) => match transform(from_val) {
             TransformBound::NewBound(new_val) => new_val,
             TransformBound::Existing(new_val) => Included(new_val),
         },
@@ -111,8 +111,8 @@ pub fn map_bound<TFrom, TTo>(
 ) -> Bound<TTo> {
     use self::Bound::*;
     match bound {
-        Excluded(ref from_val) => Bound::Excluded(transform(from_val)),
-        Included(ref from_val) => Bound::Included(transform(from_val)),
+        Excluded(from_val) => Bound::Excluded(transform(from_val)),
+        Included(from_val) => Bound::Included(transform(from_val)),
         Unbounded => Unbounded,
     }
 }
@@ -123,8 +123,8 @@ pub fn map_bound_res<TFrom, TTo, Err>(
 ) -> Result<Bound<TTo>, Err> {
     use self::Bound::*;
     Ok(match bound {
-        Excluded(ref from_val) => Excluded(transform(from_val)?),
-        Included(ref from_val) => Included(transform(from_val)?),
+        Excluded(from_val) => Excluded(transform(from_val)?),
+        Included(from_val) => Included(transform(from_val)?),
         Unbounded => Unbounded,
     })
 }

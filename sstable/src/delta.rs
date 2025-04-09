@@ -5,7 +5,7 @@ use common::{CountingWriter, OwnedBytes};
 use zstd::bulk::Compressor;
 
 use super::value::ValueWriter;
-use super::{value, vint, BlockReader};
+use super::{BlockReader, value, vint};
 
 const FOUR_BIT_LIMITS: usize = 1 << 4;
 const VINT_MODE: u8 = 1u8;

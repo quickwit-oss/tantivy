@@ -22,7 +22,7 @@ pub use json_path_writer::JsonPathWriter;
 pub use ownedbytes::{OwnedBytes, StableDeref};
 pub use serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use vint::{
-    read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt, VIntU128,
+    VInt, VIntU128, read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint,
 };
 pub use writer::{AntiCallToken, CountingWriter, TerminatingWrite};
 
@@ -177,8 +177,10 @@ pub(crate) mod test {
 
     #[test]
     fn test_f64_order() {
-        assert!(!(f64_to_u64(f64::NEG_INFINITY)..f64_to_u64(f64::INFINITY))
-            .contains(&f64_to_u64(f64::NAN))); // nan is not a number
+        assert!(
+            !(f64_to_u64(f64::NEG_INFINITY)..f64_to_u64(f64::INFINITY))
+                .contains(&f64_to_u64(f64::NAN))
+        ); // nan is not a number
         assert!(f64_to_u64(1.5) > f64_to_u64(1.0)); // same exponent, different mantissa
         assert!(f64_to_u64(2.0) > f64_to_u64(1.0)); // same mantissa, different exponent
         assert!(f64_to_u64(2.0) > f64_to_u64(1.5)); // different exponent and mantissa

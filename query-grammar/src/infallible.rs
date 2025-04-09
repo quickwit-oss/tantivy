@@ -186,19 +186,19 @@ macro_rules! tuple_trait_impl(
 );
 
 macro_rules! tuple_trait_inner(
-  ($it:tt, $self:expr, $input:expr, (), $error_list:expr, $head:ident $($id:ident)+) => ({
+  ($it:tt, $self:expr_2021, $input:expr_2021, (), $error_list:expr_2021, $head:ident $($id:ident)+) => ({
     let (i, (o, mut err)) = $self.$it.parse($input.clone())?;
     $error_list.append(&mut err);
 
     succ!($it, tuple_trait_inner!($self, i, ( o ), $error_list, $($id)+))
   });
-  ($it:tt, $self:expr, $input:expr, ($($parsed:tt)*), $error_list:expr, $head:ident $($id:ident)+) => ({
+  ($it:tt, $self:expr_2021, $input:expr_2021, ($($parsed:tt)*), $error_list:expr_2021, $head:ident $($id:ident)+) => ({
     let (i, (o, mut err)) = $self.$it.parse($input.clone())?;
     $error_list.append(&mut err);
 
     succ!($it, tuple_trait_inner!($self, i, ($($parsed)* , o), $error_list, $($id)+))
   });
-  ($it:tt, $self:expr, $input:expr, ($($parsed:tt)*), $error_list:expr, $head:ident) => ({
+  ($it:tt, $self:expr_2021, $input:expr_2021, ($($parsed:tt)*), $error_list:expr_2021, $head:ident) => ({
     let (i, (o, mut err)) = $self.$it.parse($input.clone())?;
     $error_list.append(&mut err);
 
@@ -328,13 +328,13 @@ macro_rules! alt_trait_impl(
 );
 
 macro_rules! alt_trait_inner(
-  ($it:tt, $self:expr, $input:expr, $head_cond:ident $head:ident, $($id_cond:ident $id:ident),+) => (
+  ($it:tt, $self:expr_2021, $input:expr_2021, $head_cond:ident $head:ident, $($id_cond:ident $id:ident),+) => (
     match $self.$it.0.parse($input.clone()) {
       Err(_) => succ!($it, alt_trait_inner!($self, $input, $($id_cond $id),+)),
       Ok((input_left, _)) => Some($self.$it.1.parse(input_left)),
     }
   );
-  ($it:tt, $self:expr, $input:expr, $head_cond:ident $head:ident) => (
+  ($it:tt, $self:expr_2021, $input:expr_2021, $head_cond:ident $head:ident) => (
     None
   );
 );

@@ -1,6 +1,6 @@
 use super::bitpacker::BitPacker;
 use super::compute_num_bits;
-use crate::{minmax, BitUnpacker};
+use crate::{BitUnpacker, minmax};
 
 const BLOCK_SIZE: usize = 128;
 

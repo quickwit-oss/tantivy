@@ -51,18 +51,21 @@ impl BlockReader {
             let block_len = match self.reader.len() {
                 0 => {
                     // we are out of data for this block. Check if we have another block after
-                    if let Some(new_reader) = self.next_readers.next() {
-                        self.reader = new_reader;
-                        continue;
-                    } else {
-                        return Ok(false);
+                    match self.next_readers.next() {
+                        Some(new_reader) => {
+                            self.reader = new_reader;
+                            continue;
+                        }
+                        _ => {
+                            return Ok(false);
+                        }
                     }
                 }
                 1..=3 => {
                     return Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
                         "failed to read block_len",
-                    ))
+                    ));
                 }
                 _ => self.reader.read_u32() as usize,
             };

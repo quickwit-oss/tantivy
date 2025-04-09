@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::io;
 
 use common::file_slice::FileSlice;
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use tantivy_sstable::{Dictionary, MonotonicU64SSTable};

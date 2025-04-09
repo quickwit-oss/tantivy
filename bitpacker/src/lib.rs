@@ -33,11 +33,7 @@ pub use crate::blocked_bitpacker::BlockedBitpacker;
 /// number of bits.
 pub fn compute_num_bits(n: u64) -> u8 {
     let amplitude = (64u32 - n.leading_zeros()) as u8;
-    if amplitude <= 64 - 8 {
-        amplitude
-    } else {
-        64
-    }
+    if amplitude <= 64 - 8 { amplitude } else { 64 }
 }
 
 /// Computes the (min, max) of an iterator of `PartialOrd` values.
