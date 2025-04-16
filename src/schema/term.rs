@@ -121,6 +121,13 @@ impl Term {
         term
     }
 
+    /// Builds a term given a field, and a `u128`-value
+    pub fn from_field_u128(field: Field, u128: u128) -> Term {
+        let mut term = Self::with_type_and_field(Type::U128, field);
+        term.set_u128(u128);
+        term
+    }
+
     /// Builds a term given a field, and a `u64`-value
     pub fn from_field_u64(field: Field, val: u64) -> Term {
         Term::from_fast_value(field, &val)
@@ -241,6 +248,11 @@ impl Term {
 
     /// Sets a `Ipv6Addr` value in the term.
     pub fn set_ip_addr(&mut self, val: Ipv6Addr) {
+        self.set_bytes(val.to_u128().to_be_bytes().as_ref());
+    }
+
+    /// Sets a `u128` value in the term.
+    pub fn set_u128(&mut self, val: u128) {
         self.set_bytes(val.to_u128().to_be_bytes().as_ref());
     }
 
@@ -459,6 +471,15 @@ where B: AsRef<[u8]>
         Some(Ipv6Addr::from_u128(ip_u128))
     }
 
+    /// Returns a `u128` value from the term.
+    pub fn as_u128(&self) -> Option<u128> {
+        if self.typ() != Type::U128 {
+            return None;
+        }
+        let u128 = u128::from_be_bytes(self.raw_value_bytes_payload().try_into().ok()?);
+        Some(u128)
+    }
+
     /// Returns the json path type.
     ///
     /// Returns `None` if the value is not JSON.
@@ -560,6 +581,9 @@ where B: AsRef<[u8]>
             }
             Type::IpAddr => {
                 write_opt(f, self.as_ip_addr())?;
+            }
+            Type::U128 => {
+                write_opt(f, self.as_u128())?;
             }
         }
         Ok(())

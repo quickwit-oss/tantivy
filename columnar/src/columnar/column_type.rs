@@ -20,6 +20,7 @@ pub enum ColumnType {
     Bool = 5u8,
     IpAddr = 6u8,
     DateTime = 7u8,
+    U128 = 8u8,
 }
 
 impl fmt::Display for ColumnType {
@@ -33,6 +34,7 @@ impl fmt::Display for ColumnType {
             ColumnType::Bool => "bool",
             ColumnType::IpAddr => "ip",
             ColumnType::DateTime => "datetime",
+            ColumnType::U128 => "u128",
         };
         write!(f, "{short_str}")
     }
@@ -83,7 +85,8 @@ impl ColumnType {
             | ColumnType::Str
             | ColumnType::Bool
             | ColumnType::IpAddr
-            | ColumnType::DateTime => None,
+            | ColumnType::DateTime
+            | ColumnType::U128 => None,
         }
     }
 }

@@ -65,6 +65,11 @@ impl FieldEntry {
         Self::new(field_name, FieldType::IpAddr(ip_options))
     }
 
+    /// Creates a new ip address field entry.
+    pub fn new_u128(field_name: String, u128_options: NumericOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::U128(u128_options))
+    }
+
     /// Creates a field entry for a facet.
     pub fn new_facet(field_name: String, facet_options: FacetOptions) -> FieldEntry {
         Self::new(field_name, FieldType::Facet(facet_options))
@@ -129,6 +134,7 @@ impl FieldEntry {
             FieldType::Bytes(ref options) => options.is_stored(),
             FieldType::JsonObject(ref options) => options.is_stored(),
             FieldType::IpAddr(ref options) => options.is_stored(),
+            FieldType::U128(ref options) => options.is_stored(),
         }
     }
 }

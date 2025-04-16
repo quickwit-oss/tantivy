@@ -136,6 +136,8 @@ pub enum ReferenceValueLeaf<'a> {
     Bool(bool),
     /// Pre-tokenized str type,
     PreTokStr(Box<PreTokenizedString>),
+    /// U128 value
+    U128(u128),
 }
 
 impl From<u64> for ReferenceValueLeaf<'_> {
@@ -194,6 +196,13 @@ impl From<Ipv6Addr> for ReferenceValueLeaf<'_> {
     }
 }
 
+impl From<u128> for ReferenceValueLeaf<'_> {
+    #[inline]
+    fn from(value: u128) -> Self {
+        ReferenceValueLeaf::U128(value)
+    }
+}
+
 impl From<PreTokenizedString> for ReferenceValueLeaf<'_> {
     #[inline]
     fn from(val: PreTokenizedString) -> Self {
@@ -220,6 +229,7 @@ impl<'a, T: Value<'a> + ?Sized> From<ReferenceValueLeaf<'a>> for ReferenceValue<
             ReferenceValueLeaf::PreTokStr(val) => {
                 ReferenceValue::Leaf(ReferenceValueLeaf::PreTokStr(val))
             }
+            ReferenceValueLeaf::U128(val) => ReferenceValue::Leaf(ReferenceValueLeaf::U128(val)),
         }
     }
 }
@@ -285,6 +295,16 @@ impl<'a> ReferenceValueLeaf<'a> {
     /// If the Value is a IP address, returns the associated IP. Returns None otherwise.
     pub fn as_ip_addr(&self) -> Option<Ipv6Addr> {
         if let Self::IpAddr(val) = self {
+            Some(*val)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    /// If the Value is a IP address, returns the associated IP. Returns None otherwise.
+    pub fn as_u128(&self) -> Option<u128> {
+        if let Self::U128(val) = self {
             Some(*val)
         } else {
             None
@@ -409,6 +429,12 @@ where V: Value<'a>
     /// If the Value is a IP address, returns the associated IP. Returns None otherwise.
     pub fn as_ip_addr(&self) -> Option<Ipv6Addr> {
         self.as_leaf().and_then(|leaf| leaf.as_ip_addr())
+    }
+
+    #[inline]
+    /// If the Value is a IP address, returns the associated IP. Returns None otherwise.
+    pub fn as_u128(&self) -> Option<u128> {
+        self.as_leaf().and_then(|leaf| leaf.as_u128())
     }
 
     #[inline]
