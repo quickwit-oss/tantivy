@@ -1002,8 +1002,8 @@ mod tests {
         let index_writer: IndexWriter = index.writer_for_tests().unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
-            "LogMergePolicy { min_num_segments: 8, max_docs_before_merge: 10000000, \
-             min_layer_size: 10000, level_log_size: 0.75, del_docs_ratio_before_merge: 1.0 }"
+            "LogMergePolicy { min_num_segments: 8, target_segment_size: 10000000, min_layer_size: \
+             10000, level_log_size: 0.75, del_docs_ratio_before_merge: 1.0 }"
         );
         let merge_policy = Box::<NoMergePolicy>::default();
         index_writer.set_merge_policy(merge_policy);
