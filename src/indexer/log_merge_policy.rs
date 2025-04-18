@@ -35,9 +35,9 @@ impl LogMergePolicy {
         self.min_num_segments = min_num_segments;
     }
 
-    /// Set the maximum number docs in a segment for it to be considered for
-    /// merging. A segment can still reach more than max_docs, by merging many
-    /// smaller ones.
+    /// Set the target number of documents to have in a segment, a segment can have up to
+    /// `(target_segment_size * 2) - 2` documents, but the policy will try to keep them as close as
+    /// possible to `target_segment_size`
     pub fn set_target_segment_size(&mut self, max_docs_merge_size: usize) {
         self.target_segment_size = max_docs_merge_size;
     }
