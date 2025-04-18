@@ -1,7 +1,7 @@
 [package]
 name = "tantivy-stacker"
 version = "0.3.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
@@ -26,7 +26,7 @@ path = "example/hashmap.rs"
 [dev-dependencies]
 rand = "0.8.5"
 zipf = "7.0.0"
-rustc-hash = "1.1.0"
+rustc-hash = "2.1.0"
 proptest = "1.2.0"
 binggan = { version = "0.14.0" }
 

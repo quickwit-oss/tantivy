@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::iter::once;
 
+use nom::IResult;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{
@@ -10,12 +11,11 @@ use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
 use nom::error::{Error, ErrorKind};
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
-use nom::IResult;
 
 use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use crate::Occur;
 use crate::infallible::*;
 use crate::user_input_ast::Delimiter;
-use crate::Occur;
 
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
@@ -321,7 +321,17 @@ fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {
         UserInputLeaf::Exists {
             field: String::new(),
         },
-        tuple((multispace0, char('*'))),
+        tuple((
+            multispace0,
+            char('*'),
+            peek(alt((
+                value(
+                    "",
+                    satisfy(|c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c)),
+                ),
+                eof,
+            ))),
+        )),
     )(inp)
 }
 
@@ -331,7 +341,14 @@ fn exists_precond(inp: &str) -> IResult<&str, (), ()> {
         peek(tuple((
             field_name,
             multispace0,
-            char('*'), // when we are here, we know it can't be anything but a exists
+            char('*'),
+            peek(alt((
+                value(
+                    "",
+                    satisfy(|c: char| c.is_whitespace() || ESCAPE_IN_WORD.contains(&c)),
+                ),
+                eof,
+            ))), // we need to check this isn't a wildcard query
         ))),
     )(inp)
     .map_err(|e| e.map(|_| ()))
@@ -1013,7 +1030,7 @@ fn rewrite_ast(mut input: UserInputAst) -> UserInputAst {
 
 fn rewrite_ast_clause(input: &mut (Option<Occur>, UserInputAst)) {
     match input {
-        (None, UserInputAst::Clause(ref mut clauses)) if clauses.len() == 1 => {
+        (None, UserInputAst::Clause(clauses)) if clauses.len() == 1 => {
             *input = clauses.pop().unwrap(); // safe because clauses.len() == 1
         }
         _ => {}
@@ -1359,7 +1376,7 @@ mod test {
 
     #[test]
     fn test_range_parser_lenient() {
-        let literal = |query| literal_infallible(query).unwrap().1 .0.unwrap();
+        let literal = |query| literal_infallible(query).unwrap().1.0.unwrap();
 
         // same tests as non-lenient
         let res = literal("title: <hello");
@@ -1624,13 +1641,19 @@ mod test {
 
     #[test]
     fn test_exist_query() {
-        test_parse_query_to_ast_helper("a:*", "\"a\":*");
-        test_parse_query_to_ast_helper("a: *", "\"a\":*");
-        // an exist followed by default term being b
-        test_is_parse_err("a:*b", "(*\"a\":* *b)");
+        test_parse_query_to_ast_helper("a:*", "$exists(\"a\")");
+        test_parse_query_to_ast_helper("a: *", "$exists(\"a\")");
 
-        // this is a term query (not a phrase prefix)
+        test_parse_query_to_ast_helper(
+            "(hello AND toto:*) OR happy",
+            "(?(+hello +$exists(\"toto\")) ?happy)",
+        );
+        test_parse_query_to_ast_helper("(a:*)", "$exists(\"a\")");
+
+        // these are term/wildcard query (not a phrase prefix)
         test_parse_query_to_ast_helper("a:b*", "\"a\":b*");
+        test_parse_query_to_ast_helper("a:*b", "\"a\":*b");
+        test_parse_query_to_ast_helper(r#"a:*def*"#, "\"a\":*def*");
     }
 
     #[test]

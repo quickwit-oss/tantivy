@@ -1,7 +1,10 @@
 use itertools::Itertools;
+use proptest::collection::vec;
+use proptest::prelude::*;
 
 use super::*;
-use crate::{Cardinality, ColumnarWriter, HasAssociatedColumnType, RowId};
+use crate::columnar::{ColumnarReader, MergeRowOrder, StackMergeOrder, merge_columnar};
+use crate::{Cardinality, ColumnarWriter, DynamicColumn, HasAssociatedColumnType, RowId};
 
 fn make_columnar<T: Into<NumericalValue> + HasAssociatedColumnType + Copy>(
     column_name: &str,
@@ -26,9 +29,8 @@ fn test_column_coercion_to_u64() {
     // u64 type
     let columnar2 = make_columnar("numbers", &[u64::MAX]);
     let columnars = &[&columnar1, &columnar2];
-    let merge_order = StackMergeOrder::stack(columnars).into();
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[], &merge_order).unwrap();
+        group_columns_for_merge(columnars, &[]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
@@ -38,9 +40,8 @@ fn test_column_coercion_to_i64() {
     let columnar1 = make_columnar("numbers", &[-1i64]);
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
-    let merge_order = StackMergeOrder::stack(columnars).into();
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[], &merge_order).unwrap();
+        group_columns_for_merge(columnars, &[]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
@@ -63,14 +64,8 @@ fn test_group_columns_with_required_column() {
     let columnar1 = make_columnar("numbers", &[1i64]);
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
-    let merge_order = StackMergeOrder::stack(columnars).into();
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(
-            &[&columnar1, &columnar2],
-            &[("numbers".to_string(), ColumnType::U64)],
-            &merge_order,
-        )
-        .unwrap();
+        group_columns_for_merge(columnars, &[("numbers".to_string(), ColumnType::U64)]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
@@ -80,13 +75,9 @@ fn test_group_columns_required_column_with_no_existing_columns() {
     let columnar1 = make_columnar("numbers", &[2u64]);
     let columnar2 = make_columnar("numbers", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
-    let merge_order = StackMergeOrder::stack(columnars).into();
-    let column_map: BTreeMap<_, _> = group_columns_for_merge(
-        columnars,
-        &[("required_col".to_string(), ColumnType::Str)],
-        &merge_order,
-    )
-    .unwrap();
+    let column_map: BTreeMap<_, _> =
+        group_columns_for_merge(columnars, &[("required_col".to_string(), ColumnType::Str)])
+            .unwrap();
     assert_eq!(column_map.len(), 2);
     let columns = &column_map
         .get(&("required_col".to_string(), ColumnTypeCategory::Str))
@@ -102,14 +93,8 @@ fn test_group_columns_required_column_is_above_all_columns_have_the_same_type_ru
     let columnar1 = make_columnar("numbers", &[2i64]);
     let columnar2 = make_columnar("numbers", &[2i64]);
     let columnars = &[&columnar1, &columnar2];
-    let merge_order = StackMergeOrder::stack(columnars).into();
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(
-            columnars,
-            &[("numbers".to_string(), ColumnType::U64)],
-            &merge_order,
-        )
-        .unwrap();
+        group_columns_for_merge(columnars, &[("numbers".to_string(), ColumnType::U64)]).unwrap();
     assert_eq!(column_map.len(), 1);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
 }
@@ -119,9 +104,8 @@ fn test_missing_column() {
     let columnar1 = make_columnar("numbers", &[-1i64]);
     let columnar2 = make_columnar("numbers2", &[2u64]);
     let columnars = &[&columnar1, &columnar2];
-    let merge_order = StackMergeOrder::stack(columnars).into();
     let column_map: BTreeMap<(String, ColumnTypeCategory), GroupedColumnsHandle> =
-        group_columns_for_merge(columnars, &[], &merge_order).unwrap();
+        group_columns_for_merge(columnars, &[]).unwrap();
     assert_eq!(column_map.len(), 2);
     assert!(column_map.contains_key(&("numbers".to_string(), ColumnTypeCategory::Numerical)));
     {
@@ -224,7 +208,7 @@ fn test_merge_columnar_numbers() {
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
-    assert_eq!(columnar_reader.num_rows(), 3);
+    assert_eq!(columnar_reader.num_docs(), 3);
     assert_eq!(columnar_reader.num_columns(), 1);
     let cols = columnar_reader.read_columns("numbers").unwrap();
     let dynamic_column = cols[0].open().unwrap();
@@ -252,7 +236,7 @@ fn test_merge_columnar_texts() {
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
-    assert_eq!(columnar_reader.num_rows(), 3);
+    assert_eq!(columnar_reader.num_docs(), 3);
     assert_eq!(columnar_reader.num_columns(), 1);
     let cols = columnar_reader.read_columns("texts").unwrap();
     let dynamic_column = cols[0].open().unwrap();
@@ -301,7 +285,7 @@ fn test_merge_columnar_byte() {
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
-    assert_eq!(columnar_reader.num_rows(), 4);
+    assert_eq!(columnar_reader.num_docs(), 4);
     assert_eq!(columnar_reader.num_columns(), 1);
     let cols = columnar_reader.read_columns("bytes").unwrap();
     let dynamic_column = cols[0].open().unwrap();
@@ -357,7 +341,7 @@ fn test_merge_columnar_byte_with_missing() {
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
-    assert_eq!(columnar_reader.num_rows(), 3 + 2 + 3);
+    assert_eq!(columnar_reader.num_docs(), 3 + 2 + 3);
     assert_eq!(columnar_reader.num_columns(), 2);
     let cols = columnar_reader.read_columns("col").unwrap();
     let dynamic_column = cols[0].open().unwrap();
@@ -409,7 +393,7 @@ fn test_merge_columnar_different_types() {
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
-    assert_eq!(columnar_reader.num_rows(), 4);
+    assert_eq!(columnar_reader.num_docs(), 4);
     assert_eq!(columnar_reader.num_columns(), 2);
     let cols = columnar_reader.read_columns("mixed").unwrap();
 
@@ -419,11 +403,11 @@ fn test_merge_columnar_different_types() {
         panic!()
     };
     assert_eq!(vals.get_cardinality(), Cardinality::Optional);
-    assert_eq!(vals.values_for_doc(0).collect_vec(), vec![]);
-    assert_eq!(vals.values_for_doc(1).collect_vec(), vec![]);
-    assert_eq!(vals.values_for_doc(2).collect_vec(), vec![]);
+    assert_eq!(vals.values_for_doc(0).collect_vec(), Vec::<i64>::new());
+    assert_eq!(vals.values_for_doc(1).collect_vec(), Vec::<i64>::new());
+    assert_eq!(vals.values_for_doc(2).collect_vec(), Vec::<i64>::new());
     assert_eq!(vals.values_for_doc(3).collect_vec(), vec![1]);
-    assert_eq!(vals.values_for_doc(4).collect_vec(), vec![]);
+    assert_eq!(vals.values_for_doc(4).collect_vec(), Vec::<i64>::new());
 
     // text column
     let dynamic_column = cols[1].open().unwrap();
@@ -474,7 +458,7 @@ fn test_merge_columnar_different_empty_cardinality() {
     )
     .unwrap();
     let columnar_reader = ColumnarReader::open(buffer).unwrap();
-    assert_eq!(columnar_reader.num_rows(), 2);
+    assert_eq!(columnar_reader.num_docs(), 2);
     assert_eq!(columnar_reader.num_columns(), 2);
     let cols = columnar_reader.read_columns("mixed").unwrap();
 
@@ -485,4 +469,120 @@ fn test_merge_columnar_different_empty_cardinality() {
     // text column
     let dynamic_column = cols[1].open().unwrap();
     assert_eq!(dynamic_column.get_cardinality(), Cardinality::Optional);
+}
+
+#[derive(Debug, Clone)]
+struct ColumnSpec {
+    column_name: String,
+    /// (row_id, term)
+    terms: Vec<(RowId, Vec<u8>)>,
+}
+
+#[derive(Clone, Debug)]
+struct ColumnarSpec {
+    columns: Vec<ColumnSpec>,
+}
+
+/// Generate a random (row_id, term) pair:
+///  - row_id in [0..10]
+///  - term is either from POSSIBLE_TERMS or random bytes
+fn rowid_and_term_strategy() -> impl Strategy<Value = (RowId, Vec<u8>)> {
+    const POSSIBLE_TERMS: &[&[u8]] = &[b"a", b"b", b"allo"];
+
+    let term_strat = prop_oneof![
+        // pick from the fixed list
+        (0..POSSIBLE_TERMS.len()).prop_map(|i| POSSIBLE_TERMS[i].to_vec()),
+        // or random bytes (length 0..10)
+        prop::collection::vec(any::<u8>(), 0..10),
+    ];
+
+    (0u32..11, term_strat)
+}
+
+/// Generate one ColumnSpec, with a random name and a random list of (row_id, term).
+/// We sort it by row_id so that data is in ascending order.
+fn column_spec_strategy() -> impl Strategy<Value = ColumnSpec> {
+    let column_name = prop_oneof![
+        Just("col".to_string()),
+        Just("col2".to_string()),
+        "col.*".prop_map(|s| s),
+    ];
+
+    // We'll produce 0..8 (rowid,term) entries for this column
+    let data_strat = vec(rowid_and_term_strategy(), 0..8).prop_map(|mut pairs| {
+        // Sort by row_id
+        pairs.sort_by_key(|(row_id, _)| *row_id);
+        pairs
+    });
+
+    (column_name, data_strat).prop_map(|(name, data)| ColumnSpec {
+        column_name: name,
+        terms: data,
+    })
+}
+
+/// Strategy to generate an ColumnarSpec
+fn columnar_strategy() -> impl Strategy<Value = ColumnarSpec> {
+    vec(column_spec_strategy(), 0..3).prop_map(|columns| ColumnarSpec { columns })
+}
+
+/// Strategy to generate multiple ColumnarSpecs, each of which we will treat
+/// as one "columnar" to be merged together.
+fn columnars_strategy() -> impl Strategy<Value = Vec<ColumnarSpec>> {
+    vec(columnar_strategy(), 1..4)
+}
+
+/// Build a `ColumnarReader` from a `ColumnarSpec`
+fn build_columnar(spec: &ColumnarSpec) -> ColumnarReader {
+    let mut writer = ColumnarWriter::default();
+    let mut max_row_id = 0;
+    for col in &spec.columns {
+        for &(row_id, ref term) in &col.terms {
+            writer.record_bytes(row_id, &col.column_name, term);
+            max_row_id = max_row_id.max(row_id);
+        }
+    }
+
+    let mut buffer = Vec::new();
+    writer.serialize(max_row_id + 1, &mut buffer).unwrap();
+    ColumnarReader::open(buffer).unwrap()
+}
+
+proptest! {
+    // We just test that the merge_columnar function doesn't crash.
+    #![proptest_config(ProptestConfig::with_cases(256))]
+    #[test]
+    fn test_merge_columnar_bytes_no_crash(columnars in columnars_strategy(), second_merge_columnars in columnars_strategy()) {
+        let columnars: Vec<ColumnarReader> = columnars.iter()
+            .map(build_columnar)
+            .collect();
+
+        let mut out = Vec::new();
+        let columnar_refs: Vec<&ColumnarReader> = columnars.iter().collect();
+        let stack_merge_order = StackMergeOrder::stack(&columnar_refs);
+        merge_columnar(
+            &columnar_refs,
+            &[],
+            MergeRowOrder::Stack(stack_merge_order),
+            &mut out,
+        ).unwrap();
+
+        let merged_reader = ColumnarReader::open(out).unwrap();
+
+        // Merge the second set of columnars with the result of the first merge
+        let mut columnars: Vec<ColumnarReader> = second_merge_columnars.iter()
+            .map(build_columnar)
+            .collect();
+        columnars.push(merged_reader);
+        let mut out = Vec::new();
+        let columnar_refs: Vec<&ColumnarReader> = columnars.iter().collect();
+        let stack_merge_order = StackMergeOrder::stack(&columnar_refs);
+        merge_columnar(
+            &columnar_refs,
+            &[],
+            MergeRowOrder::Stack(stack_merge_order),
+            &mut out,
+        ).unwrap();
+
+    }
 }

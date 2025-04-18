@@ -1,6 +1,6 @@
+use crate::RowId;
 use crate::column_index::{SerializableMultivalueIndex, SerializableOptionalIndex};
 use crate::iterable::Iterable;
-use crate::RowId;
 
 /// The `IndexBuilder` interprets a sequence of
 /// calls of the form:
@@ -31,12 +31,13 @@ pub struct OptionalIndexBuilder {
 
 impl OptionalIndexBuilder {
     pub fn finish(&mut self, num_rows: RowId) -> impl Iterable<RowId> + '_ {
-        debug_assert!(self
-            .docs
-            .last()
-            .copied()
-            .map(|last_doc| last_doc < num_rows)
-            .unwrap_or(true));
+        debug_assert!(
+            self.docs
+                .last()
+                .copied()
+                .map(|last_doc| last_doc < num_rows)
+                .unwrap_or(true)
+        );
         &self.docs[..]
     }
 
@@ -48,12 +49,13 @@ impl OptionalIndexBuilder {
 impl IndexBuilder for OptionalIndexBuilder {
     #[inline(always)]
     fn record_row(&mut self, doc: RowId) {
-        debug_assert!(self
-            .docs
-            .last()
-            .copied()
-            .map(|prev_doc| doc > prev_doc)
-            .unwrap_or(true));
+        debug_assert!(
+            self.docs
+                .last()
+                .copied()
+                .map(|prev_doc| doc > prev_doc)
+                .unwrap_or(true)
+        );
         self.docs.push(doc);
     }
 }

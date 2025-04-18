@@ -5,7 +5,7 @@ use common::{CountingWriter, OwnedBytes};
 use zstd::bulk::Compressor;
 
 use super::value::ValueWriter;
-use super::{value, vint, BlockReader};
+use super::{BlockReader, value, vint};
 
 const FOUR_BIT_LIMITS: usize = 1 << 4;
 const VINT_MODE: u8 = 1u8;
@@ -89,7 +89,7 @@ where
 
     fn encode_keep_add(&mut self, keep_len: usize, add_len: usize) {
         if keep_len < FOUR_BIT_LIMITS && add_len < FOUR_BIT_LIMITS {
-            let b = (keep_len | add_len << 4) as u8;
+            let b = (keep_len | (add_len << 4)) as u8;
             self.block.extend_from_slice(&[b])
         } else {
             let mut buf = [VINT_MODE; 20];
@@ -140,6 +140,16 @@ where TValueReader: value::ValueReader
             suffix_range: 0..0,
             value_reader: TValueReader::default(),
             block_reader: BlockReader::new(reader),
+        }
+    }
+
+    pub fn from_multiple_blocks(reader: Vec<OwnedBytes>) -> Self {
+        DeltaReader {
+            idx: 0,
+            common_prefix_len: 0,
+            suffix_range: 0..0,
+            value_reader: TValueReader::default(),
+            block_reader: BlockReader::from_multiple_blocks(reader),
         }
     }
 

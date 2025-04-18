@@ -1,14 +1,18 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
+
 use std::cmp::Ordering;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 
-use common::bounds::{transform_bound_inner_res, TransformBound};
+use common::bounds::{TransformBound, transform_bound_inner_res};
 use common::file_slice::FileSlice;
 use common::{BinarySerializable, OwnedBytes};
-use tantivy_fst::automaton::AlwaysMatch;
+use futures_util::{StreamExt, TryStreamExt, stream};
+use itertools::Itertools;
 use tantivy_fst::Automaton;
+use tantivy_fst::automaton::AlwaysMatch;
 
 use crate::sstable_index_v3::SSTableIndexV3Empty;
 use crate::streamer::{Streamer, StreamerBuilder};
@@ -98,20 +102,52 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         &self,
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
+        automaton: &impl Automaton,
+        merge_holes_under_bytes: usize,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
-        let slice = self.file_slice_for_range(key_range, limit);
-        let data = slice.read_bytes_async().await?;
-        Ok(TSSTable::delta_reader(data))
+        let match_all = automaton.will_always_match(&automaton.start());
+        if match_all {
+            let slice = self.file_slice_for_range(key_range, limit);
+            let data = slice.read_bytes_async().await?;
+            Ok(TSSTable::delta_reader(data))
+        } else {
+            let blocks = stream::iter(self.get_block_iterator_for_range_and_automaton(
+                key_range,
+                automaton,
+                merge_holes_under_bytes,
+            ));
+            let data = blocks
+                .map(|block_addr| {
+                    self.sstable_slice
+                        .read_bytes_slice_async(block_addr.byte_range)
+                })
+                .buffered(5)
+                .try_collect::<Vec<_>>()
+                .await?;
+            Ok(DeltaReader::from_multiple_blocks(data))
+        }
     }
 
     pub(crate) fn sstable_delta_reader_for_key_range(
         &self,
         key_range: impl RangeBounds<[u8]>,
         limit: Option<u64>,
+        automaton: &impl Automaton,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {
-        let slice = self.file_slice_for_range(key_range, limit);
-        let data = slice.read_bytes()?;
-        Ok(TSSTable::delta_reader(data))
+        let match_all = automaton.will_always_match(&automaton.start());
+        if match_all {
+            let slice = self.file_slice_for_range(key_range, limit);
+            let data = slice.read_bytes()?;
+            Ok(TSSTable::delta_reader(data))
+        } else {
+            // if operations are sync, we assume latency is almost null, and there is no point in
+            // merging accross holes
+            let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
+            let data = blocks
+                .map(|block_addr| self.sstable_slice.read_bytes_slice(block_addr.byte_range))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(DeltaReader::from_multiple_blocks(data))
+        }
     }
 
     pub(crate) fn sstable_delta_reader_block(
@@ -204,6 +240,42 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         self.sstable_slice.slice((start_bound, end_bound))
     }
 
+    fn get_block_iterator_for_range_and_automaton<'a>(
+        &'a self,
+        key_range: impl RangeBounds<[u8]>,
+        automaton: &'a impl Automaton,
+        merge_holes_under_bytes: usize,
+    ) -> impl Iterator<Item = BlockAddr> + 'a {
+        let lower_bound = match key_range.start_bound() {
+            Bound::Included(key) | Bound::Excluded(key) => {
+                self.sstable_index.locate_with_key(key).unwrap_or(u64::MAX)
+            }
+            Bound::Unbounded => 0,
+        };
+
+        let upper_bound = match key_range.end_bound() {
+            Bound::Included(key) | Bound::Excluded(key) => {
+                self.sstable_index.locate_with_key(key).unwrap_or(u64::MAX)
+            }
+            Bound::Unbounded => u64::MAX,
+        };
+        let block_range = lower_bound..=upper_bound;
+        self.sstable_index
+            .get_block_for_automaton(automaton)
+            .filter(move |(block_id, _)| block_range.contains(block_id))
+            .map(|(_, block_addr)| block_addr)
+            .coalesce(move |first, second| {
+                if first.byte_range.end + merge_holes_under_bytes >= second.byte_range.start {
+                    Ok(BlockAddr {
+                        first_ordinal: first.first_ordinal,
+                        byte_range: first.byte_range.start..second.byte_range.end,
+                    })
+                } else {
+                    Err((first, second))
+                }
+            })
+    }
+
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
         let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(20);
@@ -239,7 +311,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     format!("Unsupported sstable version, expected one of [2, 3], found {version}"),
-                ))
+                ));
             }
         };
 
@@ -521,6 +593,25 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         StreamerBuilder::new(self, AlwaysMatch)
     }
 
+    /// Returns a range builder filtered with a prefix.
+    pub fn prefix_range<K: AsRef<[u8]>>(&self, prefix: K) -> StreamerBuilder<TSSTable> {
+        let lower_bound = prefix.as_ref();
+        let mut upper_bound = lower_bound.to_vec();
+        for idx in (0..upper_bound.len()).rev() {
+            if upper_bound[idx] == 255 {
+                upper_bound.pop();
+            } else {
+                upper_bound[idx] += 1;
+                break;
+            }
+        }
+        let mut builder = self.range().ge(lower_bound);
+        if !upper_bound.is_empty() {
+            builder = builder.lt(upper_bound);
+        }
+        builder
+    }
+
     /// A stream of all the sorted terms.
     pub fn stream(&self) -> io::Result<Streamer<TSSTable>> {
         self.range().into_stream()
@@ -553,8 +644,8 @@ mod tests {
     use common::OwnedBytes;
 
     use super::Dictionary;
-    use crate::dictionary::TermOrdHit;
     use crate::MonotonicU64SSTable;
+    use crate::dictionary::TermOrdHit;
 
     #[derive(Debug)]
     struct PermissionedHandle {
@@ -823,30 +914,33 @@ mod tests {
 
         // Single term
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(100_000..100_001, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(100_000..100_001, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(terms, vec![format!("{:05X}", 100_000).into_bytes(),]);
         // Single term
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(100_001..100_002, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(100_001..100_002, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(terms, vec![format!("{:05X}", 100_001).into_bytes(),]);
         // both terms
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(100_000..100_002, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(100_000..100_002, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(
             terms,
             vec![
@@ -856,12 +950,13 @@ mod tests {
         );
         // Test cross block
         let mut terms = Vec::new();
-        assert!(dic
-            .sorted_ords_to_term_cb(98653..=98655, |term| {
+        assert!(
+            dic.sorted_ords_to_term_cb(98653..=98655, |term| {
                 terms.push(term.to_vec());
                 Ok(())
             })
-            .unwrap());
+            .unwrap()
+        );
         assert_eq!(
             terms,
             vec![
@@ -926,6 +1021,64 @@ mod tests {
             assert_eq!(stream.value(), &i);
             assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
         }
+        assert!(!stream.advance());
+    }
+
+    #[test]
+    fn test_prefix() {
+        let (dic, _slice) = make_test_sstable();
+        {
+            let mut stream = dic.prefix_range("1").into_stream().unwrap();
+            for i in 0x10000..0x20000 {
+                assert!(stream.advance());
+                assert_eq!(stream.term_ord(), i);
+                assert_eq!(stream.value(), &i);
+                assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+            }
+            assert!(!stream.advance());
+        }
+        {
+            let mut stream = dic.prefix_range("").into_stream().unwrap();
+            for i in 0..0x3ffff {
+                assert!(stream.advance(), "failed at {i:05X}");
+                assert_eq!(stream.term_ord(), i);
+                assert_eq!(stream.value(), &i);
+                assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+            }
+            assert!(!stream.advance());
+        }
+        {
+            let mut stream = dic.prefix_range("0FF").into_stream().unwrap();
+            for i in 0x0ff00..=0x0ffff {
+                assert!(stream.advance(), "failed at {i:05X}");
+                assert_eq!(stream.term_ord(), i);
+                assert_eq!(stream.value(), &i);
+                assert_eq!(stream.key(), format!("{i:05X}").into_bytes());
+            }
+            assert!(!stream.advance());
+        }
+    }
+
+    #[test]
+    fn test_prefix_edge() {
+        let dict = {
+            let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+            builder.insert(&[0, 254], &0).unwrap();
+            builder.insert(&[0, 255], &1).unwrap();
+            builder.insert(&[0, 255, 12], &2).unwrap();
+            builder.insert(&[1], &2).unwrap();
+            builder.insert(&[1, 0], &2).unwrap();
+            let table = builder.finish().unwrap();
+            let table = Arc::new(PermissionedHandle::new(table));
+            let slice = common::file_slice::FileSlice::new(table.clone());
+            Dictionary::<MonotonicU64SSTable>::open(slice).unwrap()
+        };
+
+        let mut stream = dict.prefix_range(&[0, 255]).into_stream().unwrap();
+        assert!(stream.advance());
+        assert_eq!(stream.key(), &[0, 255]);
+        assert!(stream.advance());
+        assert_eq!(stream.key(), &[0, 255, 12]);
         assert!(!stream.advance());
     }
 }

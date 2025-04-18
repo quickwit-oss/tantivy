@@ -1,8 +1,8 @@
 use std::ops::Range;
 
+use crate::column_index::SerializableColumnIndex;
 use crate::column_index::multivalued_index::{MultiValueIndex, SerializableMultivalueIndex};
 use crate::column_index::serialize::SerializableOptionalIndex;
-use crate::column_index::SerializableColumnIndex;
 use crate::iterable::Iterable;
 use crate::{Cardinality, ColumnIndex, RowId, StackMergeOrder};
 
@@ -56,7 +56,7 @@ fn get_doc_ids_with_values<'a>(
         ColumnIndex::Full => Box::new(doc_range),
         ColumnIndex::Optional(optional_index) => Box::new(
             optional_index
-                .iter_rows()
+                .iter_docs()
                 .map(move |row| row + doc_range.start),
         ),
         ColumnIndex::Multivalued(multivalued_index) => match multivalued_index {
@@ -73,7 +73,7 @@ fn get_doc_ids_with_values<'a>(
             MultiValueIndex::MultiValueIndexV2(multivalued_index) => Box::new(
                 multivalued_index
                     .optional_index
-                    .iter_rows()
+                    .iter_docs()
                     .map(move |row| row + doc_range.start),
             ),
         },
@@ -177,7 +177,7 @@ impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
                         ColumnIndex::Full => Box::new(columnar_row_range),
                         ColumnIndex::Optional(optional_index) => Box::new(
                             optional_index
-                                .iter_rows()
+                                .iter_docs()
                                 .map(move |row_id: RowId| columnar_row_range.start + row_id),
                         ),
                         ColumnIndex::Multivalued(_) => {

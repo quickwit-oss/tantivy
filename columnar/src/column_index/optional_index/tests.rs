@@ -164,7 +164,7 @@ fn test_optional_index_large() {
 fn test_optional_index_iter_aux(row_ids: &[RowId], num_rows: RowId) {
     let optional_index = OptionalIndex::for_test(num_rows, row_ids);
     assert_eq!(optional_index.num_docs(), num_rows);
-    assert!(optional_index.iter_rows().eq(row_ids.iter().copied()));
+    assert!(optional_index.iter_docs().eq(row_ids.iter().copied()));
 }
 
 #[test]
@@ -254,11 +254,7 @@ mod bench {
         let mut current = start;
         std::iter::from_fn(move || {
             current += rng.gen_range(avg_step_size - avg_deviation..=avg_step_size + avg_deviation);
-            if current >= end {
-                None
-            } else {
-                Some(current)
-            }
+            if current >= end { None } else { Some(current) }
         })
     }
 

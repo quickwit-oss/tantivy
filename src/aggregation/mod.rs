@@ -366,8 +366,12 @@ impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Str(l), Self::Str(r)) => l == r,
-            (Self::F64(l), Self::F64(r)) => l == r,
-            _ => false,
+            (Self::F64(l), Self::F64(r)) => l.to_bits() == r.to_bits(),
+            (Self::I64(l), Self::I64(r)) => l == r,
+            (Self::U64(l), Self::U64(r)) => l == r,
+            // we list all variant of left operand to make sure this gets updated when we add
+            // variants to the enum
+            (Self::Str(_) | Self::F64(_) | Self::I64(_) | Self::U64(_), _) => false,
         }
     }
 }
@@ -578,7 +582,7 @@ mod tests {
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
             )
-            .set_fast(None)
+            .set_fast(Some("raw"))
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let date_field = schema_builder.add_date_field("date", FAST);

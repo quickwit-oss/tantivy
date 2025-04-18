@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
-use std::collections::binary_heap::PeekMut;
 use std::collections::BinaryHeap;
+use std::collections::binary_heap::PeekMut;
 use std::io;
 
 use super::{SingleValueMerger, ValueMerger};
@@ -41,14 +41,17 @@ pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
     loop {
         let len = heap.len();
         let mut value_merger;
-        if let Some(mut head) = heap.peek_mut() {
-            writer.insert_key(head.0.key()).unwrap();
-            value_merger = merger.new_value(head.0.value());
-            if !head.0.advance()? {
-                PeekMut::pop(head);
+        match heap.peek_mut() {
+            Some(mut head) => {
+                writer.insert_key(head.0.key()).unwrap();
+                value_merger = merger.new_value(head.0.value());
+                if !head.0.advance()? {
+                    PeekMut::pop(head);
+                }
             }
-        } else {
-            break;
+            _ => {
+                break;
+            }
         }
         for _ in 0..len - 1 {
             if let Some(mut head) = heap.peek_mut() {

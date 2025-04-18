@@ -4,12 +4,12 @@ use std::{io, iter};
 
 use common::{BinarySerializable, CountingWriter, DeserializeFrom, OwnedBytes};
 use fastdivide::DividerU64;
-use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
+use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
+use crate::MonotonicallyMappableToU64;
 use crate::column_values::u64_based::line::Line;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::column_values::{ColumnValues, VecColumn};
-use crate::MonotonicallyMappableToU64;
 
 const BLOCK_SIZE: u32 = 512u32;
 

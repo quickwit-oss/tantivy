@@ -8,7 +8,7 @@ use common::{CountingWriter, OwnedBytes};
 use super::optional_index::{open_optional_index, serialize_optional_index};
 use super::{OptionalIndex, SerializableOptionalIndex, Set};
 use crate::column_values::{
-    load_u64_based_column_values, serialize_u64_based_column_values, CodecType, ColumnValues,
+    CodecType, ColumnValues, load_u64_based_column_values, serialize_u64_based_column_values,
 };
 use crate::iterable::Iterable;
 use crate::{DocId, RowId, Version};

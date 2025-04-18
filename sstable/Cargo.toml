@@ -1,7 +1,7 @@
 [package]
 name = "tantivy-sstable"
 version = "0.3.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
 repository = "https://github.com/quickwit-oss/tantivy"
@@ -11,6 +11,8 @@ description = "sstables for tantivy"
 
 [dependencies]
 common = {version= "0.7", path="../common", package="tantivy-common"}
+futures-util = "0.3.30"
+itertools = "0.14.0"
 tantivy-bitpacker = { version= "0.6", path="../bitpacker" }
 tantivy-fst = "0.5"
 # experimental gives us access to Decompressor::upper_bound

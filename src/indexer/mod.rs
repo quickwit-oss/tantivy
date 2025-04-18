@@ -31,7 +31,7 @@ mod stamper;
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
-pub use self::index_writer::IndexWriter;
+pub use self::index_writer::{IndexWriter, IndexWriterOptions};
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};

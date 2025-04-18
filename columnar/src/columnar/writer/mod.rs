@@ -8,13 +8,13 @@ use std::net::Ipv6Addr;
 
 use column_operation::ColumnOperation;
 pub(crate) use column_writers::CompatibleNumericalTypes;
-use common::json_path_writer::JSON_END_OF_PATH;
 use common::CountingWriter;
+use common::json_path_writer::JSON_END_OF_PATH;
 pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
 use crate::column_index::{SerializableColumnIndex, SerializableOptionalIndex};
-use crate::column_values::{MonotonicallyMappableToU128, MonotonicallyMappableToU64};
+use crate::column_values::{MonotonicallyMappableToU64, MonotonicallyMappableToU128};
 use crate::columnar::column_type::ColumnType;
 use crate::columnar::writer::column_writers::{
     ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
@@ -285,7 +285,6 @@ impl ColumnarWriter {
                 .map(|(column_name, addr)| (column_name, ColumnType::DateTime, addr)),
         );
         columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
-
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
         let mut symbol_byte_buffer: Vec<u8> = Vec::new();
         for (column_name, column_type, addr) in columns {

@@ -4,7 +4,7 @@ use std::ops::{Range, RangeInclusive};
 
 use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
-use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
+use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
@@ -23,11 +23,7 @@ const fn div_ceil(n: u64, q: NonZeroU64) -> u64 {
     // copied from unstable rust standard library.
     let d = n / q.get();
     let r = n % q.get();
-    if r > 0 {
-        d + 1
-    } else {
-        d
-    }
+    if r > 0 { d + 1 } else { d }
 }
 
 // The bitpacked codec applies a linear transformation `f` over data that are bitpacked.

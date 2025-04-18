@@ -16,14 +16,14 @@ body = """
 
 {%- if version %} in {{ version }}{%- endif -%}
 {% for commit in commits %}
-  {% if commit.github.pr_title -%}
-    {%- set commit_message = commit.github.pr_title -%}
+  {% if commit.remote.pr_title -%}
+    {%- set commit_message = commit.remote.pr_title -%}
   {%- else -%}
     {%- set commit_message = commit.message -%}
   {%- endif -%}
   - {{ commit_message | split(pat="\n") | first | trim }}\
-    {% if commit.github.pr_number %} \
-      [#{{ commit.github.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.github.pr_number }}){% if commit.github.username %}(@{{ commit.github.username }}){%- endif -%} \
+    {% if commit.remote.pr_number %} \
+      [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }}){% if commit.remote.username %}(@{{ commit.remote.username }}){%- endif -%} \
     {%- endif %}
 {%- endfor -%}
 
