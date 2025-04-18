@@ -8,7 +8,7 @@ use crate::index::SegmentMeta;
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE: usize = 8;
-const DEFAULT_MAX_DOCS_BEFORE_MERGE: usize = 10_000_000;
+const DEFAULT_TARGET_SEGMENT_SIZE: usize = 10_000_000;
 // The default value of 1 means that deletes are not taken in account when
 // identifying merge candidates. This is not a very sensible default: it was
 // set like that for backward compatibility and might change in the near future.
@@ -180,7 +180,7 @@ impl Default for LogMergePolicy {
     fn default() -> LogMergePolicy {
         LogMergePolicy {
             min_num_segments: DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE,
-            target_segment_size: DEFAULT_MAX_DOCS_BEFORE_MERGE,
+            target_segment_size: DEFAULT_TARGET_SEGMENT_SIZE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
             level_log_size: DEFAULT_LEVEL_LOG_SIZE,
             del_docs_ratio_before_merge: DEFAULT_DEL_DOCS_RATIO_BEFORE_MERGE,
