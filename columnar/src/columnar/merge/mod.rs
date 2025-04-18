@@ -149,7 +149,7 @@ fn merge_column(
                         column_indexes.push(idx);
                         column_values.push(Some(values));
                     }
-                    _ => {
+                    None => {
                         column_indexes.push(ColumnIndex::Empty {
                             num_docs: num_docs_per_column[i],
                         });
