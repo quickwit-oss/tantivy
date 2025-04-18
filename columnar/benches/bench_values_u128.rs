@@ -6,7 +6,7 @@ use std::sync::Arc;
 use common::OwnedBytes;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
-use rand::{random, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, random};
 use tantivy_columnar::ColumnValues;
 use test::Bencher;
 extern crate test;

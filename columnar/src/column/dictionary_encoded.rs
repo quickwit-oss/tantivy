@@ -4,8 +4,8 @@ use std::{fmt, io};
 
 use sstable::{Dictionary, VoidSSTable};
 
-use crate::column::Column;
 use crate::RowId;
+use crate::column::Column;
 
 /// Dictionary encoded column.
 ///

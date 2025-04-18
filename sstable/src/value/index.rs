@@ -1,7 +1,7 @@
 use std::io;
 
-use crate::value::{deserialize_vint_u64, ValueReader, ValueWriter};
-use crate::{vint, BlockAddr};
+use crate::value::{ValueReader, ValueWriter, deserialize_vint_u64};
+use crate::{BlockAddr, vint};
 
 #[derive(Default)]
 pub(crate) struct IndexValueReader {

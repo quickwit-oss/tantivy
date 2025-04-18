@@ -9,13 +9,14 @@ use std::sync::Arc;
 use common::BinarySerializable;
 pub use dictionary_encoded::{BytesColumn, StrColumn};
 pub use serialize::{
-    open_column_bytes, open_column_str, open_column_u128, open_column_u128_as_compact_u64,
-    open_column_u64, serialize_column_mappable_to_u128, serialize_column_mappable_to_u64,
+    open_column_bytes, open_column_str, open_column_u64, open_column_u128,
+    open_column_u128_as_compact_u64, serialize_column_mappable_to_u64,
+    serialize_column_mappable_to_u128,
 };
 
 use crate::column_index::{ColumnIndex, Set};
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
-use crate::column_values::{monotonic_map_column, ColumnValues};
+use crate::column_values::{ColumnValues, monotonic_map_column};
 use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, RowId};
 
 #[derive(Clone)]

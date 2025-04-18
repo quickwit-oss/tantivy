@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Range, RangeInclusive};
 
-use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
 use crate::ColumnValues;
+use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
 
 struct MonotonicMappingColumn<C, T, Input> {
     from_column: C,
@@ -99,10 +99,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::column_values::VecColumn;
     use crate::column_values::monotonic_mapping::{
         StrictlyMonotonicMappingInverter, StrictlyMonotonicMappingToInternal,
     };
-    use crate::column_values::VecColumn;
 
     #[test]
     fn test_monotonic_mapping_iter() {

@@ -74,7 +74,7 @@ impl FileHandle for WrapFile {
         {
             use std::io::{Read, Seek};
             let mut file = self.file.try_clone()?; // Clone the file to read from it separately
-                                                   // Seek to the start position in the file
+            // Seek to the start position in the file
             file.seek(io::SeekFrom::Start(start as u64))?;
             // Read the data into the buffer
             file.read_exact(&mut buffer)?;
@@ -346,8 +346,8 @@ mod tests {
     use std::sync::Arc;
 
     use super::{FileHandle, FileSlice};
-    use crate::file_slice::combine_ranges;
     use crate::HasLen;
+    use crate::file_slice::combine_ranges;
 
     #[test]
     fn test_file_slice() -> io::Result<()> {

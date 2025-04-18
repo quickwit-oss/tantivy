@@ -1,5 +1,5 @@
 use binggan::plugins::PeakMemAllocPlugin;
-use binggan::{black_box, BenchRunner, PeakMemAlloc, INSTRUMENTED_SYSTEM};
+use binggan::{BenchRunner, INSTRUMENTED_SYSTEM, PeakMemAlloc, black_box};
 use rand::SeedableRng;
 use rustc_hash::FxHashMap;
 use tantivy_stacker::{ArenaHashMap, ExpUnrolledLinkedList, MemoryArena};

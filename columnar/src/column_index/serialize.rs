@@ -3,11 +3,11 @@ use std::io::Write;
 
 use common::{CountingWriter, OwnedBytes};
 
-use super::multivalued_index::SerializableMultivalueIndex;
 use super::OptionalIndex;
+use super::multivalued_index::SerializableMultivalueIndex;
+use crate::column_index::ColumnIndex;
 use crate::column_index::multivalued_index::serialize_multivalued_index;
 use crate::column_index::optional_index::serialize_optional_index;
-use crate::column_index::ColumnIndex;
 use crate::iterable::Iterable;
 use crate::{Cardinality, RowId, Version};
 

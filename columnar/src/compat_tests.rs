@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use itertools::Itertools;
 
 use crate::{
-    merge_columnar, Cardinality, Column, ColumnarReader, DynamicColumn, StackMergeOrder,
-    CURRENT_VERSION,
+    CURRENT_VERSION, Cardinality, Column, ColumnarReader, DynamicColumn, StackMergeOrder,
+    merge_columnar,
 };
 
 const NUM_DOCS: u32 = u16::MAX as u32;

@@ -74,18 +74,19 @@ impl<'a> TermMerger<'a> {
     /// False if there is none.
     pub fn advance(&mut self) -> bool {
         self.advance_segments();
-        if let Some(head) = self.heap.pop() {
-            self.term_streams_with_segment.push(head);
-            while let Some(next_streamer) = self.heap.peek() {
-                if self.term_streams_with_segment[0].terms.key() != next_streamer.terms.key() {
-                    break;
+        match self.heap.pop() {
+            Some(head) => {
+                self.term_streams_with_segment.push(head);
+                while let Some(next_streamer) = self.heap.peek() {
+                    if self.term_streams_with_segment[0].terms.key() != next_streamer.terms.key() {
+                        break;
+                    }
+                    let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
+                    self.term_streams_with_segment.push(next_heap_it);
                 }
-                let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
-                self.term_streams_with_segment.push(next_heap_it);
+                true
             }
-            true
-        } else {
-            false
+            _ => false,
         }
     }
 

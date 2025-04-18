@@ -42,7 +42,7 @@ impl ColumnWriter {
         &self,
         arena: &MemoryArena,
         buffer: &'a mut Vec<u8>,
-    ) -> impl Iterator<Item = ColumnOperation<V>> + 'a {
+    ) -> impl Iterator<Item = ColumnOperation<V>> + 'a + use<'a, V> {
         buffer.clear();
         self.values.read_to_end(arena, buffer);
         let mut cursor: &[u8] = &buffer[..];
@@ -104,9 +104,10 @@ pub(crate) struct NumericalColumnWriter {
 
 impl NumericalColumnWriter {
     pub fn force_numerical_type(&mut self, numerical_type: NumericalType) {
-        assert!(self
-            .compatible_numerical_types
-            .is_type_accepted(numerical_type));
+        assert!(
+            self.compatible_numerical_types
+                .is_type_accepted(numerical_type)
+        );
         self.compatible_numerical_types = CompatibleNumericalTypes::StaticType(numerical_type);
     }
 }
@@ -211,7 +212,7 @@ impl NumericalColumnWriter {
         self,
         arena: &MemoryArena,
         buffer: &'a mut Vec<u8>,
-    ) -> impl Iterator<Item = ColumnOperation<NumericalValue>> + 'a {
+    ) -> impl Iterator<Item = ColumnOperation<NumericalValue>> + 'a + use<'a> {
         self.column_writer.operation_iterator(arena, buffer)
     }
 }
@@ -255,7 +256,7 @@ impl StrOrBytesColumnWriter {
         &self,
         arena: &MemoryArena,
         byte_buffer: &'a mut Vec<u8>,
-    ) -> impl Iterator<Item = ColumnOperation<UnorderedId>> + 'a {
+    ) -> impl Iterator<Item = ColumnOperation<UnorderedId>> + 'a + use<'a> {
         self.column_writer.operation_iterator(arena, byte_buffer)
     }
 }

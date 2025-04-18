@@ -14,7 +14,7 @@ pub use merge::merge_column_index;
 pub(crate) use multivalued_index::SerializableMultivalueIndex;
 pub use optional_index::{OptionalIndex, Set};
 pub use serialize::{
-    open_column_index, serialize_column_index, SerializableColumnIndex, SerializableOptionalIndex,
+    SerializableColumnIndex, SerializableOptionalIndex, open_column_index, serialize_column_index,
 };
 
 use crate::column_index::multivalued_index::MultiValueIndex;

@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::iter::once;
 
+use nom::IResult;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{
@@ -10,12 +11,11 @@ use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
 use nom::error::{Error, ErrorKind};
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
-use nom::IResult;
 
 use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use crate::Occur;
 use crate::infallible::*;
 use crate::user_input_ast::Delimiter;
-use crate::Occur;
 
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
@@ -1030,7 +1030,7 @@ fn rewrite_ast(mut input: UserInputAst) -> UserInputAst {
 
 fn rewrite_ast_clause(input: &mut (Option<Occur>, UserInputAst)) {
     match input {
-        (None, UserInputAst::Clause(ref mut clauses)) if clauses.len() == 1 => {
+        (None, UserInputAst::Clause(clauses)) if clauses.len() == 1 => {
             *input = clauses.pop().unwrap(); // safe because clauses.len() == 1
         }
         _ => {}
@@ -1376,7 +1376,7 @@ mod test {
 
     #[test]
     fn test_range_parser_lenient() {
-        let literal = |query| literal_infallible(query).unwrap().1 .0.unwrap();
+        let literal = |query| literal_infallible(query).unwrap().1.0.unwrap();
 
         // same tests as non-lenient
         let res = literal("title: <hello");

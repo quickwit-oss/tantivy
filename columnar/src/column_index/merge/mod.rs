@@ -99,9 +99,9 @@ mod tests {
 
     use crate::column_index::merge::detect_cardinality;
     use crate::column_index::multivalued_index::{
-        open_multivalued_index, serialize_multivalued_index, MultiValueIndex,
+        MultiValueIndex, open_multivalued_index, serialize_multivalued_index,
     };
-    use crate::column_index::{merge_column_index, OptionalIndex, SerializableColumnIndex};
+    use crate::column_index::{OptionalIndex, SerializableColumnIndex, merge_column_index};
     use crate::{
         Cardinality, ColumnIndex, MergeRowOrder, RowAddr, RowId, ShuffleMergeOrder, StackMergeOrder,
     };
