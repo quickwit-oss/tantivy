@@ -1,8 +1,8 @@
 use std::ops::Range;
 
+use crate::column_index::SerializableColumnIndex;
 use crate::column_index::multivalued_index::{MultiValueIndex, SerializableMultivalueIndex};
 use crate::column_index::serialize::SerializableOptionalIndex;
-use crate::column_index::SerializableColumnIndex;
 use crate::iterable::Iterable;
 use crate::{Cardinality, ColumnIndex, RowId, StackMergeOrder};
 

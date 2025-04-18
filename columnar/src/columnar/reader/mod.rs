@@ -1,11 +1,11 @@
 use std::{fmt, io, mem};
 
+use common::BinarySerializable;
 use common::file_slice::FileSlice;
 use common::json_path_writer::JSON_PATH_SEGMENT_SEP;
-use common::BinarySerializable;
 use sstable::{Dictionary, RangeSSTable};
 
-use crate::columnar::{format_version, ColumnType};
+use crate::columnar::{ColumnType, format_version};
 use crate::dynamic_column::DynamicColumnHandle;
 use crate::{RowId, Version};
 

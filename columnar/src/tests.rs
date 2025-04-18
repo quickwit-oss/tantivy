@@ -716,8 +716,8 @@ fn test_columnar_merging_number_columns() {
 // TODO document edge case: required_columns incompatible with values.
 
 #[allow(clippy::type_complexity)]
-fn columnar_docs_and_remap(
-) -> impl Strategy<Value = (Vec<Vec<Vec<(&'static str, ColumnValue)>>>, Vec<RowAddr>)> {
+fn columnar_docs_and_remap()
+-> impl Strategy<Value = (Vec<Vec<Vec<(&'static str, ColumnValue)>>>, Vec<RowAddr>)> {
     proptest::collection::vec(columnar_docs_strategy(), 2..=3).prop_flat_map(
         |columnars_docs: Vec<Vec<Vec<(&str, ColumnValue)>>>| {
             let row_addrs: Vec<RowAddr> = columnars_docs

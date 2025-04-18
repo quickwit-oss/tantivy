@@ -104,9 +104,10 @@ pub(crate) struct NumericalColumnWriter {
 
 impl NumericalColumnWriter {
     pub fn force_numerical_type(&mut self, numerical_type: NumericalType) {
-        assert!(self
-            .compatible_numerical_types
-            .is_type_accepted(numerical_type));
+        assert!(
+            self.compatible_numerical_types
+                .is_type_accepted(numerical_type)
+        );
         self.compatible_numerical_types = CompatibleNumericalTypes::StaticType(numerical_type);
     }
 }

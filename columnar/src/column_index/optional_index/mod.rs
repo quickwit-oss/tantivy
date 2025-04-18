@@ -7,7 +7,7 @@ mod set_block;
 use common::{BinarySerializable, OwnedBytes, VInt};
 pub use set::{SelectCursor, Set, SetCodec};
 use set_block::{
-    DenseBlock, DenseBlockCodec, SparseBlock, SparseBlockCodec, DENSE_BLOCK_NUM_BYTES,
+    DENSE_BLOCK_NUM_BYTES, DenseBlock, DenseBlockCodec, SparseBlock, SparseBlockCodec,
 };
 
 use crate::iterable::Iterable;
@@ -259,11 +259,13 @@ impl Set<RowId> for OptionalIndex {
 
 impl OptionalIndex {
     pub fn for_test(num_rows: RowId, row_ids: &[RowId]) -> OptionalIndex {
-        assert!(row_ids
-            .last()
-            .copied()
-            .map(|last_row_id| last_row_id < num_rows)
-            .unwrap_or(true));
+        assert!(
+            row_ids
+                .last()
+                .copied()
+                .map(|last_row_id| last_row_id < num_rows)
+                .unwrap_or(true)
+        );
         let mut buffer = Vec::new();
         serialize_optional_index(&row_ids, num_rows, &mut buffer).unwrap();
         let bytes = OwnedBytes::new(buffer);

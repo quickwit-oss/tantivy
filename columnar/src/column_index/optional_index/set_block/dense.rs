@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use common::BinarySerializable;
 
-use crate::column_index::optional_index::{SelectCursor, Set, SetCodec, ELEMENTS_PER_BLOCK};
+use crate::column_index::optional_index::{ELEMENTS_PER_BLOCK, SelectCursor, Set, SetCodec};
 
 #[inline(always)]
 fn get_bit_at(input: u64, n: u16) -> bool {

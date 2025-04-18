@@ -10,11 +10,11 @@ use std::sync::Arc;
 pub use merge_mapping::{MergeRowOrder, ShuffleMergeOrder, StackMergeOrder};
 
 use super::writer::ColumnarSerializer;
-use crate::column::{serialize_column_mappable_to_u128, serialize_column_mappable_to_u64};
+use crate::column::{serialize_column_mappable_to_u64, serialize_column_mappable_to_u128};
 use crate::column_values::MergedColumnValues;
+use crate::columnar::ColumnarReader;
 use crate::columnar::merge::merge_dict_column::merge_bytes_or_str_column;
 use crate::columnar::writer::CompatibleNumericalTypes;
-use crate::columnar::ColumnarReader;
 use crate::dynamic_column::DynamicColumn;
 use crate::{
     BytesColumn, Column, ColumnIndex, ColumnType, ColumnValues, DynamicColumnHandle, NumericalType,
@@ -254,11 +254,13 @@ impl GroupedColumns {
         }
         // At the moment, only the numerical column type category has more than one possible
         // column type.
-        assert!(self
-            .columns
-            .iter()
-            .flatten()
-            .all(|el| ColumnTypeCategory::from(el.column_type()) == ColumnTypeCategory::Numerical));
+        assert!(
+            self.columns
+                .iter()
+                .flatten()
+                .all(|el| ColumnTypeCategory::from(el.column_type())
+                    == ColumnTypeCategory::Numerical)
+        );
         merged_numerical_columns_type(self.columns.iter().flatten()).into()
     }
 }

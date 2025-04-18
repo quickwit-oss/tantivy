@@ -4,8 +4,8 @@ use std::net::Ipv6Addr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::value::NumericalType;
 use crate::InvalidData;
+use crate::value::NumericalType;
 
 /// The column type represents the column type.
 /// Any changes need to be propagated to `COLUMN_TYPES`.

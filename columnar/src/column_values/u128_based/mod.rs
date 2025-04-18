@@ -130,11 +130,11 @@ pub fn open_u128_as_compact_u64(mut bytes: OwnedBytes) -> io::Result<Arc<dyn Col
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::column_values::u64_based::{
-        serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,
-        ALL_U64_CODEC_TYPES,
-    };
     use crate::column_values::CodecType;
+    use crate::column_values::u64_based::{
+        ALL_U64_CODEC_TYPES, serialize_and_load_u64_based_column_values,
+        serialize_u64_based_column_values,
+    };
 
     #[test]
     fn test_serialize_deserialize_u128_header() {

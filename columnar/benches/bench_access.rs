@@ -1,4 +1,4 @@
-use binggan::{black_box, InputGroup};
+use binggan::{InputGroup, black_box};
 use common::*;
 use tantivy_columnar::Column;
 

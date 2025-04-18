@@ -44,11 +44,11 @@ pub use block_accessor::ColumnBlockAccessor;
 pub use column::{BytesColumn, Column, StrColumn};
 pub use column_index::ColumnIndex;
 pub use column_values::{
-    ColumnValues, EmptyColumnValues, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+    ColumnValues, EmptyColumnValues, MonotonicallyMappableToU64, MonotonicallyMappableToU128,
 };
 pub use columnar::{
-    merge_columnar, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
-    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, CURRENT_VERSION,
+    CURRENT_VERSION, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
+    MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, merge_columnar,
 };
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};

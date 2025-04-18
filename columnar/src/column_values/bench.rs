@@ -11,7 +11,7 @@ use crate::column_values::u64_based::*;
 fn get_data() -> Vec<u64> {
     let mut rng = StdRng::seed_from_u64(2u64);
     let mut data: Vec<_> = (100..55000_u64)
-        .map(|num| num + rng.gen::<u8>() as u64)
+        .map(|num| num + rng.r#gen::<u8>() as u64)
         .collect();
     data.push(99_000);
     data.insert(1000, 2000);

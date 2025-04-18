@@ -6,10 +6,10 @@ use common::OwnedBytes;
 use sstable::Dictionary;
 
 use crate::column::{BytesColumn, Column};
-use crate::column_index::{serialize_column_index, SerializableColumnIndex};
+use crate::column_index::{SerializableColumnIndex, serialize_column_index};
 use crate::column_values::{
+    CodecType, MonotonicallyMappableToU64, MonotonicallyMappableToU128,
     load_u64_based_column_values, serialize_column_values_u128, serialize_u64_based_column_values,
-    CodecType, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
 };
 use crate::iterable::Iterable;
 use crate::{StrColumn, Version};
