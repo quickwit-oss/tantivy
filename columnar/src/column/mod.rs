@@ -114,7 +114,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         }
     }
 
-    /// Translates a block of docis to row_ids.
+    /// Translates a block of docids to row_ids.
     ///
     /// returns the row_ids and the matching docids on the same index
     /// e.g.
