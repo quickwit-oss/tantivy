@@ -89,6 +89,8 @@ impl LogMergePolicy {
 
 impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
+        // Filter for segments that have less than the target number of docs, count total unmerged
+        // docs, and sort in descending order
         let mut unmerged_docs = 0;
         let mut levels = segments
             .iter()
@@ -98,11 +100,13 @@ impl MergePolicy for LogMergePolicy {
             .sorted_by(|(a, _), (b, _)| b.cmp(a))
             .collect_vec();
 
+        // If there are enough unmerged documents to create a new segment of the target size,
+        // then create a merge candidate for them.
         let mut candidates = Vec::new();
         if unmerged_docs >= self.target_segment_size {
             let mut batch_docs = 0;
             let mut batch = Vec::new();
-            // Pop segments segments from levels, smallest first due to sort at start
+            // Start with the smallest segments and add them to the batch until we reach the target
             while let Some((docs, seg)) = levels.pop() {
                 batch_docs += docs;
                 batch.push(seg);
@@ -116,6 +120,8 @@ impl MergePolicy for LogMergePolicy {
                         // drain to reuse the buffer
                         batch.drain(..).map(|seg| seg.id()).collect(),
                     ));
+                    // If there aren't enough documents to create another segment of the target size
+                    // then break
                     if unmerged_docs <= self.target_segment_size {
                         break;
                     }
@@ -127,19 +133,18 @@ impl MergePolicy for LogMergePolicy {
         let mut batch = Vec::new();
         levels
             .iter()
-            .map(|(docs, seg)| {
+            .chunk_by(|(docs, _)| {
                 let segment_log_size = f64::from(self.clip_min_size(*docs as u32)).log2();
                 if segment_log_size < (current_max_log_size - self.level_log_size) {
                     // update current_max_log_size to create a new group
                     current_max_log_size = segment_log_size;
                 }
-                (current_max_log_size, seg)
+                current_max_log_size
             })
-            .chunk_by(|(level, _)| *level)
             .into_iter()
             .for_each(|(_, group)| {
                 let mut hit_delete_threshold = false;
-                group.into_iter().for_each(|(_, seg)| {
+                group.for_each(|(_, seg)| {
                     batch.push(seg.id());
                     if !hit_delete_threshold && self.segment_above_deletes_threshold(seg) {
                         hit_delete_threshold = true;
@@ -354,12 +359,14 @@ mod tests {
 
     #[test]
     fn test_skip_merge_large_segments() {
+        // All of these should be merged into a single segment since 2 * 49_999 < 100_000
         let test_input_merge_all = vec![
             create_random_segment_meta(49_999),
             create_random_segment_meta(49_999),
             create_random_segment_meta(49_999),
         ];
 
+        // Only two of these should be merged since 2 * 50_000 >= 100_000, then the third is left
         let test_input_merge_two = vec![
             create_random_segment_meta(50_000),
             create_random_segment_meta(50_000),
@@ -371,8 +378,8 @@ mod tests {
         let result_list_merge_two =
             test_merge_policy().compute_merge_candidates(&test_input_merge_two);
 
-        assert_eq!(result_list_merge_two[0].0.len(), 2);
         assert_eq!(result_list_merge_all[0].0.len(), 3);
+        assert_eq!(result_list_merge_two[0].0.len(), 2);
     }
 
     #[test]
