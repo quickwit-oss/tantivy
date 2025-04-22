@@ -2,6 +2,7 @@ use common::TinySet;
 
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
 use crate::{DocId, Score};
 
@@ -12,7 +13,7 @@ const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 // This function is similar except that it does is not unstable, and
 // it does not keep the original vector ordering.
 //
-// Also, it does not "yield" any elements.
+// Elements are dropped and not yielded.
 fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
 where P: FnMut(&mut T) -> bool {
     let mut i = 0;
@@ -34,6 +35,7 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     offset: DocId,
     doc: DocId,
     score: Score,
+    num_docs: u32,
 }
 
 fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
@@ -65,6 +67,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
     pub(crate) fn build(
         docsets: Vec<TScorer>,
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
+        num_docs: u32,
     ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
@@ -78,6 +81,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
             offset: 0,
             doc: 0,
             score: 0.0,
+            num_docs,
         };
         if union.refill() {
             union.advance();
@@ -119,6 +123,11 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         }
         false
     }
+
+    fn is_in_horizon(&self, target: DocId) -> bool {
+        let gap = target - self.offset;
+        gap < HORIZON
+    }
 }
 
 impl<TScorer, TScoreCombiner> DocSet for BufferedUnionScorer<TScorer, TScoreCombiner>
@@ -144,11 +153,11 @@ where
         if self.doc >= target {
             return self.doc;
         }
-        let gap = target - self.offset;
-        if gap < HORIZON {
+        if self.is_in_horizon(target) {
             // Our value is within the buffered horizon.
 
-            // Skipping to  corresponding bucket.
+            // Skipping to corresponding bucket.
+            let gap = target - self.offset;
             let new_cursor = gap as usize / 64;
             for obsolete_tinyset in &mut self.bitsets[self.cursor..new_cursor] {
                 obsolete_tinyset.clear();
@@ -193,20 +202,41 @@ where
         }
     }
 
-    // TODO Also implement `count` with deletes efficiently.
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        if self.is_in_horizon(target) {
+            // Our value is within the buffered horizon and the docset may already have been
+            // processed and removed, so we need to use seek, which uses the regular advance.
+            self.seek(target) == target
+        } else {
+            // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
+            // of the underlying docsets
+            let is_hit = self
+                .docsets
+                .iter_mut()
+                .any(|docset| docset.seek_into_the_danger_zone(target));
+
+            // The API requires the DocSet to be in a valid state when `seek_into_the_danger_zone`
+            // returns true.
+            if is_hit {
+                self.seek(target);
+            }
+            is_hit
+        }
+    }
 
     fn doc(&self) -> DocId {
         self.doc
     }
 
     fn size_hint(&self) -> u32 {
-        self.docsets
-            .iter()
-            .map(|docset| docset.size_hint())
-            .max()
-            .unwrap_or(0u32)
+        estimate_union(self.docsets.iter().map(DocSet::size_hint), self.num_docs)
     }
 
+    fn cost(&self) -> u64 {
+        self.docsets.iter().map(DocSet::cost).sum()
+    }
+
+    // TODO Also implement `count` with deletes efficiently.
     fn count_including_deleted(&mut self) -> u32 {
         if self.doc == TERMINATED {
             return 0;
