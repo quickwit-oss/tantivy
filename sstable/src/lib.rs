@@ -194,7 +194,7 @@ where
 
     /// Creates a new `TermDictionaryBuilder`.
     pub fn new(wrt: W) -> Self {
-        Writer {
+        Self {
             previous_key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             num_terms: 0u64,
             index_builder: SSTableIndexBuilder::default(),

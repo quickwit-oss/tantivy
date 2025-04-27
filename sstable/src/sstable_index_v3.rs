@@ -21,9 +21,9 @@ impl SSTableIndex {
     /// Get the [`BlockAddr`] of the requested block.
     pub(crate) fn get_block(&self, block_id: u64) -> Option<BlockAddr> {
         match self {
-            SSTableIndex::V2(v2_index) => v2_index.get_block(block_id as usize),
-            SSTableIndex::V3(v3_index) => v3_index.get_block(block_id),
-            SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block(block_id),
+            Self::V2(v2_index) => v2_index.get_block(block_id as usize),
+            Self::V3(v3_index) => v3_index.get_block(block_id),
+            Self::V3Empty(v3_empty) => v3_empty.get_block(block_id),
         }
     }
 
@@ -32,9 +32,9 @@ impl SSTableIndex {
     /// Returns None if `key` is lexicographically after the last key recorded.
     pub(crate) fn locate_with_key(&self, key: &[u8]) -> Option<u64> {
         match self {
-            SSTableIndex::V2(v2_index) => v2_index.locate_with_key(key).map(|i| i as u64),
-            SSTableIndex::V3(v3_index) => v3_index.locate_with_key(key),
-            SSTableIndex::V3Empty(v3_empty) => v3_empty.locate_with_key(key),
+            Self::V2(v2_index) => v2_index.locate_with_key(key).map(|i| i as u64),
+            Self::V3(v3_index) => v3_index.locate_with_key(key),
+            Self::V3Empty(v3_empty) => v3_empty.locate_with_key(key),
         }
     }
 
@@ -43,26 +43,26 @@ impl SSTableIndex {
     /// Returns None if `key` is lexicographically after the last key recorded.
     pub fn get_block_with_key(&self, key: &[u8]) -> Option<BlockAddr> {
         match self {
-            SSTableIndex::V2(v2_index) => v2_index.get_block_with_key(key),
-            SSTableIndex::V3(v3_index) => v3_index.get_block_with_key(key),
-            SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_key(key),
+            Self::V2(v2_index) => v2_index.get_block_with_key(key),
+            Self::V3(v3_index) => v3_index.get_block_with_key(key),
+            Self::V3Empty(v3_empty) => v3_empty.get_block_with_key(key),
         }
     }
 
     pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> u64 {
         match self {
-            SSTableIndex::V2(v2_index) => v2_index.locate_with_ord(ord) as u64,
-            SSTableIndex::V3(v3_index) => v3_index.locate_with_ord(ord),
-            SSTableIndex::V3Empty(v3_empty) => v3_empty.locate_with_ord(ord),
+            Self::V2(v2_index) => v2_index.locate_with_ord(ord) as u64,
+            Self::V3(v3_index) => v3_index.locate_with_ord(ord),
+            Self::V3Empty(v3_empty) => v3_empty.locate_with_ord(ord),
         }
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
     pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
         match self {
-            SSTableIndex::V2(v2_index) => v2_index.get_block_with_ord(ord),
-            SSTableIndex::V3(v3_index) => v3_index.get_block_with_ord(ord),
-            SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_ord(ord),
+            Self::V2(v2_index) => v2_index.get_block_with_ord(ord),
+            Self::V3(v3_index) => v3_index.get_block_with_ord(ord),
+            Self::V3Empty(v3_empty) => v3_empty.get_block_with_ord(ord),
         }
     }
 
@@ -71,13 +71,13 @@ impl SSTableIndex {
         automaton: &'a impl Automaton,
     ) -> impl Iterator<Item = (u64, BlockAddr)> + 'a {
         match self {
-            SSTableIndex::V2(v2_index) => {
+            Self::V2(v2_index) => {
                 BlockIter::V2(v2_index.get_block_for_automaton(automaton))
             }
-            SSTableIndex::V3(v3_index) => {
+            Self::V3(v3_index) => {
                 BlockIter::V3(v3_index.get_block_for_automaton(automaton))
             }
-            SSTableIndex::V3Empty(v3_empty) => {
+            Self::V3Empty(v3_empty) => {
                 BlockIter::V3Empty(std::iter::once((0, v3_empty.block_addr.clone())))
             }
         }
@@ -95,9 +95,9 @@ impl<V2: Iterator<Item = T>, V3: Iterator<Item = T>, T> Iterator for BlockIter<V
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            BlockIter::V2(v2) => v2.next(),
-            BlockIter::V3(v3) => v3.next(),
-            BlockIter::V3Empty(once) => once.next(),
+            Self::V2(v2) => v2.next(),
+            Self::V3(v3) => v3.next(),
+            Self::V3Empty(once) => once.next(),
         }
     }
 }
@@ -113,7 +113,7 @@ impl SSTableIndexV3 {
     pub fn load(
         data: OwnedBytes,
         fst_length: u64,
-    ) -> Result<SSTableIndexV3, SSTableDataCorruption> {
+    ) -> Result<Self, SSTableDataCorruption> {
         let (fst_slice, block_addr_store_slice) = data.split(fst_length as usize);
         let fst_index = Fst::new(fst_slice)
             .map_err(|_| SSTableDataCorruption)?
@@ -121,7 +121,7 @@ impl SSTableIndexV3 {
         let block_addr_store =
             BlockAddrStore::open(block_addr_store_slice).map_err(|_| SSTableDataCorruption)?;
 
-        Ok(SSTableIndexV3 {
+        Ok(Self {
             fst_index: Arc::new(fst_index),
             block_addr_store,
         })
@@ -220,8 +220,8 @@ pub struct SSTableIndexV3Empty {
 }
 
 impl SSTableIndexV3Empty {
-    pub fn load(index_start_pos: usize) -> SSTableIndexV3Empty {
-        SSTableIndexV3Empty {
+    pub fn load(index_start_pos: usize) -> Self {
+        Self {
             block_addr: BlockAddr {
                 first_ordinal: 0,
                 byte_range: 0..index_start_pos,
@@ -306,7 +306,7 @@ impl BinarySerializable for BlockStartAddr {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let byte_range_start = u64::deserialize(reader)? as usize;
         let first_ordinal = u64::deserialize(reader)?;
-        Ok(BlockStartAddr {
+        Ok(Self {
             first_ordinal,
             byte_range_start,
         })
@@ -314,7 +314,7 @@ impl BinarySerializable for BlockStartAddr {
 
     // Provided method
     fn num_bytes(&self) -> u64 {
-        BlockStartAddr::SIZE_IN_BYTES as u64
+        Self::SIZE_IN_BYTES as u64
     }
 }
 
@@ -394,7 +394,7 @@ impl SSTableIndexBuilder {
 
 fn fst_error_to_io_error(error: tantivy_fst::Error) -> io::Error {
     match error {
-        tantivy_fst::Error::Fst(fst_error) => io::Error::new(io::ErrorKind::Other, fst_error),
+        tantivy_fst::Error::Fst(fst_error) => io::Error::other(fst_error),
         tantivy_fst::Error::Io(ioerror) => ioerror,
     }
 }
@@ -438,7 +438,7 @@ impl BlockAddrBlockMetadata {
         let ordinal_addr = range_start_addr + self.range_start_nbits as usize;
         let range_end_addr = range_start_addr + num_bits;
 
-        if (range_end_addr + self.range_start_nbits as usize + 7) / 8 > data.len() {
+        if (range_end_addr + self.range_start_nbits as usize).div_ceil(8) > data.len() {
             return None;
         }
 
@@ -535,7 +535,7 @@ impl BinarySerializable for BlockAddrBlockMetadata {
         let first_ordinal_nbits = buffer[0];
         let range_start_nbits = buffer[1];
         let block_len = u16::deserialize(reader)?;
-        Ok(BlockAddrBlockMetadata {
+        Ok(Self {
             offset,
             ref_block_addr,
             range_start_slope,
@@ -564,11 +564,11 @@ struct BlockAddrStore {
 }
 
 impl BlockAddrStore {
-    fn open(term_info_store_file: OwnedBytes) -> io::Result<BlockAddrStore> {
+    fn open(term_info_store_file: OwnedBytes) -> io::Result<Self> {
         let (mut len_slice, main_slice) = term_info_store_file.split(8);
         let len = u64::deserialize(&mut len_slice)? as usize;
         let (block_meta_bytes, addr_bytes) = main_slice.split(len);
-        Ok(BlockAddrStore {
+        Ok(Self {
             block_meta_bytes,
             addr_bytes,
         })
@@ -655,7 +655,7 @@ struct BlockAddrStoreWriter {
 
 impl BlockAddrStoreWriter {
     fn new() -> Self {
-        BlockAddrStoreWriter {
+        Self {
             buffer_block_metas: Vec::new(),
             buffer_addrs: Vec::new(),
             block_addrs: Vec::with_capacity(STORE_BLOCK_LEN),

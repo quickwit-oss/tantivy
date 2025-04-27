@@ -49,12 +49,12 @@ impl ValueMerger<u64> for U64Merge {
     }
 }
 
-impl SingleValueMerger<u64> for u64 {
-    fn add(&mut self, val: &u64) {
+impl SingleValueMerger<Self> for u64 {
+    fn add(&mut self, val: &Self) {
         *self += *val;
     }
 
-    fn finish(self) -> u64 {
+    fn finish(self) -> Self {
         self
     }
 }

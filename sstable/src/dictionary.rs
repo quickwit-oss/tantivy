@@ -48,7 +48,7 @@ pub struct Dictionary<TSSTable: SSTable = VoidSSTable> {
 }
 
 impl Dictionary<VoidSSTable> {
-    pub fn build_for_tests(terms: &[&str]) -> Dictionary {
+    pub fn build_for_tests(terms: &[&str]) -> Self {
         let mut terms = terms.to_vec();
         terms.sort();
         let mut buffer = Vec::new();
@@ -57,7 +57,7 @@ impl Dictionary<VoidSSTable> {
             dictionary_writer.insert(term, &()).unwrap();
         }
         dictionary_writer.finish().unwrap();
-        Dictionary::from_bytes(OwnedBytes::new(buffer)).unwrap()
+        Self::from_bytes(OwnedBytes::new(buffer)).unwrap()
     }
 }
 
@@ -72,15 +72,15 @@ pub enum TermOrdHit {
 impl TermOrdHit {
     fn into_exact(self) -> Option<TermOrdinal> {
         match self {
-            TermOrdHit::Exact(ord) => Some(ord),
-            TermOrdHit::Next(_) => None,
+            Self::Exact(ord) => Some(ord),
+            Self::Next(_) => None,
         }
     }
 
     fn map<F: FnOnce(TermOrdinal) -> TermOrdinal>(self, f: F) -> Self {
         match self {
-            TermOrdHit::Exact(ord) => TermOrdHit::Exact(f(ord)),
-            TermOrdHit::Next(ord) => TermOrdHit::Next(f(ord)),
+            Self::Exact(ord) => Self::Exact(f(ord)),
+            Self::Next(ord) => Self::Next(f(ord)),
         }
     }
 }
@@ -308,14 +308,13 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 }
             }
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
+                return Err(io::Error::other(
                     format!("Unsupported sstable version, expected one of [2, 3], found {version}"),
                 ));
             }
         };
 
-        Ok(Dictionary {
+        Ok(Self {
             sstable_slice,
             sstable_index,
             num_terms,
@@ -325,7 +324,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Creates a term dictionary from the supplied bytes.
     pub fn from_bytes(owned_bytes: OwnedBytes) -> io::Result<Self> {
-        Dictionary::open(FileSlice::new(Arc::new(owned_bytes)))
+        Self::open(FileSlice::new(Arc::new(owned_bytes)))
     }
 
     /// Creates an empty term dictionary which contains no terms.
@@ -335,7 +334,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             .finish()
             .expect("Writing in a Vec<u8> should never fail");
         let empty_dict_file = FileSlice::from(term_dictionary_data);
-        Dictionary::open(empty_dict_file).unwrap()
+        Self::open(empty_dict_file).unwrap()
     }
 
     /// Returns the number of terms in the dictionary.
@@ -656,7 +655,7 @@ mod tests {
     impl PermissionedHandle {
         fn new(bytes: Vec<u8>) -> Self {
             let bytes = OwnedBytes::new(bytes);
-            PermissionedHandle {
+            Self {
                 allowed_range: Mutex::new(0..bytes.len()),
                 bytes,
             }
@@ -677,8 +676,7 @@ mod tests {
         fn read_bytes(&self, range: Range<usize>) -> std::io::Result<OwnedBytes> {
             let allowed_range = self.allowed_range.lock().unwrap();
             if !allowed_range.contains(&range.start) || !allowed_range.contains(&(range.end - 1)) {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                return Err(std::io::Error::other(
                     format!("invalid range, allowed {allowed_range:?}, requested {range:?}"),
                 ));
             }
