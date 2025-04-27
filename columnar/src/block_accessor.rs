@@ -119,7 +119,7 @@ mod tests {
         let docs: Vec<u32> = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let hits: Vec<u32> = vec![2, 4, 6, 8, 10];
 
-        let mut missing_docs: Vec<u32> = Vec::new();
+        let mut missing_docs: Vec<u32> = vec![];
 
         find_missing_docs(&docs, &hits, |missing_doc| {
             missing_docs.push(missing_doc);
@@ -130,10 +130,10 @@ mod tests {
 
     #[test]
     fn test_find_missing_docs_empty() {
-        let docs: Vec<u32> = Vec::new();
+        let docs: Vec<u32> = vec![];
         let hits: Vec<u32> = vec![2, 4, 6, 8, 10];
 
-        let mut missing_docs: Vec<u32> = Vec::new();
+        let mut missing_docs: Vec<u32> = vec![];
 
         find_missing_docs(&docs, &hits, |missing_doc| {
             missing_docs.push(missing_doc);
@@ -145,9 +145,9 @@ mod tests {
     #[test]
     fn test_find_missing_docs_all_missing() {
         let docs: Vec<u32> = vec![1, 2, 3, 4, 5];
-        let hits: Vec<u32> = Vec::new();
+        let hits: Vec<u32> = vec![];
 
-        let mut missing_docs: Vec<u32> = Vec::new();
+        let mut missing_docs: Vec<u32> = vec![];
 
         find_missing_docs(&docs, &hits, |missing_doc| {
             missing_docs.push(missing_doc);

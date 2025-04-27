@@ -20,9 +20,9 @@ pub enum Decompressor {
 impl From<Compressor> for Decompressor {
     fn from(compressor: Compressor) -> Self {
         match compressor {
-            Compressor::None => Decompressor::None,
+            Compressor::None => Self::None,
             #[cfg(feature = "lz4-compression")]
-            Compressor::Lz4 => Decompressor::Lz4,
+            Compressor::Lz4 => Self::Lz4,
             #[cfg(feature = "zstd-compression")]
             Compressor::Zstd(_) => Decompressor::Zstd,
         }
@@ -30,11 +30,11 @@ impl From<Compressor> for Decompressor {
 }
 
 impl Decompressor {
-    pub(crate) fn from_id(id: u8) -> Decompressor {
+    pub(crate) fn from_id(id: u8) -> Self {
         match id {
-            0 => Decompressor::None,
+            0 => Self::None,
             #[cfg(feature = "lz4-compression")]
-            1 => Decompressor::Lz4,
+            1 => Self::Lz4,
             #[cfg(feature = "zstd-compression")]
             4 => Decompressor::Zstd,
             _ => panic!("unknown compressor id {id:?}"),

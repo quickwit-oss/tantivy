@@ -24,8 +24,8 @@ pub struct LenientError {
 }
 
 impl LenientError {
-    pub(crate) fn from_internal(internal: LenientErrorInternal, str_len: usize) -> LenientError {
-        LenientError {
+    pub(crate) fn from_internal(internal: LenientErrorInternal, str_len: usize) -> Self {
+        Self {
             pos: str_len - internal.pos,
             message: internal.message,
         }
@@ -50,8 +50,8 @@ where F: nom::Parser<I, O, nom::error::Error<I>> {
     move |input: I| {
         let i = input.clone();
         match f.parse(input) {
-            Ok((i, o)) => Ok((i, (Some(o), Vec::new()))),
-            Err(_) => Ok((i, (None, Vec::new()))),
+            Ok((i, o)) => Ok((i, (Some(o), vec![]))),
+            Err(_) => Ok((i, (None, vec![]))),
         }
     }
 }
@@ -66,7 +66,7 @@ where
     move |input: I| {
         let i = input.clone();
         match f.parse(input) {
-            Ok((i, o)) => Ok((i, (Some(o), Vec::new()))),
+            Ok((i, o)) => Ok((i, (Some(o), vec![]))),
             Err(_) => {
                 let errs = vec![LenientErrorInternal {
                     pos: i.input_len(),
@@ -139,7 +139,7 @@ where
 
 // Parse nothing. Just a lazy way to not implement terminated/preceded and use delimited instead
 pub(crate) fn nothing(i: &str) -> JResult<&str, ()> {
-    Ok((i, ((), Vec::new())))
+    Ok((i, ((), vec![])))
 }
 
 pub(crate) trait TupleInfallible<I, O> {
@@ -178,7 +178,7 @@ macro_rules! tuple_trait_impl(
     > TupleInfallible<Input, ( $($ty),+ )> for ( $($name),+ ) {
 
       fn parse(&mut self, input: Input) -> JResult<Input, ( $($ty),+ )> {
-        let mut error_list = Vec::new();
+        let mut error_list = vec![];
         tuple_trait_inner!(0, self, input, (), error_list, $($name)+)
       }
     }
@@ -238,7 +238,7 @@ tuple_trait!(FnA A, FnB B, FnC C, FnD D, FnE E, FnF F, FnG G, FnH H, FnI I, FnJ 
 // Literally, `()` is an empty tuple, so it should simply parse nothing.
 impl<I> TupleInfallible<I, ()> for () {
     fn parse(&mut self, input: I) -> JResult<I, ()> {
-        Ok((input, ((), Vec::new())))
+        Ok((input, ((), vec![])))
     }
 }
 
@@ -258,8 +258,8 @@ where
     G: nom::Parser<I, (O2, ErrorList), Infallible>,
 {
     move |i: I| {
-        let mut res: Vec<O> = Vec::new();
-        let mut errors: ErrorList = Vec::new();
+        let mut res: Vec<O> = vec![];
+        let mut errors: ErrorList = vec![];
 
         let (mut i, (o, mut err)) = unwrap_infallible(f.parse(i.clone()));
         errors.append(&mut err);

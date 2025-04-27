@@ -164,7 +164,7 @@ impl SegmentCardinalityCollector {
 
             // TODO: replace FxHashSet with something that allows iterating in order
             // (e.g. sparse bitvec)
-            let mut term_ids = Vec::new();
+            let mut term_ids = vec![];
             for term_ord in self.entries.into_iter() {
                 if term_ord == u64::MAX {
                     has_missing = true;
@@ -302,7 +302,7 @@ impl CardinalityCollector {
         }
     }
 
-    pub(crate) fn merge_fruits(&mut self, right: CardinalityCollector) -> crate::Result<()> {
+    pub(crate) fn merge_fruits(&mut self, right: Self) -> crate::Result<()> {
         self.sketch.merge(&right.sketch).map_err(|err| {
             TantivyError::AggregationError(AggregationError::InternalError(format!(
                 "Error while merging cardinality {err:?}"

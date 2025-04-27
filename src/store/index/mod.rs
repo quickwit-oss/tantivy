@@ -24,7 +24,7 @@ pub struct Checkpoint {
 }
 
 impl Checkpoint {
-    pub(crate) fn follows(&self, other: &Checkpoint) -> bool {
+    pub(crate) fn follows(&self, other: &Self) -> bool {
         (self.doc_range.start == other.doc_range.end)
             && (self.byte_range.start == other.byte_range.end)
     }
@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn test_skip_index_empty() -> io::Result<()> {
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = vec![];
         let skip_index_builder: SkipIndexBuilder = SkipIndexBuilder::new();
         skip_index_builder.serialize_into(&mut output)?;
         let skip_index: SkipIndex = SkipIndex::open(OwnedBytes::new(output));
@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn test_skip_index_single_el() -> io::Result<()> {
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = vec![];
         let mut skip_index_builder: SkipIndexBuilder = SkipIndexBuilder::new();
         let checkpoint = Checkpoint {
             doc_range: 0..2,
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_skip_index() -> io::Result<()> {
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = vec![];
         let checkpoints = vec![
             Checkpoint {
                 doc_range: 0..3,
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn test_skip_index_long() -> io::Result<()> {
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = vec![];
         let checkpoints: Vec<Checkpoint> = (0..1000)
             .map(|i| Checkpoint {
                 doc_range: i..(i + 1),
@@ -235,7 +235,7 @@ mod tests {
              for checkpoint in checkpoints.iter().cloned() {
                  skip_index_builder.insert(checkpoint);
              }
-             let mut buffer = Vec::new();
+             let mut buffer = vec![];
              skip_index_builder.serialize_into(&mut buffer).unwrap();
              let skip_index = SkipIndex::open(OwnedBytes::new(buffer));
              let iter_checkpoints: Vec<Checkpoint> = skip_index.checkpoints().collect();

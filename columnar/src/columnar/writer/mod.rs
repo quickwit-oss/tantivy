@@ -43,7 +43,7 @@ struct SpareBuffers {
 /// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10u64);
 /// columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
 /// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
-/// let mut wrt: Vec<u8> =  Vec::new();
+/// let mut wrt: Vec<u8> =  vec![];
 /// columnar_writer.serialize(2u32, &mut wrt).unwrap();
 /// ```
 #[derive(Default)]
@@ -286,7 +286,7 @@ impl ColumnarWriter {
         );
         columns.sort_unstable_by_key(|(column_name, col_type, _)| (*column_name, *col_type));
         let (arena, buffers, dictionaries) = (&self.arena, &mut self.buffers, &self.dictionaries);
-        let mut symbol_byte_buffer: Vec<u8> = Vec::new();
+        let mut symbol_byte_buffer: Vec<u8> = vec![];
         for (column_name, column_type, addr) in columns {
             if column_name.contains(&JSON_END_OF_PATH) {
                 // Tantivy uses b'0' as a separator for nested fields in JSON.
@@ -687,7 +687,7 @@ mod tests {
         column_writer.record(1u32, NumericalValue::from(15i64), &mut arena);
         column_writer.record(2u32, NumericalValue::from(-16i64), &mut arena);
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Full);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
             .operation_iterator(&arena, &mut buffer)
             .collect();
@@ -716,7 +716,7 @@ mod tests {
         column_writer.record(1u32, NumericalValue::from(15i64), &mut arena);
         column_writer.record(2u32, NumericalValue::from(-16i64), &mut arena);
         assert_eq!(column_writer.get_cardinality(3), Cardinality::Optional);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
             .operation_iterator(&arena, &mut buffer)
             .collect();
@@ -739,7 +739,7 @@ mod tests {
         let mut column_writer = super::ColumnWriter::default();
         column_writer.record(0u32, NumericalValue::from(15i64), &mut arena);
         assert_eq!(column_writer.get_cardinality(2), Cardinality::Optional);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
             .operation_iterator(&arena, &mut buffer)
             .collect();
@@ -758,7 +758,7 @@ mod tests {
         column_writer.record(0u32, NumericalValue::from(16i64), &mut arena);
         column_writer.record(0u32, NumericalValue::from(17i64), &mut arena);
         assert_eq!(column_writer.get_cardinality(1), Cardinality::Multivalued);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let symbols: Vec<ColumnOperation<NumericalValue>> = column_writer
             .operation_iterator(&arena, &mut buffer)
             .collect();

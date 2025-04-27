@@ -35,8 +35,8 @@ pub enum Version {
 impl Display for Version {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Version::V1 => write!(f, "v1"),
-            Version::V2 => write!(f, "v2"),
+            Self::V1 => write!(f, "v1"),
+            Self::V2 => write!(f, "v2"),
         }
     }
 }
@@ -46,11 +46,11 @@ impl Version {
         (self as u32).to_le_bytes()
     }
 
-    fn try_from_bytes(bytes: [u8; 4]) -> Result<Version, InvalidData> {
+    fn try_from_bytes(bytes: [u8; 4]) -> Result<Self, InvalidData> {
         let code = u32::from_le_bytes(bytes);
         match code {
-            1u32 => Ok(Version::V1),
-            2u32 => Ok(Version::V2),
+            1u32 => Ok(Self::V1),
+            2u32 => Ok(Self::V2),
             _ => Err(InvalidData),
         }
     }

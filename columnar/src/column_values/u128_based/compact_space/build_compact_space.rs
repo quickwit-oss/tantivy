@@ -154,7 +154,7 @@ pub fn get_compact_space(
     compact_space
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 struct CompactSpaceBuilder {
     blanks: Vec<RangeInclusive<u128>>,
 }
@@ -162,7 +162,7 @@ struct CompactSpaceBuilder {
 impl CompactSpaceBuilder {
     /// Creates a new compact space builder which will initially cover the whole space.
     fn new() -> Self {
-        Self { blanks: Vec::new() }
+        Self::default()
     }
 
     /// Assumes that repeated add_blank calls don't overlap and are not adjacent,

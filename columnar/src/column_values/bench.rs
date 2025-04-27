@@ -36,7 +36,7 @@ fn value_iter() -> impl Iterator<Item = u64> {
 }
 
 fn get_reader_for_bench<Codec: ColumnCodec>(data: &[u64]) -> Codec::ColumnValues {
-    let mut bytes = Vec::new();
+    let mut bytes = vec![];
     let stats = compute_stats(data.iter().cloned());
     let mut codec_serializer = Codec::estimator();
     for val in data {
@@ -80,7 +80,7 @@ fn bench_get_dynamic<Codec: ColumnCodec>(b: &mut Bencher, data: &[u64]) {
 fn bench_create<Codec: ColumnCodec>(b: &mut Bencher, data: &[u64]) {
     let stats = compute_stats(data.iter().cloned());
 
-    let mut bytes = Vec::new();
+    let mut bytes = vec![];
     b.iter(|| {
         bytes.clear();
         let mut codec_serializer = Codec::estimator();

@@ -555,7 +555,7 @@ where R: Read
                 // The implementation is slow, but is temporary anyways
                 let mut de = serde_json::Deserializer::from_reader(self.reader);
                 let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de).map_err(|err| DeserializeError::Custom(err.to_string()))?;
-                let mut out = Vec::new();
+                let mut out = vec![];
                 let mut serializer = BinaryObjectSerializer::begin(json_map.len(), &mut out)?;
                 for (key, val) in json_map {
                     let val: OwnedValue = val.into();
@@ -860,7 +860,7 @@ mod tests {
     use crate::store::DOC_STORE_VERSION;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
-        let mut writer = Vec::new();
+        let mut writer = vec![];
 
         let mut serializer = BinaryValueSerializer::new(&mut writer);
         serializer.serialize_value(value).expect("Serialize value");
@@ -869,7 +869,7 @@ mod tests {
     }
 
     fn serialize_owned_value<'a>(value: ReferenceValue<'a, &'a OwnedValue>) -> Vec<u8> {
-        let mut writer = Vec::new();
+        let mut writer = vec![];
 
         let mut serializer = BinaryValueSerializer::new(&mut writer);
         serializer.serialize_value(value).expect("Serialize value");

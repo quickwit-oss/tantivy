@@ -194,7 +194,7 @@ where
 
     /// Creates a new `TermDictionaryBuilder`.
     pub fn new(wrt: W) -> Self {
-        Writer {
+        Self {
             previous_key: Vec::with_capacity(DEFAULT_KEY_CAPACITY),
             num_terms: 0u64,
             index_builder: SSTableIndexBuilder::default(),
@@ -413,7 +413,7 @@ mod test {
 
     #[test]
     fn test_merge_abcd_abe() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         {
             let mut writer = VoidSSTable::writer(&mut buffer);
             writer.insert(b"abcd", &()).unwrap();
@@ -421,7 +421,7 @@ mod test {
             writer.finish().unwrap();
         }
         let buffer = OwnedBytes::new(buffer);
-        let mut output = Vec::new();
+        let mut output = vec![];
         assert!(
             VoidSSTable::merge(vec![buffer.clone(), buffer.clone()], &mut output, VoidMerge)
                 .is_ok()
@@ -431,7 +431,7 @@ mod test {
 
     #[test]
     fn test_sstable() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         {
             let mut writer = VoidSSTable::writer(&mut buffer);
             assert_eq!(writer.last_inserted_key(), b"");
@@ -442,7 +442,7 @@ mod test {
             writer.finish().unwrap();
         }
         let buffer = OwnedBytes::new(buffer);
-        let mut output = Vec::new();
+        let mut output = vec![];
         assert!(
             VoidSSTable::merge(vec![buffer.clone(), buffer.clone()], &mut output, VoidMerge)
                 .is_ok()
@@ -452,7 +452,7 @@ mod test {
 
     #[test]
     fn test_sstable_u64() -> io::Result<()> {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let mut writer = MonotonicU64SSTable::writer(&mut buffer);
         writer.insert(b"abcd", &1u64)?;
         writer.insert(b"abe", &4u64)?;

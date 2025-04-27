@@ -61,7 +61,7 @@ fn save_managed_paths(
 
 impl ManagedDirectory {
     /// Wraps a directory as managed directory.
-    pub fn wrap(directory: Box<dyn Directory>) -> crate::Result<ManagedDirectory> {
+    pub fn wrap(directory: Box<dyn Directory>) -> crate::Result<Self> {
         match directory.atomic_read(&MANAGED_FILEPATH) {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
@@ -72,14 +72,14 @@ impl ManagedDirectory {
                             format!("Managed file cannot be deserialized: {e:?}. "),
                         )
                     })?;
-                Ok(ManagedDirectory {
+                Ok(Self {
                     directory,
                     meta_informations: Arc::new(RwLock::new(MetaInformation {
                         managed_paths: managed_files,
                     })),
                 })
             }
-            Err(OpenReadError::FileDoesNotExist(_)) => Ok(ManagedDirectory {
+            Err(OpenReadError::FileDoesNotExist(_)) => Ok(Self {
                 directory,
                 meta_informations: Arc::default(),
             }),
@@ -326,8 +326,8 @@ impl Directory for ManagedDirectory {
 }
 
 impl Clone for ManagedDirectory {
-    fn clone(&self) -> ManagedDirectory {
-        ManagedDirectory {
+    fn clone(&self) -> Self {
+        Self {
             directory: self.directory.box_clone(),
             meta_informations: Arc::clone(&self.meta_informations),
         }

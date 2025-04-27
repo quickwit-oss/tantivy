@@ -26,8 +26,8 @@ pub struct RemoveLongFilter {
 
 impl RemoveLongFilter {
     /// Creates a `RemoveLongFilter` given a limit in bytes of the UTF-8 representation.
-    pub fn limit(length_limit: usize) -> RemoveLongFilter {
-        RemoveLongFilter { length_limit }
+    pub fn limit(length_limit: usize) -> Self {
+        Self { length_limit }
     }
 }
 

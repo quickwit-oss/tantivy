@@ -65,12 +65,12 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
     pub(crate) fn build(
         docsets: Vec<TScorer>,
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
-    ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
+    ) -> Self {
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
             .filter(|docset| docset.doc() != TERMINATED)
             .collect();
-        let mut union = BufferedUnionScorer {
+        let mut union = Self {
             docsets: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
             scores: Box::new([score_combiner_fn(); HORIZON as usize]),

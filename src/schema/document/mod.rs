@@ -207,7 +207,7 @@ pub trait Document: Send + Sync + 'static {
         let first_field_value = if let Some(first_field_value) = field_values_it.next() {
             first_field_value
         } else {
-            return Vec::new();
+            return vec![];
         };
 
         let mut grouped_field_values = vec![];

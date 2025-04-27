@@ -97,8 +97,8 @@ impl TermWeight {
         index_record_option: IndexRecordOption,
         similarity_weight: Bm25Weight,
         scoring_enabled: bool,
-    ) -> TermWeight {
-        TermWeight {
+    ) -> Self {
+        Self {
             term,
             index_record_option,
             similarity_weight,

@@ -25,16 +25,16 @@ pub struct DataCorruption {
 
 impl DataCorruption {
     /// Creates a `DataCorruption` Error.
-    pub fn new(filepath: PathBuf, comment: String) -> DataCorruption {
-        DataCorruption {
+    pub fn new(filepath: PathBuf, comment: String) -> Self {
+        Self {
             filepath: Some(filepath),
             comment,
         }
     }
 
     /// Creates a `DataCorruption` Error, when the filepath is irrelevant.
-    pub fn comment_only<TStr: ToString>(comment: TStr) -> DataCorruption {
-        DataCorruption {
+    pub fn comment_only<TStr: ToString>(comment: TStr) -> Self {
+        Self {
             filepath: None,
             comment: comment.to_string(),
         }
@@ -113,76 +113,76 @@ pub enum TantivyError {
 }
 
 impl From<io::Error> for TantivyError {
-    fn from(io_err: io::Error) -> TantivyError {
-        TantivyError::IoError(Arc::new(io_err))
+    fn from(io_err: io::Error) -> Self {
+        Self::IoError(Arc::new(io_err))
     }
 }
 impl From<DataCorruption> for TantivyError {
-    fn from(data_corruption: DataCorruption) -> TantivyError {
-        TantivyError::DataCorruption(data_corruption)
+    fn from(data_corruption: DataCorruption) -> Self {
+        Self::DataCorruption(data_corruption)
     }
 }
 impl From<FastFieldNotAvailableError> for TantivyError {
-    fn from(fastfield_error: FastFieldNotAvailableError) -> TantivyError {
-        TantivyError::SchemaError(format!("{fastfield_error}"))
+    fn from(fastfield_error: FastFieldNotAvailableError) -> Self {
+        Self::SchemaError(format!("{fastfield_error}"))
     }
 }
 impl From<LockError> for TantivyError {
-    fn from(lock_error: LockError) -> TantivyError {
-        TantivyError::LockFailure(lock_error, None)
+    fn from(lock_error: LockError) -> Self {
+        Self::LockFailure(lock_error, None)
     }
 }
 
 impl From<query::QueryParserError> for TantivyError {
-    fn from(parsing_error: query::QueryParserError) -> TantivyError {
-        TantivyError::InvalidArgument(format!("Query is invalid. {parsing_error:?}"))
+    fn from(parsing_error: query::QueryParserError) -> Self {
+        Self::InvalidArgument(format!("Query is invalid. {parsing_error:?}"))
     }
 }
 
 impl<Guard> From<PoisonError<Guard>> for TantivyError {
-    fn from(_: PoisonError<Guard>) -> TantivyError {
-        TantivyError::Poisoned
+    fn from(_: PoisonError<Guard>) -> Self {
+        Self::Poisoned
     }
 }
 
 impl From<time::error::Format> for TantivyError {
-    fn from(err: time::error::Format) -> TantivyError {
-        TantivyError::InvalidArgument(format!("Date formatting error: {err}"))
+    fn from(err: time::error::Format) -> Self {
+        Self::InvalidArgument(format!("Date formatting error: {err}"))
     }
 }
 
 impl From<time::error::Parse> for TantivyError {
-    fn from(err: time::error::Parse) -> TantivyError {
-        TantivyError::InvalidArgument(format!("Date parsing error: {err}"))
+    fn from(err: time::error::Parse) -> Self {
+        Self::InvalidArgument(format!("Date parsing error: {err}"))
     }
 }
 
 impl From<time::error::ComponentRange> for TantivyError {
-    fn from(err: time::error::ComponentRange) -> TantivyError {
-        TantivyError::InvalidArgument(format!("Date range error: {err}"))
+    fn from(err: time::error::ComponentRange) -> Self {
+        Self::InvalidArgument(format!("Date range error: {err}"))
     }
 }
 
 impl From<schema::DocParsingError> for TantivyError {
-    fn from(error: schema::DocParsingError) -> TantivyError {
-        TantivyError::InvalidArgument(format!("Failed to parse document {error:?}"))
+    fn from(error: schema::DocParsingError) -> Self {
+        Self::InvalidArgument(format!("Failed to parse document {error:?}"))
     }
 }
 
 impl From<serde_json::Error> for TantivyError {
-    fn from(error: serde_json::Error) -> TantivyError {
-        TantivyError::IoError(Arc::new(error.into()))
+    fn from(error: serde_json::Error) -> Self {
+        Self::IoError(Arc::new(error.into()))
     }
 }
 
 impl From<rayon::ThreadPoolBuildError> for TantivyError {
-    fn from(error: rayon::ThreadPoolBuildError) -> TantivyError {
-        TantivyError::SystemError(error.to_string())
+    fn from(error: rayon::ThreadPoolBuildError) -> Self {
+        Self::SystemError(error.to_string())
     }
 }
 
 impl From<DeserializeError> for TantivyError {
-    fn from(error: DeserializeError) -> TantivyError {
-        TantivyError::DeserializeError(error)
+    fn from(error: DeserializeError) -> Self {
+        Self::DeserializeError(error)
     }
 }

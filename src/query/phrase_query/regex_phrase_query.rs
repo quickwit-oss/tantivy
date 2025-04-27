@@ -43,16 +43,16 @@ impl RegexPhraseQuery {
     /// must belong to the same field.
     ///
     /// Offset for each term will be same as index in the Vector
-    pub fn new(field: Field, terms: Vec<String>) -> RegexPhraseQuery {
+    pub fn new(field: Field, terms: Vec<String>) -> Self {
         let terms_with_offset = terms.into_iter().enumerate().collect();
-        RegexPhraseQuery::new_with_offset(field, terms_with_offset)
+        Self::new_with_offset(field, terms_with_offset)
     }
 
     /// Creates a new `RegexPhraseQuery` given a list of terms and their offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(field: Field, terms: Vec<(usize, String)>) -> RegexPhraseQuery {
-        RegexPhraseQuery::new_with_offset_and_slop(field, terms, 0)
+    pub fn new_with_offset(field: Field, terms: Vec<(usize, String)>) -> Self {
+        Self::new_with_offset_and_slop(field, terms, 0)
     }
 
     /// Creates a new `RegexPhraseQuery` given a list of terms, their offsets and a slop
@@ -60,13 +60,13 @@ impl RegexPhraseQuery {
         field: Field,
         mut terms: Vec<(usize, String)>,
         slop: u32,
-    ) -> RegexPhraseQuery {
+    ) -> Self {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
         );
         terms.sort_by_key(|&(offset, _)| offset);
-        RegexPhraseQuery {
+        Self {
             field,
             phrase_terms: terms,
             slop,

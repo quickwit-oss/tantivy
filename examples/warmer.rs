@@ -36,7 +36,7 @@ struct DynamicPriceColumn {
 
 impl DynamicPriceColumn {
     pub fn with_product_id_field<T: PriceFetcher>(field: String, price_fetcher: T) -> Self {
-        DynamicPriceColumn {
+        Self {
             field,
             price_cache: Default::default(),
             price_fetcher: Box::new(price_fetcher),

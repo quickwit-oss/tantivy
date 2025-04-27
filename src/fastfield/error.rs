@@ -15,8 +15,8 @@ impl FastFieldNotAvailableError {
     /// Creates a `FastFieldNotAvailable` error.
     /// `field_entry` is the configuration of the field
     /// for which fast fields are not available.
-    pub fn new(field_entry: &FieldEntry) -> FastFieldNotAvailableError {
-        FastFieldNotAvailableError {
+    pub fn new(field_entry: &FieldEntry) -> Self {
+        Self {
             field_name: field_entry.name().to_string(),
         }
     }

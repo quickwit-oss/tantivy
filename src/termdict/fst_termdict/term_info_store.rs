@@ -37,7 +37,7 @@ impl BinarySerializable for TermInfoBlockMeta {
         let ref_term_info = TermInfo::deserialize(reader)?;
         let mut buffer = [0u8; 3];
         reader.read_exact(&mut buffer)?;
-        Ok(TermInfoBlockMeta {
+        Ok(Self {
             offset,
             ref_term_info,
             doc_freq_nbits: buffer[0],
@@ -122,14 +122,14 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
 }
 
 impl TermInfoStore {
-    pub fn open(term_info_store_file: FileSlice) -> io::Result<TermInfoStore> {
+    pub fn open(term_info_store_file: FileSlice) -> io::Result<Self> {
         let (len_slice, main_slice) = term_info_store_file.split(16);
         let mut bytes = len_slice.read_bytes()?;
         let len = u64::deserialize(&mut bytes)? as usize;
         let num_terms = u64::deserialize(&mut bytes)? as usize;
         let (block_meta_file, term_info_file) = main_slice.split(len);
         let term_info_bytes = term_info_file.read_bytes()?;
-        Ok(TermInfoStore {
+        Ok(Self {
             num_terms,
             block_meta_bytes: block_meta_file.read_bytes()?,
             term_info_bytes,
@@ -190,10 +190,10 @@ fn bitpack_serialize<W: Write>(
 }
 
 impl TermInfoStoreWriter {
-    pub fn new() -> TermInfoStoreWriter {
-        TermInfoStoreWriter {
-            buffer_block_metas: Vec::new(),
-            buffer_term_infos: Vec::new(),
+    pub fn new() -> Self {
+        Self {
+            buffer_block_metas: vec![],
+            buffer_term_infos: vec![],
             term_infos: Vec::with_capacity(BLOCK_LEN),
             num_terms: 0u64,
         }
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_bitpacked() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let mut bitpack = BitPacker::new();
         bitpack.write(321u64, 9, &mut buffer).unwrap();
         assert_eq!(compute_num_bits(321u64), 9);
@@ -331,7 +331,7 @@ mod tests {
             postings_offset_nbits: 5,
             positions_offset_nbits: 8,
         };
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         term_info_block_meta.serialize(&mut buffer).unwrap();
         let mut cursor: &[u8] = &buffer[..];
         let term_info_block_meta_serde = TermInfoBlockMeta::deserialize(&mut cursor).unwrap();
@@ -352,7 +352,7 @@ mod tests {
             store_writer.write_term_info(&term_info)?;
             term_infos.push(term_info);
         }
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         store_writer.serialize(&mut buffer)?;
         let term_info_store = TermInfoStore::open(FileSlice::from(buffer))?;
         for i in 0..1000 {

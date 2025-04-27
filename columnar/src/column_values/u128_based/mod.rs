@@ -33,7 +33,7 @@ impl BinarySerializable for U128Header {
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let num_vals = VInt::deserialize(reader)?.0 as u32;
         let codec_type = U128FastFieldCodecType::deserialize(reader)?;
-        Ok(U128Header {
+        Ok(Self {
             num_vals,
             codec_type,
         })
@@ -142,7 +142,7 @@ pub(crate) mod tests {
             num_vals: 11,
             codec_type: U128FastFieldCodecType::CompactSpace,
         };
-        let mut out = Vec::new();
+        let mut out = vec![];
         original.serialize(&mut out).unwrap();
         let restored = U128Header::deserialize(&mut &out[..]).unwrap();
         assert_eq!(restored, original);
@@ -160,7 +160,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_fastfield_bool_size_bitwidth_1() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         serialize_u64_based_column_values::<bool>(
             &&[false, true][..],
             &ALL_U64_CODEC_TYPES,
@@ -174,7 +174,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_fastfield_bool_bit_size_bitwidth_0() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         serialize_u64_based_column_values::<bool>(
             &&[false, true][..],
             &ALL_U64_CODEC_TYPES,
@@ -187,7 +187,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_fastfield_gcd() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let vals: Vec<u64> = (0..80).map(|val| (val % 7) * 1_000u64).collect();
         serialize_u64_based_column_values(&&vals[..], &[CodecType::Bitpacked], &mut buffer)
             .unwrap();

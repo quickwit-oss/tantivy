@@ -247,7 +247,7 @@ impl Searcher {
 
 impl From<Arc<SearcherInner>> for Searcher {
     fn from(inner: Arc<SearcherInner>) -> Self {
-        Searcher { inner }
+        Self { inner }
     }
 }
 
@@ -271,7 +271,7 @@ impl SearcherInner {
         segment_readers: Vec<SegmentReader>,
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_num_blocks: usize,
-    ) -> io::Result<SearcherInner> {
+    ) -> io::Result<Self> {
         assert_eq!(
             &segment_readers
                 .iter()
@@ -285,7 +285,7 @@ impl SearcherInner {
             .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_num_blocks))
             .collect::<io::Result<Vec<_>>>()?;
 
-        Ok(SearcherInner {
+        Ok(Self {
             schema,
             index,
             segment_readers,

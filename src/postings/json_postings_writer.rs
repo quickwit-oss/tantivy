@@ -22,7 +22,7 @@ pub(crate) struct JsonPostingsWriter<Rec: Recorder> {
 }
 
 impl<Rec: Recorder> From<JsonPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
-    fn from(json_postings_writer: JsonPostingsWriter<Rec>) -> Box<dyn PostingsWriter> {
+    fn from(json_postings_writer: JsonPostingsWriter<Rec>) -> Self {
         Box::new(json_postings_writer)
     }
 }

@@ -79,7 +79,7 @@ pub struct DisjunctionMaxQuery {
 
 impl Clone for DisjunctionMaxQuery {
     fn clone(&self) -> Self {
-        DisjunctionMaxQuery::with_tie_breaker(
+        Self::with_tie_breaker(
             self.disjuncts
                 .iter()
                 .map(|disjunct| disjunct.box_clone())
@@ -113,18 +113,15 @@ impl Query for DisjunctionMaxQuery {
 
 impl DisjunctionMaxQuery {
     /// Creates a new `DisjunctionMaxQuery` with tie breaker.
-    pub fn with_tie_breaker(
-        disjuncts: Vec<Box<dyn Query>>,
-        tie_breaker: Score,
-    ) -> DisjunctionMaxQuery {
-        DisjunctionMaxQuery {
+    pub fn with_tie_breaker(disjuncts: Vec<Box<dyn Query>>, tie_breaker: Score) -> Self {
+        Self {
             disjuncts,
             tie_breaker,
         }
     }
 
     /// Creates a new `DisjunctionMaxQuery` with no tie breaker.
-    pub fn new(disjuncts: Vec<Box<dyn Query>>) -> DisjunctionMaxQuery {
-        DisjunctionMaxQuery::with_tie_breaker(disjuncts, 0.0)
+    pub fn new(disjuncts: Vec<Box<dyn Query>>) -> Self {
+        Self::with_tie_breaker(disjuncts, 0.0)
     }
 }
