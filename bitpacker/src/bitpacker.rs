@@ -3,22 +3,15 @@ use std::ops::{Range, RangeInclusive};
 
 use bitpacking::{BitPacker as ExternalBitPackerTrait, BitPacker1x};
 
+#[derive(Default)]
 pub struct BitPacker {
     mini_buffer: u64,
     mini_buffer_written: usize,
 }
 
-impl Default for BitPacker {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 impl BitPacker {
     pub fn new() -> Self {
-        Self {
-            mini_buffer: 0u64,
-            mini_buffer_written: 0,
-        }
+        Self::default()
     }
 
     #[inline]

@@ -20,14 +20,8 @@ pub trait MergePolicy: marker::Send + marker::Sync + Debug {
 }
 
 /// Never merge segments.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NoMergePolicy;
-
-impl Default for NoMergePolicy {
-    fn default() -> Self {
-        Self
-    }
-}
 
 impl MergePolicy for NoMergePolicy {
     fn compute_merge_candidates(&self, _segments: &[SegmentMeta]) -> Vec<MergeCandidate> {

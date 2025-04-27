@@ -101,26 +101,18 @@ fn save_new_metas(
 /// };
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 /// ```
+#[derive(Default)]
 pub struct IndexBuilder {
     schema: Option<Schema>,
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
 }
-impl Default for IndexBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+
 impl IndexBuilder {
     /// Creates a new `IndexBuilder`
     pub fn new() -> Self {
-        Self {
-            schema: None,
-            index_settings: IndexSettings::default(),
-            tokenizer_manager: TokenizerManager::default(),
-            fast_field_tokenizer_manager: TokenizerManager::default(),
-        }
+        Self::default()
     }
 
     /// Set the settings
