@@ -213,7 +213,7 @@ macro_rules! static_dynamic_conversions {
 
         impl From<$typ> for DynamicColumn {
             fn from(typed_column: $typ) -> Self {
-                DynamicColumn::$enum_name(typed_column)
+                Self::$enum_name(typed_column)
             }
         }
     };

@@ -45,7 +45,7 @@ pub struct TermMerger<'a> {
 impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
     pub fn new(term_streams_with_segment: Vec<TermsWithSegmentOrd<'a>>) -> Self {
-        TermMerger {
+        Self {
             heap: BinaryHeap::new(),
             term_streams_with_segment,
         }

@@ -18,7 +18,7 @@ pub struct SerializableOptionalIndex<'a> {
 
 impl<'a> From<&'a OptionalIndex> for SerializableOptionalIndex<'a> {
     fn from(optional_index: &'a OptionalIndex) -> Self {
-        SerializableOptionalIndex {
+        Self {
             non_null_row_ids: Box::new(optional_index),
             num_rows: optional_index.num_docs(),
         }

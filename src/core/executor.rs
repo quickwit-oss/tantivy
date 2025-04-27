@@ -18,7 +18,7 @@ pub enum Executor {
 #[cfg(feature = "quickwit")]
 impl From<Arc<rayon::ThreadPool>> for Executor {
     fn from(thread_pool: Arc<rayon::ThreadPool>) -> Self {
-        Executor::ThreadPool(thread_pool)
+        Self::ThreadPool(thread_pool)
     }
 }
 
