@@ -26,7 +26,7 @@ impl Serialize for Compressor {
             #[cfg(feature = "lz4-compression")]
             Self::Lz4 => serializer.serialize_str("lz4"),
             #[cfg(feature = "zstd-compression")]
-            Compressor::Zstd(zstd) => serializer.serialize_str(&zstd.ser_to_string()),
+            Self::Zstd(zstd) => serializer.serialize_str(&zstd.ser_to_string()),
         }
     }
 }
@@ -85,16 +85,16 @@ pub struct ZstdCompressor {
 
 #[cfg(feature = "zstd-compression")]
 impl ZstdCompressor {
-    fn deser_from_str(val: &str) -> Result<ZstdCompressor, String> {
+    fn deser_from_str(val: &str) -> Result<Self, String> {
         if !val.starts_with("zstd") {
             return Err(format!("needs to start with zstd, but got {val}"));
         }
         if val == "zstd" {
-            return Ok(ZstdCompressor::default());
+            return Ok(Self::default());
         }
         let options = &val["zstd".len() + 1..val.len() - 1];
 
-        let mut compressor = ZstdCompressor::default();
+        let mut compressor = Self::default();
         for option in options.split(',') {
             let (opt_name, value) = options
                 .split_once('=')
@@ -137,7 +137,7 @@ impl Default for Compressor {
         return Self::Lz4;
 
         #[cfg(feature = "zstd-compression")]
-        return Compressor::Zstd(ZstdCompressor::default());
+        return Self::Zstd(ZstdCompressor::default());
 
         Self::None
     }

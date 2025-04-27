@@ -34,9 +34,9 @@ pub enum SerializableColumnIndex<'a> {
 impl SerializableColumnIndex<'_> {
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
-            SerializableColumnIndex::Full => Cardinality::Full,
-            SerializableColumnIndex::Optional(_) => Cardinality::Optional,
-            SerializableColumnIndex::Multivalued(_) => Cardinality::Multivalued,
+            Self::Full => Cardinality::Full,
+            Self::Optional(_) => Cardinality::Optional,
+            Self::Multivalued(_) => Cardinality::Multivalued,
         }
     }
 }
