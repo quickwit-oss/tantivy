@@ -25,7 +25,7 @@ pub struct NoMergePolicy;
 
 impl MergePolicy for NoMergePolicy {
     fn compute_merge_candidates(&self, _segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
-        Vec::new()
+        vec![]
     }
 }
 

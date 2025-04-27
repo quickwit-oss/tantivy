@@ -473,7 +473,7 @@ impl SegmentTermCollector {
                 .as_ref()
                 .map(|el| el.dictionary())
                 .unwrap_or_else(|| &fallback_dict);
-            let mut buffer = Vec::new();
+            let mut buffer = vec![];
 
             // special case for missing key
             if let Some(index) = entries.iter().position(|value| value.0 == u64::MAX) {

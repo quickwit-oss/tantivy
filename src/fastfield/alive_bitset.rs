@@ -42,7 +42,7 @@ impl AliveBitSet {
         for &doc in deleted_docs {
             bitset.remove(doc);
         }
-        let mut alive_bitset_buffer = Vec::new();
+        let mut alive_bitset_buffer = vec![];
         write_alive_bitset(&bitset, &mut alive_bitset_buffer).unwrap();
         let alive_bitset_bytes = OwnedBytes::new(alive_bitset_buffer);
         Self::open(alive_bitset_bytes)

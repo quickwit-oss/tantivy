@@ -77,7 +77,7 @@ mod tests {
         index_writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
-        let mut facet_ords = Vec::new();
+        let mut facet_ords = vec![];
         facet_ords.extend(facet_reader.facet_ords(0u32));
         assert_eq!(&facet_ords, &[0u64]);
         assert_eq!(facet_reader.num_facets(), 1);
@@ -112,7 +112,7 @@ mod tests {
         index_writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
-        let mut facet_ords = Vec::new();
+        let mut facet_ords = vec![];
 
         facet_ords.extend(facet_reader.facet_ords(0u32));
         assert_eq!(&facet_ords, &[0u64]);
@@ -142,7 +142,7 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
-        let mut facet_ords = Vec::new();
+        let mut facet_ords = vec![];
         facet_ords.extend(facet_reader.facet_ords(0u32));
         assert_eq!(&facet_ords, &[0u64]);
         let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))?;
@@ -166,7 +166,7 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher.segment_reader(0u32).facet_reader("facet").unwrap();
-        let mut facet_ords = Vec::new();
+        let mut facet_ords = vec![];
         facet_ords.extend(facet_reader.facet_ords(0u32));
         assert_eq!(&facet_ords, &[0u64]);
         facet_ords.clear();

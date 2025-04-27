@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_log_merge_policy_empty() {
-        let y = Vec::new();
+        let y = vec![];
         let result_list = test_merge_policy().compute_merge_candidates(&y);
         assert!(result_list.is_empty());
     }

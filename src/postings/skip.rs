@@ -50,7 +50,7 @@ pub struct SkipSerializer {
 
 impl SkipSerializer {
     pub fn new() -> Self {
-        Self { buffer: Vec::new() }
+        Self { buffer: vec![] }
     }
 
     pub fn write_doc(&mut self, last_doc: DocId, doc_num_bits: u8) {

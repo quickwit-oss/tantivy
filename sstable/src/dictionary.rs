@@ -51,7 +51,7 @@ impl Dictionary<VoidSSTable> {
     pub fn build_for_tests(terms: &[&str]) -> Self {
         let mut terms = terms.to_vec();
         terms.sort();
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let mut dictionary_writer = Self::builder(&mut buffer).unwrap();
         for term in terms {
             dictionary_writer.insert(term, &()).unwrap();
@@ -509,7 +509,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         ord: impl Iterator<Item = TermOrdinal>,
         mut cb: F,
     ) -> io::Result<bool> {
-        let mut bytes = Vec::new();
+        let mut bytes = vec![];
         let mut current_block_addr = self.sstable_index.get_block_with_ord(0);
         let mut current_sstable_delta_reader =
             self.sstable_delta_reader_block(current_block_addr.clone())?;
@@ -847,7 +847,7 @@ mod tests {
         let block = dic.sstable_index.get_block_with_ord(100_000);
         slice.restrict(block.byte_range);
 
-        let mut res = Vec::new();
+        let mut res = vec![];
 
         // middle of a block
         assert!(dic.ord_to_term(100_000, &mut res).unwrap());
@@ -911,7 +911,7 @@ mod tests {
         let (dic, _slice) = make_test_sstable();
 
         // Single term
-        let mut terms = Vec::new();
+        let mut terms = vec![];
         assert!(
             dic.sorted_ords_to_term_cb(100_000..100_001, |term| {
                 terms.push(term.to_vec());
@@ -921,7 +921,7 @@ mod tests {
         );
         assert_eq!(terms, vec![format!("{:05X}", 100_000).into_bytes(),]);
         // Single term
-        let mut terms = Vec::new();
+        let mut terms = vec![];
         assert!(
             dic.sorted_ords_to_term_cb(100_001..100_002, |term| {
                 terms.push(term.to_vec());
@@ -931,7 +931,7 @@ mod tests {
         );
         assert_eq!(terms, vec![format!("{:05X}", 100_001).into_bytes(),]);
         // both terms
-        let mut terms = Vec::new();
+        let mut terms = vec![];
         assert!(
             dic.sorted_ords_to_term_cb(100_000..100_002, |term| {
                 terms.push(term.to_vec());
@@ -947,7 +947,7 @@ mod tests {
             ]
         );
         // Test cross block
-        let mut terms = Vec::new();
+        let mut terms = vec![];
         assert!(
             dic.sorted_ords_to_term_cb(98653..=98655, |term| {
                 terms.push(term.to_vec());

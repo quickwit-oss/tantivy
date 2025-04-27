@@ -587,7 +587,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         let facet_reader = segment_reader.facet_reader("facet").unwrap();
         // facets, contrary to strings are sorted.
-        let mut facet_ords = Vec::new();
+        let mut facet_ords = vec![];
         facet_ords.extend(facet_reader.facet_ords(0u32));
         assert_eq!(&facet_ords, &[0, 1]);
     }
@@ -726,7 +726,7 @@ mod tests {
             .column_opt::<DateTime>("multi_date")
             .unwrap()
             .unwrap();
-        let mut dates = Vec::new();
+        let mut dates = vec![];
         {
             assert_eq!(date_fast_field.get_val(0).into_timestamp_nanos(), 1i64);
             dates_fast_field.fill_vals(0u32, &mut dates);

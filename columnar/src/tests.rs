@@ -20,7 +20,7 @@ fn test_dataframe_writer_str() {
     let mut dataframe_writer = ColumnarWriter::default();
     dataframe_writer.record_str(1u32, "my_string", "hello");
     dataframe_writer.record_str(3u32, "my_string", "helloeee");
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
@@ -34,7 +34,7 @@ fn test_dataframe_writer_bytes() {
     let mut dataframe_writer = ColumnarWriter::default();
     dataframe_writer.record_bytes(1u32, "my_string", b"hello");
     dataframe_writer.record_bytes(3u32, "my_string", b"helloeee");
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
@@ -48,7 +48,7 @@ fn test_dataframe_writer_bool() {
     let mut dataframe_writer = ColumnarWriter::default();
     dataframe_writer.record_bool(1u32, "bool.value", false);
     dataframe_writer.record_bool(3u32, "bool.value", true);
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
@@ -73,7 +73,7 @@ fn test_dataframe_writer_u64_multivalued() {
     dataframe_writer.record_numerical(5u32, "divisor", 5u64);
     dataframe_writer.record_numerical(6u32, "divisor", 2u64);
     dataframe_writer.record_numerical(6u32, "divisor", 3u64);
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(7, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
@@ -96,7 +96,7 @@ fn test_dataframe_writer_ip_addr() {
     let mut dataframe_writer = ColumnarWriter::default();
     dataframe_writer.record_ip_addr(1, "ip_addr", Ipv6Addr::from_u128(1001));
     dataframe_writer.record_ip_addr(3, "ip_addr", Ipv6Addr::from_u128(1050));
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(5, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
@@ -127,7 +127,7 @@ fn test_dataframe_writer_numerical() {
     dataframe_writer.record_numerical(1u32, "srical.value", NumericalValue::U64(12u64));
     dataframe_writer.record_numerical(2u32, "srical.value", NumericalValue::U64(13u64));
     dataframe_writer.record_numerical(4u32, "srical.value", NumericalValue::U64(15u64));
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(6, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
@@ -155,7 +155,7 @@ fn test_dataframe_writer_numerical() {
 
 #[test]
 fn test_dictionary_encoded_str() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let mut columnar_writer = ColumnarWriter::default();
     columnar_writer.record_str(1, "my.column", "a");
     columnar_writer.record_str(3, "my.column", "c");
@@ -189,7 +189,7 @@ fn test_dictionary_encoded_str() {
 
 #[test]
 fn test_dictionary_encoded_bytes() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let mut columnar_writer = ColumnarWriter::default();
     columnar_writer.record_bytes(1, "my.column", b"a");
     columnar_writer.record_bytes(3, "my.column", b"c");
@@ -208,7 +208,7 @@ fn test_dictionary_encoded_bytes() {
         .collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(bytes_col.num_rows(), 5);
-    let mut term_buffer = Vec::new();
+    let mut term_buffer = vec![];
     let term_ords = bytes_col.ords();
     assert_eq!(term_ords.first(0), None);
     assert_eq!(term_ords.first(1), Some(0));
@@ -336,7 +336,7 @@ fn permutation_and_subset_strategy(n: usize) -> impl Strategy<Value = Vec<usize>
 
 fn build_columnar_with_mapping(docs: &[Vec<(&'static str, ColumnValue)>]) -> ColumnarReader {
     let num_docs = docs.len() as u32;
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let mut columnar_writer = ColumnarWriter::default();
     for (doc_id, vals) in docs.iter().enumerate() {
         for (column_name, col_val) in vals {
@@ -552,7 +552,7 @@ fn assert_bytes_column_values(
     is_str: bool,
 ) {
     let mut num_non_empty_rows = 0;
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     for doc in 0..col.term_ord_column.num_docs() {
         let doc_vals: Vec<u64> = col.term_ords(doc).collect();
         if doc_vals.is_empty() {
@@ -639,7 +639,7 @@ proptest! {
             .map(|docs| build_columnar(&docs[..]))
             .collect::<Vec<_>>();
         let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = vec![];
         let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]).into();
         crate::merge_columnar(&columnar_readers_arr[..], &[], stack_merge_order, &mut output).unwrap();
         let merged_columnar = ColumnarReader::open(output).unwrap();
@@ -658,7 +658,7 @@ fn test_columnar_merging_empty_columnar() {
         .map(|docs| build_columnar(&docs[..]))
         .collect::<Vec<_>>();
     let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
-    let mut output: Vec<u8> = Vec::new();
+    let mut output: Vec<u8> = vec![];
     let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]);
     crate::merge_columnar(
         &columnar_readers_arr[..],
@@ -695,7 +695,7 @@ fn test_columnar_merging_number_columns() {
         .map(|docs| build_columnar(&docs[..]))
         .collect::<Vec<_>>();
     let columnar_readers_arr: Vec<&ColumnarReader> = columnar_readers.iter().collect();
-    let mut output: Vec<u8> = Vec::new();
+    let mut output: Vec<u8> = vec![];
     let stack_merge_order = StackMergeOrder::stack(&columnar_readers_arr[..]);
     crate::merge_columnar(
         &columnar_readers_arr[..],
@@ -764,7 +764,7 @@ fn test_columnar_merge_and_remap(
         .map(|docs| build_columnar(&docs[..]))
         .collect::<Vec<_>>();
     let columnar_readers_ref: Vec<&ColumnarReader> = columnar_readers.iter().collect();
-    let mut output: Vec<u8> = Vec::new();
+    let mut output: Vec<u8> = vec![];
     let segment_num_rows: Vec<RowId> = columnar_docs
         .iter()
         .map(|docs| docs.len() as RowId)
@@ -809,7 +809,7 @@ fn test_columnar_merge_empty() {
     let columnar_reader_1 = build_columnar(&[]);
     let rows: &[Vec<_>] = &[vec![("c1", ColumnValue::Str("a"))]][..];
     let columnar_reader_2 = build_columnar(rows);
-    let mut output: Vec<u8> = Vec::new();
+    let mut output: Vec<u8> = vec![];
     let segment_num_rows: Vec<RowId> = vec![0, 0];
     let shuffle_merge_order = ShuffleMergeOrder::for_test(&segment_num_rows, vec![]);
     crate::merge_columnar(
@@ -829,7 +829,7 @@ fn test_columnar_merge_single_str_column() {
     let columnar_reader_1 = build_columnar(&[]);
     let rows: &[Vec<_>] = &[vec![("c1", ColumnValue::Str("a"))]][..];
     let columnar_reader_2 = build_columnar(rows);
-    let mut output: Vec<u8> = Vec::new();
+    let mut output: Vec<u8> = vec![];
     let segment_num_rows: Vec<RowId> = vec![0, 1];
     let shuffle_merge_order = ShuffleMergeOrder::for_test(
         &segment_num_rows,
@@ -862,7 +862,7 @@ fn test_delete_decrease_cardinality() {
     ][..];
     // c is multivalued here
     let columnar_reader_2 = build_columnar(rows);
-    let mut output: Vec<u8> = Vec::new();
+    let mut output: Vec<u8> = vec![];
     let shuffle_merge_order = ShuffleMergeOrder::for_test(
         &[0, 2],
         vec![RowAddr {

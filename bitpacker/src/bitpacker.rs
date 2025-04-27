@@ -241,7 +241,7 @@ mod test {
     use super::{BitPacker, BitUnpacker};
 
     fn create_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker, Vec<u64>, Vec<u8>) {
-        let mut data = Vec::new();
+        let mut data = vec![];
         let mut bitpacker = BitPacker::new();
         let max_val: u64 = (1u64 << num_bits as u64) - 1u64;
         let vals: Vec<u64> = (0u64..len as u64)
@@ -291,7 +291,7 @@ mod test {
     }
 
     fn test_bitpacker_aux(num_bits: u8, vals: &[u64]) {
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         let mut bitpacker = BitPacker::new();
         for &val in vals {
             bitpacker.write(val, num_bits, &mut buffer).unwrap();
@@ -350,14 +350,14 @@ mod test {
                 } else {
                     (1u32 << num_bits) - 1
                 };
-            let mut buffer: Vec<u8> = Vec::new();
+            let mut buffer: Vec<u8> = vec![];
             let mut bitpacker = BitPacker::new();
             for val in 0..100 {
                 bitpacker.write(val & mask as u64, num_bits, &mut buffer).unwrap();
             }
             bitpacker.flush(&mut buffer).unwrap();
             let bitunpacker = BitUnpacker::new(num_bits);
-            let mut output: Vec<u32> = Vec::new();
+            let mut output: Vec<u32> = vec![];
             for len in [0, 1, 2, 32, 33, 34, 64] {
                 for start_idx in 0u32..32u32 {
                     output.resize(len, 0);

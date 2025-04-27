@@ -163,7 +163,7 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
         ));
     }
 
-    let mut segments: Vec<Segment> = Vec::new();
+    let mut segments: Vec<Segment> = vec![];
     for index in indices {
         segments.extend(index.searchable_segments()?);
     }
@@ -975,7 +975,7 @@ mod tests {
             index
         };
 
-        let mut segments: Vec<Segment> = Vec::new();
+        let mut segments: Vec<Segment> = vec![];
         segments.extend(first_index.searchable_segments()?);
         segments.extend(second_index.searchable_segments()?);
 
@@ -1022,7 +1022,7 @@ mod tests {
             index
         };
 
-        let mut segments: Vec<Segment> = Vec::new();
+        let mut segments: Vec<Segment> = vec![];
         segments.extend(first_index.searchable_segments()?);
 
         let target_settings = first_index.settings().clone();
@@ -1085,7 +1085,7 @@ mod tests {
             index
         };
 
-        let mut segments: Vec<Segment> = Vec::new();
+        let mut segments: Vec<Segment> = vec![];
         segments.extend(first_index.searchable_segments()?);
 
         let target_settings = first_index.settings().clone();

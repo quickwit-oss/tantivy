@@ -46,7 +46,7 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
     pub fn wrap(w: W) -> Self {
         Self {
             write: CountingWriter::wrap(w),
-            offsets: Vec::new(),
+            offsets: vec![],
         }
     }
 
@@ -168,7 +168,7 @@ impl CompositeFile {
     }
 
     pub fn space_usage(&self) -> PerFieldSpaceUsage {
-        let mut fields = Vec::new();
+        let mut fields = vec![];
         for (&field_addr, byte_range) in &self.offsets_index {
             let mut field_usage = FieldUsage::empty(field_addr.field);
             field_usage.add_field_idx(field_addr.idx, byte_range.len().into());

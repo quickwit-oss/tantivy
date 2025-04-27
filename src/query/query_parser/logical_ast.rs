@@ -41,7 +41,7 @@ impl LogicalAst {
     pub fn simplify(self) -> Self {
         match self {
             Self::Clause(clauses) => {
-                let mut new_clauses: Vec<(Occur, Self)> = Vec::new();
+                let mut new_clauses: Vec<(Occur, Self)> = vec![];
 
                 for (occur, sub_ast) in clauses {
                     let simplified_sub_ast = sub_ast.simplify();

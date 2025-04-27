@@ -64,7 +64,7 @@ impl RegexPhraseWeight {
             .as_ref()
             .map(|similarity_weight| similarity_weight.boost_by(boost));
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
-        let mut posting_lists = Vec::new();
+        let mut posting_lists = vec![];
         let inverted_index = reader.inverted_index(self.field)?;
         let mut num_terms = 0;
         for &(offset, ref term) in &self.phrase_terms {
@@ -182,7 +182,7 @@ impl RegexPhraseWeight {
 
         // Buckets for sparse terms
         let mut sparse_buckets: Vec<(BitSet, Vec<LoadedPostings>)> =
-            vec![(BitSet::with_max_value(max_doc), Vec::new())];
+            vec![(BitSet::with_max_value(max_doc), vec![])];
 
         // Buckets for other terms based on document frequency percentages:
         // - Bucket 0: Terms appearing in less than 0.1% of documents
@@ -190,7 +190,7 @@ impl RegexPhraseWeight {
         // - Bucket 2: Terms appearing in 1% to 10% of documents
         // - Bucket 3: Terms appearing in more than 10% of documents
         let mut buckets: Vec<(BitSet, Vec<SegmentPostings>)> = (0..4)
-            .map(|_| (BitSet::with_max_value(max_doc), Vec::new()))
+            .map(|_| (BitSet::with_max_value(max_doc), vec![]))
             .collect();
 
         const SPARSE_TERM_DOC_THRESHOLD: u32 = 100;
@@ -208,7 +208,7 @@ impl RegexPhraseWeight {
 
                 // Move the bucket to the end if the term limit is reached
                 if current_bucket.1.len() == 512 {
-                    sparse_buckets.push((BitSet::with_max_value(max_doc), Vec::new()));
+                    sparse_buckets.push((BitSet::with_max_value(max_doc), vec![]));
                     let end_index = sparse_buckets.len() - 1;
                     sparse_buckets.swap(0, end_index);
                 }
@@ -234,7 +234,7 @@ impl RegexPhraseWeight {
 
                 // Move the bucket to the end if the term limit is reached
                 if bucket.1.len() == 512 {
-                    buckets.push((BitSet::with_max_value(max_doc), Vec::new()));
+                    buckets.push((BitSet::with_max_value(max_doc), vec![]));
                     let end_index = buckets.len() - 1;
                     buckets.swap(bucket_index, end_index);
                 }

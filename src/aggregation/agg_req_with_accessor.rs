@@ -129,7 +129,7 @@ impl AggregationWithAccessor {
             Ok(())
         };
 
-        let mut res: Vec<Self> = Vec::new();
+        let mut res: Vec<Self> = vec![];
         use AggregationVariants::*;
 
         match agg.agg {
@@ -403,7 +403,7 @@ pub(crate) fn get_aggs_with_segment_accessor_and_validate(
     segment_ordinal: SegmentOrdinal,
     limits: &AggregationLimitsGuard,
 ) -> crate::Result<AggregationsWithAccessor> {
-    let mut aggss = Vec::new();
+    let mut aggss = vec![];
     for (key, agg) in aggs.iter() {
         let aggs = AggregationWithAccessor::try_from_agg(
             agg,

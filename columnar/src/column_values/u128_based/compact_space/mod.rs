@@ -523,7 +523,7 @@ mod tests {
             );
         }
 
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = vec![];
         compact_space.serialize(&mut output).unwrap();
 
         assert_eq!(
@@ -558,7 +558,7 @@ mod tests {
                     .positions(|val| range.contains(val))
                     .map(|pos| pos as u32)
                     .collect::<Vec<_>>();
-                let mut positions = Vec::new();
+                let mut positions = vec![];
                 decompressor.get_row_ids_for_value_range(
                     range,
                     0..decompressor.num_vals(),
@@ -575,7 +575,7 @@ mod tests {
     }
 
     fn test_aux_vals(u128_vals: &[u128]) -> OwnedBytes {
-        let mut out = Vec::new();
+        let mut out = vec![];
         serialize_column_values_u128(&u128_vals, &mut out).unwrap();
         let data = OwnedBytes::new(out);
         test_all(data.clone(), u128_vals);
@@ -603,7 +603,7 @@ mod tests {
         for (pos, val) in vals.iter().enumerate() {
             let val = *val;
             let pos = pos as u32;
-            let mut positions = Vec::new();
+            let mut positions = vec![];
             decomp.get_row_ids_for_value_range(val..=val, pos..pos + 1, &mut positions);
             assert_eq!(positions, vec![pos]);
         }
@@ -745,7 +745,7 @@ mod tests {
         value_range: RangeInclusive<T>,
         doc_id_range: Range<u32>,
     ) -> Vec<u32> {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(value_range, doc_id_range, &mut positions);
         positions
     }
@@ -767,7 +767,7 @@ mod tests {
             1_000_000,
             5_000_000_000,
         ];
-        let mut out = Vec::new();
+        let mut out = vec![];
         serialize_column_values_u128(&&vals[..], &mut out).unwrap();
         let decomp = open_u128_mapped(OwnedBytes::new(out)).unwrap();
         let complete_range = 0..vals.len() as u32;

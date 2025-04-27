@@ -472,7 +472,7 @@ impl QueryParser {
                             field: field_entry.name().to_string(),
                             tokenizer: option.tokenizer().to_string(),
                         })?;
-                let mut terms: Vec<Term> = Vec::new();
+                let mut terms: Vec<Term> = vec![];
                 let mut token_stream = text_analyzer.token_stream(phrase);
                 token_stream.process(&mut |token| {
                     let term = Term::from_field_text(field, &token.text);
@@ -657,8 +657,8 @@ impl QueryParser {
         match user_input_ast {
             UserInputAst::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
-                let mut logical_sub_queries: Vec<(Occur, LogicalAst)> = Vec::new();
-                let mut errors = Vec::new();
+                let mut logical_sub_queries: Vec<(Occur, LogicalAst)> = vec![];
+                let mut errors = vec![];
                 for (occur_opt, sub_ast) in sub_queries {
                     let (sub_ast, mut sub_errors) =
                         self.compute_logical_ast_with_occur_lenient(sub_ast);
@@ -756,8 +756,8 @@ impl QueryParser {
             UserInputLeaf::Literal(literal) => {
                 let term_phrases: Vec<(Field, &str, &str)> =
                     try_tuple!(self.compute_path_triplets_for_literal(&literal));
-                let mut asts: Vec<LogicalAst> = Vec::new();
-                let mut errors: Vec<QueryParserError> = Vec::new();
+                let mut asts: Vec<LogicalAst> = vec![];
+                let mut errors: Vec<QueryParserError> = vec![];
                 for (field, json_path, phrase) in term_phrases {
                     let unboosted_asts = match self.compute_logical_ast_for_leaf(
                         field,
@@ -787,7 +787,7 @@ impl QueryParser {
             }
             UserInputLeaf::All => (
                 Some(LogicalAst::Leaf(Box::new(LogicalLiteral::All))),
-                Vec::new(),
+                vec![],
             ),
             UserInputLeaf::Range {
                 field: full_field_opt,
@@ -805,7 +805,7 @@ impl QueryParser {
                 let (field, json_path) = try_tuple!(self
                     .split_full_path(&full_path)
                     .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
-                let mut errors = Vec::new();
+                let mut errors = vec![];
                 let lower = match self.resolve_bound(field, json_path, &lower) {
                     Ok(bound) => bound,
                     Err(error) => {
@@ -908,7 +908,7 @@ fn generate_literals_for_str(
     indexing_options: &TextFieldIndexing,
     text_analyzer: &mut TextAnalyzer,
 ) -> Result<Option<LogicalLiteral>, QueryParserError> {
-    let mut terms: Vec<(usize, Term)> = Vec::new();
+    let mut terms: Vec<(usize, Term)> = vec![];
     let mut token_stream = text_analyzer.token_stream(phrase);
     token_stream.process(&mut |token| {
         let term = Term::from_field_text(field, &token.text);
@@ -958,7 +958,7 @@ fn generate_literals_for_json_object(
             tokenizer: text_options.tokenizer().to_string(),
         })?;
     let index_record_option = text_options.index_option();
-    let mut logical_literals = Vec::new();
+    let mut logical_literals = vec![];
 
     let get_term_with_path =
         || Term::from_field_json_path(field, json_path, json_options.is_expand_dots_enabled());
@@ -1756,7 +1756,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field(r"a\.b", STRING);
         let schema = schema_builder.build();
-        let query_parser = QueryParser::new(schema, Vec::new(), TokenizerManager::default());
+        let query_parser = QueryParser::new(schema, vec![], TokenizerManager::default());
         let query = query_parser.parse_query(r"a\.b:hello").unwrap();
         assert_eq!(
             format!("{query:?}"),
@@ -1774,7 +1774,7 @@ mod test {
         schema_builder.add_text_field("third.a.b.c", STRING);
         let schema = schema_builder.build();
         let query_parser =
-            QueryParser::new(schema.clone(), Vec::new(), TokenizerManager::default());
+            QueryParser::new(schema.clone(), vec![], TokenizerManager::default());
         assert_eq!(
             query_parser.split_full_path("first.toto"),
             Some((schema.get_field("first.toto").unwrap(), ""))

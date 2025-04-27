@@ -53,7 +53,7 @@ pub fn generate_columnar_with_name(card: Card, num_docs: u32, column_name: &str)
         }
     }
 
-    let mut wrt: Vec<u8> = Vec::new();
+    let mut wrt: Vec<u8> = vec![];
     columnar_writer.serialize(num_docs, &mut wrt).unwrap();
     ColumnarReader::open(wrt).unwrap()
 }

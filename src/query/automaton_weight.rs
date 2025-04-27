@@ -71,7 +71,7 @@ where
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
         let mut term_stream = self.automaton_stream(term_dict)?;
-        let mut term_infos = Vec::new();
+        let mut term_infos = vec![];
         while term_stream.advance() {
             term_infos.push(term_stream.value().clone());
         }

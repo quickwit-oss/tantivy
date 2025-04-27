@@ -128,7 +128,7 @@ where
             automaton: self.automaton,
             states: vec![start_state],
             delta_reader,
-            key: Vec::new(),
+            key: vec![],
             term_ord: first_term.checked_sub(1),
             lower_bound: self.lower,
             upper_bound: self.upper,
@@ -184,9 +184,9 @@ where TSSTable: SSTable
     pub fn empty() -> Self {
         Streamer {
             automaton: AlwaysMatch,
-            states: Vec::new(),
+            states: vec![],
             delta_reader: DeltaReader::empty(),
-            key: Vec::new(),
+            key: vec![],
             term_ord: None,
             lower_bound: Bound::Unbounded,
             upper_bound: Bound::Unbounded,

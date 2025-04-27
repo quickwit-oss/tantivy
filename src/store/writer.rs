@@ -42,8 +42,8 @@ impl StoreWriter {
             compressor,
             block_size,
             num_docs_in_current_block: 0,
-            doc_pos: Vec::new(),
-            current_block: Vec::new(),
+            doc_pos: vec![],
+            current_block: vec![],
             block_compressor,
         })
     }

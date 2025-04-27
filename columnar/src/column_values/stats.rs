@@ -63,7 +63,7 @@ mod tests {
 
     #[track_caller]
     fn test_stats_ser_deser_aux(stats: &ColumnStats, num_bytes: usize) {
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         stats.serialize(&mut buffer).unwrap();
         assert_eq!(buffer.len(), num_bytes);
         let deser_stats = ColumnStats::deserialize(&mut &buffer[..]).unwrap();

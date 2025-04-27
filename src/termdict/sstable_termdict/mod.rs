@@ -134,7 +134,7 @@ mod tests {
             postings_range: 450..462,
             positions_range: 1100..1302,
         });
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         term_info_writer.serialize_block(&mut buffer);
         let mut term_info_reader = TermInfoValueReader::default();
         let num_bytes: usize = term_info_reader.load(&buffer[..]).unwrap();

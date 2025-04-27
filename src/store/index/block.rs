@@ -118,7 +118,7 @@ mod tests {
         for checkpoint in checkpoints {
             block.push(checkpoint.clone());
         }
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         block.serialize(&mut buffer);
         let mut block_deser = CheckpointBlock::default();
         let checkpoint = Checkpoint {

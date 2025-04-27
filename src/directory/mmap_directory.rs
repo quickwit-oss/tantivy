@@ -445,7 +445,7 @@ impl Directory for MmapDirectory {
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
         let full_path = self.resolve_path(path);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         match File::open(full_path) {
             Ok(mut file) => {
                 file.read_to_end(&mut buffer).map_err(|io_error| {

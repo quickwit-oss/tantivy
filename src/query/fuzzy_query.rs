@@ -229,7 +229,7 @@ mod test {
 
         let get_json_path_term = |query: &str| -> crate::Result<Term> {
             let query = query_parser.parse_query(query)?;
-            let mut terms = Vec::new();
+            let mut terms = vec![];
             query.query_terms(&mut |term, _| {
                 terms.push(term.clone());
             });

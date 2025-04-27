@@ -83,7 +83,7 @@ impl InvertedIndexReader {
     /// TODO: Move to sstable to use the index.
     pub fn list_encoded_fields(&self) -> io::Result<Vec<(String, Type)>> {
         let mut stream = self.termdict.stream()?;
-        let mut fields = Vec::new();
+        let mut fields = vec![];
         let mut fields_set = FnvHashSet::default();
         while let Some((term, _term_info)) = stream.next() {
             if let Some(index) = term.iter().position(|&byte| byte == JSON_END_OF_PATH) {

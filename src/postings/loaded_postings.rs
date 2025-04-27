@@ -49,8 +49,8 @@ impl LoadedPostings {
 #[cfg(test)]
 impl From<(Vec<DocId>, Vec<Vec<u32>>)> for LoadedPostings {
     fn from(doc_ids_and_positions: (Vec<DocId>, Vec<Vec<u32>>)) -> Self {
-        let mut position_offsets = Vec::new();
-        let mut all_positions = Vec::new();
+        let mut position_offsets = vec![];
+        let mut all_positions = vec![];
         let (doc_ids, docid_positions) = doc_ids_and_positions;
         for positions in docid_positions {
             position_offsets.push(all_positions.len() as u32);
@@ -125,8 +125,8 @@ pub(crate) mod tests {
     #[test]
     pub fn test_vec_postings2() {
         let doc_ids: Vec<DocId> = (0u32..1024u32).map(|e| e * 3).collect();
-        let mut positions = Vec::new();
-        positions.resize(1024, Vec::new());
+        let mut positions = vec![];
+        positions.resize(1024, vec![]);
         positions[0] = vec![1u32, 2u32, 3u32];
         positions[1] = vec![30u32];
         positions[2] = vec![10u32];
@@ -134,7 +134,7 @@ pub(crate) mod tests {
         let mut postings = LoadedPostings::from((doc_ids, positions));
 
         let load = |postings: &mut LoadedPostings| {
-            let mut loaded_positions = Vec::new();
+            let mut loaded_positions = vec![];
             postings.positions(loaded_positions.as_mut());
             loaded_positions
         };

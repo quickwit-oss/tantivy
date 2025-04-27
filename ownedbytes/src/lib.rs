@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_owned_bytes_read_to_end() -> io::Result<()> {
         let mut bytes = OwnedBytes::new(b"abcde".as_ref());
-        let mut buf = Vec::new();
+        let mut buf = vec![];
         bytes.read_to_end(&mut buf)?;
         assert_eq!(buf.as_slice(), b"abcde".as_ref());
         Ok(())

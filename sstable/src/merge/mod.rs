@@ -108,7 +108,7 @@ mod tests {
                 merged.insert(s.to_string());
             }
         }
-        let mut w = Vec::new();
+        let mut w = vec![];
         assert!(VoidSSTable::merge(sstables, &mut w, VoidMerge).is_ok());
         let w = OwnedBytes::new(w);
         let mut reader = VoidSSTable::reader(w);
@@ -132,7 +132,7 @@ mod tests {
                 *entry += val;
             }
         }
-        let mut w = Vec::new();
+        let mut w = vec![];
         assert!(MonotonicU64SSTable::merge(sstables, &mut w, U64Merge).is_ok());
         let w = OwnedBytes::new(w);
         let mut reader = MonotonicU64SSTable::reader(w);

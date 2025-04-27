@@ -404,7 +404,7 @@ mod tests {
         };
         let index_metas = IndexMeta {
             index_settings: IndexSettings::default(),
-            segments: Vec::new(),
+            segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,
@@ -437,7 +437,7 @@ mod tests {
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
             },
-            segments: Vec::new(),
+            segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,

@@ -201,13 +201,13 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         )),
         Histogram(_) => {
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
-                buckets: Vec::new(),
+                buckets: vec![],
                 is_date_agg: false,
             })
         }
         DateHistogram(_) => {
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
-                buckets: Vec::new(),
+                buckets: vec![],
                 is_date_agg: true,
             })
         }

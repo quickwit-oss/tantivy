@@ -104,7 +104,7 @@ impl ShuffleMergeOrder {
         let alive_bitsets: Vec<Option<ReadOnlyBitSet>> = alive_bitsets
             .into_iter()
             .map(|alive_bitset| {
-                let mut buffer = Vec::new();
+                let mut buffer = vec![];
                 alive_bitset.serialize(&mut buffer).unwrap();
                 let data = OwnedBytes::new(buffer);
                 Some(ReadOnlyBitSet::open(data))

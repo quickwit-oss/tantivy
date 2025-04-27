@@ -238,9 +238,9 @@ fn compress_mapping(mapping: &[(u64, usize)]) -> (Vec<usize>, Vec<(u64, usize)>)
     // facet_ord -> collapse facet_id
     let mut compressed_collapse_mapping: Vec<usize> = Vec::with_capacity(mapping.len());
     // collapse facet_id -> facet_ord
-    let mut unique_facet_ords: Vec<(u64, usize)> = Vec::new();
+    let mut unique_facet_ords: Vec<(u64, usize)> = vec![];
     if mapping.is_empty() {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), vec![]);
     }
     compressed_collapse_mapping.push(0);
     unique_facet_ords.push(mapping[0]);
@@ -311,7 +311,7 @@ fn compute_collapse_mapping_one(
     facet_bytes: &[u8],
     collapsed: &mut [(u64, usize)],
 ) -> io::Result<bool> {
-    let mut facet_child: Vec<u8> = Vec::new();
+    let mut facet_child: Vec<u8> = vec![];
     let mut term_ord = 0;
     let offset = facet_bytes.len() + 1;
     let depth = facet_depth(facet_bytes);
@@ -353,7 +353,7 @@ fn compute_collapse_mapping(
     if !facet_terms.advance() {
         return Ok(collapsed);
     }
-    let mut facet_bytes = Vec::new();
+    let mut facet_bytes = vec![];
     for facet in facets {
         facet_bytes.clear();
         facet_bytes.extend(facet.encoded_str().as_bytes());

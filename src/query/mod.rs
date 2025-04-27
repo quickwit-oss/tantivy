@@ -84,31 +84,31 @@ mod tests {
         let term_b = Term::from_field_text(text_field, "b");
         {
             let query = query_parser.parse_query("a").unwrap();
-            let mut terms = Vec::new();
+            let mut terms = vec![];
             query.query_terms(&mut |term, pos| terms.push((term, pos)));
             assert_eq!(vec![(&term_a, false)], terms);
         }
         {
             let query = query_parser.parse_query("a b").unwrap();
-            let mut terms = Vec::new();
+            let mut terms = vec![];
             query.query_terms(&mut |term, pos| terms.push((term, pos)));
             assert_eq!(vec![(&term_a, false), (&term_b, false)], terms);
         }
         {
             let query = query_parser.parse_query("\"a b\"").unwrap();
-            let mut terms = Vec::new();
+            let mut terms = vec![];
             query.query_terms(&mut |term, pos| terms.push((term, pos)));
             assert_eq!(vec![(&term_a, true), (&term_b, true)], terms);
         }
         {
             let query = query_parser.parse_query("a a a a a").unwrap();
-            let mut terms = Vec::new();
+            let mut terms = vec![];
             query.query_terms(&mut |term, pos| terms.push((term, pos)));
             assert_eq!(vec![(&term_a, false); 5], terms);
         }
         {
             let query = query_parser.parse_query("a -b").unwrap();
-            let mut terms = Vec::new();
+            let mut terms = vec![];
             query.query_terms(&mut |term, pos| terms.push((term, pos)));
             assert_eq!(vec![(&term_a, false), (&term_b, false)], terms);
         }

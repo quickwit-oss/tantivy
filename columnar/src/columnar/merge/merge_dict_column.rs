@@ -125,7 +125,7 @@ fn serialize_merged_dict(
 ) -> io::Result<TermOrdinalMapping> {
     let mut term_ord_mapping = TermOrdinalMapping::default();
 
-    let mut field_term_streams = Vec::new();
+    let mut field_term_streams = vec![];
     for (segment_ord, column_opt) in bytes_columns.iter().enumerate() {
         if let Some(column) = column_opt {
             term_ord_mapping.add_segment(column.dictionary.num_terms());

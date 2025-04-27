@@ -67,7 +67,7 @@ impl SegmentPostings {
         use crate::directory::FileSlice;
         use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         {
             let mut postings_serializer =
                 PostingsSerializer::new(&mut buffer, 0.0, IndexRecordOption::Basic, None);
@@ -100,7 +100,7 @@ impl SegmentPostings {
         use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
         use crate::Score;
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         let fieldnorm_reader = fieldnorms.map(FieldNormReader::for_test);
         let average_field_norm = fieldnorms
             .map(|fieldnorms| {

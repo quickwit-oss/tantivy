@@ -164,7 +164,7 @@ impl SegmentCardinalityCollector {
 
             // TODO: replace FxHashSet with something that allows iterating in order
             // (e.g. sparse bitvec)
-            let mut term_ids = Vec::new();
+            let mut term_ids = vec![];
             for term_ord in self.entries.into_iter() {
                 if term_ord == u64::MAX {
                     has_missing = true;

@@ -7,7 +7,7 @@ use tantivy_columnar::*;
 const NUM_DOCS: u32 = 100_000;
 
 fn main() {
-    let mut inputs = Vec::new();
+    let mut inputs = vec![];
 
     let mut add_combo = |card1: Card, card2: Card| {
         inputs.push((
@@ -36,7 +36,7 @@ fn main() {
             input_name,
             columnar_readers,
             move |columnar_readers: &Vec<ColumnarReader>| {
-                let mut out = Vec::new();
+                let mut out = vec![];
                 let columnar_readers = columnar_readers.iter().collect::<Vec<_>>();
                 let merge_row_order = StackMergeOrder::stack(&columnar_readers[..]);
 

@@ -52,7 +52,7 @@ impl PhrasePrefixWeight {
             .as_ref()
             .map(|similarity_weight| similarity_weight.boost_by(boost));
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
-        let mut term_postings_list = Vec::new();
+        let mut term_postings_list = vec![];
         for &(offset, ref term) in &self.phrase_terms {
             if let Some(postings) = reader
                 .inverted_index(term.field())?

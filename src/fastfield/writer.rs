@@ -372,7 +372,7 @@ mod tests {
                 &mut None,
             );
         }
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer
             .serialize(json_docs.len() as DocId, &mut buffer)
             .unwrap();

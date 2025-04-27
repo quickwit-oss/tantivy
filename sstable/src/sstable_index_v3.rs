@@ -649,8 +649,8 @@ struct BlockAddrStoreWriter {
 impl BlockAddrStoreWriter {
     fn new() -> Self {
         Self {
-            buffer_block_metas: Vec::new(),
-            buffer_addrs: Vec::new(),
+            buffer_block_metas: vec![],
+            buffer_addrs: vec![],
             block_addrs: Vec::with_capacity(STORE_BLOCK_LEN),
         }
     }
@@ -827,7 +827,7 @@ mod tests {
         sstable_builder.add_block(b"bbbbbbb", 20..30, 5u64);
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         let fst_len = sstable_builder.serialize(&mut buffer).unwrap();
         let buffer = OwnedBytes::new(buffer);
         let sstable_index = SSTableIndexV3::load(buffer, fst_len).unwrap();
@@ -859,7 +859,7 @@ mod tests {
         sstable_builder.add_block(b"bbbbbbb", 20..30, 5u64);
         sstable_builder.add_block(b"ccc", 30..40, 10u64);
         sstable_builder.add_block(b"dddd", 40..50, 15u64);
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         let fst_len = sstable_builder.serialize(&mut buffer).unwrap();
         buffer[2] = 9u8;
         let buffer = OwnedBytes::new(buffer);
@@ -935,7 +935,7 @@ mod tests {
             ],
         };
 
-        let mut sstable_index_bytes = Vec::new();
+        let mut sstable_index_bytes = vec![];
         let fst_len = sstable_index_builder
             .serialize(&mut sstable_index_bytes)
             .unwrap();

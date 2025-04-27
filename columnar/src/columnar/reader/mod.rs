@@ -57,7 +57,7 @@ fn read_all_columns_in_stream(
     column_data: &FileSlice,
     format_version: Version,
 ) -> io::Result<Vec<DynamicColumnHandle>> {
-    let mut results = Vec::new();
+    let mut results = vec![];
     while stream.advance() {
         let key_bytes: &[u8] = stream.key();
         let Some(column_code) = key_bytes.last().copied() else {
@@ -225,7 +225,7 @@ mod tests {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("col1", ColumnType::Str, false);
         columnar_writer.record_column_type("col2", ColumnType::U64, false);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(1, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
@@ -241,7 +241,7 @@ mod tests {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("count", ColumnType::U64, false);
         columnar_writer.record_numerical(1, "count", 1u64);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(2, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
@@ -255,7 +255,7 @@ mod tests {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("col", ColumnType::U64, false);
         columnar_writer.record_numerical(1, "col", 1u64);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(2, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         {
@@ -284,7 +284,7 @@ mod tests {
         );
         columnar_writer.record_str(1, "col1", "hello");
         columnar_writer.record_str(0, "col2", "hello");
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(2, &mut buffer).unwrap();
 
         let columnar = ColumnarReader::open(buffer).unwrap();

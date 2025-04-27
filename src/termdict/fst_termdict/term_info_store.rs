@@ -192,8 +192,8 @@ fn bitpack_serialize<W: Write>(
 impl TermInfoStoreWriter {
     pub fn new() -> Self {
         Self {
-            buffer_block_metas: Vec::new(),
-            buffer_term_infos: Vec::new(),
+            buffer_block_metas: vec![],
+            buffer_term_infos: vec![],
             term_infos: Vec::with_capacity(BLOCK_LEN),
             num_terms: 0u64,
         }
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn test_bitpacked() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let mut bitpack = BitPacker::new();
         bitpack.write(321u64, 9, &mut buffer).unwrap();
         assert_eq!(compute_num_bits(321u64), 9);
@@ -331,7 +331,7 @@ mod tests {
             postings_offset_nbits: 5,
             positions_offset_nbits: 8,
         };
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         term_info_block_meta.serialize(&mut buffer).unwrap();
         let mut cursor: &[u8] = &buffer[..];
         let term_info_block_meta_serde = TermInfoBlockMeta::deserialize(&mut cursor).unwrap();
@@ -352,7 +352,7 @@ mod tests {
             store_writer.write_term_info(&term_info)?;
             term_infos.push(term_info);
         }
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         store_writer.serialize(&mut buffer)?;
         let term_info_store = TermInfoStore::open(FileSlice::from(buffer))?;
         for i in 0..1000 {

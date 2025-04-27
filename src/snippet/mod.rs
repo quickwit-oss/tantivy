@@ -135,7 +135,7 @@ impl Snippet {
     pub fn empty() -> Self {
         Self {
             fragment: String::new(),
-            highlighted: Vec::new(),
+            highlighted: vec![],
             snippet_prefix: String::new(),
             snippet_postfix: String::new(),
         }

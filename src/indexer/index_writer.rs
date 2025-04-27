@@ -1604,7 +1604,7 @@ mod tests {
     }
 
     fn get_id_list(ops: &[IndexingOp]) -> Vec<u64> {
-        let mut id_list = Vec::new();
+        let mut id_list = vec![];
         for op in ops {
             match op {
                 IndexingOp::AddDoc { id, value: _ } => {
@@ -1810,7 +1810,7 @@ mod tests {
         let id_list = get_id_list(ops);
 
         // multivalue fast field content
-        let mut all_ips = Vec::new();
+        let mut all_ips = vec![];
         let mut num_ips = 0;
         for segment_reader in searcher.segment_readers().iter() {
             let ip_reader: Column<Ipv6Addr> = segment_reader

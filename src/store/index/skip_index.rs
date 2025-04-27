@@ -65,7 +65,7 @@ impl SkipIndex {
             .map(|el| el.0)
             .collect();
         let mut start_offset = 0;
-        let mut layers = Vec::new();
+        let mut layers = vec![];
         for end_offset in offsets {
             let layer = Layer {
                 data: data.slice(start_offset as usize..end_offset as usize),

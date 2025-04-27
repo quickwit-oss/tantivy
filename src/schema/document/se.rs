@@ -297,7 +297,7 @@ mod tests {
     use crate::tokenizer::PreTokenizedString;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
-        let mut writer = Vec::new();
+        let mut writer = vec![];
 
         let mut serializer = BinaryValueSerializer::new(&mut writer);
         serializer.serialize_value(value).expect("Serialize value");
@@ -309,7 +309,7 @@ mod tests {
     /// of the serialized values in a somewhat human readable way.
     macro_rules! binary_repr {
         ($( $type_code:expr $(, $ext_code:expr)? => $value:expr $(,)?)*) => {{
-            let mut writer = Vec::new();
+            let mut writer = vec![];
 
             $(
                 $type_code.serialize(&mut writer).unwrap();
@@ -327,7 +327,7 @@ mod tests {
             writer
         }};
         (collection $code:expr, length $len:expr, $( $type_code:expr $(, $ext_code:expr)? => $value:expr $(,)?)*) => {{
-            let mut writer = Vec::new();
+            let mut writer = vec![];
 
             $code.serialize(&mut writer).unwrap();
             VInt($len as u64).serialize(&mut writer).unwrap();
@@ -580,7 +580,7 @@ mod tests {
         );
         let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
 
-        let mut expected = Vec::new();
+        let mut expected = vec![];
         let header = binary_repr!(
             collection type_codes::OBJECT_CODE,
             length object.len() * 2,
@@ -622,7 +622,7 @@ mod tests {
         );
         let result = serialize_value(ReferenceValue::Object(JsonObjectIter(object.iter())));
 
-        let mut expected = Vec::new();
+        let mut expected = vec![];
         let header = binary_repr!(
             collection type_codes::OBJECT_CODE,
             length object.len() * 2,
@@ -659,7 +659,7 @@ mod tests {
 
     #[inline]
     fn serialize_doc<D: Document>(doc: &D, schema: &Schema) -> Vec<u8> {
-        let mut writer = Vec::new();
+        let mut writer = vec![];
 
         let mut serializer = BinaryDocumentSerializer::new(&mut writer, schema);
         serializer.serialize_doc(doc).expect("Serialize value");
@@ -670,12 +670,12 @@ mod tests {
     /// A helper macro for generating the expected binary representation of the document.
     macro_rules! expected_doc_data {
         (length $len:expr) => {{
-            let mut writer = Vec::new();
+            let mut writer = vec![];
             VInt($len as u64).serialize(&mut writer).unwrap();
             writer
         }};
         (length $len:expr, $( $field_id:expr => $value:expr $(,)?)*) => {{
-            let mut writer = Vec::new();
+            let mut writer = vec![];
 
             VInt($len as u64).serialize(&mut writer).unwrap();
             $(

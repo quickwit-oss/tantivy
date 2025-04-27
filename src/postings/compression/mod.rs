@@ -303,7 +303,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_encode_sorted_block_with_junk() {
-        let mut compressed: Vec<u8> = Vec::new();
+        let mut compressed: Vec<u8> = vec![];
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32).collect();
         let mut encoder = BlockEncoder::default();
@@ -325,7 +325,7 @@ pub(crate) mod tests {
     #[test]
     fn test_encode_unsorted_block_with_junk() {
         for minus_one_encode in [false, true] {
-            let mut compressed: Vec<u8> = Vec::new();
+            let mut compressed: Vec<u8> = vec![];
             let n = 128;
             let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32 % 12).collect();
             let mut encoder = BlockEncoder::default();

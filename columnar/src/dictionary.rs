@@ -92,7 +92,7 @@ mod tests {
         let hello_uid = dictionary_builder.get_or_allocate_id(b"hello", &mut arena);
         let happy_uid = dictionary_builder.get_or_allocate_id(b"happy", &mut arena);
         let tax_uid = dictionary_builder.get_or_allocate_id(b"tax", &mut arena);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         let id_mapping = dictionary_builder.serialize(&arena, &mut buffer).unwrap();
         assert_eq!(id_mapping.to_ord(hello_uid), OrderedId(1));
         assert_eq!(id_mapping.to_ord(happy_uid), OrderedId(0));

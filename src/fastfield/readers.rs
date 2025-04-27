@@ -333,7 +333,7 @@ impl FastFieldReaders {
         type_white_list_opt: Option<&[ColumnType]>,
         field_name: &str,
     ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
-        let mut columns_and_types = Vec::new();
+        let mut columns_and_types = vec![];
         let Some(resolved_field_name) = self.resolve_field(field_name)? else {
             return Ok(columns_and_types);
         };

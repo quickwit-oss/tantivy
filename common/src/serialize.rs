@@ -292,13 +292,13 @@ pub mod test {
 
     use super::*;
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         O::default().serialize(&mut buffer).unwrap();
         assert_eq!(buffer.len(), O::SIZE_IN_BYTES);
     }
 
     fn serialize_test<T: BinarySerializable + Eq>(v: T) -> usize {
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         v.serialize(&mut buffer).unwrap();
         let num_bytes = buffer.len();
         let mut cursor = &buffer[..];

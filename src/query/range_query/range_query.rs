@@ -417,7 +417,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             let mut index_writer = index.writer_with_num_threads(1, 60_000_000).unwrap();
-            let mut docs = Vec::new();
+            let mut docs = vec![];
             for i in 1..100 {
                 let mut doc = TantivyDocument::new();
                 for j in 1..100 {

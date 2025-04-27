@@ -299,7 +299,7 @@ impl SegmentReader {
     /// field that is not indexed nor a fast field but is stored, it is possible for the field
     /// to not be listed.
     pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
-        let mut indexed_fields: Vec<FieldMetadata> = Vec::new();
+        let mut indexed_fields: Vec<FieldMetadata> = vec![];
         let mut map_to_canonical = FnvHashMap::default();
         for (field, field_entry) in self.schema().fields() {
             let field_name = field_entry.name().to_string();
@@ -473,7 +473,7 @@ pub fn merge_field_meta_data(
     field_metadatas: Vec<Vec<FieldMetadata>>,
     schema: &Schema,
 ) -> Vec<FieldMetadata> {
-    let mut merged_field_metadata = Vec::new();
+    let mut merged_field_metadata = vec![];
     for (_key, mut group) in &field_metadatas
         .into_iter()
         .kmerge_by(|left, right| left < right)

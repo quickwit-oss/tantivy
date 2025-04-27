@@ -13,7 +13,7 @@ impl SSTableIndex {
     /// Load an index from its binary representation
     pub fn load(data: OwnedBytes) -> Result<Self, SSTableDataCorruption> {
         let mut reader = IndexSSTable::reader(data);
-        let mut blocks = Vec::new();
+        let mut blocks = vec![];
 
         while reader.advance().map_err(|_| SSTableDataCorruption)? {
             blocks.push(BlockMeta {

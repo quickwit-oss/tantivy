@@ -323,7 +323,7 @@ impl<W: Write> PostingsSerializer<W> {
             block_encoder: BlockEncoder::new(),
             block: Box::new(Block::new()),
 
-            postings_write: Vec::new(),
+            postings_write: vec![],
             skip_write: SkipSerializer::new(),
 
             last_doc_id_encoded: 0u32,

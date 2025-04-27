@@ -31,7 +31,7 @@ impl<W: io::Write> ColumnarSerializer<W> {
         Self {
             wrt: CountingWriter::wrap(wrt),
             sstable_range,
-            prepare_key_buffer: Vec::new(),
+            prepare_key_buffer: vec![],
         }
     }
 

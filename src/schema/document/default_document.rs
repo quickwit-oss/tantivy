@@ -267,7 +267,7 @@ impl CompactDoc {
                 // addresses of the elements in node_data
                 // Reusing a vec would be nicer, but it's not easy because of the recursion
                 // A global vec would work if every writer get it's discriminator
-                let mut addresses = Vec::new();
+                let mut addresses = vec![];
                 for elem in elements {
                     let value_addr = self.add_value(elem);
                     write_into(&mut addresses, value_addr);
@@ -279,7 +279,7 @@ impl CompactDoc {
             }
             ReferenceValue::Object(entries) => {
                 // addresses of the elements in node_data
-                let mut addresses = Vec::new();
+                let mut addresses = vec![];
                 for (key, value) in entries {
                     let key_addr = self.add_value_leaf(ReferenceValueLeaf::Str(key));
                     let value_addr = self.add_value(value);
@@ -776,7 +776,7 @@ mod tests {
     //     );
     //     doc.add_text(Field::from_field_id(1), "hello");
     //     assert_eq!(doc.field_values().len(), 2);
-    //     let mut payload: Vec<u8> = Vec::new();
+    //     let mut payload: Vec<u8> = vec![];
     //     doc_binary_wrappers::serialize(&doc, &mut payload).unwrap();
     //     assert_eq!(payload.len(), 26);
     //     doc_binary_wrappers::deserialize::<Document, _>(&mut &payload[..]).unwrap();

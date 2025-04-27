@@ -14,7 +14,7 @@ fn test_optional_index_bug_2293() {
 fn test_optional_index_with_num_docs(num_docs: u32) {
     let mut dataframe_writer = ColumnarWriter::default();
     dataframe_writer.record_numerical(100, "score", 80i64);
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(num_docs, &mut buffer).unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
     assert_eq!(columnar.num_columns(), 1);
@@ -46,7 +46,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(50))]
     #[test]
     fn test_with_random_bitvecs(bitvec1 in random_bitvec(), bitvec2 in random_bitvec(), bitvec3 in random_bitvec()) {
-        let mut bitvec = Vec::new();
+        let mut bitvec = vec![];
         bitvec.extend_from_slice(&bitvec1);
         bitvec.extend_from_slice(&bitvec2);
         bitvec.extend_from_slice(&bitvec3);
@@ -57,7 +57,7 @@ proptest! {
 #[test]
 fn test_with_random_sets_simple() {
     let vals = 10..ELEMENTS_PER_BLOCK * 2;
-    let mut out: Vec<u8> = Vec::new();
+    let mut out: Vec<u8> = vec![];
     serialize_optional_index(&vals, 100, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     let ranks: Vec<u32> = (65_472u32..65_473u32).collect();
@@ -100,7 +100,7 @@ impl<'a> Iterable<RowId> for &'a [bool] {
 }
 
 fn test_null_index(data: &[bool]) {
-    let mut out: Vec<u8> = Vec::new();
+    let mut out: Vec<u8> = vec![];
     serialize_optional_index(&data, data.len() as RowId, &mut out).unwrap();
     let null_index = open_optional_index(OwnedBytes::new(out)).unwrap();
     let orig_idx_with_value: Vec<u32> = data
@@ -190,7 +190,7 @@ fn test_optional_index_rank_aux(row_ids: &[RowId]) {
 fn test_optional_index_rank() {
     test_optional_index_rank_aux(&[1u32]);
     test_optional_index_rank_aux(&[0u32, 1u32]);
-    let mut block = Vec::new();
+    let mut block = vec![];
     block.push(3u32);
     block.extend((0..ELEMENTS_PER_BLOCK).map(|i| i + ELEMENTS_PER_BLOCK + 1));
     test_optional_index_rank_aux(&block);
@@ -204,7 +204,7 @@ fn test_optional_index_iter_empty_one() {
 
 #[test]
 fn test_optional_index_iter_dense_block() {
-    let mut block = Vec::new();
+    let mut block = vec![];
     block.push(3u32);
     block.extend((0..ELEMENTS_PER_BLOCK).map(|i| i + ELEMENTS_PER_BLOCK + 1));
     test_optional_index_iter_aux(&block, 3 * ELEMENTS_PER_BLOCK);
@@ -231,7 +231,7 @@ mod bench {
 
     const TOTAL_NUM_VALUES: u32 = 1_000_000;
     fn gen_bools(fill_ratio: f64) -> OptionalIndex {
-        let mut out = Vec::new();
+        let mut out = vec![];
         let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
         let vals: Vec<RowId> = (0..TOTAL_NUM_VALUES)
             .map(|_| rng.gen_bool(fill_ratio))

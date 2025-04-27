@@ -26,7 +26,7 @@ fn generate_columnar(num_docs: u32, value_offset: u64) -> Vec<u8> {
         columnar_writer.record_numerical(i, "multi", value_offset + i as u64);
     }
 
-    let mut wrt: Vec<u8> = Vec::new();
+    let mut wrt: Vec<u8> = vec![];
     columnar_writer.serialize(num_docs, &mut wrt).unwrap();
 
     wrt
@@ -70,7 +70,7 @@ fn test_format(path: &str) {
     let reader2 = ColumnarReader::open(generate_columnar(NUM_DOCS, NUM_DOCS as u64)).unwrap();
     let columnar_readers = vec![&reader, &reader2];
     let merge_row_order = StackMergeOrder::stack(&columnar_readers[..]);
-    let mut out = Vec::new();
+    let mut out = vec![];
     merge_columnar(&columnar_readers, &[], merge_row_order.into(), &mut out).unwrap();
     let reader = ColumnarReader::open(out).unwrap();
     check_columns(&reader);
@@ -131,7 +131,7 @@ fn check_column<F: Fn(u32) -> Vec<RowIdAndValue>>(column: &Column<u64>, expected
         }
         let values = column.values_for_doc(doc).collect_vec();
         assert_eq!(values, expected(doc).iter().map(|x| x.value).collect_vec());
-        let mut row_ids = Vec::new();
+        let mut row_ids = vec![];
         column.row_ids_for_docs(&[doc], &mut vec![], &mut row_ids);
         assert_eq!(
             row_ids,
@@ -141,7 +141,7 @@ fn check_column<F: Fn(u32) -> Vec<RowIdAndValue>>(column: &Column<u64>, expected
         assert_eq!(values, expected(doc).iter().map(|x| x.value).collect_vec());
 
         // Docid rowid conversion
-        let mut row_ids = Vec::new();
+        let mut row_ids = vec![];
         let safe_next_doc = |doc: u32| (doc + 1).min(num_docs - 1);
         column
             .index

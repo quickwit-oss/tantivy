@@ -388,7 +388,7 @@ pub mod tests {
 
     /// Asserts that the serialized value is the value in the trait.
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         O::default().serialize(&mut buffer).unwrap();
         assert_eq!(buffer.len(), O::SIZE_IN_BYTES);
     }
@@ -961,7 +961,7 @@ pub mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let get_doc_ids = |user_input_literal: UserInputLiteral| {
-            let query_parser = crate::query::QueryParser::for_index(&index, Vec::new());
+            let query_parser = crate::query::QueryParser::for_index(&index, vec![]);
             let query = query_parser
                 .build_query_from_user_input_ast(UserInputAst::from(UserInputLeaf::Literal(
                     user_input_literal,

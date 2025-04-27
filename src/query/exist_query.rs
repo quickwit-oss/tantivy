@@ -107,7 +107,7 @@ impl Weight for ExistsWeight {
             .into_iter()
             .map(|handle| handle.open().map_err(|io_error| io_error.into()))
             .collect();
-        let mut non_empty_columns = Vec::new();
+        let mut non_empty_columns = vec![];
         for column in dynamic_columns? {
             if !matches!(column.column_index(), ColumnIndex::Empty { .. }) {
                 non_empty_columns.push(column)

@@ -12,7 +12,7 @@ mod tests {
     #[inline(never)]
     fn create_bitpacked_data(bit_width: u8, num_els: u32) -> Vec<u8> {
         let mut bitpacker = BitPacker::new();
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         for _ in 0..num_els {
             // the values do not matter.
             bitpacker.write(0u64, bit_width, &mut buffer).unwrap();

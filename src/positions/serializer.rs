@@ -25,7 +25,7 @@ impl<W: io::Write> PositionSerializer<W> {
             positions_wrt: CountingWriter::wrap(positions_wrt),
             positions_buffer: Vec::with_capacity(128_000),
             block: Vec::with_capacity(128),
-            bit_widths: Vec::new(),
+            bit_widths: vec![],
         }
     }
 

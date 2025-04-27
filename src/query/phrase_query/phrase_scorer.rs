@@ -626,8 +626,8 @@ mod tests {
                 right,
                 slop,
                 true,
-                &mut Vec::new(),
-                &mut Vec::new(),
+                &mut vec![],
+                &mut vec![],
             );
         }
         let out: Vec<(u8, u32)> = slops
@@ -677,10 +677,10 @@ mod bench {
 
     #[bench]
     fn bench_intersection_short_slop_carrying(b: &mut Bencher) {
-        let mut left = Vec::new();
-        let mut left_slops = Vec::new();
-        let mut buffer = Vec::new();
-        let mut slop_buffer = Vec::new();
+        let mut left = vec![];
+        let mut left_slops = vec![];
+        let mut buffer = vec![];
+        let mut slop_buffer = vec![];
         b.iter(|| {
             left.clear();
             left.extend_from_slice(&[1, 5, 10, 12]);
@@ -702,7 +702,7 @@ mod bench {
 
     #[bench]
     fn bench_intersection_short(b: &mut Bencher) {
-        let mut left = Vec::new();
+        let mut left = vec![];
         b.iter(|| {
             left.clear();
             left.extend_from_slice(&[1, 5, 10, 12]);
@@ -713,10 +713,10 @@ mod bench {
 
     #[bench]
     fn bench_intersection_medium_slop_carrying(b: &mut Bencher) {
-        let mut left = Vec::new();
-        let mut left_slops: Vec<u8> = Vec::new();
-        let mut buffer = Vec::new();
-        let mut slop_buffer = Vec::new();
+        let mut left = vec![];
+        let mut left_slops: Vec<u8> = vec![];
+        let mut buffer = vec![];
+        let mut slop_buffer = vec![];
         let left_data: Vec<u32> = (0..100).collect();
         let left_slop_data: Vec<u8> = (0..100).map(|_| 0).collect();
 
@@ -741,7 +741,7 @@ mod bench {
 
     #[bench]
     fn bench_intersection_medium_slop(b: &mut Bencher) {
-        let mut left = Vec::new();
+        let mut left = vec![];
         let left_data: Vec<u32> = (0..100).collect();
 
         b.iter(|| {
@@ -754,7 +754,7 @@ mod bench {
 
     #[bench]
     fn bench_intersection_medium(b: &mut Bencher) {
-        let mut left = Vec::new();
+        let mut left = vec![];
         let left_data: Vec<u32> = (0..100).collect();
         b.iter(|| {
             left.clear();

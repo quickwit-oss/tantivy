@@ -52,7 +52,7 @@ impl IndexReaderBuilder {
         Self {
             reload_policy: ReloadPolicy::OnCommitWithDelay,
             index,
-            warmers: Vec::new(),
+            warmers: vec![],
             num_warming_threads: 1,
             doc_store_cache_num_blocks: DOCSTORE_CACHE_CAPACITY,
         }

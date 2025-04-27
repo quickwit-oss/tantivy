@@ -32,7 +32,7 @@ where
             block: Vec::with_capacity(BLOCK_LEN * 2),
             write: CountingWriter::wrap(BufWriter::new(wrt)),
             value_writer: TValueWriter::default(),
-            stateless_buffer: Vec::new(),
+            stateless_buffer: vec![],
             block_len: BLOCK_LEN,
         }
     }

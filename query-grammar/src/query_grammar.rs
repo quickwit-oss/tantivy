@@ -358,7 +358,7 @@ fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
         tuple((field_name, multispace0, char('*')))(inp).expect("precondition failed");
 
     let exists = UserInputLeaf::Exists { field: field_name }.into();
-    Ok((inp, (exists, Vec::new())))
+    Ok((inp, (exists, vec![])))
 }
 
 fn literal(inp: &str) -> IResult<&str, UserInputAst> {
@@ -642,13 +642,13 @@ fn set(inp: &str) -> IResult<&str, UserInputLeaf> {
 fn set_infallible(mut inp: &str) -> JResult<&str, UserInputLeaf> {
     // `IN [` has already been parsed when we enter, we only need to parse simple terms until we
     // find a `]`
-    let mut elements = Vec::new();
-    let mut errs = Vec::new();
+    let mut elements = vec![];
+    let mut errs = vec![];
     let mut first_round = true;
     loop {
         let mut space_error = if first_round {
             first_round = false;
-            Vec::new()
+            vec![]
         } else {
             let (rest, (_, err)) = space1_infallible(inp)?;
             inp = rest;
@@ -718,7 +718,7 @@ fn leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
             (
                 value((), char('*')),
                 map(nothing, |_| {
-                    (Some(UserInputAst::from(UserInputLeaf::All)), Vec::new())
+                    (Some(UserInputAst::from(UserInputLeaf::All)), vec![])
                 }),
             ),
             (
@@ -832,7 +832,7 @@ fn aggregate_binary_expressions(
 fn aggregate_infallible_expressions(
     input_leafs: Vec<(Option<BinaryOperand>, Option<Occur>, Option<UserInputAst>)>,
 ) -> (UserInputAst, ErrorList) {
-    let mut err = Vec::new();
+    let mut err = vec![];
     let mut leafs: Vec<(_, _, UserInputAst)> = input_leafs
         .into_iter()
         .filter_map(|(operand, occur, ast)| ast.map(|ast| (operand, occur, ast)))
@@ -930,7 +930,7 @@ fn aggregate_infallible_expressions(
             (UserInputAst::Clause(clause), err)
         }
     } else {
-        let mut final_clauses: Vec<(Option<Occur>, UserInputAst)> = Vec::new();
+        let mut final_clauses: Vec<(Option<Occur>, UserInputAst)> = vec![];
         for mut sub_clauses in clauses {
             if sub_clauses.len() == 1 {
                 final_clauses.push(sub_clauses.pop().unwrap());
@@ -996,7 +996,7 @@ pub fn parse_to_ast(inp: &str) -> IResult<&str, UserInputAst> {
 
 pub fn parse_to_ast_lenient(query_str: &str) -> (UserInputAst, Vec<LenientError>) {
     if query_str.trim().is_empty() {
-        return (UserInputAst::Clause(Vec::new()), Vec::new());
+        return (UserInputAst::Clause(Vec::new()), vec![]);
     }
     let (left, (res, mut errors)) = ast_infallible(query_str).unwrap();
     if !left.trim().is_empty() {

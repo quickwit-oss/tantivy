@@ -289,7 +289,7 @@ pub fn convert_to_fast_value_and_append_to_json_term(
 /// - `k8s\.node` ends up as `["k8s.node"]`.
 pub fn split_json_path(json_path: &str) -> Vec<String> {
     let mut escaped_state: bool = false;
-    let mut json_path_segments = Vec::new();
+    let mut json_path_segments = vec![];
     let mut buffer = String::new();
     for ch in json_path.chars() {
         if escaped_state {

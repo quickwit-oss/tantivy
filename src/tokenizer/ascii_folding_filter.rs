@@ -1578,7 +1578,7 @@ mod tests {
     }
 
     fn folding_helper(text: &str) -> Vec<String> {
-        let mut tokens = Vec::new();
+        let mut tokens = vec![];
         TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(AsciiFoldingFilter)
             .build()

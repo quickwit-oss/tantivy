@@ -185,8 +185,8 @@ mod tests {
 
         let other_counter: Arc<AtomicU64> = Default::default();
 
-        let mut futures = Vec::new();
-        let mut other_futures = Vec::new();
+        let mut futures = vec![];
+        let mut other_futures = vec![];
 
         let (tx, rx) = crossbeam_channel::bounded::<()>(0);
         let rx = Arc::new(rx);

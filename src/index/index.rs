@@ -63,7 +63,7 @@ fn save_new_metas(
     save_metas(
         &IndexMeta {
             index_settings,
-            segments: Vec::new(),
+            segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,

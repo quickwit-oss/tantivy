@@ -266,7 +266,7 @@ impl OptionalIndex {
                 .map(|last_row_id| last_row_id < num_rows)
                 .unwrap_or(true)
         );
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         serialize_optional_index(&row_ids, num_rows, &mut buffer).unwrap();
         let bytes = OwnedBytes::new(buffer);
         open_optional_index(bytes).unwrap()
@@ -384,8 +384,8 @@ pub fn serialize_optional_index<W: io::Write>(
     VInt(num_rows as u64).serialize(output)?;
 
     let mut rows_it = non_null_rows.boxed_iter();
-    let mut block_metadata: Vec<SerializedBlockMeta> = Vec::new();
-    let mut current_block = Vec::new();
+    let mut block_metadata: Vec<SerializedBlockMeta> = vec![];
+    let mut current_block = vec![];
 
     // This if-statement for the first element ensures that
     // `block_metadata` is not empty in the loop below.

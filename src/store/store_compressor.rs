@@ -91,7 +91,7 @@ impl BlockCompressorImpl {
             compressor,
             first_doc_in_block: 0,
             offset_index_writer: SkipIndexBuilder::new(),
-            intermediary_buffer: Vec::new(),
+            intermediary_buffer: vec![],
             writer: CountingWriter::wrap(writer),
         }
     }

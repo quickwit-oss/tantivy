@@ -35,7 +35,7 @@ pub struct SearcherSpaceUsage {
 impl SearcherSpaceUsage {
     pub(crate) fn new() -> Self {
         Self {
-            segments: Vec::new(),
+            segments: vec![],
             total: Default::default(),
         }
     }
@@ -259,7 +259,7 @@ impl FieldUsage {
         Self {
             field,
             num_bytes: Default::default(),
-            sub_num_bytes: Vec::new(),
+            sub_num_bytes: vec![],
         }
     }
 
