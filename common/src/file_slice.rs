@@ -44,7 +44,7 @@ impl WrapFile {
     /// Creates a new WrapFile and stores its length.
     pub fn new(file: File) -> io::Result<Self> {
         let len = file.metadata()?.len() as usize;
-        Ok(WrapFile { file, len })
+        Ok(Self { file, len })
     }
 }
 
@@ -105,8 +105,8 @@ impl FileHandle for &'static [u8] {
 impl<B> From<B> for FileSlice
 where B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync
 {
-    fn from(bytes: B) -> FileSlice {
-        FileSlice::new(Arc::new(OwnedBytes::new(bytes)))
+    fn from(bytes: B) -> Self {
+        Self::new(Arc::new(OwnedBytes::new(bytes)))
     }
 }
 
@@ -179,22 +179,22 @@ fn combine_ranges<R: RangeBounds<usize>>(orig_range: Range<usize>, rel_range: R)
 
 impl FileSlice {
     /// Creates a FileSlice from a path.
-    pub fn open(path: &Path) -> io::Result<FileSlice> {
+    pub fn open(path: &Path) -> io::Result<Self> {
         let wrap_file = WrapFile::new(File::open(path)?)?;
-        Ok(FileSlice::new(Arc::new(wrap_file)))
+        Ok(Self::new(Arc::new(wrap_file)))
     }
 
     /// Wraps a FileHandle.
     pub fn new(file_handle: Arc<dyn FileHandle>) -> Self {
         let num_bytes = file_handle.len();
-        FileSlice::new_with_num_bytes(file_handle, num_bytes)
+        Self::new_with_num_bytes(file_handle, num_bytes)
     }
 
     /// Wraps a FileHandle.
     #[doc(hidden)]
     #[must_use]
     pub fn new_with_num_bytes(file_handle: Arc<dyn FileHandle>, num_bytes: usize) -> Self {
-        FileSlice {
+        Self {
             data: file_handle,
             range: 0..num_bytes,
         }
@@ -207,17 +207,17 @@ impl FileSlice {
     /// Panics if `byte_range.end` exceeds the filesize.
     #[must_use]
     #[inline]
-    pub fn slice<R: RangeBounds<usize>>(&self, byte_range: R) -> FileSlice {
-        FileSlice {
+    pub fn slice<R: RangeBounds<usize>>(&self, byte_range: R) -> Self {
+        Self {
             data: self.data.clone(),
             range: combine_ranges(self.range.clone(), byte_range),
         }
     }
 
     /// Creates an empty FileSlice
-    pub fn empty() -> FileSlice {
+    pub fn empty() -> Self {
         const EMPTY_SLICE: &[u8] = &[];
-        FileSlice::from(EMPTY_SLICE)
+        Self::from(EMPTY_SLICE)
     }
 
     /// Returns a `OwnedBytes` with all of the data in the `FileSlice`.
@@ -266,7 +266,7 @@ impl FileSlice {
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
     ///
     /// This operation is cheap and must not copy any underlying data.
-    pub fn split(self, left_len: usize) -> (FileSlice, FileSlice) {
+    pub fn split(self, left_len: usize) -> (Self, Self) {
         let left = self.slice_to(left_len);
         let right = self.slice_from(left_len);
         (left, right)
@@ -274,7 +274,7 @@ impl FileSlice {
 
     /// Splits the file slice at the given offset and return two file slices.
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
-    pub fn split_from_end(self, right_len: usize) -> (FileSlice, FileSlice) {
+    pub fn split_from_end(self, right_len: usize) -> (Self, Self) {
         let left_len = self.len() - right_len;
         self.split(left_len)
     }
@@ -284,7 +284,7 @@ impl FileSlice {
     ///
     /// Equivalent to `.slice(from_offset, self.len())`
     #[must_use]
-    pub fn slice_from(&self, from_offset: usize) -> FileSlice {
+    pub fn slice_from(&self, from_offset: usize) -> Self {
         self.slice(from_offset..self.len())
     }
 
@@ -292,7 +292,7 @@ impl FileSlice {
     ///
     /// Equivalent to `.slice(self.len() - from_offset, self.len())`
     #[must_use]
-    pub fn slice_from_end(&self, from_offset: usize) -> FileSlice {
+    pub fn slice_from_end(&self, from_offset: usize) -> Self {
         self.slice(self.len() - from_offset..self.len())
     }
 
@@ -301,7 +301,7 @@ impl FileSlice {
     ///
     /// Equivalent to `.slice(0, to_offset)`
     #[must_use]
-    pub fn slice_to(&self, to_offset: usize) -> FileSlice {
+    pub fn slice_to(&self, to_offset: usize) -> Self {
         self.slice(0..to_offset)
     }
 
@@ -334,7 +334,7 @@ impl FileHandle for OwnedBytes {
         Ok(self.slice(range))
     }
 
-    async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
+    async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<Self> {
         self.read_bytes(range)
     }
 }
