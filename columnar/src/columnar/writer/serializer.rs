@@ -25,10 +25,10 @@ fn prepare_key(key: &[u8], column_type: ColumnType, buffer: &mut Vec<u8>) {
 }
 
 impl<W: io::Write> ColumnarSerializer<W> {
-    pub(crate) fn new(wrt: W) -> ColumnarSerializer<W> {
+    pub(crate) fn new(wrt: W) -> Self {
         let sstable_range: sstable::Writer<Vec<u8>, RangeValueWriter> =
             sstable::Dictionary::<RangeSSTable>::builder(Vec::with_capacity(100_000)).unwrap();
-        ColumnarSerializer {
+        Self {
             wrt: CountingWriter::wrap(wrt),
             sstable_range,
             prepare_key_buffer: Vec::new(),

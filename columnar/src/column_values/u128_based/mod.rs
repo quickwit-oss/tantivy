@@ -33,7 +33,7 @@ impl BinarySerializable for U128Header {
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let num_vals = VInt::deserialize(reader)?.0 as u32;
         let codec_type = U128FastFieldCodecType::deserialize(reader)?;
-        Ok(U128Header {
+        Ok(Self {
             num_vals,
             codec_type,
         })

@@ -43,14 +43,14 @@ pub(crate) enum ColumnTypeCategory {
 impl From<ColumnType> for ColumnTypeCategory {
     fn from(column_type: ColumnType) -> Self {
         match column_type {
-            ColumnType::I64 => ColumnTypeCategory::Numerical,
-            ColumnType::U64 => ColumnTypeCategory::Numerical,
-            ColumnType::F64 => ColumnTypeCategory::Numerical,
-            ColumnType::Bytes => ColumnTypeCategory::Bytes,
-            ColumnType::Str => ColumnTypeCategory::Str,
-            ColumnType::Bool => ColumnTypeCategory::Bool,
-            ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
-            ColumnType::DateTime => ColumnTypeCategory::DateTime,
+            ColumnType::I64 => Self::Numerical,
+            ColumnType::U64 => Self::Numerical,
+            ColumnType::F64 => Self::Numerical,
+            ColumnType::Bytes => Self::Bytes,
+            ColumnType::Str => Self::Str,
+            ColumnType::Bool => Self::Bool,
+            ColumnType::IpAddr => Self::IpAddr,
+            ColumnType::DateTime => Self::DateTime,
         }
     }
 }
@@ -272,7 +272,7 @@ struct GroupedColumnsHandle {
 
 impl GroupedColumnsHandle {
     fn new(num_columnars: usize) -> Self {
-        GroupedColumnsHandle {
+        Self {
             required_column_type: None,
             columns: vec![None; num_columnars],
         }

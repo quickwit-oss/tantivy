@@ -26,14 +26,14 @@ impl fmt::Debug for DynamicColumn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[{} {} |", self.get_cardinality(), self.column_type())?;
         match self {
-            DynamicColumn::Bool(col) => write!(f, " {col:?}")?,
-            DynamicColumn::I64(col) => write!(f, " {col:?}")?,
-            DynamicColumn::U64(col) => write!(f, " {col:?}")?,
-            DynamicColumn::F64(col) => write!(f, "{col:?}")?,
-            DynamicColumn::IpAddr(col) => write!(f, "{col:?}")?,
-            DynamicColumn::DateTime(col) => write!(f, "{col:?}")?,
-            DynamicColumn::Bytes(col) => write!(f, "{col:?}")?,
-            DynamicColumn::Str(col) => write!(f, "{col:?}")?,
+            Self::Bool(col) => write!(f, " {col:?}")?,
+            Self::I64(col) => write!(f, " {col:?}")?,
+            Self::U64(col) => write!(f, " {col:?}")?,
+            Self::F64(col) => write!(f, "{col:?}")?,
+            Self::IpAddr(col) => write!(f, "{col:?}")?,
+            Self::DateTime(col) => write!(f, "{col:?}")?,
+            Self::Bytes(col) => write!(f, "{col:?}")?,
+            Self::Str(col) => write!(f, "{col:?}")?,
         }
         write!(f, "]")
     }
@@ -42,14 +42,14 @@ impl fmt::Debug for DynamicColumn {
 impl DynamicColumn {
     pub fn column_index(&self) -> &ColumnIndex {
         match self {
-            DynamicColumn::Bool(c) => &c.index,
-            DynamicColumn::I64(c) => &c.index,
-            DynamicColumn::U64(c) => &c.index,
-            DynamicColumn::F64(c) => &c.index,
-            DynamicColumn::IpAddr(c) => &c.index,
-            DynamicColumn::DateTime(c) => &c.index,
-            DynamicColumn::Bytes(c) => &c.ords().index,
-            DynamicColumn::Str(c) => &c.ords().index,
+            Self::Bool(c) => &c.index,
+            Self::I64(c) => &c.index,
+            Self::U64(c) => &c.index,
+            Self::F64(c) => &c.index,
+            Self::IpAddr(c) => &c.index,
+            Self::DateTime(c) => &c.index,
+            Self::Bytes(c) => &c.ords().index,
+            Self::Str(c) => &c.ords().index,
         }
     }
 
@@ -59,27 +59,27 @@ impl DynamicColumn {
 
     pub fn num_values(&self) -> u32 {
         match self {
-            DynamicColumn::Bool(c) => c.values.num_vals(),
-            DynamicColumn::I64(c) => c.values.num_vals(),
-            DynamicColumn::U64(c) => c.values.num_vals(),
-            DynamicColumn::F64(c) => c.values.num_vals(),
-            DynamicColumn::IpAddr(c) => c.values.num_vals(),
-            DynamicColumn::DateTime(c) => c.values.num_vals(),
-            DynamicColumn::Bytes(c) => c.ords().values.num_vals(),
-            DynamicColumn::Str(c) => c.ords().values.num_vals(),
+            Self::Bool(c) => c.values.num_vals(),
+            Self::I64(c) => c.values.num_vals(),
+            Self::U64(c) => c.values.num_vals(),
+            Self::F64(c) => c.values.num_vals(),
+            Self::IpAddr(c) => c.values.num_vals(),
+            Self::DateTime(c) => c.values.num_vals(),
+            Self::Bytes(c) => c.ords().values.num_vals(),
+            Self::Str(c) => c.ords().values.num_vals(),
         }
     }
 
     pub fn column_type(&self) -> ColumnType {
         match self {
-            DynamicColumn::Bool(_) => ColumnType::Bool,
-            DynamicColumn::I64(_) => ColumnType::I64,
-            DynamicColumn::U64(_) => ColumnType::U64,
-            DynamicColumn::F64(_) => ColumnType::F64,
-            DynamicColumn::IpAddr(_) => ColumnType::IpAddr,
-            DynamicColumn::DateTime(_) => ColumnType::DateTime,
-            DynamicColumn::Bytes(_) => ColumnType::Bytes,
-            DynamicColumn::Str(_) => ColumnType::Str,
+            Self::Bool(_) => ColumnType::Bool,
+            Self::I64(_) => ColumnType::I64,
+            Self::U64(_) => ColumnType::U64,
+            Self::F64(_) => ColumnType::F64,
+            Self::IpAddr(_) => ColumnType::IpAddr,
+            Self::DateTime(_) => ColumnType::DateTime,
+            Self::Bytes(_) => ColumnType::Bytes,
+            Self::Str(_) => ColumnType::Str,
         }
     }
 
@@ -105,47 +105,47 @@ impl DynamicColumn {
         self.column_type().numerical_type() == Some(NumericalType::U64)
     }
 
-    fn coerce_to_f64(self) -> Option<DynamicColumn> {
+    fn coerce_to_f64(self) -> Option<Self> {
         match self {
-            DynamicColumn::I64(column) => Some(DynamicColumn::F64(Column {
+            Self::I64(column) => Some(Self::F64(Column {
                 index: column.index,
                 values: Arc::new(monotonic_map_column(column.values, MapI64ToF64)),
             })),
-            DynamicColumn::U64(column) => Some(DynamicColumn::F64(Column {
+            Self::U64(column) => Some(Self::F64(Column {
                 index: column.index,
                 values: Arc::new(monotonic_map_column(column.values, MapU64ToF64)),
             })),
-            DynamicColumn::F64(_) => Some(self),
+            Self::F64(_) => Some(self),
             _ => None,
         }
     }
-    fn coerce_to_i64(self) -> Option<DynamicColumn> {
+    fn coerce_to_i64(self) -> Option<Self> {
         match self {
-            DynamicColumn::U64(column) => {
+            Self::U64(column) => {
                 if column.max_value() > i64::MAX as u64 {
                     return None;
                 }
-                Some(DynamicColumn::I64(Column {
+                Some(Self::I64(Column {
                     index: column.index,
                     values: Arc::new(monotonic_map_column(column.values, MapU64ToI64)),
                 }))
             }
-            DynamicColumn::I64(_) => Some(self),
+            Self::I64(_) => Some(self),
             _ => None,
         }
     }
-    fn coerce_to_u64(self) -> Option<DynamicColumn> {
+    fn coerce_to_u64(self) -> Option<Self> {
         match self {
-            DynamicColumn::I64(column) => {
+            Self::I64(column) => {
                 if column.min_value() < 0 {
                     return None;
                 }
-                Some(DynamicColumn::U64(Column {
+                Some(Self::U64(Column {
                     index: column.index,
                     values: Arc::new(monotonic_map_column(column.values, MapI64ToU64)),
                 }))
             }
-            DynamicColumn::U64(_) => Some(self),
+            Self::U64(_) => Some(self),
             _ => None,
         }
     }

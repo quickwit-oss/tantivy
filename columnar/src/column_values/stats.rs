@@ -44,7 +44,7 @@ impl BinarySerializable for ColumnStats {
         let amplitude = VInt::deserialize(reader)?.0 * gcd.get();
         let max_value = min_value + amplitude;
         let num_rows = VInt::deserialize(reader)?.0 as RowId;
-        Ok(ColumnStats {
+        Ok(Self {
             min_value,
             max_value,
             num_rows,

@@ -257,20 +257,20 @@ enum ColumnValue {
 }
 
 impl<T: Into<NumericalValue>> From<T> for ColumnValue {
-    fn from(val: T) -> ColumnValue {
-        ColumnValue::Numerical(val.into())
+    fn from(val: T) -> Self {
+        Self::Numerical(val.into())
     }
 }
 
 impl ColumnValue {
     pub(crate) fn column_type_category(&self) -> ColumnTypeCategory {
         match self {
-            ColumnValue::Str(_) => ColumnTypeCategory::Str,
-            ColumnValue::Bytes(_) => ColumnTypeCategory::Bytes,
-            ColumnValue::Numerical(_) => ColumnTypeCategory::Numerical,
-            ColumnValue::IpAddr(_) => ColumnTypeCategory::IpAddr,
-            ColumnValue::Bool(_) => ColumnTypeCategory::Bool,
-            ColumnValue::DateTime(_) => ColumnTypeCategory::DateTime,
+            Self::Str(_) => ColumnTypeCategory::Str,
+            Self::Bytes(_) => ColumnTypeCategory::Bytes,
+            Self::Numerical(_) => ColumnTypeCategory::Numerical,
+            Self::IpAddr(_) => ColumnTypeCategory::IpAddr,
+            Self::Bool(_) => ColumnTypeCategory::Bool,
+            Self::DateTime(_) => ColumnTypeCategory::DateTime,
         }
     }
 }

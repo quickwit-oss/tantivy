@@ -36,8 +36,8 @@ impl<T: Debug + PartialOrd + Send + Sync + Copy + 'static> Debug for Column<T> {
 }
 
 impl<T: PartialOrd + Default> Column<T> {
-    pub fn build_empty_column(num_docs: u32) -> Column<T> {
-        Column {
+    pub fn build_empty_column(num_docs: u32) -> Self {
+        Self {
             index: ColumnIndex::Empty { num_docs },
             values: Arc::new(EmptyColumnValues),
         }
@@ -182,7 +182,7 @@ impl BinarySerializable for Cardinality {
 
     fn deserialize<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let cardinality_code = u8::deserialize(reader)?;
-        let cardinality = Cardinality::try_from_code(cardinality_code)?;
+        let cardinality = Self::try_from_code(cardinality_code)?;
         Ok(cardinality)
     }
 }

@@ -40,8 +40,8 @@ impl BlockVariant {
     }
     pub fn num_bytes_in_block(&self) -> u32 {
         match *self {
-            BlockVariant::Dense => set_block::DENSE_BLOCK_NUM_BYTES,
-            BlockVariant::Sparse { num_vals } => num_vals as u32 * 2,
+            Self::Dense => set_block::DENSE_BLOCK_NUM_BYTES,
+            Self::Sparse { num_vals } => num_vals as u32 * 2,
         }
     }
 }
@@ -258,7 +258,7 @@ impl Set<RowId> for OptionalIndex {
 }
 
 impl OptionalIndex {
-    pub fn for_test(num_rows: RowId, row_ids: &[RowId]) -> OptionalIndex {
+    pub fn for_test(num_rows: RowId, row_ids: &[RowId]) -> Self {
         assert!(
             row_ids
                 .last()
@@ -441,11 +441,11 @@ struct SerializedBlockMeta {
 // TODO unit tests
 impl SerializedBlockMeta {
     #[inline]
-    fn from_bytes(bytes: [u8; SERIALIZED_BLOCK_META_NUM_BYTES]) -> SerializedBlockMeta {
+    fn from_bytes(bytes: [u8; SERIALIZED_BLOCK_META_NUM_BYTES]) -> Self {
         let block_id = u16::from_le_bytes(bytes[0..2].try_into().unwrap());
         let num_non_null_rows: u32 =
             u16::from_le_bytes(bytes[2..4].try_into().unwrap()) as u32 + 1u32;
-        SerializedBlockMeta {
+        Self {
             block_id,
             num_non_null_rows,
         }

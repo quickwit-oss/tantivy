@@ -47,8 +47,8 @@ fn get_data_50percent_item() -> Vec<u128> {
     }
     data.push(SINGLE_ITEM);
     data.shuffle(&mut rng);
-    let data = data.iter().map(|el| *el as u128).collect::<Vec<_>>();
-    data
+
+    data.iter().map(|el| *el as u128).collect::<Vec<_>>()
 }
 
 #[bench]

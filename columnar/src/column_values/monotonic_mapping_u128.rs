@@ -32,7 +32,7 @@ impl MonotonicallyMappableToU128 for Ipv6Addr {
     }
 
     fn from_u128(val: u128) -> Self {
-        Ipv6Addr::from(val.to_be_bytes())
+        Self::from(val.to_be_bytes())
     }
 }
 

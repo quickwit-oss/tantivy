@@ -20,13 +20,13 @@ impl PartialEq for TermsWithSegmentOrd<'_> {
 impl Eq for TermsWithSegmentOrd<'_> {}
 
 impl<'a> PartialOrd for TermsWithSegmentOrd<'a> {
-    fn partial_cmp(&self, other: &TermsWithSegmentOrd<'a>) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<'a> Ord for TermsWithSegmentOrd<'a> {
-    fn cmp(&self, other: &TermsWithSegmentOrd<'a>) -> Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         (&other.terms.key(), &other.segment_ord).cmp(&(&self.terms.key(), &self.segment_ord))
     }
 }
@@ -44,7 +44,7 @@ pub struct TermMerger<'a> {
 
 impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
-    pub fn new(term_streams_with_segment: Vec<TermsWithSegmentOrd<'a>>) -> TermMerger<'a> {
+    pub fn new(term_streams_with_segment: Vec<TermsWithSegmentOrd<'a>>) -> Self {
         TermMerger {
             heap: BinaryHeap::new(),
             term_streams_with_segment,

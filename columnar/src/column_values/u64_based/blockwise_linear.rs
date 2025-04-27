@@ -30,7 +30,7 @@ impl BinarySerializable for Block {
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let line = Line::deserialize(reader)?;
         let bit_width = u8::deserialize(reader)?;
-        Ok(Block {
+        Ok(Self {
             line,
             bit_unpacker: BitUnpacker::new(bit_width),
             data_start_offset: 0,

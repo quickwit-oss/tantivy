@@ -33,14 +33,14 @@ pub enum ColumnIndex {
 }
 
 impl From<OptionalIndex> for ColumnIndex {
-    fn from(optional_index: OptionalIndex) -> ColumnIndex {
-        ColumnIndex::Optional(optional_index)
+    fn from(optional_index: OptionalIndex) -> Self {
+        Self::Optional(optional_index)
     }
 }
 
 impl From<MultiValueIndex> for ColumnIndex {
-    fn from(multi_value_index: MultiValueIndex) -> ColumnIndex {
-        ColumnIndex::Multivalued(multi_value_index)
+    fn from(multi_value_index: MultiValueIndex) -> Self {
+        Self::Multivalued(multi_value_index)
     }
 }
 
@@ -52,37 +52,35 @@ impl ColumnIndex {
     #[inline]
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
-            ColumnIndex::Empty { num_docs: 0 } | ColumnIndex::Full => Cardinality::Full,
-            ColumnIndex::Empty { .. } => Cardinality::Optional,
-            ColumnIndex::Optional(_) => Cardinality::Optional,
-            ColumnIndex::Multivalued(_) => Cardinality::Multivalued,
+            Self::Empty { num_docs: 0 } | Self::Full => Cardinality::Full,
+            Self::Empty { .. } => Cardinality::Optional,
+            Self::Optional(_) => Cardinality::Optional,
+            Self::Multivalued(_) => Cardinality::Multivalued,
         }
     }
 
     /// Returns true if and only if there are at least one value associated to the row.
     pub fn has_value(&self, doc_id: DocId) -> bool {
         match self {
-            ColumnIndex::Empty { .. } => false,
-            ColumnIndex::Full => true,
-            ColumnIndex::Optional(optional_index) => optional_index.contains(doc_id),
-            ColumnIndex::Multivalued(multivalued_index) => {
-                !multivalued_index.range(doc_id).is_empty()
-            }
+            Self::Empty { .. } => false,
+            Self::Full => true,
+            Self::Optional(optional_index) => optional_index.contains(doc_id),
+            Self::Multivalued(multivalued_index) => !multivalued_index.range(doc_id).is_empty(),
         }
     }
 
     pub fn value_row_ids(&self, doc_id: DocId) -> Range<RowId> {
         match self {
-            ColumnIndex::Empty { .. } => 0..0,
-            ColumnIndex::Full => doc_id..doc_id + 1,
-            ColumnIndex::Optional(optional_index) => {
+            Self::Empty { .. } => 0..0,
+            Self::Full => doc_id..doc_id + 1,
+            Self::Optional(optional_index) => {
                 if let Some(val) = optional_index.rank_if_exists(doc_id) {
                     val..val + 1
                 } else {
                     0..0
                 }
             }
-            ColumnIndex::Multivalued(multivalued_index) => multivalued_index.range(doc_id),
+            Self::Multivalued(multivalued_index) => multivalued_index.range(doc_id),
         }
     }
 
@@ -101,12 +99,12 @@ impl ColumnIndex {
         row_ids: &mut Vec<RowId>,
     ) {
         match self {
-            ColumnIndex::Empty { .. } => {}
-            ColumnIndex::Full => {
+            Self::Empty { .. } => {}
+            Self::Full => {
                 doc_ids_out.extend_from_slice(doc_ids);
                 row_ids.extend_from_slice(doc_ids);
             }
-            ColumnIndex::Optional(optional_index) => {
+            Self::Optional(optional_index) => {
                 for doc_id in doc_ids {
                     if let Some(row_id) = optional_index.rank_if_exists(*doc_id) {
                         doc_ids_out.push(*doc_id);
@@ -114,7 +112,7 @@ impl ColumnIndex {
                     }
                 }
             }
-            ColumnIndex::Multivalued(multivalued_index) => {
+            Self::Multivalued(multivalued_index) => {
                 for doc_id in doc_ids {
                     for row_id in multivalued_index.range(*doc_id) {
                         doc_ids_out.push(*doc_id);
@@ -127,14 +125,14 @@ impl ColumnIndex {
 
     pub fn docid_range_to_rowids(&self, doc_id_range: Range<DocId>) -> Range<RowId> {
         match self {
-            ColumnIndex::Empty { .. } => 0..0,
-            ColumnIndex::Full => doc_id_range,
-            ColumnIndex::Optional(optional_index) => {
+            Self::Empty { .. } => 0..0,
+            Self::Full => doc_id_range,
+            Self::Optional(optional_index) => {
                 let row_start = optional_index.rank(doc_id_range.start);
                 let row_end = optional_index.rank(doc_id_range.end);
                 row_start..row_end
             }
-            ColumnIndex::Multivalued(multivalued_index) => match multivalued_index {
+            Self::Multivalued(multivalued_index) => match multivalued_index {
                 MultiValueIndex::MultiValueIndexV1(index) => {
                     let row_start = index.start_index_column.get_val(doc_id_range.start);
                     let row_end = index.start_index_column.get_val(doc_id_range.end);
@@ -174,17 +172,17 @@ impl ColumnIndex {
 
     pub fn select_batch_in_place(&self, doc_id_start: DocId, rank_ids: &mut Vec<RowId>) {
         match self {
-            ColumnIndex::Empty { .. } => {
+            Self::Empty { .. } => {
                 rank_ids.clear();
             }
-            ColumnIndex::Full => {
+            Self::Full => {
                 // No need to do anything:
                 // value_idx and row_idx are the same.
             }
-            ColumnIndex::Optional(optional_index) => {
+            Self::Optional(optional_index) => {
                 optional_index.select_batch(&mut rank_ids[..]);
             }
-            ColumnIndex::Multivalued(multivalued_index) => {
+            Self::Multivalued(multivalued_index) => {
                 multivalued_index.select_batch_in_place(doc_id_start, rank_ids)
             }
         }

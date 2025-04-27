@@ -15,11 +15,11 @@ pub enum Card {
 impl Display for Card {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Card::MultiSparse => write!(f, "multi sparse 1/13"),
-            Card::Multi => write!(f, "multi 2x"),
-            Card::Sparse => write!(f, "sparse 1/13"),
-            Card::Dense => write!(f, "dense 1/12"),
-            Card::Full => write!(f, "full"),
+            Self::MultiSparse => write!(f, "multi sparse 1/13"),
+            Self::Multi => write!(f, "multi 2x"),
+            Self::Sparse => write!(f, "sparse 1/13"),
+            Self::Dense => write!(f, "dense 1/12"),
+            Self::Full => write!(f, "full"),
         }
     }
 }

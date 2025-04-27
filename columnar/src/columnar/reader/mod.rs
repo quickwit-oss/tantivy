@@ -92,12 +92,12 @@ fn column_dictionary_prefix_for_subpath(root_path: &str) -> String {
 
 impl ColumnarReader {
     /// Opens a new Columnar file.
-    pub fn open<F>(file_slice: F) -> io::Result<ColumnarReader>
+    pub fn open<F>(file_slice: F) -> io::Result<Self>
     where FileSlice: From<F> {
         Self::open_inner(file_slice.into())
     }
 
-    fn open_inner(file_slice: FileSlice) -> io::Result<ColumnarReader> {
+    fn open_inner(file_slice: FileSlice) -> io::Result<Self> {
         let (file_slice_without_sstable_len, footer_slice) = file_slice
             .split_from_end(mem::size_of::<u64>() + 4 + format_version::VERSION_FOOTER_NUM_BYTES);
         let footer_bytes = footer_slice.read_bytes()?;
@@ -109,7 +109,7 @@ impl ColumnarReader {
         let (column_data, sstable) =
             file_slice_without_sstable_len.split_from_end(sstable_len as usize);
         let column_dictionary = Dictionary::open(sstable)?;
-        Ok(ColumnarReader {
+        Ok(Self {
             column_dictionary,
             column_data,
             num_docs: num_rows,

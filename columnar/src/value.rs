@@ -12,9 +12,9 @@ pub enum NumericalValue {
 impl NumericalValue {
     pub fn numerical_type(&self) -> NumericalType {
         match self {
-            NumericalValue::I64(_) => NumericalType::I64,
-            NumericalValue::U64(_) => NumericalType::U64,
-            NumericalValue::F64(_) => NumericalType::F64,
+            Self::I64(_) => NumericalType::I64,
+            Self::U64(_) => NumericalType::U64,
+            Self::F64(_) => NumericalType::F64,
         }
     }
 
@@ -22,22 +22,22 @@ impl NumericalValue {
     /// i64, i64, f64
     pub fn normalize(self) -> Self {
         match self {
-            NumericalValue::U64(val) => {
+            Self::U64(val) => {
                 if val <= i64::MAX as u64 {
-                    NumericalValue::I64(val as i64)
+                    Self::I64(val as i64)
                 } else {
-                    NumericalValue::F64(val as f64)
+                    Self::F64(val as f64)
                 }
             }
-            NumericalValue::I64(val) => NumericalValue::I64(val),
-            NumericalValue::F64(val) => {
+            Self::I64(val) => Self::I64(val),
+            Self::F64(val) => {
                 let fract = val.fract();
                 if fract == 0.0 && val >= i64::MIN as f64 && val <= i64::MAX as f64 {
-                    NumericalValue::I64(val as i64)
+                    Self::I64(val as i64)
                 } else if fract == 0.0 && val >= u64::MIN as f64 && val <= u64::MAX as f64 {
-                    NumericalValue::U64(val as u64)
+                    Self::U64(val as u64)
                 } else {
-                    NumericalValue::F64(val)
+                    Self::F64(val)
                 }
             }
         }
@@ -45,20 +45,20 @@ impl NumericalValue {
 }
 
 impl From<u64> for NumericalValue {
-    fn from(val: u64) -> NumericalValue {
-        NumericalValue::U64(val)
+    fn from(val: u64) -> Self {
+        Self::U64(val)
     }
 }
 
 impl From<i64> for NumericalValue {
     fn from(val: i64) -> Self {
-        NumericalValue::I64(val)
+        Self::I64(val)
     }
 }
 
 impl From<f64> for NumericalValue {
     fn from(val: f64) -> Self {
-        NumericalValue::F64(val)
+        Self::F64(val)
     }
 }
 
@@ -76,11 +76,11 @@ impl NumericalType {
         self as u8
     }
 
-    pub fn try_from_code(code: u8) -> Result<NumericalType, InvalidData> {
+    pub fn try_from_code(code: u8) -> Result<Self, InvalidData> {
         match code {
-            0 => Ok(NumericalType::I64),
-            1 => Ok(NumericalType::U64),
-            2 => Ok(NumericalType::F64),
+            0 => Ok(Self::I64),
+            1 => Ok(Self::U64),
+            2 => Ok(Self::F64),
             _ => Err(InvalidData),
         }
     }
@@ -105,7 +105,7 @@ impl Coerce for i64 {
     fn coerce(value: NumericalValue) -> Self {
         match value {
             NumericalValue::I64(val) => val,
-            NumericalValue::U64(val) => val as i64,
+            NumericalValue::U64(val) => val as Self,
             NumericalValue::F64(_) => unreachable!(),
         }
     }
@@ -114,7 +114,7 @@ impl Coerce for i64 {
 impl Coerce for u64 {
     fn coerce(value: NumericalValue) -> Self {
         match value {
-            NumericalValue::I64(val) => val as u64,
+            NumericalValue::I64(val) => val as Self,
             NumericalValue::U64(val) => val,
             NumericalValue::F64(_) => unreachable!(),
         }
@@ -124,8 +124,8 @@ impl Coerce for u64 {
 impl Coerce for f64 {
     fn coerce(value: NumericalValue) -> Self {
         match value {
-            NumericalValue::I64(val) => val as f64,
-            NumericalValue::U64(val) => val as f64,
+            NumericalValue::I64(val) => val as Self,
+            NumericalValue::U64(val) => val as Self,
             NumericalValue::F64(val) => val,
         }
     }
@@ -134,7 +134,7 @@ impl Coerce for f64 {
 impl Coerce for DateTime {
     fn coerce(value: NumericalValue) -> Self {
         let timestamp_micros = i64::coerce(value);
-        DateTime::from_timestamp_nanos(timestamp_micros)
+        Self::from_timestamp_nanos(timestamp_micros)
     }
 }
 

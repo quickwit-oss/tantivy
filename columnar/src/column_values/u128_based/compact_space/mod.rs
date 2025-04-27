@@ -204,7 +204,7 @@ impl CompactSpaceCompressor {
                 .expect("could not convert max value to compact space"),
             amplitude_compact_space as u32
         );
-        CompactSpaceCompressor {
+        Self {
             params: IPCodecParams {
                 compact_space,
                 bit_unpacker: BitUnpacker::new(num_bits),
@@ -301,8 +301,8 @@ impl BinarySerializable for IPCodecParams {
 /// When converting from the internal u64 to u128 `compact_to_u128` can be used.
 pub struct CompactSpaceU64Accessor(CompactSpaceDecompressor);
 impl CompactSpaceU64Accessor {
-    pub(crate) fn open(data: OwnedBytes) -> io::Result<CompactSpaceU64Accessor> {
-        let decompressor = CompactSpaceU64Accessor(CompactSpaceDecompressor::open(data)?);
+    pub(crate) fn open(data: OwnedBytes) -> io::Result<Self> {
+        let decompressor = Self(CompactSpaceDecompressor::open(data)?);
         Ok(decompressor)
     }
     /// Convert a compact space value to u128
@@ -419,13 +419,13 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
 }
 
 impl CompactSpaceDecompressor {
-    pub fn open(data: OwnedBytes) -> io::Result<CompactSpaceDecompressor> {
+    pub fn open(data: OwnedBytes) -> io::Result<Self> {
         let (data_slice, footer_len_bytes) = data.split_at(data.len() - 4);
         let footer_len = u32::deserialize(&mut &footer_len_bytes[..])?;
 
         let data_footer = &data_slice[data_slice.len() - footer_len as usize..];
         let params = IPCodecParams::deserialize(&mut &data_footer[..])?;
-        let decompressor = CompactSpaceDecompressor { data, params };
+        let decompressor = Self { data, params };
 
         Ok(decompressor)
     }
