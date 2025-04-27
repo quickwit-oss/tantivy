@@ -28,15 +28,15 @@ pub struct FastFieldsWriter {
 impl FastFieldsWriter {
     /// Create all `FastFieldWriter` required by the schema.
     #[cfg(test)]
-    pub fn from_schema(schema: &Schema) -> crate::Result<FastFieldsWriter> {
-        FastFieldsWriter::from_schema_and_tokenizer_manager(schema, TokenizerManager::new())
+    pub fn from_schema(schema: &Schema) -> crate::Result<Self> {
+        Self::from_schema_and_tokenizer_manager(schema, TokenizerManager::new())
     }
 
     /// Create all `FastFieldWriter` required by the schema.
     pub fn from_schema_and_tokenizer_manager(
         schema: &Schema,
         tokenizer_manager: TokenizerManager,
-    ) -> crate::Result<FastFieldsWriter> {
+    ) -> crate::Result<Self> {
         let mut columnar_writer = ColumnarWriter::default();
 
         let mut fast_field_names: Vec<Option<String>> = vec![None; schema.num_fields()];
@@ -89,7 +89,7 @@ impl FastFieldsWriter {
                 );
             }
         }
-        Ok(FastFieldsWriter {
+        Ok(Self {
             columnar_writer,
             fast_field_names,
             per_field_tokenizer,

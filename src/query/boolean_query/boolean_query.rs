@@ -148,8 +148,8 @@ impl Clone for BooleanQuery {
 }
 
 impl From<Vec<(Occur, Box<dyn Query>)>> for BooleanQuery {
-    fn from(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
-        BooleanQuery::new(subqueries)
+    fn from(subqueries: Vec<(Occur, Box<dyn Query>)>) -> Self {
+        Self::new(subqueries)
     }
 }
 
@@ -177,7 +177,7 @@ impl Query for BooleanQuery {
 
 impl BooleanQuery {
     /// Creates a new boolean query.
-    pub fn new(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
+    pub fn new(subqueries: Vec<(Occur, Box<dyn Query>)>) -> Self {
         // If the bool query includes at least one should clause
         // and no Must or MustNot clauses, the default value is 1. Otherwise, the default value is
         // 0. Keep pace with Elasticsearch.
@@ -198,8 +198,8 @@ impl BooleanQuery {
     pub fn with_minimum_required_clauses(
         subqueries: Vec<(Occur, Box<dyn Query>)>,
         minimum_number_should_match: usize,
-    ) -> BooleanQuery {
-        BooleanQuery {
+    ) -> Self {
+        Self {
             subqueries,
             minimum_number_should_match,
         }
@@ -216,32 +216,32 @@ impl BooleanQuery {
     }
 
     /// Returns the intersection of the queries.
-    pub fn intersection(queries: Vec<Box<dyn Query>>) -> BooleanQuery {
+    pub fn intersection(queries: Vec<Box<dyn Query>>) -> Self {
         let subqueries = queries.into_iter().map(|s| (Occur::Must, s)).collect();
-        BooleanQuery::new(subqueries)
+        Self::new(subqueries)
     }
 
     /// Returns the union of the queries.
-    pub fn union(queries: Vec<Box<dyn Query>>) -> BooleanQuery {
+    pub fn union(queries: Vec<Box<dyn Query>>) -> Self {
         let subqueries = queries.into_iter().map(|s| (Occur::Should, s)).collect();
-        BooleanQuery::new(subqueries)
+        Self::new(subqueries)
     }
 
     /// Returns the union of the queries with minimum required clause.
     pub fn union_with_minimum_required_clauses(
         queries: Vec<Box<dyn Query>>,
         minimum_required_clauses: usize,
-    ) -> BooleanQuery {
+    ) -> Self {
         let subqueries = queries
             .into_iter()
             .map(|sub_query| (Occur::Should, sub_query))
             .collect();
-        BooleanQuery::with_minimum_required_clauses(subqueries, minimum_required_clauses)
+        Self::with_minimum_required_clauses(subqueries, minimum_required_clauses)
     }
 
     /// Helper method to create a boolean query matching a given list of terms.
     /// The resulting query is a disjunction of the terms.
-    pub fn new_multiterms_query(terms: Vec<Term>) -> BooleanQuery {
+    pub fn new_multiterms_query(terms: Vec<Term>) -> Self {
         let occur_term_queries: Vec<(Occur, Box<dyn Query>)> = terms
             .into_iter()
             .map(|term| {
@@ -250,7 +250,7 @@ impl BooleanQuery {
                 (Occur::Should, term_query)
             })
             .collect();
-        BooleanQuery::new(occur_term_queries)
+        Self::new(occur_term_queries)
     }
 
     /// Deconstructed view of the clauses making up this query.

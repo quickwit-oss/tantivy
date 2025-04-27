@@ -36,9 +36,9 @@ impl StoreWriter {
         compressor: Compressor,
         block_size: usize,
         dedicated_thread: bool,
-    ) -> io::Result<StoreWriter> {
+    ) -> io::Result<Self> {
         let block_compressor = BlockCompressor::new(compressor, writer, dedicated_thread)?;
-        Ok(StoreWriter {
+        Ok(Self {
             compressor,
             block_size,
             num_docs_in_current_block: 0,

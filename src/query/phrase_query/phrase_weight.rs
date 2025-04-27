@@ -20,9 +20,9 @@ impl PhraseWeight {
     pub fn new(
         phrase_terms: Vec<(usize, Term)>,
         similarity_weight_opt: Option<Bm25Weight>,
-    ) -> PhraseWeight {
+    ) -> Self {
         let slop = 0;
-        PhraseWeight {
+        Self {
             phrase_terms,
             similarity_weight_opt,
             slop,

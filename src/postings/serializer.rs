@@ -55,9 +55,9 @@ pub struct InvertedIndexSerializer {
 
 impl InvertedIndexSerializer {
     /// Open a new `InvertedIndexSerializer` for the given segment
-    pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
+    pub fn open(segment: &mut Segment) -> crate::Result<Self> {
         use crate::index::SegmentComponent::{Positions, Postings, Terms};
-        let inv_index_serializer = InvertedIndexSerializer {
+        let inv_index_serializer = Self {
             terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),
             postings_write: CompositeWrite::wrap(segment.open_write(Postings)?),
             positions_write: CompositeWrite::wrap(segment.open_write(Positions)?),
@@ -118,7 +118,7 @@ impl<'a> FieldSerializer<'a> {
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
         fieldnorm_reader: Option<FieldNormReader>,
-    ) -> io::Result<FieldSerializer<'a>> {
+    ) -> io::Result<Self> {
         total_num_tokens.serialize(postings_write)?;
         let index_record_option = field_type
             .index_record_option()
@@ -251,7 +251,7 @@ struct Block {
 
 impl Block {
     fn new() -> Self {
-        Block {
+        Self {
             doc_ids: [0u32; COMPRESSION_BLOCK_SIZE],
             term_freqs: [0u32; COMPRESSION_BLOCK_SIZE],
             len: 0,
@@ -316,8 +316,8 @@ impl<W: Write> PostingsSerializer<W> {
         avg_fieldnorm: Score,
         mode: IndexRecordOption,
         fieldnorm_reader: Option<FieldNormReader>,
-    ) -> PostingsSerializer<W> {
-        PostingsSerializer {
+    ) -> Self {
+        Self {
             output_write: CountingWriter::wrap(write),
 
             block_encoder: BlockEncoder::new(),

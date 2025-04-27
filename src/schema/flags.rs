@@ -61,7 +61,7 @@ where
     OldHead: Clone,
     OldTail: Clone,
 {
-    type Output = SchemaFlagList<Head, SchemaFlagList<OldHead, OldTail>>;
+    type Output = SchemaFlagList<Head, Self>;
 
     fn bitor(self, head: SchemaFlagList<Head, ()>) -> Self::Output {
         SchemaFlagList {

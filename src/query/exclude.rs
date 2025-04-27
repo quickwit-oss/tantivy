@@ -24,7 +24,7 @@ where
     pub fn new(
         mut underlying_docset: TDocSet,
         mut excluding_docset: TDocSetExclude,
-    ) -> Exclude<TDocSet, TDocSetExclude> {
+    ) -> Self {
         while underlying_docset.doc() != TERMINATED {
             let target = underlying_docset.doc();
             if !is_within(&mut excluding_docset, target) {
@@ -32,7 +32,7 @@ where
             }
             underlying_docset.advance();
         }
-        Exclude {
+        Self {
             underlying_docset,
             excluding_docset,
         }

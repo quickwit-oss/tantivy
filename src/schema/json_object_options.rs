@@ -158,7 +158,7 @@ impl JsonObjectOptions {
 
 impl From<StoredFlag> for JsonObjectOptions {
     fn from(_stored_flag: StoredFlag) -> Self {
-        JsonObjectOptions {
+        Self {
             stored: true,
             indexing: None,
             fast: FastFieldTextOptions::default(),
@@ -169,7 +169,7 @@ impl From<StoredFlag> for JsonObjectOptions {
 
 impl From<FastFlag> for JsonObjectOptions {
     fn from(_fast_flag: FastFlag) -> Self {
-        JsonObjectOptions {
+        Self {
             stored: false,
             indexing: None,
             fast: FastFieldTextOptions::IsEnabled(true),
@@ -184,12 +184,12 @@ impl From<()> for JsonObjectOptions {
     }
 }
 
-impl<T: Into<JsonObjectOptions>> BitOr<T> for JsonObjectOptions {
-    type Output = JsonObjectOptions;
+impl<T: Into<Self>> BitOr<T> for JsonObjectOptions {
+    type Output = Self;
 
     fn bitor(self, other: T) -> Self {
-        let other: JsonObjectOptions = other.into();
-        JsonObjectOptions {
+        let other: Self = other.into();
+        Self {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
             fast: self.fast | other.fast,
@@ -211,7 +211,7 @@ where
 
 impl From<TextOptions> for JsonObjectOptions {
     fn from(text_options: TextOptions) -> Self {
-        JsonObjectOptions {
+        Self {
             stored: text_options.is_stored(),
             indexing: text_options.get_indexing_options().cloned(),
             fast: text_options.fast,

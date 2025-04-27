@@ -275,7 +275,7 @@ impl SegmentUpdater {
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
         num_merge_threads: usize,
-    ) -> crate::Result<SegmentUpdater> {
+    ) -> crate::Result<Self> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         let pool = ThreadPoolBuilder::new()
@@ -306,7 +306,7 @@ impl SegmentUpdater {
                 )
             })?;
         let index_meta = index.load_metas()?;
-        Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
+        Ok(Self(Arc::new(InnerSegmentUpdater {
             active_index_meta: RwLock::new(Arc::new(index_meta)),
             pool,
             merge_thread_pool,
@@ -443,7 +443,7 @@ impl SegmentUpdater {
         opstamp: Opstamp,
         payload: Option<String>,
     ) -> FutureResult<Opstamp> {
-        let segment_updater: SegmentUpdater = self.clone();
+        let segment_updater: Self = self.clone();
         self.schedule_task(move || {
             let segment_entries = segment_updater.purge_deletes(opstamp)?;
             segment_updater.segment_manager.commit(segment_entries);

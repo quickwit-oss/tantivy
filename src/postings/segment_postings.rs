@@ -22,7 +22,7 @@ pub struct SegmentPostings {
 impl SegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> Self {
-        SegmentPostings {
+        Self {
             block_cursor: BlockSegmentPostings::empty(),
             cur: 0,
             position_reader: None,
@@ -63,7 +63,7 @@ impl SegmentPostings {
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
     #[cfg(test)]
-    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
+    pub fn create_from_docs(docs: &[u32]) -> Self {
         use crate::directory::FileSlice;
         use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
@@ -86,7 +86,7 @@ impl SegmentPostings {
             IndexRecordOption::Basic,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None)
+        Self::from_block_postings(block_segment_postings, None)
     }
 
     /// Helper functions to create `SegmentPostings` for tests.
@@ -94,7 +94,7 @@ impl SegmentPostings {
     pub fn create_from_docs_and_tfs(
         doc_and_tfs: &[(u32, u32)],
         fieldnorms: Option<&[u32]>,
-    ) -> SegmentPostings {
+    ) -> Self {
         use crate::directory::FileSlice;
         use crate::fieldnorm::FieldNormReader;
         use crate::postings::serializer::PostingsSerializer;
@@ -134,7 +134,7 @@ impl SegmentPostings {
             IndexRecordOption::WithFreqs,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None)
+        Self::from_block_postings(block_segment_postings, None)
     }
 
     /// Reads a Segment postings from an &[u8]
@@ -145,8 +145,8 @@ impl SegmentPostings {
     pub(crate) fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
         position_reader: Option<PositionReader>,
-    ) -> SegmentPostings {
-        SegmentPostings {
+    ) -> Self {
+        Self {
             block_cursor: segment_block_postings,
             cur: 0, // cursor within the block
             position_reader,

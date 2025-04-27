@@ -35,8 +35,8 @@ pub(crate) enum DocStoreVersion {
 impl Display for DocStoreVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DocStoreVersion::V1 => write!(f, "V1"),
-            DocStoreVersion::V2 => write!(f, "V2"),
+            Self::V1 => write!(f, "V1"),
+            Self::V2 => write!(f, "V2"),
         }
     }
 }
@@ -47,8 +47,8 @@ impl BinarySerializable for DocStoreVersion {
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         Ok(match u32::deserialize(reader)? {
-            1 => DocStoreVersion::V1,
-            2 => DocStoreVersion::V2,
+            1 => Self::V1,
+            2 => Self::V2,
             v => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -154,7 +154,7 @@ impl StoreReader {
     ///
     /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
     /// The size of blocks is configurable, this should be reflexted in the
-    pub fn open(store_file: FileSlice, cache_num_blocks: usize) -> io::Result<StoreReader> {
+    pub fn open(store_file: FileSlice, cache_num_blocks: usize) -> io::Result<Self> {
         let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
 
         let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
@@ -162,7 +162,7 @@ impl StoreReader {
         let space_usage =
             StoreSpaceUsage::new(data_file.num_bytes(), offset_index_file.num_bytes());
         let skip_index = SkipIndex::open(index_data);
-        Ok(StoreReader {
+        Ok(Self {
             decompressor: footer.decompressor,
             doc_store_version: footer.doc_store_version,
             data: data_file,
@@ -320,7 +320,7 @@ impl StoreReader {
                     doc_pos = 0;
                 }
 
-                let alive = alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
+                let alive = alive_bitset.is_none_or(|bitset| bitset.is_alive(doc_id));
                 let res = if alive {
                     Some((curr_block.clone(), doc_pos))
                 } else {

@@ -25,7 +25,7 @@ impl LoadedPostings {
     /// Creates a new `LoadedPostings` from a `SegmentPostings`.
     ///
     /// It will also preload positions, if positions are available in the SegmentPostings.
-    pub fn load(segment_postings: &mut SegmentPostings) -> LoadedPostings {
+    pub fn load(segment_postings: &mut SegmentPostings) -> Self {
         let num_docs = segment_postings.doc_freq() as usize;
         let mut doc_ids = Vec::with_capacity(num_docs);
         let mut positions = Vec::with_capacity(num_docs);
@@ -37,7 +37,7 @@ impl LoadedPostings {
             segment_postings.advance();
         }
         position_offsets.push(positions.len() as u32);
-        LoadedPostings {
+        Self {
             doc_ids: doc_ids.into_boxed_slice(),
             positions: positions.into_boxed_slice(),
             position_offsets: position_offsets.into_boxed_slice(),
@@ -48,7 +48,7 @@ impl LoadedPostings {
 
 #[cfg(test)]
 impl From<(Vec<DocId>, Vec<Vec<u32>>)> for LoadedPostings {
-    fn from(doc_ids_and_positions: (Vec<DocId>, Vec<Vec<u32>>)) -> LoadedPostings {
+    fn from(doc_ids_and_positions: (Vec<DocId>, Vec<Vec<u32>>)) -> Self {
         let mut position_offsets = Vec::new();
         let mut all_positions = Vec::new();
         let (doc_ids, docid_positions) = doc_ids_and_positions;
@@ -57,7 +57,7 @@ impl From<(Vec<DocId>, Vec<Vec<u32>>)> for LoadedPostings {
             all_positions.extend_from_slice(&positions);
         }
         position_offsets.push(all_positions.len() as u32);
-        LoadedPostings {
+        Self {
             doc_ids: doc_ids.into_boxed_slice(),
             positions: all_positions.into_boxed_slice(),
             position_offsets: position_offsets.into_boxed_slice(),

@@ -85,8 +85,8 @@ pub struct Bm25Weight {
 
 impl Bm25Weight {
     /// Increase the weight by a multiplicative factor.
-    pub fn boost_by(&self, boost: Score) -> Bm25Weight {
-        Bm25Weight {
+    pub fn boost_by(&self, boost: Score) -> Self {
+        Self {
             idf_explain: self.idf_explain.clone(),
             weight: self.weight * boost,
             cache: self.cache,
@@ -98,7 +98,7 @@ impl Bm25Weight {
     pub fn for_terms(
         statistics: &dyn Bm25StatisticsProvider,
         terms: &[Term],
-    ) -> crate::Result<Bm25Weight> {
+    ) -> crate::Result<Self> {
         assert!(!terms.is_empty(), "Bm25 requires at least one term");
         let field = terms[0].field();
         for term in &terms[1..] {
@@ -115,7 +115,7 @@ impl Bm25Weight {
 
         if terms.len() == 1 {
             let term_doc_freq = statistics.doc_freq(&terms[0])?;
-            Ok(Bm25Weight::for_one_term(
+            Ok(Self::for_one_term(
                 term_doc_freq,
                 total_num_docs,
                 average_fieldnorm,
@@ -127,7 +127,7 @@ impl Bm25Weight {
                 idf_sum += idf(term_doc_freq, total_num_docs);
             }
             let idf_explain = Explanation::new("idf", idf_sum);
-            Ok(Bm25Weight::new(idf_explain, average_fieldnorm))
+            Ok(Self::new(idf_explain, average_fieldnorm))
         }
     }
 
@@ -136,7 +136,7 @@ impl Bm25Weight {
         term_doc_freq: u64,
         total_num_docs: u64,
         avg_fieldnorm: Score,
-    ) -> Bm25Weight {
+    ) -> Self {
         let idf = idf(term_doc_freq, total_num_docs);
         let mut idf_explain =
             Explanation::new("idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))", idf);
@@ -145,7 +145,7 @@ impl Bm25Weight {
             term_doc_freq as Score,
         );
         idf_explain.add_const("N, total number of docs", total_num_docs as Score);
-        Bm25Weight::new(idf_explain, avg_fieldnorm)
+        Self::new(idf_explain, avg_fieldnorm)
     }
     /// Construct a [Bm25Weight] for a single term.
     /// This method does not carry the [Explanation] for the idf.
@@ -153,23 +153,23 @@ impl Bm25Weight {
         term_doc_freq: u64,
         total_num_docs: u64,
         avg_fieldnorm: Score,
-    ) -> Bm25Weight {
+    ) -> Self {
         let idf = idf(term_doc_freq, total_num_docs);
-        Bm25Weight::new_without_explain(idf, avg_fieldnorm)
+        Self::new_without_explain(idf, avg_fieldnorm)
     }
 
-    pub(crate) fn new(idf_explain: Explanation, average_fieldnorm: Score) -> Bm25Weight {
+    pub(crate) fn new(idf_explain: Explanation, average_fieldnorm: Score) -> Self {
         let weight = idf_explain.value() * (1.0 + K1);
-        Bm25Weight {
+        Self {
             idf_explain: Some(idf_explain),
             weight,
             cache: compute_tf_cache(average_fieldnorm),
             average_fieldnorm,
         }
     }
-    pub(crate) fn new_without_explain(idf: f32, average_fieldnorm: Score) -> Bm25Weight {
+    pub(crate) fn new_without_explain(idf: f32, average_fieldnorm: Score) -> Self {
         let weight = idf * (1.0 + K1);
-        Bm25Weight {
+        Self {
             idf_explain: None,
             weight,
             cache: compute_tf_cache(average_fieldnorm),

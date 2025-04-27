@@ -574,7 +574,7 @@ impl<D: Document> IndexWriter<D> {
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
-        let new_index_writer = IndexWriter::new(&self.index, self.options.clone(), directory_lock)?;
+        let new_index_writer = Self::new(&self.index, self.options.clone(), directory_lock)?;
 
         // the current `self` is dropped right away because of this call.
         //
@@ -1501,7 +1501,7 @@ mod tests {
     }
     impl IndexingOp {
         fn add(id: u64) -> Self {
-            IndexingOp::AddDoc {
+            Self::AddDoc {
                 id,
                 value: IndexValue::F64(id as f64),
             }
@@ -1519,7 +1519,7 @@ mod tests {
     }
     impl Default for IndexValue {
         fn default() -> Self {
-            IndexValue::F64(0.0)
+            Self::F64(0.0)
         }
     }
 

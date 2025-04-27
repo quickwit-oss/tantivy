@@ -507,8 +507,8 @@ pub(crate) mod tests {
     pub(crate) struct UnoptimizedDocSet<TDocSet: DocSet>(TDocSet);
 
     impl<TDocSet: DocSet> UnoptimizedDocSet<TDocSet> {
-        pub fn wrap(docset: TDocSet) -> UnoptimizedDocSet<TDocSet> {
-            UnoptimizedDocSet(docset)
+        pub fn wrap(docset: TDocSet) -> Self {
+            Self(docset)
         }
     }
 

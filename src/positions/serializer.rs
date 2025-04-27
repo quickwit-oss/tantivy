@@ -19,8 +19,8 @@ pub struct PositionSerializer<W: io::Write> {
 
 impl<W: io::Write> PositionSerializer<W> {
     /// Creates a new PositionSerializer writing into the given positions_wrt.
-    pub fn new(positions_wrt: W) -> PositionSerializer<W> {
-        PositionSerializer {
+    pub fn new(positions_wrt: W) -> Self {
+        Self {
             block_encoder: BlockEncoder::new(),
             positions_wrt: CountingWriter::wrap(positions_wrt),
             positions_buffer: Vec::with_capacity(128_000),

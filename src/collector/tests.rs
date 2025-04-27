@@ -163,8 +163,8 @@ pub struct FastFieldSegmentCollector {
 }
 
 impl FastFieldTestCollector {
-    pub fn for_field(field: impl ToString) -> FastFieldTestCollector {
-        FastFieldTestCollector {
+    pub fn for_field(field: impl ToString) -> Self {
+        Self {
             field: field.to_string(),
         }
     }
@@ -226,8 +226,8 @@ pub struct BytesFastFieldSegmentCollector {
 }
 
 impl BytesFastFieldTestCollector {
-    pub fn for_field(field: impl ToString) -> BytesFastFieldTestCollector {
-        BytesFastFieldTestCollector {
+    pub fn for_field(field: impl ToString) -> Self {
+        Self {
             field: field.to_string(),
         }
     }

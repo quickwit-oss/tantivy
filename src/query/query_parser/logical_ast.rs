@@ -30,25 +30,25 @@ pub enum LogicalAst {
 }
 
 impl LogicalAst {
-    pub fn boost(self, boost: Score) -> LogicalAst {
+    pub fn boost(self, boost: Score) -> Self {
         if (boost - 1.0).abs() < Score::EPSILON {
             self
         } else {
-            LogicalAst::Boost(Box::new(self), boost)
+            Self::Boost(Box::new(self), boost)
         }
     }
 
-    pub fn simplify(self) -> LogicalAst {
+    pub fn simplify(self) -> Self {
         match self {
-            LogicalAst::Clause(clauses) => {
-                let mut new_clauses: Vec<(Occur, LogicalAst)> = Vec::new();
+            Self::Clause(clauses) => {
+                let mut new_clauses: Vec<(Occur, Self)> = Vec::new();
 
                 for (occur, sub_ast) in clauses {
                     let simplified_sub_ast = sub_ast.simplify();
 
                     // If clauses below have the same `Occur`, we can pull them up
                     match simplified_sub_ast {
-                        LogicalAst::Clause(sub_clauses)
+                        Self::Clause(sub_clauses)
                             if (occur == Occur::Should || occur == Occur::Must)
                                 && sub_clauses.iter().all(|(o, _)| *o == occur) =>
                         {
@@ -60,9 +60,9 @@ impl LogicalAst {
                     }
                 }
 
-                LogicalAst::Clause(new_clauses)
+                Self::Clause(new_clauses)
             }
-            LogicalAst::Leaf(_) | LogicalAst::Boost(_, _) => self,
+            Self::Leaf(_) | Self::Boost(_, _) => self,
         }
     }
 }
@@ -78,7 +78,7 @@ fn occur_letter(occur: Occur) -> &'static str {
 impl fmt::Debug for LogicalAst {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
-            LogicalAst::Clause(ref clause) => {
+            Self::Clause(ref clause) => {
                 if clause.is_empty() {
                     write!(formatter, "<emptyclause>")?;
                 } else {
@@ -91,23 +91,23 @@ impl fmt::Debug for LogicalAst {
                 }
                 Ok(())
             }
-            LogicalAst::Boost(ref ast, boost) => write!(formatter, "{ast:?}^{boost}"),
-            LogicalAst::Leaf(ref literal) => write!(formatter, "{literal:?}"),
+            Self::Boost(ref ast, boost) => write!(formatter, "{ast:?}^{boost}"),
+            Self::Leaf(ref literal) => write!(formatter, "{literal:?}"),
         }
     }
 }
 
 impl From<LogicalLiteral> for LogicalAst {
-    fn from(literal: LogicalLiteral) -> LogicalAst {
-        LogicalAst::Leaf(Box::new(literal))
+    fn from(literal: LogicalLiteral) -> Self {
+        Self::Leaf(Box::new(literal))
     }
 }
 
 impl fmt::Debug for LogicalLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
-            LogicalLiteral::Term(ref term) => write!(formatter, "{term:?}"),
-            LogicalLiteral::Phrase {
+            Self::Term(ref term) => write!(formatter, "{term:?}"),
+            Self::Phrase {
                 ref terms,
                 slop,
                 prefix,
@@ -121,12 +121,12 @@ impl fmt::Debug for LogicalLiteral {
                     Ok(())
                 }
             }
-            LogicalLiteral::Range {
+            Self::Range {
                 ref lower,
                 ref upper,
                 ..
             } => write!(formatter, "({lower:?} TO {upper:?})"),
-            LogicalLiteral::Set { ref elements, .. } => {
+            Self::Set { ref elements, .. } => {
                 const MAX_DISPLAYED: usize = 10;
 
                 write!(formatter, "IN [")?;
@@ -146,7 +146,7 @@ impl fmt::Debug for LogicalLiteral {
                 }
                 write!(formatter, "]")
             }
-            LogicalLiteral::All => write!(formatter, "*"),
+            Self::All => write!(formatter, "*"),
         }
     }
 }

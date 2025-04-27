@@ -25,9 +25,9 @@ pub struct FastFieldReaders {
 }
 
 impl FastFieldReaders {
-    pub(crate) fn open(fast_field_file: FileSlice, schema: Schema) -> io::Result<FastFieldReaders> {
+    pub(crate) fn open(fast_field_file: FileSlice, schema: Schema) -> io::Result<Self> {
         let columnar = Arc::new(ColumnarReader::open(fast_field_file)?);
-        Ok(FastFieldReaders { columnar, schema })
+        Ok(Self { columnar, schema })
     }
 
     fn resolve_field(&self, column_name: &str) -> crate::Result<Option<String>> {

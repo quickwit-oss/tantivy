@@ -288,7 +288,7 @@ impl Document for BTreeMap<Field, crate::schema::OwnedValue> {
 impl DocumentDeserialize for BTreeMap<Field, crate::schema::OwnedValue> {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
-        let mut document = BTreeMap::new();
+        let mut document = Self::new();
 
         while let Some((field, value)) = deserializer.next_field()? {
             document.insert(field, value);
@@ -314,7 +314,7 @@ impl Document for HashMap<Field, crate::schema::OwnedValue> {
 impl DocumentDeserialize for HashMap<Field, crate::schema::OwnedValue> {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
-        let mut document = HashMap::with_capacity(deserializer.size_hint());
+        let mut document = Self::with_capacity(deserializer.size_hint());
 
         while let Some((field, value)) = deserializer.next_field()? {
             document.insert(field, value);

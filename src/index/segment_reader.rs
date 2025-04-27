@@ -140,7 +140,7 @@ impl SegmentReader {
     }
 
     /// Open a new segment for reading.
-    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
+    pub fn open(segment: &Segment) -> crate::Result<Self> {
         Self::open_with_custom_alive_set(segment, None)
     }
 
@@ -148,7 +148,7 @@ impl SegmentReader {
     pub fn open_with_custom_alive_set(
         segment: &Segment,
         custom_bitset: Option<AliveBitSet>,
-    ) -> crate::Result<SegmentReader> {
+    ) -> crate::Result<Self> {
         let termdict_file = segment.open_read(SegmentComponent::Terms)?;
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
@@ -190,7 +190,7 @@ impl SegmentReader {
             .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
             .unwrap_or(max_doc);
 
-        Ok(SegmentReader {
+        Ok(Self {
             inv_idx_reader_cache: Default::default(),
             num_docs,
             max_doc,

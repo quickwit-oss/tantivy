@@ -17,8 +17,8 @@ pub struct CheckpointBlock {
 }
 
 impl Default for CheckpointBlock {
-    fn default() -> CheckpointBlock {
-        CheckpointBlock {
+    fn default() -> Self {
+        Self {
             checkpoints: Vec::with_capacity(2 * CHECKPOINT_PERIOD),
         }
     }

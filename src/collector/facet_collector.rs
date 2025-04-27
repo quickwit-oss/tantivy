@@ -15,13 +15,13 @@ struct Hit<'a> {
 
 impl Eq for Hit<'_> {}
 
-impl<'a> PartialEq<Hit<'a>> for Hit<'a> {
+impl<'a> PartialEq<Self> for Hit<'a> {
     fn eq(&self, other: &Hit<'_>) -> bool {
         self.count == other.count
     }
 }
 
-impl<'a> PartialOrd<Hit<'a>> for Hit<'a> {
+impl<'a> PartialOrd<Self> for Hit<'a> {
     fn partial_cmp(&self, other: &Hit<'_>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -201,8 +201,8 @@ impl FacetCollector {
     ///
     /// This function does not check whether the field
     /// is of the proper type.
-    pub fn for_field(field_name: impl ToString) -> FacetCollector {
-        FacetCollector {
+    pub fn for_field(field_name: impl ToString) -> Self {
+        Self {
             field_name: field_name.to_string(),
             facets: BTreeSet::default(),
         }
@@ -739,7 +739,7 @@ mod tests {
                 .flat_map(|(c, count)| {
                     let facet = Facet::from(&format!("/facet/{c}"));
                     let doc = doc!(facet_field => facet);
-                    iter::repeat(doc).take(count)
+                    std::iter::repeat_n(doc, count)
                 })
                 .map(|mut doc| {
                     doc.add_facet(
@@ -787,7 +787,7 @@ mod tests {
             .flat_map(|(c, count)| {
                 let facet = Facet::from(&format!("/facet/{c}"));
                 let doc = doc!(facet_field => facet);
-                iter::repeat(doc).take(count)
+                std::iter::repeat_n(doc, count)
             })
             .collect();
 

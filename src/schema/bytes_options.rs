@@ -29,7 +29,7 @@ struct BytesOptionsDeser {
 
 impl From<BytesOptionsDeser> for BytesOptions {
     fn from(deser: BytesOptionsDeser) -> Self {
-        BytesOptions {
+        Self {
             indexed: deser.indexed,
             fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
             fast: deser.fast,
@@ -68,7 +68,7 @@ impl BytesOptions {
     /// Setting an integer as indexed will generate
     /// a posting list for each value taken by the integer.
     #[must_use]
-    pub fn set_indexed(mut self) -> BytesOptions {
+    pub fn set_indexed(mut self) -> Self {
         self.indexed = true;
         self
     }
@@ -78,7 +78,7 @@ impl BytesOptions {
     /// Setting an integer as normed will generate
     /// the fieldnorm data for it.
     #[must_use]
-    pub fn set_fieldnorms(mut self) -> BytesOptions {
+    pub fn set_fieldnorms(mut self) -> Self {
         self.fieldnorms = true;
         self
     }
@@ -87,7 +87,7 @@ impl BytesOptions {
     ///
     /// Fast fields are designed for random access.
     #[must_use]
-    pub fn set_fast(mut self) -> BytesOptions {
+    pub fn set_fast(mut self) -> Self {
         self.fast = true;
         self
     }
@@ -97,18 +97,18 @@ impl BytesOptions {
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
     #[must_use]
-    pub fn set_stored(mut self) -> BytesOptions {
+    pub fn set_stored(mut self) -> Self {
         self.stored = true;
         self
     }
 }
 
-impl<T: Into<BytesOptions>> BitOr<T> for BytesOptions {
-    type Output = BytesOptions;
+impl<T: Into<Self>> BitOr<T> for BytesOptions {
+    type Output = Self;
 
-    fn bitor(self, other: T) -> BytesOptions {
+    fn bitor(self, other: T) -> Self {
         let other = other.into();
-        BytesOptions {
+        Self {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
@@ -125,7 +125,7 @@ impl From<()> for BytesOptions {
 
 impl From<FastFlag> for BytesOptions {
     fn from(_: FastFlag) -> Self {
-        BytesOptions {
+        Self {
             indexed: false,
             fieldnorms: false,
             stored: false,
@@ -136,7 +136,7 @@ impl From<FastFlag> for BytesOptions {
 
 impl From<StoredFlag> for BytesOptions {
     fn from(_: StoredFlag) -> Self {
-        BytesOptions {
+        Self {
             indexed: false,
             fieldnorms: false,
             stored: true,
@@ -147,7 +147,7 @@ impl From<StoredFlag> for BytesOptions {
 
 impl From<IndexedFlag> for BytesOptions {
     fn from(_: IndexedFlag) -> Self {
-        BytesOptions {
+        Self {
             indexed: true,
             fieldnorms: true,
             stored: false,

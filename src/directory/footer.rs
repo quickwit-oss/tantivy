@@ -35,7 +35,7 @@ pub struct Footer {
 impl Footer {
     pub(crate) fn new(crc: CrcHashU32) -> Self {
         let version = crate::VERSION.clone();
-        Footer { version, crc }
+        Self { version, crc }
     }
 
     pub(crate) fn crc(&self) -> CrcHashU32 {
@@ -51,7 +51,7 @@ impl Footer {
     }
 
     /// Extracts the tantivy Footer from the file and returns the footer and the rest of the file
-    pub fn extract_footer(file: FileSlice) -> io::Result<(Footer, FileSlice)> {
+    pub fn extract_footer(file: FileSlice) -> io::Result<(Self, FileSlice)> {
         if file.len() < 4 {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
@@ -99,7 +99,7 @@ impl Footer {
             ));
         }
 
-        let footer: Footer =
+        let footer: Self =
             serde_json::from_slice(&file.read_bytes_slice(
                 file.len() - total_footer_size..file.len() - footer_metadata_len,
             )?)?;
@@ -134,7 +134,7 @@ pub(crate) struct FooterProxy<W: TerminatingWrite> {
 
 impl<W: TerminatingWrite> FooterProxy<W> {
     pub fn new(writer: W) -> Self {
-        FooterProxy {
+        Self {
             hasher: Some(Hasher::new()),
             writer: Some(writer),
         }

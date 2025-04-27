@@ -54,8 +54,8 @@ impl TokenizerManager {
 impl Default for TokenizerManager {
     /// Creates an `TokenizerManager` prepopulated with
     /// the default pre-configured tokenizers of `tantivy`.
-    fn default() -> TokenizerManager {
-        let manager = TokenizerManager::new();
+    fn default() -> Self {
+        let manager = Self::new();
         manager.register("raw", RawTokenizer::default());
         manager.register(
             "default",

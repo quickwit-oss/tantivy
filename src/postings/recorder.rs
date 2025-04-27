@@ -29,7 +29,7 @@ pub struct VInt32Reader<'a> {
 }
 
 impl<'a> VInt32Reader<'a> {
-    fn new(data: &'a [u8]) -> VInt32Reader<'a> {
+    fn new(data: &'a [u8]) -> Self {
         VInt32Reader { data }
     }
 }

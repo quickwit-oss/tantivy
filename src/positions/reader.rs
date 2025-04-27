@@ -40,10 +40,10 @@ pub struct PositionReader {
 
 impl PositionReader {
     /// Open and reads the term positions encoded into the positions_data owned bytes.
-    pub fn open(mut positions_data: OwnedBytes) -> io::Result<PositionReader> {
+    pub fn open(mut positions_data: OwnedBytes) -> io::Result<Self> {
         let num_positions_bitpacked_blocks = VInt::deserialize(&mut positions_data)?.0 as usize;
         let (bit_widths, positions) = positions_data.split(num_positions_bitpacked_blocks);
-        Ok(PositionReader {
+        Ok(Self {
             bit_widths: bit_widths.clone(),
             positions: positions.clone(),
             block_decoder: BlockDecoder::default(),

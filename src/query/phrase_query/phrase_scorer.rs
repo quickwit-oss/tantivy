@@ -13,8 +13,8 @@ struct PostingsWithOffset<TPostings> {
 }
 
 impl<TPostings: Postings> PostingsWithOffset<TPostings> {
-    pub fn new(segment_postings: TPostings, offset: u32) -> PostingsWithOffset<TPostings> {
-        PostingsWithOffset {
+    pub fn new(segment_postings: TPostings, offset: u32) -> Self {
+        Self {
             offset,
             postings: segment_postings,
         }
@@ -351,7 +351,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         similarity_weight_opt: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
         slop: u32,
-    ) -> PhraseScorer<TPostings> {
+    ) -> Self {
         Self::new_with_offset(
             term_postings,
             similarity_weight_opt,
@@ -367,7 +367,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         fieldnorm_reader: FieldNormReader,
         slop: u32,
         offset: usize,
-    ) -> PhraseScorer<TPostings> {
+    ) -> Self {
         let max_offset = term_postings_with_offset
             .iter()
             .map(|&(offset, _)| offset)
@@ -381,7 +381,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 PostingsWithOffset::new(postings, (max_offset - offset) as u32)
             })
             .collect::<Vec<_>>();
-        let mut scorer = PhraseScorer {
+        let mut scorer = Self {
             intersection_docset: Intersection::new(postings_with_offsets),
             num_terms: num_docsets,
             left_positions: Vec::with_capacity(100),

@@ -24,8 +24,8 @@ pub trait MergePolicy: marker::Send + marker::Sync + Debug {
 pub struct NoMergePolicy;
 
 impl Default for NoMergePolicy {
-    fn default() -> NoMergePolicy {
-        NoMergePolicy
+    fn default() -> Self {
+        Self
     }
 }
 

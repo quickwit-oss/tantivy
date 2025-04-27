@@ -18,7 +18,7 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(mut segment: Segment) -> crate::Result<SegmentSerializer> {
+    pub fn for_segment(mut segment: Segment) -> crate::Result<Self> {
         let settings = segment.index().settings().clone();
         let store_writer = {
             let store_write = segment.open_write(SegmentComponent::Store)?;
@@ -36,7 +36,7 @@ impl SegmentSerializer {
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
 
         let postings_serializer = InvertedIndexSerializer::open(&mut segment)?;
-        Ok(SegmentSerializer {
+        Ok(Self {
             segment,
             store_writer,
             fast_field_write,

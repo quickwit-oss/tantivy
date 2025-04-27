@@ -32,14 +32,14 @@ impl FieldNormsWriter {
 
     /// Initialize with state for tracking the field norm fields
     /// specified in the schema.
-    pub fn for_schema(schema: &Schema) -> FieldNormsWriter {
+    pub fn for_schema(schema: &Schema) -> Self {
         let mut fieldnorms_buffers: Vec<Option<Vec<u8>>> = iter::repeat_with(|| None)
             .take(schema.num_fields())
             .collect();
-        for field in FieldNormsWriter::fields_with_fieldnorm(schema) {
+        for field in Self::fields_with_fieldnorm(schema) {
             fieldnorms_buffers[field.field_id() as usize] = Some(Vec::with_capacity(1_000));
         }
-        FieldNormsWriter { fieldnorms_buffers }
+        Self { fieldnorms_buffers }
     }
 
     /// The memory used inclusive childs

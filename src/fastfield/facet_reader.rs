@@ -28,8 +28,8 @@ impl FacetReader {
     /// - a `MultiValuedFastFieldReader` that makes it possible to access the list of facet ords for
     ///   a given document.
     /// - a `TermDictionary` that helps associating a facet to an ordinal and vice versa.
-    pub fn new(facet_column: StrColumn) -> FacetReader {
-        FacetReader { facet_column }
+    pub fn new(facet_column: StrColumn) -> Self {
+        Self { facet_column }
     }
 
     /// Returns the size of the sets of facets in the segment.

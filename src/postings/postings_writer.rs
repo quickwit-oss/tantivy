@@ -173,7 +173,7 @@ pub(crate) struct SpecializedPostingsWriter<Rec: Recorder> {
 impl<Rec: Recorder> From<SpecializedPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
     fn from(
         specialized_postings_writer: SpecializedPostingsWriter<Rec>,
-    ) -> Box<dyn PostingsWriter> {
+    ) -> Self {
         Box::new(specialized_postings_writer)
     }
 }

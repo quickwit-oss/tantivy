@@ -37,8 +37,8 @@ pub struct SchemaBuilder {
 
 impl SchemaBuilder {
     /// Create a new `SchemaBuilder`
-    pub fn new() -> SchemaBuilder {
-        SchemaBuilder::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Adds a new u64 field.
@@ -221,7 +221,7 @@ struct InnerSchema {
 }
 
 impl PartialEq for InnerSchema {
-    fn eq(&self, other: &InnerSchema) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.fields == other.fields
     }
 }

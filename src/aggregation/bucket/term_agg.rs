@@ -205,7 +205,7 @@ impl TermsAggregationInternal {
 
         let order = req.order.clone().unwrap_or_default();
         segment_size = segment_size.max(size);
-        TermsAggregationInternal {
+        Self {
             field: req.field.to_string(),
             size,
             segment_size,
@@ -385,7 +385,7 @@ impl SegmentTermCollector {
             None
         };
 
-        Ok(SegmentTermCollector {
+        Ok(Self {
             req: TermsAggregationInternal::from_req(req),
             term_buckets,
             blueprint,
@@ -518,7 +518,7 @@ impl SegmentTermCollector {
                 |term| {
                     let entry = entries[idx];
                     let intermediate_entry = into_intermediate_bucket_entry(entry.0, entry.1)
-                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                        .map_err(io::Error::other)?;
                     dict.insert(
                         IntermediateKey::Str(
                             String::from_utf8(term.to_vec()).expect("could not convert to String"),

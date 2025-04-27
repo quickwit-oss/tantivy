@@ -25,8 +25,8 @@ struct VecWriter {
 }
 
 impl VecWriter {
-    fn new(path_buf: PathBuf, shared_directory: RamDirectory) -> VecWriter {
-        VecWriter {
+    fn new(path_buf: PathBuf, shared_directory: RamDirectory) -> Self {
+        Self {
             path: path_buf,
             data: Cursor::new(Vec::new()),
             shared_directory,
@@ -125,7 +125,7 @@ pub struct RamDirectory {
 
 impl RamDirectory {
     /// Constructor
-    pub fn create() -> RamDirectory {
+    pub fn create() -> Self {
         Self::default()
     }
 
@@ -133,12 +133,12 @@ impl RamDirectory {
     ///
     /// Ulterior writes on one of the copy
     /// will not affect the other copy.
-    pub fn deep_clone(&self) -> RamDirectory {
+    pub fn deep_clone(&self) -> Self {
         let inner_clone = InnerDirectory {
             fs: self.fs.read().unwrap().fs.clone(),
             watch_router: Default::default(),
         };
-        RamDirectory {
+        Self {
             fs: Arc::new(RwLock::new(inner_clone)),
         }
     }
@@ -191,7 +191,7 @@ impl Directory for RamDirectory {
             .fs
             .read()
             .map_err(|e| OpenReadError::IoError {
-                io_error: Arc::new(io::Error::new(io::ErrorKind::Other, e.to_string())),
+                io_error: Arc::new(io::Error::other(e.to_string())),
                 filepath: path.to_path_buf(),
             })?
             .exists(path))

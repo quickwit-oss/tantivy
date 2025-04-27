@@ -18,13 +18,13 @@ pub struct BlockEncoder {
 
 impl Default for BlockEncoder {
     fn default() -> Self {
-        BlockEncoder::new()
+        Self::new()
     }
 }
 
 impl BlockEncoder {
-    pub fn new() -> BlockEncoder {
-        BlockEncoder {
+    pub fn new() -> Self {
+        Self {
             bitpacker: BitPacker4x::new(),
             output: [0u8; COMPRESSED_BLOCK_MAX_SIZE],
         }
@@ -82,13 +82,13 @@ pub struct BlockDecoder {
 
 impl Default for BlockDecoder {
     fn default() -> Self {
-        BlockDecoder::with_val(0u32)
+        Self::with_val(0u32)
     }
 }
 
 impl BlockDecoder {
-    pub fn with_val(val: u32) -> BlockDecoder {
-        BlockDecoder {
+    pub fn with_val(val: u32) -> Self {
+        Self {
             bitpacker: BitPacker4x::new(),
             output: [val; COMPRESSION_BLOCK_SIZE],
             output_len: 0,

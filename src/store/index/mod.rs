@@ -24,7 +24,7 @@ pub struct Checkpoint {
 }
 
 impl Checkpoint {
-    pub(crate) fn follows(&self, other: &Checkpoint) -> bool {
+    pub(crate) fn follows(&self, other: &Self) -> bool {
         (self.doc_range.start == other.doc_range.end)
             && (self.byte_range.start == other.byte_range.end)
     }

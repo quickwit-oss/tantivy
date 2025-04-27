@@ -42,8 +42,8 @@ pub struct AllScorer {
 
 impl AllScorer {
     /// Creates a new AllScorer with `max_doc` docs.
-    pub fn new(max_doc: DocId) -> AllScorer {
-        AllScorer { doc: 0u32, max_doc }
+    pub fn new(max_doc: DocId) -> Self {
+        Self { doc: 0u32, max_doc }
     }
 }
 

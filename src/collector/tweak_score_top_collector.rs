@@ -13,8 +13,8 @@ where TScore: Clone + PartialOrd
     pub fn new(
         score_tweaker: TScoreTweaker,
         collector: TopCollector<TScore>,
-    ) -> TweakedScoreTopCollector<TScoreTweaker, TScore> {
-        TweakedScoreTopCollector {
+    ) -> Self {
+        Self {
             score_tweaker,
             collector,
         }

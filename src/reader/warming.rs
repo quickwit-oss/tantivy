@@ -146,7 +146,7 @@ impl WarmingStateInner {
 
     /// Every [`GC_INTERVAL`] attempt to GC, with panics caught and logged using
     /// [`std::panic::catch_unwind`].
-    fn gc_loop(inner: Weak<Mutex<WarmingStateInner>>) {
+    fn gc_loop(inner: Weak<Mutex<Self>>) {
         for _ in crossbeam_channel::tick(GC_INTERVAL) {
             if let Some(inner) = inner.upgrade() {
                 // rely on deterministic gc in tests

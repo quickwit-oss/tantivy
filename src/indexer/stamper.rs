@@ -12,8 +12,8 @@ use crate::Opstamp;
 pub struct Stamper(Arc<AtomicU64>);
 
 impl Stamper {
-    pub fn new(first_opstamp: Opstamp) -> Stamper {
-        Stamper(Arc::new(AtomicU64::new(first_opstamp)))
+    pub fn new(first_opstamp: Opstamp) -> Self {
+        Self(Arc::new(AtomicU64::new(first_opstamp)))
     }
 
     pub fn stamp(&self) -> Opstamp {

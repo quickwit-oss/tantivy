@@ -54,7 +54,7 @@ pub struct RegexTokenizer {
 
 impl RegexTokenizer {
     /// Creates a new RegexTokenizer.
-    pub fn new(regex_pattern: &str) -> crate::Result<RegexTokenizer> {
+    pub fn new(regex_pattern: &str) -> crate::Result<Self> {
         Regex::new(regex_pattern)
             .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_owned()))
             .map(|regex| Self {

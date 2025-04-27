@@ -86,8 +86,8 @@ impl FragmentCandidate {
     /// `score`, `num_chars` are set to 0
     /// and `highlighted` is set to empty vec
     /// stop_offset is set to start_offset, which is taken as a param.
-    fn new(start_offset: usize) -> FragmentCandidate {
-        FragmentCandidate {
+    fn new(start_offset: usize) -> Self {
+        Self {
             score: 0.0,
             start_offset,
             stop_offset: start_offset,
@@ -132,8 +132,8 @@ impl Snippet {
     }
 
     /// Create a new, empty, `Snippet`.
-    pub fn empty() -> Snippet {
-        Snippet {
+    pub fn empty() -> Self {
+        Self {
             fragment: String::new(),
             highlighted: Vec::new(),
             snippet_prefix: String::new(),
@@ -389,7 +389,7 @@ impl SnippetGenerator {
         field: Field,
         max_num_chars: usize,
     ) -> Self {
-        SnippetGenerator {
+        Self {
             terms_text,
             tokenizer,
             field,
@@ -401,7 +401,7 @@ impl SnippetGenerator {
         searcher: &Searcher,
         query: &dyn Query,
         field: Field,
-    ) -> crate::Result<SnippetGenerator> {
+    ) -> crate::Result<Self> {
         let mut terms: BTreeSet<&Term> = BTreeSet::new();
         query.query_terms(&mut |term, _| {
             if term.field() == field {
@@ -423,7 +423,7 @@ impl SnippetGenerator {
             }
         }
         let tokenizer = searcher.index().tokenizer_for_field(field)?;
-        Ok(SnippetGenerator {
+        Ok(Self {
             terms_text,
             tokenizer,
             field,

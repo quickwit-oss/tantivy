@@ -36,32 +36,32 @@ pub(crate) enum FastFieldTextOptions {
 
 impl Default for FastFieldTextOptions {
     fn default() -> Self {
-        FastFieldTextOptions::IsEnabled(false)
+        Self::IsEnabled(false)
     }
 }
 
-impl BitOr<FastFieldTextOptions> for FastFieldTextOptions {
-    type Output = FastFieldTextOptions;
+impl BitOr<Self> for FastFieldTextOptions {
+    type Output = Self;
 
-    fn bitor(self, other: FastFieldTextOptions) -> FastFieldTextOptions {
+    fn bitor(self, other: Self) -> Self {
         match (self, other) {
             (
-                FastFieldTextOptions::EnabledWithTokenizer {
+                Self::EnabledWithTokenizer {
                     with_tokenizer: tokenizer,
                 },
                 _,
             )
             | (
                 _,
-                FastFieldTextOptions::EnabledWithTokenizer {
+                Self::EnabledWithTokenizer {
                     with_tokenizer: tokenizer,
                 },
-            ) => FastFieldTextOptions::EnabledWithTokenizer {
+            ) => Self::EnabledWithTokenizer {
                 with_tokenizer: tokenizer,
             },
-            (FastFieldTextOptions::IsEnabled(true), _)
-            | (_, FastFieldTextOptions::IsEnabled(true)) => FastFieldTextOptions::IsEnabled(true),
-            (_, FastFieldTextOptions::IsEnabled(false)) => FastFieldTextOptions::IsEnabled(false),
+            (Self::IsEnabled(true), _)
+            | (_, Self::IsEnabled(true)) => Self::IsEnabled(true),
+            (_, Self::IsEnabled(false)) => Self::IsEnabled(false),
         }
     }
 }
@@ -126,7 +126,7 @@ impl TextOptions {
     /// [`TermDictionary::ord_to_term()`](crate::termdict::TermDictionary::ord_to_term)
     /// from the dictionary.
     #[must_use]
-    pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> TextOptions {
+    pub fn set_fast(mut self, tokenizer_name: Option<&str>) -> Self {
         if let Some(tokenizer) = tokenizer_name {
             let tokenizer = TokenizerName::from_name(tokenizer);
             self.fast = FastFieldTextOptions::EnabledWithTokenizer {
@@ -140,21 +140,21 @@ impl TextOptions {
 
     /// Coerce values if they are not of type string. Defaults to false.
     #[must_use]
-    pub fn set_coerce(mut self) -> TextOptions {
+    pub fn set_coerce(mut self) -> Self {
         self.coerce = true;
         self
     }
 
     /// Sets the field as stored.
     #[must_use]
-    pub fn set_stored(mut self) -> TextOptions {
+    pub fn set_stored(mut self) -> Self {
         self.stored = true;
         self
     }
 
     /// Sets the field as indexed, with the specific indexing options.
     #[must_use]
-    pub fn set_indexing_options(mut self, indexing: TextFieldIndexing) -> TextOptions {
+    pub fn set_indexing_options(mut self, indexing: TextFieldIndexing) -> Self {
         self.indexing = Some(indexing);
         self
     }
@@ -169,16 +169,16 @@ const NO_TOKENIZER_NAME: &str = "raw";
 
 impl Default for TokenizerName {
     fn default() -> Self {
-        TokenizerName::from_static(DEFAULT_TOKENIZER_NAME)
+        Self::from_static(DEFAULT_TOKENIZER_NAME)
     }
 }
 
 impl TokenizerName {
     pub const fn from_static(name: &'static str) -> Self {
-        TokenizerName(Cow::Borrowed(name))
+        Self(Cow::Borrowed(name))
     }
     pub(crate) fn from_name(name: &str) -> Self {
-        TokenizerName(Cow::Owned(name.to_string()))
+        Self(Cow::Owned(name.to_string()))
     }
     pub(crate) fn name(&self) -> &str {
         &self.0
@@ -209,8 +209,8 @@ pub(crate) fn default_fieldnorms() -> bool {
 }
 
 impl Default for TextFieldIndexing {
-    fn default() -> TextFieldIndexing {
-        TextFieldIndexing {
+    fn default() -> Self {
+        Self {
             tokenizer: TokenizerName::default(),
             record: IndexRecordOption::default(),
             fieldnorms: default_fieldnorms(),
@@ -221,7 +221,7 @@ impl Default for TextFieldIndexing {
 impl TextFieldIndexing {
     /// Sets the tokenizer to be used for a given field.
     #[must_use]
-    pub fn set_tokenizer(mut self, tokenizer_name: &str) -> TextFieldIndexing {
+    pub fn set_tokenizer(mut self, tokenizer_name: &str) -> Self {
         self.tokenizer = TokenizerName::from_name(tokenizer_name);
         self
     }
@@ -233,7 +233,7 @@ impl TextFieldIndexing {
 
     /// Sets fieldnorms
     #[must_use]
-    pub fn set_fieldnorms(mut self, fieldnorms: bool) -> TextFieldIndexing {
+    pub fn set_fieldnorms(mut self, fieldnorms: bool) -> Self {
         self.fieldnorms = fieldnorms;
         self
     }
@@ -247,7 +247,7 @@ impl TextFieldIndexing {
     ///
     /// See [`IndexRecordOption`] for more detail.
     #[must_use]
-    pub fn set_index_option(mut self, index_option: IndexRecordOption) -> TextFieldIndexing {
+    pub fn set_index_option(mut self, index_option: IndexRecordOption) -> Self {
         self.record = index_option;
         self
     }
@@ -284,12 +284,12 @@ pub const TEXT: TextOptions = TextOptions {
     fast: FastFieldTextOptions::IsEnabled(false),
 };
 
-impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
-    type Output = TextOptions;
+impl<T: Into<Self>> BitOr<T> for TextOptions {
+    type Output = Self;
 
-    fn bitor(self, other: T) -> TextOptions {
+    fn bitor(self, other: T) -> Self {
         let other = other.into();
-        TextOptions {
+        Self {
             indexing: self.indexing.or(other.indexing),
             stored: self.stored | other.stored,
             fast: self.fast | other.fast,
@@ -299,14 +299,14 @@ impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
 }
 
 impl From<()> for TextOptions {
-    fn from(_: ()) -> TextOptions {
-        TextOptions::default()
+    fn from(_: ()) -> Self {
+        Self::default()
     }
 }
 
 impl From<StoredFlag> for TextOptions {
-    fn from(_: StoredFlag) -> TextOptions {
-        TextOptions {
+    fn from(_: StoredFlag) -> Self {
+        Self {
             indexing: None,
             stored: true,
             fast: FastFieldTextOptions::default(),
@@ -316,8 +316,8 @@ impl From<StoredFlag> for TextOptions {
 }
 
 impl From<CoerceFlag> for TextOptions {
-    fn from(_: CoerceFlag) -> TextOptions {
-        TextOptions {
+    fn from(_: CoerceFlag) -> Self {
+        Self {
             indexing: None,
             stored: false,
             fast: FastFieldTextOptions::default(),
@@ -327,8 +327,8 @@ impl From<CoerceFlag> for TextOptions {
 }
 
 impl From<FastFlag> for TextOptions {
-    fn from(_: FastFlag) -> TextOptions {
-        TextOptions {
+    fn from(_: FastFlag) -> Self {
+        Self {
             indexing: None,
             stored: false,
             fast: FastFieldTextOptions::IsEnabled(true),

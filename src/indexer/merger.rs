@@ -87,8 +87,8 @@ struct DeltaComputer {
 }
 
 impl DeltaComputer {
-    fn new() -> DeltaComputer {
-        DeltaComputer {
+    fn new() -> Self {
+        Self {
             buffer: vec![0u32; 512],
         }
     }
@@ -145,7 +145,7 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
 }
 
 impl IndexMerger {
-    pub fn open(schema: Schema, segments: &[Segment]) -> crate::Result<IndexMerger> {
+    pub fn open(schema: Schema, segments: &[Segment]) -> crate::Result<Self> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
         Self::open_with_custom_alive_set(schema, segments, alive_bitset)
     }
@@ -166,7 +166,7 @@ impl IndexMerger {
         schema: Schema,
         segments: &[Segment],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
-    ) -> crate::Result<IndexMerger> {
+    ) -> crate::Result<Self> {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
@@ -185,7 +185,7 @@ impl IndexMerger {
             );
             return Err(crate::TantivyError::InvalidArgument(err_msg));
         }
-        Ok(IndexMerger {
+        Ok(Self {
             schema,
             readers,
             max_doc,

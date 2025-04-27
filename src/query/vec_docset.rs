@@ -16,8 +16,8 @@ pub struct VecDocSet {
 }
 
 impl From<Vec<DocId>> for VecDocSet {
-    fn from(doc_ids: Vec<DocId>) -> VecDocSet {
-        VecDocSet { doc_ids, cursor: 0 }
+    fn from(doc_ids: Vec<DocId>) -> Self {
+        Self { doc_ids, cursor: 0 }
     }
 }
 

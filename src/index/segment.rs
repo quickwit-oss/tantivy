@@ -23,8 +23,8 @@ impl fmt::Debug for Segment {
 
 impl Segment {
     /// Creates a new segment given an `Index` and a `SegmentId`
-    pub(crate) fn for_index(index: Index, meta: SegmentMeta) -> Segment {
-        Segment { index, meta }
+    pub(crate) fn for_index(index: Index, meta: SegmentMeta) -> Self {
+        Self { index, meta }
     }
 
     /// Returns the index the segment belongs to.
@@ -46,8 +46,8 @@ impl Segment {
     ///
     /// This method is only used when updating `max_doc` from 0
     /// as we finalize a fresh new segment.
-    pub(crate) fn with_max_doc(self, max_doc: u32) -> Segment {
-        Segment {
+    pub(crate) fn with_max_doc(self, max_doc: u32) -> Self {
+        Self {
             index: self.index,
             meta: self.meta.with_max_doc(max_doc),
         }
@@ -55,8 +55,8 @@ impl Segment {
 
     #[doc(hidden)]
     #[must_use]
-    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> Segment {
-        Segment {
+    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> Self {
+        Self {
             index: self.index,
             meta: self.meta.with_delete_meta(num_deleted_docs, opstamp),
         }

@@ -313,8 +313,8 @@ pub type SegmentOrdinal = u32;
 
 impl DocAddress {
     /// Creates a new DocAddress from the segment/docId pair.
-    pub fn new(segment_ord: SegmentOrdinal, doc_id: DocId) -> DocAddress {
-        DocAddress {
+    pub fn new(segment_ord: SegmentOrdinal, doc_id: DocId) -> Self {
+        Self {
             segment_ord,
             doc_id,
         }

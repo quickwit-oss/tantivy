@@ -252,8 +252,8 @@ impl QueryParser {
         schema: Schema,
         default_fields: Vec<Field>,
         tokenizer_manager: TokenizerManager,
-    ) -> QueryParser {
-        QueryParser {
+    ) -> Self {
+        Self {
             schema,
             default_fields,
             tokenizer_manager,
@@ -272,8 +272,8 @@ impl QueryParser {
     /// Creates a `QueryParser`, given
     ///  * an index
     ///  * a set of default fields used to search if no field is specifically defined in the query.
-    pub fn for_index(index: &Index, default_fields: Vec<Field>) -> QueryParser {
-        QueryParser::new(index.schema(), default_fields, index.tokenizers().clone())
+    pub fn for_index(index: &Index, default_fields: Vec<Field>) -> Self {
+        Self::new(index.schema(), default_fields, index.tokenizers().clone())
     }
 
     /// Set the default way to compose queries to a conjunction.

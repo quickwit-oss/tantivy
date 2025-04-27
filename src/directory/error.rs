@@ -111,7 +111,7 @@ pub enum Incompatibility {
 impl fmt::Debug for Incompatibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            Incompatibility::CompressionMismatch {
+            Self::CompressionMismatch {
                 library_compression_format,
                 index_compression_format,
             } => {
@@ -125,7 +125,7 @@ impl fmt::Debug for Incompatibility {
                 );
                 write!(f, "{err}. {advice}")?;
             }
-            Incompatibility::IndexMismatch {
+            Self::IndexMismatch {
                 library_version,
                 index_version,
             } => {
@@ -197,6 +197,6 @@ pub enum DeleteError {
 
 impl From<Incompatibility> for OpenReadError {
     fn from(incompatibility: Incompatibility) -> Self {
-        OpenReadError::IncompatibleIndex(incompatibility)
+        Self::IncompatibleIndex(incompatibility)
     }
 }

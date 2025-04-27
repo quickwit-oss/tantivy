@@ -18,8 +18,8 @@ impl LayerBuilder {
         self.buffer
     }
 
-    fn new() -> LayerBuilder {
-        LayerBuilder {
+    fn new() -> Self {
+        Self {
             buffer: Vec::new(),
             block: CheckpointBlock::default(),
         }
@@ -64,8 +64,8 @@ pub struct SkipIndexBuilder {
 }
 
 impl SkipIndexBuilder {
-    pub fn new() -> SkipIndexBuilder {
-        SkipIndexBuilder { layers: Vec::new() }
+    pub fn new() -> Self {
+        Self { layers: Vec::new() }
     }
 
     fn get_layer(&mut self, layer_id: usize) -> &mut LayerBuilder {

@@ -32,7 +32,7 @@ pub enum SegmentComponent {
 
 impl SegmentComponent {
     /// Iterates through the components.
-    pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
+    pub fn iterator() -> slice::Iter<'static, Self> {
         static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
             SegmentComponent::Postings,
             SegmentComponent::Positions,

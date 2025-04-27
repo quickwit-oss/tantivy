@@ -23,8 +23,8 @@ impl PhrasePrefixWeight {
         prefix: (usize, Term),
         similarity_weight_opt: Option<Bm25Weight>,
         max_expansions: u32,
-    ) -> PhrasePrefixWeight {
-        PhrasePrefixWeight {
+    ) -> Self {
+        Self {
             phrase_terms,
             prefix,
             similarity_weight_opt,

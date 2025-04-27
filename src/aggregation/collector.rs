@@ -153,7 +153,7 @@ impl AggregationSegmentCollector {
             get_aggs_with_segment_accessor_and_validate(agg, reader, segment_ordinal, limits)?;
         let result =
             BufAggregationCollector::new(build_segment_agg_collector(&mut aggs_with_accessor)?);
-        Ok(AggregationSegmentCollector {
+        Ok(Self {
             aggs_with_accessor,
             agg_collector: result,
             error: None,

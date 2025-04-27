@@ -21,7 +21,7 @@ enum PhraseKind<TPostings: Postings> {
 impl<TPostings: Postings> PhraseKind<TPostings> {
     fn get_intersection(&mut self) -> &[u32] {
         match self {
-            PhraseKind::SinglePrefix {
+            Self::SinglePrefix {
                 position_offset,
                 postings,
                 positions,
@@ -31,7 +31,7 @@ impl<TPostings: Postings> PhraseKind<TPostings> {
                 }
                 positions
             }
-            PhraseKind::MultiPrefix(postings) => postings.get_intersection(),
+            Self::MultiPrefix(postings) => postings.get_intersection(),
         }
     }
 }
@@ -39,7 +39,7 @@ impl<TPostings: Postings> PhraseKind<TPostings> {
 impl<TPostings: Postings> DocSet for PhraseKind<TPostings> {
     fn advance(&mut self) -> DocId {
         match self {
-            PhraseKind::SinglePrefix {
+            Self::SinglePrefix {
                 postings,
                 positions,
                 ..
@@ -47,27 +47,27 @@ impl<TPostings: Postings> DocSet for PhraseKind<TPostings> {
                 positions.clear();
                 postings.advance()
             }
-            PhraseKind::MultiPrefix(postings) => postings.advance(),
+            Self::MultiPrefix(postings) => postings.advance(),
         }
     }
 
     fn doc(&self) -> DocId {
         match self {
-            PhraseKind::SinglePrefix { postings, .. } => postings.doc(),
-            PhraseKind::MultiPrefix(postings) => postings.doc(),
+            Self::SinglePrefix { postings, .. } => postings.doc(),
+            Self::MultiPrefix(postings) => postings.doc(),
         }
     }
 
     fn size_hint(&self) -> u32 {
         match self {
-            PhraseKind::SinglePrefix { postings, .. } => postings.size_hint(),
-            PhraseKind::MultiPrefix(postings) => postings.size_hint(),
+            Self::SinglePrefix { postings, .. } => postings.size_hint(),
+            Self::MultiPrefix(postings) => postings.size_hint(),
         }
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
         match self {
-            PhraseKind::SinglePrefix {
+            Self::SinglePrefix {
                 postings,
                 positions,
                 ..
@@ -75,7 +75,7 @@ impl<TPostings: Postings> DocSet for PhraseKind<TPostings> {
                 positions.clear();
                 postings.seek(target)
             }
-            PhraseKind::MultiPrefix(postings) => postings.seek(target),
+            Self::MultiPrefix(postings) => postings.seek(target),
         }
     }
 }
@@ -83,14 +83,14 @@ impl<TPostings: Postings> DocSet for PhraseKind<TPostings> {
 impl<TPostings: Postings> Scorer for PhraseKind<TPostings> {
     fn score(&mut self) -> Score {
         match self {
-            PhraseKind::SinglePrefix { positions, .. } => {
+            Self::SinglePrefix { positions, .. } => {
                 if positions.is_empty() {
                     0.0
                 } else {
                     1.0
                 }
             }
-            PhraseKind::MultiPrefix(postings) => postings.score(),
+            Self::MultiPrefix(postings) => postings.score(),
         }
     }
 }
@@ -111,7 +111,7 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
         fieldnorm_reader: FieldNormReader,
         suffixes: Vec<TPostings>,
         suffix_pos: usize,
-    ) -> PhrasePrefixScorer<TPostings> {
+    ) -> Self {
         // correct indices so we can merge with our suffix term the PhraseScorer doesn't know about
         let max_offset = term_postings
             .iter()
@@ -139,7 +139,7 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
                 positions: Vec::with_capacity(100),
             }
         };
-        let mut phrase_prefix_scorer = PhrasePrefixScorer {
+        let mut phrase_prefix_scorer = Self {
             phrase_scorer,
             suffixes,
             suffix_offset: (max_offset - suffix_pos) as u32,

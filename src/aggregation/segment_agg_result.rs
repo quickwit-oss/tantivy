@@ -60,7 +60,7 @@ where T: 'static + SegmentAggregationCollector + Clone
 }
 
 impl Clone for Box<dyn SegmentAggregationCollector> {
-    fn clone(&self) -> Box<dyn SegmentAggregationCollector> {
+    fn clone(&self) -> Self {
         self.clone_box()
     }
 }
@@ -246,6 +246,6 @@ impl GenericSegmentAggregationResultsCollector {
             .map(|(accessor_idx, req)| build_single_agg_segment_collector(req, accessor_idx))
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
 
-        Ok(GenericSegmentAggregationResultsCollector { aggs })
+        Ok(Self { aggs })
     }
 }

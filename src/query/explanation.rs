@@ -31,8 +31,8 @@ impl fmt::Debug for Explanation {
 
 impl Explanation {
     /// Creates a new explanation object.
-    pub fn new_with_string(description: String, value: Score) -> Explanation {
-        Explanation {
+    pub fn new_with_string(description: String, value: Score) -> Self {
+        Self {
             value,
             description: Cow::Owned(description),
             details: None,
@@ -40,8 +40,8 @@ impl Explanation {
         }
     }
     /// Creates a new explanation object.
-    pub fn new(description: &'static str, value: Score) -> Explanation {
-        Explanation {
+    pub fn new(description: &'static str, value: Score) -> Self {
+        Self {
             value,
             description: Cow::Borrowed(description),
             details: None,
@@ -57,7 +57,7 @@ impl Explanation {
     /// Add some detail, explaining some part of the current node formula.
     ///
     /// Details are treated as child of the current node.
-    pub fn add_detail(&mut self, child_explanation: Explanation) {
+    pub fn add_detail(&mut self, child_explanation: Self) {
         self.details
             .get_or_insert_with(Vec::new)
             .push(child_explanation);
@@ -72,7 +72,7 @@ impl Explanation {
     pub fn add_const(&mut self, name: &'static str, value: Score) {
         self.details
             .get_or_insert_with(Vec::new)
-            .push(Explanation::new(name, value));
+            .push(Self::new(name, value));
     }
 
     /// Returns an indented json representation of the explanation tree for debug usage.

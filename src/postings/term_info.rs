@@ -55,7 +55,7 @@ impl BinarySerializable for TermInfo {
         let positions_start_offset = u64::deserialize(reader)? as usize;
         let positions_num_bytes = u32::deserialize(reader)? as usize;
         let positions_end_offset = positions_start_offset + positions_num_bytes;
-        Ok(TermInfo {
+        Ok(Self {
             doc_freq,
             postings_range: postings_start_offset..postings_end_offset,
             positions_range: positions_start_offset..positions_end_offset,

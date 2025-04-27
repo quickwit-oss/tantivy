@@ -67,8 +67,8 @@ impl SegmentManager {
     pub fn from_segments(
         segment_metas: Vec<SegmentMeta>,
         delete_cursor: &DeleteCursor,
-    ) -> SegmentManager {
-        SegmentManager {
+    ) -> Self {
+        Self {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas, delete_cursor),

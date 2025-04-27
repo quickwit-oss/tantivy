@@ -15,8 +15,8 @@ pub struct FileAddr {
 }
 
 impl FileAddr {
-    fn new(field: Field, idx: usize) -> FileAddr {
-        FileAddr { field, idx }
+    fn new(field: Field, idx: usize) -> Self {
+        Self { field, idx }
     }
 }
 
@@ -30,7 +30,7 @@ impl BinarySerializable for FileAddr {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let field = Field::deserialize(reader)?;
         let idx = VInt::deserialize(reader)?.0 as usize;
-        Ok(FileAddr { field, idx })
+        Ok(Self { field, idx })
     }
 }
 
@@ -43,8 +43,8 @@ pub struct CompositeWrite<W = WritePtr> {
 impl<W: TerminatingWrite + Write> CompositeWrite<W> {
     /// Crate a new API writer that writes a composite file
     /// in a given write.
-    pub fn wrap(w: W) -> CompositeWrite<W> {
-        CompositeWrite {
+    pub fn wrap(w: W) -> Self {
+        Self {
             write: CountingWriter::wrap(w),
             offsets: Vec::new(),
         }
@@ -108,7 +108,7 @@ impl std::fmt::Debug for CompositeFile {
 impl CompositeFile {
     /// Opens a composite file stored in a given
     /// `FileSlice`.
-    pub fn open(data: &FileSlice) -> io::Result<CompositeFile> {
+    pub fn open(data: &FileSlice) -> io::Result<Self> {
         let end = data.len();
         let footer_len_data = data.slice_from(end - 4).read_bytes()?;
         let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as usize;
@@ -138,7 +138,7 @@ impl CompositeFile {
             field_index.insert(file_addr, start_offset..end_offset);
         }
 
-        Ok(CompositeFile {
+        Ok(Self {
             data: data.slice_to(footer_start),
             offsets_index: field_index,
         })
@@ -146,8 +146,8 @@ impl CompositeFile {
 
     /// Returns a composite file that stores
     /// no fields.
-    pub fn empty() -> CompositeFile {
-        CompositeFile {
+    pub fn empty() -> Self {
+        Self {
             offsets_index: HashMap::new(),
             data: FileSlice::empty(),
         }

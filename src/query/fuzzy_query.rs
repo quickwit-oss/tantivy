@@ -90,8 +90,8 @@ pub struct FuzzyTermQuery {
 
 impl FuzzyTermQuery {
     /// Creates a new Fuzzy Query
-    pub fn new(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
-        FuzzyTermQuery {
+    pub fn new(term: Term, distance: u8, transposition_cost_one: bool) -> Self {
+        Self {
             term,
             distance,
             transposition_cost_one,
@@ -100,8 +100,8 @@ impl FuzzyTermQuery {
     }
 
     /// Creates a new Fuzzy Query of the Term prefix
-    pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
-        FuzzyTermQuery {
+    pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> Self {
+        Self {
             term,
             distance,
             transposition_cost_one,

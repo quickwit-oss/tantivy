@@ -81,7 +81,7 @@ impl TryFrom<AggregationForDeserialization> for Aggregation {
             sub_aggregation,
         } = value;
         let agg: AggregationVariants = serde_json::from_value(aggs_remaining_json)?;
-        Ok(Aggregation {
+        Ok(Self {
             agg,
             sub_aggregation,
         })
@@ -170,33 +170,33 @@ impl AggregationVariants {
     /// Returns the name of the fields used by the aggregation.
     pub fn get_fast_field_names(&self) -> Vec<&str> {
         match self {
-            AggregationVariants::Terms(terms) => vec![terms.field.as_str()],
-            AggregationVariants::Range(range) => vec![range.field.as_str()],
-            AggregationVariants::Histogram(histogram) => vec![histogram.field.as_str()],
-            AggregationVariants::DateHistogram(histogram) => vec![histogram.field.as_str()],
-            AggregationVariants::Average(avg) => vec![avg.field_name()],
-            AggregationVariants::Count(count) => vec![count.field_name()],
-            AggregationVariants::Max(max) => vec![max.field_name()],
-            AggregationVariants::Min(min) => vec![min.field_name()],
-            AggregationVariants::Stats(stats) => vec![stats.field_name()],
-            AggregationVariants::ExtendedStats(extended_stats) => vec![extended_stats.field_name()],
-            AggregationVariants::Sum(sum) => vec![sum.field_name()],
-            AggregationVariants::Percentiles(per) => vec![per.field_name()],
-            AggregationVariants::TopHits(top_hits) => top_hits.field_names(),
-            AggregationVariants::Cardinality(per) => vec![per.field_name()],
+            Self::Terms(terms) => vec![terms.field.as_str()],
+            Self::Range(range) => vec![range.field.as_str()],
+            Self::Histogram(histogram) => vec![histogram.field.as_str()],
+            Self::DateHistogram(histogram) => vec![histogram.field.as_str()],
+            Self::Average(avg) => vec![avg.field_name()],
+            Self::Count(count) => vec![count.field_name()],
+            Self::Max(max) => vec![max.field_name()],
+            Self::Min(min) => vec![min.field_name()],
+            Self::Stats(stats) => vec![stats.field_name()],
+            Self::ExtendedStats(extended_stats) => vec![extended_stats.field_name()],
+            Self::Sum(sum) => vec![sum.field_name()],
+            Self::Percentiles(per) => vec![per.field_name()],
+            Self::TopHits(top_hits) => top_hits.field_names(),
+            Self::Cardinality(per) => vec![per.field_name()],
         }
     }
 
     pub(crate) fn as_range(&self) -> Option<&RangeAggregation> {
         match &self {
-            AggregationVariants::Range(range) => Some(range),
+            Self::Range(range) => Some(range),
             _ => None,
         }
     }
     pub(crate) fn as_histogram(&self) -> crate::Result<Option<HistogramAggregation>> {
         match &self {
-            AggregationVariants::Histogram(histogram) => Ok(Some(histogram.clone())),
-            AggregationVariants::DateHistogram(histogram) => {
+            Self::Histogram(histogram) => Ok(Some(histogram.clone())),
+            Self::DateHistogram(histogram) => {
                 Ok(Some(histogram.to_histogram_req()?))
             }
             _ => Ok(None),
@@ -204,20 +204,20 @@ impl AggregationVariants {
     }
     pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {
         match &self {
-            AggregationVariants::Terms(terms) => Some(terms),
+            Self::Terms(terms) => Some(terms),
             _ => None,
         }
     }
     pub(crate) fn as_top_hits(&self) -> Option<&TopHitsAggregationReq> {
         match &self {
-            AggregationVariants::TopHits(top_hits) => Some(top_hits),
+            Self::TopHits(top_hits) => Some(top_hits),
             _ => None,
         }
     }
 
     pub(crate) fn as_percentile(&self) -> Option<&PercentilesAggregationReq> {
         match &self {
-            AggregationVariants::Percentiles(percentile_req) => Some(percentile_req),
+            Self::Percentiles(percentile_req) => Some(percentile_req),
             _ => None,
         }
     }

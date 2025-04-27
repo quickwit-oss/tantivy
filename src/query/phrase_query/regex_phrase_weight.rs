@@ -35,8 +35,8 @@ impl RegexPhraseWeight {
         similarity_weight_opt: Option<Bm25Weight>,
         max_expansions: u32,
         slop: u32,
-    ) -> RegexPhraseWeight {
-        RegexPhraseWeight {
+    ) -> Self {
+        Self {
             field,
             phrase_terms,
             similarity_weight_opt,

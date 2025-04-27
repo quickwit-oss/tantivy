@@ -128,8 +128,8 @@ impl MergePolicy for LogMergePolicy {
 }
 
 impl Default for LogMergePolicy {
-    fn default() -> LogMergePolicy {
-        LogMergePolicy {
+    fn default() -> Self {
+        Self {
             min_num_segments: DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE,
             max_docs_before_merge: DEFAULT_MAX_DOCS_BEFORE_MERGE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,

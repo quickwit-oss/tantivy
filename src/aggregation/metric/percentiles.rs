@@ -100,7 +100,7 @@ fn default_as_true() -> bool {
 impl PercentilesAggregationReq {
     /// Creates a new [`PercentilesAggregationReq`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
-        PercentilesAggregationReq {
+        Self {
             field: field_name,
             percents: None,
             keyed: default_as_true(),
@@ -219,7 +219,7 @@ impl PercentilesCollector {
         self.sketch.add(val);
     }
 
-    pub(crate) fn merge_fruits(&mut self, right: PercentilesCollector) -> crate::Result<()> {
+    pub(crate) fn merge_fruits(&mut self, right: Self) -> crate::Result<()> {
         self.sketch.merge(&right.sketch).map_err(|err| {
             TantivyError::AggregationError(AggregationError::InternalError(format!(
                 "Error while merging percentiles {err:?}"

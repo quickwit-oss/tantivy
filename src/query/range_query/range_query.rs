@@ -77,8 +77,8 @@ impl RangeQuery {
     ///
     /// If the value type is not correct, something may go terribly wrong when
     /// the `Weight` object is created.
-    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> RangeQuery {
-        RangeQuery {
+    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> Self {
+        Self {
             bounds: BoundsRange::new(lower_bound, upper_bound),
         }
     }
@@ -131,8 +131,8 @@ pub struct InvertedIndexRangeQuery {
 }
 impl InvertedIndexRangeQuery {
     /// Create new `InvertedIndexRangeQuery`
-    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> InvertedIndexRangeQuery {
-        InvertedIndexRangeQuery {
+    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> Self {
+        Self {
             bounds: BoundsRange::new(lower_bound, upper_bound),
             limit: None,
         }

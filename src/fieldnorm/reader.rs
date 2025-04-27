@@ -19,9 +19,9 @@ pub struct FieldNormReaders {
 
 impl FieldNormReaders {
     /// Creates a field norm reader.
-    pub fn open(file: FileSlice) -> crate::Result<FieldNormReaders> {
+    pub fn open(file: FileSlice) -> crate::Result<Self> {
         let data = CompositeFile::open(&file)?;
-        Ok(FieldNormReaders {
+        Ok(Self {
             data: Arc::new(data),
         })
     }
@@ -55,8 +55,8 @@ impl FieldNormReaders {
 pub struct FieldNormReader(ReaderImplEnum);
 
 impl From<ReaderImplEnum> for FieldNormReader {
-    fn from(reader_enum: ReaderImplEnum) -> FieldNormReader {
-        FieldNormReader(reader_enum)
+    fn from(reader_enum: ReaderImplEnum) -> Self {
+        Self(reader_enum)
     }
 }
 
@@ -75,7 +75,7 @@ impl FieldNormReader {
     ///
     /// The fieldnorm will be subjected to compression as if it was coming
     /// from an array-backed fieldnorm reader.
-    pub fn constant(num_docs: u32, fieldnorm: u32) -> FieldNormReader {
+    pub fn constant(num_docs: u32, fieldnorm: u32) -> Self {
         let fieldnorm_id = fieldnorm_to_id(fieldnorm);
         let fieldnorm = id_to_fieldnorm(fieldnorm_id);
         ReaderImplEnum::Const {
@@ -89,7 +89,7 @@ impl FieldNormReader {
     /// Opens a field norm reader given its file.
     pub fn open(fieldnorm_file: FileSlice) -> crate::Result<Self> {
         let data = fieldnorm_file.read_bytes()?;
-        Ok(FieldNormReader::new(data))
+        Ok(Self::new(data))
     }
 
     fn new(data: OwnedBytes) -> Self {
@@ -149,14 +149,14 @@ impl FieldNormReader {
     }
 
     #[cfg(test)]
-    pub(crate) fn for_test(field_norms: &[u32]) -> FieldNormReader {
+    pub(crate) fn for_test(field_norms: &[u32]) -> Self {
         let field_norms_id = field_norms
             .iter()
             .cloned()
-            .map(FieldNormReader::fieldnorm_to_id)
+            .map(Self::fieldnorm_to_id)
             .collect::<Vec<u8>>();
         let field_norms_data = OwnedBytes::new(field_norms_id);
-        FieldNormReader::new(field_norms_data)
+        Self::new(field_norms_data)
     }
 }
 

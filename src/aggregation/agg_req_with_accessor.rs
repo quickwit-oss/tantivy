@@ -69,15 +69,15 @@ impl AggregationWithAccessor {
         reader: &SegmentReader,
         segment_ordinal: SegmentOrdinal,
         limits: AggregationLimitsGuard,
-    ) -> crate::Result<Vec<AggregationWithAccessor>> {
+    ) -> crate::Result<Vec<Self>> {
         let mut agg = agg.clone();
 
         let add_agg_with_accessor = |agg: &Aggregation,
                                      accessor: Column<u64>,
                                      column_type: ColumnType,
-                                     aggs: &mut Vec<AggregationWithAccessor>|
+                                     aggs: &mut Vec<Self>|
          -> crate::Result<()> {
-            let res = AggregationWithAccessor {
+            let res = Self {
                 segment_ordinal,
                 accessor,
                 accessors: Default::default(),
@@ -101,12 +101,12 @@ impl AggregationWithAccessor {
 
         let add_agg_with_accessors = |agg: &Aggregation,
                                       accessors: Vec<(Column<u64>, ColumnType)>,
-                                      aggs: &mut Vec<AggregationWithAccessor>,
+                                      aggs: &mut Vec<Self>,
                                       value_accessors: HashMap<String, Vec<DynamicColumn>>|
          -> crate::Result<()> {
             let (accessor, field_type) = accessors.first().expect("at least one accessor");
             let limits = limits.clone();
-            let res = AggregationWithAccessor {
+            let res = Self {
                 segment_ordinal,
                 // TODO: We should do away with the `accessor` field altogether
                 accessor: accessor.clone(),
@@ -129,7 +129,7 @@ impl AggregationWithAccessor {
             Ok(())
         };
 
-        let mut res: Vec<AggregationWithAccessor> = Vec::new();
+        let mut res: Vec<Self> = Vec::new();
         use AggregationVariants::*;
 
         match agg.agg {
@@ -246,7 +246,7 @@ impl AggregationWithAccessor {
                         };
 
                     let limits = limits.clone();
-                    let agg = AggregationWithAccessor {
+                    let agg = Self {
                         segment_ordinal,
                         missing_value_for_accessor,
                         accessor,

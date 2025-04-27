@@ -29,8 +29,8 @@ where
     pub fn new(
         req_scorer: TReqScorer,
         opt_scorer: TOptScorer,
-    ) -> RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
-        RequiredOptionalScorer {
+    ) -> Self {
+        Self {
             req_scorer,
             opt_scorer,
             score_cache: None,

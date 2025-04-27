@@ -42,8 +42,8 @@ impl ExistsQuery {
     /// This constructor never fails, but executing the search with this query will return an
     /// error if the specified field doesn't exists or is not a fast field.
     #[deprecated]
-    pub fn new_exists_query(field: String) -> ExistsQuery {
-        ExistsQuery {
+    pub fn new_exists_query(field: String) -> Self {
+        Self {
             field_name: field,
             json_subpaths: false,
         }

@@ -302,7 +302,7 @@ impl CardinalityCollector {
         }
     }
 
-    pub(crate) fn merge_fruits(&mut self, right: CardinalityCollector) -> crate::Result<()> {
+    pub(crate) fn merge_fruits(&mut self, right: Self) -> crate::Result<()> {
         self.sketch.merge(&right.sketch).map_err(|err| {
             TantivyError::AggregationError(AggregationError::InternalError(format!(
                 "Error while merging cardinality {err:?}"

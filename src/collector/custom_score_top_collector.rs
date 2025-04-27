@@ -13,8 +13,8 @@ where TScore: Clone + PartialOrd
     pub(crate) fn new(
         custom_scorer: TCustomScorer,
         collector: TopCollector<TScore>,
-    ) -> CustomScoreTopCollector<TCustomScorer, TScore> {
-        CustomScoreTopCollector {
+    ) -> Self {
+        Self {
             custom_scorer,
             collector,
         }

@@ -81,7 +81,7 @@ where T: PartialOrd + Clone
     ///
     /// # Panics
     /// The method panics if limit is 0
-    pub fn with_limit(limit: usize) -> TopCollector<T> {
+    pub fn with_limit(limit: usize) -> Self {
         assert!(limit >= 1, "Limit must be strictly greater than 0.");
         Self {
             limit,
@@ -94,7 +94,7 @@ where T: PartialOrd + Clone
     ///
     /// This is equivalent to `OFFSET` in MySQL or PostgreSQL and `start` in
     /// Lucene's TopDocsCollector.
-    pub fn and_offset(mut self, offset: usize) -> TopCollector<T> {
+    pub fn and_offset(mut self, offset: usize) -> Self {
         self.offset = offset;
         self
     }
@@ -157,8 +157,8 @@ pub(crate) struct TopSegmentCollector<T> {
 }
 
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
-    fn new(segment_ord: SegmentOrdinal, limit: usize) -> TopSegmentCollector<T> {
-        TopSegmentCollector {
+    fn new(segment_ord: SegmentOrdinal, limit: usize) -> Self {
+        Self {
             topn_computer: TopNComputer::new(limit),
             segment_ord,
         }

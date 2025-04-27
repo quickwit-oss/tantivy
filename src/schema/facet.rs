@@ -46,8 +46,8 @@ pub struct Facet(pub(crate) String);
 impl Facet {
     /// Returns a new instance of the "root facet"
     /// Equivalent to `/`.
-    pub fn root() -> Facet {
-        Facet("".to_string())
+    pub fn root() -> Self {
+        Self("".to_string())
     }
 
     /// Returns true if the facet is the root facet `/`.
@@ -68,12 +68,12 @@ impl Facet {
         &self.0
     }
 
-    pub(crate) fn from_encoded_string(facet_string: String) -> Facet {
-        Facet(facet_string)
+    pub(crate) fn from_encoded_string(facet_string: String) -> Self {
+        Self(facet_string)
     }
 
     /// Creates a `Facet` from its binary representation.
-    pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Facet, FromUtf8Error> {
+    pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Self, FromUtf8Error> {
         // facet bytes validation. `0u8` is used a separator but that is still legal utf-8
         String::from_utf8(encoded_bytes).map(Facet)
     }
@@ -83,7 +83,7 @@ impl Facet {
     /// If one of the segments of this path
     /// contains a `/`, it should be escaped
     /// using an anti-slash `\`.
-    pub fn from_text<T>(path: &T) -> Result<Facet, FacetParseError>
+    pub fn from_text<T>(path: &T) -> Result<Self, FacetParseError>
     where T: ?Sized + AsRef<str> {
         #[derive(Copy, Clone)]
         enum State {
@@ -121,14 +121,14 @@ impl Facet {
             }
         }
         facet_encoded.push_str(&path_ref[last_offset..]);
-        Ok(Facet(facet_encoded))
+        Ok(Self(facet_encoded))
     }
 
     /// Returns a `Facet` from an iterator over the different
     /// steps of the facet path.
     ///
     /// The steps are expected to be unescaped.
-    pub fn from_path<Path>(path: Path) -> Facet
+    pub fn from_path<Path>(path: Path) -> Self
     where
         Path: IntoIterator,
         Path::Item: AsRef<str>,
@@ -142,14 +142,14 @@ impl Facet {
             facet_string.push(FACET_SEP_CHAR);
             facet_string.push_str(step.as_ref());
         }
-        Facet(facet_string)
+        Self(facet_string)
     }
 
     /// Returns `true` if other is a `strict` subfacet of `self`.
     ///
     /// Disclaimer: By strict we mean that the relation is not reflexive.
     /// `/happy` is not a prefix of `/happy`.
-    pub fn is_prefix_of(&self, other: &Facet) -> bool {
+    pub fn is_prefix_of(&self, other: &Self) -> bool {
         let self_str = self.encoded_str();
         let other_str = other.encoded_str();
 
@@ -185,8 +185,8 @@ impl Borrow<str> for Facet {
 }
 
 impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
-    fn from(path_asref: &'a T) -> Facet {
-        Facet::from_text(path_asref).unwrap()
+    fn from(path_asref: &'a T) -> Self {
+        Self::from_text(path_asref).unwrap()
     }
 }
 
@@ -196,7 +196,7 @@ impl BinarySerializable for Facet {
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        Ok(Facet(<String as BinarySerializable>::deserialize(reader)?))
+        Ok(Self(<String as BinarySerializable>::deserialize(reader)?))
     }
 }
 
@@ -226,7 +226,7 @@ impl<'de> Deserialize<'de> for Facet {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
         <Cow<'de, str> as Deserialize<'de>>::deserialize(deserializer).and_then(|path| {
-            Facet::from_text(&*path).map_err(|err| D::Error::custom(err.to_string()))
+            Self::from_text(&*path).map_err(|err| D::Error::custom(err.to_string()))
         })
     }
 }

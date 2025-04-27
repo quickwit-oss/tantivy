@@ -16,14 +16,14 @@ pub struct ConstScoreQuery {
 
 impl ConstScoreQuery {
     /// Builds a const score query.
-    pub fn new(query: Box<dyn Query>, score: Score) -> ConstScoreQuery {
-        ConstScoreQuery { query, score }
+    pub fn new(query: Box<dyn Query>, score: Score) -> Self {
+        Self { query, score }
     }
 }
 
 impl Clone for ConstScoreQuery {
     fn clone(&self) -> Self {
-        ConstScoreQuery {
+        Self {
             query: self.query.box_clone(),
             score: self.score,
         }
@@ -58,7 +58,7 @@ struct ConstWeight {
 
 impl ConstWeight {
     pub fn new(weight: Box<dyn Weight>, score: Score) -> Self {
-        ConstWeight { weight, score }
+        Self { weight, score }
     }
 }
 
@@ -99,14 +99,14 @@ pub struct ConstScorer<TDocSet: DocSet> {
 
 impl<TDocSet: DocSet> ConstScorer<TDocSet> {
     /// Creates a new `ConstScorer`.
-    pub fn new(docset: TDocSet, score: Score) -> ConstScorer<TDocSet> {
-        ConstScorer { docset, score }
+    pub fn new(docset: TDocSet, score: Score) -> Self {
+        Self { docset, score }
     }
 }
 
 impl<TDocSet: DocSet> From<TDocSet> for ConstScorer<TDocSet> {
     fn from(docset: TDocSet) -> Self {
-        ConstScorer::new(docset, 1.0)
+        Self::new(docset, 1.0)
     }
 }
 

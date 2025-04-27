@@ -35,7 +35,7 @@ pub enum EnableScoring<'a> {
 
 impl<'a> EnableScoring<'a> {
     /// Create using [Searcher] with scoring enabled.
-    pub fn enabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
+    pub fn enabled_from_searcher(searcher: &'a Searcher) -> Self {
         EnableScoring::Enabled {
             searcher,
             statistics_provider: searcher,
@@ -46,7 +46,7 @@ impl<'a> EnableScoring<'a> {
     pub fn enabled_from_statistics_provider(
         statistics_provider: &'a dyn Bm25StatisticsProvider,
         searcher: &'a Searcher,
-    ) -> EnableScoring<'a> {
+    ) -> Self {
         EnableScoring::Enabled {
             statistics_provider,
             searcher,
@@ -54,7 +54,7 @@ impl<'a> EnableScoring<'a> {
     }
 
     /// Create using [Searcher] with scoring disabled.
-    pub fn disabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
+    pub fn disabled_from_searcher(searcher: &'a Searcher) -> Self {
         EnableScoring::Disabled {
             schema: searcher.schema(),
             searcher_opt: Some(searcher),
@@ -62,7 +62,7 @@ impl<'a> EnableScoring<'a> {
     }
 
     /// Create using [Schema] with scoring disabled.
-    pub fn disabled_from_schema(schema: &'a Schema) -> EnableScoring<'a> {
+    pub fn disabled_from_schema(schema: &'a Schema) -> Self {
         Self::Disabled {
             schema,
             searcher_opt: None,
