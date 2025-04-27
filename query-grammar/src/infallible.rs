@@ -24,8 +24,8 @@ pub struct LenientError {
 }
 
 impl LenientError {
-    pub(crate) fn from_internal(internal: LenientErrorInternal, str_len: usize) -> LenientError {
-        LenientError {
+    pub(crate) fn from_internal(internal: LenientErrorInternal, str_len: usize) -> Self {
+        Self {
             pos: str_len - internal.pos,
             message: internal.message,
         }
