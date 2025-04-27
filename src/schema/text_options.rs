@@ -59,8 +59,7 @@ impl BitOr<Self> for FastFieldTextOptions {
             ) => Self::EnabledWithTokenizer {
                 with_tokenizer: tokenizer,
             },
-            (Self::IsEnabled(true), _)
-            | (_, Self::IsEnabled(true)) => Self::IsEnabled(true),
+            (Self::IsEnabled(true), _) | (_, Self::IsEnabled(true)) => Self::IsEnabled(true),
             (_, Self::IsEnabled(false)) => Self::IsEnabled(false),
         }
     }

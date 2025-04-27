@@ -208,10 +208,7 @@ impl MmapDirectory {
     pub fn create_from_tempdir() -> Result<Self, OpenDirectoryError> {
         let tempdir = TempDir::new()
             .map_err(|io_err| OpenDirectoryError::FailedToCreateTempDir(Arc::new(io_err)))?;
-        Ok(Self::new(
-            tempdir.path().to_path_buf(),
-            Some(tempdir),
-        ))
+        Ok(Self::new(tempdir.path().to_path_buf(), Some(tempdir)))
     }
 
     /// Opens a MmapDirectory in a directory, with a given access pattern.

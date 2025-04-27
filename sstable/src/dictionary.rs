@@ -308,9 +308,9 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 }
             }
             _ => {
-                return Err(io::Error::other(
-                    format!("Unsupported sstable version, expected one of [2, 3], found {version}"),
-                ));
+                return Err(io::Error::other(format!(
+                    "Unsupported sstable version, expected one of [2, 3], found {version}"
+                )));
             }
         };
 
@@ -676,9 +676,9 @@ mod tests {
         fn read_bytes(&self, range: Range<usize>) -> std::io::Result<OwnedBytes> {
             let allowed_range = self.allowed_range.lock().unwrap();
             if !allowed_range.contains(&range.start) || !allowed_range.contains(&(range.end - 1)) {
-                return Err(std::io::Error::other(
-                    format!("invalid range, allowed {allowed_range:?}, requested {range:?}"),
-                ));
+                return Err(std::io::Error::other(format!(
+                    "invalid range, allowed {allowed_range:?}, requested {range:?}"
+                )));
             }
 
             Ok(self.bytes.slice(range))

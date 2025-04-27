@@ -303,7 +303,6 @@ mod tests {
     use std::cmp::Ordering;
     use std::collections::BinaryHeap;
 
-
     use proptest::prelude::*;
 
     use crate::query::score_combiner::SumCombiner;

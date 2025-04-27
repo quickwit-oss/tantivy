@@ -93,11 +93,7 @@ pub struct NgramTokenizer {
 
 impl NgramTokenizer {
     /// Configures a new Ngram tokenizer
-    pub fn new(
-        min_gram: usize,
-        max_gram: usize,
-        prefix_only: bool,
-    ) -> crate::Result<Self> {
+    pub fn new(min_gram: usize, max_gram: usize, prefix_only: bool) -> crate::Result<Self> {
         if min_gram == 0 {
             return Err(TantivyError::InvalidArgument(
                 "min_gram must be greater than 0".to_string(),

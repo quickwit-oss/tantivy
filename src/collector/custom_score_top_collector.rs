@@ -10,10 +10,7 @@ pub(crate) struct CustomScoreTopCollector<TCustomScorer, TScore = Score> {
 impl<TCustomScorer, TScore> CustomScoreTopCollector<TCustomScorer, TScore>
 where TScore: Clone + PartialOrd
 {
-    pub(crate) fn new(
-        custom_scorer: TCustomScorer,
-        collector: TopCollector<TScore>,
-    ) -> Self {
+    pub(crate) fn new(custom_scorer: TCustomScorer, collector: TopCollector<TScore>) -> Self {
         Self {
             custom_scorer,
             collector,

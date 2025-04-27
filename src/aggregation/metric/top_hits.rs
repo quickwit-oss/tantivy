@@ -347,9 +347,7 @@ impl From<FastFieldValue> for OwnedValue {
             FastFieldValue::Date(d) => Self::Date(d),
             FastFieldValue::Bytes(b) => Self::Bytes(b),
             FastFieldValue::IpAddr(ip) => Self::IpAddr(ip),
-            FastFieldValue::Array(a) => {
-                Self::Array(a.into_iter().map(Self::from).collect())
-            }
+            FastFieldValue::Array(a) => Self::Array(a.into_iter().map(Self::from).collect()),
         }
     }
 }

@@ -64,10 +64,7 @@ impl Debug for SegmentManager {
 }
 
 impl SegmentManager {
-    pub fn from_segments(
-        segment_metas: Vec<SegmentMeta>,
-        delete_cursor: &DeleteCursor,
-    ) -> Self {
+    pub fn from_segments(segment_metas: Vec<SegmentMeta>, delete_cursor: &DeleteCursor) -> Self {
         Self {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),

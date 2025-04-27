@@ -55,12 +55,10 @@ where W: Write
         }
 
         if num_field_values != actual_length {
-            return Err(io::Error::other(
-                format!(
-                    "Unexpected number of entries written to serializer, expected \
-                     {num_field_values} entries, got {actual_length} entries",
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "Unexpected number of entries written to serializer, expected {num_field_values} \
+                 entries, got {actual_length} entries",
+            )));
         }
 
         Ok(())
@@ -214,13 +212,11 @@ where W: Write
     /// Finishes writing the array to the writer and validates it.
     pub(crate) fn end(self) -> io::Result<()> {
         if self.expected_length != self.actual_length {
-            return Err(io::Error::other(
-                format!(
-                    "Unexpected number of entries written to serializer, expected {} entries, got \
-                     {} entries",
-                    self.expected_length, self.actual_length,
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "Unexpected number of entries written to serializer, expected {} entries, got {} \
+                 entries",
+                self.expected_length, self.actual_length,
+            )));
         }
         Ok(())
     }
@@ -274,13 +270,11 @@ where W: Write
     /// Finishes writing the array to the writer and validates it.
     pub(crate) fn end(self) -> io::Result<()> {
         if self.expected_length != self.actual_length {
-            return Err(io::Error::other(
-                format!(
-                    "Unexpected number of entries written to serializer, expected {} entries, got \
-                     {} entries",
-                    self.expected_length, self.actual_length,
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "Unexpected number of entries written to serializer, expected {} entries, got {} \
+                 entries",
+                self.expected_length, self.actual_length,
+            )));
         }
 
         // This should never fail if the above statement is valid.

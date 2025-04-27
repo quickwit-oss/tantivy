@@ -10,10 +10,7 @@ pub(crate) struct TweakedScoreTopCollector<TScoreTweaker, TScore = Score> {
 impl<TScoreTweaker, TScore> TweakedScoreTopCollector<TScoreTweaker, TScore>
 where TScore: Clone + PartialOrd
 {
-    pub fn new(
-        score_tweaker: TScoreTweaker,
-        collector: TopCollector<TScore>,
-    ) -> Self {
+    pub fn new(score_tweaker: TScoreTweaker, collector: TopCollector<TScore>) -> Self {
         Self {
             score_tweaker,
             collector,

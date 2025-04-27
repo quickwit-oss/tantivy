@@ -485,7 +485,6 @@ impl FacetCounts {
 mod tests {
     use std::collections::BTreeSet;
 
-
     use columnar::Dictionary;
     use rand::distributions::Uniform;
     use rand::prelude::SliceRandom;

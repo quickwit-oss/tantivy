@@ -196,9 +196,7 @@ impl AggregationVariants {
     pub(crate) fn as_histogram(&self) -> crate::Result<Option<HistogramAggregation>> {
         match &self {
             Self::Histogram(histogram) => Ok(Some(histogram.clone())),
-            Self::DateHistogram(histogram) => {
-                Ok(Some(histogram.to_histogram_req()?))
-            }
+            Self::DateHistogram(histogram) => Ok(Some(histogram.to_histogram_req()?)),
             _ => Ok(None),
         }
     }

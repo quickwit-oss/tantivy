@@ -177,9 +177,7 @@ impl serde::Serialize for OwnedValue {
             Self::I64(u) => serializer.serialize_i64(u),
             Self::F64(u) => serializer.serialize_f64(u),
             Self::Bool(b) => serializer.serialize_bool(b),
-            Self::Date(ref date) => {
-                time::serde::rfc3339::serialize(&date.into_utc(), serializer)
-            }
+            Self::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
             Self::Facet(ref facet) => facet.serialize(serializer),
             Self::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
             Self::Object(ref obj) => {
@@ -286,9 +284,7 @@ impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
                 ReferenceValueLeaf::Bool(val) => Self::Bool(val),
                 ReferenceValueLeaf::PreTokStr(val) => Self::PreTokStr(*val.clone()),
             },
-            ReferenceValue::Array(val) => {
-                Self::Array(val.map(|v| v.as_value().into()).collect())
-            }
+            ReferenceValue::Array(val) => Self::Array(val.map(|v| v.as_value().into()).collect()),
             ReferenceValue::Object(val) => Self::Object(
                 val.map(|(k, v)| (k.to_string(), v.as_value().into()))
                     .collect(),

@@ -71,12 +71,8 @@ impl SSTableIndex {
         automaton: &'a impl Automaton,
     ) -> impl Iterator<Item = (u64, BlockAddr)> + 'a {
         match self {
-            Self::V2(v2_index) => {
-                BlockIter::V2(v2_index.get_block_for_automaton(automaton))
-            }
-            Self::V3(v3_index) => {
-                BlockIter::V3(v3_index.get_block_for_automaton(automaton))
-            }
+            Self::V2(v2_index) => BlockIter::V2(v2_index.get_block_for_automaton(automaton)),
+            Self::V3(v3_index) => BlockIter::V3(v3_index.get_block_for_automaton(automaton)),
             Self::V3Empty(v3_empty) => {
                 BlockIter::V3Empty(std::iter::once((0, v3_empty.block_addr.clone())))
             }
@@ -110,10 +106,7 @@ pub struct SSTableIndexV3 {
 
 impl SSTableIndexV3 {
     /// Load an index from its binary representation
-    pub fn load(
-        data: OwnedBytes,
-        fst_length: u64,
-    ) -> Result<Self, SSTableDataCorruption> {
+    pub fn load(data: OwnedBytes, fst_length: u64) -> Result<Self, SSTableDataCorruption> {
         let (fst_slice, block_addr_store_slice) = data.split(fst_length as usize);
         let fst_index = Fst::new(fst_slice)
             .map_err(|_| SSTableDataCorruption)?

@@ -113,10 +113,7 @@ impl Query for DisjunctionMaxQuery {
 
 impl DisjunctionMaxQuery {
     /// Creates a new `DisjunctionMaxQuery` with tie breaker.
-    pub fn with_tie_breaker(
-        disjuncts: Vec<Box<dyn Query>>,
-        tie_breaker: Score,
-    ) -> Self {
+    pub fn with_tie_breaker(disjuncts: Vec<Box<dyn Query>>, tie_breaker: Score) -> Self {
         Self {
             disjuncts,
             tie_breaker,

@@ -132,11 +132,7 @@ impl Bm25Weight {
     }
 
     /// Construct a [Bm25Weight] for a single term.
-    pub fn for_one_term(
-        term_doc_freq: u64,
-        total_num_docs: u64,
-        avg_fieldnorm: Score,
-    ) -> Self {
+    pub fn for_one_term(term_doc_freq: u64, total_num_docs: u64, avg_fieldnorm: Score) -> Self {
         let idf = idf(term_doc_freq, total_num_docs);
         let mut idf_explain =
             Explanation::new("idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))", idf);

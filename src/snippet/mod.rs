@@ -397,11 +397,7 @@ impl SnippetGenerator {
         }
     }
     /// Creates a new snippet generator
-    pub fn create(
-        searcher: &Searcher,
-        query: &dyn Query,
-        field: Field,
-    ) -> crate::Result<Self> {
+    pub fn create(searcher: &Searcher, query: &dyn Query, field: Field) -> crate::Result<Self> {
         let mut terms: BTreeSet<&Term> = BTreeSet::new();
         query.query_terms(&mut |term, _| {
             if term.field() == field {

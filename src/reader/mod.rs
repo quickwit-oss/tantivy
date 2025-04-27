@@ -118,10 +118,7 @@ impl IndexReaderBuilder {
     ///
     /// The doc store readers cache by default DOCSTORE_CACHE_CAPACITY(100) decompressed blocks.
     #[must_use]
-    pub fn doc_store_cache_num_blocks(
-        mut self,
-        doc_store_cache_num_blocks: usize,
-    ) -> Self {
+    pub fn doc_store_cache_num_blocks(mut self, doc_store_cache_num_blocks: usize) -> Self {
         self.doc_store_cache_num_blocks = doc_store_cache_num_blocks;
         self
     }

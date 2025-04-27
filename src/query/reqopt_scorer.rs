@@ -26,10 +26,7 @@ where
     TScoreCombiner: ScoreCombiner,
 {
     /// Creates a new `RequiredOptionalScorer`.
-    pub fn new(
-        req_scorer: TReqScorer,
-        opt_scorer: TOptScorer,
-    ) -> Self {
+    pub fn new(req_scorer: TReqScorer, opt_scorer: TOptScorer) -> Self {
         Self {
             req_scorer,
             opt_scorer,

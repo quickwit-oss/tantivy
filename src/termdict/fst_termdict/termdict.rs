@@ -128,9 +128,9 @@ impl TermDictionary {
         let footer_size = u64::deserialize(&mut footer_len_bytes)?;
         let version = u32::deserialize(&mut footer_len_bytes)?;
         if version != FST_VERSION {
-            return Err(io::Error::other(
-                format!("Unsupported fst version, expected {version}, found {FST_VERSION}",),
-            ));
+            return Err(io::Error::other(format!(
+                "Unsupported fst version, expected {version}, found {FST_VERSION}",
+            )));
         }
 
         let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);

@@ -271,14 +271,8 @@ impl IntermediateAggregationResult {
     }
     fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         match (self, other) {
-            (
-                Self::Bucket(b1),
-                Self::Bucket(b2),
-            ) => b1.merge_fruits(b2),
-            (
-                Self::Metric(m1),
-                Self::Metric(m2),
-            ) => m1.merge_fruits(m2),
+            (Self::Bucket(b1), Self::Bucket(b2)) => b1.merge_fruits(b2),
+            (Self::Metric(m1), Self::Metric(m2)) => m1.merge_fruits(m2),
             _ => panic!("aggregation result type mismatch (mixed metric and buckets)"),
         }
     }
@@ -318,28 +312,18 @@ impl IntermediateMetricResult {
             Self::Count(intermediate_count) => {
                 MetricResult::Count(intermediate_count.finalize().into())
             }
-            Self::Max(intermediate_max) => {
-                MetricResult::Max(intermediate_max.finalize().into())
-            }
-            Self::Min(intermediate_min) => {
-                MetricResult::Min(intermediate_min.finalize().into())
-            }
-            Self::Stats(intermediate_stats) => {
-                MetricResult::Stats(intermediate_stats.finalize())
-            }
+            Self::Max(intermediate_max) => MetricResult::Max(intermediate_max.finalize().into()),
+            Self::Min(intermediate_min) => MetricResult::Min(intermediate_min.finalize().into()),
+            Self::Stats(intermediate_stats) => MetricResult::Stats(intermediate_stats.finalize()),
             Self::ExtendedStats(intermediate_stats) => {
                 MetricResult::ExtendedStats(intermediate_stats.finalize())
             }
-            Self::Sum(intermediate_sum) => {
-                MetricResult::Sum(intermediate_sum.finalize().into())
-            }
+            Self::Sum(intermediate_sum) => MetricResult::Sum(intermediate_sum.finalize().into()),
             Self::Percentiles(percentiles) => MetricResult::Percentiles(
                 percentiles
                     .into_final_result(req.agg.as_percentile().expect("unexpected metric type")),
             ),
-            Self::TopHits(top_hits) => {
-                MetricResult::TopHits(top_hits.into_final_result())
-            }
+            Self::TopHits(top_hits) => MetricResult::TopHits(top_hits.into_final_result()),
             Self::Cardinality(cardinality) => {
                 MetricResult::Cardinality(cardinality.finalize().into())
             }
@@ -349,16 +333,10 @@ impl IntermediateMetricResult {
     // TODO: this is our top-of-the-chain fruit merge mech
     fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         match (self, other) {
-            (
-                Self::Average(avg_left),
-                Self::Average(avg_right),
-            ) => {
+            (Self::Average(avg_left), Self::Average(avg_right)) => {
                 avg_left.merge_fruits(avg_right);
             }
-            (
-                Self::Count(count_left),
-                Self::Count(count_right),
-            ) => {
+            (Self::Count(count_left), Self::Count(count_right)) => {
                 count_left.merge_fruits(count_right);
             }
             (Self::Max(max_left), Self::Max(max_right)) => {
@@ -367,10 +345,7 @@ impl IntermediateMetricResult {
             (Self::Min(min_left), Self::Min(min_right)) => {
                 min_left.merge_fruits(min_right);
             }
-            (
-                Self::Stats(stats_left),
-                Self::Stats(stats_right),
-            ) => {
+            (Self::Stats(stats_left), Self::Stats(stats_right)) => {
                 stats_left.merge_fruits(stats_right);
             }
             (
@@ -382,19 +357,13 @@ impl IntermediateMetricResult {
             (Self::Sum(sum_left), Self::Sum(sum_right)) => {
                 sum_left.merge_fruits(sum_right);
             }
-            (
-                Self::Percentiles(left),
-                Self::Percentiles(right),
-            ) => {
+            (Self::Percentiles(left), Self::Percentiles(right)) => {
                 left.merge_fruits(right)?;
             }
             (Self::TopHits(left), Self::TopHits(right)) => {
                 left.merge_fruits(right)?;
             }
-            (
-                Self::Cardinality(left),
-                Self::Cardinality(right),
-            ) => {
+            (Self::Cardinality(left), Self::Cardinality(right)) => {
                 left.merge_fruits(right)?;
             }
             _ => {
@@ -528,10 +497,7 @@ impl IntermediateBucketResult {
                     term_res_right.doc_count_error_upper_bound;
             }
 
-            (
-                Self::Range(range_res_left),
-                Self::Range(range_res_right),
-            ) => {
+            (Self::Range(range_res_left), Self::Range(range_res_right)) => {
                 merge_maps(&mut range_res_left.buckets, range_res_right.buckets)?;
             }
             (

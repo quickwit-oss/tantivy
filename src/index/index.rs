@@ -330,10 +330,7 @@ impl Index {
     /// If a previous index was in this directory, then it returns
     /// a [`TantivyError::IndexAlreadyExists`] error.
     #[cfg(feature = "mmap")]
-    pub fn create_in_dir<P: AsRef<Path>>(
-        directory_path: P,
-        schema: Schema,
-    ) -> crate::Result<Self> {
+    pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> crate::Result<Self> {
         IndexBuilder::new()
             .schema(schema)
             .create_in_dir(directory_path)

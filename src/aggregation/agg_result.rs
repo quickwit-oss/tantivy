@@ -161,9 +161,7 @@ pub enum BucketResult {
 impl BucketResult {
     pub(crate) fn get_bucket_count(&self) -> u64 {
         match self {
-            Self::Range { buckets } => {
-                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
-            }
+            Self::Range { buckets } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
             Self::Histogram { buckets } => {
                 buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
             }
