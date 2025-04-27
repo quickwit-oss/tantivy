@@ -1773,8 +1773,7 @@ mod test {
         schema_builder.add_text_field("first.toto.titi", STRING);
         schema_builder.add_text_field("third.a.b.c", STRING);
         let schema = schema_builder.build();
-        let query_parser =
-            QueryParser::new(schema.clone(), vec![], TokenizerManager::default());
+        let query_parser = QueryParser::new(schema.clone(), vec![], TokenizerManager::default());
         assert_eq!(
             query_parser.split_full_path("first.toto"),
             Some((schema.get_field("first.toto").unwrap(), ""))

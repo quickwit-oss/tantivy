@@ -184,8 +184,7 @@ impl UserInputBound {
 
     pub fn term_str(&self) -> &str {
         match *self {
-            Self::Inclusive(ref contents) |
-            Self::Exclusive(ref contents) => contents,
+            Self::Inclusive(ref contents) | Self::Exclusive(ref contents) => contents,
             Self::Unbounded => "*",
         }
     }
