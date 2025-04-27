@@ -484,7 +484,7 @@ impl FacetCounts {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
-    use std::iter;
+
 
     use columnar::Dictionary;
     use rand::distributions::Uniform;

@@ -1561,7 +1561,7 @@ fn to_ascii(text: &str, output: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use std::iter;
+
 
     use super::to_ascii;
     use crate::tokenizer::{AsciiFoldingFilter, RawTokenizer, SimpleTokenizer, TextAnalyzer};

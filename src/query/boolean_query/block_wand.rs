@@ -302,7 +302,7 @@ fn is_sorted<I: Iterator<Item = DocId>>(mut it: I) -> bool {
 mod tests {
     use std::cmp::Ordering;
     use std::collections::BinaryHeap;
-    use std::iter;
+
 
     use proptest::prelude::*;
 
