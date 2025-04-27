@@ -126,8 +126,8 @@ enum BlockSelectCursor<'a> {
 impl BlockSelectCursor<'_> {
     fn select(&mut self, rank: u16) -> u16 {
         match self {
-            BlockSelectCursor::Dense(dense_select_cursor) => dense_select_cursor.select(rank),
-            BlockSelectCursor::Sparse(sparse_select_cursor) => sparse_select_cursor.select(rank),
+            Self::Dense(dense_select_cursor) => dense_select_cursor.select(rank),
+            Self::Sparse(sparse_select_cursor) => sparse_select_cursor.select(rank),
         }
     }
 }

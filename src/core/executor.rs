@@ -103,8 +103,8 @@ impl Executor {
         cpu_intensive_task: impl FnOnce() -> T + Send + 'static,
     ) -> impl std::future::Future<Output = Result<T, ()>> {
         match self {
-            Executor::SingleThread => Either::Left(std::future::ready(Ok(cpu_intensive_task()))),
-            Executor::ThreadPool(pool) => {
+            Self::SingleThread => Either::Left(std::future::ready(Ok(cpu_intensive_task()))),
+            Self::ThreadPool(pool) => {
                 let (sender, receiver) = oneshot::channel();
                 pool.spawn(|| {
                     if sender.is_closed() {
