@@ -47,6 +47,7 @@ pub struct MergeOperation {
 pub(crate) struct InnerMergeOperation {
     target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
+    ignore_store: bool,
 }
 
 impl MergeOperation {
@@ -54,10 +55,12 @@ impl MergeOperation {
         inventory: &MergeOperationInventory,
         target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
+        ignore_store: bool,
     ) -> MergeOperation {
         let inner_merge_operation = InnerMergeOperation {
             target_opstamp,
             segment_ids,
+            ignore_store,
         };
         MergeOperation {
             inner: inventory.track(inner_merge_operation),
@@ -73,5 +76,10 @@ impl MergeOperation {
     /// Returns the list of segment to be merged.
     pub fn segment_ids(&self) -> &[SegmentId] {
         &self.inner.segment_ids[..]
+    }
+
+    /// Returns true if the store should be ignored during merge.
+    pub fn ignore_store(&self) -> bool {
+        self.inner.ignore_store
     }
 }

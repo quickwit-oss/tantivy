@@ -83,6 +83,7 @@ pub struct IndexMerger {
     pub(crate) readers: Vec<SegmentReader>,
     max_doc: u32,
     cancel: Box<dyn CancelSentinel>,
+    ignore_store: bool,
 }
 
 struct DeltaComputer {
@@ -152,9 +153,10 @@ impl IndexMerger {
         schema: Schema,
         segments: &[Segment],
         cancel: Box<dyn CancelSentinel>,
+        ignore_store: bool,
     ) -> crate::Result<IndexMerger> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
-        Self::open_with_custom_alive_set(schema, segments, alive_bitset, cancel)
+        Self::open_with_custom_alive_set(schema, segments, alive_bitset, cancel, ignore_store)
     }
 
     // Create merge with a custom delete set.
@@ -174,6 +176,7 @@ impl IndexMerger {
         segments: &[Segment],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
         cancel: Box<dyn CancelSentinel>,
+        ignore_store: bool,
     ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
@@ -198,6 +201,7 @@ impl IndexMerger {
             readers,
             max_doc,
             cancel,
+            ignore_store,
         })
     }
 
@@ -578,7 +582,9 @@ impl IndexMerger {
         )?;
 
         debug!("write-storagefields");
-        self.write_storable_fields(serializer.get_store_writer())?;
+        if !self.ignore_store {
+            self.write_storable_fields(serializer.get_store_writer())?;
+        }
         debug!("write-fastfields");
         self.write_fast_fields(serializer.get_fast_field_write(), doc_id_mapping)?;
 
@@ -826,7 +832,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer: IndexWriter = index.writer_for_tests()?;
-            index_writer.merge_foreground(&segment_ids)?;
+            index_writer.merge_foreground(&segment_ids, false)?;
         }
         {
             reader.reload()?;
