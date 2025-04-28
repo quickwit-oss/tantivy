@@ -128,6 +128,7 @@ fn merge(
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
     cancel: Box<dyn CancelSentinel>,
+    ignore_store: bool,
 ) -> crate::Result<Option<SegmentEntry>> {
     let num_docs = segment_entries
         .iter()
@@ -154,7 +155,7 @@ fn merge(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger = IndexMerger::open(index.schema(), &segments[..], cancel)?;
+    let merger = IndexMerger::open(index.schema(), &segments[..], cancel, ignore_store)?;
 
     // ... we just serialize this index merger in our new segment to merge the segments.
     let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
@@ -271,6 +272,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
         segments,
         filter_doc_ids,
         cancel,
+        false,
     )?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
     let num_docs = merger.write(segment_serializer)?;
@@ -542,9 +544,18 @@ impl SegmentUpdater {
         self.active_index_meta.read().unwrap().clone()
     }
 
-    pub(crate) fn make_merge_operation(&self, segment_ids: &[SegmentId]) -> MergeOperation {
+    pub(crate) fn make_merge_operation(
+        &self,
+        segment_ids: &[SegmentId],
+        ignore_store: bool,
+    ) -> MergeOperation {
         let commit_opstamp = self.load_meta().opstamp;
-        MergeOperation::new(&self.merge_operations, commit_opstamp, segment_ids.to_vec())
+        MergeOperation::new(
+            &self.merge_operations,
+            commit_opstamp,
+            segment_ids.to_vec(),
+            ignore_store,
+        )
     }
 
     // Starts a merge operation. This function will block until the merge operation is effectively
@@ -605,6 +616,7 @@ impl SegmentUpdater {
                 segment_entries,
                 merge_operation.target_opstamp(),
                 cancel,
+                false,
             ) {
                 Ok(after_merge_segment_entry) => {
                     let res = segment_updater.end_merge(merge_operation, after_merge_segment_entry);
@@ -651,6 +663,7 @@ impl SegmentUpdater {
             segment_entries,
             merge_operation.target_opstamp(),
             cancel,
+            merge_operation.ignore_store(),
         ) {
             Ok(after_merge_segment_entry) => {
                 segment_updater.end_merge_foreground(merge_operation, after_merge_segment_entry)
@@ -687,7 +700,12 @@ impl SegmentUpdater {
             .compute_merge_candidates(Some(self.index.directory()), &uncommitted_segments)
             .into_iter()
             .map(|merge_candidate| {
-                MergeOperation::new(&self.merge_operations, current_opstamp, merge_candidate.0)
+                MergeOperation::new(
+                    &self.merge_operations,
+                    current_opstamp,
+                    merge_candidate.0,
+                    false,
+                )
             })
             .collect();
 
@@ -696,7 +714,12 @@ impl SegmentUpdater {
             .compute_merge_candidates(Some(self.index.directory()), &committed_segments)
             .into_iter()
             .map(|merge_candidate: MergeCandidate| {
-                MergeOperation::new(&self.merge_operations, commit_opstamp, merge_candidate.0)
+                MergeOperation::new(
+                    &self.merge_operations,
+                    commit_opstamp,
+                    merge_candidate.0,
+                    false,
+                )
             });
         merge_candidates.extend(committed_merge_candidates);
 
@@ -1279,6 +1302,7 @@ mod tests {
                 &segments[..],
                 filter_segments,
                 Box::new(|| false),
+                false,
             )?;
 
             let doc_ids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();
@@ -1295,6 +1319,7 @@ mod tests {
                 &segments[..],
                 filter_segments,
                 Box::new(|| false),
+                false,
             )?;
 
             let doc_ids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();
