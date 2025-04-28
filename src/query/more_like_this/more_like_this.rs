@@ -11,7 +11,7 @@ use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TokenStream, Tokenize
 use crate::{DocAddress, Result, Searcher, TantivyDocument, TantivyError};
 
 #[derive(Debug, PartialEq)]
-struct ScoreTerm {
+pub struct ScoreTerm {
     pub term: Term,
     pub score: f32,
 }
