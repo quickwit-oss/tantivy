@@ -60,6 +60,9 @@ impl SegmentPlugin for StorePlugin {
     }
 
     fn merge(&self, ctx: PluginMergeContext) -> crate::Result<()> {
+        if ctx.ignore_store {
+            return Ok(());
+        }
         debug_time!("write-storable-fields");
         debug!("write-storable-fields");
 

@@ -132,6 +132,7 @@ pub struct PluginMergeContext<'a> {
     pub target_segment: &'a Segment,
     pub schema: &'a Schema,
     pub settings: &'a IndexSettings,
+    pub ignore_store: bool,
     pub cancel: &'a dyn CancelSentinel,
 }
 

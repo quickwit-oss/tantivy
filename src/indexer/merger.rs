@@ -59,6 +59,7 @@ pub struct IndexMerger {
     max_doc: u32,
     custom_plugins: Vec<Arc<dyn SegmentPlugin>>,
     cancel: Box<dyn CancelSentinel>,
+    ignore_store: bool,
 }
 
 impl IndexMerger {
@@ -102,9 +103,17 @@ impl IndexMerger {
         index_settings: IndexSettings,
         segments: &[Segment],
         cancel: Box<dyn CancelSentinel>,
+        ignore_store: bool,
     ) -> crate::Result<IndexMerger> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
-        Self::open_with_custom_alive_set(schema, index_settings, segments, alive_bitset, cancel)
+        Self::open_with_custom_alive_set(
+            schema,
+            index_settings,
+            segments,
+            alive_bitset,
+            cancel,
+            ignore_store,
+        )
     }
 
     // Create merge with a custom delete set.
@@ -125,6 +134,7 @@ impl IndexMerger {
         segments: &[Segment],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
         cancel: Box<dyn CancelSentinel>,
+        ignore_store: bool,
     ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
@@ -165,6 +175,7 @@ impl IndexMerger {
             max_doc,
             custom_plugins,
             cancel,
+            ignore_store,
         })
     }
 
@@ -527,6 +538,7 @@ impl IndexMerger {
                 target_segment,
                 schema: &self.schema,
                 settings: &self.index_settings,
+                ignore_store: self.ignore_store,
                 cancel: &*self.cancel,
             })?;
         }
@@ -772,7 +784,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer: IndexWriter = index.writer_for_tests()?;
-            index_writer.merge_foreground(&segment_ids)?;
+            index_writer.merge_foreground(&segment_ids, false)?;
         }
         {
             reader.reload()?;
