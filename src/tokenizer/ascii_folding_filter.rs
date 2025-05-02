@@ -2,11 +2,22 @@ use std::mem;
 
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
-/// This class converts alphabetic, numeric, and symbolic Unicode characters
+/// `AsciiFoldingFilter` converts alphabetic, numeric, and symbolic Unicode characters
 /// which are not in the first 127 ASCII characters (the "Basic Latin" Unicode
 /// block) into their ASCII equivalents, if one exists.
-#[derive(Clone)]
-pub struct AsciiFoldingFilter;
+/// If `preserve_original` is `true`, the filter emits both original token and
+/// folded token with the same position if tokens are different.
+#[derive(Clone, Default)]
+pub struct AsciiFoldingFilter {
+    preserve_original: bool,
+}
+
+impl AsciiFoldingFilter {
+    /// Creates a new `AsciiFoldingFilter`.
+    pub fn new(preserve_original: bool) -> Self {
+        Self { preserve_original }
+    }
+}
 
 impl TokenFilter for AsciiFoldingFilter {
     type Tokenizer<T: Tokenizer> = AsciiFoldingFilterWrapper<T>;
@@ -14,6 +25,7 @@ impl TokenFilter for AsciiFoldingFilter {
     fn transform<T: Tokenizer>(self, tokenizer: T) -> AsciiFoldingFilterWrapper<T> {
         AsciiFoldingFilterWrapper {
             tokenizer,
+            preserve_original: self.preserve_original,
             buffer: String::new(),
         }
     }
@@ -22,6 +34,7 @@ impl TokenFilter for AsciiFoldingFilter {
 #[derive(Clone)]
 pub struct AsciiFoldingFilterWrapper<T> {
     tokenizer: T,
+    preserve_original: bool,
     buffer: String,
 }
 
@@ -31,6 +44,8 @@ impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
         self.buffer.clear();
         AsciiFoldingFilterTokenStream {
+            preserve_original: self.preserve_original,
+            emit_folded_token_on_advance: false,
             buffer: &mut self.buffer,
             tail: self.tokenizer.token_stream(text),
         }
@@ -38,18 +53,31 @@ impl<T: Tokenizer> Tokenizer for AsciiFoldingFilterWrapper<T> {
 }
 
 pub struct AsciiFoldingFilterTokenStream<'a, T> {
+    preserve_original: bool,
+    emit_folded_token_on_advance: bool,
     buffer: &'a mut String,
     tail: T,
 }
 
 impl<T: TokenStream> TokenStream for AsciiFoldingFilterTokenStream<'_, T> {
     fn advance(&mut self) -> bool {
+        if self.emit_folded_token_on_advance {
+            self.emit_folded_token_on_advance = false;
+            mem::swap(&mut self.tail.token_mut().text, self.buffer);
+            return true;
+        }
         if !self.tail.advance() {
             return false;
         }
+        let mut text_has_changed = false;
         if !self.token_mut().text.is_ascii() {
-            // ignore its already ascii
-            to_ascii(&self.tail.token().text, self.buffer);
+            text_has_changed = to_ascii(&self.tail.token().text, self.buffer);
+        }
+        // If preserve original is true and orginal is different from folded text,
+        // the folded token will be emitted on the next call to `advance`.
+        if self.preserve_original && text_has_changed {
+            self.emit_folded_token_on_advance = true;
+        } else if text_has_changed {
             mem::swap(&mut self.tail.token_mut().text, self.buffer);
         }
         true
@@ -1546,17 +1574,21 @@ fn fold_non_ascii_char(c: char) -> Option<&'static str> {
     }
 }
 
+// Writes the folded version of the text to the `output`.
+// Returns true if the text was modified.
 // https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/java/org/apache/lucene/analysis/miscellaneous/ASCIIFoldingFilter.java#L187
-fn to_ascii(text: &str, output: &mut String) {
+fn to_ascii(text: &str, output: &mut String) -> bool {
     output.clear();
-
+    let mut is_text_modified = false;
     for c in text.chars() {
         if let Some(folded) = fold_non_ascii_char(c) {
             output.push_str(folded);
+            is_text_modified = true;
         } else {
             output.push(c);
         }
     }
+    is_text_modified
 }
 
 #[cfg(test)]
@@ -1568,20 +1600,26 @@ mod tests {
 
     #[test]
     fn test_ascii_folding() {
-        assert_eq!(&folding_helper("Ràmon"), &["Ramon"]);
-        assert_eq!(&folding_helper("accentué"), &["accentue"]);
-        assert_eq!(&folding_helper("âäàéè"), &["aaaee"]);
+        assert_eq!(&folding_helper("Ràmon", false), &["Ramon"]);
+        assert_eq!(&folding_helper("accentué", false), &["accentue"]);
+        assert_eq!(&folding_helper("âäàéè", false), &["aaaee"]);
+        assert_eq!(
+            &folding_helper("Ràmon âäàéè ", true),
+            &["Ràmon", "Ramon", "âäàéè", "aaaee"]
+        );
+        assert_eq!(&folding_helper("Ràmon", true), &["Ràmon", "Ramon"]);
     }
 
     #[test]
     fn test_no_change() {
-        assert_eq!(&folding_helper("Usagi"), &["Usagi"]);
+        assert_eq!(&folding_helper("Usagi", false), &["Usagi"]);
+        assert_eq!(&folding_helper("Usagi", true), &["Usagi"]);
     }
 
-    fn folding_helper(text: &str) -> Vec<String> {
+    fn folding_helper(text: &str, preserve_original: bool) -> Vec<String> {
         let mut tokens = Vec::new();
         TextAnalyzer::builder(SimpleTokenizer::default())
-            .filter(AsciiFoldingFilter)
+            .filter(AsciiFoldingFilter::new(preserve_original))
             .build()
             .token_stream(text)
             .process(&mut |token| {
@@ -1592,7 +1630,7 @@ mod tests {
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
         let mut tokenizer = TextAnalyzer::builder(RawTokenizer::default())
-            .filter(AsciiFoldingFilter)
+            .filter(AsciiFoldingFilter::default())
             .build();
         let mut token_stream = tokenizer.token_stream(text);
         token_stream.advance();
@@ -1634,7 +1672,7 @@ mod tests {
         vec.extend(iter::repeat("y").take(2));
         vec.extend(iter::repeat("fi").take(1));
         vec.extend(iter::repeat("fl").take(1));
-        assert_eq!(folding_helper(latin1_string), vec);
+        assert_eq!(folding_helper(latin1_string, false), vec);
     }
 
     #[test]
