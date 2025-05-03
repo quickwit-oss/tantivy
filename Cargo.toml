@@ -117,7 +117,7 @@ mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
 
 lz4-compression = ["lz4_flex"]
-zstd-compression = ["zstd"]
+zstd-compression = ["zstd", "columnar/zstd-compression"]
 
 failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.

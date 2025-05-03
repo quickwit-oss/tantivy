@@ -2,6 +2,8 @@ use std::io::{self, Read};
 use std::ops::Range;
 
 use common::OwnedBytes;
+
+#[cfg(feature = "zstd-compression")]
 use zstd::bulk::Decompressor;
 
 pub struct BlockReader {
@@ -82,13 +84,23 @@ impl BlockReader {
                 ));
             }
             if compress == 1 {
-                let required_capacity =
-                    Decompressor::upper_bound(&self.reader[..block_len]).unwrap_or(1024 * 1024);
-                self.buffer.reserve(required_capacity);
-                Decompressor::new()?
-                    .decompress_to_buffer(&self.reader[..block_len], &mut self.buffer)?;
+                #[cfg(feature = "zstd-compression")]
+                {
+                    let required_capacity =
+                        Decompressor::upper_bound(&self.reader[..block_len]).unwrap_or(1024 * 1024);
+                    self.buffer.reserve(required_capacity);
+                    Decompressor::new()?
+                        .decompress_to_buffer(&self.reader[..block_len], &mut self.buffer)?;
 
-                self.reader.advance(block_len);
+                    self.reader.advance(block_len);
+                }
+
+                if cfg!(not(feature = "zstd-compression")) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "zstd-compression feature is not enabled",
+                    ));
+                }
             } else {
                 self.buffer.resize(block_len, 0u8);
                 self.reader.read_exact(&mut self.buffer[..])?;
