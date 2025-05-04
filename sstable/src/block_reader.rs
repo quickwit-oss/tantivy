@@ -2,7 +2,6 @@ use std::io::{self, Read};
 use std::ops::Range;
 
 use common::OwnedBytes;
-
 #[cfg(feature = "zstd-compression")]
 use zstd::bulk::Decompressor;
 

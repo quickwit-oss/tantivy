@@ -2,7 +2,6 @@ use std::io::{self, BufWriter, Write};
 use std::ops::Range;
 
 use common::{CountingWriter, OwnedBytes};
-
 #[cfg(feature = "zstd-compression")]
 use zstd::bulk::Compressor;
 
@@ -14,8 +13,7 @@ const VINT_MODE: u8 = 1u8;
 const BLOCK_LEN: usize = 4_000;
 
 pub struct DeltaWriter<W, TValueWriter>
-where
-    W: io::Write,
+where W: io::Write
 {
     block: Vec<u8>,
     write: CountingWriter<BufWriter<W>>,
@@ -137,8 +135,7 @@ pub struct DeltaReader<TValueReader> {
 }
 
 impl<TValueReader> DeltaReader<TValueReader>
-where
-    TValueReader: value::ValueReader,
+where TValueReader: value::ValueReader
 {
     pub fn new(reader: OwnedBytes) -> Self {
         DeltaReader {
