@@ -56,7 +56,7 @@ where
 
         let block_len = buffer.len() + self.block.len();
 
-        if block_len > 2048 {
+        if cfg!(feature = "zstd-compression") && block_len > 2048 {
             #[cfg(feature = "zstd-compression")]
             {
                 buffer.extend_from_slice(&self.block);
