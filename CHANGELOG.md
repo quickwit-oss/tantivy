@@ -2,9 +2,6 @@ Tantivy 0.23 - Unreleased
 ================================
 Tantivy 0.23 will be backwards compatible with indices created with v0.22 and v0.21. The new minimum rust version will be 1.75.
 
-> [!WARNING]
-> Users of `sstable` may need to enable the `zstd-compression` to read blocks written by prior versions of `sstable`
-
 #### Bugfixes
 - fix potential endless loop in merge [#2457](https://github.com/quickwit-oss/tantivy/pull/2457)(@PSeitz)
 - fix bug that causes out-of-order sstable key. [#2445](https://github.com/quickwit-oss/tantivy/pull/2445)(@fulmicoton)
@@ -15,7 +12,6 @@ Tantivy 0.23 will be backwards compatible with indices created with v0.22 and v0
 
 #### Breaking API Changes
 - remove index sorting [#2434](https://github.com/quickwit-oss/tantivy/pull/2434)(@PSeitz)
-- make zstd optional in sstable [#2633](https://github.com/quickwit-oss/tantivy/pull/2633)(@parth)
 
 #### Features/Improvements
 - **Aggregation**
