@@ -112,12 +112,15 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-default = ["mmap", "stopwords", "lz4-compression"]
+default = ["mmap", "stopwords", "lz4-compression", "columnar-zstd-compression"]
 mmap = ["fs4", "tempfile", "memmap2"]
 stopwords = []
 
 lz4-compression = ["lz4_flex"]
 zstd-compression = ["zstd"]
+
+# enable zstd-compression in columnar (and sstable)
+columnar-zstd-compression = ["columnar/zstd-compression"]
 
 failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.

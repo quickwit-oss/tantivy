@@ -16,7 +16,10 @@ itertools = "0.14.0"
 tantivy-bitpacker = { version= "0.6", path="../bitpacker" }
 tantivy-fst = "0.5"
 # experimental gives us access to Decompressor::upper_bound
-zstd = { version = "0.13", features = ["experimental"] }
+zstd = { version = "0.13", optional = true, features = ["experimental"] }
+
+[features]
+zstd-compression = ["zstd"]
 
 [dev-dependencies]
 proptest = "1"

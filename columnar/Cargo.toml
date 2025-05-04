@@ -33,6 +33,6 @@ harness = false
 name = "bench_access"
 harness = false
 
-
 [features]
 unstable = []
+zstd-compression = ["sstable/zstd-compression"]
