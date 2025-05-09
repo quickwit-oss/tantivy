@@ -1,8 +1,8 @@
 use std::io;
 use std::ops::Bound;
 
-use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
+use tantivy_fst::automaton::AlwaysMatch;
 
 use crate::dictionary::Dictionary;
 use crate::{DeltaReader, SSTable, TermOrdinal};

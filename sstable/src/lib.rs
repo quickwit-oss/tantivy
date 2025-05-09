@@ -322,7 +322,7 @@ mod test {
 
     use common::OwnedBytes;
 
-    use super::{common_prefix_len, MonotonicU64SSTable, SSTable, VoidMerge, VoidSSTable};
+    use super::{MonotonicU64SSTable, SSTable, VoidMerge, VoidSSTable, common_prefix_len};
 
     fn aux_test_common_prefix_len(left: &str, right: &str, expect_len: usize) {
         assert_eq!(

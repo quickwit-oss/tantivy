@@ -137,8 +137,8 @@ impl Iterable<u32> for ShuffledMultivaluedIndex<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::column_index::OptionalIndex;
     use crate::RowAddr;
+    use crate::column_index::OptionalIndex;
 
     #[test]
     fn test_integrate_num_vals_empty() {

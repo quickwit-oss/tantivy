@@ -2,8 +2,8 @@ use std::num::NonZeroU64;
 
 use fastdivide::DividerU64;
 
-use crate::column_values::ColumnStats;
 use crate::RowId;
+use crate::column_values::ColumnStats;
 
 /// Compute the gcd of two non null numbers.
 ///
@@ -96,8 +96,8 @@ impl StatsCollector {
 mod tests {
     use std::num::NonZeroU64;
 
-    use crate::column_values::u64_based::stats_collector::{compute_gcd, StatsCollector};
     use crate::column_values::u64_based::ColumnStats;
+    use crate::column_values::u64_based::stats_collector::{StatsCollector, compute_gcd};
 
     fn compute_stats(vals: impl Iterator<Item = u64>) -> ColumnStats {
         let mut stats_collector = StatsCollector::default();

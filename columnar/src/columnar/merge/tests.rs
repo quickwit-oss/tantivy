@@ -3,7 +3,7 @@ use proptest::collection::vec;
 use proptest::prelude::*;
 
 use super::*;
-use crate::columnar::{merge_columnar, ColumnarReader, MergeRowOrder, StackMergeOrder};
+use crate::columnar::{ColumnarReader, MergeRowOrder, StackMergeOrder, merge_columnar};
 use crate::{Cardinality, ColumnarWriter, DynamicColumn, HasAssociatedColumnType, RowId};
 
 fn make_columnar<T: Into<NumericalValue> + HasAssociatedColumnType + Copy>(

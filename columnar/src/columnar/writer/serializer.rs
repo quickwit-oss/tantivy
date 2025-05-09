@@ -3,11 +3,11 @@ use std::io::Write;
 
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, CountingWriter};
-use sstable::value::RangeValueWriter;
 use sstable::RangeSSTable;
+use sstable::value::RangeValueWriter;
 
-use crate::columnar::ColumnType;
 use crate::RowId;
+use crate::columnar::ColumnType;
 
 pub struct ColumnarSerializer<W: io::Write> {
     wrt: CountingWriter<W>,

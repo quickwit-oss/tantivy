@@ -1,7 +1,7 @@
 pub mod common;
 
 use binggan::BenchRunner;
-use common::{generate_columnar_with_name, Card};
+use common::{Card, generate_columnar_with_name};
 use tantivy_columnar::*;
 
 const NUM_DOCS: u32 = 100_000;

@@ -24,8 +24,8 @@ use build_compact_space::get_compact_space;
 use common::{BinarySerializable, CountingWriter, OwnedBytes, VInt, VIntU128};
 use tantivy_bitpacker::{BitPacker, BitUnpacker};
 
-use crate::column_values::ColumnValues;
 use crate::RowId;
+use crate::column_values::ColumnValues;
 
 /// The cost per blank is quite hard actually, since blanks are delta encoded, the actual cost of
 /// blanks depends on the number of blanks.
@@ -653,12 +653,14 @@ mod tests {
             ),
             &[3]
         );
-        assert!(get_positions_for_value_range_helper(
-            &decomp,
-            99998u128..=99998u128,
-            complete_range.clone()
-        )
-        .is_empty());
+        assert!(
+            get_positions_for_value_range_helper(
+                &decomp,
+                99998u128..=99998u128,
+                complete_range.clone()
+            )
+            .is_empty()
+        );
         assert_eq!(
             &get_positions_for_value_range_helper(
                 &decomp,

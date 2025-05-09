@@ -6,7 +6,7 @@ use common::file_slice::FileSlice;
 use common::{ByteCount, DateTime, HasLen, OwnedBytes};
 
 use crate::column::{BytesColumn, Column, StrColumn};
-use crate::column_values::{monotonic_map_column, StrictlyMonotonicFn};
+use crate::column_values::{StrictlyMonotonicFn, monotonic_map_column};
 use crate::columnar::ColumnType;
 use crate::{Cardinality, ColumnIndex, ColumnValues, NumericalType, Version};
 

@@ -26,13 +26,13 @@ mod monotonic_column;
 
 pub(crate) use merge::MergedColumnValues;
 pub use stats::ColumnStats;
-pub use u128_based::{
-    open_u128_as_compact_u64, open_u128_mapped, serialize_column_values_u128,
-    CompactSpaceU64Accessor,
-};
 pub use u64_based::{
-    load_u64_based_column_values, serialize_and_load_u64_based_column_values,
-    serialize_u64_based_column_values, CodecType, ALL_U64_CODEC_TYPES,
+    ALL_U64_CODEC_TYPES, CodecType, load_u64_based_column_values,
+    serialize_and_load_u64_based_column_values, serialize_u64_based_column_values,
+};
+pub use u128_based::{
+    CompactSpaceU64Accessor, open_u128_as_compact_u64, open_u128_mapped,
+    serialize_column_values_u128,
 };
 pub use vec_column::VecColumn;
 

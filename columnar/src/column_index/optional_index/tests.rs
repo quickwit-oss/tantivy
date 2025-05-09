@@ -254,11 +254,7 @@ mod bench {
         let mut current = start;
         std::iter::from_fn(move || {
             current += rng.gen_range(avg_step_size - avg_deviation..=avg_step_size + avg_deviation);
-            if current >= end {
-                None
-            } else {
-                Some(current)
-            }
+            if current >= end { None } else { Some(current) }
         })
     }
 

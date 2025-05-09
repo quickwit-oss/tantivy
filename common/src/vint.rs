@@ -222,7 +222,7 @@ impl BinarySerializable for VInt {
 #[cfg(test)]
 mod tests {
 
-    use super::{serialize_vint_u32, BinarySerializable, VInt};
+    use super::{BinarySerializable, VInt, serialize_vint_u32};
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
