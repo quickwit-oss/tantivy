@@ -440,11 +440,7 @@ impl SnippetGenerator {
         &self.terms_text
     }
 
-    /// Generates a snippet for the given `Document`.
-    ///
-    /// This method extract the text associated with the `SnippetGenerator`'s field
-    /// and computes a snippet.
-    pub fn snippet_from_doc<D: Document>(&self, doc: &D) -> Option<Snippet> {
+    fn text_from_doc<D: Document>(&self, doc: &D) -> String {
         let mut text = String::new();
         for (field, value) in doc.iter_fields_and_values() {
             let value = value as D::Value<'_>;
@@ -458,7 +454,23 @@ impl SnippetGenerator {
             }
         }
 
-        self.snippet(text.trim())
+        text
+    }
+
+    /// Generates a snippet for the given `Document`.
+    ///
+    /// This method extract the text associated with the `SnippetGenerator`'s field
+    /// and computes a snippet.
+    pub fn snippet_from_doc<D: Document>(&self, doc: &D) -> Option<Snippet> {
+        self.snippet(self.text_from_doc(doc).trim())
+    }
+
+    /// Generates snippets for the given `Document`.
+    ///
+    /// This method extract the text associated with the `SnippetGenerator`'s field
+    /// and computes snippets.
+    pub fn snippets_from_doc<D: Document>(&self, doc: &D) -> Vec<Snippet> {
+        self.snippets(self.text_from_doc(doc).trim())
     }
 
     /// Generates a snippet for the given text.
@@ -471,6 +483,38 @@ impl SnippetGenerator {
         );
 
         select_best_fragment_combination(&fragment_candidates[..], text)
+    }
+
+    /// Generates a snippet for the given text.
+    pub fn snippets(&self, text: &str) -> Vec<Snippet> {
+        let fragment_candidates = search_fragments(
+            &mut self.tokenizer.clone(),
+            text,
+            &self.terms_text,
+            self.max_num_chars,
+        );
+
+        let snippets = fragment_candidates
+            .iter()
+            .filter(|f| f.score > 0.0)
+            .map(|fragment| {
+                let highlighted = fragment
+                    .highlighted
+                    .iter()
+                    .map(|item| {
+                        item.start - fragment.start_offset..item.end - fragment.start_offset
+                    })
+                    .collect();
+
+                Snippet::new(
+                    text,
+                    fragment.start_offset..fragment.stop_offset,
+                    highlighted,
+                )
+            })
+            .collect();
+
+        snippets
     }
 }
 
@@ -834,16 +878,20 @@ Survey in 2016, 2017, and 2018."#;
         );
 
         let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
-        
+
         // verify fragment range points to correct substring
         // max_num_chars is 100, so our fragment should be the entire text
         assert_eq!(snippet.fragment_range, 0..text.len() - 1);
         assert_eq!(&text[snippet.fragment_range.clone()], snippet.fragment);
 
         // verify highlighted ranges are correct relative to original text
-        let absolute_highlights: Vec<&str> = snippet.highlighted
+        let absolute_highlights: Vec<&str> = snippet
+            .highlighted
             .iter()
-            .map(|highlight| (highlight.start + snippet.fragment_range.start)..(highlight.end + snippet.fragment_range.start))
+            .map(|highlight| {
+                (highlight.start + snippet.fragment_range.start)
+                    ..(highlight.end + snippet.fragment_range.start)
+            })
             .map(|range| &text[range])
             .collect();
 
@@ -868,14 +916,18 @@ Survey in 2016, 2017, and 2018."#;
         );
 
         let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
-        
+
         // verify fragment range points to correct substring
         assert_eq!(&text[snippet.fragment_range.clone()], snippet.fragment);
 
         // verify highlighted ranges are correct relative to original text
-        let absolute_highlights: Vec<&str> = snippet.highlighted
+        let absolute_highlights: Vec<&str> = snippet
+            .highlighted
             .iter()
-            .map(|range| (range.start + snippet.fragment_range.start)..(range.end + snippet.fragment_range.start))
+            .map(|range| {
+                (range.start + snippet.fragment_range.start)
+                    ..(range.end + snippet.fragment_range.start)
+            })
             .map(|range| &text[range])
             .collect();
 
