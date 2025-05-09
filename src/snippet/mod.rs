@@ -115,6 +115,7 @@ impl FragmentCandidate {
 #[derive(Debug)]
 pub struct Snippet {
     fragment: String,
+    fragment_range: Range<usize>,
     highlighted: Vec<Range<usize>>,
     snippet_prefix: String,
     snippet_postfix: String,
@@ -122,28 +123,14 @@ pub struct Snippet {
 
 impl Snippet {
     /// Create a new `Snippet`.
-    fn new(fragment: &str, highlighted: Vec<Range<usize>>) -> Self {
+    fn new(source_str: &str, source_range: Range<usize>, highlighted: Vec<Range<usize>>) -> Self {
         Self {
-            fragment: fragment.to_string(),
+            fragment: source_str[source_range.clone()].to_string(),
+            fragment_range: source_range,
             highlighted,
             snippet_prefix: DEFAULT_SNIPPET_PREFIX.to_string(),
             snippet_postfix: DEFAULT_SNIPPET_POSTFIX.to_string(),
         }
-    }
-
-    /// Create a new, empty, `Snippet`.
-    pub fn empty() -> Snippet {
-        Snippet {
-            fragment: String::new(),
-            highlighted: Vec::new(),
-            snippet_prefix: String::new(),
-            snippet_postfix: String::new(),
-        }
-    }
-
-    /// Returns `true` if the snippet is empty.
-    pub fn is_empty(&self) -> bool {
-        self.highlighted.len() == 0
     }
 
     /// Returns a highlighted html from the `Snippet`.
@@ -167,6 +154,12 @@ impl Snippet {
     /// Returns the fragment of text used in the  snippet.
     pub fn fragment(&self) -> &str {
         &self.fragment
+    }
+
+    /// Returns the range of the original text that the fragment was extracted
+    /// from.
+    pub fn range(&self) -> Range<usize> {
+        self.fragment_range.clone()
     }
 
     /// Returns a list of highlighted positions from the `Snippet`.
@@ -231,7 +224,10 @@ fn search_fragments(
 ///
 /// Takes a vector of `FragmentCandidate`s and the text.
 /// Figures out the best fragment from it and creates a snippet.
-fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str) -> Snippet {
+fn select_best_fragment_combination(
+    fragments: &[FragmentCandidate],
+    text: &str,
+) -> Option<Snippet> {
     let best_fragment_opt = fragments.iter().max_by(|left, right| {
         let cmp_score = left
             .score
@@ -243,18 +239,21 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
             cmp_score
         }
     });
-    if let Some(fragment) = best_fragment_opt {
-        let fragment_text = &text[fragment.start_offset..fragment.stop_offset];
-        let highlighted = fragment
-            .highlighted
-            .iter()
-            .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
-            .collect();
-        Snippet::new(fragment_text, highlighted)
-    } else {
-        // When there are no fragments to chose from,
-        // for now create an empty snippet.
-        Snippet::empty()
+    match best_fragment_opt {
+        Some(fragment) => {
+            let highlighted = fragment
+                .highlighted
+                .iter()
+                .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
+                .collect();
+
+            Some(Snippet::new(
+                text,
+                fragment.start_offset..fragment.stop_offset,
+                highlighted,
+            ))
+        }
+        None => None,
     }
 }
 
@@ -445,7 +444,7 @@ impl SnippetGenerator {
     ///
     /// This method extract the text associated with the `SnippetGenerator`'s field
     /// and computes a snippet.
-    pub fn snippet_from_doc<D: Document>(&self, doc: &D) -> Snippet {
+    pub fn snippet_from_doc<D: Document>(&self, doc: &D) -> Option<Snippet> {
         let mut text = String::new();
         for (field, value) in doc.iter_fields_and_values() {
             let value = value as D::Value<'_>;
@@ -463,13 +462,14 @@ impl SnippetGenerator {
     }
 
     /// Generates a snippet for the given text.
-    pub fn snippet(&self, text: &str) -> Snippet {
+    pub fn snippet(&self, text: &str) -> Option<Snippet> {
         let fragment_candidates = search_fragments(
             &mut self.tokenizer.clone(),
             text,
             &self.terms_text,
             self.max_num_chars,
         );
+
         select_best_fragment_combination(&fragment_candidates[..], text)
     }
 }
@@ -520,7 +520,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.score, 1.9);
             assert_eq!(first.stop_offset, 89);
         }
-        let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+        let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT).unwrap();
         assert_eq!(
             snippet.fragment,
             "Rust is a systems programming language sponsored by\nMozilla which describes it as a \
@@ -551,7 +551,7 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 1.0);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT).unwrap();
             assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
         }
         {
@@ -571,7 +571,7 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 0.9);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT).unwrap();
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
     }
@@ -594,7 +594,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.stop_offset, 7);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
         assert_eq!(snippet.fragment, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
     }
@@ -617,7 +617,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 8);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
         assert_eq!(snippet.fragment, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
     }
@@ -641,7 +641,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 0);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
         assert_eq!(snippet.fragment, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
     }
@@ -659,9 +659,7 @@ Survey in 2016, 2017, and 2018."#;
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
-        assert_eq!(snippet.fragment, "");
-        assert_eq!(snippet.to_html(), "");
-        assert!(snippet.is_empty());
+        assert!(snippet.is_none());
     }
 
     #[test]
@@ -674,9 +672,7 @@ Survey in 2016, 2017, and 2018."#;
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
-        assert_eq!(snippet.fragment, "");
-        assert_eq!(snippet.to_html(), "");
-        assert!(snippet.is_empty());
+        assert!(snippet.is_none());
     }
 
     #[test]
@@ -751,7 +747,7 @@ Survey in 2016, 2017, and 2018."#;
         let mut snippet_generator =
             SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
         {
-            let snippet = snippet_generator.snippet(TEST_TEXT);
+            let snippet = snippet_generator.snippet(TEST_TEXT).unwrap();
             assert_eq!(
                 snippet.to_html(),
                 "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to \
@@ -761,7 +757,7 @@ Survey in 2016, 2017, and 2018."#;
         }
         {
             snippet_generator.set_max_num_chars(90);
-            let snippet = snippet_generator.snippet(TEST_TEXT);
+            let snippet = snippet_generator.snippet(TEST_TEXT).unwrap();
             assert_eq!(
                 snippet.to_html(),
                 "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its \
@@ -794,7 +790,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.stop_offset, 3);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], text);
+        let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
         assert_eq!(snippet.fragment, "abc");
         assert_eq!(snippet.to_html(), "<b>abc</b>");
     }
@@ -808,7 +804,7 @@ Survey in 2016, 2017, and 2018."#;
             &terms,
             100,
         );
-        let mut snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+        let mut snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT).unwrap();
         assert_eq!(
             snippet.to_html(),
             "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
@@ -820,6 +816,71 @@ Survey in 2016, 2017, and 2018."#;
             "<q class=\"super\">Rust</q> is a systems programming <q class=\"super\">language</q> \
              sponsored by\nMozilla which describes it as a &quot;safe"
         );
+    }
+
+    #[test]
+    fn test_snippet_absolute_offsets() {
+        let text = "First sentence. The quick brown fox jumps over the lazy dog. Last sentence.";
+        let terms = btreemap! {
+            String::from("fox") => 1.0,
+            String::from("dog") => 0.9
+        };
+
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            100,
+        );
+
+        let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
+        
+        // verify fragment range points to correct substring
+        // max_num_chars is 100, so our fragment should be the entire text
+        assert_eq!(snippet.fragment_range, 0..text.len() - 1);
+        assert_eq!(&text[snippet.fragment_range.clone()], snippet.fragment);
+
+        // verify highlighted ranges are correct relative to original text
+        let absolute_highlights: Vec<&str> = snippet.highlighted
+            .iter()
+            .map(|highlight| (highlight.start + snippet.fragment_range.start)..(highlight.end + snippet.fragment_range.start))
+            .map(|range| &text[range])
+            .collect();
+
+        // "fox" and "dog" positions in original text
+        assert!(absolute_highlights.contains(&"fox")); // "fox"
+        assert!(absolute_highlights.contains(&"dog")); // "dog"
+    }
+
+    #[test]
+    fn test_snippet_absolute_offsets_with_truncation() {
+        let text = "Intro text. The quick brown fox jumps over the lazy dog. The quick brown fox jumps again. End text.";
+        let terms = btreemap! {
+            String::from("fox") => 1.0,
+            String::from("quick") => 0.9
+        };
+
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            30, // short max chars to force truncation
+        );
+
+        let snippet = select_best_fragment_combination(&fragments[..], text).unwrap();
+        
+        // verify fragment range points to correct substring
+        assert_eq!(&text[snippet.fragment_range.clone()], snippet.fragment);
+
+        // verify highlighted ranges are correct relative to original text
+        let absolute_highlights: Vec<&str> = snippet.highlighted
+            .iter()
+            .map(|range| (range.start + snippet.fragment_range.start)..(range.end + snippet.fragment_range.start))
+            .map(|range| &text[range])
+            .collect();
+
+        assert!(absolute_highlights.contains(&"quick")); // "quick"
+        assert!(absolute_highlights.contains(&"fox")); // "fox"
     }
 
     #[test]
