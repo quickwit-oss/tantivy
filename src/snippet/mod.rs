@@ -42,7 +42,7 @@
 //! # let searcher = reader.searcher();
 //! let mut snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
 //! snippet_generator.set_max_num_chars(100);
-//! let snippet = snippet_generator.snippet_from_doc(&doc);
+//! let snippet = snippet_generator.snippet_from_doc(&doc).unwrap();
 //! let snippet_html: String = snippet.to_html();
 //! assert_eq!(snippet_html, "Comme je descendais des Fleuves impassibles,\n  Je ne me sentis plus guidé par les <b>haleurs</b> :\n Des");
 //! #    Ok(())
@@ -367,7 +367,7 @@ fn is_sorted(mut it: impl Iterator<Item = usize>) -> bool {
 /// # let searcher = reader.searcher();
 /// let mut snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
 /// snippet_generator.set_max_num_chars(100);
-/// let snippet = snippet_generator.snippet_from_doc(&doc);
+/// let snippet = snippet_generator.snippet_from_doc(&doc).unwrap();
 /// let snippet_html: String = snippet.to_html();
 /// assert_eq!(snippet_html, "Comme je descendais des Fleuves impassibles,\n  Je ne me sentis plus guidé par les <b>haleurs</b> :\n Des");
 /// #    Ok(())
