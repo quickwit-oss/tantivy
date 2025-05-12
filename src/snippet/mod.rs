@@ -902,7 +902,8 @@ Survey in 2016, 2017, and 2018."#;
 
     #[test]
     fn test_snippet_absolute_offsets_with_truncation() {
-        let text = "Intro text. The quick brown fox jumps over the lazy dog. The quick brown fox jumps again. End text.";
+        let text = "Intro text. The quick brown fox jumps over the lazy dog. The quick brown fox \
+                    jumps again. End text.";
         let terms = btreemap! {
             String::from("fox") => 1.0,
             String::from("quick") => 0.9
