@@ -28,7 +28,7 @@ enum Inner<T> {
 
 impl<T> From<TantivyError> for FutureResult<T> {
     fn from(err: TantivyError) -> Self {
-        FutureResult {
+        Self {
             inner: Inner::FailedBeforeStart(Some(err)),
         }
     }
@@ -43,7 +43,7 @@ impl<T> FutureResult<T> {
             receiver,
             error_msg_if_failure,
         };
-        (FutureResult { inner }, sender)
+        (Self { inner }, sender)
     }
 
     /// Blocks until the scheduled result is available.

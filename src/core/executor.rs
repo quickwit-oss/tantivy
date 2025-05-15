@@ -18,23 +18,23 @@ pub enum Executor {
 #[cfg(feature = "quickwit")]
 impl From<Arc<rayon::ThreadPool>> for Executor {
     fn from(thread_pool: Arc<rayon::ThreadPool>) -> Self {
-        Executor::ThreadPool(thread_pool)
+        Self::ThreadPool(thread_pool)
     }
 }
 
 impl Executor {
     /// Creates an Executor that performs all task in the caller thread.
-    pub fn single_thread() -> Executor {
-        Executor::SingleThread
+    pub fn single_thread() -> Self {
+        Self::SingleThread
     }
 
     /// Creates an Executor that dispatches the tasks in a thread pool.
-    pub fn multi_thread(num_threads: usize, prefix: &'static str) -> crate::Result<Executor> {
+    pub fn multi_thread(num_threads: usize, prefix: &'static str) -> crate::Result<Self> {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .thread_name(move |num| format!("{prefix}{num}"))
             .build()?;
-        Ok(Executor::ThreadPool(Arc::new(pool)))
+        Ok(Self::ThreadPool(Arc::new(pool)))
     }
 
     /// Perform a map in the thread pool.
@@ -48,8 +48,8 @@ impl Executor {
         F: Sized + Sync + Fn(A) -> crate::Result<R>,
     {
         match self {
-            Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),
-            Executor::ThreadPool(pool) => {
+            Self::SingleThread => args.map(f).collect::<crate::Result<_>>(),
+            Self::ThreadPool(pool) => {
                 let args: Vec<A> = args.collect();
                 let num_fruits = args.len();
                 let fruit_receiver = {
@@ -103,8 +103,8 @@ impl Executor {
         cpu_intensive_task: impl FnOnce() -> T + Send + 'static,
     ) -> impl std::future::Future<Output = Result<T, ()>> {
         match self {
-            Executor::SingleThread => Either::Left(std::future::ready(Ok(cpu_intensive_task()))),
-            Executor::ThreadPool(pool) => {
+            Self::SingleThread => Either::Left(std::future::ready(Ok(cpu_intensive_task()))),
+            Self::ThreadPool(pool) => {
                 let (sender, receiver) = oneshot::channel();
                 pool.spawn(|| {
                     if sender.is_closed() {
@@ -185,8 +185,8 @@ mod tests {
 
         let other_counter: Arc<AtomicU64> = Default::default();
 
-        let mut futures = Vec::new();
-        let mut other_futures = Vec::new();
+        let mut futures = vec![];
+        let mut other_futures = vec![];
 
         let (tx, rx) = crossbeam_channel::bounded::<()>(0);
         let rx = Arc::new(rx);

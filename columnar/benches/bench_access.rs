@@ -15,7 +15,7 @@ pub fn generate_columnar_and_open(card: Card, num_docs: u32) -> Column {
 }
 
 fn main() {
-    let mut inputs = Vec::new();
+    let mut inputs = vec![];
 
     let mut add_card = |card1: Card| {
         inputs.push((

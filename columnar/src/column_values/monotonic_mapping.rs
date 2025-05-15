@@ -75,7 +75,7 @@ pub(crate) struct StrictlyMonotonicMappingToInternal<T> {
 }
 
 impl<T> StrictlyMonotonicMappingToInternal<T> {
-    pub(crate) fn new() -> StrictlyMonotonicMappingToInternal<T> {
+    pub(crate) fn new() -> Self {
         Self {
             _phantom: PhantomData,
         }
@@ -144,7 +144,7 @@ impl MonotonicallyMappableToU64 for DateTime {
 
     #[inline(always)]
     fn from_u64(val: u64) -> Self {
-        DateTime::from_timestamp_nanos(common::u64_to_i64(val))
+        Self::from_timestamp_nanos(common::u64_to_i64(val))
     }
 }
 
@@ -167,8 +167,8 @@ impl MonotonicallyMappableToU64 for RowId {
     }
 
     #[inline(always)]
-    fn from_u64(val: u64) -> RowId {
-        val as RowId
+    fn from_u64(val: u64) -> Self {
+        val as Self
     }
 }
 

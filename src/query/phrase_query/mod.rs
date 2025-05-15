@@ -375,7 +375,7 @@ pub(crate) mod tests {
             let mut phrase_scorer = phrase_weight
                 .scorer(searcher.segment_reader(0), 1.0f32)
                 .unwrap();
-            let mut docs = Vec::new();
+            let mut docs = vec![];
             loop {
                 let doc = phrase_scorer.doc();
                 if doc == TERMINATED {

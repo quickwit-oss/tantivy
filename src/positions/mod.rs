@@ -41,8 +41,6 @@ const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use std::iter;
-
     use proptest::prelude::*;
     use proptest::sample::select;
 
@@ -206,7 +204,7 @@ pub(crate) mod tests {
     #[test]
     fn test_position() -> crate::Result<()> {
         const CONST_VAL: u32 = 9u32;
-        let positions_delta: Vec<u32> = iter::repeat(CONST_VAL).take(2_000_000).collect();
+        let positions_delta: Vec<u32> = std::iter::repeat_n(CONST_VAL, 2_000_000).collect();
         let positions_data = create_positions_data(&positions_delta[..])?;
         assert_eq!(positions_data.len(), 1_015_627);
         let mut position_reader = PositionReader::open(positions_data)?;

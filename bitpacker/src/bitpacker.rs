@@ -3,22 +3,15 @@ use std::ops::{Range, RangeInclusive};
 
 use bitpacking::{BitPacker as ExternalBitPackerTrait, BitPacker1x};
 
+#[derive(Default)]
 pub struct BitPacker {
     mini_buffer: u64,
     mini_buffer_written: usize,
 }
 
-impl Default for BitPacker {
-    fn default() -> Self {
-        BitPacker::new()
-    }
-}
 impl BitPacker {
-    pub fn new() -> BitPacker {
-        BitPacker {
-            mini_buffer: 0u64,
-            mini_buffer_written: 0,
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     #[inline]
@@ -48,7 +41,7 @@ impl BitPacker {
 
     pub fn flush<TWrite: io::Write + ?Sized>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
-            let num_bytes = (self.mini_buffer_written + 7) / 8;
+            let num_bytes = self.mini_buffer_written.div_ceil(8);
             let bytes = self.mini_buffer.to_le_bytes();
             output.write_all(&bytes[..num_bytes])?;
             self.mini_buffer_written = 0;
@@ -75,14 +68,14 @@ impl BitUnpacker {
     /// The bitunpacker works by doing an unaligned read of 8 bytes.
     /// For this reason, values of `num_bits` between
     /// [57..63] are forbidden.
-    pub fn new(num_bits: u8) -> BitUnpacker {
+    pub fn new(num_bits: u8) -> Self {
         assert!(num_bits <= 7 * 8 || num_bits == 64);
         let mask: u64 = if num_bits == 64 {
             !0u64
         } else {
             (1u64 << num_bits) - 1u64
         };
-        BitUnpacker {
+        Self {
             num_bits: usize::from(num_bits),
             mask,
         }
@@ -138,7 +131,7 @@ impl BitUnpacker {
 
         // We use `usize` here to avoid overflow issues.
         let end_bit_read = (end_idx as usize) * self.num_bits;
-        let end_byte_read = (end_bit_read + 7) / 8;
+        let end_byte_read = end_bit_read.div_ceil(8);
         assert!(
             end_byte_read <= data.len(),
             "Requested index is out of bounds."
@@ -248,7 +241,7 @@ mod test {
     use super::{BitPacker, BitUnpacker};
 
     fn create_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker, Vec<u64>, Vec<u8>) {
-        let mut data = Vec::new();
+        let mut data = vec![];
         let mut bitpacker = BitPacker::new();
         let max_val: u64 = (1u64 << num_bits as u64) - 1u64;
         let vals: Vec<u64> = (0u64..len as u64)
@@ -258,7 +251,7 @@ mod test {
             bitpacker.write(val, num_bits, &mut data).unwrap();
         }
         bitpacker.close(&mut data).unwrap();
-        assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8);
+        assert_eq!(data.len(), ((num_bits as usize) * len).div_ceil(8));
         let bitunpacker = BitUnpacker::new(num_bits);
         (bitunpacker, vals, data)
     }
@@ -298,13 +291,13 @@ mod test {
     }
 
     fn test_bitpacker_aux(num_bits: u8, vals: &[u64]) {
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         let mut bitpacker = BitPacker::new();
         for &val in vals {
             bitpacker.write(val, num_bits, &mut buffer).unwrap();
         }
         bitpacker.flush(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), (vals.len() * num_bits as usize + 7) / 8);
+        assert_eq!(buffer.len(), (vals.len() * num_bits as usize).div_ceil(8));
         let bitunpacker = BitUnpacker::new(num_bits);
         let max_val = if num_bits == 64 {
             u64::MAX
@@ -357,14 +350,14 @@ mod test {
                 } else {
                     (1u32 << num_bits) - 1
                 };
-            let mut buffer: Vec<u8> = Vec::new();
+            let mut buffer: Vec<u8> = vec![];
             let mut bitpacker = BitPacker::new();
             for val in 0..100 {
                 bitpacker.write(val & mask as u64, num_bits, &mut buffer).unwrap();
             }
             bitpacker.flush(&mut buffer).unwrap();
             let bitunpacker = BitUnpacker::new(num_bits);
-            let mut output: Vec<u32> = Vec::new();
+            let mut output: Vec<u32> = vec![];
             for len in [0, 1, 2, 32, 33, 34, 64] {
                 for start_idx in 0u32..32u32 {
                     output.resize(len, 0);

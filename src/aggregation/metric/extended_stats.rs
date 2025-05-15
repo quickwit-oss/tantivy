@@ -49,7 +49,7 @@ pub struct ExtendedStatsAggregation {
 impl ExtendedStatsAggregation {
     /// Creates a new [`ExtendedStatsAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
-        ExtendedStatsAggregation {
+        Self {
             field: field_name,
             missing: None,
             sigma: None,
@@ -213,7 +213,7 @@ impl IntermediateExtendedStats {
         }
     }
     /// Merges the other stats intermediate result into self.
-    pub fn merge_fruits(&mut self, other: IntermediateExtendedStats) {
+    pub fn merge_fruits(&mut self, other: Self) {
         if other.intermediate_stats.count == 0 {
             return;
         }

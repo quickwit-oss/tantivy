@@ -97,7 +97,7 @@ impl From<Range<f64>> for RangeAggregationRange {
         } else {
             Some(range.end)
         };
-        RangeAggregationRange {
+        Self {
             key: None,
             from,
             to,
@@ -116,7 +116,7 @@ pub(crate) struct InternalRangeAggregationRange {
 
 impl From<Range<u64>> for InternalRangeAggregationRange {
     fn from(range: Range<u64>) -> Self {
-        InternalRangeAggregationRange { key: None, range }
+        Self { key: None, range }
     }
 }
 
@@ -318,7 +318,7 @@ impl SegmentRangeCollector {
             buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
         )?;
 
-        Ok(SegmentRangeCollector {
+        Ok(Self {
             buckets,
             column_type: field_type,
             accessor_idx,

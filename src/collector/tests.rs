@@ -163,8 +163,8 @@ pub struct FastFieldSegmentCollector {
 }
 
 impl FastFieldTestCollector {
-    pub fn for_field(field: impl ToString) -> FastFieldTestCollector {
-        FastFieldTestCollector {
+    pub fn for_field(field: impl ToString) -> Self {
+        Self {
             field: field.to_string(),
         }
     }
@@ -184,7 +184,7 @@ impl Collector for FastFieldTestCollector {
             .u64(&self.field)
             .expect("Requested field is not a fast field.");
         Ok(FastFieldSegmentCollector {
-            vals: Vec::new(),
+            vals: vec![],
             reader,
         })
     }
@@ -226,8 +226,8 @@ pub struct BytesFastFieldSegmentCollector {
 }
 
 impl BytesFastFieldTestCollector {
-    pub fn for_field(field: impl ToString) -> BytesFastFieldTestCollector {
-        BytesFastFieldTestCollector {
+    pub fn for_field(field: impl ToString) -> Self {
+        Self {
             field: field.to_string(),
         }
     }
@@ -244,9 +244,9 @@ impl Collector for BytesFastFieldTestCollector {
     ) -> crate::Result<BytesFastFieldSegmentCollector> {
         let column_opt = segment_reader.fast_fields().bytes(&self.field)?;
         Ok(BytesFastFieldSegmentCollector {
-            vals: Vec::new(),
+            vals: vec![],
             column_opt,
-            buffer: Vec::new(),
+            buffer: vec![],
         })
     }
 

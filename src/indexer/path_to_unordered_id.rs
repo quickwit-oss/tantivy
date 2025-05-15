@@ -7,8 +7,8 @@ pub struct OrderedPathId(u32);
 
 impl OrderedPathId {
     /// Create a new field object for the given PathId.
-    pub const fn from_ordered_id(field_id: u32) -> OrderedPathId {
-        OrderedPathId(field_id)
+    pub const fn from_ordered_id(field_id: u32) -> Self {
+        Self(field_id)
     }
 
     /// Returns a u32 identifying uniquely a path within a schema.

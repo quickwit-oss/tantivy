@@ -66,9 +66,9 @@ pub enum OrderTarget {
 impl From<&str> for OrderTarget {
     fn from(val: &str) -> Self {
         match val {
-            "_key" => OrderTarget::Key,
-            "_count" => OrderTarget::Count,
-            _ => OrderTarget::SubAggregation(val.to_string()),
+            "_key" => Self::Key,
+            "_count" => Self::Count,
+            _ => Self::SubAggregation(val.to_string()),
         }
     }
 }
@@ -76,9 +76,9 @@ impl From<&str> for OrderTarget {
 impl fmt::Display for OrderTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            OrderTarget::Key => f.write_str("_key"),
-            OrderTarget::Count => f.write_str("_count"),
-            OrderTarget::SubAggregation(agg) => agg.fmt(f),
+            Self::Key => f.write_str("_key"),
+            Self::Count => f.write_str("_count"),
+            Self::SubAggregation(agg) => agg.fmt(f),
         }
     }
 }
@@ -110,7 +110,7 @@ impl Serialize for CustomOrder {
 }
 
 impl<'de> Deserialize<'de> for CustomOrder {
-    fn deserialize<D>(deserializer: D) -> Result<CustomOrder, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
         let value = serde_json::Value::deserialize(deserializer)?;
         let return_err = |message, val: serde_json::Value| {
@@ -133,7 +133,7 @@ impl<'de> Deserialize<'de> for CustomOrder {
                 let (key, value) = map.into_iter().next().unwrap();
                 let order = serde_json::from_value(value).map_err(de::Error::custom)?;
 
-                Ok(CustomOrder {
+                Ok(Self {
                     target: key.as_str().into(),
                     order,
                 })
@@ -160,7 +160,7 @@ impl<'de> Deserialize<'de> for CustomOrder {
                 })?;
                 let order = serde_json::from_value(value.clone()).map_err(de::Error::custom)?;
 
-                Ok(CustomOrder {
+                Ok(Self {
                     target: key.as_str().into(),
                     order,
                 })

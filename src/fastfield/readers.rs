@@ -25,9 +25,9 @@ pub struct FastFieldReaders {
 }
 
 impl FastFieldReaders {
-    pub(crate) fn open(fast_field_file: FileSlice, schema: Schema) -> io::Result<FastFieldReaders> {
+    pub(crate) fn open(fast_field_file: FileSlice, schema: Schema) -> io::Result<Self> {
         let columnar = Arc::new(ColumnarReader::open(fast_field_file)?);
-        Ok(FastFieldReaders { columnar, schema })
+        Ok(Self { columnar, schema })
     }
 
     fn resolve_field(&self, column_name: &str) -> crate::Result<Option<String>> {
@@ -333,7 +333,7 @@ impl FastFieldReaders {
         type_white_list_opt: Option<&[ColumnType]>,
         field_name: &str,
     ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
-        let mut columns_and_types = Vec::new();
+        let mut columns_and_types = vec![];
         let Some(resolved_field_name) = self.resolve_field(field_name)? else {
             return Ok(columns_and_types);
         };

@@ -33,8 +33,8 @@ impl IndexRecordOption {
     /// term frequencies.
     pub fn has_freq(self) -> bool {
         match self {
-            IndexRecordOption::Basic => false,
-            IndexRecordOption::WithFreqs | IndexRecordOption::WithFreqsAndPositions => true,
+            Self::Basic => false,
+            Self::WithFreqs | Self::WithFreqsAndPositions => true,
         }
     }
 
@@ -42,13 +42,13 @@ impl IndexRecordOption {
     ///  term positions.
     pub fn has_positions(self) -> bool {
         match self {
-            IndexRecordOption::Basic | IndexRecordOption::WithFreqs => false,
-            IndexRecordOption::WithFreqsAndPositions => true,
+            Self::Basic | Self::WithFreqs => false,
+            Self::WithFreqsAndPositions => true,
         }
     }
 
     /// Downgrades to the next level if provided `IndexRecordOption` is unavailable.
-    pub fn downgrade(&self, other: IndexRecordOption) -> IndexRecordOption {
+    pub fn downgrade(&self, other: Self) -> Self {
         use IndexRecordOption::*;
 
         match (other, self) {

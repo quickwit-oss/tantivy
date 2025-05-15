@@ -41,7 +41,7 @@ pub struct StatsAggregation {
 impl StatsAggregation {
     /// Creates a new [`StatsAggregation`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {
-        StatsAggregation {
+        Self {
             field: field_name,
             missing: None,
         }
@@ -112,7 +112,7 @@ impl Default for IntermediateStats {
 
 impl IntermediateStats {
     /// Merges the other stats intermediate result into self.
-    pub fn merge_fruits(&mut self, other: IntermediateStats) {
+    pub fn merge_fruits(&mut self, other: Self) {
         self.count += other.count;
 
         // kahan algorithm for sum

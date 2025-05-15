@@ -16,7 +16,7 @@ pub struct BlockedBitpacker {
 }
 impl Default for BlockedBitpacker {
     fn default() -> Self {
-        BlockedBitpacker::new()
+        Self::new()
     }
 }
 
@@ -73,7 +73,7 @@ impl BlockedBitpacker {
 
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
-        std::mem::size_of::<BlockedBitpacker>()
+        std::mem::size_of::<Self>()
             + self.compressed_blocks.capacity()
             + mem_usage(&self.offset_and_bits)
             + mem_usage(&self.buffer)
@@ -140,10 +140,10 @@ impl BlockedBitpacker {
     pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
         // todo performance: we could decompress a whole block and cache it instead
         let bitpacked_elems = self.offset_and_bits.len() * BLOCK_SIZE;
-        let iter = (0..bitpacked_elems)
+
+        (0..bitpacked_elems)
             .map(move |idx| self.get(idx))
-            .chain(self.buffer.iter().cloned());
-        iter
+            .chain(self.buffer.iter().cloned())
     }
 }
 

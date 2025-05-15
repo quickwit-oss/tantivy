@@ -25,14 +25,14 @@ pub enum ColumnType {
 impl fmt::Display for ColumnType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let short_str = match self {
-            ColumnType::I64 => "i64",
-            ColumnType::U64 => "u64",
-            ColumnType::F64 => "f64",
-            ColumnType::Bytes => "bytes",
-            ColumnType::Str => "str",
-            ColumnType::Bool => "bool",
-            ColumnType::IpAddr => "ip",
-            ColumnType::DateTime => "datetime",
+            Self::I64 => "i64",
+            Self::U64 => "u64",
+            Self::F64 => "f64",
+            Self::Bytes => "bytes",
+            Self::Str => "str",
+            Self::Bool => "bool",
+            Self::IpAddr => "ip",
+            Self::DateTime => "datetime",
         };
         write!(f, "{short_str}")
     }
@@ -55,10 +55,10 @@ impl ColumnType {
         self as u8
     }
     pub fn is_date_time(&self) -> bool {
-        self == &ColumnType::DateTime
+        self == &Self::DateTime
     }
 
-    pub(crate) fn try_from_code(code: u8) -> Result<ColumnType, InvalidData> {
+    pub(crate) fn try_from_code(code: u8) -> Result<Self, InvalidData> {
         COLUMN_TYPES.get(code as usize).copied().ok_or(InvalidData)
     }
 }
@@ -66,9 +66,9 @@ impl ColumnType {
 impl From<NumericalType> for ColumnType {
     fn from(numerical_type: NumericalType) -> Self {
         match numerical_type {
-            NumericalType::I64 => ColumnType::I64,
-            NumericalType::U64 => ColumnType::U64,
-            NumericalType::F64 => ColumnType::F64,
+            NumericalType::I64 => Self::I64,
+            NumericalType::U64 => Self::U64,
+            NumericalType::F64 => Self::F64,
         }
     }
 }
@@ -76,14 +76,10 @@ impl From<NumericalType> for ColumnType {
 impl ColumnType {
     pub fn numerical_type(&self) -> Option<NumericalType> {
         match self {
-            ColumnType::I64 => Some(NumericalType::I64),
-            ColumnType::U64 => Some(NumericalType::U64),
-            ColumnType::F64 => Some(NumericalType::F64),
-            ColumnType::Bytes
-            | ColumnType::Str
-            | ColumnType::Bool
-            | ColumnType::IpAddr
-            | ColumnType::DateTime => None,
+            Self::I64 => Some(NumericalType::I64),
+            Self::U64 => Some(NumericalType::U64),
+            Self::F64 => Some(NumericalType::F64),
+            Self::Bytes | Self::Str | Self::Bool | Self::IpAddr | Self::DateTime => None,
         }
     }
 }
@@ -148,7 +144,7 @@ impl HasAssociatedColumnType for Ipv6Addr {
     }
 
     fn default_value() -> Self {
-        Ipv6Addr::from([0u8; 16])
+        Self::from([0u8; 16])
     }
 }
 

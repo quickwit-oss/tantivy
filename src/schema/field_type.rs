@@ -76,14 +76,14 @@ pub enum Type {
 impl From<ColumnType> for Type {
     fn from(value: ColumnType) -> Self {
         match value {
-            ColumnType::Str => Type::Str,
-            ColumnType::U64 => Type::U64,
-            ColumnType::I64 => Type::I64,
-            ColumnType::F64 => Type::F64,
-            ColumnType::Bool => Type::Bool,
-            ColumnType::DateTime => Type::Date,
-            ColumnType::Bytes => Type::Bytes,
-            ColumnType::IpAddr => Type::IpAddr,
+            ColumnType::Str => Self::Str,
+            ColumnType::U64 => Self::U64,
+            ColumnType::I64 => Self::I64,
+            ColumnType::F64 => Self::F64,
+            ColumnType::Bool => Self::Bool,
+            ColumnType::DateTime => Self::Date,
+            ColumnType::Bytes => Self::Bytes,
+            ColumnType::IpAddr => Self::IpAddr,
         }
     }
 }
@@ -107,16 +107,16 @@ impl Type {
     /// column store
     pub fn numerical_type(&self) -> Option<NumericalType> {
         match self {
-            Type::I64 => Some(NumericalType::I64),
-            Type::U64 => Some(NumericalType::U64),
-            Type::F64 => Some(NumericalType::F64),
+            Self::I64 => Some(NumericalType::I64),
+            Self::U64 => Some(NumericalType::U64),
+            Self::F64 => Some(NumericalType::F64),
             _ => None,
         }
     }
 
     /// Returns an iterator over the different values
     /// the Type enum can tape.
-    pub fn iter_values() -> impl Iterator<Item = Type> {
+    pub fn iter_values() -> impl Iterator<Item = Self> {
         ALL_TYPES.iter().cloned()
     }
 
@@ -129,16 +129,16 @@ impl Type {
     /// Returns a human readable name for the Type.
     pub fn name(&self) -> &'static str {
         match self {
-            Type::Str => "Str",
-            Type::U64 => "U64",
-            Type::I64 => "I64",
-            Type::F64 => "F64",
-            Type::Bool => "Bool",
-            Type::Date => "Date",
-            Type::Facet => "Facet",
-            Type::Bytes => "Bytes",
-            Type::Json => "Json",
-            Type::IpAddr => "IpAddr",
+            Self::Str => "Str",
+            Self::U64 => "U64",
+            Self::I64 => "I64",
+            Self::F64 => "F64",
+            Self::Bool => "Bool",
+            Self::Date => "Date",
+            Self::Facet => "Facet",
+            Self::Bytes => "Bytes",
+            Self::Json => "Json",
+            Self::IpAddr => "IpAddr",
         }
     }
 
@@ -147,16 +147,16 @@ impl Type {
     #[inline]
     pub fn from_code(code: u8) -> Option<Self> {
         match code {
-            b's' => Some(Type::Str),
-            b'u' => Some(Type::U64),
-            b'i' => Some(Type::I64),
-            b'f' => Some(Type::F64),
-            b'o' => Some(Type::Bool),
-            b'd' => Some(Type::Date),
-            b'h' => Some(Type::Facet),
-            b'b' => Some(Type::Bytes),
-            b'j' => Some(Type::Json),
-            b'p' => Some(Type::IpAddr),
+            b's' => Some(Self::Str),
+            b'u' => Some(Self::U64),
+            b'i' => Some(Self::I64),
+            b'f' => Some(Self::F64),
+            b'o' => Some(Self::Bool),
+            b'd' => Some(Self::Date),
+            b'h' => Some(Self::Facet),
+            b'b' => Some(Self::Bytes),
+            b'j' => Some(Self::Json),
+            b'p' => Some(Self::IpAddr),
             _ => None,
         }
     }
@@ -195,52 +195,52 @@ impl FieldType {
     /// Returns the value type associated for this field.
     pub fn value_type(&self) -> Type {
         match *self {
-            FieldType::Str(_) => Type::Str,
-            FieldType::U64(_) => Type::U64,
-            FieldType::I64(_) => Type::I64,
-            FieldType::F64(_) => Type::F64,
-            FieldType::Bool(_) => Type::Bool,
-            FieldType::Date(_) => Type::Date,
-            FieldType::Facet(_) => Type::Facet,
-            FieldType::Bytes(_) => Type::Bytes,
-            FieldType::JsonObject(_) => Type::Json,
-            FieldType::IpAddr(_) => Type::IpAddr,
+            Self::Str(_) => Type::Str,
+            Self::U64(_) => Type::U64,
+            Self::I64(_) => Type::I64,
+            Self::F64(_) => Type::F64,
+            Self::Bool(_) => Type::Bool,
+            Self::Date(_) => Type::Date,
+            Self::Facet(_) => Type::Facet,
+            Self::Bytes(_) => Type::Bytes,
+            Self::JsonObject(_) => Type::Json,
+            Self::IpAddr(_) => Type::IpAddr,
         }
     }
 
     /// returns true if this is an json field
     pub fn is_json(&self) -> bool {
-        matches!(self, FieldType::JsonObject(_))
+        matches!(self, Self::JsonObject(_))
     }
 
     /// returns true if this is an ip address field
     pub fn is_ip_addr(&self) -> bool {
-        matches!(self, FieldType::IpAddr(_))
+        matches!(self, Self::IpAddr(_))
     }
 
     /// returns true if this is an str field
     pub fn is_str(&self) -> bool {
-        matches!(self, FieldType::Str(_))
+        matches!(self, Self::Str(_))
     }
 
     /// returns true if this is an date field
     pub fn is_date(&self) -> bool {
-        matches!(self, FieldType::Date(_))
+        matches!(self, Self::Date(_))
     }
 
     /// returns true if the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {
-            FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => int_options.is_indexed(),
-            FieldType::Date(ref date_options) => date_options.is_indexed(),
-            FieldType::Facet(ref _facet_options) => true,
-            FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
-            FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
-            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
+            Self::Str(ref text_options) => text_options.get_indexing_options().is_some(),
+            Self::U64(ref int_options)
+            | Self::I64(ref int_options)
+            | Self::F64(ref int_options)
+            | Self::Bool(ref int_options) => int_options.is_indexed(),
+            Self::Date(ref date_options) => date_options.is_indexed(),
+            Self::Facet(ref _facet_options) => true,
+            Self::Bytes(ref bytes_options) => bytes_options.is_indexed(),
+            Self::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
+            Self::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
         }
     }
 
@@ -249,10 +249,10 @@ impl FieldType {
     /// If the field is not indexed, returns `None`.
     pub fn index_record_option(&self) -> Option<IndexRecordOption> {
         match self {
-            FieldType::Str(text_options) => text_options
+            Self::Str(text_options) => text_options
                 .get_indexing_options()
                 .map(|text_indexing| text_indexing.index_option()),
-            FieldType::JsonObject(json_object_options) => json_object_options
+            Self::JsonObject(json_object_options) => json_object_options
                 .get_text_indexing_options()
                 .map(|text_indexing| text_indexing.index_option()),
             field_type => {
@@ -268,35 +268,35 @@ impl FieldType {
     /// returns true if the field is fast.
     pub fn is_fast(&self) -> bool {
         match *self {
-            FieldType::Bytes(ref bytes_options) => bytes_options.is_fast(),
-            FieldType::Str(ref text_options) => text_options.is_fast(),
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => int_options.is_fast(),
-            FieldType::Date(ref date_options) => date_options.is_fast(),
-            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
-            FieldType::Facet(_) => true,
-            FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
+            Self::Bytes(ref bytes_options) => bytes_options.is_fast(),
+            Self::Str(ref text_options) => text_options.is_fast(),
+            Self::U64(ref int_options)
+            | Self::I64(ref int_options)
+            | Self::F64(ref int_options)
+            | Self::Bool(ref int_options) => int_options.is_fast(),
+            Self::Date(ref date_options) => date_options.is_fast(),
+            Self::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
+            Self::Facet(_) => true,
+            Self::JsonObject(ref json_object_options) => json_object_options.is_fast(),
         }
     }
 
     /// returns true if the field is normed (see [fieldnorms](crate::fieldnorm)).
     pub fn has_fieldnorms(&self) -> bool {
         match *self {
-            FieldType::Str(ref text_options) => text_options
+            Self::Str(ref text_options) => text_options
                 .get_indexing_options()
                 .map(|options| options.fieldnorms())
                 .unwrap_or(false),
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => int_options.fieldnorms(),
-            FieldType::Date(ref date_options) => date_options.fieldnorms(),
-            FieldType::Facet(_) => false,
-            FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
-            FieldType::JsonObject(ref _json_object_options) => false,
-            FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
+            Self::U64(ref int_options)
+            | Self::I64(ref int_options)
+            | Self::F64(ref int_options)
+            | Self::Bool(ref int_options) => int_options.fieldnorms(),
+            Self::Date(ref date_options) => date_options.fieldnorms(),
+            Self::Facet(_) => false,
+            Self::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
+            Self::JsonObject(ref _json_object_options) => false,
+            Self::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
         }
     }
 
@@ -310,38 +310,38 @@ impl FieldType {
     /// If the field is not indexed, then returns `None`.
     pub fn get_index_record_option(&self) -> Option<IndexRecordOption> {
         match *self {
-            FieldType::Str(ref text_options) => text_options
+            Self::Str(ref text_options) => text_options
                 .get_indexing_options()
                 .map(TextFieldIndexing::index_option),
-            FieldType::U64(ref int_options)
-            | FieldType::I64(ref int_options)
-            | FieldType::F64(ref int_options)
-            | FieldType::Bool(ref int_options) => {
+            Self::U64(ref int_options)
+            | Self::I64(ref int_options)
+            | Self::F64(ref int_options)
+            | Self::Bool(ref int_options) => {
                 if int_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
                 }
             }
-            FieldType::Date(ref date_options) => {
+            Self::Date(ref date_options) => {
                 if date_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
                 }
             }
-            FieldType::Facet(ref _facet_options) => Some(IndexRecordOption::Basic),
-            FieldType::Bytes(ref bytes_options) => {
+            Self::Facet(ref _facet_options) => Some(IndexRecordOption::Basic),
+            Self::Bytes(ref bytes_options) => {
                 if bytes_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
                 }
             }
-            FieldType::JsonObject(ref json_obj_options) => json_obj_options
+            Self::JsonObject(ref json_obj_options) => json_obj_options
                 .get_text_indexing_options()
                 .map(TextFieldIndexing::index_option),
-            FieldType::IpAddr(ref ip_addr_options) => {
+            Self::IpAddr(ref ip_addr_options) => {
                 if ip_addr_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
@@ -361,7 +361,7 @@ impl FieldType {
         match json {
             JsonValue::String(field_text) => {
                 match self {
-                    FieldType::Date(_) => {
+                    Self::Date(_) => {
                         let dt_with_fixed_tz = OffsetDateTime::parse(&field_text, &Rfc3339)
                             .map_err(|_err| ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
@@ -369,8 +369,8 @@ impl FieldType {
                             })?;
                         Ok(DateTime::from_utc(dt_with_fixed_tz).into())
                     }
-                    FieldType::Str(_) => Ok(OwnedValue::Str(field_text)),
-                    FieldType::U64(opt) => {
+                    Self::Str(_) => Ok(OwnedValue::Str(field_text)),
+                    Self::U64(opt) => {
                         if opt.should_coerce() {
                             Ok(OwnedValue::U64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
@@ -385,7 +385,7 @@ impl FieldType {
                             })
                         }
                     }
-                    FieldType::I64(opt) => {
+                    Self::I64(opt) => {
                         if opt.should_coerce() {
                             Ok(OwnedValue::I64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
@@ -400,7 +400,7 @@ impl FieldType {
                             })
                         }
                     }
-                    FieldType::F64(opt) => {
+                    Self::F64(opt) => {
                         if opt.should_coerce() {
                             Ok(OwnedValue::F64(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
@@ -415,7 +415,7 @@ impl FieldType {
                             })
                         }
                     }
-                    FieldType::Bool(opt) => {
+                    Self::Bool(opt) => {
                         if opt.should_coerce() {
                             Ok(OwnedValue::Bool(field_text.parse().map_err(|_| {
                                 ValueParsingError::TypeError {
@@ -430,16 +430,16 @@ impl FieldType {
                             })
                         }
                     }
-                    FieldType::Facet(_) => Ok(OwnedValue::Facet(Facet::from(&field_text))),
-                    FieldType::Bytes(_) => BASE64
+                    Self::Facet(_) => Ok(OwnedValue::Facet(Facet::from(&field_text))),
+                    Self::Bytes(_) => BASE64
                         .decode(&field_text)
                         .map(OwnedValue::Bytes)
                         .map_err(|_| ValueParsingError::InvalidBase64 { base64: field_text }),
-                    FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                    Self::JsonObject(_) => Err(ValueParsingError::TypeError {
                         expected: "a json object",
                         json: JsonValue::String(field_text),
                     }),
-                    FieldType::IpAddr(_) => {
+                    Self::IpAddr(_) => {
                         let ip_addr: IpAddr = IpAddr::from_str(&field_text).map_err(|err| {
                             ValueParsingError::ParseError {
                                 error: err.to_string(),
@@ -452,7 +452,7 @@ impl FieldType {
                 }
             }
             JsonValue::Number(field_val_num) => match self {
-                FieldType::I64(_) | FieldType::Date(_) => {
+                Self::I64(_) | Self::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
                         Ok(OwnedValue::I64(field_val_i64))
                     } else {
@@ -462,7 +462,7 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::U64(_) => {
+                Self::U64(_) => {
                     if let Some(field_val_u64) = field_val_num.as_u64() {
                         Ok(OwnedValue::U64(field_val_u64))
                     } else {
@@ -472,7 +472,7 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::F64(_) => {
+                Self::F64(_) => {
                     if let Some(field_val_f64) = field_val_num.as_f64() {
                         Ok(OwnedValue::F64(field_val_f64))
                     } else {
@@ -482,11 +482,11 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::Bool(_) => Err(ValueParsingError::TypeError {
+                Self::Bool(_) => Err(ValueParsingError::TypeError {
                     expected: "a boolean",
                     json: JsonValue::Number(field_val_num),
                 }),
-                FieldType::Str(opt) => {
+                Self::Str(opt) => {
                     if opt.should_coerce() {
                         Ok(OwnedValue::Str(field_val_num.to_string()))
                     } else {
@@ -496,21 +496,21 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::Facet(_) | FieldType::Bytes(_) => Err(ValueParsingError::TypeError {
+                Self::Facet(_) | Self::Bytes(_) => Err(ValueParsingError::TypeError {
                     expected: "a string",
                     json: JsonValue::Number(field_val_num),
                 }),
-                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                Self::JsonObject(_) => Err(ValueParsingError::TypeError {
                     expected: "a json object",
                     json: JsonValue::Number(field_val_num),
                 }),
-                FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
+                Self::IpAddr(_) => Err(ValueParsingError::TypeError {
                     expected: "a string with an ip addr",
                     json: JsonValue::Number(field_val_num),
                 }),
             },
             JsonValue::Object(json_map) => match self {
-                FieldType::Str(_) => {
+                Self::Str(_) => {
                     if let Ok(tok_str_val) = serde_json::from_value::<PreTokenizedString>(
                         serde_json::Value::Object(json_map.clone()),
                     ) {
@@ -522,15 +522,15 @@ impl FieldType {
                         })
                     }
                 }
-                FieldType::JsonObject(_) => Ok(OwnedValue::from(json_map)),
+                Self::JsonObject(_) => Ok(OwnedValue::from(json_map)),
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),
                 }),
             },
             JsonValue::Bool(json_bool_val) => match self {
-                FieldType::Bool(_) => Ok(OwnedValue::Bool(json_bool_val)),
-                FieldType::Str(opt) => {
+                Self::Bool(_) => Ok(OwnedValue::Bool(json_bool_val)),
+                Self::Str(opt) => {
                     if opt.should_coerce() {
                         Ok(OwnedValue::Str(json_bool_val.to_string()))
                     } else {
@@ -547,7 +547,7 @@ impl FieldType {
             },
             // Could also just filter them
             JsonValue::Null => match self {
-                FieldType::Str(opt) => {
+                Self::Str(opt) => {
                     if opt.should_coerce() {
                         Ok(OwnedValue::Str("null".to_string()))
                     } else {

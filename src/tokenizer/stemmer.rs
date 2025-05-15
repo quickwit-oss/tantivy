@@ -66,8 +66,8 @@ pub struct Stemmer {
 
 impl Stemmer {
     /// Creates a new `Stemmer` [`TokenFilter`] for a given language algorithm.
-    pub fn new(language: Language) -> Stemmer {
-        Stemmer {
+    pub fn new(language: Language) -> Self {
+        Self {
             stemmer_algorithm: language.algorithm(),
         }
     }
@@ -76,7 +76,7 @@ impl Stemmer {
 impl Default for Stemmer {
     /// Creates a new `Stemmer` [`TokenFilter`] for [`Language::English`].
     fn default() -> Self {
-        Stemmer::new(Language::English)
+        Self::new(Language::English)
     }
 }
 

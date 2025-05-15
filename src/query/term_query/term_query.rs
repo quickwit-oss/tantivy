@@ -68,8 +68,8 @@ impl fmt::Debug for TermQuery {
 
 impl TermQuery {
     /// Creates a new term query.
-    pub fn new(term: Term, segment_postings_options: IndexRecordOption) -> TermQuery {
-        TermQuery {
+    pub fn new(term: Term, segment_postings_options: IndexRecordOption) -> Self {
+        Self {
             term,
             index_record_option: segment_postings_options,
         }

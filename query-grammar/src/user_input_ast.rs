@@ -28,22 +28,22 @@ pub enum UserInputLeaf {
 impl UserInputLeaf {
     pub(crate) fn set_field(self, field: Option<String>) -> Self {
         match self {
-            UserInputLeaf::Literal(mut literal) => {
+            Self::Literal(mut literal) => {
                 literal.field_name = field;
-                UserInputLeaf::Literal(literal)
+                Self::Literal(literal)
             }
-            UserInputLeaf::All => UserInputLeaf::All,
-            UserInputLeaf::Range {
+            Self::All => Self::All,
+            Self::Range {
                 field: _,
                 lower,
                 upper,
-            } => UserInputLeaf::Range {
+            } => Self::Range {
                 field,
                 lower,
                 upper,
             },
-            UserInputLeaf::Set { field: _, elements } => UserInputLeaf::Set { field, elements },
-            UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists {
+            Self::Set { field: _, elements } => Self::Set { field, elements },
+            Self::Exists { field: _ } => Self::Exists {
                 field: field.expect("Exist query without a field isn't allowed"),
             },
         }
@@ -51,16 +51,16 @@ impl UserInputLeaf {
 
     pub(crate) fn set_default_field(&mut self, default_field: String) {
         match self {
-            UserInputLeaf::Literal(literal) if literal.field_name.is_none() => {
+            Self::Literal(literal) if literal.field_name.is_none() => {
                 literal.field_name = Some(default_field)
             }
-            UserInputLeaf::All => {
-                *self = UserInputLeaf::Exists {
+            Self::All => {
+                *self = Self::Exists {
                     field: default_field,
                 }
             }
-            UserInputLeaf::Range { field, .. } if field.is_none() => *field = Some(default_field),
-            UserInputLeaf::Set { field, .. } if field.is_none() => *field = Some(default_field),
+            Self::Range { field, .. } if field.is_none() => *field = Some(default_field),
+            Self::Set { field, .. } if field.is_none() => *field = Some(default_field),
             _ => (), // field was already set, do nothing
         }
     }
@@ -69,8 +69,8 @@ impl UserInputLeaf {
 impl Debug for UserInputLeaf {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
         match self {
-            UserInputLeaf::Literal(literal) => literal.fmt(formatter),
-            UserInputLeaf::Range {
+            Self::Literal(literal) => literal.fmt(formatter),
+            Self::Range {
                 field,
                 lower,
                 upper,
@@ -84,7 +84,7 @@ impl Debug for UserInputLeaf {
                 upper.display_upper(formatter)?;
                 Ok(())
             }
-            UserInputLeaf::Set { field, elements } => {
+            Self::Set { field, elements } => {
                 if let Some(field) = field {
                     // TODO properly escape field (in case of \")
                     write!(formatter, "\"{field}\": ")?;
@@ -99,8 +99,8 @@ impl Debug for UserInputLeaf {
                 }
                 write!(formatter, "]")
             }
-            UserInputLeaf::All => write!(formatter, "*"),
-            UserInputLeaf::Exists { field } => {
+            Self::All => write!(formatter, "*"),
+            Self::Exists { field } => {
                 write!(formatter, "$exists(\"{field}\")")
             }
         }
@@ -167,26 +167,25 @@ impl UserInputBound {
     fn display_lower(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             // TODO properly escape word if required
-            UserInputBound::Inclusive(ref word) => write!(formatter, "[\"{word}\""),
-            UserInputBound::Exclusive(ref word) => write!(formatter, "{{\"{word}\""),
-            UserInputBound::Unbounded => write!(formatter, "{{\"*\""),
+            Self::Inclusive(ref word) => write!(formatter, "[\"{word}\""),
+            Self::Exclusive(ref word) => write!(formatter, "{{\"{word}\""),
+            Self::Unbounded => write!(formatter, "{{\"*\""),
         }
     }
 
     fn display_upper(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             // TODO properly escape word if required
-            UserInputBound::Inclusive(ref word) => write!(formatter, "\"{word}\"]"),
-            UserInputBound::Exclusive(ref word) => write!(formatter, "\"{word}\"}}"),
-            UserInputBound::Unbounded => write!(formatter, "\"*\"}}"),
+            Self::Inclusive(ref word) => write!(formatter, "\"{word}\"]"),
+            Self::Exclusive(ref word) => write!(formatter, "\"{word}\"}}"),
+            Self::Unbounded => write!(formatter, "\"*\"}}"),
         }
     }
 
     pub fn term_str(&self) -> &str {
         match *self {
-            UserInputBound::Inclusive(ref contents) => contents,
-            UserInputBound::Exclusive(ref contents) => contents,
-            UserInputBound::Unbounded => "*",
+            Self::Inclusive(ref contents) | Self::Exclusive(ref contents) => contents,
+            Self::Unbounded => "*",
         }
     }
 }
@@ -216,67 +215,65 @@ enum UserInputAstSerde {
 impl From<UserInputAst> for UserInputAstSerde {
     fn from(ast: UserInputAst) -> Self {
         match ast {
-            UserInputAst::Clause(clause) => UserInputAstSerde::Bool { clauses: clause },
-            UserInputAst::Boost(underlying, boost) => {
-                UserInputAstSerde::Boost { underlying, boost }
-            }
-            UserInputAst::Leaf(leaf) => UserInputAstSerde::Leaf(leaf),
+            UserInputAst::Clause(clause) => Self::Bool { clauses: clause },
+            UserInputAst::Boost(underlying, boost) => Self::Boost { underlying, boost },
+            UserInputAst::Leaf(leaf) => Self::Leaf(leaf),
         }
     }
 }
 
 impl UserInputAst {
     #[must_use]
-    pub fn unary(self, occur: Occur) -> UserInputAst {
-        UserInputAst::Clause(vec![(Some(occur), self)])
+    pub fn unary(self, occur: Occur) -> Self {
+        Self::Clause(vec![(Some(occur), self)])
     }
 
-    fn compose(occur: Occur, asts: Vec<UserInputAst>) -> UserInputAst {
+    fn compose(occur: Occur, asts: Vec<Self>) -> Self {
         assert_ne!(occur, Occur::MustNot);
         assert!(!asts.is_empty());
         if asts.len() == 1 {
             asts.into_iter().next().unwrap() //< safe
         } else {
-            UserInputAst::Clause(
+            Self::Clause(
                 asts.into_iter()
-                    .map(|ast: UserInputAst| (Some(occur), ast))
+                    .map(|ast: Self| (Some(occur), ast))
                     .collect::<Vec<_>>(),
             )
         }
     }
 
-    pub fn empty_query() -> UserInputAst {
-        UserInputAst::Clause(Vec::default())
+    pub fn empty_query() -> Self {
+        Self::Clause(Vec::default())
     }
 
-    pub fn and(asts: Vec<UserInputAst>) -> UserInputAst {
-        UserInputAst::compose(Occur::Must, asts)
+    pub fn and(asts: Vec<Self>) -> Self {
+        Self::compose(Occur::Must, asts)
     }
 
-    pub fn or(asts: Vec<UserInputAst>) -> UserInputAst {
-        UserInputAst::compose(Occur::Should, asts)
+    pub fn or(asts: Vec<Self>) -> Self {
+        Self::compose(Occur::Should, asts)
     }
 
     pub(crate) fn set_default_field(&mut self, field: String) {
         match self {
-            UserInputAst::Clause(clauses) => clauses
+            Self::Clause(clauses) => clauses
                 .iter_mut()
                 .for_each(|(_, ast)| ast.set_default_field(field.clone())),
-            UserInputAst::Leaf(leaf) => leaf.set_default_field(field),
-            UserInputAst::Boost(ast, _) => ast.set_default_field(field),
+            Self::Leaf(leaf) => leaf.set_default_field(field),
+            Self::Boost(ast, _) => ast.set_default_field(field),
         }
     }
 }
 
 impl From<UserInputLiteral> for UserInputLeaf {
-    fn from(literal: UserInputLiteral) -> UserInputLeaf {
-        UserInputLeaf::Literal(literal)
+    fn from(literal: UserInputLiteral) -> Self {
+        Self::Literal(literal)
     }
 }
 
 impl From<UserInputLeaf> for UserInputAst {
-    fn from(leaf: UserInputLeaf) -> UserInputAst {
-        UserInputAst::Leaf(Box::new(leaf))
+    fn from(leaf: UserInputLeaf) -> Self {
+        Self::Leaf(Box::new(leaf))
     }
 }
 
@@ -296,7 +293,7 @@ fn print_occur_ast(
 impl fmt::Debug for UserInputAst {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            UserInputAst::Clause(ref subqueries) => {
+            Self::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
                     // TODO this will break ast reserialization, is writing "( )" enough?
                     write!(formatter, "<emptyclause>")?;
@@ -311,8 +308,8 @@ impl fmt::Debug for UserInputAst {
                 }
                 Ok(())
             }
-            UserInputAst::Leaf(ref subquery) => write!(formatter, "{subquery:?}"),
-            UserInputAst::Boost(ref leaf, boost) => write!(formatter, "({leaf:?})^{boost}"),
+            Self::Leaf(ref subquery) => write!(formatter, "{subquery:?}"),
+            Self::Boost(ref leaf, boost) => write!(formatter, "({leaf:?})^{boost}"),
         }
     }
 }
