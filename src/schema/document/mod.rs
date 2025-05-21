@@ -268,6 +268,7 @@ pub(crate) mod type_codes {
     pub const NULL_CODE: u8 = 11;
     pub const ARRAY_CODE: u8 = 12;
     pub const OBJECT_CODE: u8 = 13;
+    pub const U128_CODE: u8 = 14;
 
     // Extended type codes
     pub const TOK_STR_EXT_CODE: u8 = 0;
