@@ -148,7 +148,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
         }
     }
 
-    pub(crate) fn sstable_delta_reader_block(
+    pub fn sstable_delta_reader_block(
         &self,
         block_addr: BlockAddr,
     ) -> io::Result<DeltaReader<TSSTable::ValueReader>> {

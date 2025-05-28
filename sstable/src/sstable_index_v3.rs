@@ -58,7 +58,7 @@ impl SSTableIndex {
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
-    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
+    pub fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
         match self {
             SSTableIndex::V2(v2_index) => v2_index.get_block_with_ord(ord),
             SSTableIndex::V3(v3_index) => v3_index.get_block_with_ord(ord),
