@@ -261,6 +261,18 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_map_multithread_with_concurrency_limit() {
+        let result: Vec<usize> = Executor::multi_thread_with_concurrency_limit(3, "search-test", 2)
+            .unwrap()
+            .map(|i| Ok(i * 2), 0..10)
+            .unwrap();
+        assert_eq!(result.len(), 10);
+        for i in 0..10 {
+            assert_eq!(result[i], i * 2);
+        }
+    }
+
     #[cfg(feature = "quickwit")]
     #[test]
     fn test_cancel_cpu_intensive_tasks() {
