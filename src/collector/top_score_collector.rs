@@ -6,7 +6,9 @@ use columnar::{ColumnValues, StrColumn};
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
-use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
+use crate::collector::custom_score_top_collector::{
+    CustomScoreTopCollector, CustomScoreTopSegmentCollector,
+};
 use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
@@ -84,26 +86,18 @@ where
     }
 }
 
-struct StringConvertCollector<TCollector, TCollectorChild>
-where
-    TCollector: Collector<Fruit = Vec<(TermOrdinal, DocAddress)>, Child = TCollectorChild>,
-    TCollectorChild: SegmentCollector<Fruit = Vec<(TermOrdinal, DocAddress)>>,
-{
-    pub collector: TCollector,
+struct StringConvertCollector {
+    pub collector: CustomScoreTopCollector<ScorerByField, u64>,
     pub field: String,
     order: Order,
     limit: usize,
     offset: usize,
 }
 
-impl<TCollector, TCollectorChild> Collector for StringConvertCollector<TCollector, TCollectorChild>
-where
-    TCollector: Collector<Fruit = Vec<(TermOrdinal, DocAddress)>, Child = TCollectorChild>,
-    TCollectorChild: SegmentCollector<Fruit = Vec<(TermOrdinal, DocAddress)>>,
-{
+impl Collector for StringConvertCollector {
     type Fruit = Vec<(String, DocAddress)>;
 
-    type Child = StringConvertSegmentCollector<TCollectorChild>;
+    type Child = StringConvertSegmentCollector;
 
     fn for_segment(
         &self,
@@ -182,17 +176,13 @@ where
     }
 }
 
-struct StringConvertSegmentCollector<TCollector>
-where TCollector: SegmentCollector<Fruit = Vec<(TermOrdinal, DocAddress)>> + 'static
-{
-    pub collector: TCollector,
+struct StringConvertSegmentCollector {
+    pub collector: CustomScoreTopSegmentCollector<ScorerByFastFieldReader, u64>,
     ff: StrColumn,
     order: Order,
 }
 
-impl<TCollector> SegmentCollector for StringConvertSegmentCollector<TCollector>
-where TCollector: SegmentCollector<Fruit = Vec<(TermOrdinal, DocAddress)>> + 'static
-{
+impl SegmentCollector for StringConvertSegmentCollector {
     type Fruit = Vec<(String, DocAddress)>;
 
     fn collect(&mut self, doc: DocId, score: Score) {
@@ -200,13 +190,13 @@ where TCollector: SegmentCollector<Fruit = Vec<(TermOrdinal, DocAddress)>> + 'st
     }
 
     fn harvest(self) -> Vec<(String, DocAddress)> {
-        let fruit = self.collector.harvest();
+        let top_ordinals: Vec<(TermOrdinal, DocAddress)> = self.collector.harvest();
 
         // Collect terms.
-        let mut terms = Vec::with_capacity(fruit.len());
+        let mut terms: Vec<String> = Vec::with_capacity(top_ordinals.len());
         let result = if self.order.is_asc() {
             self.ff.dictionary().sorted_ords_to_term_cb(
-                fruit.iter().map(|(term_ord, _)| u64::MAX - term_ord),
+                top_ordinals.iter().map(|(term_ord, _)| u64::MAX - term_ord),
                 |term| {
                     terms.push(
                         std::str::from_utf8(term)
@@ -218,7 +208,7 @@ where TCollector: SegmentCollector<Fruit = Vec<(TermOrdinal, DocAddress)>> + 'st
             )
         } else {
             self.ff.dictionary().sorted_ords_to_term_cb(
-                fruit.iter().rev().map(|(term_ord, _)| *term_ord),
+                top_ordinals.iter().rev().map(|(term_ord, _)| *term_ord),
                 |term| {
                     terms.push(
                         std::str::from_utf8(term)
@@ -239,14 +229,14 @@ where TCollector: SegmentCollector<Fruit = Vec<(TermOrdinal, DocAddress)>> + 'st
         if self.order.is_asc() {
             terms
                 .into_iter()
-                .zip(fruit)
+                .zip(top_ordinals)
                 .map(|(term, (_, doc))| (term, doc))
                 .collect()
         } else {
             terms
                 .into_iter()
                 .rev()
-                .zip(fruit)
+                .zip(top_ordinals)
                 .map(|(term, (_, doc))| (term, doc))
                 .collect()
         }
