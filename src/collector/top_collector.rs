@@ -114,9 +114,7 @@ where T: PartialOrd + Clone
         }
 
         Ok(top_collector
-            .into_sorted_vec()
-            .into_iter()
-            .skip(self.offset)
+            .into_sorted_after(self.offset)
             .map(|cdoc| (cdoc.feature, cdoc.doc))
             .collect())
     }
