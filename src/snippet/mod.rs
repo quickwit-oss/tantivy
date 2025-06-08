@@ -413,6 +413,14 @@ impl SnippetGenerator {
             let term_value = term.value();
             let term_str = if let Some(term_str) = term_value.as_str() {
                 term_str
+            } else if let Some(json_value_bytes) =
+                term_value.as_json_value_bytes().map(|v| v.to_owned())
+            {
+                if let Some(json_str) = json_value_bytes.as_str() {
+                    &json_str.to_string()
+                } else {
+                    continue;
+                }
             } else {
                 continue;
             };
