@@ -17,7 +17,8 @@ use crate::index::{Segment, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::segment_updater::CancelSentinel;
 use crate::indexer::SegmentSerializer;
-use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
+use crate::postings::borrowed_segment_postings::BorrowedSegmentPostings;
+use crate::postings::InvertedIndexSerializer;
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
@@ -372,7 +373,8 @@ impl IndexMerger {
                          indexed. Have you modified the schema?",
         );
 
-        let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
+        let mut segment_postings_containing_the_term: Vec<(usize, BorrowedSegmentPostings)> =
+            vec![];
 
         let mut cnt = 0;
         while merged_terms.advance() {
