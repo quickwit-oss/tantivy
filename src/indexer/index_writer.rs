@@ -145,7 +145,7 @@ fn compute_deleted_bitset(
 /// is `==` target_opstamp.
 /// For instance, there was no delete operation between the state of the `segment_entry` and
 /// the `target_opstamp`, `segment_entry` is not updated.
-pub(crate) fn advance_deletes(
+pub fn advance_deletes(
     mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
