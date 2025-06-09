@@ -17,7 +17,7 @@ pub(crate) mod indexing_term;
 mod log_merge_policy;
 mod merge_operation;
 pub(crate) mod merge_policy;
-pub(crate) mod merger;
+pub mod merger;
 mod merger_sorted_index_test;
 pub(crate) mod operation;
 pub(crate) mod prepared_commit;

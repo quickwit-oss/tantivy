@@ -45,13 +45,109 @@ impl<W: io::Write> PositionSerializer<W> {
 
     /// Writes all of the given positions delta.
     pub fn write_positions_delta(&mut self, mut positions_delta: &[u32]) {
-        while !positions_delta.is_empty() {
-            let remaining_block_len = self.remaining_block_len();
-            let num_to_write = remaining_block_len.min(positions_delta.len());
-            self.block.extend(&positions_delta[..num_to_write]);
-            positions_delta = &positions_delta[num_to_write..];
-            if self.remaining_block_len() == 0 {
-                self.flush_block();
+        match positions_delta.len() {
+            0 => {}
+            1 => {
+                if self.remaining_block_len() == 0 {
+                    self.flush_block();
+                }
+                self.block.push(positions_delta[0]);
+            }
+            2 => {
+                let rem = self.remaining_block_len();
+                if rem < 2 {
+                    if rem == 1 {
+                        self.block.push(positions_delta[0]);
+                        self.flush_block();
+                        self.block.push(positions_delta[1]);
+                    } else {
+                        self.flush_block();
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                    }
+                } else {
+                    self.block.push(positions_delta[0]);
+                    self.block.push(positions_delta[1]);
+                }
+            }
+            3 => {
+                let rem = self.remaining_block_len();
+                match rem {
+                    3.. => {
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                        self.block.push(positions_delta[2]);
+                    }
+                    2 => {
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                        self.flush_block();
+                        self.block.push(positions_delta[2]);
+                    }
+                    1 => {
+                        self.block.push(positions_delta[0]);
+                        self.flush_block();
+                        self.block.push(positions_delta[1]);
+                        self.block.push(positions_delta[2]);
+                    }
+                    0 => {
+                        self.flush_block();
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                        self.block.push(positions_delta[2]);
+                    }
+                }
+            }
+            4 => {
+                let rem = self.remaining_block_len();
+                match rem {
+                    4.. => {
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                        self.block.push(positions_delta[2]);
+                        self.block.push(positions_delta[3]);
+                    }
+                    3 => {
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                        self.block.push(positions_delta[2]);
+                        self.flush_block();
+                        self.block.push(positions_delta[3]);
+                    }
+                    2 => {
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                        self.flush_block();
+                        self.block.push(positions_delta[2]);
+                        self.block.push(positions_delta[3]);
+                    }
+                    1 => {
+                        self.block.push(positions_delta[0]);
+                        self.flush_block();
+                        self.block.push(positions_delta[1]);
+                        self.block.push(positions_delta[2]);
+                        self.block.push(positions_delta[3]);
+                    }
+                    0 => {
+                        self.flush_block();
+                        self.block.push(positions_delta[0]);
+                        self.block.push(positions_delta[1]);
+                        self.block.push(positions_delta[2]);
+                        self.block.push(positions_delta[3]);
+                    }
+                }
+            }
+            _ => {
+                while !positions_delta.is_empty() {
+                    let remaining_block_len = self.remaining_block_len();
+                    let num_to_write = remaining_block_len.min(positions_delta.len());
+                    self.block
+                        .extend_from_slice(&positions_delta[..num_to_write]);
+                    positions_delta = &positions_delta[num_to_write..];
+                    if self.remaining_block_len() == 0 {
+                        self.flush_block();
+                    }
+                }
             }
         }
     }

@@ -28,6 +28,7 @@
 //! * *VIntPosDeltas* := *VIntPosDelta*^(*P* % 128).
 //!
 //! The skip widths encoded separately makes it easy and fast to rapidly skip over n positions.
+
 mod reader;
 mod serializer;
 
