@@ -3,8 +3,10 @@ use std::io;
 use common::OwnedBytes;
 
 use crate::directory::FileSlice;
-use crate::positions::PositionReader;
-use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
+use crate::positions::borrowed_position_reader::BorrowedPositionReader;
+use crate::postings::borrowed_block_segment_postings::BorrowedBlockSegmentPostings;
+use crate::postings::borrowed_segment_postings::BorrowedSegmentPostings;
+use crate::postings::TermInfo;
 use crate::schema::IndexRecordOption;
 use crate::termdict::TermDictionary;
 
@@ -64,9 +66,9 @@ impl MergeOptimizedInvertedIndexReader {
         &self,
         term_info: &TermInfo,
         requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
-        let postings_data = self.postings_bytes.slice(term_info.postings_range.clone());
-        BlockSegmentPostings::open(
+    ) -> io::Result<BorrowedBlockSegmentPostings> {
+        let postings_data = &self.postings_bytes[term_info.postings_range.clone()];
+        BorrowedBlockSegmentPostings::open(
             term_info.doc_freq,
             postings_data,
             self.record_option,
@@ -82,22 +84,20 @@ impl MergeOptimizedInvertedIndexReader {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-    ) -> io::Result<SegmentPostings> {
+    ) -> io::Result<BorrowedSegmentPostings> {
         let option = option.downgrade(self.record_option);
 
         let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
         let position_reader = {
             if option.has_positions() {
-                let positions_data = self
-                    .positions_bytes
-                    .slice(term_info.positions_range.clone());
-                let position_reader = PositionReader::open(positions_data)?;
+                let positions_data = &self.positions_bytes[term_info.positions_range.clone()];
+                let position_reader = BorrowedPositionReader::open(positions_data)?;
                 Some(position_reader)
             } else {
                 None
             }
         };
-        Ok(SegmentPostings::from_block_postings(
+        Ok(BorrowedSegmentPostings::from_block_postings(
             block_postings,
             position_reader,
         ))
