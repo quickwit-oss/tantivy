@@ -10,7 +10,7 @@ use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
-fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
+pub(crate) fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
     it.next().map(|first| it.fold(first, Score::max))
 }
 
@@ -33,7 +33,7 @@ pub struct BlockSegmentPostings {
     skip_reader: SkipReader,
 }
 
-fn decode_bitpacked_block(
+pub(crate) fn decode_bitpacked_block(
     doc_decoder: &mut BlockDecoder,
     freq_decoder_opt: Option<&mut BlockDecoder>,
     data: &[u8],
@@ -53,7 +53,7 @@ fn decode_bitpacked_block(
     }
 }
 
-fn decode_vint_block(
+pub(crate) fn decode_vint_block(
     doc_decoder: &mut BlockDecoder,
     freq_decoder_opt: Option<&mut BlockDecoder>,
     data: &[u8],

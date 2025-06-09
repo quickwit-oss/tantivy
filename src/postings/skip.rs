@@ -13,24 +13,24 @@ use crate::{DocId, Score, TERMINATED};
 // - 4: a 5 bit number in 0..32, the actual bitwidth. Bitpacking could in theory say this is 32
 //   (requiring a 6th bit), but the biggest doc_id we can want to encode is TERMINATED-1, which can
 //   be represented on 31b without delta encoding.
-fn encode_bitwidth(bitwidth: u8, delta_1: bool) -> u8 {
+pub(crate) fn encode_bitwidth(bitwidth: u8, delta_1: bool) -> u8 {
     assert!(bitwidth < 32);
     bitwidth | ((delta_1 as u8) << 6)
 }
 
-fn decode_bitwidth(raw_bitwidth: u8) -> (u8, bool) {
+pub(crate) fn decode_bitwidth(raw_bitwidth: u8) -> (u8, bool) {
     let delta_1 = ((raw_bitwidth >> 6) & 1) != 0;
     let bitwidth = raw_bitwidth & 0x1f;
     (bitwidth, delta_1)
 }
 
 #[inline]
-fn encode_block_wand_max_tf(max_tf: u32) -> u8 {
+pub(crate) fn encode_block_wand_max_tf(max_tf: u32) -> u8 {
     max_tf.min(u8::MAX as u32) as u8
 }
 
 #[inline]
-fn decode_block_wand_max_tf(max_tf_code: u8) -> u32 {
+pub(crate) fn decode_block_wand_max_tf(max_tf_code: u8) -> u32 {
     if max_tf_code == u8::MAX {
         u32::MAX
     } else {
@@ -39,12 +39,12 @@ fn decode_block_wand_max_tf(max_tf_code: u8) -> u32 {
 }
 
 #[inline]
-fn read_u32(data: &[u8]) -> u32 {
+pub(crate) fn read_u32(data: &[u8]) -> u32 {
     u32::from_le_bytes(data[..4].try_into().unwrap())
 }
 
 #[inline]
-fn write_u32(val: u32, buf: &mut Vec<u8>) {
+pub(crate) fn write_u32(val: u32, buf: &mut Vec<u8>) {
     buf.extend_from_slice(&val.to_le_bytes());
 }
 
