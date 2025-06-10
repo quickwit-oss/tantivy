@@ -850,6 +850,21 @@ where
         self.buffer
     }
 
+    /// Returns the elements between `offset` and `top_n` in sorted order.
+    pub fn into_sorted_after(mut self, offset: usize) -> impl Iterator<Item=ComparableDoc<Score, D, R>> {
+        if self.buffer.len() > self.top_n {
+            self.truncate_top_n();
+        }
+
+        if offset >= self.buffer.len() {
+            return vec![].into_iter().skip(0);
+        }
+
+        let (_, _, remainder) = self.buffer.select_nth_unstable(offset);
+        remainder.sort_unstable();
+        self.buffer.into_iter().skip(offset)
+    }
+
     /// Returns the top n elements in stored order.
     /// Useful if you do not need the elements in sorted order,
     /// for example when merging the results of multiple segments.
