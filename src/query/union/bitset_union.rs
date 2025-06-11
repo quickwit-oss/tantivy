@@ -19,11 +19,8 @@ pub struct BitSetPostingUnion<TDocSet> {
 }
 
 impl<TDocSet: DocSet> BitSetPostingUnion<TDocSet> {
-    pub(crate) fn build(
-        docsets: Vec<TDocSet>,
-        bitset: BitSetDocSet,
-    ) -> BitSetPostingUnion<TDocSet> {
-        BitSetPostingUnion {
+    pub(crate) fn build(docsets: Vec<TDocSet>, bitset: BitSetDocSet) -> Self {
+        Self {
             docsets: RefCell::new(docsets),
             bitset,
         }

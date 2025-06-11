@@ -40,8 +40,8 @@ impl BlockVariant {
     }
     pub fn num_bytes_in_block(&self) -> u32 {
         match *self {
-            BlockVariant::Dense => set_block::DENSE_BLOCK_NUM_BYTES,
-            BlockVariant::Sparse { num_vals } => num_vals as u32 * 2,
+            Self::Dense => set_block::DENSE_BLOCK_NUM_BYTES,
+            Self::Sparse { num_vals } => num_vals as u32 * 2,
         }
     }
 }
@@ -126,8 +126,8 @@ enum BlockSelectCursor<'a> {
 impl BlockSelectCursor<'_> {
     fn select(&mut self, rank: u16) -> u16 {
         match self {
-            BlockSelectCursor::Dense(dense_select_cursor) => dense_select_cursor.select(rank),
-            BlockSelectCursor::Sparse(sparse_select_cursor) => sparse_select_cursor.select(rank),
+            Self::Dense(dense_select_cursor) => dense_select_cursor.select(rank),
+            Self::Sparse(sparse_select_cursor) => sparse_select_cursor.select(rank),
         }
     }
 }
@@ -258,7 +258,7 @@ impl Set<RowId> for OptionalIndex {
 }
 
 impl OptionalIndex {
-    pub fn for_test(num_rows: RowId, row_ids: &[RowId]) -> OptionalIndex {
+    pub fn for_test(num_rows: RowId, row_ids: &[RowId]) -> Self {
         assert!(
             row_ids
                 .last()
@@ -266,7 +266,7 @@ impl OptionalIndex {
                 .map(|last_row_id| last_row_id < num_rows)
                 .unwrap_or(true)
         );
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         serialize_optional_index(&row_ids, num_rows, &mut buffer).unwrap();
         let bytes = OwnedBytes::new(buffer);
         open_optional_index(bytes).unwrap()
@@ -384,8 +384,8 @@ pub fn serialize_optional_index<W: io::Write>(
     VInt(num_rows as u64).serialize(output)?;
 
     let mut rows_it = non_null_rows.boxed_iter();
-    let mut block_metadata: Vec<SerializedBlockMeta> = Vec::new();
-    let mut current_block = Vec::new();
+    let mut block_metadata: Vec<SerializedBlockMeta> = vec![];
+    let mut current_block = vec![];
 
     // This if-statement for the first element ensures that
     // `block_metadata` is not empty in the loop below.
@@ -441,11 +441,11 @@ struct SerializedBlockMeta {
 // TODO unit tests
 impl SerializedBlockMeta {
     #[inline]
-    fn from_bytes(bytes: [u8; SERIALIZED_BLOCK_META_NUM_BYTES]) -> SerializedBlockMeta {
+    fn from_bytes(bytes: [u8; SERIALIZED_BLOCK_META_NUM_BYTES]) -> Self {
         let block_id = u16::from_le_bytes(bytes[0..2].try_into().unwrap());
         let num_non_null_rows: u32 =
             u16::from_le_bytes(bytes[2..4].try_into().unwrap()) as u32 + 1u32;
-        SerializedBlockMeta {
+        Self {
             block_id,
             num_non_null_rows,
         }

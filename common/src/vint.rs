@@ -37,7 +37,7 @@ impl BinarySerializable for VIntU128 {
                 Some(Ok(b)) => {
                     result |= u128::from(b % 128u8) << shift;
                     if b >= STOP_BIT {
-                        return Ok(VIntU128(result));
+                        return Ok(Self(result));
                     }
                     shift += 7;
                 }
@@ -163,7 +163,7 @@ impl VInt {
     }
 
     pub fn deserialize_u64<R: Read>(reader: &mut R) -> io::Result<u64> {
-        VInt::deserialize(reader).map(|vint| vint.0)
+        Self::deserialize(reader).map(|vint| vint.0)
     }
 
     pub fn serialize_into_vec(&self, output: &mut Vec<u8>) {
@@ -204,7 +204,7 @@ impl BinarySerializable for VInt {
                 Some(Ok(b)) => {
                     result |= u64::from(b % 128u8) << shift;
                     if b >= STOP_BIT {
-                        return Ok(VInt(result));
+                        return Ok(Self(result));
                     }
                     shift += 7;
                 }

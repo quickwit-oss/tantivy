@@ -26,8 +26,8 @@ impl SegmentEntry {
         segment_meta: SegmentMeta,
         delete_cursor: DeleteCursor,
         alive_bitset: Option<BitSet>,
-    ) -> SegmentEntry {
-        SegmentEntry {
+    ) -> Self {
+        Self {
             meta: segment_meta,
             alive_bitset,
             delete_cursor,

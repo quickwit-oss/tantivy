@@ -42,19 +42,19 @@ pub struct Addr(u32);
 impl Addr {
     /// Creates a null pointer.
     #[inline]
-    pub fn null_pointer() -> Addr {
-        Addr(u32::MAX)
+    pub fn null_pointer() -> Self {
+        Self(u32::MAX)
     }
 
     /// Returns the `Addr` object for `addr + offset`
     #[inline]
-    pub fn offset(self, offset: u32) -> Addr {
-        Addr(self.0.wrapping_add(offset))
+    pub fn offset(self, offset: u32) -> Self {
+        Self(self.0.wrapping_add(offset))
     }
 
     #[inline]
-    fn new(page_id: usize, local_addr: usize) -> Addr {
-        Addr(((page_id << NUM_BITS_PAGE_ADDR) | local_addr) as u32)
+    fn new(page_id: usize, local_addr: usize) -> Self {
+        Self(((page_id << NUM_BITS_PAGE_ADDR) | local_addr) as u32)
     }
 
     #[inline]
@@ -94,9 +94,9 @@ pub struct MemoryArena {
 }
 
 impl Default for MemoryArena {
-    fn default() -> MemoryArena {
+    fn default() -> Self {
         let first_page = Page::new(0);
-        MemoryArena {
+        Self {
             pages: vec![first_page],
         }
     }
@@ -196,13 +196,13 @@ struct Page {
 }
 
 impl Page {
-    fn new(page_id: usize) -> Page {
+    fn new(page_id: usize) -> Self {
         // We use 32-bits addresses.
         // - 20 bits for the in-page addressing
         // - 12 bits for the page id.
         // This limits us to 2^12 - 1=4095 for the page id.
         assert!(page_id < 4096);
-        Page {
+        Self {
             page_id,
             len: 0,
             data: vec![0u8; PAGE_SIZE].into_boxed_slice().try_into().unwrap(),

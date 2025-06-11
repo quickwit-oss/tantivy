@@ -99,7 +99,7 @@ impl BlockSegmentPostings {
         data: FileSlice,
         mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
+    ) -> io::Result<Self> {
         let bytes = data.read_bytes()?;
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
         let skip_reader = match skip_data_opt {
@@ -125,7 +125,7 @@ impl BlockSegmentPostings {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let mut block_segment_postings = BlockSegmentPostings {
+        let mut block_segment_postings = Self {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             block_loaded: false,
             freq_decoder: BlockDecoder::with_val(1),
@@ -360,8 +360,8 @@ impl BlockSegmentPostings {
     }
 
     /// Returns an empty segment postings object
-    pub fn empty() -> BlockSegmentPostings {
-        BlockSegmentPostings {
+    pub fn empty() -> Self {
+        Self {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             block_loaded: true,
             freq_decoder: BlockDecoder::with_val(1),

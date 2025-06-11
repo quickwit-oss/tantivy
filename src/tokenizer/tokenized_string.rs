@@ -32,8 +32,7 @@ impl BinarySerializable for PreTokenizedString {
         if let Ok(text) = serde_json::to_string(self) {
             <String as BinarySerializable>::serialize(&text, writer)
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
+            Err(io::Error::other(
                 "Failed to dump PreTokenizedString to json.",
             ))
         }
@@ -45,8 +44,7 @@ impl BinarySerializable for PreTokenizedString {
         if let Ok(value) = serde_json::from_str(&json_text) {
             Ok(value)
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
+            Err(io::Error::other(
                 "Failed to parse string data as PreTokenizedString.",
             ))
         }
@@ -60,8 +58,8 @@ pub struct PreTokenizedStream {
 }
 
 impl From<PreTokenizedString> for PreTokenizedStream {
-    fn from(s: PreTokenizedString) -> PreTokenizedStream {
-        PreTokenizedStream {
+    fn from(s: PreTokenizedString) -> Self {
+        Self {
             tokenized_string: s,
             current_token: -1,
         }

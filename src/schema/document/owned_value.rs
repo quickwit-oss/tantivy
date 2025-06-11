@@ -51,9 +51,9 @@ pub enum OwnedValue {
     IpAddr(Ipv6Addr),
 }
 
-impl AsRef<OwnedValue> for OwnedValue {
+impl AsRef<Self> for OwnedValue {
     #[inline]
-    fn as_ref(&self) -> &OwnedValue {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
@@ -170,26 +170,24 @@ impl serde::Serialize for OwnedValue {
     where S: serde::Serializer {
         use serde::ser::SerializeMap;
         match *self {
-            OwnedValue::Null => serializer.serialize_unit(),
-            OwnedValue::Str(ref v) => serializer.serialize_str(v),
-            OwnedValue::PreTokStr(ref v) => v.serialize(serializer),
-            OwnedValue::U64(u) => serializer.serialize_u64(u),
-            OwnedValue::I64(u) => serializer.serialize_i64(u),
-            OwnedValue::F64(u) => serializer.serialize_f64(u),
-            OwnedValue::Bool(b) => serializer.serialize_bool(b),
-            OwnedValue::Date(ref date) => {
-                time::serde::rfc3339::serialize(&date.into_utc(), serializer)
-            }
-            OwnedValue::Facet(ref facet) => facet.serialize(serializer),
-            OwnedValue::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
-            OwnedValue::Object(ref obj) => {
+            Self::Null => serializer.serialize_unit(),
+            Self::Str(ref v) => serializer.serialize_str(v),
+            Self::PreTokStr(ref v) => v.serialize(serializer),
+            Self::U64(u) => serializer.serialize_u64(u),
+            Self::I64(u) => serializer.serialize_i64(u),
+            Self::F64(u) => serializer.serialize_f64(u),
+            Self::Bool(b) => serializer.serialize_bool(b),
+            Self::Date(ref date) => time::serde::rfc3339::serialize(&date.into_utc(), serializer),
+            Self::Facet(ref facet) => facet.serialize(serializer),
+            Self::Bytes(ref bytes) => serializer.serialize_str(&BASE64.encode(bytes)),
+            Self::Object(ref obj) => {
                 let mut map = serializer.serialize_map(Some(obj.len()))?;
                 for (k, v) in obj {
                     map.serialize_entry(k, v)?;
                 }
                 map.end()
             }
-            OwnedValue::IpAddr(ref ip_v6) => {
+            Self::IpAddr(ref ip_v6) => {
                 // Ensure IpV4 addresses get serialized as IpV4, but excluding IpV6 loopback.
                 if let Some(ip_v4) = ip_v6.to_ipv4_mapped() {
                     ip_v4.serialize(serializer)
@@ -197,7 +195,7 @@ impl serde::Serialize for OwnedValue {
                     ip_v6.serialize(serializer)
                 }
             }
-            OwnedValue::Array(ref array) => array.serialize(serializer),
+            Self::Array(ref array) => array.serialize(serializer),
         }
     }
 }
@@ -269,27 +267,25 @@ impl<'de> serde::Deserialize<'de> for OwnedValue {
 }
 
 impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
-    fn from(val: ReferenceValue<'a, V>) -> OwnedValue {
+    fn from(val: ReferenceValue<'a, V>) -> Self {
         match val {
             ReferenceValue::Leaf(leaf) => match leaf {
-                ReferenceValueLeaf::Null => OwnedValue::Null,
-                ReferenceValueLeaf::Str(val) => OwnedValue::Str(val.to_string()),
-                ReferenceValueLeaf::U64(val) => OwnedValue::U64(val),
-                ReferenceValueLeaf::I64(val) => OwnedValue::I64(val),
-                ReferenceValueLeaf::F64(val) => OwnedValue::F64(val),
-                ReferenceValueLeaf::Date(val) => OwnedValue::Date(val),
+                ReferenceValueLeaf::Null => Self::Null,
+                ReferenceValueLeaf::Str(val) => Self::Str(val.to_string()),
+                ReferenceValueLeaf::U64(val) => Self::U64(val),
+                ReferenceValueLeaf::I64(val) => Self::I64(val),
+                ReferenceValueLeaf::F64(val) => Self::F64(val),
+                ReferenceValueLeaf::Date(val) => Self::Date(val),
                 ReferenceValueLeaf::Facet(val) => {
-                    OwnedValue::Facet(Facet::from_encoded_string(val.to_string()))
+                    Self::Facet(Facet::from_encoded_string(val.to_string()))
                 }
-                ReferenceValueLeaf::Bytes(val) => OwnedValue::Bytes(val.to_vec()),
-                ReferenceValueLeaf::IpAddr(val) => OwnedValue::IpAddr(val),
-                ReferenceValueLeaf::Bool(val) => OwnedValue::Bool(val),
-                ReferenceValueLeaf::PreTokStr(val) => OwnedValue::PreTokStr(*val.clone()),
+                ReferenceValueLeaf::Bytes(val) => Self::Bytes(val.to_vec()),
+                ReferenceValueLeaf::IpAddr(val) => Self::IpAddr(val),
+                ReferenceValueLeaf::Bool(val) => Self::Bool(val),
+                ReferenceValueLeaf::PreTokStr(val) => Self::PreTokStr(*val.clone()),
             },
-            ReferenceValue::Array(val) => {
-                OwnedValue::Array(val.map(|v| v.as_value().into()).collect())
-            }
-            ReferenceValue::Object(val) => OwnedValue::Object(
+            ReferenceValue::Array(val) => Self::Array(val.map(|v| v.as_value().into()).collect()),
+            ReferenceValue::Object(val) => Self::Object(
                 val.map(|(k, v)| (k.to_string(), v.as_value().into()))
                     .collect(),
             ),
@@ -298,81 +294,81 @@ impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
 }
 
 impl From<String> for OwnedValue {
-    fn from(s: String) -> OwnedValue {
-        OwnedValue::Str(s)
+    fn from(s: String) -> Self {
+        Self::Str(s)
     }
 }
 
 impl From<Ipv6Addr> for OwnedValue {
-    fn from(v: Ipv6Addr) -> OwnedValue {
-        OwnedValue::IpAddr(v)
+    fn from(v: Ipv6Addr) -> Self {
+        Self::IpAddr(v)
     }
 }
 
 impl From<u64> for OwnedValue {
-    fn from(v: u64) -> OwnedValue {
-        OwnedValue::U64(v)
+    fn from(v: u64) -> Self {
+        Self::U64(v)
     }
 }
 
 impl From<i64> for OwnedValue {
-    fn from(v: i64) -> OwnedValue {
-        OwnedValue::I64(v)
+    fn from(v: i64) -> Self {
+        Self::I64(v)
     }
 }
 
 impl From<f64> for OwnedValue {
-    fn from(v: f64) -> OwnedValue {
-        OwnedValue::F64(v)
+    fn from(v: f64) -> Self {
+        Self::F64(v)
     }
 }
 
 impl From<bool> for OwnedValue {
     fn from(b: bool) -> Self {
-        OwnedValue::Bool(b)
+        Self::Bool(b)
     }
 }
 
 impl From<DateTime> for OwnedValue {
-    fn from(dt: DateTime) -> OwnedValue {
-        OwnedValue::Date(dt)
+    fn from(dt: DateTime) -> Self {
+        Self::Date(dt)
     }
 }
 
 impl<'a> From<&'a str> for OwnedValue {
-    fn from(s: &'a str) -> OwnedValue {
-        OwnedValue::Str(s.to_string())
+    fn from(s: &'a str) -> Self {
+        Self::Str(s.to_string())
     }
 }
 
 impl<'a> From<&'a [u8]> for OwnedValue {
-    fn from(bytes: &'a [u8]) -> OwnedValue {
-        OwnedValue::Bytes(bytes.to_vec())
+    fn from(bytes: &'a [u8]) -> Self {
+        Self::Bytes(bytes.to_vec())
     }
 }
 
 impl From<Facet> for OwnedValue {
-    fn from(facet: Facet) -> OwnedValue {
-        OwnedValue::Facet(facet)
+    fn from(facet: Facet) -> Self {
+        Self::Facet(facet)
     }
 }
 
 impl From<Vec<u8>> for OwnedValue {
-    fn from(bytes: Vec<u8>) -> OwnedValue {
-        OwnedValue::Bytes(bytes)
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::Bytes(bytes)
     }
 }
 
 impl From<PreTokenizedString> for OwnedValue {
-    fn from(pretokenized_string: PreTokenizedString) -> OwnedValue {
-        OwnedValue::PreTokStr(pretokenized_string)
+    fn from(pretokenized_string: PreTokenizedString) -> Self {
+        Self::PreTokStr(pretokenized_string)
     }
 }
 
-impl From<BTreeMap<String, OwnedValue>> for OwnedValue {
-    fn from(object: BTreeMap<String, OwnedValue>) -> OwnedValue {
+impl From<BTreeMap<String, Self>> for OwnedValue {
+    fn from(object: BTreeMap<String, Self>) -> Self {
         let key_values = object.into_iter().collect();
-        OwnedValue::Object(key_values)
+        Self::Object(key_values)
     }
 }
 
@@ -416,11 +412,11 @@ impl From<serde_json::Value> for OwnedValue {
 
 impl From<serde_json::Map<String, serde_json::Value>> for OwnedValue {
     fn from(map: serde_json::Map<String, serde_json::Value>) -> Self {
-        let object: Vec<(String, OwnedValue)> = map
+        let object: Vec<(String, Self)> = map
             .into_iter()
-            .map(|(key, value)| (key, OwnedValue::from(value)))
+            .map(|(key, value)| (key, Self::from(value)))
             .collect();
-        OwnedValue::Object(object)
+        Self::Object(object)
     }
 }
 

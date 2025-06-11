@@ -42,10 +42,10 @@ impl InvertedIndexReader {
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
         record_option: IndexRecordOption,
-    ) -> io::Result<InvertedIndexReader> {
+    ) -> io::Result<Self> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
         let total_num_tokens = u64::deserialize(&mut total_num_tokens_slice.read_bytes()?)?;
-        Ok(InvertedIndexReader {
+        Ok(Self {
             termdict,
             postings_file_slice: postings_body,
             positions_file_slice,
@@ -56,8 +56,8 @@ impl InvertedIndexReader {
 
     /// Creates an empty `InvertedIndexReader` object, which
     /// contains no terms at all.
-    pub fn empty(record_option: IndexRecordOption) -> InvertedIndexReader {
-        InvertedIndexReader {
+    pub fn empty(record_option: IndexRecordOption) -> Self {
+        Self {
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
             positions_file_slice: FileSlice::empty(),
@@ -83,7 +83,7 @@ impl InvertedIndexReader {
     /// TODO: Move to sstable to use the index.
     pub fn list_encoded_fields(&self) -> io::Result<Vec<(String, Type)>> {
         let mut stream = self.termdict.stream()?;
-        let mut fields = Vec::new();
+        let mut fields = vec![];
         let mut fields_set = FnvHashSet::default();
         while let Some((term, _term_info)) = stream.next() {
             if let Some(index) = term.iter().position(|&byte| byte == JSON_END_OF_PATH) {

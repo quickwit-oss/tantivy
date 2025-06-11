@@ -89,14 +89,14 @@ impl SegmentRegister {
         self.segment_states.get(segment_id).cloned()
     }
 
-    pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: &DeleteCursor) -> SegmentRegister {
+    pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: &DeleteCursor) -> Self {
         let mut segment_states = HashMap::new();
         for segment_meta in segment_metas {
             let segment_id = segment_meta.id();
             let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone(), None);
             segment_states.insert(segment_id, segment_entry);
         }
-        SegmentRegister { segment_states }
+        Self { segment_states }
     }
 }
 

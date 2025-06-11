@@ -36,15 +36,15 @@ impl PhrasePrefixQuery {
     /// must belong to the same field.
     /// Offset for each term will be same as index in the Vector
     /// The last Term is a prefix and not a full value
-    pub fn new(terms: Vec<Term>) -> PhrasePrefixQuery {
+    pub fn new(terms: Vec<Term>) -> Self {
         let terms_with_offset = terms.into_iter().enumerate().collect();
-        PhrasePrefixQuery::new_with_offset(terms_with_offset)
+        Self::new_with_offset(terms_with_offset)
     }
 
     /// Creates a new `PhrasePrefixQuery` given a list of terms and their offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> PhrasePrefixQuery {
+    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> Self {
         assert!(
             !terms.is_empty(),
             "A phrase prefix query is required to have at least one term."
@@ -55,7 +55,7 @@ impl PhrasePrefixQuery {
             terms[1..].iter().all(|term| term.1.field() == field),
             "All terms from a phrase query must belong to the same field"
         );
-        PhrasePrefixQuery {
+        Self {
             field,
             prefix: terms.pop().unwrap(),
             phrase_terms: terms,

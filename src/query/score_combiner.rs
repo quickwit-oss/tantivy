@@ -65,8 +65,8 @@ pub struct DisjunctionMaxCombiner {
 
 impl DisjunctionMaxCombiner {
     /// Creates `DisjunctionMaxCombiner` with tie breaker
-    pub fn with_tie_breaker(tie_breaker: Score) -> DisjunctionMaxCombiner {
-        DisjunctionMaxCombiner {
+    pub fn with_tie_breaker(tie_breaker: Score) -> Self {
+        Self {
             max: 0.0,
             sum: 0.0,
             tie_breaker,

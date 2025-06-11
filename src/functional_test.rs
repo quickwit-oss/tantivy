@@ -34,7 +34,7 @@ fn test_functional_store() -> crate::Result<()> {
     let mut index_writer: IndexWriter =
         index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
 
-    let mut doc_set: Vec<u64> = Vec::new();
+    let mut doc_set: Vec<u64> = vec![];
 
     let mut doc_id = 0u64;
     for _iteration in 0..get_num_iterations() {

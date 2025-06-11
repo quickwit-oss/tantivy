@@ -48,11 +48,11 @@ pub struct IndexReaderBuilder {
 
 impl IndexReaderBuilder {
     #[must_use]
-    pub(crate) fn new(index: Index) -> IndexReaderBuilder {
-        IndexReaderBuilder {
+    pub(crate) fn new(index: Index) -> Self {
+        Self {
             reload_policy: ReloadPolicy::OnCommitWithDelay,
             index,
-            warmers: Vec::new(),
+            warmers: vec![],
             num_warming_threads: 1,
             doc_store_cache_num_blocks: DOCSTORE_CACHE_CAPACITY,
         }
@@ -109,7 +109,7 @@ impl IndexReaderBuilder {
     ///
     /// See [`ReloadPolicy`] for more details.
     #[must_use]
-    pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
+    pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> Self {
         self.reload_policy = reload_policy;
         self
     }
@@ -118,17 +118,14 @@ impl IndexReaderBuilder {
     ///
     /// The doc store readers cache by default DOCSTORE_CACHE_CAPACITY(100) decompressed blocks.
     #[must_use]
-    pub fn doc_store_cache_num_blocks(
-        mut self,
-        doc_store_cache_num_blocks: usize,
-    ) -> IndexReaderBuilder {
+    pub fn doc_store_cache_num_blocks(mut self, doc_store_cache_num_blocks: usize) -> Self {
         self.doc_store_cache_num_blocks = doc_store_cache_num_blocks;
         self
     }
 
     /// Set the [`Warmer`]s that are invoked when reloading searchable segments.
     #[must_use]
-    pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
+    pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> Self {
         self.warmers = warmers;
         self
     }
@@ -138,7 +135,7 @@ impl IndexReaderBuilder {
     /// This allows parallelizing warming work when there are multiple [`Warmer`] registered with
     /// the [`IndexReader`].
     #[must_use]
-    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
+    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> Self {
         self.num_warming_threads = num_warming_threads;
         self
     }
@@ -148,7 +145,7 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
     type Error = crate::TantivyError;
 
     fn try_into(self) -> crate::Result<IndexReader> {
-        IndexReaderBuilder::try_into(self)
+        Self::try_into(self)
     }
 }
 
@@ -179,7 +176,7 @@ impl InnerIndexReader {
             &searcher_generation_counter,
             &searcher_generation_inventory,
         )?;
-        Ok(InnerIndexReader {
+        Ok(Self {
             doc_store_cache_num_blocks,
             index,
             warming_state,

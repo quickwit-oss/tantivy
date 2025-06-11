@@ -21,7 +21,7 @@ impl<'a, A> TermStreamerBuilder<'a, A>
 where A: Automaton
 {
     pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a, A>) -> Self {
-        TermStreamerBuilder {
+        Self {
             fst_map,
             stream_builder,
         }

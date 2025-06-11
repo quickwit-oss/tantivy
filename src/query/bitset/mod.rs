@@ -27,13 +27,13 @@ impl BitSetDocSet {
 }
 
 impl From<BitSet> for BitSetDocSet {
-    fn from(docs: BitSet) -> BitSetDocSet {
+    fn from(docs: BitSet) -> Self {
         let first_tiny_bitset = if docs.max_value() == 0 {
             TinySet::empty()
         } else {
             docs.tinyset(0)
         };
-        let mut docset = BitSetDocSet {
+        let mut docset = Self {
             docs,
             cursor_bucket: 0,
             cursor_tinybitset: first_tiny_bitset,

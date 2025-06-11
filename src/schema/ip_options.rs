@@ -14,8 +14,8 @@ pub trait IntoIpv6Addr {
 impl IntoIpv6Addr for IpAddr {
     fn into_ipv6_addr(self) -> Ipv6Addr {
         match self {
-            IpAddr::V4(addr) => addr.to_ipv6_mapped(),
-            IpAddr::V6(addr) => addr,
+            Self::V4(addr) => addr.to_ipv6_mapped(),
+            Self::V6(addr) => addr,
         }
     }
 }
@@ -95,14 +95,14 @@ impl IpAddrOptions {
 }
 
 impl From<()> for IpAddrOptions {
-    fn from(_: ()) -> IpAddrOptions {
-        IpAddrOptions::default()
+    fn from(_: ()) -> Self {
+        Self::default()
     }
 }
 
 impl From<FastFlag> for IpAddrOptions {
     fn from(_: FastFlag) -> Self {
-        IpAddrOptions {
+        Self {
             fieldnorms: false,
             indexed: false,
             stored: false,
@@ -113,7 +113,7 @@ impl From<FastFlag> for IpAddrOptions {
 
 impl From<StoredFlag> for IpAddrOptions {
     fn from(_: StoredFlag) -> Self {
-        IpAddrOptions {
+        Self {
             fieldnorms: false,
             indexed: false,
             stored: true,
@@ -124,7 +124,7 @@ impl From<StoredFlag> for IpAddrOptions {
 
 impl From<IndexedFlag> for IpAddrOptions {
     fn from(_: IndexedFlag) -> Self {
-        IpAddrOptions {
+        Self {
             fieldnorms: true,
             indexed: true,
             stored: false,
@@ -133,12 +133,12 @@ impl From<IndexedFlag> for IpAddrOptions {
     }
 }
 
-impl<T: Into<IpAddrOptions>> BitOr<T> for IpAddrOptions {
-    type Output = IpAddrOptions;
+impl<T: Into<Self>> BitOr<T> for IpAddrOptions {
+    type Output = Self;
 
-    fn bitor(self, other: T) -> IpAddrOptions {
+    fn bitor(self, other: T) -> Self {
         let other = other.into();
-        IpAddrOptions {
+        Self {
             fieldnorms: self.fieldnorms | other.fieldnorms,
             indexed: self.indexed | other.indexed,
             stored: self.stored | other.stored,

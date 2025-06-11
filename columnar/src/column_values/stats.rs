@@ -44,7 +44,7 @@ impl BinarySerializable for ColumnStats {
         let amplitude = VInt::deserialize(reader)?.0 * gcd.get();
         let max_value = min_value + amplitude;
         let num_rows = VInt::deserialize(reader)?.0 as RowId;
-        Ok(ColumnStats {
+        Ok(Self {
             min_value,
             max_value,
             num_rows,
@@ -63,7 +63,7 @@ mod tests {
 
     #[track_caller]
     fn test_stats_ser_deser_aux(stats: &ColumnStats, num_bytes: usize) {
-        let mut buffer: Vec<u8> = Vec::new();
+        let mut buffer: Vec<u8> = vec![];
         stats.serialize(&mut buffer).unwrap();
         assert_eq!(buffer.len(), num_bytes);
         let deser_stats = ColumnStats::deserialize(&mut &buffer[..]).unwrap();

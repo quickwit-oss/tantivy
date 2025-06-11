@@ -17,14 +17,14 @@ pub struct BoostQuery {
 
 impl BoostQuery {
     /// Builds a boost query.
-    pub fn new(query: Box<dyn Query>, boost: Score) -> BoostQuery {
-        BoostQuery { query, boost }
+    pub fn new(query: Box<dyn Query>, boost: Score) -> Self {
+        Self { query, boost }
     }
 }
 
 impl Clone for BoostQuery {
     fn clone(&self) -> Self {
-        BoostQuery {
+        Self {
             query: self.query.box_clone(),
             boost: self.boost,
         }
@@ -62,7 +62,7 @@ pub struct BoostWeight {
 impl BoostWeight {
     /// Creates a new BoostWeight.
     pub fn new(weight: Box<dyn Weight>, boost: Score) -> Self {
-        BoostWeight { weight, boost }
+        Self { weight, boost }
     }
 }
 
@@ -91,8 +91,8 @@ pub(crate) struct BoostScorer<S: Scorer> {
 }
 
 impl<S: Scorer> BoostScorer<S> {
-    pub fn new(underlying: S, boost: Score) -> BoostScorer<S> {
-        BoostScorer { underlying, boost }
+    pub fn new(underlying: S, boost: Score) -> Self {
+        Self { underlying, boost }
     }
 }
 

@@ -8,7 +8,7 @@ pub struct BoundsRange<T> {
 }
 impl<T> BoundsRange<T> {
     pub fn new(lower_bound: Bound<T>, upper_bound: Bound<T>) -> Self {
-        BoundsRange {
+        Self {
             lower_bound,
             upper_bound,
         }

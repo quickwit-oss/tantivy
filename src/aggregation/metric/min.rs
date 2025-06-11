@@ -58,7 +58,7 @@ impl IntermediateMin {
         }
     }
     /// Merges the other intermediate result into self.
-    pub fn merge_fruits(&mut self, other: IntermediateMin) {
+    pub fn merge_fruits(&mut self, other: Self) {
         self.stats.merge_fruits(other.stats);
     }
     /// Computes the final minimum value.

@@ -21,15 +21,15 @@ pub struct ArenaHashMap {
 
 impl Default for ArenaHashMap {
     fn default() -> Self {
-        ArenaHashMap::with_capacity(4)
+        Self::with_capacity(4)
     }
 }
 
 impl ArenaHashMap {
-    pub fn with_capacity(table_size: usize) -> ArenaHashMap {
+    pub fn with_capacity(table_size: usize) -> Self {
         let memory_arena = MemoryArena::default();
 
-        ArenaHashMap {
+        Self {
             shared_arena_hashmap: SharedArenaHashMap::with_capacity(table_size),
             memory_arena,
         }

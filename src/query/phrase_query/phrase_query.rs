@@ -32,20 +32,20 @@ impl PhraseQuery {
     /// There must be at least two terms, and all terms
     /// must belong to the same field.
     /// Offset for each term will be same as index in the Vector
-    pub fn new(terms: Vec<Term>) -> PhraseQuery {
+    pub fn new(terms: Vec<Term>) -> Self {
         let terms_with_offset = terms.into_iter().enumerate().collect();
-        PhraseQuery::new_with_offset(terms_with_offset)
+        Self::new_with_offset(terms_with_offset)
     }
 
     /// Creates a new `PhraseQuery` given a list of terms and their offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(terms: Vec<(usize, Term)>) -> PhraseQuery {
-        PhraseQuery::new_with_offset_and_slop(terms, 0)
+    pub fn new_with_offset(terms: Vec<(usize, Term)>) -> Self {
+        Self::new_with_offset_and_slop(terms, 0)
     }
 
     /// Creates a new `PhraseQuery` given a list of terms, their offsets and a slop
-    pub fn new_with_offset_and_slop(mut terms: Vec<(usize, Term)>, slop: u32) -> PhraseQuery {
+    pub fn new_with_offset_and_slop(mut terms: Vec<(usize, Term)>, slop: u32) -> Self {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
@@ -56,7 +56,7 @@ impl PhraseQuery {
             terms[1..].iter().all(|term| term.1.field() == field),
             "All terms from a phrase query must belong to the same field"
         );
-        PhraseQuery {
+        Self {
             field,
             phrase_terms: terms,
             slop,

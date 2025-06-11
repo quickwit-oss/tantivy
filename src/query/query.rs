@@ -35,8 +35,8 @@ pub enum EnableScoring<'a> {
 
 impl<'a> EnableScoring<'a> {
     /// Create using [Searcher] with scoring enabled.
-    pub fn enabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
-        EnableScoring::Enabled {
+    pub fn enabled_from_searcher(searcher: &'a Searcher) -> Self {
+        Self::Enabled {
             searcher,
             statistics_provider: searcher,
         }
@@ -46,23 +46,23 @@ impl<'a> EnableScoring<'a> {
     pub fn enabled_from_statistics_provider(
         statistics_provider: &'a dyn Bm25StatisticsProvider,
         searcher: &'a Searcher,
-    ) -> EnableScoring<'a> {
-        EnableScoring::Enabled {
+    ) -> Self {
+        Self::Enabled {
             statistics_provider,
             searcher,
         }
     }
 
     /// Create using [Searcher] with scoring disabled.
-    pub fn disabled_from_searcher(searcher: &'a Searcher) -> EnableScoring<'a> {
-        EnableScoring::Disabled {
+    pub fn disabled_from_searcher(searcher: &'a Searcher) -> Self {
+        Self::Disabled {
             schema: searcher.schema(),
             searcher_opt: Some(searcher),
         }
     }
 
     /// Create using [Schema] with scoring disabled.
-    pub fn disabled_from_schema(schema: &'a Schema) -> EnableScoring<'a> {
+    pub fn disabled_from_schema(schema: &'a Schema) -> Self {
         Self::Disabled {
             schema,
             searcher_opt: None,
@@ -72,22 +72,22 @@ impl<'a> EnableScoring<'a> {
     /// Returns the searcher if available.
     pub fn searcher(&self) -> Option<&Searcher> {
         match self {
-            EnableScoring::Enabled { searcher, .. } => Some(*searcher),
-            EnableScoring::Disabled { searcher_opt, .. } => searcher_opt.to_owned(),
+            Self::Enabled { searcher, .. } => Some(*searcher),
+            Self::Disabled { searcher_opt, .. } => searcher_opt.to_owned(),
         }
     }
 
     /// Returns the schema.
     pub fn schema(&self) -> &Schema {
         match self {
-            EnableScoring::Enabled { searcher, .. } => searcher.schema(),
-            EnableScoring::Disabled { schema, .. } => schema,
+            Self::Enabled { searcher, .. } => searcher.schema(),
+            Self::Disabled { schema, .. } => schema,
         }
     }
 
     /// Returns true if the scoring is enabled.
     pub fn is_scoring_enabled(&self) -> bool {
-        matches!(self, EnableScoring::Enabled { .. })
+        matches!(self, Self::Enabled { .. })
     }
 }
 

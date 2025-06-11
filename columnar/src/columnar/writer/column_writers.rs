@@ -124,8 +124,8 @@ pub(crate) enum CompatibleNumericalTypes {
 }
 
 impl Default for CompatibleNumericalTypes {
-    fn default() -> CompatibleNumericalTypes {
-        CompatibleNumericalTypes::Dynamic {
+    fn default() -> Self {
+        Self::Dynamic {
             all_values_within_i64_range: true,
             all_values_within_u64_range: true,
         }
@@ -135,7 +135,7 @@ impl Default for CompatibleNumericalTypes {
 impl CompatibleNumericalTypes {
     pub fn is_type_accepted(&self, numerical_type: NumericalType) -> bool {
         match self {
-            CompatibleNumericalTypes::Dynamic {
+            Self::Dynamic {
                 all_values_within_i64_range,
                 all_values_within_u64_range,
             } => match numerical_type {
@@ -143,15 +143,13 @@ impl CompatibleNumericalTypes {
                 NumericalType::U64 => *all_values_within_u64_range,
                 NumericalType::F64 => true,
             },
-            CompatibleNumericalTypes::StaticType(static_numerical_type) => {
-                *static_numerical_type == numerical_type
-            }
+            Self::StaticType(static_numerical_type) => *static_numerical_type == numerical_type,
         }
     }
 
     pub fn accept_value(&mut self, numerical_value: NumericalValue) {
         match self {
-            CompatibleNumericalTypes::Dynamic {
+            Self::Dynamic {
                 all_values_within_i64_range,
                 all_values_within_u64_range,
             } => match numerical_value {
@@ -168,7 +166,7 @@ impl CompatibleNumericalTypes {
                     *all_values_within_u64_range = false;
                 }
             },
-            CompatibleNumericalTypes::StaticType(typ) => {
+            Self::StaticType(typ) => {
                 assert_eq!(
                     numerical_value.numerical_type(),
                     *typ,
@@ -232,8 +230,8 @@ pub(crate) struct StrOrBytesColumnWriter {
 }
 
 impl StrOrBytesColumnWriter {
-    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> StrOrBytesColumnWriter {
-        StrOrBytesColumnWriter {
+    pub(crate) fn with_dictionary_id(dictionary_id: u32) -> Self {
+        Self {
             dictionary_id,
             column_writer: Default::default(),
             sort_values_within_row: false,

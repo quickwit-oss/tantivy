@@ -115,7 +115,7 @@ fn main() -> io::Result<()> {
 
     println!("value count {total_count}");
 
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let start_serialize = Instant::now();
     columnar.serialize(doc, None, &mut buffer)?;
     println!("Serialized in {:?}", start_serialize.elapsed());
