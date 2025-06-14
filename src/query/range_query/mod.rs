@@ -15,7 +15,7 @@ pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
         Type::Str | Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date | Type::Json => {
             true
         }
-        Type::IpAddr => true,
+        Type::IpAddr | Type::U128 => true,
         Type::Facet | Type::Bytes => false,
     }
 }

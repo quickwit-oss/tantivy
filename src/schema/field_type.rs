@@ -71,6 +71,8 @@ pub enum Type {
     Json = b'j',
     /// IpAddr
     IpAddr = b'p',
+    /// U128
+    U128 = b'8',
 }
 
 impl From<ColumnType> for Type {
@@ -84,6 +86,7 @@ impl From<ColumnType> for Type {
             ColumnType::DateTime => Type::Date,
             ColumnType::Bytes => Type::Bytes,
             ColumnType::IpAddr => Type::IpAddr,
+            ColumnType::U128 => Type::U128,
         }
     }
 }
@@ -139,6 +142,7 @@ impl Type {
             Type::Bytes => "Bytes",
             Type::Json => "Json",
             Type::IpAddr => "IpAddr",
+            Type::U128 => "U128",
         }
     }
 
@@ -157,6 +161,7 @@ impl Type {
             b'b' => Some(Type::Bytes),
             b'j' => Some(Type::Json),
             b'p' => Some(Type::IpAddr),
+            b'8' => Some(Type::U128),
             _ => None,
         }
     }
@@ -189,6 +194,8 @@ pub enum FieldType {
     JsonObject(JsonObjectOptions),
     /// IpAddr field
     IpAddr(IpAddrOptions),
+    /// U128 field
+    U128(NumericOptions),
 }
 
 impl FieldType {
@@ -205,6 +212,7 @@ impl FieldType {
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
             FieldType::IpAddr(_) => Type::IpAddr,
+            FieldType::U128(_) => Type::U128,
         }
     }
 
@@ -241,6 +249,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
+            FieldType::U128(ref u128_options) => u128_options.is_indexed(),
         }
     }
 
@@ -276,6 +285,7 @@ impl FieldType {
             | FieldType::Bool(ref int_options) => int_options.is_fast(),
             FieldType::Date(ref date_options) => date_options.is_fast(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
+            FieldType::U128(ref u128_options) => u128_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
         }
@@ -297,6 +307,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
+            FieldType::U128(ref u128_options) => u128_options.fieldnorms(),
         }
     }
 
@@ -343,6 +354,13 @@ impl FieldType {
                 .map(TextFieldIndexing::index_option),
             FieldType::IpAddr(ref ip_addr_options) => {
                 if ip_addr_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
+            FieldType::U128(ref u128_options) => {
+                if u128_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
@@ -449,6 +467,16 @@ impl FieldType {
 
                         Ok(OwnedValue::IpAddr(ip_addr.into_ipv6_addr()))
                     }
+                    FieldType::U128(_) => {
+                        let u128: u128 = u128::from_str(&field_text).map_err(|err| {
+                            ValueParsingError::ParseError {
+                                error: err.to_string(),
+                                json: JsonValue::String(field_text),
+                            }
+                        })?;
+
+                        Ok(OwnedValue::U128(u128))
+                    }
                 }
             }
             JsonValue::Number(field_val_num) => match self {
@@ -506,6 +534,10 @@ impl FieldType {
                 }),
                 FieldType::IpAddr(_) => Err(ValueParsingError::TypeError {
                     expected: "a string with an ip addr",
+                    json: JsonValue::Number(field_val_num),
+                }),
+                FieldType::U128(_) => Err(ValueParsingError::TypeError {
+                    expected: "a string with a u128",
                     json: JsonValue::Number(field_val_num),
                 }),
             },
