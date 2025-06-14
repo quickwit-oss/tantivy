@@ -90,11 +90,11 @@ impl Searcher {
         D::deserialize(&deserializer).map_err(crate::TantivyError::from)
     }
 
-    /// Same as `.doc(DocAddress)` except it does not deserialize the document and instead returns a deserializer with ownership of the raw document bytes.
+    /// Same as `.doc(doc_address)` except it does not deserialize the document and instead returns a deserializer with ownership of the raw document bytes.
     /// 
-    /// This allows for deserialization into a type that contains references such as `&str` or `&[u8]` via the `DocumentDeserializeRef` trait.
+    /// This allows for deserialization into a type that contains references such as `&str` or `&[u8]` via the `DocumentDeserialize` trait.
     /// 
-    /// If your type implements `DocumentDeserialize` you should use `.doc(DocAddress)` instead.
+    /// If your type implements `DocumentDeserializeOwned` you should use `.doc(doc_address)` instead since it's more convenient.
     pub fn doc_raw(&self, doc_address: DocAddress) -> crate::Result<BinaryDocumentDeserializer> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_raw(doc_address.doc_id)

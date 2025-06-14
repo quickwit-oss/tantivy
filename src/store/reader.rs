@@ -229,7 +229,7 @@ impl StoreReader {
 
     /// Reads a given document.
     ///
-    /// Calling `.get(doc)` is relatively costly as it requires
+    /// Calling `.get(doc_id)` is relatively costly as it requires
     /// decompressing a compressed block. The store utilizes a LRU cache,
     /// so accessing docs from the same compressed block should be faster.
     /// For that reason a store reader should be kept and reused.
@@ -241,11 +241,11 @@ impl StoreReader {
         D::deserialize(&deserializer).map_err(crate::TantivyError::from)
     }
 
-    /// Same as `.get(doc)` except it does not deserialize the document and instead returns a deserializer with ownership of the raw document bytes.
+    /// Same as `.get(doc_id)` except it does not deserialize the document and instead returns a deserializer with ownership of the raw document bytes.
     /// 
-    /// This allows for deserialization into a type that contains references such as `&str` or `&[u8]` via the `DocumentDeserializeRef` trait.
+    /// This allows for deserialization into a type that contains references such as `&str` or `&[u8]` via the `DocumentDeserialize` trait.
     /// 
-    /// If your type implements `DocumentDeserialize` you should use `.get(doc)` instead.
+    /// If your type implements `DocumentDeserializeOwned` you should use `.get(doc_id)` instead since it's more convenient.
     pub fn get_raw(&self, doc_id: DocId) -> crate::Result<BinaryDocumentDeserializer> {
         let doc_bytes = self.get_document_bytes(doc_id)?;
         BinaryDocumentDeserializer::from_reader(RefReader::new(doc_bytes), self.doc_store_version).map_err(crate::TantivyError::from)
