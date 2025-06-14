@@ -67,7 +67,7 @@ impl From<io::Error> for DeserializeError {
 /// instead.
 pub trait DocumentDeserializeOwned: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
-    fn deserialize<'a, 'de: 'a, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
+    fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de>;
 }
 
@@ -76,11 +76,10 @@ pub trait DocumentDeserializeOwned: Sized {
 /// Automatically implemented for all types that implement `DocumentDeserializeOwned`.
 pub trait DocumentDeserialize<'de>: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
-    fn deserialize<'a, 'b, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
+    fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
     where
         D: DocumentDeserializer<'de>,
-        'b: 'a,
-        'b: 'de;
+        'borrow: 'de;
 }
 
 // Implement `DocumentDeserializeRef` for all types that implement `DocumentDeserialize`.
@@ -89,11 +88,10 @@ pub trait DocumentDeserialize<'de>: Sized {
 impl<'de, T> DocumentDeserialize<'de> for T
 where T: DocumentDeserializeOwned
 {
-    fn deserialize<'a, 'b, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
+    fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
     where
         D: DocumentDeserializer<'de>,
-        'b: 'a,
-        'b: 'de,
+        'borrow: 'de,
     {
         T::deserialize(deserializer)
     }

@@ -376,8 +376,8 @@ impl PartialEq for CompactDoc {
 impl Eq for CompactDoc {}
 
 impl DocumentDeserializeOwned for CompactDoc {
-    fn deserialize<'a, 'b: 'a, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
-    where D: DocumentDeserializer<'b> {
+    fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
+    where D: DocumentDeserializer<'de> {
         let mut doc = CompactDoc::default();
         // TODO: Deserializing into OwnedValue is wasteful. The deserializer should be able to work
         // on slices and referenced data.
