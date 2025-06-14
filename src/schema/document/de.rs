@@ -8,20 +8,17 @@
 //! efficient way of deserializing a potentially arbitrarily nested object.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use std::io;
-use std::marker::PhantomData;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{u64_to_f64, BinaryRefDeserializable, DateTime, OwnedBytes, RefReader, VInt};
+use common::{u64_to_f64, BinaryRefDeserializable, DateTime, RefReader, VInt};
 
-use super::se::BinaryObjectSerializer;
-use super::{OwnedValue, Value};
+use super::ref_value::RefValue;
 use crate::schema::document::type_codes;
-use crate::schema::{Facet, Field};
+use crate::schema::Field;
 use crate::store::DocStoreVersion;
 use crate::tokenizer::PreTokenizedString;
 
@@ -67,17 +64,36 @@ impl From<io::Error> for DeserializeError {
 /// The core trait for deserializing a document with owned values.
 ///
 /// TODO: Improve docs
-pub trait DocumentDeserialize: Sized {
+pub trait DocumentDeserializeOwned: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
     fn deserialize<'a, 'de: 'a, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de>;
 }
 
 /// The core trait for deserializing a document with borrowed values.
-pub trait DocumentDeserializeRef<'de>: Sized {
+pub trait DocumentDeserialize<'de>: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
-    fn deserialize<'a, 'b: 'a, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
-    where D: DocumentDeserializer<'de>;
+    fn deserialize<'a, 'b, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
+    where
+        D: DocumentDeserializer<'de>,
+        'b: 'a,
+        'b: 'de;
+}
+
+// Implement `DocumentDeserializeRef` for all types that implement `DocumentDeserialize`.
+// If a type implements `DocumentDeserialize` that means it owns all values so there is no
+// difference between deserializing with owned and borrowed values.
+impl<'de, T> DocumentDeserialize<'de> for T
+where T: DocumentDeserializeOwned
+{
+    fn deserialize<'a, 'b, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
+    where
+        D: DocumentDeserializer<'de>,
+        'b: 'a,
+        'b: 'de,
+    {
+        T::deserialize(deserializer)
+    }
 }
 
 /// A deserializer that can walk through each entry in the document.
@@ -89,61 +105,8 @@ pub trait DocumentDeserializer<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next field in the document.
-    fn next_field<'a, V: ValueDeserialize<'a>>(
-        &'de self,
-    ) -> Result<Option<(Field, V)>, DeserializeError>
+    fn next_field<'a>(&'de self) -> Result<Option<(Field, RefValue<'a>)>, DeserializeError>
     where 'de: 'a;
-}
-
-/// The core trait for deserializing values.
-///
-/// TODO: Improve docs
-pub trait ValueDeserialize<'a>: Sized {
-    /// Attempts to deserialize Self from a given value deserializer.
-    fn deserialize<'de: 'a, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de>;
-}
-
-/// A value deserializer.
-pub trait ValueDeserializer<'de> {
-    /// Attempts to deserialize a null value from the deserializer.
-    fn deserialize_null(self) -> Result<(), DeserializeError>;
-
-    /// Attempts to deserialize a string value from the deserializer.
-    fn deserialize_string<'a>(self) -> Result<&'a str, DeserializeError>
-    where 'de: 'a;
-
-    /// Attempts to deserialize a u64 value from the deserializer.
-    fn deserialize_u64(self) -> Result<u64, DeserializeError>;
-
-    /// Attempts to deserialize an i64 value from the deserializer.
-    fn deserialize_i64(self) -> Result<i64, DeserializeError>;
-
-    /// Attempts to deserialize a f64 value from the deserializer.
-    fn deserialize_f64(self) -> Result<f64, DeserializeError>;
-
-    /// Attempts to deserialize a datetime value from the deserializer.
-    fn deserialize_datetime(self) -> Result<DateTime, DeserializeError>;
-
-    /// Attempts to deserialize a facet value from the deserializer.
-    fn deserialize_facet(self) -> Result<Facet, DeserializeError>;
-
-    /// Attempts to deserialize a bytes value from the deserializer.
-    fn deserialize_bytes<'a>(self) -> Result<&'a [u8], DeserializeError>
-    where 'de: 'a;
-
-    /// Attempts to deserialize an IP address value from the deserializer.
-    fn deserialize_ip_address(self) -> Result<Ipv6Addr, DeserializeError>;
-
-    /// Attempts to deserialize a bool value from the deserializer.
-    fn deserialize_bool(self) -> Result<bool, DeserializeError>;
-
-    /// Attempts to deserialize a pre-tokenized string value from the deserializer.
-    fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError>;
-
-    /// Attempts to deserialize the value using a given visitor.
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
-    where V: ValueVisitor<'de>;
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -180,107 +143,6 @@ pub enum ValueType {
     JSONObject,
 }
 
-/// A value visitor for deserializing a document value.
-///
-/// This is strongly inspired by serde but has a few extra types.
-///
-/// TODO: Improve docs
-pub trait ValueVisitor<'de> {
-    /// The value produced by the visitor.
-    type Value;
-
-    #[inline]
-    /// Called when the deserializer visits a string value.
-    fn visit_null(&self) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::Null))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a string value.
-    fn visit_string<'a>(&self, _val: &'a str) -> Result<Self::Value, DeserializeError>
-    where 'de: 'a {
-        Err(DeserializeError::UnsupportedType(ValueType::String))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a u64 value.
-    fn visit_u64(&self, _val: u64) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::U64))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a i64 value.
-    fn visit_i64(&self, _val: i64) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::I64))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a f64 value.
-    fn visit_f64(&self, _val: f64) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::F64))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a bool value.
-    fn visit_bool(&self, _val: bool) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::Bool))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a datetime value.
-    fn visit_datetime(&self, _val: DateTime) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::DateTime))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits an IP address value.
-    fn visit_ip_address(&self, _val: Ipv6Addr) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::IpAddr))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a facet value.
-    fn visit_facet(&self, _val: Facet) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::Facet))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a bytes value.
-    fn visit_bytes<'a>(&self, _val: &'de [u8]) -> Result<Self::Value, DeserializeError>
-    where 'de: 'a {
-        Err(DeserializeError::UnsupportedType(ValueType::Bytes))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a pre-tokenized string value.
-    fn visit_pre_tokenized_string(
-        &self,
-        _val: PreTokenizedString,
-    ) -> Result<Self::Value, DeserializeError> {
-        Err(DeserializeError::UnsupportedType(ValueType::PreTokStr))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits an array.
-    fn visit_array<'a, A>(&self, _access: A) -> Result<Self::Value, DeserializeError>
-    where
-        A: ArrayAccess<'a>,
-        'de: 'a,
-    {
-        Err(DeserializeError::UnsupportedType(ValueType::Array))
-    }
-
-    #[inline]
-    /// Called when the deserializer visits a object value.
-    fn visit_object<'a, A>(&self, _access: A) -> Result<Self::Value, DeserializeError>
-    where
-        A: ObjectAccess<'a>,
-        'de: 'a,
-    {
-        Err(DeserializeError::UnsupportedType(ValueType::Object))
-    }
-}
-
 /// Access to a sequence of values which can be deserialized.
 pub trait ArrayAccess<'de> {
     /// A indicator as to how many values are in the object.
@@ -290,7 +152,7 @@ pub trait ArrayAccess<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next element in the sequence.
-    fn next_element<'a, V: ValueDeserialize<'a>>(&mut self) -> Result<Option<V>, DeserializeError>
+    fn next_element<'a>(&mut self) -> Result<Option<RefValue<'a>>, DeserializeError>
     where 'de: 'a;
 }
 
@@ -303,9 +165,7 @@ pub trait ObjectAccess<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next key-value pair in the object.
-    fn next_entry<'a, V: ValueDeserialize<'a>>(
-        &mut self,
-    ) -> Result<Option<(String, V)>, DeserializeError>
+    fn next_entry<'a>(&mut self) -> Result<Option<(&'a str, RefValue<'a>)>, DeserializeError>
     where 'de: 'a;
 }
 
@@ -313,9 +173,11 @@ pub trait ObjectAccess<'de> {
 /// `BinarySerializable`.
 ///
 /// This acts very similarly to serde's deserialize types and can incrementally
-/// deserialize each field of the document from the provided reader (`R`).
+/// deserialize each field of the document.
 ///
-/// TODO: Switch to slice instead?
+/// The `RefReader` owns the bytes of the document and provides a way to incrementally read without
+/// requiring a unique mutable reference or invalidating references to the underlying data. This
+/// allows for zero-copy deserialization of reference types such as `&str` and `&[u8]`.
 pub struct BinaryDocumentDeserializer {
     length: usize,
     position: RefCell<usize>,
@@ -347,258 +209,134 @@ impl BinaryDocumentDeserializer {
     }
 }
 
+fn deserialize_value<'a, 'b>(
+    reader: &'a RefReader,
+    doc_store_version: DocStoreVersion,
+) -> Result<RefValue<'b>, DeserializeError>
+where
+    'a: 'b,
+{
+    let type_code = u8::deserialize_from_ref(reader)?;
+
+    let result = match type_code {
+        // Simple types
+        type_codes::NULL_CODE => Ok(RefValue::Null),
+        type_codes::U64_CODE => u64::deserialize_from_ref(reader).map(RefValue::U64),
+        type_codes::I64_CODE => i64::deserialize_from_ref(reader).map(RefValue::I64),
+        type_codes::BOOL_CODE => bool::deserialize_from_ref(reader).map(RefValue::Bool),
+        type_codes::F64_CODE => u64::deserialize_from_ref(reader)
+            .map(u64_to_f64)
+            .map(RefValue::F64),
+
+        // Referenced types
+        type_codes::BYTES_CODE => <&[u8]>::deserialize_from_ref(reader).map(RefValue::Bytes),
+        type_codes::TEXT_CODE => <&str>::deserialize_from_ref(reader).map(RefValue::Str),
+        type_codes::HIERARCHICAL_FACET_CODE => {
+            <&str>::deserialize_from_ref(reader).map(RefValue::Facet)
+        }
+
+        // Types that require additional processing
+        type_codes::IP_CODE => u128::deserialize_from_ref(reader)
+            .map(Ipv6Addr::from_u128)
+            .map(RefValue::IpAddr),
+
+        type_codes::DATE_CODE => i64::deserialize_from_ref(reader)
+            .map(|t| match doc_store_version {
+                DocStoreVersion::V1 => DateTime::from_timestamp_micros(t),
+                DocStoreVersion::V2 => DateTime::from_timestamp_nanos(t),
+            })
+            .map(RefValue::Date),
+
+        // Extended types
+        type_codes::EXT_CODE => {
+            let ext_type_code = u8::deserialize_from_ref(reader)?;
+
+            match ext_type_code {
+                type_codes::TOK_STR_EXT_CODE => {
+                    PreTokenizedString::deserialize_from_ref(reader).map(RefValue::PreTokStr)
+                }
+                _ => {
+                    return Err(DeserializeError::from(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("No extended field type is associated with code {ext_type_code:?}"),
+                    )))
+                }
+            }
+        }
+
+        // Nested types
+        type_codes::ARRAY_CODE => {
+            let array_reader = BinaryArrayDeserializer::from_reader(reader, doc_store_version)?;
+            Ok(RefValue::Array(array_reader))
+        }
+        type_codes::OBJECT_CODE => {
+            let object_reader = BinaryObjectDeserializer::from_reader(reader, doc_store_version)?;
+            Ok(RefValue::Object(object_reader))
+        }
+
+        // TODO: handle json object without breaking lifetimes and horrific unsafe reference casting
+        // #[expect(deprecated)]
+        // type_codes::JSON_OBJ_CODE => {
+        //     // This is a compatibility layer
+        //     // The implementation is slow, but is temporary anyways
+
+        //     // Make a mutable version of reader
+        //     // SAFETY: reader already uses internal mutability, so there is no change in
+        //     // semantics
+        //     #[allow(invalid_reference_casting)]
+        //     let reader = unsafe { &mut *(reader as *const RefReader as *mut RefReader) };
+
+        //     let mut de = serde_json::Deserializer::from_reader(reader);
+        //     let json_map =
+        //         <serde_json::Map<String, serde_json::Value> as serde::Deserialize>::deserialize(
+        //             &mut de,
+        //         )
+        //         .map_err(|err| DeserializeError::Custom(err.to_string()))?;
+        //     let mut out = Vec::new();
+        //     let mut serializer = BinaryObjectSerializer::begin(json_map.len(), &mut out)?;
+        //     for (key, val) in json_map {
+        //         let val: OwnedValue = val.into();
+        //         serializer.serialize_entry(&key, (&val).as_value())?;
+        //     }
+        //     serializer.end()?;
+
+        //     let reader = RefReader::new(OwnedBytes::new(out));
+        //     let object_reader = BinaryObjectDeserializer::from_reader(&reader,
+        // doc_store_version)?;
+
+        //     Ok(RefValue::Object(object_reader))
+        // }
+
+        // Anything else
+        _ => {
+            return Err(DeserializeError::from(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("No field type is associated with code {type_code:?}"),
+            )))
+        }
+    };
+
+    result.map_err(DeserializeError::from)
+}
+
 impl<'de> DocumentDeserializer<'de> for BinaryDocumentDeserializer {
     #[inline]
     fn size_hint(&self) -> usize {
         self.length
     }
 
-    fn next_field<'a, V: ValueDeserialize<'a>>(
-        &'de self,
-    ) -> Result<Option<(Field, V)>, DeserializeError>
+    fn next_field<'a>(&'de self) -> Result<Option<(Field, RefValue<'a>)>, DeserializeError>
     where 'de: 'a {
         if self.is_complete() {
             return Ok(None);
         }
 
         let field = Field::deserialize_from_ref(&self.reader).map_err(DeserializeError::from)?;
-
-        let deserializer =
-            BinaryValueDeserializer::from_reader(&self.reader, self.doc_store_version)?;
-        let value = V::deserialize(deserializer)?;
+        let value = deserialize_value(&self.reader, self.doc_store_version)?;
 
         *self.position.borrow_mut() += 1;
 
         Ok(Some((field, value)))
-    }
-}
-
-/// A single value deserializer that deserializes a value serialized with `BinarySerializable`.
-/// TODO: Improve docs
-pub struct BinaryValueDeserializer<'de> {
-    value_type: ValueType,
-    reader: &'de RefReader,
-    doc_store_version: DocStoreVersion,
-}
-
-impl<'de> BinaryValueDeserializer<'de> {
-    /// Attempts to create a new value deserializer from a given reader.
-    fn from_reader(
-        reader: &'de RefReader,
-        doc_store_version: DocStoreVersion,
-    ) -> Result<Self, DeserializeError> {
-        let type_code = u8::deserialize_from_ref(reader)?;
-
-        let value_type = match type_code {
-            type_codes::TEXT_CODE => ValueType::String,
-            type_codes::U64_CODE => ValueType::U64,
-            type_codes::I64_CODE => ValueType::I64,
-            type_codes::F64_CODE => ValueType::F64,
-            type_codes::BOOL_CODE => ValueType::Bool,
-            type_codes::DATE_CODE => ValueType::DateTime,
-            type_codes::HIERARCHICAL_FACET_CODE => ValueType::Facet,
-            type_codes::BYTES_CODE => ValueType::Bytes,
-            type_codes::EXT_CODE => {
-                let ext_type_code = u8::deserialize_from_ref(reader)?;
-
-                match ext_type_code {
-                    type_codes::TOK_STR_EXT_CODE => ValueType::PreTokStr,
-                    _ => {
-                        return Err(DeserializeError::from(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!(
-                                "No extended field type is associated with code {ext_type_code:?}"
-                            ),
-                        )))
-                    }
-                }
-            }
-            type_codes::IP_CODE => ValueType::IpAddr,
-            type_codes::NULL_CODE => ValueType::Null,
-            type_codes::ARRAY_CODE => ValueType::Array,
-            type_codes::OBJECT_CODE => ValueType::Object,
-            #[expect(deprecated)]
-            type_codes::JSON_OBJ_CODE => ValueType::JSONObject,
-            _ => {
-                return Err(DeserializeError::from(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("No field type is associated with code {type_code:?}"),
-                )))
-            }
-        };
-
-        Ok(Self {
-            value_type,
-            reader,
-            doc_store_version,
-        })
-    }
-
-    fn validate_type(&self, expected_type: ValueType) -> Result<(), DeserializeError> {
-        if self.value_type == expected_type {
-            Ok(())
-        } else {
-            Err(DeserializeError::TypeMismatch {
-                expected: expected_type,
-                actual: self.value_type,
-            })
-        }
-    }
-}
-
-impl<'de> ValueDeserializer<'de> for BinaryValueDeserializer<'de> {
-    fn deserialize_null(self) -> Result<(), DeserializeError> {
-        self.validate_type(ValueType::Null)?;
-        Ok(())
-    }
-
-    fn deserialize_string<'a>(self) -> Result<&'a str, DeserializeError>
-    where 'de: 'a {
-        self.validate_type(ValueType::String)?;
-        <&'a str>::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
-    }
-
-    fn deserialize_u64(self) -> Result<u64, DeserializeError> {
-        self.validate_type(ValueType::U64)?;
-        u64::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
-    }
-
-    fn deserialize_i64(self) -> Result<i64, DeserializeError> {
-        self.validate_type(ValueType::I64)?;
-        i64::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
-    }
-
-    fn deserialize_f64(self) -> Result<f64, DeserializeError> {
-        self.validate_type(ValueType::F64)?;
-        u64::deserialize_from_ref(self.reader)
-            .map(u64_to_f64)
-            .map_err(DeserializeError::from)
-    }
-
-    fn deserialize_datetime(self) -> Result<DateTime, DeserializeError> {
-        self.validate_type(ValueType::DateTime)?;
-        match self.doc_store_version {
-            DocStoreVersion::V1 => {
-                let timestamp_micros = i64::deserialize_from_ref(self.reader)?;
-                Ok(DateTime::from_timestamp_micros(timestamp_micros))
-            }
-            DocStoreVersion::V2 => {
-                let timestamp_nanos = i64::deserialize_from_ref(self.reader)?;
-                Ok(DateTime::from_timestamp_nanos(timestamp_nanos))
-            }
-        }
-    }
-
-    fn deserialize_facet(self) -> Result<Facet, DeserializeError> {
-        self.validate_type(ValueType::Facet)?;
-        Facet::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
-    }
-
-    fn deserialize_bytes<'a>(self) -> Result<&'a [u8], DeserializeError>
-    where 'de: 'a {
-        self.validate_type(ValueType::Bytes)?;
-        <&'a [u8]>::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
-    }
-
-    fn deserialize_ip_address(self) -> Result<Ipv6Addr, DeserializeError> {
-        self.validate_type(ValueType::IpAddr)?;
-        u128::deserialize_from_ref(self.reader)
-            .map(Ipv6Addr::from_u128)
-            .map_err(DeserializeError::from)
-    }
-
-    fn deserialize_bool(self) -> Result<bool, DeserializeError> {
-        self.validate_type(ValueType::Bool)?;
-        bool::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
-    }
-
-    fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError> {
-        self.validate_type(ValueType::PreTokStr)?;
-        PreTokenizedString::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
-    }
-
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
-    where V: ValueVisitor<'de> {
-        match self.value_type {
-            ValueType::Null => visitor.visit_null(),
-            ValueType::String => {
-                let val = self.deserialize_string()?;
-                visitor.visit_string(val)
-            }
-            ValueType::U64 => {
-                let val = self.deserialize_u64()?;
-                visitor.visit_u64(val)
-            }
-            ValueType::I64 => {
-                let val = self.deserialize_i64()?;
-                visitor.visit_i64(val)
-            }
-            ValueType::F64 => {
-                let val = self.deserialize_f64()?;
-                visitor.visit_f64(val)
-            }
-            ValueType::DateTime => {
-                let val = self.deserialize_datetime()?;
-                visitor.visit_datetime(val)
-            }
-            ValueType::Facet => {
-                let val = self.deserialize_facet()?;
-                visitor.visit_facet(val)
-            }
-            ValueType::Bytes => {
-                let val = self.deserialize_bytes()?;
-                visitor.visit_bytes(val)
-            }
-            ValueType::IpAddr => {
-                let val = self.deserialize_ip_address()?;
-                visitor.visit_ip_address(val)
-            }
-            ValueType::Bool => {
-                let val = self.deserialize_bool()?;
-                visitor.visit_bool(val)
-            }
-            ValueType::PreTokStr => {
-                let val = self.deserialize_pre_tokenized_string()?;
-                visitor.visit_pre_tokenized_string(val)
-            }
-            ValueType::Array => {
-                let access =
-                    BinaryArrayDeserializer::from_reader(self.reader, self.doc_store_version)?;
-                visitor.visit_array(access)
-            }
-            ValueType::Object => {
-                let access =
-                    BinaryObjectDeserializer::from_reader(self.reader, self.doc_store_version)?;
-                visitor.visit_object(access)
-            }
-            #[allow(deprecated)]
-            ValueType::JSONObject => {
-                // This is a compatibility layer
-                // The implementation is slow, but is temporary anyways
-
-                // Make a mutable version of reader
-                // SAFETY: reader already uses internal mutability, so there is no change in
-                // semantics
-                #[allow(invalid_reference_casting)]
-                let reader = unsafe { &mut *(self.reader as *const RefReader as *mut RefReader) };
-
-                let mut de = serde_json::Deserializer::from_reader(reader);
-                let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de).map_err(|err| DeserializeError::Custom(err.to_string()))?;
-                let mut out = Vec::new();
-                let mut serializer = BinaryObjectSerializer::begin(json_map.len(), &mut out)?;
-                for (key, val) in json_map {
-                    let val: OwnedValue = val.into();
-                    serializer.serialize_entry(&key, (&val).as_value())?;
-                }
-                serializer.end()?;
-
-                let reader = RefReader::new(OwnedBytes::new(out));
-                let access =
-                    BinaryObjectDeserializer::from_reader(&reader, self.doc_store_version)?;
-
-                visitor.visit_object(access)
-            }
-        }
     }
 }
 
@@ -640,15 +378,13 @@ impl<'de> ArrayAccess<'de> for BinaryArrayDeserializer<'de> {
         self.length
     }
 
-    fn next_element<'a, V: ValueDeserialize<'a>>(&mut self) -> Result<Option<V>, DeserializeError>
+    fn next_element<'a>(&mut self) -> Result<Option<RefValue<'a>>, DeserializeError>
     where 'de: 'a {
         if self.is_complete() {
             return Ok(None);
         }
 
-        let deserializer =
-            BinaryValueDeserializer::from_reader(self.reader, self.doc_store_version)?;
-        let value = V::deserialize(deserializer)?;
+        let value = deserialize_value(self.reader, self.doc_store_version)?;
 
         // Advance the position cursor.
         self.position += 1;
@@ -690,18 +426,23 @@ impl<'de> ObjectAccess<'de> for BinaryObjectDeserializer<'de> {
     }
 
     /// Attempts to deserialize the next key-value pair in the object.
-    fn next_entry<'a, V: ValueDeserialize<'a>>(
-        &mut self,
-    ) -> Result<Option<(String, V)>, DeserializeError>
+    fn next_entry<'a>(&mut self) -> Result<Option<(&'a str, RefValue<'a>)>, DeserializeError>
     where 'de: 'a {
         if self.inner.is_complete() {
             return Ok(None);
         }
 
-        let key = self.inner.next_element::<&str>()?.map(String::from).expect(
-            "Deserializer should not be empty as it is not marked as complete, this is a bug",
-        );
-        let value = self.inner.next_element::<V>()?.expect(
+        let key = self
+            .inner
+            .next_element()?
+            .and_then(|k| match k {
+                RefValue::Str(s) => Some(s),
+                _ => None, // Handle unexpected types gracefully
+            })
+            .expect(
+                "Deserializer should not be empty as it is not marked as complete, this is a bug",
+            );
+        let value = self.inner.next_element()?.expect(
             "Deserializer should not be empty as it is not marked as complete, this is a bug",
         );
 
@@ -709,83 +450,12 @@ impl<'de> ObjectAccess<'de> for BinaryObjectDeserializer<'de> {
     }
 }
 
-// Core type implementations
-
-impl<'a> ValueDeserialize<'a> for &'a [u8] {
-    #[inline]
-    fn deserialize<'de: 'a, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_bytes()
-    }
-}
-
-impl<'a> ValueDeserialize<'a> for &'a str {
-    #[inline]
-    fn deserialize<'de: 'a, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_string()
-    }
-}
-
-impl ValueDeserialize<'_> for u64 {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_u64()
-    }
-}
-
-impl ValueDeserialize<'_> for i64 {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_i64()
-    }
-}
-
-impl ValueDeserialize<'_> for f64 {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_f64()
-    }
-}
-
-impl ValueDeserialize<'_> for DateTime {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_datetime()
-    }
-}
-
-impl ValueDeserialize<'_> for Ipv6Addr {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_ip_address()
-    }
-}
-
-impl ValueDeserialize<'_> for Facet {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_facet()
-    }
-}
-
-impl ValueDeserialize<'_> for PreTokenizedString {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_pre_tokenized_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+
+    use common::OwnedBytes;
     use serde_json::Number;
     use tokenizer_api::Token;
 
@@ -793,6 +463,7 @@ mod tests {
     use crate::schema::document::existing_type_impls::JsonObjectIter;
     use crate::schema::document::se::BinaryValueSerializer;
     use crate::schema::document::{ReferenceValue, ReferenceValueLeaf};
+    use crate::schema::{Facet, OwnedValue, Value};
     use crate::store::DOC_STORE_VERSION;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
@@ -814,11 +485,10 @@ mod tests {
     }
 
     fn deserialize_value(buffer: Vec<u8>) -> crate::schema::OwnedValue {
-        // let mut cursor = Cursor::new(buffer);
         let reader = RefReader::new(OwnedBytes::new(buffer));
-        let deserializer =
-            BinaryValueDeserializer::from_reader(&reader, DOC_STORE_VERSION).unwrap();
-        crate::schema::OwnedValue::deserialize(deserializer).expect("Deserialize value")
+        super::deserialize_value(&reader, DOC_STORE_VERSION)
+            .and_then(|v| v.try_into())
+            .expect("Deserialize value")
     }
 
     #[test]

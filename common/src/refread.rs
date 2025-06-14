@@ -9,6 +9,7 @@ use ownedbytes::OwnedBytes;
 /// past the current position.
 ///
 /// NOT thread safe as is uses a `RefCell` internally
+#[derive(Debug, Clone)]
 pub struct RefReader {
     data: OwnedBytes,
     pos: RefCell<usize>,

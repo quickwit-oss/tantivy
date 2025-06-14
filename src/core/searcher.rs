@@ -6,7 +6,7 @@ use crate::collector::Collector;
 use crate::core::Executor;
 use crate::index::{SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
-use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserialize};
+use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserializeOwned};
 use crate::schema::{Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
@@ -85,7 +85,7 @@ impl Searcher {
     ///
     /// The searcher uses the segment ordinal to route the
     /// request to the right `Segment`.
-    pub fn doc<D: DocumentDeserialize>(&self, doc_address: DocAddress) -> crate::Result<D> {
+    pub fn doc<D: DocumentDeserializeOwned>(&self, doc_address: DocAddress) -> crate::Result<D> {
         let deserializer = self.doc_raw(doc_address)?;
         D::deserialize(&deserializer).map_err(crate::TantivyError::from)
     }
@@ -115,7 +115,7 @@ impl Searcher {
 
     /// Fetches a document in an asynchronous manner.
     #[cfg(feature = "quickwit")]
-    pub async fn doc_async<D: DocumentDeserialize>(
+    pub async fn doc_async<D: DocumentDeserializeOwned>(
         &self,
         doc_address: DocAddress,
     ) -> crate::Result<D> {

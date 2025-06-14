@@ -9,11 +9,9 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use super::existing_type_impls::can_be_rfc3339_date_time;
+use super::ref_value::RefValue;
 use super::ReferenceValueLeaf;
-use crate::schema::document::{
-    ArrayAccess, DeserializeError, ObjectAccess, ReferenceValue, Value, ValueDeserialize,
-    ValueDeserializer, ValueVisitor,
-};
+use crate::schema::document::{ArrayAccess, DeserializeError, ObjectAccess, ReferenceValue, Value};
 use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
@@ -81,87 +79,47 @@ impl<'a> Value<'a> for &'a OwnedValue {
     }
 }
 
-impl ValueDeserialize<'_> for OwnedValue {
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        struct Visitor;
+impl TryFrom<RefValue<'_>> for OwnedValue {
+    type Error = DeserializeError;
 
-        impl<'b> ValueVisitor<'b> for Visitor {
-            type Value = OwnedValue;
-
-            fn visit_null(&self) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::Null)
-            }
-
-            fn visit_string<'a>(&self, val: &'a str) -> Result<Self::Value, DeserializeError>
-            where 'b: 'a {
-                Ok(OwnedValue::Str(String::from(val)))
-            }
-
-            fn visit_u64(&self, val: u64) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::U64(val))
-            }
-
-            fn visit_i64(&self, val: i64) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::I64(val))
-            }
-
-            fn visit_f64(&self, val: f64) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::F64(val))
-            }
-
-            fn visit_bool(&self, val: bool) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::Bool(val))
-            }
-
-            fn visit_datetime(&self, val: DateTime) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::Date(val))
-            }
-
-            fn visit_ip_address(&self, val: Ipv6Addr) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::IpAddr(val))
-            }
-
-            fn visit_facet(&self, val: Facet) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::Facet(val))
-            }
-
-            fn visit_bytes<'a>(&self, val: &'a [u8]) -> Result<Self::Value, DeserializeError>
-            where 'b: 'a {
-                Ok(OwnedValue::Bytes(Vec::from(val)))
-            }
-
-            fn visit_pre_tokenized_string(
-                &self,
-                val: PreTokenizedString,
-            ) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::PreTokStr(val))
-            }
-
-            fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-            where A: ArrayAccess<'de> {
-                let mut elements = Vec::with_capacity(access.size_hint());
-
-                while let Some(value) = access.next_element()? {
-                    elements.push(value);
+    fn try_from(value: RefValue<'_>) -> Result<Self, Self::Error> {
+        match value {
+            RefValue::Null => Ok(Self::Null),
+            RefValue::Bool(b) => Ok(Self::Bool(b)),
+            RefValue::U64(u) => Ok(Self::U64(u)),
+            RefValue::I64(i) => Ok(Self::I64(i)),
+            RefValue::F64(f) => Ok(Self::F64(f)),
+            RefValue::Date(t) => Ok(Self::Date(t)),
+            RefValue::IpAddr(a) => Ok(Self::IpAddr(a)),
+            RefValue::Bytes(b) => Ok(Self::Bytes(b.to_vec())),
+            RefValue::Str(s) => Ok(Self::Str(String::from(s))),
+            RefValue::Facet(s) => Ok(Self::Facet(Facet(String::from(s)))),
+            RefValue::PreTokStr(p) => Ok(Self::PreTokStr(p)),
+            RefValue::Array(mut arr) => {
+                let mut owned = Vec::with_capacity(arr.size_hint());
+                loop {
+                    match arr.next_element() {
+                        Ok(Some(val)) => owned.push(Self::try_from(val)?),
+                        Ok(None) => break,
+                        Err(e) => return Err(e),
+                    }
                 }
-
-                Ok(OwnedValue::Array(elements))
+                Ok(Self::Array(owned))
             }
-
-            fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-            where A: ObjectAccess<'de> {
-                let mut elements = Vec::with_capacity(access.size_hint());
-
-                while let Some((key, value)) = access.next_entry()? {
-                    elements.push((key, value));
+            RefValue::Object(mut obj) => {
+                let mut owned = Vec::with_capacity(obj.size_hint());
+                loop {
+                    match obj.next_entry() {
+                        Ok(Some((key, val))) => {
+                            owned.push((String::from(key), Self::try_from(val)?))
+                        }
+                        Ok(None) => break,
+                        Err(e) => return Err(e),
+                    }
                 }
-
-                Ok(OwnedValue::Object(elements))
+                Ok(Self::Object(owned))
             }
         }
-
-        deserializer.deserialize_any(Visitor)
     }
 }
 

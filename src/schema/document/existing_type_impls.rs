@@ -14,10 +14,11 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use super::facet::Facet;
+use super::ref_value::RefValue;
 use super::ReferenceValueLeaf;
 use crate::schema::document::{
-    ArrayAccess, DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
-    ObjectAccess, ReferenceValue, Value, ValueDeserialize, ValueDeserializer, ValueVisitor,
+    ArrayAccess, DeserializeError, Document, DocumentDeserializeOwned, DocumentDeserializer,
+    ObjectAccess, ReferenceValue, Value,
 };
 use crate::schema::Field;
 use crate::tokenizer::PreTokenizedString;
@@ -194,68 +195,51 @@ impl<'a> Value<'a> for &'a PreTokenizedString {
     }
 }
 
-impl ValueDeserialize<'_> for serde_json::Value {
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        struct SerdeValueVisitor;
+impl TryFrom<RefValue<'_>> for serde_json::Value {
+    type Error = DeserializeError;
 
-        impl<'b> ValueVisitor<'b> for SerdeValueVisitor {
-            type Value = serde_json::Value;
-
-            fn visit_null(&self) -> Result<Self::Value, DeserializeError> {
-                Ok(serde_json::Value::Null)
-            }
-
-            fn visit_string<'a>(&self, val: &'a str) -> Result<Self::Value, DeserializeError>
-            where 'b: 'a {
-                Ok(serde_json::Value::String(String::from(val)))
-            }
-
-            fn visit_u64(&self, val: u64) -> Result<Self::Value, DeserializeError> {
-                Ok(serde_json::Value::Number(val.into()))
-            }
-
-            fn visit_i64(&self, val: i64) -> Result<Self::Value, DeserializeError> {
-                Ok(serde_json::Value::Number(val.into()))
-            }
-
-            fn visit_f64(&self, val: f64) -> Result<Self::Value, DeserializeError> {
-                let num = Number::from_f64(val).ok_or_else(|| {
+    fn try_from(value: RefValue<'_>) -> Result<Self, Self::Error> {
+        match value {
+            RefValue::Null => Ok(Self::Null),
+            RefValue::Str(s) => Ok(Self::String(String::from(s))),
+            RefValue::U64(u) => Ok(Self::Number(u.into())),
+            RefValue::I64(i) => Ok(Self::Number(i.into())),
+            RefValue::F64(f) => {
+                let num = Number::from_f64(f).ok_or_else(|| {
                     DeserializeError::custom(format!(
-                        "serde_json::Value cannot deserialize float {val}"
+                        "serde_json::Value cannot deserialize float {f}"
                     ))
                 })?;
                 Ok(serde_json::Value::Number(num))
             }
-
-            fn visit_bool(&self, val: bool) -> Result<Self::Value, DeserializeError> {
-                Ok(serde_json::Value::Bool(val))
+            RefValue::Bool(b) => Ok(Self::Bool(b)),
+            RefValue::Array(mut arr) => {
+                let mut owned = Vec::with_capacity(arr.size_hint());
+                loop {
+                    match arr.next_element() {
+                        Ok(Some(val)) => owned.push(Self::try_from(val)?),
+                        Ok(None) => break,
+                        Err(e) => return Err(e),
+                    }
+                }
+                Ok(Self::Array(owned))
             }
-
-            fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-            where A: ArrayAccess<'de> {
-                let mut elements = Vec::with_capacity(access.size_hint());
-
-                while let Some(value) = access.next_element()? {
-                    elements.push(value);
+            RefValue::Object(mut obj) => {
+                let mut owned = serde_json::Map::with_capacity(obj.size_hint());
+                loop {
+                    match obj.next_entry() {
+                        Ok(Some((key, val))) => {
+                            owned.insert(String::from(key), Self::try_from(val)?);
+                        }
+                        Ok(None) => break,
+                        Err(e) => return Err(e),
+                    }
                 }
 
-                Ok(serde_json::Value::Array(elements))
+                Ok(serde_json::Value::Object(owned))
             }
-
-            fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-            where A: ObjectAccess<'de> {
-                let mut object = serde_json::Map::with_capacity(access.size_hint());
-
-                while let Some((key, value)) = access.next_entry()? {
-                    object.insert(key, value);
-                }
-
-                Ok(serde_json::Value::Object(object))
-            }
+            _ => Err(DeserializeError::Custom("Unsupported type".to_string())),
         }
-
-        deserializer.deserialize_any(SerdeValueVisitor)
     }
 }
 
@@ -286,13 +270,13 @@ impl Document for BTreeMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl DocumentDeserialize for BTreeMap<Field, crate::schema::OwnedValue> {
+impl DocumentDeserializeOwned for BTreeMap<Field, crate::schema::OwnedValue> {
     fn deserialize<'a, 'b: 'a, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'b> {
         let mut document = BTreeMap::new();
 
         while let Some((field, value)) = deserializer.next_field()? {
-            document.insert(field, value);
+            document.insert(field, crate::schema::OwnedValue::try_from(value)?);
         }
 
         Ok(document)
@@ -312,13 +296,13 @@ impl Document for HashMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl DocumentDeserialize for HashMap<Field, crate::schema::OwnedValue> {
+impl DocumentDeserializeOwned for HashMap<Field, crate::schema::OwnedValue> {
     fn deserialize<'a, 'b: 'a, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'b> {
         let mut document = HashMap::with_capacity(deserializer.size_hint());
 
         while let Some((field, value)) = deserializer.next_field()? {
-            document.insert(field, value);
+            document.insert(field, crate::schema::OwnedValue::try_from(value)?);
         }
 
         Ok(document)

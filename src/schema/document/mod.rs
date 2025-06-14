@@ -38,7 +38,7 @@
 //! ```
 //! use std::collections::{btree_map, BTreeMap};
 //! use tantivy::schema::{Document, Field};
-//! use tantivy::schema::document::{DeserializeError, DocumentDeserialize, DocumentDeserializer};
+//! use tantivy::schema::document::{DeserializeError, DocumentDeserializeOwned, DocumentDeserializer};
 //!
 //! /// Our custom document to let us use a map of `serde_json::Values`.
 //! pub struct MyCustomDocument {
@@ -67,7 +67,7 @@
 //! // back when it's deserialized from the doc store.
 //! // The API for this is very similar to serde but a little bit
 //! // more specialised, giving you access to types like IP addresses, datetime, etc...
-//! impl DocumentDeserialize for MyCustomDocument {
+//! impl DocumentDeserializeOwned for MyCustomDocument {
 //!     fn deserialize<'a, 'de: 'a, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
 //!     where D: DocumentDeserializer<'de>
 //!     {
@@ -158,9 +158,10 @@
 //! TODO: Complete this section...
 
 mod de;
-mod default_document;
 mod existing_type_impls;
+mod owned_document;
 mod owned_value;
+mod ref_value;
 mod se;
 mod value;
 
@@ -169,10 +170,10 @@ use std::mem;
 
 pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
-    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
-    ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
+    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializeOwned,
+    DocumentDeserializer, ObjectAccess, ValueType,
 };
-pub use self::default_document::{
+pub use self::owned_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
 };
 pub use self::owned_value::OwnedValue;
