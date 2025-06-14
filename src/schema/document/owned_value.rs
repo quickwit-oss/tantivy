@@ -81,20 +81,21 @@ impl<'a> Value<'a> for &'a OwnedValue {
     }
 }
 
-impl ValueDeserialize for OwnedValue {
+impl ValueDeserialize<'_> for OwnedValue {
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
         struct Visitor;
 
-        impl ValueVisitor for Visitor {
+        impl<'b> ValueVisitor<'b> for Visitor {
             type Value = OwnedValue;
 
             fn visit_null(&self) -> Result<Self::Value, DeserializeError> {
                 Ok(OwnedValue::Null)
             }
 
-            fn visit_string(&self, val: String) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::Str(val))
+            fn visit_string<'a>(&self, val: &'a str) -> Result<Self::Value, DeserializeError>
+            where 'b: 'a {
+                Ok(OwnedValue::Str(String::from(val)))
             }
 
             fn visit_u64(&self, val: u64) -> Result<Self::Value, DeserializeError> {
@@ -125,8 +126,9 @@ impl ValueDeserialize for OwnedValue {
                 Ok(OwnedValue::Facet(val))
             }
 
-            fn visit_bytes(&self, val: Vec<u8>) -> Result<Self::Value, DeserializeError> {
-                Ok(OwnedValue::Bytes(val))
+            fn visit_bytes<'a>(&self, val: &'a [u8]) -> Result<Self::Value, DeserializeError>
+            where 'b: 'a {
+                Ok(OwnedValue::Bytes(Vec::from(val)))
             }
 
             fn visit_pre_tokenized_string(

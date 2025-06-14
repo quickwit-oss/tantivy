@@ -7,16 +7,16 @@
 //! The motivation behind this API is to provide a easy to implement and
 //! efficient way of deserializing a potentially arbitrarily nested object.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Display;
 use std::io;
-use std::io::Read;
 use std::marker::PhantomData;
 use std::net::Ipv6Addr;
 use std::sync::Arc;
 
 use columnar::MonotonicallyMappableToU128;
-use common::{u64_to_f64, BinarySerializable, DateTime, VInt};
+use common::{u64_to_f64, BinaryRefDeserializable, DateTime, OwnedBytes, RefReader, VInt};
 
 use super::se::BinaryObjectSerializer;
 use super::{OwnedValue, Value};
@@ -64,12 +64,19 @@ impl From<io::Error> for DeserializeError {
     }
 }
 
-/// The core trait for deserializing a document.
+/// The core trait for deserializing a document with owned values.
 ///
 /// TODO: Improve docs
 pub trait DocumentDeserialize: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
+    fn deserialize<'a, 'de: 'a, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
+    where D: DocumentDeserializer<'de>;
+}
+
+/// The core trait for deserializing a document with borrowed values.
+pub trait DocumentDeserializeRef<'de>: Sized {
+    /// Attempts to deserialize Self from a given document deserializer.
+    fn deserialize<'a, 'b: 'a, D>(deserializer: &'b D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de>;
 }
 
@@ -82,15 +89,18 @@ pub trait DocumentDeserializer<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next field in the document.
-    fn next_field<V: ValueDeserialize>(&mut self) -> Result<Option<(Field, V)>, DeserializeError>;
+    fn next_field<'a, V: ValueDeserialize<'a>>(
+        &'de self,
+    ) -> Result<Option<(Field, V)>, DeserializeError>
+    where 'de: 'a;
 }
 
 /// The core trait for deserializing values.
 ///
 /// TODO: Improve docs
-pub trait ValueDeserialize: Sized {
+pub trait ValueDeserialize<'a>: Sized {
     /// Attempts to deserialize Self from a given value deserializer.
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
+    fn deserialize<'de: 'a, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de>;
 }
 
@@ -100,7 +110,8 @@ pub trait ValueDeserializer<'de> {
     fn deserialize_null(self) -> Result<(), DeserializeError>;
 
     /// Attempts to deserialize a string value from the deserializer.
-    fn deserialize_string(self) -> Result<String, DeserializeError>;
+    fn deserialize_string<'a>(self) -> Result<&'a str, DeserializeError>
+    where 'de: 'a;
 
     /// Attempts to deserialize a u64 value from the deserializer.
     fn deserialize_u64(self) -> Result<u64, DeserializeError>;
@@ -118,7 +129,8 @@ pub trait ValueDeserializer<'de> {
     fn deserialize_facet(self) -> Result<Facet, DeserializeError>;
 
     /// Attempts to deserialize a bytes value from the deserializer.
-    fn deserialize_bytes(self) -> Result<Vec<u8>, DeserializeError>;
+    fn deserialize_bytes<'a>(self) -> Result<&'a [u8], DeserializeError>
+    where 'de: 'a;
 
     /// Attempts to deserialize an IP address value from the deserializer.
     fn deserialize_ip_address(self) -> Result<Ipv6Addr, DeserializeError>;
@@ -131,7 +143,7 @@ pub trait ValueDeserializer<'de> {
 
     /// Attempts to deserialize the value using a given visitor.
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
-    where V: ValueVisitor;
+    where V: ValueVisitor<'de>;
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -173,7 +185,7 @@ pub enum ValueType {
 /// This is strongly inspired by serde but has a few extra types.
 ///
 /// TODO: Improve docs
-pub trait ValueVisitor {
+pub trait ValueVisitor<'de> {
     /// The value produced by the visitor.
     type Value;
 
@@ -185,7 +197,8 @@ pub trait ValueVisitor {
 
     #[inline]
     /// Called when the deserializer visits a string value.
-    fn visit_string(&self, _val: String) -> Result<Self::Value, DeserializeError> {
+    fn visit_string<'a>(&self, _val: &'a str) -> Result<Self::Value, DeserializeError>
+    where 'de: 'a {
         Err(DeserializeError::UnsupportedType(ValueType::String))
     }
 
@@ -233,7 +246,8 @@ pub trait ValueVisitor {
 
     #[inline]
     /// Called when the deserializer visits a bytes value.
-    fn visit_bytes(&self, _val: Vec<u8>) -> Result<Self::Value, DeserializeError> {
+    fn visit_bytes<'a>(&self, _val: &'de [u8]) -> Result<Self::Value, DeserializeError>
+    where 'de: 'a {
         Err(DeserializeError::UnsupportedType(ValueType::Bytes))
     }
 
@@ -248,15 +262,21 @@ pub trait ValueVisitor {
 
     #[inline]
     /// Called when the deserializer visits an array.
-    fn visit_array<'de, A>(&self, _access: A) -> Result<Self::Value, DeserializeError>
-    where A: ArrayAccess<'de> {
+    fn visit_array<'a, A>(&self, _access: A) -> Result<Self::Value, DeserializeError>
+    where
+        A: ArrayAccess<'a>,
+        'de: 'a,
+    {
         Err(DeserializeError::UnsupportedType(ValueType::Array))
     }
 
     #[inline]
     /// Called when the deserializer visits a object value.
-    fn visit_object<'de, A>(&self, _access: A) -> Result<Self::Value, DeserializeError>
-    where A: ObjectAccess<'de> {
+    fn visit_object<'a, A>(&self, _access: A) -> Result<Self::Value, DeserializeError>
+    where
+        A: ObjectAccess<'a>,
+        'de: 'a,
+    {
         Err(DeserializeError::UnsupportedType(ValueType::Object))
     }
 }
@@ -270,7 +290,8 @@ pub trait ArrayAccess<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next element in the sequence.
-    fn next_element<V: ValueDeserialize>(&mut self) -> Result<Option<V>, DeserializeError>;
+    fn next_element<'a, V: ValueDeserialize<'a>>(&mut self) -> Result<Option<V>, DeserializeError>
+    where 'de: 'a;
 }
 
 /// TODO: Improve docs
@@ -282,7 +303,10 @@ pub trait ObjectAccess<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next key-value pair in the object.
-    fn next_entry<V: ValueDeserialize>(&mut self) -> Result<Option<(String, V)>, DeserializeError>;
+    fn next_entry<'a, V: ValueDeserialize<'a>>(
+        &mut self,
+    ) -> Result<Option<(String, V)>, DeserializeError>
+    where 'de: 'a;
 }
 
 /// The document deserializer used to read the tantivy documents serialized with
@@ -292,26 +316,24 @@ pub trait ObjectAccess<'de> {
 /// deserialize each field of the document from the provided reader (`R`).
 ///
 /// TODO: Switch to slice instead?
-pub struct BinaryDocumentDeserializer<'de, R> {
+pub struct BinaryDocumentDeserializer {
     length: usize,
-    position: usize,
+    position: RefCell<usize>,
     doc_store_version: DocStoreVersion,
-    reader: &'de mut R,
+    reader: RefReader,
 }
 
-impl<'de, R> BinaryDocumentDeserializer<'de, R>
-where R: Read
-{
+impl BinaryDocumentDeserializer {
     /// Attempts to create a new document deserializer from a given reader.
     pub(crate) fn from_reader(
-        reader: &'de mut R,
+        reader: RefReader,
         doc_store_version: DocStoreVersion,
     ) -> Result<Self, DeserializeError> {
-        let length = VInt::deserialize(reader)?;
+        let length = VInt::deserialize_from_ref(&reader)?;
 
         Ok(Self {
             length: length.val() as usize,
-            position: 0,
+            position: RefCell::new(0),
             doc_store_version,
             reader,
         })
@@ -320,29 +342,32 @@ where R: Read
     /// Returns true if the deserializer has deserialized all the entries
     /// within the document.
     fn is_complete(&self) -> bool {
-        self.position >= self.length
+        let pos = *self.position.borrow();
+        pos >= self.length
     }
 }
 
-impl<'de, R> DocumentDeserializer<'de> for BinaryDocumentDeserializer<'de, R>
-where R: Read
-{
+impl<'de> DocumentDeserializer<'de> for BinaryDocumentDeserializer {
     #[inline]
     fn size_hint(&self) -> usize {
         self.length
     }
 
-    fn next_field<V: ValueDeserialize>(&mut self) -> Result<Option<(Field, V)>, DeserializeError> {
+    fn next_field<'a, V: ValueDeserialize<'a>>(
+        &'de self,
+    ) -> Result<Option<(Field, V)>, DeserializeError>
+    where 'de: 'a {
         if self.is_complete() {
             return Ok(None);
         }
 
-        let field = Field::deserialize(self.reader).map_err(DeserializeError::from)?;
+        let field = Field::deserialize_from_ref(&self.reader).map_err(DeserializeError::from)?;
+
         let deserializer =
-            BinaryValueDeserializer::from_reader(self.reader, self.doc_store_version)?;
+            BinaryValueDeserializer::from_reader(&self.reader, self.doc_store_version)?;
         let value = V::deserialize(deserializer)?;
 
-        self.position += 1;
+        *self.position.borrow_mut() += 1;
 
         Ok(Some((field, value)))
     }
@@ -350,21 +375,19 @@ where R: Read
 
 /// A single value deserializer that deserializes a value serialized with `BinarySerializable`.
 /// TODO: Improve docs
-pub struct BinaryValueDeserializer<'de, R> {
+pub struct BinaryValueDeserializer<'de> {
     value_type: ValueType,
-    reader: &'de mut R,
+    reader: &'de RefReader,
     doc_store_version: DocStoreVersion,
 }
 
-impl<'de, R> BinaryValueDeserializer<'de, R>
-where R: Read
-{
+impl<'de> BinaryValueDeserializer<'de> {
     /// Attempts to create a new value deserializer from a given reader.
     fn from_reader(
-        reader: &'de mut R,
+        reader: &'de RefReader,
         doc_store_version: DocStoreVersion,
     ) -> Result<Self, DeserializeError> {
-        let type_code = <u8 as BinarySerializable>::deserialize(reader)?;
+        let type_code = u8::deserialize_from_ref(reader)?;
 
         let value_type = match type_code {
             type_codes::TEXT_CODE => ValueType::String,
@@ -376,7 +399,7 @@ where R: Read
             type_codes::HIERARCHICAL_FACET_CODE => ValueType::Facet,
             type_codes::BYTES_CODE => ValueType::Bytes,
             type_codes::EXT_CODE => {
-                let ext_type_code = <u8 as BinarySerializable>::deserialize(reader)?;
+                let ext_type_code = u8::deserialize_from_ref(reader)?;
 
                 match ext_type_code {
                     type_codes::TOK_STR_EXT_CODE => ValueType::PreTokStr,
@@ -423,32 +446,31 @@ where R: Read
     }
 }
 
-impl<'de, R> ValueDeserializer<'de> for BinaryValueDeserializer<'de, R>
-where R: Read
-{
+impl<'de> ValueDeserializer<'de> for BinaryValueDeserializer<'de> {
     fn deserialize_null(self) -> Result<(), DeserializeError> {
         self.validate_type(ValueType::Null)?;
         Ok(())
     }
 
-    fn deserialize_string(self) -> Result<String, DeserializeError> {
+    fn deserialize_string<'a>(self) -> Result<&'a str, DeserializeError>
+    where 'de: 'a {
         self.validate_type(ValueType::String)?;
-        <String as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <&'a str>::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_u64(self) -> Result<u64, DeserializeError> {
         self.validate_type(ValueType::U64)?;
-        <u64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        u64::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_i64(self) -> Result<i64, DeserializeError> {
         self.validate_type(ValueType::I64)?;
-        <i64 as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        i64::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_f64(self) -> Result<f64, DeserializeError> {
         self.validate_type(ValueType::F64)?;
-        <u64 as BinarySerializable>::deserialize(self.reader)
+        u64::deserialize_from_ref(self.reader)
             .map(u64_to_f64)
             .map_err(DeserializeError::from)
     }
@@ -457,11 +479,11 @@ where R: Read
         self.validate_type(ValueType::DateTime)?;
         match self.doc_store_version {
             DocStoreVersion::V1 => {
-                let timestamp_micros = <i64 as BinarySerializable>::deserialize(self.reader)?;
+                let timestamp_micros = i64::deserialize_from_ref(self.reader)?;
                 Ok(DateTime::from_timestamp_micros(timestamp_micros))
             }
             DocStoreVersion::V2 => {
-                let timestamp_nanos = <i64 as BinarySerializable>::deserialize(self.reader)?;
+                let timestamp_nanos = i64::deserialize_from_ref(self.reader)?;
                 Ok(DateTime::from_timestamp_nanos(timestamp_nanos))
             }
         }
@@ -469,34 +491,34 @@ where R: Read
 
     fn deserialize_facet(self) -> Result<Facet, DeserializeError> {
         self.validate_type(ValueType::Facet)?;
-        <Facet as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        Facet::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
     }
 
-    fn deserialize_bytes(self) -> Result<Vec<u8>, DeserializeError> {
+    fn deserialize_bytes<'a>(self) -> Result<&'a [u8], DeserializeError>
+    where 'de: 'a {
         self.validate_type(ValueType::Bytes)?;
-        <Vec<u8> as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <&'a [u8]>::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_ip_address(self) -> Result<Ipv6Addr, DeserializeError> {
         self.validate_type(ValueType::IpAddr)?;
-        <u128 as BinarySerializable>::deserialize(self.reader)
+        u128::deserialize_from_ref(self.reader)
             .map(Ipv6Addr::from_u128)
             .map_err(DeserializeError::from)
     }
 
     fn deserialize_bool(self) -> Result<bool, DeserializeError> {
         self.validate_type(ValueType::Bool)?;
-        <bool as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        bool::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError> {
         self.validate_type(ValueType::PreTokStr)?;
-        <PreTokenizedString as BinarySerializable>::deserialize(self.reader)
-            .map_err(DeserializeError::from)
+        PreTokenizedString::deserialize_from_ref(self.reader).map_err(DeserializeError::from)
     }
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
-    where V: ValueVisitor {
+    where V: ValueVisitor<'de> {
         match self.value_type {
             ValueType::Null => visitor.visit_null(),
             ValueType::String => {
@@ -553,7 +575,14 @@ where R: Read
             ValueType::JSONObject => {
                 // This is a compatibility layer
                 // The implementation is slow, but is temporary anyways
-                let mut de = serde_json::Deserializer::from_reader(self.reader);
+
+                // Make a mutable version of reader
+                // SAFETY: reader already uses internal mutability, so there is no change in
+                // semantics
+                #[allow(invalid_reference_casting)]
+                let reader = unsafe { &mut *(self.reader as *const RefReader as *mut RefReader) };
+
+                let mut de = serde_json::Deserializer::from_reader(reader);
                 let json_map = <serde_json::Map::<String, serde_json::Value> as serde::Deserialize>::deserialize(&mut de).map_err(|err| DeserializeError::Custom(err.to_string()))?;
                 let mut out = Vec::new();
                 let mut serializer = BinaryObjectSerializer::begin(json_map.len(), &mut out)?;
@@ -563,10 +592,9 @@ where R: Read
                 }
                 serializer.end()?;
 
-                let out_rc = std::rc::Rc::new(out);
-                let mut slice: &[u8] = &out_rc;
+                let reader = RefReader::new(OwnedBytes::new(out));
                 let access =
-                    BinaryObjectDeserializer::from_reader(&mut slice, self.doc_store_version)?;
+                    BinaryObjectDeserializer::from_reader(&reader, self.doc_store_version)?;
 
                 visitor.visit_object(access)
             }
@@ -576,22 +604,20 @@ where R: Read
 
 /// A deserializer for an array of values serialized with `BinarySerializable`.
 /// TODO: Improve docs
-pub struct BinaryArrayDeserializer<'de, R> {
+pub struct BinaryArrayDeserializer<'de> {
     length: usize,
     position: usize,
-    reader: &'de mut R,
+    reader: &'de RefReader,
     doc_store_version: DocStoreVersion,
 }
 
-impl<'de, R> BinaryArrayDeserializer<'de, R>
-where R: Read
-{
+impl<'de> BinaryArrayDeserializer<'de> {
     /// Attempts to create a new array deserializer from a given reader.
     fn from_reader(
-        reader: &'de mut R,
+        reader: &'de RefReader,
         doc_store_version: DocStoreVersion,
     ) -> Result<Self, DeserializeError> {
-        let length = <VInt as BinarySerializable>::deserialize(reader)?;
+        let length = VInt::deserialize_from_ref(reader)?;
 
         Ok(Self {
             length: length.val() as usize,
@@ -608,15 +634,14 @@ where R: Read
     }
 }
 
-impl<'de, R> ArrayAccess<'de> for BinaryArrayDeserializer<'de, R>
-where R: Read
-{
+impl<'de> ArrayAccess<'de> for BinaryArrayDeserializer<'de> {
     #[inline]
     fn size_hint(&self) -> usize {
         self.length
     }
 
-    fn next_element<V: ValueDeserialize>(&mut self) -> Result<Option<V>, DeserializeError> {
+    fn next_element<'a, V: ValueDeserialize<'a>>(&mut self) -> Result<Option<V>, DeserializeError>
+    where 'de: 'a {
         if self.is_complete() {
             return Ok(None);
         }
@@ -633,20 +658,18 @@ where R: Read
 }
 
 /// A deserializer for a object consisting of key-value pairs.
-pub struct BinaryObjectDeserializer<'de, R> {
+pub struct BinaryObjectDeserializer<'de> {
     /// The inner deserializer.
     ///
     /// Internally an object is just represented by an array
     /// in the format of `[key, value, key, value, key, value]`.
-    inner: BinaryArrayDeserializer<'de, R>,
+    inner: BinaryArrayDeserializer<'de>,
 }
 
-impl<'de, R> BinaryObjectDeserializer<'de, R>
-where R: Read
-{
+impl<'de> BinaryObjectDeserializer<'de> {
     /// Attempts to create a new object deserializer from a given reader.
     fn from_reader(
-        reader: &'de mut R,
+        reader: &'de RefReader,
         doc_store_version: DocStoreVersion,
     ) -> Result<Self, DeserializeError> {
         let inner = BinaryArrayDeserializer::from_reader(reader, doc_store_version)?;
@@ -654,9 +677,7 @@ where R: Read
     }
 }
 
-impl<'de, R> ObjectAccess<'de> for BinaryObjectDeserializer<'de, R>
-where R: Read
-{
+impl<'de> ObjectAccess<'de> for BinaryObjectDeserializer<'de> {
     #[inline]
     /// A indicator as to how many values are in the object.
     ///
@@ -669,12 +690,15 @@ where R: Read
     }
 
     /// Attempts to deserialize the next key-value pair in the object.
-    fn next_entry<V: ValueDeserialize>(&mut self) -> Result<Option<(String, V)>, DeserializeError> {
+    fn next_entry<'a, V: ValueDeserialize<'a>>(
+        &mut self,
+    ) -> Result<Option<(String, V)>, DeserializeError>
+    where 'de: 'a {
         if self.inner.is_complete() {
             return Ok(None);
         }
 
-        let key = self.inner.next_element::<String>()?.expect(
+        let key = self.inner.next_element::<&str>()?.map(String::from).expect(
             "Deserializer should not be empty as it is not marked as complete, this is a bug",
         );
         let value = self.inner.next_element::<V>()?.expect(
@@ -687,15 +711,23 @@ where R: Read
 
 // Core type implementations
 
-impl ValueDeserialize for String {
+impl<'a> ValueDeserialize<'a> for &'a [u8] {
     #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
+    fn deserialize<'de: 'a, D>(deserializer: D) -> Result<Self, DeserializeError>
+    where D: ValueDeserializer<'de> {
+        deserializer.deserialize_bytes()
+    }
+}
+
+impl<'a> ValueDeserialize<'a> for &'a str {
+    #[inline]
+    fn deserialize<'de: 'a, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
         deserializer.deserialize_string()
     }
 }
 
-impl ValueDeserialize for u64 {
+impl ValueDeserialize<'_> for u64 {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
@@ -703,7 +735,7 @@ impl ValueDeserialize for u64 {
     }
 }
 
-impl ValueDeserialize for i64 {
+impl ValueDeserialize<'_> for i64 {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
@@ -711,7 +743,7 @@ impl ValueDeserialize for i64 {
     }
 }
 
-impl ValueDeserialize for f64 {
+impl ValueDeserialize<'_> for f64 {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
@@ -719,7 +751,7 @@ impl ValueDeserialize for f64 {
     }
 }
 
-impl ValueDeserialize for DateTime {
+impl ValueDeserialize<'_> for DateTime {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
@@ -727,7 +759,7 @@ impl ValueDeserialize for DateTime {
     }
 }
 
-impl ValueDeserialize for Ipv6Addr {
+impl ValueDeserialize<'_> for Ipv6Addr {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
@@ -735,7 +767,7 @@ impl ValueDeserialize for Ipv6Addr {
     }
 }
 
-impl ValueDeserialize for Facet {
+impl ValueDeserialize<'_> for Facet {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
@@ -743,15 +775,7 @@ impl ValueDeserialize for Facet {
     }
 }
 
-impl ValueDeserialize for Vec<u8> {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_bytes()
-    }
-}
-
-impl ValueDeserialize for PreTokenizedString {
+impl ValueDeserialize<'_> for PreTokenizedString {
     #[inline]
     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
     where D: ValueDeserializer<'de> {
@@ -759,96 +783,8 @@ impl ValueDeserialize for PreTokenizedString {
     }
 }
 
-// Collections kind of suck, but can't think of a nicer way of doing this generically
-// without quite literally cloning serde entirely...
-
-struct VecVisitor<T: ValueDeserialize>(PhantomData<T>);
-impl<T: ValueDeserialize> ValueVisitor for VecVisitor<T> {
-    type Value = Vec<T>;
-
-    fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-    where A: ArrayAccess<'de> {
-        let mut entries = Vec::with_capacity(access.size_hint());
-        while let Some(value) = access.next_element()? {
-            entries.push(value);
-        }
-        Ok(entries)
-    }
-}
-impl<T: ValueDeserialize> ValueDeserialize for Vec<T> {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(VecVisitor(PhantomData))
-    }
-}
-
-struct BTreeMapVisitor<T: ValueDeserialize>(PhantomData<T>);
-impl<T: ValueDeserialize> ValueVisitor for BTreeMapVisitor<T> {
-    type Value = BTreeMap<String, T>;
-
-    fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-    where A: ObjectAccess<'de> {
-        let mut entries = BTreeMap::new();
-        while let Some((key, value)) = access.next_entry()? {
-            entries.insert(key, value);
-        }
-        Ok(entries)
-    }
-}
-impl<T: ValueDeserialize> ValueDeserialize for BTreeMap<String, T> {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(BTreeMapVisitor(PhantomData))
-    }
-}
-
-struct HashMapVisitor<T: ValueDeserialize>(PhantomData<T>);
-impl<T: ValueDeserialize> ValueVisitor for HashMapVisitor<T> {
-    type Value = HashMap<String, T>;
-
-    fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-    where A: ObjectAccess<'de> {
-        let mut entries = HashMap::with_capacity(access.size_hint());
-        while let Some((key, value)) = access.next_entry()? {
-            entries.insert(key, value);
-        }
-        Ok(entries)
-    }
-}
-impl<T: ValueDeserialize> ValueDeserialize for HashMap<String, T> {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(HashMapVisitor(PhantomData))
-    }
-}
-
-struct KeyValuesVecVisitor<T: ValueDeserialize>(PhantomData<T>);
-impl<T: ValueDeserialize> ValueVisitor for KeyValuesVecVisitor<T> {
-    type Value = Vec<(String, T)>;
-
-    fn visit_object<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
-    where A: ObjectAccess<'de> {
-        let mut entries = Vec::with_capacity(access.size_hint());
-        while let Some(entry) = access.next_entry()? {
-            entries.push(entry);
-        }
-        Ok(entries)
-    }
-}
-impl<T: ValueDeserialize> ValueDeserialize for Vec<(String, T)> {
-    #[inline]
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
-    where D: ValueDeserializer<'de> {
-        deserializer.deserialize_any(KeyValuesVecVisitor(PhantomData))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
 
     use serde_json::Number;
     use tokenizer_api::Token;
@@ -878,9 +814,10 @@ mod tests {
     }
 
     fn deserialize_value(buffer: Vec<u8>) -> crate::schema::OwnedValue {
-        let mut cursor = Cursor::new(buffer);
+        // let mut cursor = Cursor::new(buffer);
+        let reader = RefReader::new(OwnedBytes::new(buffer));
         let deserializer =
-            BinaryValueDeserializer::from_reader(&mut cursor, DOC_STORE_VERSION).unwrap();
+            BinaryValueDeserializer::from_reader(&reader, DOC_STORE_VERSION).unwrap();
         crate::schema::OwnedValue::deserialize(deserializer).expect("Deserialize value")
     }
 

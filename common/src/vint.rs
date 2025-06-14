@@ -2,6 +2,8 @@ use std::io;
 use std::io::{Read, Write};
 
 use super::BinarySerializable;
+use crate::serialize::BinaryRefDeserializable;
+use crate::RefReader;
 
 /// Variable int serializes a u128 number
 pub fn serialize_vint_u128(mut val: u128, output: &mut Vec<u8>) {
@@ -49,6 +51,26 @@ impl BinarySerializable for VIntU128 {
                 }
             }
         }
+    }
+}
+
+impl<'a> BinaryRefDeserializable<'a> for VIntU128 {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        let mut result = 0u128;
+        let mut shift = 0u64;
+
+        while let Some(b) = reader.next_byte() {
+            result |= u128::from(b % 128u8) << shift;
+            if b >= STOP_BIT {
+                return Ok(VIntU128(result));
+            }
+            shift += 7;
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Reach end of buffer while reading VInt",
+        ))
     }
 }
 
@@ -219,10 +241,34 @@ impl BinarySerializable for VInt {
     }
 }
 
+impl<'a> BinaryRefDeserializable<'a> for VInt {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        let mut result = 0u64;
+        let mut shift = 0u64;
+
+        while let Some(b) = reader.next_byte() {
+            result |= u64::from(b % 128u8) << shift;
+            if b >= STOP_BIT {
+                return Ok(VInt(result));
+            }
+            shift += 7;
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Reach end of buffer while reading VInt",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
-    use super::{BinarySerializable, VInt, serialize_vint_u32};
+    use ownedbytes::OwnedBytes;
+
+    use super::{serialize_vint_u32, BinarySerializable, VInt};
+    use crate::serialize::BinaryRefDeserializable;
+    use crate::RefReader;
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
@@ -239,6 +285,10 @@ mod tests {
         }
         let serdeser_val = VInt::deserialize(&mut &v[..]).unwrap();
         assert_eq!(val, serdeser_val.0);
+
+        let reader = RefReader::new(OwnedBytes::new(Vec::from(v)));
+        let ref_serdeser_val = VInt::deserialize_from_ref(&reader).unwrap();
+        assert_eq!(val, ref_serdeser_val.0);
     }
 
     #[test]

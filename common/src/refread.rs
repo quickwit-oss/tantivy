@@ -1,19 +1,21 @@
 use std::cell::RefCell;
 
-/// A struct that implements a very similar api to std::io::Read, but with an internally managed
-/// cursor and designed to run on data that is already present in memory.
+use ownedbytes::OwnedBytes;
+
+/// A struct that wraps an `OwnedBytes` and provides a read interface that can be used to read data
+/// from it while borrowing and will not invalidate references
 ///
 /// Useful for zerocopy deserialization since references remain valid after the cursor has advanced
 /// past the current position.
 ///
 /// NOT thread safe as is uses a `RefCell` internally
-pub struct RefReader<'a> {
-    data: &'a [u8],
+pub struct RefReader {
+    data: OwnedBytes,
     pos: RefCell<usize>,
 }
 
-impl RefReader<'_> {
-    pub fn new(data: &[u8]) -> RefReader {
+impl RefReader {
+    pub fn new(data: OwnedBytes) -> RefReader {
         RefReader {
             data,
             pos: RefCell::new(0),
@@ -31,9 +33,7 @@ impl RefReader<'_> {
     pub fn remaining(&self) -> usize {
         self.len() - self.pos()
     }
-}
 
-impl<'a> RefReader<'a> {
     /// Read data from the reader into the provided buffer.
     /// Returns the number of bytes read.
     ///
@@ -103,16 +103,31 @@ impl<'a> RefReader<'a> {
                 "not enough data to read",
             ))
         } else {
-            let slice = &self.data[*pos..*pos + n];
+            let data = &self.data[*pos..*pos + n];
             *pos += n;
-            Ok(slice)
+            Ok(data)
+        }
+    }
+
+    /// Read a single byte from the reader.
+    ///
+    /// Advances the internal position by one byte.
+    pub fn next_byte(&self) -> Option<u8> {
+        let mut pos = self.pos.borrow_mut();
+
+        if *pos < self.data.len() {
+            let byte = self.data[*pos];
+            *pos += 1;
+            Some(byte)
+        } else {
+            None
         }
     }
 
     /// Get a reference to the remaining slice of data.
     ///
     /// Does not advance the cursor
-    pub fn remaining_slice(&'a self) -> &'a [u8] {
+    pub fn remaining_slice(&self) -> &[u8] {
         let pos = self.pos.borrow();
         &self.data[*pos..]
     }
@@ -132,5 +147,11 @@ impl<'a> RefReader<'a> {
             *pos += n;
             Ok(())
         }
+    }
+}
+
+impl std::io::Read for RefReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        Self::read(self, buf)
     }
 }
