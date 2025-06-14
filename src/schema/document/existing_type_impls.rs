@@ -238,6 +238,8 @@ impl TryFrom<RefValue<'_>> for serde_json::Value {
 
                 Ok(serde_json::Value::Object(owned))
             }
+            #[expect(deprecated)]
+            RefValue::JsonObject(obj) => Ok(Self::Object(obj)),
             _ => Err(DeserializeError::Custom("Unsupported type".to_string())),
         }
     }

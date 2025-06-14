@@ -1,10 +1,14 @@
 use std::net::Ipv6Addr;
 
 use common::DateTime;
+use serde_json::{Map, Value};
 
 use super::de::{BinaryArrayDeserializer, BinaryObjectDeserializer};
 use crate::tokenizer::PreTokenizedString;
 
+/// A container for document field value deserialization.
+///
+/// Attempts to be efficient by avoiding unnecessary allocations and conversions.
 pub enum RefValue<'a> {
     /// A null value.
     Null,
@@ -33,4 +37,7 @@ pub enum RefValue<'a> {
     Array(BinaryArrayDeserializer<'a>),
     /// An iterator over a list of key-value pairs.
     Object(BinaryObjectDeserializer<'a>),
+    /// Legacy JSON object type.
+    #[deprecated]
+    JsonObject(Map<String, Value>),
 }

@@ -119,6 +119,14 @@ impl TryFrom<RefValue<'_>> for OwnedValue {
                 }
                 Ok(Self::Object(owned))
             }
+            #[expect(deprecated)]
+            RefValue::JsonObject(obj) => {
+                let mut owned = Vec::with_capacity(obj.len());
+                for (key, val) in obj.into_iter() {
+                    owned.push((key, OwnedValue::from(val)));
+                }
+                Ok(Self::Object(owned))
+            }
         }
     }
 }

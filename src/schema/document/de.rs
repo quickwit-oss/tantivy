@@ -274,38 +274,29 @@ where
             Ok(RefValue::Object(object_reader))
         }
 
-        // TODO: handle json object without breaking lifetimes and horrific unsafe reference casting
-        // #[expect(deprecated)]
-        // type_codes::JSON_OBJ_CODE => {
-        //     // This is a compatibility layer
-        //     // The implementation is slow, but is temporary anyways
+        #[expect(deprecated)]
+        type_codes::JSON_OBJ_CODE => {
+            // This is a compatibility layer
+            // The implementation is slow, but is temporary anyways
 
-        //     // Make a mutable version of reader
-        //     // SAFETY: reader already uses internal mutability, so there is no change in
-        //     // semantics
-        //     #[allow(invalid_reference_casting)]
-        //     let reader = unsafe { &mut *(reader as *const RefReader as *mut RefReader) };
+            // TODO: find a better way to do this, but this field type doesn't include a length
+            // header to safely get a slice of the data
 
-        //     let mut de = serde_json::Deserializer::from_reader(reader);
-        //     let json_map =
-        //         <serde_json::Map<String, serde_json::Value> as serde::Deserialize>::deserialize(
-        //             &mut de,
-        //         )
-        //         .map_err(|err| DeserializeError::Custom(err.to_string()))?;
-        //     let mut out = Vec::new();
-        //     let mut serializer = BinaryObjectSerializer::begin(json_map.len(), &mut out)?;
-        //     for (key, val) in json_map {
-        //         let val: OwnedValue = val.into();
-        //         serializer.serialize_entry(&key, (&val).as_value())?;
-        //     }
-        //     serializer.end()?;
+            // Make a mutable version of reader
+            // SAFETY: reader already uses internal mutability, so there is no change in
+            // semantics
+            #[allow(invalid_reference_casting)]
+            let reader = unsafe { &mut *(reader as *const RefReader as *mut RefReader) };
 
-        //     let reader = RefReader::new(OwnedBytes::new(out));
-        //     let object_reader = BinaryObjectDeserializer::from_reader(&reader,
-        // doc_store_version)?;
+            let mut de = serde_json::Deserializer::from_reader(reader);
+            let json_map =
+                <serde_json::Map<String, serde_json::Value> as serde::Deserialize>::deserialize(
+                    &mut de,
+                )
+                .map_err(|err| DeserializeError::Custom(err.to_string()))?;
 
-        //     Ok(RefValue::Object(object_reader))
-        // }
+            Ok(RefValue::JsonObject(json_map))
+        }
 
         // Anything else
         _ => {
