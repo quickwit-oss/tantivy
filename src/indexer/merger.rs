@@ -24,7 +24,7 @@ use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{
-    DocAddress, DocId, IndexSettings, IndexSortByField, InvertedIndexReader, Order, SegmentOrdinal,
+    DocAddress, DocId, IndexSettings, IndexSortByField, Order, SegmentOrdinal,
 };
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
@@ -156,12 +156,13 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
 impl IndexMerger {
     pub fn open(
         schema: Schema,
+        index_settings: IndexSettings,
         segments: &[Segment],
         cancel: Box<dyn CancelSentinel>,
         ignore_store: bool,
     ) -> crate::Result<IndexMerger> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
-        Self::open_with_custom_alive_set(schema, segments, alive_bitset, cancel, ignore_store)
+        Self::open_with_custom_alive_set(schema, index_settings, segments, alive_bitset, cancel, ignore_store)
     }
 
     // Create merge with a custom delete set.
@@ -772,6 +773,7 @@ impl IndexMerger {
                 store_writer.stack(store_reader)?;
             }
         }
+    }
         Ok(())
     }
 
