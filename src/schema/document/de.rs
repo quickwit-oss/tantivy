@@ -180,7 +180,8 @@ pub enum RefValue<'a> {
     /// [Facet::encoded_str](crate::schema::Facet::encoded_str).
     Facet(&'a str),
     /// Pre-tokenized str type
-    /// Needs to be a valid JSON string. It will be deserialized as a [`PreTokenizedString`].
+    /// Needs to be a valid JSON string. It will be deserialized as a
+    /// [PreTokenizedString](crate::tokenizer::PreTokenizedString).
     PreTokStr(&'a str),
     /// An iterator over a list of values.
     Array(BinaryArrayDeserializer<'a>),
