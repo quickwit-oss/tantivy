@@ -310,12 +310,11 @@ where
     {
         deserializer.iter().try_fold(
             HashMap::with_capacity(deserializer.size_hint()),
-            |mut acc, r| match r {
-                Ok((field, value)) => {
-                    acc.insert(field, value);
-                    Ok(acc)
-                }
-                Err(e) => Err(e),
+            |mut acc, r| {
+                r.map(|(k, v)| {
+                    acc.insert(k, v);
+                    acc
+                })
             },
         )
     }
