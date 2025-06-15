@@ -7,9 +7,11 @@ use rand_distr::Distribution;
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
+use tantivy::collector::TopDocs;
+use tantivy::fastfield::FastValue;
 use tantivy::query::{AllQuery, TermQuery};
 use tantivy::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
-use tantivy::{doc, Index, Term};
+use tantivy::{doc, Index, Order, Term};
 
 #[global_allocator]
 pub static GLOBAL: &PeakMemAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
@@ -72,6 +74,12 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, histogram_hard_bounds);
     register!(group, histogram_with_avg_sub_agg);
     register!(group, avg_and_range_with_avg_sub_agg);
+
+    register!(group, top_docs_small_shallow);
+    register!(group, top_docs_small_deep);
+
+    register!(group, top_docs_large_shallow);
+    register!(group, top_docs_large_deep);
 
     group.run();
 }
@@ -359,6 +367,34 @@ fn avg_and_range_with_avg_sub_agg(index: &Index) {
     execute_agg(index, agg_req);
 }
 
+fn execute_top_docs<F: FastValue>(
+    index: &Index,
+    fast_field: &str,
+    order: Order,
+    offset: usize,
+    limit: usize,
+) {
+    let collector = TopDocs::with_limit(limit)
+        .and_offset(offset)
+        .order_by_fast_field::<F>(fast_field, order);
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    black_box(searcher.search(&AllQuery, &collector).unwrap());
+}
+fn top_docs_small_deep(index: &Index) {
+    execute_top_docs::<u64>(index, "score", Order::Asc, 10000, 10);
+}
+fn top_docs_small_shallow(index: &Index) {
+    execute_top_docs::<u64>(index, "score", Order::Asc, 0, 10);
+}
+fn top_docs_large_deep(index: &Index) {
+    execute_top_docs::<u64>(index, "score", Order::Asc, 10000, 1000);
+}
+fn top_docs_large_shallow(index: &Index) {
+    execute_top_docs::<u64>(index, "score", Order::Asc, 0, 1000);
+}
+
 #[derive(Clone, Copy, Hash, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Cardinality {
     /// All documents contain exactly one value.
@@ -402,7 +438,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         .collect::<Vec<_>>();
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
-        let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
+        let mut index_writer = index.writer_with_num_threads(8, 200_000_000)?;
         // To make the different test cases comparable we just change one doc to force the
         // cardinality
         if cardinality == Cardinality::OptionalDense {
