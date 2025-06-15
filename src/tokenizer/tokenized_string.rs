@@ -53,18 +53,11 @@ impl BinarySerializable for PreTokenizedString {
     }
 }
 
-impl<'a> BinaryRefDeserializable<'a> for PreTokenizedString {
-    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
-        let json_text = <&'a str>::deserialize_from_ref(reader)?;
+impl TryFrom<&str> for PreTokenizedString {
+    type Error = serde_json::Error;
 
-        if let Ok(value) = serde_json::from_str(&json_text) {
-            Ok(value)
-        } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Failed to parse string data as PreTokenizedString.",
-            ))
-        }
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        serde_json::from_str(value)
     }
 }
 

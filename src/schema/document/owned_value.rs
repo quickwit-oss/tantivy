@@ -95,7 +95,10 @@ impl TryFrom<RefValue<'_>> for OwnedValue {
             RefValue::Bytes(b) => Ok(Self::Bytes(b.to_vec())),
             RefValue::Str(s) => Ok(Self::Str(String::from(s))),
             RefValue::Facet(s) => Ok(Self::Facet(Facet(String::from(s)))),
-            RefValue::PreTokStr(p) => Ok(Self::PreTokStr(p)),
+            RefValue::PreTokStr(p) => match PreTokenizedString::try_from(p) {
+                Ok(pre_tok_str) => Ok(Self::PreTokStr(pre_tok_str)),
+                Err(e) => Err(DeserializeError::Custom(e.to_string())),
+            },
             RefValue::Array(mut arr) => {
                 let mut owned = Vec::with_capacity(arr.size_hint());
                 loop {

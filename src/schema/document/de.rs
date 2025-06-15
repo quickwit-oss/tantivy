@@ -19,7 +19,6 @@ use common::{u64_to_f64, BinaryRefDeserializable, DateTime, RefReader, VInt};
 use crate::schema::document::type_codes;
 use crate::schema::Field;
 use crate::store::DocStoreVersion;
-use crate::tokenizer::PreTokenizedString;
 
 #[derive(Debug, thiserror::Error, Clone)]
 /// An error which occurs while attempting to deserialize a given value
@@ -180,8 +179,9 @@ pub enum RefValue<'a> {
     /// Facet string needs to match the format of
     /// [Facet::encoded_str](crate::schema::Facet::encoded_str).
     Facet(&'a str),
-    /// Pre-tokenized str type,
-    PreTokStr(PreTokenizedString),
+    /// Pre-tokenized str type
+    /// Needs to be a valid JSON string. It will be deserialized as a [`PreTokenizedString`].
+    PreTokStr(&'a str),
     /// An iterator over a list of values.
     Array(BinaryArrayDeserializer<'a>),
     /// An iterator over a list of key-value pairs.
@@ -301,7 +301,7 @@ where
 
             match ext_type_code {
                 type_codes::TOK_STR_EXT_CODE => {
-                    PreTokenizedString::deserialize_from_ref(reader).map(RefValue::PreTokStr)
+                    <&str>::deserialize_from_ref(reader).map(RefValue::PreTokStr)
                 }
                 _ => {
                     return Err(DeserializeError::from(io::Error::new(
@@ -504,6 +504,7 @@ mod tests {
     use crate::schema::document::{ReferenceValue, ReferenceValueLeaf};
     use crate::schema::{Facet, OwnedValue, Value};
     use crate::store::DOC_STORE_VERSION;
+    use crate::tokenizer::PreTokenizedString;
 
     fn serialize_value<'a>(value: ReferenceValue<'a, &'a serde_json::Value>) -> Vec<u8> {
         let mut writer = Vec::new();
