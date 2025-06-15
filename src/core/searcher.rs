@@ -6,7 +6,7 @@ use crate::collector::Collector;
 use crate::core::Executor;
 use crate::index::{SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
-use crate::schema::document::DocumentDeserialize;
+use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserializeOwned};
 use crate::schema::{Schema, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
@@ -85,9 +85,19 @@ impl Searcher {
     ///
     /// The searcher uses the segment ordinal to route the
     /// request to the right `Segment`.
-    pub fn doc<D: DocumentDeserialize>(&self, doc_address: DocAddress) -> crate::Result<D> {
+    pub fn doc<D: DocumentDeserializeOwned>(&self, doc_address: DocAddress) -> crate::Result<D> {
+        let deserializer = self.doc_raw(doc_address)?;
+        D::deserialize(&deserializer).map_err(crate::TantivyError::from)
+    }
+
+    /// Same as `.doc(doc_address)` except it does not deserialize the document and instead returns a deserializer with ownership of the raw document bytes.
+    /// 
+    /// This allows for deserialization into a type that contains references such as `&str` or `&[u8]` via the `DocumentDeserialize` trait.
+    /// 
+    /// If your type implements `DocumentDeserializeOwned` you should use `.doc(doc_address)` instead since it's more convenient.
+    pub fn doc_raw(&self, doc_address: DocAddress) -> crate::Result<BinaryDocumentDeserializer> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
-        store_reader.get(doc_address.doc_id)
+        store_reader.get_raw(doc_address.doc_id)
     }
 
     /// The cache stats for the underlying store reader.
@@ -105,7 +115,7 @@ impl Searcher {
 
     /// Fetches a document in an asynchronous manner.
     #[cfg(feature = "quickwit")]
-    pub async fn doc_async<D: DocumentDeserialize>(
+    pub async fn doc_async<D: DocumentDeserializeOwned>(
         &self,
         doc_address: DocAddress,
     ) -> crate::Result<D> {

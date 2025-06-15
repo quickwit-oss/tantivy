@@ -9,7 +9,7 @@ pub use CompactDoc as TantivyDocument;
 
 use super::{ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::document::{
-    DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
+    DeserializeError, Document, DocumentDeserializeOwned, DocumentDeserializer,
 };
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
@@ -375,14 +375,14 @@ impl PartialEq for CompactDoc {
 
 impl Eq for CompactDoc {}
 
-impl DocumentDeserialize for CompactDoc {
-    fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
+impl DocumentDeserializeOwned for CompactDoc {
+    fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
         let mut doc = CompactDoc::default();
         // TODO: Deserializing into OwnedValue is wasteful. The deserializer should be able to work
         // on slices and referenced data.
-        while let Some((field, value)) = deserializer.next_field::<OwnedValue>()? {
-            doc.add_field_value(field, &value);
+        while let Some((field, value)) = deserializer.next_field()? {
+            doc.add_field_value(field, &OwnedValue::try_from(value)?);
         }
         Ok(doc)
     }
