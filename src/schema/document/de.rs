@@ -104,6 +104,10 @@ pub trait DocumentDeserializer<'de> {
     fn size_hint(&self) -> usize;
 
     /// Attempts to deserialize the next field in the document.
+    ///
+    /// `RefValue` must be consumed before the next call as it may contain a reference to the
+    /// internal position of the deserializer.
+    /// This is required in order to allow for nested deserialization of Arrays and Objects
     fn next_field<'a>(&'de self) -> Result<Option<(Field, RefValue<'a>)>, DeserializeError>
     where 'de: 'a;
 
@@ -111,12 +115,17 @@ pub trait DocumentDeserializer<'de> {
     ///
     /// This will advance the position of the internal deserializer, so calling this multiple times
     /// will not behave as expected.
-    fn iter(&'de self) -> impl Iterator<Item = Result<(Field, RefValue<'de>), DeserializeError>> {
+    fn iter<T>(&'de self) -> impl Iterator<Item = Result<(Field, T), DeserializeError>>
+    where
+        T: TryFrom<RefValue<'de>>,
+        T::Error: Into<DeserializeError>,
+    {
         std::iter::from_fn(|| match self.next_field() {
             Ok(Some((field, value))) => Some(Ok((field, value))),
             Ok(None) => None,
             Err(e) => Some(Err(e)),
         })
+        .map(|r| r.and_then(|(f, v)| T::try_from(v).map(|t| (f, t)).map_err(Into::into)))
     }
 }
 

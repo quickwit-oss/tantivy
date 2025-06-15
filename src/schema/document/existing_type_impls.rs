@@ -16,8 +16,8 @@ use time::OffsetDateTime;
 use super::facet::Facet;
 use super::{DocumentDeserialize, ReferenceValueLeaf};
 use crate::schema::document::{
-    ArrayAccess, DeserializeError, Document, DocumentDeserializeOwned, DocumentDeserializer,
-    ObjectAccess, RefValue, ReferenceValue, Value,
+    ArrayAccess, DeserializeError, Document, DocumentDeserializer, ObjectAccess, RefValue,
+    ReferenceValue, Value,
 };
 use crate::schema::Field;
 use crate::tokenizer::PreTokenizedString;
@@ -271,26 +271,17 @@ impl Document for BTreeMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl DocumentDeserializeOwned for BTreeMap<Field, crate::schema::OwnedValue> {
-    fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
-    where D: DocumentDeserializer<'de> {
-        let mut document = BTreeMap::new();
-
-        while let Some((field, value)) = deserializer.next_field()? {
-            document.insert(field, crate::schema::OwnedValue::try_from(value)?);
-        }
-
-        Ok(document)
-    }
-}
-impl<'de> DocumentDeserialize<'de> for BTreeMap<Field, RefValue<'de>> {
+impl<'de, T> DocumentDeserialize<'de> for BTreeMap<Field, T>
+where
+    T: TryFrom<RefValue<'de>>,
+    T::Error: Into<DeserializeError>,
+{
     fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
     where
         D: DocumentDeserializer<'de>,
         'borrow: 'de,
     {
-        let document = deserializer.iter().collect::<Result<_, _>>()?;
-        Ok(document)
+        deserializer.iter().collect::<Result<_, _>>()
     }
 }
 
@@ -307,31 +298,26 @@ impl Document for HashMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl DocumentDeserializeOwned for HashMap<Field, crate::schema::OwnedValue> {
-    fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
-    where D: DocumentDeserializer<'de> {
-        let mut document = HashMap::with_capacity(deserializer.size_hint());
-
-        while let Some((field, value)) = deserializer.next_field()? {
-            document.insert(field, crate::schema::OwnedValue::try_from(value)?);
-        }
-
-        Ok(document)
-    }
-}
-impl<'de> DocumentDeserialize<'de> for HashMap<Field, RefValue<'de>> {
+impl<'de, T> DocumentDeserialize<'de> for HashMap<Field, T>
+where
+    T: TryFrom<RefValue<'de>>,
+    T::Error: Into<DeserializeError>,
+{
     fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
     where
         D: DocumentDeserializer<'de>,
         'borrow: 'de,
     {
-        let mut document = HashMap::with_capacity(deserializer.size_hint());
-
-        while let Some((field, value)) = deserializer.next_field()? {
-            document.insert(field, value);
-        }
-
-        Ok(document)
+        deserializer.iter().try_fold(
+            HashMap::with_capacity(deserializer.size_hint()),
+            |mut acc, r| match r {
+                Ok((field, value)) => {
+                    acc.insert(field, value);
+                    Ok(acc)
+                }
+                Err(e) => Err(e),
+            },
+        )
     }
 }
 
