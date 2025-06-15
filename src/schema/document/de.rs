@@ -16,7 +16,6 @@ use std::sync::Arc;
 use columnar::MonotonicallyMappableToU128;
 use common::{u64_to_f64, BinaryRefDeserializable, DateTime, RefReader, VInt};
 
-use super::ref_value::RefValue;
 use crate::schema::document::type_codes;
 use crate::schema::Field;
 use crate::store::DocStoreVersion;
@@ -108,6 +107,18 @@ pub trait DocumentDeserializer<'de> {
     /// Attempts to deserialize the next field in the document.
     fn next_field<'a>(&'de self) -> Result<Option<(Field, RefValue<'a>)>, DeserializeError>
     where 'de: 'a;
+
+    /// Expose behaviour from `DocumentDeserializer` as an iterator for convenience.
+    ///
+    /// This will advance the position of the internal deserializer, so calling this multiple times
+    /// will not behave as expected.
+    fn iter(&'de self) -> impl Iterator<Item = Result<(Field, RefValue<'de>), DeserializeError>> {
+        std::iter::from_fn(|| match self.next_field() {
+            Ok(Some((field, value))) => Some(Ok((field, value))),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
+        })
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -142,6 +153,42 @@ pub enum ValueType {
     /// A JSON object value. Deprecated.
     #[deprecated(note = "We keep this for backwards compatibility, use Object instead")]
     JSONObject,
+}
+
+/// A container for document field value deserialization.
+///
+/// Attempts to be efficient by avoiding unnecessary allocations and conversions.
+pub enum RefValue<'a> {
+    /// A null value.
+    Null,
+    /// Bool value
+    Bool(bool),
+    /// Unsigned 64-bits Integer `u64`
+    U64(u64),
+    /// Signed 64-bits Integer `i64`
+    I64(i64),
+    /// 64-bits Float `f64`
+    F64(f64),
+    /// Date/time with nanoseconds precision
+    Date(DateTime),
+    /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
+    IpAddr(Ipv6Addr),
+    /// Arbitrarily sized byte array
+    Bytes(&'a [u8]),
+    /// The str type is used for any text information.
+    Str(&'a str),
+    /// Facet string needs to match the format of
+    /// [Facet::encoded_str](crate::schema::Facet::encoded_str).
+    Facet(&'a str),
+    /// Pre-tokenized str type,
+    PreTokStr(PreTokenizedString),
+    /// An iterator over a list of values.
+    Array(BinaryArrayDeserializer<'a>),
+    /// An iterator over a list of key-value pairs.
+    Object(BinaryObjectDeserializer<'a>),
+    /// Legacy JSON object type.
+    #[deprecated(note = "Kept for compatability, use Object instead")]
+    JsonObject(serde_json::Map<String, serde_json::Value>),
 }
 
 /// Access to a sequence of values which can be deserialized.

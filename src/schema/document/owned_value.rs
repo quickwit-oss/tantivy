@@ -9,9 +9,10 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use super::existing_type_impls::can_be_rfc3339_date_time;
-use super::ref_value::RefValue;
 use super::ReferenceValueLeaf;
-use crate::schema::document::{ArrayAccess, DeserializeError, ObjectAccess, ReferenceValue, Value};
+use crate::schema::document::{
+    ArrayAccess, DeserializeError, ObjectAccess, RefValue, ReferenceValue, Value,
+};
 use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;

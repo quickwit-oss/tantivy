@@ -14,11 +14,10 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use super::facet::Facet;
-use super::ref_value::RefValue;
-use super::ReferenceValueLeaf;
+use super::{DocumentDeserialize, ReferenceValueLeaf};
 use crate::schema::document::{
     ArrayAccess, DeserializeError, Document, DocumentDeserializeOwned, DocumentDeserializer,
-    ObjectAccess, ReferenceValue, Value,
+    ObjectAccess, RefValue, ReferenceValue, Value,
 };
 use crate::schema::Field;
 use crate::tokenizer::PreTokenizedString;
@@ -284,6 +283,16 @@ impl DocumentDeserializeOwned for BTreeMap<Field, crate::schema::OwnedValue> {
         Ok(document)
     }
 }
+impl<'de> DocumentDeserialize<'de> for BTreeMap<Field, RefValue<'de>> {
+    fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
+    where
+        D: DocumentDeserializer<'de>,
+        'borrow: 'de,
+    {
+        let document = deserializer.iter().collect::<Result<_, _>>()?;
+        Ok(document)
+    }
+}
 
 // HashMap based documents
 impl Document for HashMap<Field, crate::schema::OwnedValue> {
@@ -305,6 +314,21 @@ impl DocumentDeserializeOwned for HashMap<Field, crate::schema::OwnedValue> {
 
         while let Some((field, value)) = deserializer.next_field()? {
             document.insert(field, crate::schema::OwnedValue::try_from(value)?);
+        }
+
+        Ok(document)
+    }
+}
+impl<'de> DocumentDeserialize<'de> for HashMap<Field, RefValue<'de>> {
+    fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
+    where
+        D: DocumentDeserializer<'de>,
+        'borrow: 'de,
+    {
+        let mut document = HashMap::with_capacity(deserializer.size_hint());
+
+        while let Some((field, value)) = deserializer.next_field()? {
+            document.insert(field, value);
         }
 
         Ok(document)

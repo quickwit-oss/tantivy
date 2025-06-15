@@ -161,7 +161,6 @@ mod de;
 mod existing_type_impls;
 mod owned_document;
 mod owned_value;
-mod ref_value;
 mod se;
 mod value;
 
@@ -171,13 +170,12 @@ use std::mem;
 pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
     ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializeOwned,
-    DocumentDeserializer, ObjectAccess, ValueType,
+    DocumentDeserializer, ObjectAccess, RefValue, ValueType,
 };
 pub use self::owned_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
 };
 pub use self::owned_value::OwnedValue;
-pub use self::ref_value::RefValue;
 pub(crate) use self::se::BinaryDocumentSerializer;
 pub use self::value::{ReferenceValue, ReferenceValueLeaf, Value};
 use super::*;
