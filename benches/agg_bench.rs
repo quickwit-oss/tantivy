@@ -438,7 +438,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         .collect::<Vec<_>>();
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
-        let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
+        let mut index_writer = index.writer_with_num_threads(8, 200_000_000)?;
         // To make the different test cases comparable we just change one doc to force the
         // cardinality
         if cardinality == Cardinality::OptionalDense {
