@@ -13,7 +13,7 @@ mod segment_reader;
 
 pub use self::index::{Index, IndexBuilder};
 pub use self::index_meta::{
-    DeleteMeta, IndexMeta, IndexSettings, InnerSegmentMeta, Order, SegmentMeta,
+    DeleteMeta, IndexMeta, IndexSortByField, IndexSettings, InnerSegmentMeta, Order, SegmentMeta,
     SegmentMetaInventory,
 };
 pub use self::inverted_index_reader::InvertedIndexReader;

@@ -226,7 +226,7 @@ mod tests {
         columnar_writer.record_column_type("col1", ColumnType::Str, false);
         columnar_writer.record_column_type("col2", ColumnType::U64, false);
         let mut buffer = Vec::new();
-        columnar_writer.serialize(1, &mut buffer).unwrap();
+        columnar_writer.serialize(1, None, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
         assert_eq!(columns.len(), 2);
@@ -242,7 +242,7 @@ mod tests {
         columnar_writer.record_column_type("count", ColumnType::U64, false);
         columnar_writer.record_numerical(1, "count", 1u64);
         let mut buffer = Vec::new();
-        columnar_writer.serialize(2, &mut buffer).unwrap();
+        columnar_writer.serialize(2, None, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
         assert_eq!(columns.len(), 1);

@@ -31,7 +31,7 @@ fn get_test_columns() -> Columns {
     }
     let mut buffer: Vec<u8> = Vec::new();
     dataframe_writer
-        .serialize(data.len() as u32, &mut buffer)
+        .serialize(data.len() as u32, None, &mut buffer)
         .unwrap();
     let columnar = ColumnarReader::open(buffer).unwrap();
 

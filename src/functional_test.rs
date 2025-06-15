@@ -4,7 +4,8 @@ use rand::{thread_rng, Rng};
 
 use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
 use crate::schema::*;
-use crate::{doc, schema, Index, IndexWriter, Searcher};
+#[allow(deprecated)]
+use crate::{doc, schema, Index, IndexSettings, IndexSortByField, IndexWriter, Order, Searcher};
 
 fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     assert!(searcher.segment_readers().len() < 20);
@@ -61,6 +62,71 @@ fn get_num_iterations() -> usize {
     std::env::var("NUM_FUNCTIONAL_TEST_ITERATIONS")
         .map(|str| str.parse().unwrap())
         .unwrap_or(2000)
+}
+#[test]
+#[ignore]
+fn test_functional_indexing_sorted() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+
+    let id_field = schema_builder.add_u64_field("id", INDEXED | FAST);
+    let multiples_field = schema_builder.add_u64_field("multiples", INDEXED);
+    let text_field_options = TextOptions::default()
+        .set_indexing_options(
+            TextFieldIndexing::default()
+                .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+        )
+        .set_stored();
+    let text_field = schema_builder.add_text_field("text_field", text_field_options);
+    let schema = schema_builder.build();
+
+    let mut index_builder = Index::builder().schema(schema);
+    index_builder = index_builder.settings(IndexSettings {
+        sort_by_field: Some(IndexSortByField {
+            field: "id".to_string(),
+            order: Order::Desc,
+        }),
+        ..Default::default()
+    });
+    let index = index_builder.create_from_tempdir().unwrap();
+
+    let reader = index.reader()?;
+
+    let mut rng = thread_rng();
+
+    let mut index_writer: IndexWriter =
+        index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
+
+    let mut committed_docs: HashSet<u64> = HashSet::new();
+    let mut uncommitted_docs: HashSet<u64> = HashSet::new();
+
+    for _ in 0..get_num_iterations() {
+        let random_val = rng.gen_range(0..20);
+        if random_val == 0 {
+            index_writer.commit()?;
+            committed_docs.extend(&uncommitted_docs);
+            uncommitted_docs.clear();
+            reader.reload()?;
+            let searcher = reader.searcher();
+            // check that everything is correct.
+            check_index_content(
+                &searcher,
+                &committed_docs.iter().cloned().collect::<Vec<u64>>(),
+            )?;
+        } else if committed_docs.remove(&random_val) || uncommitted_docs.remove(&random_val) {
+            let doc_id_term = Term::from_field_u64(id_field, random_val);
+            index_writer.delete_term(doc_id_term);
+        } else {
+            uncommitted_docs.insert(random_val);
+            let mut doc = TantivyDocument::new();
+            doc.add_u64(id_field, random_val);
+            for i in 1u64..10u64 {
+                doc.add_u64(multiples_field, random_val * i);
+            }
+            doc.add_text(text_field, get_text());
+            index_writer.add_document(doc)?;
+        }
+    }
+    Ok(())
 }
 
 const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \

@@ -220,8 +220,8 @@ pub use crate::core::json_utils;
 pub use crate::core::{Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
 pub use crate::index::{
-    Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader, Order, Segment,
-    SegmentMeta, SegmentReader,
+    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader, Order,
+    Segment, SegmentMeta, SegmentReader,
 };
 pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::schema::{Document, TantivyDocument, Term};
