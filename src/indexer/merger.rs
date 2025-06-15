@@ -23,9 +23,7 @@ use crate::postings::InvertedIndexSerializer;
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
-use crate::{
-    DocAddress, DocId, IndexSettings, IndexSortByField, Order, SegmentOrdinal,
-};
+use crate::{DocAddress, DocId, IndexSettings, IndexSortByField, Order, SegmentOrdinal};
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
 ///
@@ -162,7 +160,14 @@ impl IndexMerger {
         ignore_store: bool,
     ) -> crate::Result<IndexMerger> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
-        Self::open_with_custom_alive_set(schema, index_settings, segments, alive_bitset, cancel, ignore_store)
+        Self::open_with_custom_alive_set(
+            schema,
+            index_settings,
+            segments,
+            alive_bitset,
+            cancel,
+            ignore_store,
+        )
     }
 
     // Create merge with a custom delete set.
@@ -761,19 +766,19 @@ impl IndexMerger {
                     // take 7 in order to not walk over all checkpoints.
                     || store_reader.block_checkpoints().take(7).count() < 6
                     || store_reader.decompressor() != store_writer.compressor().into()
-            {
-                for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
-                    if self.cancel.wants_cancel() {
-                        return Err(crate::TantivyError::Cancelled);
+                {
+                    for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
+                        if self.cancel.wants_cancel() {
+                            return Err(crate::TantivyError::Cancelled);
+                        }
+                        let doc_bytes = doc_bytes_res?;
+                        store_writer.store_bytes(&doc_bytes)?;
                     }
-                    let doc_bytes = doc_bytes_res?;
-                    store_writer.store_bytes(&doc_bytes)?;
+                } else {
+                    store_writer.stack(store_reader)?;
                 }
-            } else {
-                store_writer.stack(store_reader)?;
             }
         }
-    }
         Ok(())
     }
 

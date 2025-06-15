@@ -155,7 +155,13 @@ fn merge(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger = IndexMerger::open(index.schema(),index.settings().clone(), &segments[..], cancel, ignore_store)?;
+    let merger = IndexMerger::open(
+        index.schema(),
+        index.settings().clone(),
+        &segments[..],
+        cancel,
+        ignore_store,
+    )?;
 
     // ... we just serialize this index merger in our new segment to merge the segments.
     let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
