@@ -53,7 +53,10 @@ pub use self::mmap_directory::MmapDirectory;
 ///
 /// `WritePtr` are required to implement both Write
 /// and Seek.
-pub type WritePtr = BufWriter<Box<dyn TerminatingWrite + Send + Sync>>;
+pub type WritePtr = BufWriter<InnerWritePtr>;
+
+/// An unbuffered WritePtr.
+pub type InnerWritePtr = Box<dyn TerminatingWrite + Send + Sync>;
 
 #[cfg(test)]
 mod tests;
