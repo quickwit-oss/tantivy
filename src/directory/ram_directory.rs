@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{self, BufWriter, Cursor, Write};
+use std::io::{self, Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::{fmt, result};
@@ -11,7 +11,7 @@ use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::{
     AntiCallToken, Directory, FileSlice, TerminatingWrite, WatchCallback, WatchCallbackList,
-    WatchHandle, WritePtr,
+    WatchHandle,
 };
 
 /// Writer associated with the [`RamDirectory`].
@@ -197,7 +197,7 @@ impl Directory for RamDirectory {
             .exists(path))
     }
 
-    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+    fn open_write_inner(&self, path: &Path) -> Result<Box<dyn TerminatingWrite>, OpenWriteError> {
         let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
@@ -206,7 +206,7 @@ impl Directory for RamDirectory {
         if exists {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
         } else {
-            Ok(BufWriter::new(Box::new(vec_writer)))
+            Ok(Box::new(vec_writer))
         }
     }
 

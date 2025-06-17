@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufWriter, Read, Write};
+use std::io::{self, Read, Write};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
@@ -21,7 +21,7 @@ use crate::directory::error::{
 use crate::directory::file_watcher::FileWatcher;
 use crate::directory::{
     AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
-    WatchCallback, WatchHandle, WritePtr,
+    WatchCallback, WatchHandle,
 };
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -413,7 +413,7 @@ impl Directory for MmapDirectory {
             .map_err(|io_err| OpenReadError::wrap_io_error(io_err, path.to_path_buf()))
     }
 
-    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+    fn open_write_inner(&self, path: &Path) -> Result<Box<dyn TerminatingWrite>, OpenWriteError> {
         debug!("Open Write {:?}", path);
         let full_path = self.resolve_path(path);
 
@@ -443,7 +443,7 @@ impl Directory for MmapDirectory {
         // sync_directory() is called.
 
         let writer = SafeFileWriter::new(file);
-        Ok(BufWriter::new(Box::new(writer)))
+        Ok(Box::new(writer))
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {

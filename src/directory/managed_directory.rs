@@ -12,7 +12,7 @@ use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteEr
 use crate::directory::footer::{Footer, FooterProxy, FOOTER_LEN};
 use crate::directory::{
     DirectoryLock, DirectoryPanicHandler, FileHandle, FileSlice, GarbageCollectionResult, Lock,
-    WatchCallback, WatchHandle, WritePtr, MANAGED_LOCK, META_LOCK,
+    TerminatingWrite, WatchCallback, WatchHandle, MANAGED_LOCK, META_LOCK,
 };
 use crate::error::DataCorruption;
 use crate::index::SegmentMetaInventory;
@@ -310,16 +310,19 @@ impl Directory for ManagedDirectory {
         Ok(reader)
     }
 
-    fn open_write(&self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
+    fn open_write_inner(
+        &self,
+        path: &Path,
+    ) -> result::Result<Box<dyn TerminatingWrite>, OpenWriteError> {
         self.register_file_as_managed(path)
             .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
-        Ok(io::BufWriter::new(Box::new(FooterProxy::new(
+        Ok(Box::new(FooterProxy::new(
             self.directory
                 .open_write(path)?
                 .into_inner()
                 .map_err(|_| ())
                 .expect("buffer should be empty"),
-        ))))
+        )))
     }
 
     fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
@@ -379,6 +382,10 @@ impl Directory for ManagedDirectory {
 
     fn log(&self, message: &str) {
         self.directory.log(message);
+    }
+
+    fn bufwriter_capacity(&self) -> usize {
+        self.directory.bufwriter_capacity()
     }
 }
 
