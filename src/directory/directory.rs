@@ -10,7 +10,9 @@ use log::Level;
 
 use crate::directory::directory_lock::Lock;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
-use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
+use crate::directory::{
+    FileHandle, FileSlice, TerminatingWrite, WatchCallback, WatchHandle, WritePtr,
+};
 use crate::index::SegmentMetaInventory;
 use crate::IndexMeta;
 
@@ -143,6 +145,10 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Returns true if and only if the file exists
     fn exists(&self, path: &Path) -> Result<bool, OpenReadError>;
 
+    /// Returns a boxed `TerminatingWrite` object, to be passed into `open_write`
+    /// which wraps it in a `BufWriter`
+    fn open_write_inner(&self, path: &Path) -> Result<Box<dyn TerminatingWrite>, OpenWriteError>;
+
     /// Opens a writer for the *virtual file* associated with
     /// a [`Path`].
     ///
@@ -169,7 +175,12 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// panic! if `flush` was not called.
     ///
     /// The file may not previously exist.
-    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError>;
+    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+        Ok(io::BufWriter::with_capacity(
+            self.bufwriter_capacity(),
+            self.open_write_inner(path)?,
+        ))
+    }
 
     /// Reads the full content file that has been written using
     /// [`Directory::atomic_write()`].
@@ -295,6 +306,10 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Send a logging message to the Directory to handle in its own way
     fn log(&self, message: &str) {
         log!(Level::Info, "{message}");
+    }
+
+    fn bufwriter_capacity(&self) -> usize {
+        8192
     }
 }
 
