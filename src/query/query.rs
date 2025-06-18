@@ -6,8 +6,8 @@ use super::bm25::Bm25StatisticsProvider;
 use super::Weight;
 use crate::core::searcher::Searcher;
 use crate::query::Explanation;
-use crate::schema::Schema;
-use crate::{DocAddress, Term};
+use crate::schema::{Field, Schema};
+use crate::{DocAddress, SegmentReader, Term};
 
 /// Argument used in `Query::weight(..)`
 #[derive(Copy, Clone)]
@@ -159,7 +159,13 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
     ///
     /// Note that there can be multiple instances of any given term
     /// in a query and deduplication must be handled by the visitor.
-    fn query_terms<'a>(&'a self, _visitor: &mut dyn FnMut(&'a Term, bool)) {}
+    fn query_terms(
+        &self,
+        _field: Field,
+        _segment_reader: &SegmentReader,
+        _visitor: &mut dyn FnMut(&Term, bool),
+    ) {
+    }
 }
 
 /// Implements `box_clone`.
@@ -185,8 +191,13 @@ impl Query for Box<dyn Query> {
         self.as_ref().count(searcher)
     }
 
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
-        self.as_ref().query_terms(visitor);
+    fn query_terms(
+        &self,
+        field: Field,
+        segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
+        self.as_ref().query_terms(field, segment_reader, visitor);
     }
 }
 

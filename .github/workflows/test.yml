@@ -76,7 +76,9 @@ jobs:
             profile: minimal
             override: true
 
-    - uses: taiki-e/install-action@nextest
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: 'nextest'
     - uses: Swatinem/rust-cache@v2
 
     - name: Run tests

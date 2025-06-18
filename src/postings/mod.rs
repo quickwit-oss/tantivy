@@ -19,7 +19,7 @@ mod serializer;
 pub(crate) mod skip;
 mod term_info;
 
-pub(crate) use loaded_postings::LoadedPostings;
+pub use loaded_postings::LoadedPostings;
 pub(crate) use stacker::compute_table_memory_size;
 
 pub use self::block_segment_postings::BlockSegmentPostings;

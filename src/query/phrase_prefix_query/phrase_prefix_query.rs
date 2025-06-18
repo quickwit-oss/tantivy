@@ -4,6 +4,7 @@ use super::{prefix_end, PhrasePrefixWeight};
 use crate::query::bm25::Bm25Weight;
 use crate::query::{EnableScoring, InvertedIndexRangeWeight, Query, Weight};
 use crate::schema::{Field, IndexRecordOption, Term};
+use crate::SegmentReader;
 
 const DEFAULT_MAX_EXPANSIONS: u32 = 50;
 
@@ -157,7 +158,12 @@ impl Query for PhrasePrefixQuery {
         }
     }
 
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+    fn query_terms(
+        &self,
+        _field: Field,
+        _segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
         for (_, term) in &self.phrase_terms {
             visitor(term, true);
         }
