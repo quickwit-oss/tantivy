@@ -1,6 +1,7 @@
 use super::boolean_weight::BooleanWeight;
 use crate::query::{EnableScoring, Occur, Query, SumCombiner, TermQuery, Weight};
-use crate::schema::{IndexRecordOption, Term};
+use crate::schema::{Field, IndexRecordOption, Term};
+use crate::SegmentReader;
 
 /// The boolean query returns a set of documents
 /// that matches the Boolean combination of constituent subqueries.
@@ -168,9 +169,14 @@ impl Query for BooleanQuery {
         )))
     }
 
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+    fn query_terms(
+        &self,
+        field: Field,
+        segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
         for (_occur, subquery) in &self.subqueries {
-            subquery.query_terms(visitor);
+            subquery.query_terms(field, segment_reader, visitor);
         }
     }
 }
