@@ -6,7 +6,7 @@ use tantivy_fst::{Automaton, Map};
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{AutomatonWeight, BooleanWeight, EnableScoring, Occur, Query, Weight};
 use crate::schema::{Field, Schema};
-use crate::Term;
+use crate::{SegmentReader, Term};
 
 /// A Term Set Query matches all of the documents containing any of the Term provided
 #[derive(Debug, Clone)]
@@ -73,7 +73,12 @@ impl Query for TermSetQuery {
         Ok(Box::new(self.specialized_weight(enable_scoring.schema())?))
     }
 
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+    fn query_terms(
+        &self,
+        _field: Field,
+        _segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
         for terms in self.terms_map.values() {
             for term in terms {
                 visitor(term, false);

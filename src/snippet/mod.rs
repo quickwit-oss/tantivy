@@ -402,12 +402,14 @@ impl SnippetGenerator {
         query: &dyn Query,
         field: Field,
     ) -> crate::Result<SnippetGenerator> {
-        let mut terms: BTreeSet<&Term> = BTreeSet::new();
-        query.query_terms(&mut |term, _| {
-            if term.field() == field {
-                terms.insert(term);
-            }
-        });
+        let mut terms: BTreeSet<Term> = BTreeSet::new();
+        for segment_reader in searcher.segment_readers() {
+            query.query_terms(field, segment_reader, &mut |term, _| {
+                if term.field() == field {
+                    terms.insert(term.clone());
+                }
+            });
+        }
         let mut terms_text: BTreeMap<String, Score> = Default::default();
         for term in terms {
             let term_value = term.value();
@@ -424,7 +426,7 @@ impl SnippetGenerator {
             } else {
                 continue;
             };
-            let doc_freq = searcher.doc_freq(term)?;
+            let doc_freq = searcher.doc_freq(&term)?;
             if doc_freq > 0 {
                 let score = 1.0 / (1.0 + doc_freq as Score);
                 terms_text.insert(term_str.to_string(), score);

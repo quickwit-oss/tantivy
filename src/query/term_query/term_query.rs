@@ -5,8 +5,8 @@ use super::term_weight::TermWeight;
 use crate::query::bm25::Bm25Weight;
 use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::{EnableScoring, Explanation, Query, RangeQuery, Weight};
-use crate::schema::IndexRecordOption;
-use crate::Term;
+use crate::schema::{Field, IndexRecordOption};
+use crate::{SegmentReader, Term};
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -144,7 +144,12 @@ impl Query for TermQuery {
         }
         Ok(Box::new(self.specialized_weight(enable_scoring)?))
     }
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+    fn query_terms(
+        &self,
+        _field: Field,
+        _segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
         visitor(&self.term, false);
     }
 }

@@ -105,10 +105,27 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
             segment_num_docs,
         }
     }
+
+    pub fn with_two_sets(
+        left: TDocSet,
+        right: TDocSet,
+        num_docs: u32,
+    ) -> Intersection<TDocSet, TDocSet> {
+        let mut docsets = vec![left, right];
+        go_to_first_doc(&mut docsets);
+        let left = docsets.remove(0);
+        let right = docsets.remove(0);
+        Intersection {
+            left,
+            right,
+            others: docsets,
+            segment_num_docs: num_docs,
+        }
+    }
 }
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
-    pub(crate) fn docset_mut_specialized(&mut self, ord: usize) -> &mut TDocSet {
+    pub fn docset_mut_specialized(&mut self, ord: usize) -> &mut TDocSet {
         match ord {
             0 => &mut self.left,
             1 => &mut self.right,

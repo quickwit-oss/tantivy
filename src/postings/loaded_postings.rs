@@ -15,10 +15,10 @@ use crate::DocId;
 /// terms.
 /// E.g. 100_000 terms would need 184MB due to SegmentPostings.
 pub struct LoadedPostings {
-    doc_ids: Box<[DocId]>,
-    position_offsets: Box<[u32]>,
-    positions: Box<[u32]>,
-    cursor: usize,
+    pub doc_ids: Box<[DocId]>,
+    pub position_offsets: Box<[u32]>,
+    pub positions: Box<[u32]>,
+    pub cursor: usize,
 }
 
 impl LoadedPostings {

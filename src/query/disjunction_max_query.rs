@@ -1,5 +1,6 @@
 use crate::query::{BooleanWeight, DisjunctionMaxCombiner, EnableScoring, Occur, Query, Weight};
-use crate::{Score, Term};
+use crate::schema::Field;
+use crate::{Score, SegmentReader, Term};
 
 /// The disjunction max query returns documents matching one or more wrapped queries,
 /// called query clauses or clauses.
@@ -104,9 +105,14 @@ impl Query for DisjunctionMaxQuery {
         )))
     }
 
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+    fn query_terms(
+        &self,
+        field: Field,
+        segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
         for disjunct in &self.disjuncts {
-            disjunct.query_terms(visitor);
+            disjunct.query_terms(field, segment_reader, visitor);
         }
     }
 }

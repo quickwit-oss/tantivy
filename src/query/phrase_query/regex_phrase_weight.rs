@@ -172,7 +172,7 @@ impl RegexPhraseWeight {
     /// docs. For higher cardinality buckets this is irrelevant as they are in most blocks.
     ///
     /// Use Roaring Bitmaps for sparse terms. The full bitvec is main memory consumer currently.
-    pub(crate) fn get_union_from_term_infos(
+    pub fn get_union_from_term_infos(
         term_infos: &[TermInfo],
         reader: &SegmentReader,
         inverted_index: &InvertedIndexReader,
