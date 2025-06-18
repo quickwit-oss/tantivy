@@ -2,6 +2,7 @@ use super::PhraseWeight;
 use crate::query::bm25::Bm25Weight;
 use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{Field, IndexRecordOption, Term};
+use crate::SegmentReader;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -141,7 +142,12 @@ impl Query for PhraseQuery {
         Ok(Box::new(phrase_weight))
     }
 
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
+    fn query_terms(
+        &self,
+        _field: Field,
+        _segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
         for (_, term) in &self.phrase_terms {
             visitor(term, true);
         }

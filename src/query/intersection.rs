@@ -75,7 +75,7 @@ fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     /// num_docs is the number of documents in the segment.
-    pub(crate) fn new(mut docsets: Vec<TDocSet>, num_docs: u32) -> Intersection<TDocSet, TDocSet> {
+    pub fn new(mut docsets: Vec<TDocSet>, num_docs: u32) -> Intersection<TDocSet, TDocSet> {
         let num_docsets = docsets.len();
         assert!(num_docsets >= 2);
         docsets.sort_by_key(|docset| docset.cost());
@@ -89,10 +89,22 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
             num_docs,
         }
     }
+
+    pub fn with_two_sets(left: TDocSet, right: TDocSet) -> Intersection<TDocSet, TDocSet> {
+        let mut docsets = vec![left, right];
+        go_to_first_doc(&mut docsets);
+        let left = docsets.remove(0);
+        let right = docsets.remove(0);
+        Intersection {
+            left,
+            right,
+            others: docsets,
+        }
+    }
 }
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
-    pub(crate) fn docset_mut_specialized(&mut self, ord: usize) -> &mut TDocSet {
+    pub fn docset_mut_specialized(&mut self, ord: usize) -> &mut TDocSet {
         match ord {
             0 => &mut self.left,
             1 => &mut self.right,

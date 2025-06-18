@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::schema::Field;
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
 
 /// `ConstScoreQuery` is a wrapper over a query to provide a constant score.
@@ -46,8 +47,13 @@ impl Query for ConstScoreQuery {
         })
     }
 
-    fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
-        self.query.query_terms(visitor);
+    fn query_terms(
+        &self,
+        field: Field,
+        segment_reader: &SegmentReader,
+        visitor: &mut dyn FnMut(&Term, bool),
+    ) {
+        self.query.query_terms(field, segment_reader, visitor);
     }
 }
 

@@ -1,4 +1,4 @@
-use super::regex_phrase_weight::RegexPhraseWeight;
+pub(crate) use super::regex_phrase_weight::RegexPhraseWeight;
 use crate::query::bm25::Bm25Weight;
 use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
