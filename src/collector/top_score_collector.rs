@@ -1439,6 +1439,16 @@ mod tests {
         );
 
         assert_eq!(
+            &query(&index, Order::Desc, 2, 0)?,
+            &[
+                ("tokyo".to_owned(), DocAddress::new(0, 2)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+            ]
+        );
+
+        assert_eq!(&query(&index, Order::Desc, 3, 3)?, &[]);
+
+        assert_eq!(
             &query(&index, Order::Desc, 2, 1)?,
             &[
                 ("greenville".to_owned(), DocAddress::new(0, 1)),
@@ -1462,6 +1472,17 @@ mod tests {
                 ("tokyo".to_owned(), DocAddress::new(0, 2)),
             ]
         );
+
+        assert_eq!(
+            &query(&index, Order::Asc, 2, 0)?,
+            &[
+                ("austin".to_owned(), DocAddress::new(0, 0)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+            ]
+        );
+
+        assert_eq!(&query(&index, Order::Asc, 3, 3)?, &[]);
+
         Ok(())
     }
 
