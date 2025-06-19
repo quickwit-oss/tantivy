@@ -1406,10 +1406,10 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(
-                city => "alberta",
+                city => "austin",
         ))?;
         index_writer.add_document(doc!(
-                city => "georgetown",
+                city => "greenville",
         ))?;
         index_writer.add_document(doc!(
             city => "tokyo",
@@ -1433,24 +1433,24 @@ mod tests {
             &query(&index, Order::Desc, 3, 0)?,
             &[
                 ("tokyo".to_owned(), DocAddress::new(0, 2)),
-                ("georgetown".to_owned(), DocAddress::new(0, 1)),
-                ("alberta".to_owned(), DocAddress::new(0, 0)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+                ("austin".to_owned(), DocAddress::new(0, 0)),
             ]
         );
 
         assert_eq!(
             &query(&index, Order::Desc, 2, 1)?,
             &[
-                ("georgetown".to_owned(), DocAddress::new(0, 1)),
-                ("alberta".to_owned(), DocAddress::new(0, 0)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+                ("austin".to_owned(), DocAddress::new(0, 0)),
             ]
         );
 
         assert_eq!(
             &query(&index, Order::Asc, 3, 0)?,
             &[
-                ("alberta".to_owned(), DocAddress::new(0, 0)),
-                ("georgetown".to_owned(), DocAddress::new(0, 1)),
+                ("austin".to_owned(), DocAddress::new(0, 0)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
                 ("tokyo".to_owned(), DocAddress::new(0, 2)),
             ]
         );
@@ -1458,7 +1458,7 @@ mod tests {
         assert_eq!(
             &query(&index, Order::Asc, 2, 1)?,
             &[
-                ("georgetown".to_owned(), DocAddress::new(0, 1)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
                 ("tokyo".to_owned(), DocAddress::new(0, 2)),
             ]
         );
