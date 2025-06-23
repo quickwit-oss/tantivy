@@ -35,60 +35,6 @@ impl RefReader {
         self.len() - self.pos()
     }
 
-    /// Read data from the reader into the provided buffer.
-    /// Returns the number of bytes read.
-    ///
-    /// Advances the internal position by the number of bytes read.
-    pub fn read(&self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut pos = self.pos.borrow_mut();
-        let remaining_data_len = self.data.len() - *pos;
-        let buf_len = buf.len();
-
-        if remaining_data_len >= buf_len {
-            buf.copy_from_slice(&self.data[*pos..*pos + buf_len]);
-            *pos += buf_len;
-            Ok(buf_len)
-        } else {
-            buf[..remaining_data_len].copy_from_slice(&self.data[*pos..]);
-            *pos += remaining_data_len;
-            Ok(remaining_data_len)
-        }
-    }
-
-    /// Read all remaining data from the reader into the provided buffer.
-    /// Returns the number of bytes read.
-    ///
-    /// Advances the internal position to the end of the data.
-    pub fn read_to_end(&self, buf: &mut Vec<u8>) -> std::io::Result<usize> {
-        let mut pos = self.pos.borrow_mut();
-        let remaining_data_len = self.data.len() - *pos;
-        buf.extend_from_slice(&self.data[*pos..]);
-        *pos += remaining_data_len;
-        Ok(remaining_data_len)
-    }
-
-    /// Read exactly the specified number of bytes from the reader into the provided buffer.
-    /// If the end of the data is reached before the buffer is filled, an `UnexpectedEof` error is
-    /// returned.
-    ///
-    /// Advances the internal position by the number of bytes read.
-    pub fn read_exact(&self, buf: &mut [u8]) -> std::io::Result<()> {
-        let mut pos = self.pos.borrow_mut();
-        let remaining_data_len = self.data.len() - *pos;
-        let buf_len = buf.len();
-
-        if remaining_data_len < buf_len {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "failed to fill whole buffer",
-            ))
-        } else {
-            buf.copy_from_slice(&self.data[*pos..*pos + buf_len]);
-            *pos += buf_len;
-            Ok(())
-        }
-    }
-
     /// Read exactly `n` bytes from the reader and return them as a slice.
     /// If the end of the data is reached before `n` bytes are read, an `UnexpectedEof` error is
     /// returned.
@@ -153,6 +99,18 @@ impl RefReader {
 
 impl std::io::Read for RefReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        Self::read(self, buf)
+        let mut pos = self.pos.borrow_mut();
+        let remaining_data_len = self.data.len() - *pos;
+        let buf_len = buf.len();
+
+        if remaining_data_len >= buf_len {
+            buf.copy_from_slice(&self.data[*pos..*pos + buf_len]);
+            *pos += buf_len;
+            Ok(buf_len)
+        } else {
+            buf[..remaining_data_len].copy_from_slice(&self.data[*pos..]);
+            *pos += remaining_data_len;
+            Ok(remaining_data_len)
+        }
     }
 }
