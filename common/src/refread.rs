@@ -71,14 +71,6 @@ impl RefReader {
         }
     }
 
-    /// Get a reference to the remaining slice of data.
-    ///
-    /// Does not advance the cursor
-    pub fn remaining_slice(&self) -> &[u8] {
-        let pos = self.pos.borrow();
-        &self.data[*pos..]
-    }
-
     /// Advances the internal position by `n` bytes.
     /// If `n` is greater than the remaining data length, then it will return an error.
     pub fn advance(&self, n: usize) -> std::io::Result<()> {
