@@ -2,8 +2,8 @@ use std::io;
 use std::io::{Read, Write};
 
 use super::BinarySerializable;
-use crate::serialize::BinaryRefDeserializable;
 use crate::RefReader;
+use crate::serialize::BinaryRefDeserializable;
 
 /// Variable int serializes a u128 number
 pub fn serialize_vint_u128(mut val: u128, output: &mut Vec<u8>) {
@@ -266,9 +266,9 @@ mod tests {
 
     use ownedbytes::OwnedBytes;
 
-    use super::{serialize_vint_u32, BinarySerializable, VInt};
-    use crate::serialize::BinaryRefDeserializable;
+    use super::{BinarySerializable, VInt, serialize_vint_u32};
     use crate::RefReader;
+    use crate::serialize::BinaryRefDeserializable;
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
