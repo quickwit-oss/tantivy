@@ -38,9 +38,10 @@
 //! ```
 //! use std::collections::{btree_map, BTreeMap};
 //! use tantivy::schema::{Document, Field};
-//! use tantivy::schema::document::{DeserializeError, DocumentDeserialize, DocumentDeserializer};
+//! use tantivy::schema::document::{DeserializeError, DocumentDeserializeOwned, DocumentDeserializer};
 //!
 //! /// Our custom document to let us use a map of `serde_json::Values`.
+//! #[allow(dead_code)]
 //! pub struct MyCustomDocument {
 //!     // Tantivy provides trait implementations for common `serde_json` types.
 //!     fields: BTreeMap<Field, serde_json::Value>
@@ -67,8 +68,8 @@
 //! // back when it's deserialized from the doc store.
 //! // The API for this is very similar to serde but a little bit
 //! // more specialised, giving you access to types like IP addresses, datetime, etc...
-//! impl DocumentDeserialize for MyCustomDocument {
-//!     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
+//! impl DocumentDeserializeOwned for MyCustomDocument {
+//!     fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
 //!     where D: DocumentDeserializer<'de>
 //!     {
 //!         // We're not going to implement the necessary logic for this example
@@ -158,8 +159,8 @@
 //! TODO: Complete this section...
 
 mod de;
-mod default_document;
 mod existing_type_impls;
+mod owned_document;
 mod owned_value;
 mod se;
 mod value;
@@ -169,10 +170,10 @@ use std::mem;
 
 pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
-    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
-    ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
+    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializeOwned,
+    DocumentDeserializer, ObjectAccess, RefValue, ValueType,
 };
-pub use self::default_document::{
+pub use self::owned_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
 };
 pub use self::owned_value::OwnedValue;
