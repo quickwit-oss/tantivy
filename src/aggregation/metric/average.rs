@@ -58,7 +58,7 @@ impl IntermediateAverage {
         }
     }
     /// Merges the other intermediate result into self.
-    pub fn merge_fruits(&mut self, other: IntermediateAverage) {
+    pub fn merge_fruits(&mut self, other: Self) {
         self.stats.merge_fruits(other.stats);
     }
     /// Computes the final average value.

@@ -29,7 +29,7 @@ struct KeyValue {
 
 impl Default for KeyValue {
     fn default() -> Self {
-        KeyValue {
+        Self {
             key_value_addr: Addr::null_pointer(),
             hash: 0,
         }
@@ -73,8 +73,8 @@ struct LinearProbing {
 
 impl LinearProbing {
     #[inline]
-    fn compute(hash: HashType, mask: usize) -> LinearProbing {
-        LinearProbing {
+    fn compute(hash: HashType, mask: usize) -> Self {
+        Self {
             pos: hash as usize,
             mask,
         }
@@ -121,16 +121,16 @@ fn compute_previous_power_of_two(n: usize) -> usize {
 
 impl Default for SharedArenaHashMap {
     fn default() -> Self {
-        SharedArenaHashMap::with_capacity(4)
+        Self::with_capacity(4)
     }
 }
 
 impl SharedArenaHashMap {
-    pub fn with_capacity(table_size: usize) -> SharedArenaHashMap {
+    pub fn with_capacity(table_size: usize) -> Self {
         let table_size_power_of_2 = compute_previous_power_of_two(table_size);
         let table = vec![KeyValue::default(); table_size_power_of_2];
 
-        SharedArenaHashMap {
+        Self {
             table,
             mask: table_size_power_of_2 - 1,
             len: 0,

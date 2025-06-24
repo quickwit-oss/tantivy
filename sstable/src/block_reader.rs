@@ -13,20 +13,20 @@ pub struct BlockReader {
 }
 
 impl BlockReader {
-    pub fn new(reader: OwnedBytes) -> BlockReader {
-        BlockReader {
-            buffer: Vec::new(),
+    pub fn new(reader: OwnedBytes) -> Self {
+        Self {
+            buffer: vec![],
             reader,
-            next_readers: Vec::new().into_iter(),
+            next_readers: vec![].into_iter(),
             offset: 0,
         }
     }
 
-    pub fn from_multiple_blocks(readers: Vec<OwnedBytes>) -> BlockReader {
+    pub fn from_multiple_blocks(readers: Vec<OwnedBytes>) -> Self {
         let mut next_readers = readers.into_iter();
         let reader = next_readers.next().unwrap_or_else(OwnedBytes::empty);
-        BlockReader {
-            buffer: Vec::new(),
+        Self {
+            buffer: vec![],
             reader,
             next_readers,
             offset: 0,

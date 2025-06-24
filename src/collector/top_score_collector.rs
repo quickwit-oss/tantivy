@@ -350,8 +350,8 @@ impl TopDocs {
     ///
     /// # Panics
     /// The method panics if limit is 0
-    pub fn with_limit(limit: usize) -> TopDocs {
-        TopDocs(TopCollector::with_limit(limit))
+    pub fn with_limit(limit: usize) -> Self {
+        Self(TopCollector::with_limit(limit))
     }
 
     /// Skip the first "offset" documents when collecting.
@@ -395,8 +395,8 @@ impl TopDocs {
     /// # }
     /// ```
     #[must_use]
-    pub fn and_offset(self, offset: usize) -> TopDocs {
-        TopDocs(self.0.and_offset(offset))
+    pub fn and_offset(self, offset: usize) -> Self {
+        Self(self.0.and_offset(offset))
     }
 
     /// Set top-K to rank documents by a given fast field.
@@ -944,7 +944,7 @@ impl<Score: Clone, D: Clone, const REVERSE_ORDER: bool> Clone
         let mut buffer_clone = Vec::with_capacity(self.buffer.capacity());
         buffer_clone.extend(self.buffer.iter().cloned());
 
-        TopNComputer {
+        Self {
             buffer: buffer_clone,
             top_n: self.top_n,
             threshold: self.threshold.clone(),
@@ -962,7 +962,7 @@ impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNCompu
             value.buffer.shrink_to(expected_cap);
         }
 
-        TopNComputer {
+        Self {
             buffer: value.buffer,
             top_n: value.top_n,
             threshold: value.threshold,
@@ -979,7 +979,7 @@ where
     /// Internally it will allocate a buffer of size `2 * top_n`.
     pub fn new(top_n: usize) -> Self {
         let vec_cap = top_n.max(1) * 2;
-        TopNComputer {
+        Self {
             buffer: Vec::with_capacity(vec_cap),
             top_n,
             threshold: None,

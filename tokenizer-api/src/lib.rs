@@ -29,8 +29,8 @@ pub struct Token {
 }
 
 impl Default for Token {
-    fn default() -> Token {
-        Token {
+    fn default() -> Self {
+        Self {
             offset_from: 0,
             offset_to: 0,
             position: usize::MAX,
@@ -78,7 +78,7 @@ impl TokenStream for BoxTokenStream<'_> {
 }
 
 impl<'a> BoxTokenStream<'a> {
-    pub fn new<T: TokenStream + 'a>(token_stream: T) -> BoxTokenStream<'a> {
+    pub fn new<T: TokenStream + 'a>(token_stream: T) -> Self {
         BoxTokenStream(Box::new(token_stream))
     }
 }

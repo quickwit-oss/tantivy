@@ -29,10 +29,10 @@ const TERM_METADATA_LENGTH: usize = 5;
 
 impl Term {
     /// Create a new Term with a buffer with a given capacity.
-    pub fn with_capacity(capacity: usize) -> Term {
+    pub fn with_capacity(capacity: usize) -> Self {
         let mut data = Vec::with_capacity(TERM_METADATA_LENGTH + capacity);
         data.resize(TERM_METADATA_LENGTH, 0u8);
-        Term(data)
+        Self(data)
     }
 
     /// Creates a term from a json path.
@@ -43,14 +43,14 @@ impl Term {
     /// In case there are dots in the field name, and the `expand_dots_enabled` parameter is not
     /// set they need to be escaped with a backslash.
     /// e.g. `{"k8s.node": {"id": 5}}` can be addressed via `k8s\.node.id`.
-    pub fn from_field_json_path(field: Field, json_path: &str, expand_dots_enabled: bool) -> Term {
+    pub fn from_field_json_path(field: Field, json_path: &str, expand_dots_enabled: bool) -> Self {
         let paths = split_json_path(json_path);
         let mut json_path = JsonPathWriter::with_expand_dots(expand_dots_enabled);
         for path in paths {
             json_path.push(&path);
         }
         json_path.set_end();
-        let mut term = Term::with_type_and_field(Type::Json, field);
+        let mut term = Self::with_type_and_field(Type::Json, field);
 
         term.append_bytes(json_path.as_str().as_bytes());
 
@@ -80,20 +80,20 @@ impl Term {
         }
     }
 
-    pub(crate) fn with_type_and_field(typ: Type, field: Field) -> Term {
+    pub(crate) fn with_type_and_field(typ: Type, field: Field) -> Self {
         let mut term = Self::with_capacity(8);
         term.set_field_and_type(field, typ);
         term
     }
 
-    fn with_bytes_and_field_and_payload(typ: Type, field: Field, bytes: &[u8]) -> Term {
+    fn with_bytes_and_field_and_payload(typ: Type, field: Field, bytes: &[u8]) -> Self {
         let mut term = Self::with_capacity(bytes.len());
         term.set_field_and_type(field, typ);
         term.0.extend_from_slice(bytes);
         term
     }
 
-    pub(crate) fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
+    pub(crate) fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Self {
         let mut term = Self::with_type_and_field(T::to_type(), field);
         term.set_u64(val.to_u64());
         term
@@ -115,30 +115,30 @@ impl Term {
     }
 
     /// Builds a term given a field, and a `Ipv6Addr`-value
-    pub fn from_field_ip_addr(field: Field, ip_addr: Ipv6Addr) -> Term {
+    pub fn from_field_ip_addr(field: Field, ip_addr: Ipv6Addr) -> Self {
         let mut term = Self::with_type_and_field(Type::IpAddr, field);
         term.set_ip_addr(ip_addr);
         term
     }
 
     /// Builds a term given a field, and a `u64`-value
-    pub fn from_field_u64(field: Field, val: u64) -> Term {
-        Term::from_fast_value(field, &val)
+    pub fn from_field_u64(field: Field, val: u64) -> Self {
+        Self::from_fast_value(field, &val)
     }
 
     /// Builds a term given a field, and a `i64`-value
-    pub fn from_field_i64(field: Field, val: i64) -> Term {
-        Term::from_fast_value(field, &val)
+    pub fn from_field_i64(field: Field, val: i64) -> Self {
+        Self::from_fast_value(field, &val)
     }
 
     /// Builds a term given a field, and a `f64`-value
-    pub fn from_field_f64(field: Field, val: f64) -> Term {
-        Term::from_fast_value(field, &val)
+    pub fn from_field_f64(field: Field, val: f64) -> Self {
+        Self::from_fast_value(field, &val)
     }
 
     /// Builds a term given a field, and a `bool`-value
-    pub fn from_field_bool(field: Field, val: bool) -> Term {
-        Term::from_fast_value(field, &val)
+    pub fn from_field_bool(field: Field, val: bool) -> Self {
+        Self::from_fast_value(field, &val)
     }
 
     /// Builds a term given a field, and a `DateTime` value.
@@ -146,32 +146,32 @@ impl Term {
     /// The contained value may not match the value, due do the truncation used
     /// for indexed data [super::DATE_TIME_PRECISION_INDEXED].
     /// To create a term used for search use `from_field_date_for_search`.
-    pub fn from_field_date(field: Field, val: DateTime) -> Term {
-        Term::from_fast_value(field, &val)
+    pub fn from_field_date(field: Field, val: DateTime) -> Self {
+        Self::from_fast_value(field, &val)
     }
 
     /// Builds a term given a field, and a `DateTime` value to be used in searching the inverted
     /// index.
     /// It truncates the `DateTime` to the precision used in the index
     /// ([super::DATE_TIME_PRECISION_INDEXED]).
-    pub fn from_field_date_for_search(field: Field, val: DateTime) -> Term {
-        Term::from_fast_value(field, &val.truncate(DATE_TIME_PRECISION_INDEXED))
+    pub fn from_field_date_for_search(field: Field, val: DateTime) -> Self {
+        Self::from_fast_value(field, &val.truncate(DATE_TIME_PRECISION_INDEXED))
     }
 
     /// Creates a `Term` given a facet.
-    pub fn from_facet(field: Field, facet: &Facet) -> Term {
+    pub fn from_facet(field: Field, facet: &Facet) -> Self {
         let facet_encoded_str = facet.encoded_str();
-        Term::with_bytes_and_field_and_payload(Type::Facet, field, facet_encoded_str.as_bytes())
+        Self::with_bytes_and_field_and_payload(Type::Facet, field, facet_encoded_str.as_bytes())
     }
 
     /// Builds a term given a field, and a string value
-    pub fn from_field_text(field: Field, text: &str) -> Term {
-        Term::with_bytes_and_field_and_payload(Type::Str, field, text.as_bytes())
+    pub fn from_field_text(field: Field, text: &str) -> Self {
+        Self::with_bytes_and_field_and_payload(Type::Str, field, text.as_bytes())
     }
 
     /// Builds a term bytes.
-    pub fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
-        Term::with_bytes_and_field_and_payload(Type::Bytes, field, bytes)
+    pub fn from_field_bytes(field: Field, bytes: &[u8]) -> Self {
+        Self::with_bytes_and_field_and_payload(Type::Bytes, field, bytes)
     }
 
     /// Removes the value_bytes and set the field and type code.
@@ -288,8 +288,8 @@ impl<B> Term<B>
 where B: AsRef<[u8]>
 {
     /// Wraps a object holding bytes
-    pub fn wrap(data: B) -> Term<B> {
-        Term(data)
+    pub fn wrap(data: B) -> Self {
+        Self(data)
     }
 
     /// Return the type of the term.
@@ -350,8 +350,8 @@ impl<B> ValueBytes<B>
 where B: AsRef<[u8]>
 {
     /// Wraps a object holding bytes
-    pub fn wrap(data: B) -> ValueBytes<B> {
-        ValueBytes(data)
+    pub fn wrap(data: B) -> Self {
+        Self(data)
     }
 
     /// Wraps a object holding Vec<u8>

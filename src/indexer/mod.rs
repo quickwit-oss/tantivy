@@ -99,7 +99,7 @@ mod tests_mmap {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 1);
-        let parse_query = QueryParser::for_index(&index, Vec::new());
+        let parse_query = QueryParser::for_index(&index, vec![]);
         {
             let query = parse_query
                 .parse_query(r"json.k8s\.container\.name:prometheus")
@@ -137,7 +137,7 @@ mod tests_mmap {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 512);
-        let parse_query = QueryParser::for_index(&index, Vec::new());
+        let parse_query = QueryParser::for_index(&index, vec![]);
         {
             let query = parse_query.parse_query(r"json.somekey:1").unwrap();
             let num_docs = searcher.search(&query, &Count).unwrap();
@@ -161,7 +161,7 @@ mod tests_mmap {
         let inv_indexer = segment_reader.inverted_index(field).unwrap();
         let term_dict = inv_indexer.terms();
         assert_eq!(term_dict.num_terms(), 1);
-        let mut term_bytes = Vec::new();
+        let mut term_bytes = vec![];
         term_dict.ord_to_term(0, &mut term_bytes).unwrap();
         assert_eq!(term_bytes, b"key\0stest1");
     }
@@ -224,7 +224,7 @@ mod tests_mmap {
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-        let parse_query = QueryParser::for_index(&index, Vec::new());
+        let parse_query = QueryParser::for_index(&index, vec![]);
         let test_query = |query_str: &str| {
             let query = parse_query.parse_query(query_str).unwrap();
             let num_docs = searcher.search(&query, &Count).unwrap();
@@ -346,7 +346,7 @@ mod tests_mmap {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 1);
-        let parse_query = QueryParser::for_index(&index, Vec::new());
+        let parse_query = QueryParser::for_index(&index, vec![]);
         {
             let query = parse_query
                 .parse_query(r#"json.k8s.container.name:prometheus"#)

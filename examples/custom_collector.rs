@@ -41,7 +41,7 @@ impl Stats {
         (self.square_mean() - mean * mean).sqrt()
     }
 
-    fn non_zero_count(self) -> Option<Stats> {
+    fn non_zero_count(self) -> Option<Self> {
         if self.count == 0 {
             None
         } else {
@@ -55,8 +55,8 @@ struct StatsCollector {
 }
 
 impl StatsCollector {
-    fn with_field(field: String) -> StatsCollector {
-        StatsCollector { field }
+    fn with_field(field: String) -> Self {
+        Self { field }
     }
 }
 

@@ -49,8 +49,8 @@ pub struct SkipSerializer {
 }
 
 impl SkipSerializer {
-    pub fn new() -> SkipSerializer {
-        SkipSerializer { buffer: Vec::new() }
+    pub fn new() -> Self {
+        Self { buffer: vec![] }
     }
 
     pub fn write_doc(&mut self, last_doc: DocId, doc_num_bits: u8) {
@@ -112,13 +112,13 @@ pub(crate) enum BlockInfo {
 
 impl Default for BlockInfo {
     fn default() -> Self {
-        BlockInfo::VInt { num_docs: 0u32 }
+        Self::VInt { num_docs: 0u32 }
     }
 }
 
 impl SkipReader {
-    pub fn new(data: OwnedBytes, doc_freq: u32, skip_info: IndexRecordOption) -> SkipReader {
-        let mut skip_reader = SkipReader {
+    pub fn new(data: OwnedBytes, doc_freq: u32, skip_info: IndexRecordOption) -> Self {
+        let mut skip_reader = Self {
             last_doc_in_block: if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
                 0
             } else {

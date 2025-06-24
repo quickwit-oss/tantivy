@@ -16,7 +16,7 @@ pub trait GroupByIteratorExtended: Iterator {
     /// let data: Vec<i32> = vec![1, 3, -2, -2, 1, 0, 1, 2];
     /// // groups:               |---->|------>|--------->|
     ///
-    /// let mut data_grouped = Vec::new();
+    /// let mut data_grouped = vec![];
     /// // Note: group is an iterator
     /// for (key, group) in data.into_iter().group_by(|val| *val >= 0) {
     ///     data_grouped.push((key, group.collect()));

@@ -115,7 +115,7 @@ struct KeyOrder {
 
 impl Serialize for KeyOrder {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let KeyOrder { field, order } = self;
+        let Self { field, order } = self;
         let mut map = serializer.serialize_map(Some(1))?;
         map.serialize_entry(field, order)?;
         map.end()
@@ -339,17 +339,15 @@ pub enum FastFieldValue {
 impl From<FastFieldValue> for OwnedValue {
     fn from(value: FastFieldValue) -> Self {
         match value {
-            FastFieldValue::Str(s) => OwnedValue::Str(s),
-            FastFieldValue::U64(u) => OwnedValue::U64(u),
-            FastFieldValue::I64(i) => OwnedValue::I64(i),
-            FastFieldValue::F64(f) => OwnedValue::F64(f),
-            FastFieldValue::Bool(b) => OwnedValue::Bool(b),
-            FastFieldValue::Date(d) => OwnedValue::Date(d),
-            FastFieldValue::Bytes(b) => OwnedValue::Bytes(b),
-            FastFieldValue::IpAddr(ip) => OwnedValue::IpAddr(ip),
-            FastFieldValue::Array(a) => {
-                OwnedValue::Array(a.into_iter().map(OwnedValue::from).collect())
-            }
+            FastFieldValue::Str(s) => Self::Str(s),
+            FastFieldValue::U64(u) => Self::U64(u),
+            FastFieldValue::I64(i) => Self::I64(i),
+            FastFieldValue::F64(f) => Self::F64(f),
+            FastFieldValue::Bool(b) => Self::Bool(b),
+            FastFieldValue::Date(d) => Self::Date(d),
+            FastFieldValue::Bytes(b) => Self::Bytes(b),
+            FastFieldValue::IpAddr(ip) => Self::IpAddr(ip),
+            FastFieldValue::Array(a) => Self::Array(a.into_iter().map(Self::from).collect()),
         }
     }
 }

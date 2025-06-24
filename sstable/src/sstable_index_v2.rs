@@ -11,9 +11,9 @@ pub struct SSTableIndex {
 
 impl SSTableIndex {
     /// Load an index from its binary representation
-    pub fn load(data: OwnedBytes) -> Result<SSTableIndex, SSTableDataCorruption> {
+    pub fn load(data: OwnedBytes) -> Result<Self, SSTableDataCorruption> {
         let mut reader = IndexSSTable::reader(data);
-        let mut blocks = Vec::new();
+        let mut blocks = vec![];
 
         while reader.advance().map_err(|_| SSTableDataCorruption)? {
             blocks.push(BlockMeta {
@@ -22,7 +22,7 @@ impl SSTableIndex {
             });
         }
 
-        Ok(SSTableIndex { blocks })
+        Ok(Self { blocks })
     }
 
     /// Get the [`BlockAddr`] of the requested block.

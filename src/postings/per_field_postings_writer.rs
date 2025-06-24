@@ -14,7 +14,7 @@ impl PerFieldPostingsWriter {
             .fields()
             .map(|(_, field_entry)| posting_writer_from_field_entry(field_entry))
             .collect();
-        PerFieldPostingsWriter {
+        Self {
             per_field_postings_writers,
         }
     }

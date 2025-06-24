@@ -9,7 +9,7 @@ pub struct WatchCallback(Arc<dyn Fn() + Sync + Send>);
 impl WatchCallback {
     /// Wraps a `Fn()` to create a WatchCallback.
     pub fn new<F: Fn() + Sync + Send + 'static>(op: F) -> Self {
-        WatchCallback(Arc::new(op))
+        Self(Arc::new(op))
     }
 
     fn call(&self) {
@@ -37,15 +37,15 @@ pub struct WatchHandle(Arc<WatchCallback>);
 
 impl WatchHandle {
     /// Create a WatchHandle handle.
-    pub fn new(watch_callback: Arc<WatchCallback>) -> WatchHandle {
-        WatchHandle(watch_callback)
+    pub fn new(watch_callback: Arc<WatchCallback>) -> Self {
+        Self(watch_callback)
     }
 
     /// Returns an empty watch handle.
     ///
     /// This function is only useful when implementing a readonly directory.
-    pub fn empty() -> WatchHandle {
-        WatchHandle::new(Arc::new(WatchCallback::new(|| {})))
+    pub fn empty() -> Self {
+        Self::new(Arc::new(WatchCallback::new(|| {})))
     }
 }
 

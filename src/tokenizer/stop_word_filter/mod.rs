@@ -64,8 +64,8 @@ impl StopWordFilter {
     }
 
     /// Creates a `StopWordFilter` given a list of words to remove
-    pub fn remove<W: IntoIterator<Item = String>>(words: W) -> StopWordFilter {
-        StopWordFilter {
+    pub fn remove<W: IntoIterator<Item = String>>(words: W) -> Self {
+        Self {
             words: Arc::new(words.into_iter().collect()),
         }
     }

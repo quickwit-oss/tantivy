@@ -27,11 +27,11 @@ impl BlockCompressor {
         if dedicated_thread {
             let dedicated_thread_compressor =
                 DedicatedThreadBlockCompressorImpl::new(block_compressor_impl)?;
-            Ok(BlockCompressor(BlockCompressorVariants::DedicatedThread(
+            Ok(Self(BlockCompressorVariants::DedicatedThread(
                 dedicated_thread_compressor,
             )))
         } else {
-            Ok(BlockCompressor(BlockCompressorVariants::SameThread(
+            Ok(Self(BlockCompressorVariants::SameThread(
                 block_compressor_impl,
             )))
         }
@@ -91,7 +91,7 @@ impl BlockCompressorImpl {
             compressor,
             first_doc_in_block: 0,
             offset_index_writer: SkipIndexBuilder::new(),
-            intermediary_buffer: Vec::new(),
+            intermediary_buffer: vec![],
             writer: CountingWriter::wrap(writer),
         }
     }
@@ -195,7 +195,7 @@ impl DedicatedThreadBlockCompressorImpl {
                 block_compressor.close()?;
                 Ok(())
             })?;
-        Ok(DedicatedThreadBlockCompressorImpl {
+        Ok(Self {
             join_handle: Some(join_handle),
             tx,
         })
@@ -215,7 +215,7 @@ impl DedicatedThreadBlockCompressorImpl {
     fn send(&mut self, msg: BlockCompressorMessage) -> io::Result<()> {
         if self.tx.send(msg).is_err() {
             harvest_thread_result(self.join_handle.take())?;
-            return Err(io::Error::new(io::ErrorKind::Other, "Unidentified error."));
+            return Err(io::Error::other("Unidentified error."));
         }
         Ok(())
     }
@@ -231,11 +231,10 @@ impl DedicatedThreadBlockCompressorImpl {
 /// If the thread panicked, or if the result has already been harvested,
 /// returns an explicit error.
 fn harvest_thread_result(join_handle_opt: Option<JoinHandle<io::Result<()>>>) -> io::Result<()> {
-    let join_handle = join_handle_opt
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Thread already joined."))?;
+    let join_handle = join_handle_opt.ok_or_else(|| io::Error::other("Thread already joined."))?;
     join_handle
         .join()
-        .map_err(|_err| io::Error::new(io::ErrorKind::Other, "Compressing thread panicked."))?
+        .map_err(|_err| io::Error::other("Compressing thread panicked."))?
 }
 
 #[cfg(test)]

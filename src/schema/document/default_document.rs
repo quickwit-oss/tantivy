@@ -43,16 +43,16 @@ impl Default for CompactDoc {
 impl CompactDoc {
     /// Creates a new, empty document object
     /// The reserved capacity is for the total serialized data
-    pub fn with_capacity(bytes: usize) -> CompactDoc {
-        CompactDoc {
+    pub fn with_capacity(bytes: usize) -> Self {
+        Self {
             node_data: Vec::with_capacity(bytes),
             field_values: Vec::with_capacity(4),
         }
     }
 
     /// Creates a new, empty document object
-    pub fn new() -> CompactDoc {
-        CompactDoc::with_capacity(1024)
+    pub fn new() -> Self {
+        Self::with_capacity(1024)
     }
 
     /// Skrinks the capacity of the document to fit the data
@@ -267,7 +267,7 @@ impl CompactDoc {
                 // addresses of the elements in node_data
                 // Reusing a vec would be nicer, but it's not easy because of the recursion
                 // A global vec would work if every writer get it's discriminator
-                let mut addresses = Vec::new();
+                let mut addresses = vec![];
                 for elem in elements {
                     let value_addr = self.add_value(elem);
                     write_into(&mut addresses, value_addr);
@@ -279,7 +279,7 @@ impl CompactDoc {
             }
             ReferenceValue::Object(entries) => {
                 // addresses of the elements in node_data
-                let mut addresses = Vec::new();
+                let mut addresses = vec![];
                 for (key, value) in entries {
                     let key_addr = self.add_value_leaf(ReferenceValueLeaf::Str(key));
                     let value_addr = self.add_value(value);
@@ -355,7 +355,7 @@ fn write_into<T: BinarySerializable>(vec: &mut Vec<u8>, value: T) -> u32 {
 impl PartialEq for CompactDoc {
     fn eq(&self, other: &Self) -> bool {
         // super slow, but only here for tests
-        let convert_to_comparable_map = |doc: &CompactDoc| {
+        let convert_to_comparable_map = |doc: &Self| {
             let mut field_value_set: HashMap<Field, HashSet<String>> = Default::default();
             for field_value in doc.field_values.iter() {
                 let value: OwnedValue = doc.get_compact_doc_value(field_value.value_addr).into();
@@ -378,7 +378,7 @@ impl Eq for CompactDoc {}
 impl DocumentDeserialize for CompactDoc {
     fn deserialize<'de, D>(mut deserializer: D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
-        let mut doc = CompactDoc::default();
+        let mut doc = Self::default();
         // TODO: Deserializing into OwnedValue is wasteful. The deserializer should be able to work
         // on slices and referenced data.
         while let Some((field, value)) = deserializer.next_field::<OwnedValue>()? {
@@ -416,7 +416,7 @@ impl<'a> Value<'a> for CompactDocValue<'a> {
     }
 }
 impl<'a> CompactDocValue<'a> {
-    fn get_ref_value(&self) -> io::Result<ReferenceValue<'a, CompactDocValue<'a>>> {
+    fn get_ref_value(&self) -> io::Result<ReferenceValue<'a, Self>> {
         let addr = self.value_addr.val_addr;
         match self.value_addr.type_id {
             ValueType::Null => Ok(ReferenceValueLeaf::Null.into()),
@@ -496,7 +496,7 @@ impl BinarySerializable for ValueAddr {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let type_id = ValueType::deserialize(reader)?;
         let val_addr = VInt::deserialize(reader)?.0 as u32;
-        Ok(ValueAddr { type_id, val_addr })
+        Ok(Self { type_id, val_addr })
     }
 }
 impl std::fmt::Debug for ValueAddr {
@@ -553,7 +553,7 @@ impl BinarySerializable for ValueType {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let num = u8::deserialize(reader)?;
         let type_id = if (0..=12).contains(&num) {
-            unsafe { std::mem::transmute::<u8, ValueType>(num) }
+            unsafe { std::mem::transmute::<u8, Self>(num) }
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -568,25 +568,25 @@ impl<'a, V: Value<'a>> From<&ReferenceValue<'a, V>> for ValueType {
     fn from(value: &ReferenceValue<'a, V>) -> Self {
         match value {
             ReferenceValue::Leaf(leaf) => leaf.into(),
-            ReferenceValue::Array(_) => ValueType::Array,
-            ReferenceValue::Object(_) => ValueType::Object,
+            ReferenceValue::Array(_) => Self::Array,
+            ReferenceValue::Object(_) => Self::Object,
         }
     }
 }
 impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
     fn from(value: &ReferenceValueLeaf<'a>) -> Self {
         match value {
-            ReferenceValueLeaf::Null => ValueType::Null,
-            ReferenceValueLeaf::Str(_) => ValueType::Str,
-            ReferenceValueLeaf::U64(_) => ValueType::U64,
-            ReferenceValueLeaf::I64(_) => ValueType::I64,
-            ReferenceValueLeaf::F64(_) => ValueType::F64,
-            ReferenceValueLeaf::Bool(_) => ValueType::Bool,
-            ReferenceValueLeaf::Date(_) => ValueType::Date,
-            ReferenceValueLeaf::IpAddr(_) => ValueType::IpAddr,
-            ReferenceValueLeaf::PreTokStr(_) => ValueType::PreTokStr,
-            ReferenceValueLeaf::Facet(_) => ValueType::Facet,
-            ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
+            ReferenceValueLeaf::Null => Self::Null,
+            ReferenceValueLeaf::Str(_) => Self::Str,
+            ReferenceValueLeaf::U64(_) => Self::U64,
+            ReferenceValueLeaf::I64(_) => Self::I64,
+            ReferenceValueLeaf::F64(_) => Self::F64,
+            ReferenceValueLeaf::Bool(_) => Self::Bool,
+            ReferenceValueLeaf::Date(_) => Self::Date,
+            ReferenceValueLeaf::IpAddr(_) => Self::IpAddr,
+            ReferenceValueLeaf::PreTokStr(_) => Self::PreTokStr,
+            ReferenceValueLeaf::Facet(_) => Self::Facet,
+            ReferenceValueLeaf::Bytes(_) => Self::Bytes,
         }
     }
 }
@@ -711,7 +711,7 @@ impl DocParsingError {
     /// Builds a NotJson DocParsingError
     fn invalid_json(invalid_json: &str) -> Self {
         let sample = invalid_json.chars().take(20).collect();
-        DocParsingError::InvalidJson(sample)
+        Self::InvalidJson(sample)
     }
 }
 
@@ -776,7 +776,7 @@ mod tests {
     //     );
     //     doc.add_text(Field::from_field_id(1), "hello");
     //     assert_eq!(doc.field_values().len(), 2);
-    //     let mut payload: Vec<u8> = Vec::new();
+    //     let mut payload: Vec<u8> = vec![];
     //     doc_binary_wrappers::serialize(&doc, &mut payload).unwrap();
     //     assert_eq!(payload.len(), 26);
     //     doc_binary_wrappers::deserialize::<Document, _>(&mut &payload[..]).unwrap();

@@ -64,12 +64,12 @@ impl RegexQuery {
     pub fn from_pattern(regex_pattern: &str, field: Field) -> crate::Result<Self> {
         let regex = Regex::new(regex_pattern)
             .map_err(|err| TantivyError::InvalidArgument(format!("RegexQueryError: {err}")))?;
-        Ok(RegexQuery::from_regex(regex, field))
+        Ok(Self::from_regex(regex, field))
     }
 
     /// Creates a new RegexQuery from a fully built Regex
     pub fn from_regex<T: Into<Arc<Regex>>>(regex: T, field: Field) -> Self {
-        RegexQuery {
+        Self {
             regex: regex.into(),
             field,
         }

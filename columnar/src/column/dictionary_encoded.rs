@@ -30,8 +30,8 @@ impl fmt::Debug for BytesColumn {
 }
 
 impl BytesColumn {
-    pub fn empty(num_docs: u32) -> BytesColumn {
-        BytesColumn {
+    pub fn empty(num_docs: u32) -> Self {
+        Self {
             dictionary: Arc::new(Dictionary::empty()),
             term_ord_column: Column::build_empty_column(num_docs),
         }
@@ -78,14 +78,14 @@ impl fmt::Debug for StrColumn {
 }
 
 impl From<StrColumn> for BytesColumn {
-    fn from(str_column: StrColumn) -> BytesColumn {
+    fn from(str_column: StrColumn) -> Self {
         str_column.0
     }
 }
 
 impl StrColumn {
-    pub fn wrap(bytes_column: BytesColumn) -> StrColumn {
-        StrColumn(bytes_column)
+    pub fn wrap(bytes_column: BytesColumn) -> Self {
+        Self(bytes_column)
     }
 
     pub fn dictionary(&self) -> &Dictionary<VoidSSTable> {

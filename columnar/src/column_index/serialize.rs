@@ -18,7 +18,7 @@ pub struct SerializableOptionalIndex<'a> {
 
 impl<'a> From<&'a OptionalIndex> for SerializableOptionalIndex<'a> {
     fn from(optional_index: &'a OptionalIndex) -> Self {
-        SerializableOptionalIndex {
+        Self {
             non_null_row_ids: Box::new(optional_index),
             num_rows: optional_index.num_docs(),
         }
@@ -34,9 +34,9 @@ pub enum SerializableColumnIndex<'a> {
 impl SerializableColumnIndex<'_> {
     pub fn get_cardinality(&self) -> Cardinality {
         match self {
-            SerializableColumnIndex::Full => Cardinality::Full,
-            SerializableColumnIndex::Optional(_) => Cardinality::Optional,
-            SerializableColumnIndex::Multivalued(_) => Cardinality::Multivalued,
+            Self::Full => Cardinality::Full,
+            Self::Optional(_) => Cardinality::Optional,
+            Self::Multivalued(_) => Cardinality::Multivalued,
         }
     }
 }

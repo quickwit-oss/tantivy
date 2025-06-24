@@ -26,20 +26,20 @@ impl Occur {
     /// - `Not` => '-'
     fn to_char(self) -> char {
         match self {
-            Occur::Should => '?',
-            Occur::Must => '+',
-            Occur::MustNot => '-',
+            Self::Should => '?',
+            Self::Must => '+',
+            Self::MustNot => '-',
         }
     }
 
     /// Compose two occur values.
-    pub fn compose(left: Occur, right: Occur) -> Occur {
+    pub fn compose(left: Self, right: Self) -> Self {
         match (left, right) {
-            (Occur::Should, _) => right,
-            (Occur::Must, Occur::MustNot) => Occur::MustNot,
-            (Occur::Must, _) => Occur::Must,
-            (Occur::MustNot, Occur::MustNot) => Occur::Must,
-            (Occur::MustNot, _) => Occur::MustNot,
+            (Self::Should, _) => right,
+            (Self::Must, Self::MustNot) => Self::MustNot,
+            (Self::Must, _) => Self::Must,
+            (Self::MustNot, Self::MustNot) => Self::Must,
+            (Self::MustNot, _) => Self::MustNot,
         }
     }
 }

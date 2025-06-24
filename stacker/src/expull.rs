@@ -158,7 +158,7 @@ mod tests {
         let arena = MemoryArena::default();
         let stack = ExpUnrolledLinkedList::default();
         {
-            let mut buffer = Vec::new();
+            let mut buffer = vec![];
             stack.read_to_end(&arena, &mut buffer);
             assert_eq!(&buffer[..], &[] as &[u8]);
         }
@@ -173,7 +173,7 @@ mod tests {
         stack.writer(&mut arena).extend_from_slice(&[3u8, 4u8]);
         stack.writer(&mut arena).extend_from_slice(&[5u8]);
         {
-            let mut buffer = Vec::new();
+            let mut buffer = vec![];
             stack.read_to_end(&arena, &mut buffer);
             assert_eq!(&buffer[..], &[1u8, 2u8, 3u8, 4u8, 5u8]);
         }
@@ -188,7 +188,7 @@ mod tests {
         stack.writer(&mut arena).extend_from_slice(&[3u8, 4u8]);
         stack.writer(&mut arena).extend_from_slice(&[5u8]);
         {
-            let mut buffer = Vec::new();
+            let mut buffer = vec![];
             stack.read_to_end(&arena, &mut buffer);
             assert_eq!(&buffer[..], &[1u8, 2u8, 3u8, 4u8, 5u8]);
         }
@@ -202,7 +202,7 @@ mod tests {
             .writer(&mut arena)
             .extend_from_slice(&[1u8, 2, 3, 4, 5, 6, 7, 8, 9]);
         {
-            let mut buffer = Vec::new();
+            let mut buffer = vec![];
             stack.read_to_end(&arena, &mut buffer);
             assert_eq!(&buffer[..], &[1u8, 2, 3, 4, 5, 6, 7, 8, 9]);
         }
@@ -216,7 +216,7 @@ mod tests {
         for &el in &data {
             eull.writer(&mut arena).write_u32_vint(el);
         }
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         eull.read_to_end(&arena, &mut buffer);
         let mut result = vec![];
         let mut remaining = &buffer[..];
