@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 
 use common::StableDeref;
-use fs4::FileExt;
+use fs4::fs_std::FileExt;
 #[cfg(all(feature = "mmap", unix))]
 pub use memmap2::Advice;
 use memmap2::Mmap;
@@ -485,7 +485,9 @@ impl Directory for MmapDirectory {
         if lock.is_blocking {
             file.lock_exclusive().map_err(LockError::wrap_io_error)?;
         } else {
-            file.try_lock_exclusive().map_err(|_| LockError::LockBusy)?
+            if !file.try_lock_exclusive().map_err(|_| LockError::LockBusy)? {
+                return Err(LockError::LockBusy);
+            }
         }
         // dropping the file handle will release the lock.
         Ok(DirectoryLock::from(Box::new(ReleaseLockFile {
