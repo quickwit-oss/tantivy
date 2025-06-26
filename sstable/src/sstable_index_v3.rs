@@ -438,7 +438,7 @@ impl BlockAddrBlockMetadata {
         let ordinal_addr = range_start_addr + self.range_start_nbits as usize;
         let range_end_addr = range_start_addr + num_bits;
 
-        if (range_end_addr + self.range_start_nbits as usize + 7) / 8 > data.len() {
+        if (range_end_addr + self.range_start_nbits as usize).div_ceil(8) > data.len() {
             return None;
         }
 
