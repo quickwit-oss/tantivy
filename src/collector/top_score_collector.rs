@@ -1111,9 +1111,79 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_empty_topn_computer() {
+        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(0);
+
+        computer.push(1u32, 1u32);
+        computer.push(1u32, 2u32);
+        computer.push(1u32, 3u32);
+        assert!(computer.into_sorted_vec().is_empty());
+    }
+
+    #[test]
+    fn test_topn_computer_asc() {
+        let mut computer: TopNComputer<u32, u32, false> = TopNComputer::new(2);
+
+        computer.push(1u32, 1u32);
+        computer.push(2u32, 2u32);
+        computer.push(3u32, 3u32);
+        computer.push(2u32, 4u32);
+        computer.push(4u32, 5u32);
+        computer.push(1u32, 6u32);
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    feature: 1u32,
+                    doc: 1u32,
+                },
+                ComparableDoc {
+                    feature: 1u32,
+                    doc: 6u32,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_topn_computer_desc() {
+        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(2);
+
+        computer.push(1u32, 1u32);
+        computer.push(2u32, 2u32);
+        computer.push(3u32, 3u32);
+        computer.push(2u32, 4u32);
+        computer.push(1u32, 5u32);
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    feature: 3u32,
+                    doc: 3u32,
+                },
+                ComparableDoc {
+                    feature: 2u32,
+                    doc: 2u32,
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_topn_computer_no_panic() {
+        for top_n in 0..10 {
+            let mut computer: TopNComputer<u32, u32> = TopNComputer::new(top_n);
+            for _ in 0..1 + top_n * 2 {
+                computer.push(1u32, 1u32);
+            }
+            let _vals = computer.into_sorted_vec();
+        }
+    }
+
     proptest! {
         #[test]
-        fn test_topn_computer_asc(
+        fn test_topn_computer_asc_prop(
           limit in 0..10_usize,
           docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
         ) {
@@ -1131,7 +1201,7 @@ mod tests {
         }
 
         #[test]
-        fn test_topn_computer_desc(
+        fn test_topn_computer_desc_prop(
           limit in 0..10_usize,
           docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
         ) {
