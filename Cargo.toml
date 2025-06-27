@@ -161,9 +161,13 @@ name = "analyzer"
 harness = false
 
 [[bench]]
-name = "index-bench"
+name = "agg_bench"
 harness = false
 
 [[bench]]
-name = "agg_bench"
+name = "collector_bench"
+harness = false
+
+[[bench]]
+name = "index-bench"
 harness = false
