@@ -1,5 +1,6 @@
 use std::io;
 
+use common::file_slice::DeferredFileSlice;
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
@@ -30,7 +31,7 @@ use crate::termdict::TermDictionary;
 pub struct InvertedIndexReader {
     termdict: TermDictionary,
     postings_file_slice: FileSlice,
-    positions_file_slice: FileSlice,
+    positions_file_slice: DeferredFileSlice,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
 }
@@ -66,7 +67,7 @@ impl InvertedIndexReader {
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
-        positions_file_slice: FileSlice,
+        positions_file_slice: DeferredFileSlice,
         record_option: IndexRecordOption,
     ) -> io::Result<InvertedIndexReader> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
@@ -86,7 +87,7 @@ impl InvertedIndexReader {
         InvertedIndexReader {
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
-            positions_file_slice: FileSlice::empty(),
+            positions_file_slice: DeferredFileSlice::new(|| Ok(FileSlice::empty())),
             record_option,
             total_num_tokens: 0u64,
         }
@@ -233,6 +234,7 @@ impl InvertedIndexReader {
             if option.has_positions() {
                 let positions_data = self
                     .positions_file_slice
+                    .open()?
                     .read_bytes_slice(term_info.positions_range.clone())?;
                 let position_reader = PositionReader::open(positions_data)?;
                 Some(position_reader)
@@ -342,6 +344,7 @@ impl InvertedIndexReader {
             if with_positions {
                 let positions = self
                     .positions_file_slice
+                    .open()?
                     .read_bytes_slice_async(term_info.positions_range.clone());
                 futures_util::future::try_join(postings, positions).await?;
             } else {
@@ -384,6 +387,7 @@ impl InvertedIndexReader {
         if with_positions {
             let positions = self
                 .positions_file_slice
+                .open()?
                 .read_bytes_slice_async(positions_range);
             futures_util::future::try_join(postings, positions).await?;
         } else {
@@ -478,7 +482,7 @@ impl InvertedIndexReader {
     pub async fn warm_postings_full(&self, with_positions: bool) -> io::Result<()> {
         self.postings_file_slice.read_bytes_async().await?;
         if with_positions {
-            self.positions_file_slice.read_bytes_async().await?;
+            self.positions_file_slice.open()?.read_bytes_async().await?;
         }
         Ok(())
     }

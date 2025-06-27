@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::{fmt, io};
 
+use common::file_slice::DeferredFileSlice;
 use common::{ByteCount, HasLen};
 use fnv::FnvHashMap;
 use itertools::Itertools;
@@ -236,19 +237,38 @@ impl SegmentReader {
                 ))
             })?;
 
-        let positions_file = self.positions_composite().open_read(field).ok_or_else(|| {
-            let error_msg = format!(
-                "Failed to open field {:?}'s positions in the composite file. Has the schema been \
-                 modified?",
-                field_entry.name()
-            );
-            DataCorruption::comment_only(error_msg)
-        })?;
+        // not all queries require positions.
+        // we can defer opening the file until needed
+        let positions_file_opener = {
+            let path = self.relative_path(SegmentComponent::Positions);
+            let directory = self.index.directory().clone();
+            let field_entry = field_entry.clone();
+            move || {
+                let composite_file = if let Ok(positions_file) = &directory.open_read(&path) {
+                    CompositeFile::open(&positions_file)
+                        .expect("should be able to open positions composite component")
+                } else {
+                    CompositeFile::empty()
+                };
+
+                composite_file.open_read(field).ok_or_else(|| {
+                    let error_msg = format!(
+                        "Failed to open field {:?}'s positions in the composite file. Has the \
+                         schema been modified?",
+                        field_entry.name()
+                    );
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{:?}", DataCorruption::comment_only(error_msg)),
+                    )
+                })
+            }
+        };
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             TermDictionary::open(termdict_file)?,
             postings_file,
-            positions_file,
+            DeferredFileSlice::new(positions_file_opener),
             record_option,
         )?);
 
