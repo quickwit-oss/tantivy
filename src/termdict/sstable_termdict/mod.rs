@@ -158,10 +158,12 @@ impl ValueReader for TermInfoValueReader {
 
     fn load(&mut self, mut data: &[u8]) -> io::Result<usize> {
         let len_before = data.len();
-        self.term_infos.clear();
         let num_els = VInt::deserialize_u64(&mut data)?;
         let mut postings_start = VInt::deserialize_u64(&mut data)? as usize;
         let mut positions_start = VInt::deserialize_u64(&mut data)? as usize;
+
+        self.term_infos.clear();
+        self.term_infos.reserve_exact(num_els as usize);
         for _ in 0..num_els {
             let doc_freq = VInt::deserialize_u64(&mut data)? as u32;
             let postings_num_bytes = VInt::deserialize_u64(&mut data)?;

@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::ops::{Deref, Range, RangeBounds};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::{fmt, io};
 
 use async_trait::async_trait;
@@ -336,6 +336,27 @@ impl FileHandle for OwnedBytes {
 
     async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes(range)
+    }
+}
+
+pub struct DeferredFileSlice {
+    opener: Arc<dyn Fn() -> io::Result<FileSlice> + Send + Sync + 'static>,
+    file_slice: OnceLock<std::io::Result<FileSlice>>,
+}
+
+impl DeferredFileSlice {
+    pub fn new(opener: impl Fn() -> io::Result<FileSlice> + Send + Sync + 'static) -> Self {
+        DeferredFileSlice {
+            opener: Arc::new(opener),
+            file_slice: OnceLock::default(),
+        }
+    }
+
+    pub fn open(&self) -> io::Result<&FileSlice> {
+        match self.file_slice.get_or_init(|| (self.opener)()) {
+            Ok(file_slice) => Ok(file_slice),
+            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
+        }
     }
 }
 
