@@ -1061,7 +1061,7 @@ mod tests {
 
     use super::{TopDocs, TopNComputer};
     use crate::collector::top_collector::ComparableDoc;
-    use crate::collector::Collector;
+    use crate::collector::{Collector, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;
@@ -1559,6 +1559,72 @@ mod tests {
         assert_eq!(&query(&index, Order::Asc, 3, 3)?, &[]);
 
         Ok(())
+    }
+
+    proptest! {
+        #[test]
+        fn test_top_field_collect_string_prop(
+          order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
+          limit in 1..256_usize,
+          offset in 0..256_usize,
+          segments_terms in
+            proptest::collection::vec(
+                proptest::collection::vec(0..32_u8, 1..32_usize),
+                0..8_usize,
+            )
+        ) {
+            let mut schema_builder = Schema::builder();
+            let city = schema_builder.add_text_field("city", TEXT | FAST);
+            let schema = schema_builder.build();
+            let index = Index::create_in_ram(schema);
+            let mut index_writer = index.writer_for_tests()?;
+
+            // A Vec<Vec<u8>>, where the outer Vec represents segments, and the inner Vec
+            // represents terms.
+            for segment_terms in segments_terms.into_iter() {
+                for term in segment_terms.into_iter() {
+                    let term = format!("{term:0>3}");
+                    index_writer.add_document(doc!(
+                        city => term,
+                    ))?;
+                }
+                index_writer.commit()?;
+            }
+
+            let searcher = index.reader()?.searcher();
+            let top_n_results = searcher.search(&AllQuery, &TopDocs::with_limit(limit)
+                .and_offset(offset)
+                .order_by_string_fast_field("city", order.clone()))?;
+            let all_results = searcher.search(&AllQuery, &DocSetCollector)?.into_iter().map(|doc_address| {
+                // Get the term for this address.
+                // NOTE: We can't determine the SegmentIds that will be generated for Segments
+                // ahead of time, so we can't pre-compute the expected `DocAddress`es.
+                let column = searcher.segment_readers()[doc_address.segment_ord as usize].fast_fields().str("city").unwrap().unwrap();
+                let term_ord = column.term_ords(doc_address.doc_id).next().unwrap();
+                let mut city = Vec::new();
+                column.dictionary().ord_to_term(term_ord, &mut city).unwrap();
+                (String::try_from(city).unwrap(), doc_address)
+            });
+
+            // Using the TopDocs collector should always be equivalent to sorting, skipping the
+            // offset, and then taking the limit.
+            let sorted_docs: Vec<_> = if order.is_desc() {
+                let mut comparable_docs: Vec<ComparableDoc<_, _, true>> =
+                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc}).collect();
+                comparable_docs.sort();
+                comparable_docs.into_iter().map(|cd| (cd.feature, cd.doc)).collect()
+            } else {
+                let mut comparable_docs: Vec<ComparableDoc<_, _, false>> =
+                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc}).collect();
+                comparable_docs.sort();
+                comparable_docs.into_iter().map(|cd| (cd.feature, cd.doc)).collect()
+            };
+            let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
+            prop_assert_eq!(
+                expected_docs,
+                top_n_results
+            );
+        }
     }
 
     #[test]
