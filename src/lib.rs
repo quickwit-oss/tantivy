@@ -148,7 +148,7 @@
 #[cfg_attr(test, macro_use)]
 extern crate serde_json;
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 #[macro_use]
 extern crate thiserror;

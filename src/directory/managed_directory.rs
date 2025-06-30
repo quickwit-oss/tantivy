@@ -110,7 +110,7 @@ impl ManagedDirectory {
         &mut self,
         get_living_files: L,
     ) -> crate::Result<GarbageCollectionResult> {
-        info!("Garbage collect");
+        debug!("Garbage collect");
         let mut files_to_delete = vec![];
 
         // It is crucial to get the living files after acquiring the
@@ -157,7 +157,7 @@ impl ManagedDirectory {
         for file_to_delete in files_to_delete {
             match self.delete(&file_to_delete) {
                 Ok(_) => {
-                    info!("Deleted {:?}", file_to_delete);
+                    debug!("Deleted {:?}", file_to_delete);
                     deleted_files.push(file_to_delete);
                 }
                 Err(file_error) => {

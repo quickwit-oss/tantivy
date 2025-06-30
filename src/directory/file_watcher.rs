@@ -51,7 +51,7 @@ impl FileWatcher {
                             .map(|current_checksum| current_checksum != checksum)
                             .unwrap_or(true);
                         if metafile_has_changed {
-                            info!("Meta file {:?} was modified", path);
+                            debug!("Meta file {:?} was modified", path);
                             current_checksum_opt = Some(checksum);
                             // We actually ignore callbacks failing here.
                             // We just wait for the end of their execution.
