@@ -384,7 +384,7 @@ mod tests {
                 .search(&ExistsQuery::new(field.to_string(), json_subpaths), &Count)
                 .unwrap_err()
                 .to_string(),
-            format!("The field does not exist: '{}'", field)
+            format!("The field does not exist: '{field}'")
         );
     }
 }

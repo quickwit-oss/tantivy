@@ -30,7 +30,7 @@ fn create_format() {
 }
 
 fn path_for_version(version: &str) -> String {
-    format!("./tests/compat_tests_data/index_v{}/", version)
+    format!("./tests/compat_tests_data/index_v{version}/")
 }
 
 /// feature flag quickwit uses a different dictionary type

@@ -86,10 +86,7 @@ impl IndexReaderBuilder {
                 let inner_reader_arc_clone = inner_reader_arc.clone();
                 let callback = move || {
                     if let Err(err) = inner_reader_arc_clone.reload() {
-                        error!(
-                            "Error while loading searcher after commit was detected. {:?}",
-                            err
-                        );
+                        error!("Error while loading searcher after commit was detected. {err:?}");
                     }
                 };
                 let watch_handle = inner_reader_arc

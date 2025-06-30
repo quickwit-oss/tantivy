@@ -29,7 +29,7 @@ pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, msg)
+    io::Error::other(msg)
 }
 
 /// Returns `None` iff the file exists, can be read, but is empty (and hence
@@ -369,7 +369,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
 
 impl Directory for MmapDirectory {
     fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError> {
-        debug!("Open Read {:?}", path);
+        debug!("Open Read {path:?}");
         let full_path = self.resolve_path(path);
 
         let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
@@ -414,7 +414,7 @@ impl Directory for MmapDirectory {
     }
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
-        debug!("Open Write {:?}", path);
+        debug!("Open Write {path:?}");
         let full_path = self.resolve_path(path);
 
         let open_res = OpenOptions::new()
@@ -467,7 +467,7 @@ impl Directory for MmapDirectory {
     }
 
     fn atomic_write(&self, path: &Path, content: &[u8]) -> io::Result<()> {
-        debug!("Atomic Write {:?}", path);
+        debug!("Atomic Write {path:?}");
         let full_path = self.resolve_path(path);
         atomic_write(&full_path, content)?;
         Ok(())

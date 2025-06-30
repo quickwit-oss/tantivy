@@ -501,8 +501,7 @@ impl SegmentUpdater {
             Ok(segment_entries) => segment_entries,
             Err(err) => {
                 warn!(
-                    "Starting the merge failed for the following reason. This is not fatal. {}",
-                    err
+                    "Starting the merge failed for the following reason. This is not fatal. {err}"
                 );
                 return err.into();
             }

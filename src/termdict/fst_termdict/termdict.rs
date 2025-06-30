@@ -13,7 +13,7 @@ use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e)
+    io::Error::other(e)
 }
 
 const FST_VERSION: u32 = 1;
@@ -128,10 +128,9 @@ impl TermDictionary {
         let footer_size = u64::deserialize(&mut footer_len_bytes)?;
         let version = u32::deserialize(&mut footer_len_bytes)?;
         if version != FST_VERSION {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Unsupported fst version, expected {version}, found {FST_VERSION}",),
-            ));
+            return Err(io::Error::other(format!(
+                "Unsupported fst version, expected {version}, found {FST_VERSION}",
+            )));
         }
 
         let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);
