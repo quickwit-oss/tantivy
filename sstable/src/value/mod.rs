@@ -1,9 +1,15 @@
 pub(crate) mod index;
 mod range;
 mod u64_monotonic;
+mod vec_u32;
 mod void;
 
 use std::io;
+
+pub use range::{RangeValueReader, RangeValueWriter};
+pub use u64_monotonic::{U64MonotonicValueReader, U64MonotonicValueWriter};
+pub use vec_u32::{VecU32ValueReader, VecU32ValueWriter};
+pub use void::{VoidValueReader, VoidValueWriter};
 
 /// `ValueReader` is a trait describing the contract of something
 /// reading blocks of value, and offering random access within this values.
@@ -39,10 +45,6 @@ pub trait ValueWriter: Default {
     /// should behave like a fresh `ValueWriter::default()`.
     fn clear(&mut self);
 }
-
-pub use range::{RangeValueReader, RangeValueWriter};
-pub use u64_monotonic::{U64MonotonicValueReader, U64MonotonicValueWriter};
-pub use void::{VoidValueReader, VoidValueWriter};
 
 fn deserialize_vint_u64(data: &mut &[u8]) -> u64 {
     let (num_bytes, val) = super::vint::deserialize_read(data);
