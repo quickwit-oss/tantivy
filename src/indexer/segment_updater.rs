@@ -36,7 +36,7 @@ const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 ///
 /// This method is not part of tantivy's public API
 pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()> {
-    info!("save metas");
+    debug!("save metas");
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
     writeln!(&mut buffer)?;
@@ -75,7 +75,7 @@ impl Deref for SegmentUpdater {
 fn garbage_collect_files(
     segment_updater: SegmentUpdater,
 ) -> crate::Result<GarbageCollectionResult> {
-    info!("Running garbage collection");
+    debug!("Running garbage collection");
     let mut index = segment_updater.index.clone();
     index
         .directory_mut()
@@ -508,7 +508,7 @@ impl SegmentUpdater {
             }
         };
 
-        info!("Starting merge  - {:?}", merge_operation.segment_ids());
+        debug!("Starting merge  - {:?}", merge_operation.segment_ids());
 
         let (scheduled_result, merging_future_send) =
             FutureResult::create("Merge operation failed.");
@@ -622,7 +622,7 @@ impl SegmentUpdater {
             .as_ref()
             .map(|after_merge_segment_entry| after_merge_segment_entry.meta().clone());
         self.schedule_task(move || {
-            info!(
+            debug!(
                 "End merge {:?}",
                 after_merge_segment_entry.as_ref().map(|entry| entry.meta())
             );

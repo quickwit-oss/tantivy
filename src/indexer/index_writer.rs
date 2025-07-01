@@ -193,7 +193,7 @@ fn index_documents<D: Document>(
         }
         let mem_usage = segment_writer.mem_usage();
         if mem_usage >= memory_budget - MARGIN_IN_BYTES {
-            info!(
+            debug!(
                 "Buffer limit reached, flushing segment with maxdoc={}.",
                 segment_writer.max_doc()
             );
@@ -562,7 +562,7 @@ impl<D: Document> IndexWriter<D> {
     ///
     /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> crate::Result<Opstamp> {
-        info!("Rolling back to opstamp {}", self.committed_opstamp);
+        debug!("Rolling back to opstamp {}", self.committed_opstamp);
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
@@ -626,7 +626,7 @@ impl<D: Document> IndexWriter<D> {
         //
         // This will move uncommitted segments to the state of
         // committed segments.
-        info!("Preparing commit");
+        debug!("Preparing commit");
 
         // this will drop the current document channel
         // and recreate a new one.
@@ -644,7 +644,7 @@ impl<D: Document> IndexWriter<D> {
 
         let commit_opstamp = self.stamper.stamp();
         let prepared_commit = PreparedCommit::new(self, commit_opstamp);
-        info!("Prepared commit {}", commit_opstamp);
+        debug!("Prepared commit {}", commit_opstamp);
         Ok(prepared_commit)
     }
 
