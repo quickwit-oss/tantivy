@@ -58,10 +58,13 @@ impl SSTableIndex {
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
-    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
+    pub(crate) fn get_block_with_ord<const FETCH_NEXT_ORD: bool>(
+        &self,
+        ord: TermOrdinal,
+    ) -> (BlockAddr, u64) {
         match self {
             SSTableIndex::V2(v2_index) => v2_index.get_block_with_ord(ord),
-            SSTableIndex::V3(v3_index) => v3_index.get_block_with_ord(ord),
+            SSTableIndex::V3(v3_index) => v3_index.get_block_with_ord::<FETCH_NEXT_ORD>(ord),
             SSTableIndex::V3Empty(v3_empty) => v3_empty.get_block_with_ord(ord),
         }
     }
@@ -152,12 +155,18 @@ impl SSTableIndexV3 {
     }
 
     pub(crate) fn locate_with_ord(&self, ord: TermOrdinal) -> u64 {
-        self.block_addr_store.binary_search_ord(ord).0
+        self.block_addr_store.binary_search_ord::<false>(ord).0
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
-    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
-        self.block_addr_store.binary_search_ord(ord).1
+    pub(crate) fn get_block_with_ord<const FETCH_NEXT_ORD: bool>(
+        &self,
+        ord: TermOrdinal,
+    ) -> (BlockAddr, u64) {
+        let (_block_id, block_addr, next_ord) = self
+            .block_addr_store
+            .binary_search_ord::<FETCH_NEXT_ORD>(ord);
+        (block_addr, next_ord)
     }
 
     pub(crate) fn get_block_for_automaton<'a>(
@@ -253,8 +262,8 @@ impl SSTableIndexV3Empty {
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
-    pub(crate) fn get_block_with_ord(&self, _ord: TermOrdinal) -> BlockAddr {
-        self.block_addr.clone()
+    pub(crate) fn get_block_with_ord(&self, _ord: TermOrdinal) -> (BlockAddr, u64) {
+        (self.block_addr.clone(), u64::MAX)
     }
 }
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -461,7 +470,11 @@ impl BlockAddrBlockMetadata {
         })
     }
 
-    fn bisect_for_ord(&self, data: &[u8], target_ord: TermOrdinal) -> (u64, BlockAddr) {
+    fn bisect_for_ord<const FETCH_NEXT_ORD: bool>(
+        &self,
+        data: &[u8],
+        target_ord: TermOrdinal,
+    ) -> (u64, BlockAddr, u64) {
         let inner_target_ord = target_ord - self.ref_block_addr.first_ordinal;
         let num_bits = self.num_bits() as usize;
         let range_start_nbits = self.range_start_nbits as usize;
@@ -481,11 +494,17 @@ impl BlockAddrBlockMetadata {
             Err(inner_offset) => inner_offset,
         };
         // we can unwrap because inner_offset <= self.block_len
-        (
-            inner_offset,
-            self.deserialize_block_addr(data, inner_offset as usize)
-                .unwrap(),
-        )
+        let block = self
+            .deserialize_block_addr(data, inner_offset as usize)
+            .unwrap();
+        let next_ord = if FETCH_NEXT_ORD {
+            self.deserialize_block_addr(data, inner_offset as usize + 1)
+                .map(|b| b.first_ordinal)
+                .unwrap_or(u64::MAX)
+        } else {
+            0
+        };
+        (inner_offset, block, next_ord)
     }
 }
 
@@ -591,7 +610,10 @@ impl BlockAddrStore {
         )
     }
 
-    fn binary_search_ord(&self, ord: TermOrdinal) -> (u64, BlockAddr) {
+    fn binary_search_ord<const FETCH_NEXT_ORD: bool>(
+        &self,
+        ord: TermOrdinal,
+    ) -> (u64, BlockAddr, u64) {
         let max_block =
             (self.block_meta_bytes.len() / BlockAddrBlockMetadata::SIZE_IN_BYTES) as u64;
         let get_first_ordinal = |block_id| {
@@ -606,20 +628,29 @@ impl BlockAddrStore {
             Ok(store_block_id) => {
                 let block_id = store_block_id * STORE_BLOCK_LEN as u64;
                 // we can unwrap because store_block_id < max_block
-                return (block_id, self.get(block_id).unwrap());
+                let next_ord = if FETCH_NEXT_ORD {
+                    self.get(block_id + 1)
+                        .map(|b| b.first_ordinal)
+                        .unwrap_or(u64::MAX)
+                } else {
+                    0
+                };
+                return (block_id, self.get(block_id).unwrap(), next_ord);
             }
             Err(store_block_id) => store_block_id - 1,
         };
 
         // we can unwrap because store_block_id < max_block
         let block_addr_block_data = self.get_block_meta(store_block_id as usize).unwrap();
-        let (inner_offset, block_addr) = block_addr_block_data.bisect_for_ord(
-            &self.addr_bytes[block_addr_block_data.offset as usize..],
-            ord,
-        );
+        let (inner_offset, block_addr, next_block_ord) = block_addr_block_data
+            .bisect_for_ord::<FETCH_NEXT_ORD>(
+                &self.addr_bytes[block_addr_block_data.offset as usize..],
+                ord,
+            );
         (
             store_block_id * STORE_BLOCK_LEN as u64 + inner_offset,
             block_addr,
+            next_block_ord,
         )
     }
 }
