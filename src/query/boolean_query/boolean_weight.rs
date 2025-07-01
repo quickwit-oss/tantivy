@@ -157,8 +157,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             Ignored,
             // Only contributes to final score.
             Optional(SpecializedScorer),
-            // Must be fitted.
-            Required(Box<dyn Scorer>),
+            Required(SpecializedScorer),
         }
         let mut must_scorers = per_occur_scorers.remove(&Occur::Must);
         let should_opt = if let Some(mut should_scorers) = per_occur_scorers.remove(&Occur::Should)
@@ -169,10 +168,10 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             }
             match self.minimum_number_should_match {
                 0 => CombinationMethod::Optional(scorer_union(should_scorers, &score_combiner_fn)),
-                1 => CombinationMethod::Required(into_box_scorer(
-                    scorer_union(should_scorers, &score_combiner_fn),
-                    &score_combiner_fn,
-                )),
+                1 => {
+                    let scorer_union = scorer_union(should_scorers, &score_combiner_fn);
+                    CombinationMethod::Required(scorer_union)
+                }
                 n if num_of_should_scorers == n => {
                     // When num_of_should_scorers equals the number of should clauses,
                     // they are no different from must clauses.
@@ -185,11 +184,11 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     };
                     CombinationMethod::Ignored
                 }
-                _ => CombinationMethod::Required(scorer_disjunction(
+                _ => CombinationMethod::Required(SpecializedScorer::Other(scorer_disjunction(
                     should_scorers,
                     score_combiner_fn(),
                     self.minimum_number_should_match,
-                )),
+                ))),
             }
         } else {
             // None of should clauses are provided.
@@ -223,15 +222,13 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 }
             }
             (CombinationMethod::Required(should_scorer), Some(mut must_scorers)) => {
-                must_scorers.push(should_scorer);
+                must_scorers.push(into_box_scorer(should_scorer, &score_combiner_fn));
                 SpecializedScorer::Other(intersect_scorers(must_scorers))
             }
             (CombinationMethod::Ignored, None) => {
                 return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)))
             }
-            (CombinationMethod::Required(should_scorer), None) => {
-                SpecializedScorer::Other(should_scorer)
-            }
+            (CombinationMethod::Required(should_scorer), None) => should_scorer,
             // Optional options are promoted to required if no must scorers exists.
             (CombinationMethod::Optional(should_scorer), None) => should_scorer,
         };
