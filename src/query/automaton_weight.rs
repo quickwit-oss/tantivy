@@ -28,8 +28,8 @@ where
     A::State: Clone,
 {
     /// Create a new AutomationWeight
-    pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA) -> AutomatonWeight<A> {
-        AutomatonWeight {
+    pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA) -> Self {
+        Self {
             field,
             automaton: automaton.into(),
             json_path_bytes: None,
@@ -41,8 +41,8 @@ where
         field: Field,
         automaton: IntoArcA,
         json_path_bytes: &[u8],
-    ) -> AutomatonWeight<A> {
-        AutomatonWeight {
+    ) -> Self {
+        Self {
             field,
             automaton: automaton.into(),
             json_path_bytes: Some(json_path_bytes.to_vec().into_boxed_slice()),
@@ -71,7 +71,7 @@ where
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
         let mut term_stream = self.automaton_stream(term_dict)?;
-        let mut term_infos = Vec::new();
+        let mut term_infos = vec![];
         while term_stream.advance() {
             term_infos.push(term_stream.value().clone());
         }

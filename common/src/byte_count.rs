@@ -46,19 +46,19 @@ impl ByteCount {
 
 impl From<u64> for ByteCount {
     fn from(value: u64) -> Self {
-        ByteCount(value)
+        Self(value)
     }
 }
 impl From<usize> for ByteCount {
     fn from(value: usize) -> Self {
-        ByteCount(value as u64)
+        Self(value as u64)
     }
 }
 
 impl Sum for ByteCount {
     #[inline]
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(ByteCount::default(), |acc, x| acc + x)
+        iter.fold(Self::default(), |acc, x| acc + x)
     }
 }
 

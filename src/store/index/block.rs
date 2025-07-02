@@ -17,8 +17,8 @@ pub struct CheckpointBlock {
 }
 
 impl Default for CheckpointBlock {
-    fn default() -> CheckpointBlock {
-        CheckpointBlock {
+    fn default() -> Self {
+        Self {
             checkpoints: Vec::with_capacity(2 * CHECKPOINT_PERIOD),
         }
     }
@@ -118,7 +118,7 @@ mod tests {
         for checkpoint in checkpoints {
             block.push(checkpoint.clone());
         }
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         block.serialize(&mut buffer);
         let mut block_deser = CheckpointBlock::default();
         let checkpoint = Checkpoint {

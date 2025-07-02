@@ -59,8 +59,8 @@ impl TryFrom<u32> for DictionaryType {
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
-            1 => Ok(DictionaryType::Fst),
-            2 => Ok(DictionaryType::SSTable),
+            1 => Ok(Self::Fst),
+            2 => Ok(Self::SSTable),
             _ => Err("Invalid value for DictionaryType"),
         }
     }
@@ -84,20 +84,14 @@ impl TermDictionary {
         let mut dict_type = dict_type.read_bytes()?;
         let dict_type = u32::deserialize(&mut dict_type)?;
         let dict_type = DictionaryType::try_from(dict_type).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Unsupported dictionary type, found {dict_type}"),
-            )
+            io::Error::other(format!("Unsupported dictionary type, found {dict_type}"))
         })?;
 
         if dict_type != CURRENT_TYPE {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "Unsupported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
-                     {dict_type:?}",
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "Unsupported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
+                 {dict_type:?}",
+            )));
         }
 
         InnerTermDict::open(main_slice).map(TermDictionary)
@@ -105,7 +99,7 @@ impl TermDictionary {
 
     /// Creates an empty term dictionary which contains no terms.
     pub fn empty() -> Self {
-        TermDictionary(InnerTermDict::empty())
+        Self(InnerTermDict::empty())
     }
 
     /// Returns the number of terms in the dictionary.

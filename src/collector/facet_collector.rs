@@ -15,13 +15,13 @@ struct Hit<'a> {
 
 impl Eq for Hit<'_> {}
 
-impl<'a> PartialEq<Hit<'a>> for Hit<'a> {
+impl<'a> PartialEq<Self> for Hit<'a> {
     fn eq(&self, other: &Hit<'_>) -> bool {
         self.count == other.count
     }
 }
 
-impl<'a> PartialOrd<Hit<'a>> for Hit<'a> {
+impl<'a> PartialOrd<Self> for Hit<'a> {
     fn partial_cmp(&self, other: &Hit<'_>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -201,8 +201,8 @@ impl FacetCollector {
     ///
     /// This function does not check whether the field
     /// is of the proper type.
-    pub fn for_field(field_name: impl ToString) -> FacetCollector {
-        FacetCollector {
+    pub fn for_field(field_name: impl ToString) -> Self {
+        Self {
             field_name: field_name.to_string(),
             facets: BTreeSet::default(),
         }
@@ -238,9 +238,9 @@ fn compress_mapping(mapping: &[(u64, usize)]) -> (Vec<usize>, Vec<(u64, usize)>)
     // facet_ord -> collapse facet_id
     let mut compressed_collapse_mapping: Vec<usize> = Vec::with_capacity(mapping.len());
     // collapse facet_id -> facet_ord
-    let mut unique_facet_ords: Vec<(u64, usize)> = Vec::new();
+    let mut unique_facet_ords: Vec<(u64, usize)> = vec![];
     if mapping.is_empty() {
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), vec![]);
     }
     compressed_collapse_mapping.push(0);
     unique_facet_ords.push(mapping[0]);
@@ -311,7 +311,7 @@ fn compute_collapse_mapping_one(
     facet_bytes: &[u8],
     collapsed: &mut [(u64, usize)],
 ) -> io::Result<bool> {
-    let mut facet_child: Vec<u8> = Vec::new();
+    let mut facet_child: Vec<u8> = vec![];
     let mut term_ord = 0;
     let offset = facet_bytes.len() + 1;
     let depth = facet_depth(facet_bytes);
@@ -353,7 +353,7 @@ fn compute_collapse_mapping(
     if !facet_terms.advance() {
         return Ok(collapsed);
     }
-    let mut facet_bytes = Vec::new();
+    let mut facet_bytes = vec![];
     for facet in facets {
         facet_bytes.clear();
         facet_bytes.extend(facet.encoded_str().as_bytes());
@@ -484,7 +484,6 @@ impl FacetCounts {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
-    use std::iter;
 
     use columnar::Dictionary;
     use rand::distributions::Uniform;
@@ -739,7 +738,7 @@ mod tests {
                 .flat_map(|(c, count)| {
                     let facet = Facet::from(&format!("/facet/{c}"));
                     let doc = doc!(facet_field => facet);
-                    iter::repeat(doc).take(count)
+                    std::iter::repeat_n(doc, count)
                 })
                 .map(|mut doc| {
                     doc.add_facet(
@@ -787,7 +786,7 @@ mod tests {
             .flat_map(|(c, count)| {
                 let facet = Facet::from(&format!("/facet/{c}"));
                 let doc = doc!(facet_field => facet);
-                iter::repeat(doc).take(count)
+                std::iter::repeat_n(doc, count)
             })
             .collect();
 

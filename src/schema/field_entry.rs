@@ -22,61 +22,61 @@ pub struct FieldEntry {
 
 impl FieldEntry {
     /// Creates a new field entry given a name and a field type
-    pub fn new(field_name: String, field_type: FieldType) -> FieldEntry {
+    pub fn new(field_name: String, field_type: FieldType) -> Self {
         assert!(is_valid_field_name(&field_name));
-        FieldEntry {
+        Self {
             name: field_name,
             field_type,
         }
     }
 
     /// Creates a new text field entry.
-    pub fn new_text(field_name: String, text_options: TextOptions) -> FieldEntry {
+    pub fn new_text(field_name: String, text_options: TextOptions) -> Self {
         Self::new(field_name, FieldType::Str(text_options))
     }
 
     /// Creates a new u64 field entry.
-    pub fn new_u64(field_name: String, int_options: NumericOptions) -> FieldEntry {
+    pub fn new_u64(field_name: String, int_options: NumericOptions) -> Self {
         Self::new(field_name, FieldType::U64(int_options))
     }
 
     /// Creates a new i64 field entry.
-    pub fn new_i64(field_name: String, int_options: NumericOptions) -> FieldEntry {
+    pub fn new_i64(field_name: String, int_options: NumericOptions) -> Self {
         Self::new(field_name, FieldType::I64(int_options))
     }
 
     /// Creates a new f64 field entry.
-    pub fn new_f64(field_name: String, f64_options: NumericOptions) -> FieldEntry {
+    pub fn new_f64(field_name: String, f64_options: NumericOptions) -> Self {
         Self::new(field_name, FieldType::F64(f64_options))
     }
 
     /// Creates a new bool field entry.
-    pub fn new_bool(field_name: String, bool_options: NumericOptions) -> FieldEntry {
+    pub fn new_bool(field_name: String, bool_options: NumericOptions) -> Self {
         Self::new(field_name, FieldType::Bool(bool_options))
     }
 
     /// Creates a new date field entry.
-    pub fn new_date(field_name: String, date_options: DateOptions) -> FieldEntry {
+    pub fn new_date(field_name: String, date_options: DateOptions) -> Self {
         Self::new(field_name, FieldType::Date(date_options))
     }
 
     /// Creates a new ip address field entry.
-    pub fn new_ip_addr(field_name: String, ip_options: IpAddrOptions) -> FieldEntry {
+    pub fn new_ip_addr(field_name: String, ip_options: IpAddrOptions) -> Self {
         Self::new(field_name, FieldType::IpAddr(ip_options))
     }
 
     /// Creates a field entry for a facet.
-    pub fn new_facet(field_name: String, facet_options: FacetOptions) -> FieldEntry {
+    pub fn new_facet(field_name: String, facet_options: FacetOptions) -> Self {
         Self::new(field_name, FieldType::Facet(facet_options))
     }
 
     /// Creates a field entry for a bytes field
-    pub fn new_bytes(field_name: String, bytes_options: BytesOptions) -> FieldEntry {
+    pub fn new_bytes(field_name: String, bytes_options: BytesOptions) -> Self {
         Self::new(field_name, FieldType::Bytes(bytes_options))
     }
 
     /// Creates a field entry for a json field
-    pub fn new_json(field_name: String, json_object_options: JsonObjectOptions) -> FieldEntry {
+    pub fn new_json(field_name: String, json_object_options: JsonObjectOptions) -> Self {
         Self::new(field_name, FieldType::JsonObject(json_object_options))
     }
 

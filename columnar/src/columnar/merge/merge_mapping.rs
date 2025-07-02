@@ -12,24 +12,24 @@ pub struct StackMergeOrder {
 
 impl StackMergeOrder {
     #[cfg(test)]
-    pub fn stack_for_test(num_rows_per_columnar: &[u32]) -> StackMergeOrder {
+    pub fn stack_for_test(num_rows_per_columnar: &[u32]) -> Self {
         let mut cumulated_row_ids: Vec<RowId> = Vec::with_capacity(num_rows_per_columnar.len());
         let mut cumulated_row_id = 0;
         for &num_rows in num_rows_per_columnar {
             cumulated_row_id += num_rows;
             cumulated_row_ids.push(cumulated_row_id);
         }
-        StackMergeOrder { cumulated_row_ids }
+        Self { cumulated_row_ids }
     }
 
-    pub fn stack(columnars: &[&ColumnarReader]) -> StackMergeOrder {
+    pub fn stack(columnars: &[&ColumnarReader]) -> Self {
         let mut cumulated_row_ids: Vec<RowId> = Vec::with_capacity(columnars.len());
         let mut cumulated_row_id = 0;
         for columnar in columnars {
             cumulated_row_id += columnar.num_docs();
             cumulated_row_ids.push(cumulated_row_id);
         }
-        StackMergeOrder { cumulated_row_ids }
+        Self { cumulated_row_ids }
     }
 
     pub fn num_rows(&self) -> RowId {
@@ -63,22 +63,22 @@ pub enum MergeRowOrder {
 }
 
 impl From<StackMergeOrder> for MergeRowOrder {
-    fn from(stack_merge_order: StackMergeOrder) -> MergeRowOrder {
-        MergeRowOrder::Stack(stack_merge_order)
+    fn from(stack_merge_order: StackMergeOrder) -> Self {
+        Self::Stack(stack_merge_order)
     }
 }
 
 impl From<ShuffleMergeOrder> for MergeRowOrder {
-    fn from(shuffle_merge_order: ShuffleMergeOrder) -> MergeRowOrder {
-        MergeRowOrder::Shuffled(shuffle_merge_order)
+    fn from(shuffle_merge_order: ShuffleMergeOrder) -> Self {
+        Self::Shuffled(shuffle_merge_order)
     }
 }
 
 impl MergeRowOrder {
     pub fn num_rows(&self) -> RowId {
         match self {
-            MergeRowOrder::Stack(stack_row_order) => stack_row_order.num_rows(),
-            MergeRowOrder::Shuffled(complex_mapping) => complex_mapping.num_rows(),
+            Self::Stack(stack_row_order) => stack_row_order.num_rows(),
+            Self::Shuffled(complex_mapping) => complex_mapping.num_rows(),
         }
     }
 }
@@ -89,10 +89,7 @@ pub struct ShuffleMergeOrder {
 }
 
 impl ShuffleMergeOrder {
-    pub fn for_test(
-        segment_num_rows: &[RowId],
-        new_row_id_to_old_row_id: Vec<RowAddr>,
-    ) -> ShuffleMergeOrder {
+    pub fn for_test(segment_num_rows: &[RowId], new_row_id_to_old_row_id: Vec<RowAddr>) -> Self {
         let mut alive_bitsets: Vec<BitSet> = segment_num_rows
             .iter()
             .map(|&num_rows| BitSet::with_max_value(num_rows))
@@ -107,13 +104,13 @@ impl ShuffleMergeOrder {
         let alive_bitsets: Vec<Option<ReadOnlyBitSet>> = alive_bitsets
             .into_iter()
             .map(|alive_bitset| {
-                let mut buffer = Vec::new();
+                let mut buffer = vec![];
                 alive_bitset.serialize(&mut buffer).unwrap();
                 let data = OwnedBytes::new(buffer);
                 Some(ReadOnlyBitSet::open(data))
             })
             .collect();
-        ShuffleMergeOrder {
+        Self {
             new_row_id_to_old_row_id,
             alive_bitsets,
         }

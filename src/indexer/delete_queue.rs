@@ -30,8 +30,8 @@ pub struct DeleteQueue {
 
 impl DeleteQueue {
     // Creates a new delete queue.
-    pub fn new() -> DeleteQueue {
-        DeleteQueue {
+    pub fn new() -> Self {
+        Self {
             inner: Arc::default(),
         }
     }
@@ -123,8 +123,8 @@ enum InnerNextBlock {
 struct NextBlock(RwLock<InnerNextBlock>);
 
 impl From<DeleteQueue> for NextBlock {
-    fn from(delete_queue: DeleteQueue) -> NextBlock {
-        NextBlock(RwLock::new(InnerNextBlock::Writer(delete_queue)))
+    fn from(delete_queue: DeleteQueue) -> Self {
+        Self(RwLock::new(InnerNextBlock::Writer(delete_queue)))
     }
 }
 

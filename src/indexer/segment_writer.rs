@@ -762,7 +762,7 @@ mod tests {
             .unwrap();
         assert_eq!(postings.doc(), 0);
         assert_eq!(postings.term_freq(), 2);
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         postings.positions(&mut positions);
         assert_eq!(&positions[..], &[1, 2]);
         assert_eq!(postings.advance(), TERMINATED);
@@ -801,7 +801,7 @@ mod tests {
             .unwrap();
         assert_eq!(postings.doc(), 0);
         assert_eq!(postings.term_freq(), 1);
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         postings.positions(&mut positions);
         assert_eq!(postings.advance(), TERMINATED);
     }
@@ -963,7 +963,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(postings.doc(), 0u32);
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         postings.positions(&mut positions);
         // On release this was [2, 1]. (< note the decreasing values)
         assert_eq!(positions, &[2, 5]);
@@ -1002,7 +1002,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(postings.doc(), 0u32);
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         postings.positions(&mut positions);
         assert_eq!(positions, &[0, 3]); //< as opposed to 0, 2 if we had a position length of 1.
     }
@@ -1050,7 +1050,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(postings.doc(), 0u32);
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         postings.positions(&mut positions);
         assert_eq!(positions, &[4]); //< as opposed to 3 if we had a position length of 1.
     }

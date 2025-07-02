@@ -29,7 +29,7 @@ pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, msg)
+    io::Error::other(msg)
 }
 
 /// Returns `None` iff the file exists, can be read, but is empty (and hence
@@ -84,8 +84,8 @@ struct MmapCache {
 }
 
 impl MmapCache {
-    fn new() -> MmapCache {
-        MmapCache {
+    fn new() -> Self {
+        Self {
             counters: CacheCounters::default(),
             cache: HashMap::default(),
             #[cfg(unix)]
@@ -173,8 +173,8 @@ struct MmapDirectoryInner {
 }
 
 impl MmapDirectoryInner {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectoryInner {
-        MmapDirectoryInner {
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> Self {
+        Self {
             mmap_cache: RwLock::new(MmapCache::new()),
             _temp_directory: temp_directory,
             watcher: FileWatcher::new(&root_path.join(*META_FILEPATH)),
@@ -194,9 +194,9 @@ impl fmt::Debug for MmapDirectory {
 }
 
 impl MmapDirectory {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectory {
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> Self {
         let inner = MmapDirectoryInner::new(root_path, temp_directory);
-        MmapDirectory {
+        Self {
             inner: Arc::new(inner),
         }
     }
@@ -205,13 +205,10 @@ impl MmapDirectory {
     ///
     /// This is mostly useful to test the MmapDirectory itself.
     /// For your unit tests, prefer the RamDirectory.
-    pub fn create_from_tempdir() -> Result<MmapDirectory, OpenDirectoryError> {
+    pub fn create_from_tempdir() -> Result<Self, OpenDirectoryError> {
         let tempdir = TempDir::new()
             .map_err(|io_err| OpenDirectoryError::FailedToCreateTempDir(Arc::new(io_err)))?;
-        Ok(MmapDirectory::new(
-            tempdir.path().to_path_buf(),
-            Some(tempdir),
-        ))
+        Ok(Self::new(tempdir.path().to_path_buf(), Some(tempdir)))
     }
 
     /// Opens a MmapDirectory in a directory, with a given access pattern.
@@ -221,7 +218,7 @@ impl MmapDirectory {
     pub fn open_with_madvice(
         directory_path: impl AsRef<Path>,
         madvice: Advice,
-    ) -> Result<MmapDirectory, OpenDirectoryError> {
+    ) -> Result<Self, OpenDirectoryError> {
         let dir = Self::open_impl_to_avoid_monomorphization(directory_path.as_ref())?;
         dir.inner.mmap_cache.write().unwrap().set_advice(madvice);
         Ok(dir)
@@ -231,14 +228,14 @@ impl MmapDirectory {
     ///
     /// Returns an error if the `directory_path` does not
     /// exist or if it is not a directory.
-    pub fn open(directory_path: impl AsRef<Path>) -> Result<MmapDirectory, OpenDirectoryError> {
+    pub fn open(directory_path: impl AsRef<Path>) -> Result<Self, OpenDirectoryError> {
         Self::open_impl_to_avoid_monomorphization(directory_path.as_ref())
     }
 
     #[inline(never)]
     fn open_impl_to_avoid_monomorphization(
         directory_path: &Path,
-    ) -> Result<MmapDirectory, OpenDirectoryError> {
+    ) -> Result<Self, OpenDirectoryError> {
         if !directory_path.exists() {
             return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
@@ -265,7 +262,7 @@ impl MmapDirectory {
                 directory_path,
             )));
         }
-        Ok(MmapDirectory::new(canonical_path, None))
+        Ok(Self::new(canonical_path, None))
     }
 
     /// Joins a relative_path to the directory `root_path`
@@ -313,8 +310,8 @@ impl Drop for ReleaseLockFile {
 struct SafeFileWriter(File);
 
 impl SafeFileWriter {
-    fn new(file: File) -> SafeFileWriter {
-        SafeFileWriter(file)
+    fn new(file: File) -> Self {
+        Self(file)
     }
 }
 
@@ -448,7 +445,7 @@ impl Directory for MmapDirectory {
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
         let full_path = self.resolve_path(path);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         match File::open(full_path) {
             Ok(mut file) => {
                 file.read_to_end(&mut buffer).map_err(|io_error| {

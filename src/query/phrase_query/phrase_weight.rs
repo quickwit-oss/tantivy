@@ -20,9 +20,9 @@ impl PhraseWeight {
     pub fn new(
         phrase_terms: Vec<(usize, Term)>,
         similarity_weight_opt: Option<Bm25Weight>,
-    ) -> PhraseWeight {
+    ) -> Self {
         let slop = 0;
-        PhraseWeight {
+        Self {
             phrase_terms,
             similarity_weight_opt,
             slop,
@@ -49,7 +49,7 @@ impl PhraseWeight {
             .as_ref()
             .map(|similarity_weight| similarity_weight.boost_by(boost));
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
-        let mut term_postings_list = Vec::new();
+        let mut term_postings_list = vec![];
         for &(offset, ref term) in &self.phrase_terms {
             if let Some(postings) = reader
                 .inverted_index(term.field())?

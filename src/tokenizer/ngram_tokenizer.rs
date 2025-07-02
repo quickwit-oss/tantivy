@@ -93,11 +93,7 @@ pub struct NgramTokenizer {
 
 impl NgramTokenizer {
     /// Configures a new Ngram tokenizer
-    pub fn new(
-        min_gram: usize,
-        max_gram: usize,
-        prefix_only: bool,
-    ) -> crate::Result<NgramTokenizer> {
+    pub fn new(min_gram: usize, max_gram: usize, prefix_only: bool) -> crate::Result<Self> {
         if min_gram == 0 {
             return Err(TantivyError::InvalidArgument(
                 "min_gram must be greater than 0".to_string(),
@@ -108,7 +104,7 @@ impl NgramTokenizer {
                 "min_gram must not be greater than max_gram".to_string(),
             ));
         }
-        Ok(NgramTokenizer {
+        Ok(Self {
             min_gram,
             max_gram,
             prefix_only,
@@ -119,13 +115,13 @@ impl NgramTokenizer {
     /// Create a `NGramTokenizer` which generates tokens for all inner ngrams.
     ///
     /// This is as opposed to only prefix ngrams    .
-    pub fn all_ngrams(min_gram: usize, max_gram: usize) -> crate::Result<NgramTokenizer> {
+    pub fn all_ngrams(min_gram: usize, max_gram: usize) -> crate::Result<Self> {
         Self::new(min_gram, max_gram, false)
     }
 
     /// Create a `NGramTokenizer` which only generates tokens for the
     /// prefix ngrams.
-    pub fn prefix_only(min_gram: usize, max_gram: usize) -> crate::Result<NgramTokenizer> {
+    pub fn prefix_only(min_gram: usize, max_gram: usize) -> crate::Result<Self> {
         Self::new(min_gram, max_gram, true)
     }
 }
@@ -207,12 +203,12 @@ struct StutteringIterator<T> {
 impl<T> StutteringIterator<T>
 where T: Iterator<Item = usize>
 {
-    pub fn new(mut underlying: T, min_gram: usize, max_gram: usize) -> StutteringIterator<T> {
+    pub fn new(mut underlying: T, min_gram: usize, max_gram: usize) -> Self {
         assert!(min_gram > 0);
         let memory: Vec<usize> = (&mut underlying).take(max_gram + 1).collect();
         if memory.len() <= min_gram {
             // returns an empty iterator
-            StutteringIterator {
+            Self {
                 underlying,
                 min_gram: 1,
                 max_gram: 0,
@@ -221,7 +217,7 @@ where T: Iterator<Item = usize>
                 gram_len: 0,
             }
         } else {
-            StutteringIterator {
+            Self {
                 underlying,
                 min_gram,
                 max_gram: memory.len() - 1,
@@ -287,7 +283,7 @@ impl Iterator for CodepointFrontiers<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
-        self.next_el.map(|offset| {
+        self.next_el.inspect(|&offset| {
             if self.s.is_empty() {
                 self.next_el = None;
             } else {
@@ -295,7 +291,6 @@ impl Iterator for CodepointFrontiers<'_> {
                 self.s = &self.s[first_codepoint_width..];
                 self.next_el = Some(offset + first_codepoint_width);
             }
-            offset
         })
     }
 }

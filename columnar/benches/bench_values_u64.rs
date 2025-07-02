@@ -69,8 +69,8 @@ fn get_data_50percent_item() -> Vec<u128> {
     data.push(SINGLE_ITEM);
 
     data.shuffle(&mut rng);
-    let data = data.iter().map(|el| *el as u128).collect::<Vec<_>>();
-    data
+
+    data.iter().map(|el| *el as u128).collect::<Vec<_>>()
 }
 
 // U64 RANGE START
@@ -80,7 +80,7 @@ fn bench_intfastfield_getrange_u64_50percent_hit(b: &mut Bencher) {
     let data = data.iter().map(|el| *el as u64).collect::<Vec<_>>();
     let column: Arc<dyn ColumnValues<u64>> = serialize_and_load(&data, CodecType::Bitpacked);
     b.iter(|| {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(
             FIFTY_PERCENT_RANGE,
             0..data.len() as u32,
@@ -97,7 +97,7 @@ fn bench_intfastfield_getrange_u64_1percent_hit(b: &mut Bencher) {
     let column: Arc<dyn ColumnValues<u64>> = serialize_and_load(&data, CodecType::Bitpacked);
 
     b.iter(|| {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(
             ONE_PERCENT_ITEM_RANGE,
             0..data.len() as u32,
@@ -114,7 +114,7 @@ fn bench_intfastfield_getrange_u64_single_hit(b: &mut Bencher) {
     let column: Arc<dyn ColumnValues<u64>> = serialize_and_load(&data, CodecType::Bitpacked);
 
     b.iter(|| {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(SINGLE_ITEM_RANGE, 0..data.len() as u32, &mut positions);
         positions
     });
@@ -127,7 +127,7 @@ fn bench_intfastfield_getrange_u64_hit_all(b: &mut Bencher) {
     let column: Arc<dyn ColumnValues<u64>> = serialize_and_load(&data, CodecType::Bitpacked);
 
     b.iter(|| {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(0..=u64::MAX, 0..data.len() as u32, &mut positions);
         positions
     });
@@ -141,7 +141,7 @@ fn bench_intfastfield_stride7_vec(b: &mut Bencher) {
     b.iter(|| {
         let mut a = 0u64;
         for i in (0..n / 7).map(|val| val * 7) {
-            a += permutation[i as usize];
+            a += permutation[i];
         }
         a
     });
@@ -196,7 +196,7 @@ fn bench_intfastfield_scan_all_vec(b: &mut Bencher) {
     b.iter(|| {
         let mut a = 0u64;
         for i in 0..permutation.len() {
-            a += permutation[i as usize] as u64;
+            a += permutation[i] as u64;
         }
         a
     });

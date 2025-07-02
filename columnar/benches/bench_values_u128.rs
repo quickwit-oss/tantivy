@@ -47,8 +47,8 @@ fn get_data_50percent_item() -> Vec<u128> {
     }
     data.push(SINGLE_ITEM);
     data.shuffle(&mut rng);
-    let data = data.iter().map(|el| *el as u128).collect::<Vec<_>>();
-    data
+
+    data.iter().map(|el| *el as u128).collect::<Vec<_>>()
 }
 
 #[bench]
@@ -57,7 +57,7 @@ fn bench_intfastfield_getrange_u128_50percent_hit(b: &mut Bencher) {
     let column = get_u128_column_from_data(&data);
 
     b.iter(|| {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(
             *FIFTY_PERCENT_RANGE.start() as u128..=*FIFTY_PERCENT_RANGE.end() as u128,
             0..data.len() as u32,
@@ -73,7 +73,7 @@ fn bench_intfastfield_getrange_u128_single_hit(b: &mut Bencher) {
     let column = get_u128_column_from_data(&data);
 
     b.iter(|| {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(
             *SINGLE_ITEM_RANGE.start() as u128..=*SINGLE_ITEM_RANGE.end() as u128,
             0..data.len() as u32,
@@ -89,7 +89,7 @@ fn bench_intfastfield_getrange_u128_hit_all(b: &mut Bencher) {
     let column = get_u128_column_from_data(&data);
 
     b.iter(|| {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         column.get_row_ids_for_value_range(0..=u128::MAX, 0..data.len() as u32, &mut positions);
         positions
     });

@@ -16,18 +16,18 @@ pub struct OwnedBytes {
 
 impl OwnedBytes {
     /// Creates an empty `OwnedBytes`.
-    pub fn empty() -> OwnedBytes {
-        OwnedBytes::new(&[][..])
+    pub fn empty() -> Self {
+        Self::new(&[][..])
     }
 
     /// Creates an `OwnedBytes` instance given a `StableDeref` object.
     pub fn new<T: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync>(
         data_holder: T,
-    ) -> OwnedBytes {
+    ) -> Self {
         let box_stable_deref = Arc::new(data_holder);
         let bytes: &[u8] = box_stable_deref.deref();
         let data = unsafe { &*(bytes as *const [u8]) };
-        OwnedBytes {
+        Self {
             data,
             box_stable_deref,
         }
@@ -37,7 +37,7 @@ impl OwnedBytes {
     #[must_use]
     #[inline]
     pub fn slice(&self, range: Range<usize>) -> Self {
-        OwnedBytes {
+        Self {
             data: &self.data[range],
             box_stable_deref: self.box_stable_deref.clone(),
         }
@@ -72,14 +72,14 @@ impl OwnedBytes {
     /// be released when both left and right are dropped.
     #[inline]
     #[must_use]
-    pub fn split(self, split_len: usize) -> (OwnedBytes, OwnedBytes) {
+    pub fn split(self, split_len: usize) -> (Self, Self) {
         let (left_data, right_data) = self.data.split_at(split_len);
         let right_box_stable_deref = self.box_stable_deref.clone();
-        let left = OwnedBytes {
+        let left = Self {
             data: left_data,
             box_stable_deref: self.box_stable_deref,
         };
-        let right = OwnedBytes {
+        let right = Self {
             data: right_data,
             box_stable_deref: right_box_stable_deref,
         };
@@ -96,7 +96,7 @@ impl OwnedBytes {
     /// be released when both left and right are dropped.
     #[inline]
     #[must_use]
-    pub fn rsplit(self, split_len: usize) -> (OwnedBytes, OwnedBytes) {
+    pub fn rsplit(self, split_len: usize) -> (Self, Self) {
         let data_len = self.data.len();
         self.split(data_len - split_len)
     }
@@ -104,10 +104,10 @@ impl OwnedBytes {
     /// Splits the right part of the `OwnedBytes` at the given offset.
     ///
     /// `self` is truncated to `split_len`, left with the remaining bytes.
-    pub fn split_off(&mut self, split_len: usize) -> OwnedBytes {
+    pub fn split_off(&mut self, split_len: usize) -> Self {
         let (left, right) = self.data.split_at(split_len);
         let right_box_stable_deref = self.box_stable_deref.clone();
-        let right_piece = OwnedBytes {
+        let right_piece = Self {
             data: right,
             box_stable_deref: right_box_stable_deref,
         };
@@ -161,7 +161,7 @@ impl fmt::Debug for OwnedBytes {
 }
 
 impl PartialEq for OwnedBytes {
-    fn eq(&self, other: &OwnedBytes) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
     }
 }
@@ -181,7 +181,7 @@ impl PartialEq<str> for OwnedBytes {
 }
 
 impl<'a, T: ?Sized> PartialEq<&'a T> for OwnedBytes
-where OwnedBytes: PartialEq<T>
+where Self: PartialEq<T>
 {
     fn eq(&self, other: &&'a T) -> bool {
         *self == **other
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn test_owned_bytes_read_to_end() -> io::Result<()> {
         let mut bytes = OwnedBytes::new(b"abcde".as_ref());
-        let mut buf = Vec::new();
+        let mut buf = vec![];
         bytes.read_to_end(&mut buf)?;
         assert_eq!(buf.as_slice(), b"abcde".as_ref());
         Ok(())

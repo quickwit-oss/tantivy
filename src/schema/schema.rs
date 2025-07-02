@@ -37,8 +37,8 @@ pub struct SchemaBuilder {
 
 impl SchemaBuilder {
     /// Create a new `SchemaBuilder`
-    pub fn new() -> SchemaBuilder {
-        SchemaBuilder::default()
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Adds a new u64 field.
@@ -221,7 +221,7 @@ struct InnerSchema {
 }
 
 impl PartialEq for InnerSchema {
-    fn eq(&self, other: &InnerSchema) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.fields == other.fields
     }
 }
@@ -255,7 +255,7 @@ pub struct Schema(Arc<InnerSchema>);
 // This function operates directly on bytes (as opposed to codepoint), relying
 // on a encoding property of utf-8 for its correctness.
 fn locate_splitting_dots(field_path: &str) -> Vec<usize> {
-    let mut splitting_dots_pos = Vec::new();
+    let mut splitting_dots_pos = vec![];
     let mut escape_state = false;
     for (pos, b) in field_path.bytes().enumerate() {
         if escape_state {

@@ -18,7 +18,7 @@ impl TryFrom<RangeInclusive<u128>> for BlankRange {
         if blank_size < 2 {
             Err("invalid range")
         } else {
-            Ok(BlankRange { blank_range: range })
+            Ok(Self { blank_range: range })
         }
     }
 }

@@ -172,7 +172,7 @@ pub struct MultiCollector<'a> {
 impl<'a> MultiCollector<'a> {
     /// Create a new `MultiCollector`
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 
     /// Add a new collector to our `MultiCollector`.

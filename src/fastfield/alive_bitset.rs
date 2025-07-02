@@ -36,22 +36,22 @@ pub fn intersect_alive_bitsets(left: AliveBitSet, right: AliveBitSet) -> AliveBi
 
 impl AliveBitSet {
     #[cfg(test)]
-    pub(crate) fn for_test_from_deleted_docs(deleted_docs: &[DocId], max_doc: u32) -> AliveBitSet {
+    pub(crate) fn for_test_from_deleted_docs(deleted_docs: &[DocId], max_doc: u32) -> Self {
         assert!(deleted_docs.iter().all(|&doc| doc < max_doc));
         let mut bitset = BitSet::with_max_value_and_full(max_doc);
         for &doc in deleted_docs {
             bitset.remove(doc);
         }
-        let mut alive_bitset_buffer = Vec::new();
+        let mut alive_bitset_buffer = vec![];
         write_alive_bitset(&bitset, &mut alive_bitset_buffer).unwrap();
         let alive_bitset_bytes = OwnedBytes::new(alive_bitset_buffer);
         Self::open(alive_bitset_bytes)
     }
 
     /// Opens an alive bitset given its file.
-    pub fn open(bytes: OwnedBytes) -> AliveBitSet {
+    pub fn open(bytes: OwnedBytes) -> Self {
         let bitset = ReadOnlyBitSet::open(bytes);
-        AliveBitSet::from(bitset)
+        Self::from(bitset)
     }
 
     /// Returns true if the document is still "alive". In other words, if it has not been deleted.
@@ -90,9 +90,9 @@ impl AliveBitSet {
 }
 
 impl From<ReadOnlyBitSet> for AliveBitSet {
-    fn from(bitset: ReadOnlyBitSet) -> AliveBitSet {
+    fn from(bitset: ReadOnlyBitSet) -> Self {
         let num_alive_docs = bitset.len();
-        AliveBitSet {
+        Self {
             num_alive_docs,
             bitset,
         }

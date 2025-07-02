@@ -15,7 +15,7 @@ fn make_columnar<T: Into<NumericalValue> + HasAssociatedColumnType + Copy>(
     for (row_id, val) in vals.iter().copied().enumerate() {
         dataframe_writer.record_numerical(row_id as RowId, column_name, val.into());
     }
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer
         .serialize(vals.len() as RowId, &mut buffer)
         .unwrap();
@@ -142,7 +142,7 @@ fn make_numerical_columnar_multiple_columns(
         .map(|(_, val_rows)| val_rows.len() as RowId)
         .max()
         .unwrap_or(0u32);
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
@@ -165,7 +165,7 @@ fn make_byte_columnar_multiple_columns(
             }
         }
     }
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
@@ -184,7 +184,7 @@ fn make_text_columnar_multiple_columns(columns: &[(&str, &[&[&str]])]) -> Column
         .map(|(_, val_rows)| val_rows.len() as RowId)
         .max()
         .unwrap_or(0u32);
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer.serialize(num_rows, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
@@ -197,7 +197,7 @@ fn test_merge_columnar_numbers() {
         "numbers",
         &[&[], &[NumericalValue::from(-3f64)]],
     )]);
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
@@ -225,7 +225,7 @@ fn test_merge_columnar_numbers() {
 fn test_merge_columnar_texts() {
     let columnar1 = make_text_columnar_multiple_columns(&[("texts", &[&["a"]])]);
     let columnar2 = make_text_columnar_multiple_columns(&[("texts", &[&[], &["b"]])]);
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
@@ -274,7 +274,7 @@ fn test_merge_columnar_texts() {
 fn test_merge_columnar_byte() {
     let columnar1 = make_byte_columnar_multiple_columns(&[("bytes", &[&[b"bbbb"], &[b"baaa"]])], 2);
     let columnar2 = make_byte_columnar_multiple_columns(&[("bytes", &[&[], &[b"a"]])], 2);
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
@@ -293,7 +293,7 @@ fn test_merge_columnar_byte() {
         panic!()
     };
     let get_bytes_for_ord = |ord| {
-        let mut out = Vec::new();
+        let mut out = vec![];
         vals.ord_to_bytes(ord, &mut out).unwrap();
         out
     };
@@ -306,7 +306,7 @@ fn test_merge_columnar_byte() {
     let get_bytes_for_row = |row_id| {
         let term_ords: Vec<u64> = vals.term_ords(row_id).collect();
         assert!(term_ords.len() <= 1);
-        let mut out = Vec::new();
+        let mut out = vec![];
         if term_ords.len() == 1 {
             vals.ord_to_bytes(term_ords[0], &mut out).unwrap();
         }
@@ -330,7 +330,7 @@ fn test_merge_columnar_byte_with_missing() {
         ],
         3,
     );
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let columnars = &[&columnar1, &columnar2, &columnar3];
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
@@ -349,7 +349,7 @@ fn test_merge_columnar_byte_with_missing() {
         panic!()
     };
     let get_bytes_for_ord = |ord| {
-        let mut out = Vec::new();
+        let mut out = vec![];
         vals.ord_to_bytes(ord, &mut out).unwrap();
         out
     };
@@ -360,7 +360,7 @@ fn test_merge_columnar_byte_with_missing() {
         let terms: Vec<Vec<u8>> = vals
             .term_ords(row_id)
             .map(|term_ord| {
-                let mut out = Vec::new();
+                let mut out = vec![];
                 vals.ord_to_bytes(term_ord, &mut out).unwrap();
                 out
             })
@@ -382,7 +382,7 @@ fn test_merge_columnar_different_types() {
     let columnar1 = make_text_columnar_multiple_columns(&[("mixed", &[&["a"]])]);
     let columnar2 = make_text_columnar_multiple_columns(&[("mixed", &[&[], &["b"]])]);
     let columnar3 = make_columnar("mixed", &[1i64]);
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let columnars = &[&columnar1, &columnar2, &columnar3];
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
@@ -447,7 +447,7 @@ fn test_merge_columnar_different_types() {
 fn test_merge_columnar_different_empty_cardinality() {
     let columnar1 = make_text_columnar_multiple_columns(&[("mixed", &[&["a"]])]);
     let columnar2 = make_columnar("mixed", &[1i64]);
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let columnars = &[&columnar1, &columnar2];
     let stack_merge_order = StackMergeOrder::stack(columnars);
     crate::columnar::merge_columnar(
@@ -543,7 +543,7 @@ fn build_columnar(spec: &ColumnarSpec) -> ColumnarReader {
         }
     }
 
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     writer.serialize(max_row_id + 1, &mut buffer).unwrap();
     ColumnarReader::open(buffer).unwrap()
 }
@@ -557,7 +557,7 @@ proptest! {
             .map(build_columnar)
             .collect();
 
-        let mut out = Vec::new();
+        let mut out = vec![];
         let columnar_refs: Vec<&ColumnarReader> = columnars.iter().collect();
         let stack_merge_order = StackMergeOrder::stack(&columnar_refs);
         merge_columnar(
@@ -574,7 +574,7 @@ proptest! {
             .map(build_columnar)
             .collect();
         columnars.push(merged_reader);
-        let mut out = Vec::new();
+        let mut out = vec![];
         let columnar_refs: Vec<&ColumnarReader> = columnars.iter().collect();
         let stack_merge_order = StackMergeOrder::stack(&columnar_refs);
         merge_columnar(

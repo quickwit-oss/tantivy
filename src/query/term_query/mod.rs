@@ -113,7 +113,7 @@ mod tests {
             assert_nearly_equals!(0.13736556, score2);
         }
         {
-            let query_parser = QueryParser::for_index(&index, Vec::new());
+            let query_parser = QueryParser::for_index(&index, vec![]);
             let query = query_parser.parse_query("left:left2 left:left1")?;
             let top_docs = searcher.search(&query, &TopDocs::with_limit(2))?;
             assert_eq!(top_docs.len(), 2);

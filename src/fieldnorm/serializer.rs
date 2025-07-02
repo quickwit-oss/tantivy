@@ -12,10 +12,10 @@ pub struct FieldNormsSerializer {
 
 impl FieldNormsSerializer {
     /// Constructor
-    pub fn from_write(write: WritePtr) -> io::Result<FieldNormsSerializer> {
+    pub fn from_write(write: WritePtr) -> io::Result<Self> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
-        Ok(FieldNormsSerializer { composite_write })
+        Ok(Self { composite_write })
     }
 
     /// Serialize the given field

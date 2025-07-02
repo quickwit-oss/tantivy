@@ -29,11 +29,11 @@ where
     TValueWriter: ValueWriter,
 {
     pub fn new(wrt: W) -> Self {
-        DeltaWriter {
+        Self {
             block: Vec::with_capacity(BLOCK_LEN * 2),
             write: CountingWriter::wrap(BufWriter::new(wrt)),
             value_writer: TValueWriter::default(),
-            stateless_buffer: Vec::new(),
+            stateless_buffer: vec![],
             block_len: BLOCK_LEN,
         }
     }
@@ -138,7 +138,7 @@ impl<TValueReader> DeltaReader<TValueReader>
 where TValueReader: value::ValueReader
 {
     pub fn new(reader: OwnedBytes) -> Self {
-        DeltaReader {
+        Self {
             idx: 0,
             common_prefix_len: 0,
             suffix_range: 0..0,
@@ -148,7 +148,7 @@ where TValueReader: value::ValueReader
     }
 
     pub fn from_multiple_blocks(reader: Vec<OwnedBytes>) -> Self {
-        DeltaReader {
+        Self {
             idx: 0,
             common_prefix_len: 0,
             suffix_range: 0..0,
@@ -158,7 +158,7 @@ where TValueReader: value::ValueReader
     }
 
     pub fn empty() -> Self {
-        DeltaReader::new(OwnedBytes::empty())
+        Self::new(OwnedBytes::empty())
     }
 
     fn deserialize_vint(&mut self) -> u64 {

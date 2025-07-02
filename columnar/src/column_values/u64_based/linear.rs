@@ -83,8 +83,8 @@ pub struct LinearCodecEstimator {
 }
 
 impl Default for LinearCodecEstimator {
-    fn default() -> LinearCodecEstimator {
-        LinearCodecEstimator {
+    fn default() -> Self {
+        Self {
             block: Vec::with_capacity(LINE_ESTIMATION_BLOCK_LEN),
             line: None,
             row_id: 0,
@@ -117,7 +117,7 @@ impl ColumnCodecEstimator for LinearCodecEstimator {
         Some(
             stats.num_bytes()
                 + linear_params.num_bytes()
-                + (num_bits as u64 * stats.num_rows as u64 + 7) / 8,
+                + (num_bits as u64 * stats.num_rows as u64).div_ceil(8),
         )
     }
 

@@ -58,14 +58,14 @@ pub struct SkipIndex {
 }
 
 impl SkipIndex {
-    pub fn open(mut data: OwnedBytes) -> SkipIndex {
+    pub fn open(mut data: OwnedBytes) -> Self {
         let offsets: Vec<u64> = Vec::<VInt>::deserialize(&mut data)
             .unwrap()
             .into_iter()
             .map(|el| el.0)
             .collect();
         let mut start_offset = 0;
-        let mut layers = Vec::new();
+        let mut layers = vec![];
         for end_offset in offsets {
             let layer = Layer {
                 data: data.slice(start_offset as usize..end_offset as usize),
@@ -73,7 +73,7 @@ impl SkipIndex {
             layers.push(layer);
             start_offset = end_offset;
         }
-        SkipIndex { layers }
+        Self { layers }
     }
 
     pub(crate) fn checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {

@@ -128,8 +128,8 @@ impl MergePolicy for LogMergePolicy {
 }
 
 impl Default for LogMergePolicy {
-    fn default() -> LogMergePolicy {
-        LogMergePolicy {
+    fn default() -> Self {
+        Self {
             min_num_segments: DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE,
             max_docs_before_merge: DEFAULT_MAX_DOCS_BEFORE_MERGE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_log_merge_policy_empty() {
-        let y = Vec::new();
+        let y = vec![];
         let result_list = test_merge_policy().compute_merge_candidates(&y);
         assert!(result_list.is_empty());
     }

@@ -4,7 +4,7 @@ use rand::Rng;
 
 #[test]
 fn test_serialize_and_load_simple() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     let vals = &[1u64, 2u64, 5u64];
     serialize_u64_based_column_values(
         &&vals[..],
@@ -25,7 +25,7 @@ fn test_empty_column_i64() {
     let vals: [i64; 0] = [];
     let mut num_acceptable_codecs = 0;
     for codec in ALL_U64_CODEC_TYPES {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
             continue;
         }
@@ -43,7 +43,7 @@ fn test_empty_column_u64() {
     let vals: [u64; 0] = [];
     let mut num_acceptable_codecs = 0;
     for codec in ALL_U64_CODEC_TYPES {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
             continue;
         }
@@ -61,7 +61,7 @@ fn test_empty_column_f64() {
     let vals: [f64; 0] = [];
     let mut num_acceptable_codecs = 0;
     for codec in ALL_U64_CODEC_TYPES {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         if serialize_u64_based_column_values(&&vals[..], &[codec], &mut buffer).is_err() {
             continue;
         }
@@ -90,7 +90,7 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
     let stats = stats_collector.stats();
     let estimation = codec_estimator.estimate(&stats)?;
 
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     codec_estimator
         .serialize(&stats, vals.boxed_iter().as_mut(), &mut buffer)
         .unwrap();
@@ -99,7 +99,7 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
 
     let reader = TColumnCodec::load(OwnedBytes::new(buffer)).unwrap();
     assert_eq!(reader.num_vals(), vals.len() as u32);
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     for (doc, orig_val) in vals.iter().copied().enumerate() {
         let val = reader.get_val(doc as u32);
         assert_eq!(
@@ -129,7 +129,7 @@ pub(crate) fn create_and_validate<TColumnCodec: ColumnCodec>(
             .filter(|(_, el)| **el == vals[test_rand_idx])
             .map(|(pos, _)| pos as u32)
             .collect();
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         reader.get_row_ids_for_value_range(
             vals[test_rand_idx]..=vals[test_rand_idx],
             0..vals.len() as u32,
@@ -320,7 +320,7 @@ fn test_fast_field_codec_type_to_code() {
 
 fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> io::Result<()> {
     let mut vals: Vec<i64> = (-4..=(num_vals as i64) - 5).map(|val| val * 1000).collect();
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     crate::column_values::serialize_u64_based_column_values(
         &&vals[..],
         &[codec_type],
@@ -335,7 +335,7 @@ fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> 
     assert_eq!(column.min_value(), -4000i64);
 
     // Can't apply gcd
-    let mut buffer_without_gcd = Vec::new();
+    let mut buffer_without_gcd = vec![];
     vals.pop();
     vals.push(1001i64);
     crate::column_values::serialize_u64_based_column_values(
@@ -363,7 +363,7 @@ fn test_fastfield_gcd_i64() -> io::Result<()> {
 
 fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> io::Result<()> {
     let mut vals: Vec<u64> = (1..=num_vals).map(|i| i as u64 * 1000u64).collect();
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     crate::column_values::serialize_u64_based_column_values(
         &&vals[..],
         &[codec_type],
@@ -378,7 +378,7 @@ fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> 
     assert_eq!(column.min_value(), 1000u64);
 
     // Can't apply gcd
-    let mut buffer_without_gcd = Vec::new();
+    let mut buffer_without_gcd = vec![];
     vals.pop();
     vals.push(1001u64);
     crate::column_values::serialize_u64_based_column_values(

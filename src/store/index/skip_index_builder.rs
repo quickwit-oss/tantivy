@@ -18,9 +18,9 @@ impl LayerBuilder {
         self.buffer
     }
 
-    fn new() -> LayerBuilder {
-        LayerBuilder {
-            buffer: Vec::new(),
+    fn new() -> Self {
+        Self {
+            buffer: vec![],
             block: CheckpointBlock::default(),
         }
     }
@@ -64,8 +64,8 @@ pub struct SkipIndexBuilder {
 }
 
 impl SkipIndexBuilder {
-    pub fn new() -> SkipIndexBuilder {
-        SkipIndexBuilder { layers: Vec::new() }
+    pub fn new() -> Self {
+        Self { layers: vec![] }
     }
 
     fn get_layer(&mut self, layer_id: usize) -> &mut LayerBuilder {
@@ -103,7 +103,7 @@ impl SkipIndexBuilder {
             .collect();
 
         let mut layer_offset = 0;
-        let mut layer_sizes = Vec::new();
+        let mut layer_sizes = vec![];
         for layer_buffer in &layer_buffers {
             layer_offset += layer_buffer.len() as u64;
             layer_sizes.push(VInt(layer_offset));

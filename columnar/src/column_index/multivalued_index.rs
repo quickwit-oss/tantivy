@@ -155,8 +155,8 @@ pub struct MultiValueIndexV2 {
 impl std::fmt::Debug for MultiValueIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let index = match self {
-            MultiValueIndex::MultiValueIndexV1(idx) => &idx.start_index_column,
-            MultiValueIndex::MultiValueIndexV2(idx) => &idx.start_index_column,
+            Self::MultiValueIndexV1(idx) => &idx.start_index_column,
+            Self::MultiValueIndexV2(idx) => &idx.start_index_column,
         };
         f.debug_struct("MultiValuedIndex")
             .field("num_rows", &index.num_vals())
@@ -165,10 +165,10 @@ impl std::fmt::Debug for MultiValueIndex {
 }
 
 impl MultiValueIndex {
-    pub fn for_test(start_offsets: &[RowId]) -> MultiValueIndex {
+    pub fn for_test(start_offsets: &[RowId]) -> Self {
         assert!(!start_offsets.is_empty());
         assert_eq!(start_offsets[0], 0);
-        let mut doc_with_values = Vec::new();
+        let mut doc_with_values = vec![];
         let mut compact_start_offsets: Vec<u32> = vec![0];
         for doc in 0..start_offsets.len() - 1 {
             if start_offsets[doc] < start_offsets[doc + 1] {
@@ -183,7 +183,7 @@ impl MultiValueIndex {
             },
             start_offsets: Box::new(&compact_start_offsets[..]),
         };
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         serialize_multivalued_index(&serializable_multivalued_index, &mut buffer).unwrap();
         let bytes = OwnedBytes::new(buffer);
         open_multivalued_index(bytes, Version::V2).unwrap()
@@ -191,8 +191,8 @@ impl MultiValueIndex {
 
     pub fn get_start_index_column(&self) -> &Arc<dyn crate::ColumnValues<RowId>> {
         match self {
-            MultiValueIndex::MultiValueIndexV1(idx) => &idx.start_index_column,
-            MultiValueIndex::MultiValueIndexV2(idx) => &idx.start_index_column,
+            Self::MultiValueIndexV1(idx) => &idx.start_index_column,
+            Self::MultiValueIndexV2(idx) => &idx.start_index_column,
         }
     }
 
@@ -201,8 +201,8 @@ impl MultiValueIndex {
     #[inline]
     pub(crate) fn range(&self, doc_id: DocId) -> Range<RowId> {
         match self {
-            MultiValueIndex::MultiValueIndexV1(idx) => idx.range(doc_id),
-            MultiValueIndex::MultiValueIndexV2(idx) => idx.range(doc_id),
+            Self::MultiValueIndexV1(idx) => idx.range(doc_id),
+            Self::MultiValueIndexV2(idx) => idx.range(doc_id),
         }
     }
 
@@ -210,8 +210,8 @@ impl MultiValueIndex {
     #[inline]
     pub fn num_docs(&self) -> u32 {
         match self {
-            MultiValueIndex::MultiValueIndexV1(idx) => idx.start_index_column.num_vals() - 1,
-            MultiValueIndex::MultiValueIndexV2(idx) => idx.optional_index.num_docs(),
+            Self::MultiValueIndexV1(idx) => idx.start_index_column.num_vals() - 1,
+            Self::MultiValueIndexV2(idx) => idx.optional_index.num_docs(),
         }
     }
 
@@ -228,12 +228,8 @@ impl MultiValueIndex {
     /// match a docid to its value position.
     pub(crate) fn select_batch_in_place(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         match self {
-            MultiValueIndex::MultiValueIndexV1(idx) => {
-                idx.select_batch_in_place(docid_start, ranks)
-            }
-            MultiValueIndex::MultiValueIndexV2(idx) => {
-                idx.select_batch_in_place(docid_start, ranks)
-            }
+            Self::MultiValueIndexV1(idx) => idx.select_batch_in_place(docid_start, ranks),
+            Self::MultiValueIndexV2(idx) => idx.select_batch_in_place(docid_start, ranks),
         }
     }
 }
@@ -348,7 +344,7 @@ mod tests {
         columnar_writer.record_numerical(5, "full", u64::MAX);
         columnar_writer.record_numerical(5, "full", u64::MAX);
 
-        let mut wrt: Vec<u8> = Vec::new();
+        let mut wrt: Vec<u8> = vec![];
         columnar_writer.serialize(7, &mut wrt).unwrap();
 
         let reader = ColumnarReader::open(wrt).unwrap();
@@ -388,7 +384,7 @@ mod tests {
 
         let check = |range, expected| {
             let full_range = 0..=u64::MAX;
-            let mut docids = Vec::new();
+            let mut docids = vec![];
             column.get_docids_for_value_range(full_range, range, &mut docids);
             assert_eq!(docids, expected);
         };

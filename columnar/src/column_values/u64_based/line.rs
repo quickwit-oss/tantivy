@@ -78,7 +78,7 @@ impl Line {
         let idx_last_val = if let Some(idx_last_val) = NonZeroU32::new(num_vals - 1) {
             idx_last_val
         } else {
-            return Line::default();
+            return Self::default();
         };
 
         let y0 = first_val;
@@ -110,7 +110,7 @@ impl Line {
         //
         // Our task is therefore to identify this interval.
         // Here we simply translate all of our values by `y0 - 2^63` and pick the min.
-        let mut line = Line {
+        let mut line = Self {
             slope,
             intercept: 0,
         };
@@ -154,7 +154,7 @@ impl BinarySerializable for Line {
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let slope = VInt::deserialize(reader)?.0;
         let intercept = VInt::deserialize(reader)?.0;
-        Ok(Line { slope, intercept })
+        Ok(Self { slope, intercept })
     }
 }
 

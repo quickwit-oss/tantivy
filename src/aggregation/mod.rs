@@ -290,7 +290,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
 
 impl<T> From<HashMap<String, T>> for VecWithNames<T> {
     fn from(map: HashMap<String, T>) -> Self {
-        VecWithNames::from_entries(map.into_iter().collect_vec())
+        Self::from_entries(map.into_iter().collect_vec())
     }
 }
 
@@ -304,7 +304,7 @@ impl<T> VecWithNames<T> {
             data_names.push(entry.0);
             data.push(entry.1);
         }
-        VecWithNames {
+        Self {
             values: data,
             keys: data_names,
         }
@@ -354,10 +354,10 @@ impl std::hash::Hash for Key {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
         match self {
-            Key::Str(text) => text.hash(state),
-            Key::F64(val) => val.to_bits().hash(state),
-            Key::U64(val) => val.hash(state),
-            Key::I64(val) => val.hash(state),
+            Self::Str(text) => text.hash(state),
+            Self::F64(val) => val.to_bits().hash(state),
+            Self::U64(val) => val.hash(state),
+            Self::I64(val) => val.hash(state),
         }
     }
 }
@@ -379,10 +379,10 @@ impl PartialEq for Key {
 impl Display for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Key::Str(val) => f.write_str(val),
-            Key::F64(val) => f.write_str(&val.to_string()),
-            Key::U64(val) => f.write_str(&val.to_string()),
-            Key::I64(val) => f.write_str(&val.to_string()),
+            Self::Str(val) => f.write_str(val),
+            Self::F64(val) => f.write_str(&val.to_string()),
+            Self::U64(val) => f.write_str(&val.to_string()),
+            Self::I64(val) => f.write_str(&val.to_string()),
         }
     }
 }

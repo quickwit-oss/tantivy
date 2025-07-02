@@ -21,17 +21,17 @@ pub struct JsonPathWriter {
 
 impl JsonPathWriter {
     pub fn with_expand_dots(expand_dots: bool) -> Self {
-        JsonPathWriter {
+        Self {
             path: String::new(),
-            indices: Vec::new(),
+            indices: vec![],
             expand_dots,
         }
     }
 
     pub fn new() -> Self {
-        JsonPathWriter {
+        Self {
             path: String::new(),
-            indices: Vec::new(),
+            indices: vec![],
             expand_dots: false,
         }
     }

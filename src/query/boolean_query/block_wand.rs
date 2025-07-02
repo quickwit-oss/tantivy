@@ -302,7 +302,6 @@ fn is_sorted<I: Iterator<Item = DocId>>(mut it: I) -> bool {
 mod tests {
     use std::cmp::Ordering;
     use std::collections::BinaryHeap;
-    use std::iter;
 
     use proptest::prelude::*;
 
@@ -342,7 +341,7 @@ mod tests {
         n: usize,
     ) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
-        let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
+        let mut checkpoints: Vec<(DocId, Score)> = vec![];
         let mut limit: Score = 0.0;
 
         let callback = &mut |doc, score| {
@@ -370,7 +369,7 @@ mod tests {
 
     fn compute_checkpoints_manual(term_scorers: Vec<TermScorer>, n: usize) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
-        let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
+        let mut checkpoints: Vec<(DocId, Score)> = vec![];
         let mut scorer = BufferedUnionScorer::build(term_scorers, SumCombiner::default);
 
         let mut limit = Score::MIN;
@@ -436,7 +435,7 @@ mod tests {
         let fieldnorms_expanded = fieldnorms
             .iter()
             .cloned()
-            .flat_map(|fieldnorm| iter::repeat(fieldnorm).take(REPEAT))
+            .flat_map(|fieldnorm| std::iter::repeat_n(fieldnorm, REPEAT))
             .collect::<Vec<u32>>();
 
         let postings_lists_expanded: Vec<Vec<(DocId, u32)>> = posting_lists

@@ -34,7 +34,7 @@ impl ColumnOperationMetadata {
         let len = select_bits::<0, 6>(code);
         let typ_code = select_bits::<6, 8>(code);
         let column_type = ColumnOperationType::try_from_code(typ_code)?;
-        Ok(ColumnOperationMetadata {
+        Ok(Self {
             op_type: column_type,
             len,
         })
@@ -66,14 +66,14 @@ impl<V: SymbolValue> ColumnOperation<V> {
     pub(super) fn serialize(self) -> impl AsRef<[u8]> {
         let mut minibuf = MiniBuffer::default();
         let column_op_metadata = match self {
-            ColumnOperation::NewDoc(new_doc) => {
+            Self::NewDoc(new_doc) => {
                 let symbol_len = new_doc.serialize(&mut minibuf.bytes[1..]);
                 ColumnOperationMetadata {
                     op_type: ColumnOperationType::NewDoc,
                     len: symbol_len,
                 }
             }
-            ColumnOperation::Value(val) => {
+            Self::Value(val) => {
                 let symbol_len = val.serialize(&mut minibuf.bytes[1..]);
                 ColumnOperationMetadata {
                     op_type: ColumnOperationType::AddValue,
@@ -101,11 +101,11 @@ impl<V: SymbolValue> ColumnOperation<V> {
         match column_op_metadata.op_type {
             ColumnOperationType::NewDoc => {
                 let new_doc = u32::deserialize(symbol_bytes);
-                Some(ColumnOperation::NewDoc(new_doc))
+                Some(Self::NewDoc(new_doc))
             }
             ColumnOperationType::AddValue => {
                 let value = V::deserialize(symbol_bytes);
-                Some(ColumnOperation::Value(value))
+                Some(Self::Value(value))
             }
         }
     }
@@ -113,7 +113,7 @@ impl<V: SymbolValue> ColumnOperation<V> {
 
 impl<T> From<T> for ColumnOperation<T> {
     fn from(value: T) -> Self {
-        ColumnOperation::Value(value)
+        Self::Value(value)
     }
 }
 
@@ -151,7 +151,7 @@ impl SymbolValue for Ipv6Addr {
 
     fn deserialize(bytes: &[u8]) -> Self {
         let octets: [u8; 16] = bytes[0..16].try_into().unwrap();
-        Ipv6Addr::from(octets)
+        Self::from(octets)
     }
 }
 
@@ -176,17 +176,17 @@ impl SymbolValue for NumericalValue {
         match symbol_type {
             NumericalType::U64 => {
                 let val: u64 = u64::from_le_bytes(octet);
-                NumericalValue::U64(val)
+                Self::U64(val)
             }
             NumericalType::I64 => {
                 let encoded: u64 = u64::from_le_bytes(octet);
                 let val: i64 = decode_zig_zag(encoded);
-                NumericalValue::I64(val)
+                Self::I64(val)
             }
             NumericalType::F64 => {
                 debug_assert_eq!(bytes.len(), 8);
                 let val: f64 = f64::from_le_bytes(octet);
-                NumericalValue::F64(val)
+                Self::F64(val)
             }
         }
     }
@@ -196,18 +196,18 @@ impl SymbolValue for NumericalValue {
     /// I64: ZigZag encoded and serialize without leading zeroes
     fn serialize(self, output: &mut [u8]) -> u8 {
         match self {
-            NumericalValue::F64(val) => {
+            Self::F64(val) => {
                 output[0] = NumericalType::F64 as u8;
                 output[1..9].copy_from_slice(&val.to_le_bytes());
                 9u8
             }
-            NumericalValue::U64(val) => {
+            Self::U64(val) => {
                 let len = compute_num_bytes_for_u64(val) as u8;
                 output[0] = NumericalType::U64 as u8;
                 output[1..9].copy_from_slice(&val.to_le_bytes());
                 len + 1u8
             }
-            NumericalValue::I64(val) => {
+            Self::I64(val) => {
                 let zig_zag_encoded = encode_zig_zag(val);
                 let len = compute_num_bytes_for_u64(zig_zag_encoded) as u8;
                 output[0] = NumericalType::I64 as u8;
@@ -228,7 +228,7 @@ impl SymbolValue for u32 {
     fn deserialize(bytes: &[u8]) -> Self {
         let mut quartet: [u8; 4] = [0u8; 4];
         quartet[..bytes.len()].copy_from_slice(bytes);
-        u32::from_le_bytes(quartet)
+        Self::from_le_bytes(quartet)
     }
 }
 
@@ -238,13 +238,13 @@ impl SymbolValue for UnorderedId {
     }
 
     fn deserialize(bytes: &[u8]) -> Self {
-        UnorderedId(u32::deserialize(bytes))
+        Self(u32::deserialize(bytes))
     }
 }
 
 fn compute_num_bytes_for_u64(val: u64) -> usize {
     let msb = (64u32 - val.leading_zeros()) as usize;
-    (msb + 7) / 8
+    msb.div_ceil(8)
 }
 
 fn encode_zig_zag(n: i64) -> u64 {

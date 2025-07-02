@@ -105,8 +105,8 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         weights: Vec<(Occur, Box<dyn Weight>)>,
         scoring_enabled: bool,
         score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send + 'static>,
-    ) -> BooleanWeight<TScoreCombiner> {
-        BooleanWeight {
+    ) -> Self {
+        Self {
             weights,
             scoring_enabled,
             score_combiner_fn,
@@ -120,8 +120,8 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         minimum_number_should_match: usize,
         scoring_enabled: bool,
         score_combiner_fn: Box<dyn Fn() -> TScoreCombiner + Sync + Send + 'static>,
-    ) -> BooleanWeight<TScoreCombiner> {
-        BooleanWeight {
+    ) -> Self {
+        Self {
             weights,
             minimum_number_should_match,
             scoring_enabled,

@@ -109,7 +109,7 @@ impl MoreLikeThis {
     fn create_query(&self, mut score_terms: Vec<ScoreTerm>) -> BooleanQuery {
         score_terms.sort_by(|left_ts, right_ts| right_ts.cmp(left_ts));
         let best_score = score_terms.first().map_or(1f32, |x| x.score);
-        let mut queries = Vec::new();
+        let mut queries = vec![];
 
         for ScoreTerm { term, score } in score_terms {
             let mut query: Box<dyn Query> =

@@ -24,14 +24,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let slice = make_test_sstable(".suffix");
         let dict = Dictionary::<MonotonicU64SSTable>::open(slice.clone()).unwrap();
         c.bench_function("ord_to_term_suffix", |b| {
-            let mut res = Vec::new();
+            let mut res = vec![];
             b.iter(|| {
                 assert!(dict.ord_to_term(100_000, &mut res).unwrap());
                 assert!(dict.ord_to_term(19_000_000, &mut res).unwrap());
             })
         });
         c.bench_function("open_and_ord_to_term_suffix", |b| {
-            let mut res = Vec::new();
+            let mut res = vec![];
             b.iter(|| {
                 let dict = Dictionary::<MonotonicU64SSTable>::open(slice.clone()).unwrap();
                 assert!(dict.ord_to_term(100_000, &mut res).unwrap());
@@ -68,14 +68,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let slice = make_test_sstable("");
         let dict = Dictionary::<MonotonicU64SSTable>::open(slice.clone()).unwrap();
         c.bench_function("ord_to_term", |b| {
-            let mut res = Vec::new();
+            let mut res = vec![];
             b.iter(|| {
                 assert!(dict.ord_to_term(100_000, &mut res).unwrap());
                 assert!(dict.ord_to_term(19_000_000, &mut res).unwrap());
             })
         });
         c.bench_function("open_and_ord_to_term", |b| {
-            let mut res = Vec::new();
+            let mut res = vec![];
             b.iter(|| {
                 let dict = Dictionary::<MonotonicU64SSTable>::open(slice.clone()).unwrap();
                 assert!(dict.ord_to_term(100_000, &mut res).unwrap());

@@ -77,8 +77,8 @@ impl RangeQuery {
     ///
     /// If the value type is not correct, something may go terribly wrong when
     /// the `Weight` object is created.
-    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> RangeQuery {
-        RangeQuery {
+    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> Self {
+        Self {
             bounds: BoundsRange::new(lower_bound, upper_bound),
         }
     }
@@ -131,8 +131,8 @@ pub struct InvertedIndexRangeQuery {
 }
 impl InvertedIndexRangeQuery {
     /// Create new `InvertedIndexRangeQuery`
-    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> InvertedIndexRangeQuery {
-        InvertedIndexRangeQuery {
+    pub fn new(lower_bound: Bound<Term>, upper_bound: Bound<Term>) -> Self {
+        Self {
             bounds: BoundsRange::new(lower_bound, upper_bound),
             limit: None,
         }
@@ -417,7 +417,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             let mut index_writer = index.writer_with_num_threads(1, 60_000_000).unwrap();
-            let mut docs = Vec::new();
+            let mut docs = vec![];
             for i in 1..100 {
                 let mut doc = TantivyDocument::new();
                 for j in 1..100 {

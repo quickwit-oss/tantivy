@@ -86,8 +86,8 @@ impl TokenFilter for SplitCompoundWords {
         SplitCompoundWordsFilter {
             dict: self.dict,
             inner: tokenizer,
-            cuts: Vec::new(),
-            parts: Vec::new(),
+            cuts: vec![],
+            parts: vec![],
         }
     }
 }

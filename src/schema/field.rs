@@ -12,8 +12,8 @@ pub struct Field(u32);
 
 impl Field {
     /// Create a new field object for the given FieldId.
-    pub const fn from_field_id(field_id: u32) -> Field {
-        Field(field_id)
+    pub const fn from_field_id(field_id: u32) -> Self {
+        Self(field_id)
     }
 
     /// Returns a u32 identifying uniquely a field within a schema.
@@ -27,7 +27,7 @@ impl BinarySerializable for Field {
         self.0.serialize(writer)
     }
 
-    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Field> {
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         u32::deserialize(reader).map(Field)
     }
 }

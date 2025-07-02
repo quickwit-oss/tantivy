@@ -47,14 +47,14 @@ impl<T: Tokenizer> BoxableTokenizer for T {
 }
 
 impl Default for TextAnalyzer {
-    fn default() -> TextAnalyzer {
-        TextAnalyzer::from(EmptyTokenizer)
+    fn default() -> Self {
+        Self::from(EmptyTokenizer)
     }
 }
 
 impl<T: Tokenizer + Clone> From<T> for TextAnalyzer {
     fn from(tokenizer: T) -> Self {
-        TextAnalyzer::builder(tokenizer).build()
+        Self::builder(tokenizer).build()
     }
 }
 

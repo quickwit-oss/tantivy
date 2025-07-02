@@ -18,8 +18,8 @@ impl FilterImplPerInstructionSet {
     pub fn is_available(&self) -> bool {
         match *self {
             #[cfg(target_arch = "x86_64")]
-            FilterImplPerInstructionSet::AVX2 => is_x86_feature_detected!("avx2"),
-            FilterImplPerInstructionSet::Scalar => true,
+            Self::AVX2 => is_x86_feature_detected!("avx2"),
+            Self::Scalar => true,
         }
     }
 }
@@ -37,22 +37,20 @@ const IMPLS: [FilterImplPerInstructionSet; 1] = [FilterImplPerInstructionSet::Sc
 impl FilterImplPerInstructionSet {
     #[inline]
     #[allow(unused_variables)] // on non-x86_64, code is unused.
-    fn from(code: u8) -> FilterImplPerInstructionSet {
+    fn from(code: u8) -> Self {
         #[cfg(target_arch = "x86_64")]
         if code == FilterImplPerInstructionSet::AVX2 as u8 {
-            return FilterImplPerInstructionSet::AVX2;
+            return Self::AVX2;
         }
-        FilterImplPerInstructionSet::Scalar
+        Self::Scalar
     }
 
     #[inline]
     fn filter_vec_in_place(self, range: RangeInclusive<u32>, offset: u32, output: &mut Vec<u32>) {
         match self {
             #[cfg(target_arch = "x86_64")]
-            FilterImplPerInstructionSet::AVX2 => avx2::filter_vec_in_place(range, offset, output),
-            FilterImplPerInstructionSet::Scalar => {
-                scalar::filter_vec_in_place(range, offset, output)
-            }
+            Self::AVX2 => avx2::filter_vec_in_place(range, offset, output),
+            Self::Scalar => scalar::filter_vec_in_place(range, offset, output),
         }
     }
 }

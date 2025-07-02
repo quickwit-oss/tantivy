@@ -273,7 +273,7 @@ where
             column_opt,
             segment_collector,
             predicate: self.predicate.clone(),
-            buffer: Vec::new(),
+            buffer: vec![],
         })
     }
 

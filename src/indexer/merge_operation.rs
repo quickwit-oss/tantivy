@@ -54,12 +54,12 @@ impl MergeOperation {
         inventory: &MergeOperationInventory,
         target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
-    ) -> MergeOperation {
+    ) -> Self {
         let inner_merge_operation = InnerMergeOperation {
             target_opstamp,
             segment_ids,
         };
-        MergeOperation {
+        Self {
             inner: inventory.track(inner_merge_operation),
         }
     }

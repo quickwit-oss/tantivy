@@ -21,7 +21,7 @@ pub struct TermMerger<'a> {
 
 impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
-    pub fn new(streams: Vec<TermStreamer<'a>>) -> TermMerger<'a> {
+    pub fn new(streams: Vec<TermStreamer<'a>>) -> Self {
         let mut op_builder = OpBuilder::new();
         let mut dictionaries = vec![];
         for streamer in streams {

@@ -140,7 +140,7 @@ impl SegmentReader {
     }
 
     /// Open a new segment for reading.
-    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
+    pub fn open(segment: &Segment) -> crate::Result<Self> {
         Self::open_with_custom_alive_set(segment, None)
     }
 
@@ -148,7 +148,7 @@ impl SegmentReader {
     pub fn open_with_custom_alive_set(
         segment: &Segment,
         custom_bitset: Option<AliveBitSet>,
-    ) -> crate::Result<SegmentReader> {
+    ) -> crate::Result<Self> {
         let termdict_file = segment.open_read(SegmentComponent::Terms)?;
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
@@ -190,7 +190,7 @@ impl SegmentReader {
             .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
             .unwrap_or(max_doc);
 
-        Ok(SegmentReader {
+        Ok(Self {
             inv_idx_reader_cache: Default::default(),
             num_docs,
             max_doc,
@@ -299,7 +299,7 @@ impl SegmentReader {
     /// field that is not indexed nor a fast field but is stored, it is possible for the field
     /// to not be listed.
     pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
-        let mut indexed_fields: Vec<FieldMetadata> = Vec::new();
+        let mut indexed_fields: Vec<FieldMetadata> = vec![];
         let mut map_to_canonical = FnvHashMap::default();
         for (field, field_entry) in self.schema().fields() {
             let field_name = field_entry.name().to_string();
@@ -473,7 +473,7 @@ pub fn merge_field_meta_data(
     field_metadatas: Vec<Vec<FieldMetadata>>,
     schema: &Schema,
 ) -> Vec<FieldMetadata> {
-    let mut merged_field_metadata = Vec::new();
+    let mut merged_field_metadata = vec![];
     for (_key, mut group) in &field_metadatas
         .into_iter()
         .kmerge_by(|left, right| left < right)

@@ -72,8 +72,8 @@ impl serde::Serialize for SegmentMeta {
 }
 
 impl From<TrackedObject<InnerSegmentMeta>> for SegmentMeta {
-    fn from(tracked: TrackedObject<InnerSegmentMeta>) -> SegmentMeta {
-        SegmentMeta { tracked }
+    fn from(tracked: TrackedObject<InnerSegmentMeta>) -> Self {
+        Self { tracked }
     }
 }
 
@@ -176,7 +176,7 @@ impl SegmentMeta {
     }
 
     /// Updates the max_doc value from the `SegmentMeta`.
-    pub fn with_max_doc(self, max_doc: u32) -> SegmentMeta {
+    pub fn with_max_doc(self, max_doc: u32) -> Self {
         assert_eq!(self.tracked.max_doc, 0);
         assert!(self.tracked.deletes.is_none());
         let tracked = self.tracked.map(move |inner_meta| InnerSegmentMeta {
@@ -185,12 +185,12 @@ impl SegmentMeta {
             deletes: None,
             include_temp_doc_store: Arc::new(AtomicBool::new(true)),
         });
-        SegmentMeta { tracked }
+        Self { tracked }
     }
 
     #[doc(hidden)]
     #[must_use]
-    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> SegmentMeta {
+    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> Self {
         assert!(
             num_deleted_docs <= self.max_doc(),
             "There cannot be more deleted docs than there are docs."
@@ -205,7 +205,7 @@ impl SegmentMeta {
             include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: Some(delete_meta),
         });
-        SegmentMeta { tracked }
+        Self { tracked }
     }
 }
 
@@ -286,11 +286,11 @@ pub enum Order {
 impl Order {
     /// return if the Order is ascending
     pub fn is_asc(&self) -> bool {
-        self == &Order::Asc
+        self == &Self::Asc
     }
     /// return if the Order is descending
     pub fn is_desc(&self) -> bool {
-        self == &Order::Desc
+        self == &Self::Desc
     }
 }
 
@@ -354,8 +354,8 @@ impl IndexMeta {
     ///
     /// This new index does not contains any segments.
     /// Opstamp will the value `0u64`.
-    pub fn with_schema(schema: Schema) -> IndexMeta {
-        IndexMeta {
+    pub fn with_schema(schema: Schema) -> Self {
+        Self {
             index_settings: IndexSettings::default(),
             segments: vec![],
             schema,
@@ -367,7 +367,7 @@ impl IndexMeta {
     pub(crate) fn deserialize(
         meta_json: &str,
         inventory: &SegmentMetaInventory,
-    ) -> serde_json::Result<IndexMeta> {
+    ) -> serde_json::Result<Self> {
         let untracked_meta_json: UntrackedIndexMeta = serde_json::from_str(meta_json)?;
         Ok(untracked_meta_json.track(inventory))
     }
@@ -404,7 +404,7 @@ mod tests {
         };
         let index_metas = IndexMeta {
             index_settings: IndexSettings::default(),
-            segments: Vec::new(),
+            segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,
@@ -437,7 +437,7 @@ mod tests {
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
             },
-            segments: Vec::new(),
+            segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,

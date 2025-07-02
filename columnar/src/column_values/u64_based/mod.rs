@@ -100,11 +100,11 @@ impl CodecType {
         self as u8
     }
 
-    fn try_from_code(code: u8) -> Option<CodecType> {
+    fn try_from_code(code: u8) -> Option<Self> {
         match code {
-            0u8 => Some(CodecType::Bitpacked),
-            1u8 => Some(CodecType::Linear),
-            2u8 => Some(CodecType::BlockwiseLinear),
+            0u8 => Some(Self::Bitpacked),
+            1u8 => Some(Self::Linear),
+            2u8 => Some(Self::BlockwiseLinear),
             _ => None,
         }
     }
@@ -114,9 +114,9 @@ impl CodecType {
         bytes: OwnedBytes,
     ) -> io::Result<Arc<dyn ColumnValues<T>>> {
         match self {
-            CodecType::Bitpacked => load_specific_codec::<BitpackedCodec, T>(bytes),
-            CodecType::Linear => load_specific_codec::<LinearCodec, T>(bytes),
-            CodecType::BlockwiseLinear => load_specific_codec::<BlockwiseLinearCodec, T>(bytes),
+            Self::Bitpacked => load_specific_codec::<BitpackedCodec, T>(bytes),
+            Self::Linear => load_specific_codec::<LinearCodec, T>(bytes),
+            Self::BlockwiseLinear => load_specific_codec::<BlockwiseLinearCodec, T>(bytes),
         }
     }
 }
@@ -136,9 +136,9 @@ impl CodecType {
     /// Returns a boxed codec estimator associated to a given `CodecType`.
     pub fn estimator(&self) -> Box<dyn ColumnCodecEstimator> {
         match self {
-            CodecType::Bitpacked => BitpackedCodec::boxed_estimator(),
-            CodecType::Linear => LinearCodec::boxed_estimator(),
-            CodecType::BlockwiseLinear => BlockwiseLinearCodec::boxed_estimator(),
+            Self::Bitpacked => BitpackedCodec::boxed_estimator(),
+            Self::Linear => LinearCodec::boxed_estimator(),
+            Self::BlockwiseLinear => BlockwiseLinearCodec::boxed_estimator(),
         }
     }
 }
@@ -205,7 +205,7 @@ pub fn serialize_and_load_u64_based_column_values<T: MonotonicallyMappableToU64>
     vals: &dyn Iterable,
     codec_types: &[CodecType],
 ) -> Arc<dyn ColumnValues<T>> {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     serialize_u64_based_column_values(vals, codec_types, &mut buffer).unwrap();
     load_u64_based_column_values::<T>(OwnedBytes::new(buffer)).unwrap()
 }

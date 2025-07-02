@@ -74,7 +74,7 @@ pub struct InvalidData;
 
 impl From<InvalidData> for io::Error {
     fn from(_: InvalidData) -> Self {
-        io::Error::new(io::ErrorKind::InvalidData, "Invalid data")
+        Self::new(io::ErrorKind::InvalidData, "Invalid data")
     }
 }
 
@@ -98,9 +98,9 @@ pub enum Cardinality {
 impl Display for Cardinality {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let short_str = match self {
-            Cardinality::Full => "full",
-            Cardinality::Optional => "opt",
-            Cardinality::Multivalued => "mult",
+            Self::Full => "full",
+            Self::Optional => "opt",
+            Self::Multivalued => "mult",
         };
         write!(f, "{short_str}")
     }
@@ -108,22 +108,22 @@ impl Display for Cardinality {
 
 impl Cardinality {
     pub fn is_optional(&self) -> bool {
-        matches!(self, Cardinality::Optional)
+        matches!(self, Self::Optional)
     }
     pub fn is_multivalue(&self) -> bool {
-        matches!(self, Cardinality::Multivalued)
+        matches!(self, Self::Multivalued)
     }
     pub fn is_full(&self) -> bool {
-        matches!(self, Cardinality::Full)
+        matches!(self, Self::Full)
     }
     pub(crate) fn to_code(self) -> u8 {
         self as u8
     }
-    pub(crate) fn try_from_code(code: u8) -> Result<Cardinality, InvalidData> {
+    pub(crate) fn try_from_code(code: u8) -> Result<Self, InvalidData> {
         match code {
-            0 => Ok(Cardinality::Full),
-            1 => Ok(Cardinality::Optional),
-            2 => Ok(Cardinality::Multivalued),
+            0 => Ok(Self::Full),
+            1 => Ok(Self::Optional),
+            2 => Ok(Self::Multivalued),
             _ => Err(InvalidData),
         }
     }

@@ -12,9 +12,9 @@ pub struct SimpleUnion<TDocSet> {
 }
 
 impl<TDocSet: DocSet> SimpleUnion<TDocSet> {
-    pub(crate) fn build(mut docsets: Vec<TDocSet>) -> SimpleUnion<TDocSet> {
+    pub(crate) fn build(mut docsets: Vec<TDocSet>) -> Self {
         docsets.retain(|docset| docset.doc() != TERMINATED);
-        let mut docset = SimpleUnion { docsets, doc: 0 };
+        let mut docset = Self { docsets, doc: 0 };
 
         docset.initialize_first_doc_id();
 

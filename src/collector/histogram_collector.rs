@@ -50,10 +50,10 @@ impl HistogramCollector {
         min_value: TFastValue,
         bucket_width: u64,
         num_buckets: usize,
-    ) -> HistogramCollector {
+    ) -> Self {
         let fast_type = TFastValue::to_type();
         assert!(fast_type == Type::U64 || fast_type == Type::I64 || fast_type == Type::Date);
-        HistogramCollector {
+        Self {
             min_value: min_value.to_u64(),
             num_buckets,
             field,

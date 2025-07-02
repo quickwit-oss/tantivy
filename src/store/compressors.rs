@@ -22,11 +22,11 @@ impl Serialize for Compressor {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
         match *self {
-            Compressor::None => serializer.serialize_str("none"),
+            Self::None => serializer.serialize_str("none"),
             #[cfg(feature = "lz4-compression")]
-            Compressor::Lz4 => serializer.serialize_str("lz4"),
+            Self::Lz4 => serializer.serialize_str("lz4"),
             #[cfg(feature = "zstd-compression")]
-            Compressor::Zstd(zstd) => serializer.serialize_str(&zstd.ser_to_string()),
+            Self::Zstd(zstd) => serializer.serialize_str(&zstd.ser_to_string()),
         }
     }
 }
@@ -36,9 +36,9 @@ impl<'de> Deserialize<'de> for Compressor {
     where D: Deserializer<'de> {
         let buf = String::deserialize(deserializer)?;
         let compressor = match buf.as_str() {
-            "none" => Compressor::None,
+            "none" => Self::None,
             #[cfg(feature = "lz4-compression")]
-            "lz4" => Compressor::Lz4,
+            "lz4" => Self::Lz4,
             #[cfg(not(feature = "lz4-compression"))]
             "lz4" => {
                 return Err(serde::de::Error::custom(
@@ -85,16 +85,16 @@ pub struct ZstdCompressor {
 
 #[cfg(feature = "zstd-compression")]
 impl ZstdCompressor {
-    fn deser_from_str(val: &str) -> Result<ZstdCompressor, String> {
+    fn deser_from_str(val: &str) -> Result<Self, String> {
         if !val.starts_with("zstd") {
             return Err(format!("needs to start with zstd, but got {val}"));
         }
         if val == "zstd" {
-            return Ok(ZstdCompressor::default());
+            return Ok(Self::default());
         }
         let options = &val["zstd".len() + 1..val.len() - 1];
 
-        let mut compressor = ZstdCompressor::default();
+        let mut compressor = Self::default();
         for option in options.split(',') {
             let (opt_name, value) = options
                 .split_once('=')
@@ -134,12 +134,12 @@ impl Default for Compressor {
     #[allow(unreachable_code)]
     fn default() -> Self {
         #[cfg(feature = "lz4-compression")]
-        return Compressor::Lz4;
+        return Self::Lz4;
 
         #[cfg(feature = "zstd-compression")]
-        return Compressor::Zstd(ZstdCompressor::default());
+        return Self::Zstd(ZstdCompressor::default());
 
-        Compressor::None
+        Self::None
     }
 }
 

@@ -92,12 +92,12 @@ impl std::hash::Hash for IntermediateKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
         match self {
-            IntermediateKey::Str(text) => text.hash(state),
-            IntermediateKey::F64(val) => val.to_bits().hash(state),
-            IntermediateKey::U64(val) => val.hash(state),
-            IntermediateKey::I64(val) => val.hash(state),
-            IntermediateKey::Bool(val) => val.hash(state),
-            IntermediateKey::IpAddr(val) => val.hash(state),
+            Self::Str(text) => text.hash(state),
+            Self::F64(val) => val.to_bits().hash(state),
+            Self::U64(val) => val.hash(state),
+            Self::I64(val) => val.hash(state),
+            Self::Bool(val) => val.hash(state),
+            Self::IpAddr(val) => val.hash(state),
         }
     }
 }
@@ -182,7 +182,7 @@ impl IntermediateAggregationResults {
     ///
     /// The order of the values need to be the same on both results. This is ensured when the same
     /// (key values) are present on the underlying `VecWithNames` struct.
-    pub fn merge_fruits(&mut self, other: IntermediateAggregationResults) -> crate::Result<()> {
+    pub fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         for (left, right) in self.aggs_res.values_mut().zip(other.aggs_res.into_values()) {
             left.merge_fruits(right)?;
         }
@@ -201,13 +201,13 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         )),
         Histogram(_) => {
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
-                buckets: Vec::new(),
+                buckets: vec![],
                 is_date_agg: false,
             })
         }
         DateHistogram(_) => {
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
-                buckets: Vec::new(),
+                buckets: vec![],
                 is_date_agg: true,
             })
         }
@@ -260,25 +260,19 @@ impl IntermediateAggregationResult {
         limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<AggregationResult> {
         let res = match self {
-            IntermediateAggregationResult::Bucket(bucket) => {
+            Self::Bucket(bucket) => {
                 AggregationResult::BucketResult(bucket.into_final_bucket_result(req, limits)?)
             }
-            IntermediateAggregationResult::Metric(metric) => {
+            Self::Metric(metric) => {
                 AggregationResult::MetricResult(metric.into_final_metric_result(req))
             }
         };
         Ok(res)
     }
-    fn merge_fruits(&mut self, other: IntermediateAggregationResult) -> crate::Result<()> {
+    fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         match (self, other) {
-            (
-                IntermediateAggregationResult::Bucket(b1),
-                IntermediateAggregationResult::Bucket(b2),
-            ) => b1.merge_fruits(b2),
-            (
-                IntermediateAggregationResult::Metric(m1),
-                IntermediateAggregationResult::Metric(m2),
-            ) => m1.merge_fruits(m2),
+            (Self::Bucket(b1), Self::Bucket(b2)) => b1.merge_fruits(b2),
+            (Self::Metric(m1), Self::Metric(m2)) => m1.merge_fruits(m2),
             _ => panic!("aggregation result type mismatch (mixed metric and buckets)"),
         }
     }
@@ -312,89 +306,64 @@ pub enum IntermediateMetricResult {
 impl IntermediateMetricResult {
     fn into_final_metric_result(self, req: &Aggregation) -> MetricResult {
         match self {
-            IntermediateMetricResult::Average(intermediate_avg) => {
+            Self::Average(intermediate_avg) => {
                 MetricResult::Average(intermediate_avg.finalize().into())
             }
-            IntermediateMetricResult::Count(intermediate_count) => {
+            Self::Count(intermediate_count) => {
                 MetricResult::Count(intermediate_count.finalize().into())
             }
-            IntermediateMetricResult::Max(intermediate_max) => {
-                MetricResult::Max(intermediate_max.finalize().into())
-            }
-            IntermediateMetricResult::Min(intermediate_min) => {
-                MetricResult::Min(intermediate_min.finalize().into())
-            }
-            IntermediateMetricResult::Stats(intermediate_stats) => {
-                MetricResult::Stats(intermediate_stats.finalize())
-            }
-            IntermediateMetricResult::ExtendedStats(intermediate_stats) => {
+            Self::Max(intermediate_max) => MetricResult::Max(intermediate_max.finalize().into()),
+            Self::Min(intermediate_min) => MetricResult::Min(intermediate_min.finalize().into()),
+            Self::Stats(intermediate_stats) => MetricResult::Stats(intermediate_stats.finalize()),
+            Self::ExtendedStats(intermediate_stats) => {
                 MetricResult::ExtendedStats(intermediate_stats.finalize())
             }
-            IntermediateMetricResult::Sum(intermediate_sum) => {
-                MetricResult::Sum(intermediate_sum.finalize().into())
-            }
-            IntermediateMetricResult::Percentiles(percentiles) => MetricResult::Percentiles(
+            Self::Sum(intermediate_sum) => MetricResult::Sum(intermediate_sum.finalize().into()),
+            Self::Percentiles(percentiles) => MetricResult::Percentiles(
                 percentiles
                     .into_final_result(req.agg.as_percentile().expect("unexpected metric type")),
             ),
-            IntermediateMetricResult::TopHits(top_hits) => {
-                MetricResult::TopHits(top_hits.into_final_result())
-            }
-            IntermediateMetricResult::Cardinality(cardinality) => {
+            Self::TopHits(top_hits) => MetricResult::TopHits(top_hits.into_final_result()),
+            Self::Cardinality(cardinality) => {
                 MetricResult::Cardinality(cardinality.finalize().into())
             }
         }
     }
 
     // TODO: this is our top-of-the-chain fruit merge mech
-    fn merge_fruits(&mut self, other: IntermediateMetricResult) -> crate::Result<()> {
+    fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         match (self, other) {
-            (
-                IntermediateMetricResult::Average(avg_left),
-                IntermediateMetricResult::Average(avg_right),
-            ) => {
+            (Self::Average(avg_left), Self::Average(avg_right)) => {
                 avg_left.merge_fruits(avg_right);
             }
-            (
-                IntermediateMetricResult::Count(count_left),
-                IntermediateMetricResult::Count(count_right),
-            ) => {
+            (Self::Count(count_left), Self::Count(count_right)) => {
                 count_left.merge_fruits(count_right);
             }
-            (IntermediateMetricResult::Max(max_left), IntermediateMetricResult::Max(max_right)) => {
+            (Self::Max(max_left), Self::Max(max_right)) => {
                 max_left.merge_fruits(max_right);
             }
-            (IntermediateMetricResult::Min(min_left), IntermediateMetricResult::Min(min_right)) => {
+            (Self::Min(min_left), Self::Min(min_right)) => {
                 min_left.merge_fruits(min_right);
             }
-            (
-                IntermediateMetricResult::Stats(stats_left),
-                IntermediateMetricResult::Stats(stats_right),
-            ) => {
+            (Self::Stats(stats_left), Self::Stats(stats_right)) => {
                 stats_left.merge_fruits(stats_right);
             }
             (
-                IntermediateMetricResult::ExtendedStats(extended_stats_left),
-                IntermediateMetricResult::ExtendedStats(extended_stats_right),
+                Self::ExtendedStats(extended_stats_left),
+                Self::ExtendedStats(extended_stats_right),
             ) => {
                 extended_stats_left.merge_fruits(extended_stats_right);
             }
-            (IntermediateMetricResult::Sum(sum_left), IntermediateMetricResult::Sum(sum_right)) => {
+            (Self::Sum(sum_left), Self::Sum(sum_right)) => {
                 sum_left.merge_fruits(sum_right);
             }
-            (
-                IntermediateMetricResult::Percentiles(left),
-                IntermediateMetricResult::Percentiles(right),
-            ) => {
+            (Self::Percentiles(left), Self::Percentiles(right)) => {
                 left.merge_fruits(right)?;
             }
-            (IntermediateMetricResult::TopHits(left), IntermediateMetricResult::TopHits(right)) => {
+            (Self::TopHits(left), Self::TopHits(right)) => {
                 left.merge_fruits(right)?;
             }
-            (
-                IntermediateMetricResult::Cardinality(left),
-                IntermediateMetricResult::Cardinality(right),
-            ) => {
+            (Self::Cardinality(left), Self::Cardinality(right)) => {
                 left.merge_fruits(right)?;
             }
             _ => {
@@ -435,7 +404,7 @@ impl IntermediateBucketResult {
         limits: &mut AggregationLimitsGuard,
     ) -> crate::Result<BucketResult> {
         match self {
-            IntermediateBucketResult::Range(range_res) => {
+            Self::Range(range_res) => {
                 let mut buckets: Vec<RangeBucketEntry> = range_res
                     .buckets
                     .into_values()
@@ -474,7 +443,7 @@ impl IntermediateBucketResult {
                 };
                 Ok(BucketResult::Range { buckets })
             }
-            IntermediateBucketResult::Histogram {
+            Self::Histogram {
                 is_date_agg,
                 buckets,
             } => {
@@ -502,7 +471,7 @@ impl IntermediateBucketResult {
                 };
                 Ok(BucketResult::Histogram { buckets })
             }
-            IntermediateBucketResult::Terms { buckets: terms } => terms.into_final_result(
+            Self::Terms { buckets: terms } => terms.into_final_result(
                 req.agg
                     .as_term()
                     .expect("unexpected aggregation, expected term aggregation"),
@@ -512,13 +481,13 @@ impl IntermediateBucketResult {
         }
     }
 
-    fn merge_fruits(&mut self, other: IntermediateBucketResult) -> crate::Result<()> {
+    fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         match (self, other) {
             (
-                IntermediateBucketResult::Terms {
+                Self::Terms {
                     buckets: term_res_left,
                 },
-                IntermediateBucketResult::Terms {
+                Self::Terms {
                     buckets: term_res_right,
                 },
             ) => {
@@ -528,18 +497,15 @@ impl IntermediateBucketResult {
                     term_res_right.doc_count_error_upper_bound;
             }
 
-            (
-                IntermediateBucketResult::Range(range_res_left),
-                IntermediateBucketResult::Range(range_res_right),
-            ) => {
+            (Self::Range(range_res_left), Self::Range(range_res_right)) => {
                 merge_maps(&mut range_res_left.buckets, range_res_right.buckets)?;
             }
             (
-                IntermediateBucketResult::Histogram {
+                Self::Histogram {
                     buckets: buckets_left,
                     is_date_agg: _,
                 },
-                IntermediateBucketResult::Histogram {
+                Self::Histogram {
                     buckets: buckets_right,
                     is_date_agg: _,
                 },
@@ -562,13 +528,13 @@ impl IntermediateBucketResult {
 
                 *buckets_left = buckets?;
             }
-            (IntermediateBucketResult::Range(_), _) => {
+            (Self::Range(_), _) => {
                 panic!("try merge on different types")
             }
-            (IntermediateBucketResult::Histogram { .. }, _) => {
+            (Self::Histogram { .. }, _) => {
                 panic!("try merge on different types")
             }
-            (IntermediateBucketResult::Terms { .. }, _) => {
+            (Self::Terms { .. }, _) => {
                 panic!("try merge on different types")
             }
         }
@@ -800,7 +766,7 @@ pub struct IntermediateTermBucketEntry {
 }
 
 impl MergeFruits for IntermediateTermBucketEntry {
-    fn merge_fruits(&mut self, other: IntermediateTermBucketEntry) -> crate::Result<()> {
+    fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         self.doc_count += other.doc_count;
         self.sub_aggregation.merge_fruits(other.sub_aggregation)?;
         Ok(())
@@ -808,7 +774,7 @@ impl MergeFruits for IntermediateTermBucketEntry {
 }
 
 impl MergeFruits for IntermediateRangeBucketEntry {
-    fn merge_fruits(&mut self, other: IntermediateRangeBucketEntry) -> crate::Result<()> {
+    fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         self.doc_count += other.doc_count;
         self.sub_aggregation.merge_fruits(other.sub_aggregation)?;
         Ok(())
@@ -816,7 +782,7 @@ impl MergeFruits for IntermediateRangeBucketEntry {
 }
 
 impl MergeFruits for IntermediateHistogramBucketEntry {
-    fn merge_fruits(&mut self, other: IntermediateHistogramBucketEntry) -> crate::Result<()> {
+    fn merge_fruits(&mut self, other: Self) -> crate::Result<()> {
         self.doc_count += other.doc_count;
         self.sub_aggregation.merge_fruits(other.sub_aggregation)?;
         Ok(())

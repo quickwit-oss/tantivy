@@ -65,7 +65,7 @@ pub(crate) mod tests {
     >(
         value_block: &[V],
     ) {
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         {
             let mut writer = TWriter::default();
             for value in value_block {

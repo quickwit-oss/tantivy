@@ -43,12 +43,12 @@ pub struct DateTime {
 
 impl DateTime {
     /// Minimum possible `DateTime` value.
-    pub const MIN: DateTime = DateTime {
+    pub const MIN: Self = Self {
         timestamp_nanos: i64::MIN,
     };
 
     /// Maximum possible `DateTime` value.
-    pub const MAX: DateTime = DateTime {
+    pub const MAX: Self = Self {
         timestamp_nanos: i64::MAX,
     };
 

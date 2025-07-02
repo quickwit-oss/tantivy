@@ -57,7 +57,7 @@ fn read_all_columns_in_stream(
     column_data: &FileSlice,
     format_version: Version,
 ) -> io::Result<Vec<DynamicColumnHandle>> {
-    let mut results = Vec::new();
+    let mut results = vec![];
     while stream.advance() {
         let key_bytes: &[u8] = stream.key();
         let Some(column_code) = key_bytes.last().copied() else {
@@ -92,12 +92,12 @@ fn column_dictionary_prefix_for_subpath(root_path: &str) -> String {
 
 impl ColumnarReader {
     /// Opens a new Columnar file.
-    pub fn open<F>(file_slice: F) -> io::Result<ColumnarReader>
+    pub fn open<F>(file_slice: F) -> io::Result<Self>
     where FileSlice: From<F> {
         Self::open_inner(file_slice.into())
     }
 
-    fn open_inner(file_slice: FileSlice) -> io::Result<ColumnarReader> {
+    fn open_inner(file_slice: FileSlice) -> io::Result<Self> {
         let (file_slice_without_sstable_len, footer_slice) = file_slice
             .split_from_end(mem::size_of::<u64>() + 4 + format_version::VERSION_FOOTER_NUM_BYTES);
         let footer_bytes = footer_slice.read_bytes()?;
@@ -109,7 +109,7 @@ impl ColumnarReader {
         let (column_data, sstable) =
             file_slice_without_sstable_len.split_from_end(sstable_len as usize);
         let column_dictionary = Dictionary::open(sstable)?;
-        Ok(ColumnarReader {
+        Ok(Self {
             column_dictionary,
             column_data,
             num_docs: num_rows,
@@ -225,7 +225,7 @@ mod tests {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("col1", ColumnType::Str, false);
         columnar_writer.record_column_type("col2", ColumnType::U64, false);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(1, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
@@ -241,7 +241,7 @@ mod tests {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("count", ColumnType::U64, false);
         columnar_writer.record_numerical(1, "count", 1u64);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(2, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         let columns = columnar.list_columns().unwrap();
@@ -255,7 +255,7 @@ mod tests {
         let mut columnar_writer = ColumnarWriter::default();
         columnar_writer.record_column_type("col", ColumnType::U64, false);
         columnar_writer.record_numerical(1, "col", 1u64);
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(2, &mut buffer).unwrap();
         let columnar = ColumnarReader::open(buffer).unwrap();
         {
@@ -284,7 +284,7 @@ mod tests {
         );
         columnar_writer.record_str(1, "col1", "hello");
         columnar_writer.record_str(0, "col2", "hello");
-        let mut buffer = Vec::new();
+        let mut buffer = vec![];
         columnar_writer.serialize(2, &mut buffer).unwrap();
 
         let columnar = ColumnarReader::open(buffer).unwrap();

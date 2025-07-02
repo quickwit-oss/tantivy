@@ -13,7 +13,7 @@ use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e)
+    io::Error::other(e)
 }
 
 const FST_VERSION: u32 = 1;
@@ -33,7 +33,7 @@ where W: Write
     /// Creates a new `TermDictionaryBuilder`
     pub fn create(w: W) -> io::Result<Self> {
         let fst_builder = tantivy_fst::MapBuilder::new(w).map_err(convert_fst_error)?;
-        Ok(TermDictionaryBuilder {
+        Ok(Self {
             fst_builder,
             term_info_store_writer: TermInfoStoreWriter::new(),
             term_ord: 0,
@@ -128,16 +128,15 @@ impl TermDictionary {
         let footer_size = u64::deserialize(&mut footer_len_bytes)?;
         let version = u32::deserialize(&mut footer_len_bytes)?;
         if version != FST_VERSION {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("Unsupported fst version, expected {version}, found {FST_VERSION}",),
-            ));
+            return Err(io::Error::other(format!(
+                "Unsupported fst version, expected {version}, found {FST_VERSION}",
+            )));
         }
 
         let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);
         let fst_index = open_fst_index(fst_file_slice)?;
         let term_info_store = TermInfoStore::open(values_file_slice)?;
-        Ok(TermDictionary {
+        Ok(Self {
             fst_index: Arc::new(fst_index),
             term_info_store,
         })
@@ -145,7 +144,7 @@ impl TermDictionary {
 
     /// Creates an empty term dictionary which contains no terms.
     pub fn empty() -> Self {
-        TermDictionary::open(EMPTY_TERM_DICT_FILE.clone()).unwrap()
+        Self::open(EMPTY_TERM_DICT_FILE.clone()).unwrap()
     }
 
     /// Returns the number of terms in the dictionary.

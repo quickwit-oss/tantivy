@@ -574,7 +574,7 @@ impl<D: Document> IndexWriter<D> {
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
-        let new_index_writer = IndexWriter::new(&self.index, self.options.clone(), directory_lock)?;
+        let new_index_writer = Self::new(&self.index, self.options.clone(), directory_lock)?;
 
         // the current `self` is dropped right away because of this call.
         //
@@ -1501,7 +1501,7 @@ mod tests {
     }
     impl IndexingOp {
         fn add(id: u64) -> Self {
-            IndexingOp::AddDoc {
+            Self::AddDoc {
                 id,
                 value: IndexValue::F64(id as f64),
             }
@@ -1519,7 +1519,7 @@ mod tests {
     }
     impl Default for IndexValue {
         fn default() -> Self {
-            IndexValue::F64(0.0)
+            Self::F64(0.0)
         }
     }
 
@@ -1604,7 +1604,7 @@ mod tests {
     }
 
     fn get_id_list(ops: &[IndexingOp]) -> Vec<u64> {
-        let mut id_list = Vec::new();
+        let mut id_list = vec![];
         for op in ops {
             match op {
                 IndexingOp::AddDoc { id, value: _ } => {
@@ -1810,7 +1810,7 @@ mod tests {
         let id_list = get_id_list(ops);
 
         // multivalue fast field content
-        let mut all_ips = Vec::new();
+        let mut all_ips = vec![];
         let mut num_ips = 0;
         for segment_reader in searcher.segment_readers().iter() {
             let ip_reader: Column<Ipv6Addr> = segment_reader

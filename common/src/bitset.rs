@@ -44,19 +44,19 @@ impl TinySet {
     #[inline]
     pub fn deserialize(data: [u8; 8]) -> Self {
         let val: u64 = u64::from_le_bytes(data);
-        TinySet(val)
+        Self(val)
     }
 
     /// Returns an empty `TinySet`.
     #[inline]
-    pub fn empty() -> TinySet {
-        TinySet(0u64)
+    pub fn empty() -> Self {
+        Self(0u64)
     }
 
     /// Returns a full `TinySet`.
     #[inline]
-    pub fn full() -> TinySet {
-        TinySet::empty().complement()
+    pub fn full() -> Self {
+        Self::empty().complement()
     }
 
     pub fn clear(&mut self) {
@@ -68,14 +68,14 @@ impl TinySet {
     /// Careful on making this function public, as it will break the padding handling in the last
     /// bucket.
     #[inline]
-    fn complement(self) -> TinySet {
-        TinySet(!self.0)
+    fn complement(self) -> Self {
+        Self(!self.0)
     }
 
     /// Returns true iff the `TinySet` contains the element `el`.
     #[inline]
     pub fn contains(self, el: u32) -> bool {
-        !self.intersect(TinySet::singleton(el)).is_empty()
+        !self.intersect(Self::singleton(el)).is_empty()
     }
 
     /// Returns the number of elements in the TinySet.
@@ -87,29 +87,29 @@ impl TinySet {
     /// Returns the intersection of `self` and `other`
     #[inline]
     #[must_use]
-    pub fn intersect(self, other: TinySet) -> TinySet {
-        TinySet(self.0 & other.0)
+    pub fn intersect(self, other: Self) -> Self {
+        Self(self.0 & other.0)
     }
 
     /// Creates a new `TinySet` containing only one element
     /// within `[0; 64[`
     #[inline]
-    pub fn singleton(el: u32) -> TinySet {
-        TinySet(1u64 << u64::from(el))
+    pub fn singleton(el: u32) -> Self {
+        Self(1u64 << u64::from(el))
     }
 
     /// Insert a new element within [0..64)
     #[inline]
     #[must_use]
-    pub fn insert(self, el: u32) -> TinySet {
-        self.union(TinySet::singleton(el))
+    pub fn insert(self, el: u32) -> Self {
+        self.union(Self::singleton(el))
     }
 
     /// Removes an element within [0..64)
     #[inline]
     #[must_use]
-    pub fn remove(self, el: u32) -> TinySet {
-        self.intersect(TinySet::singleton(el).complement())
+    pub fn remove(self, el: u32) -> Self {
+        self.intersect(Self::singleton(el).complement())
     }
 
     /// Insert a new element within [0..64)
@@ -135,8 +135,8 @@ impl TinySet {
     /// Returns the union of two tinysets
     #[inline]
     #[must_use]
-    pub fn union(self, other: TinySet) -> TinySet {
-        TinySet(self.0 | other.0)
+    pub fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
     }
 
     /// Returns true iff the `TinySet` is empty.
@@ -153,7 +153,7 @@ impl TinySet {
             None
         } else {
             let lowest = self.0.trailing_zeros();
-            self.0 ^= TinySet::singleton(lowest).0;
+            self.0 ^= Self::singleton(lowest).0;
             Some(lowest)
         }
     }
@@ -162,16 +162,16 @@ impl TinySet {
     /// to limit excluded.
     ///
     /// The limit is assumed to be strictly lower than 64.
-    pub fn range_lower(upper_bound: u32) -> TinySet {
-        TinySet((1u64 << u64::from(upper_bound % 64u32)) - 1u64)
+    pub fn range_lower(upper_bound: u32) -> Self {
+        Self((1u64 << u64::from(upper_bound % 64u32)) - 1u64)
     }
 
     /// Returns a `TinySet` that contains all values greater
     /// or equal to the given limit, included. (and up to 63)
     ///
     /// The limit is assumed to be strictly lower than 64.
-    pub fn range_greater_or_equal(from_included: u32) -> TinySet {
-        TinySet::range_lower(from_included).complement()
+    pub fn range_greater_or_equal(from_included: u32) -> Self {
+        Self::range_lower(from_included).complement()
     }
 }
 
@@ -183,7 +183,7 @@ pub struct BitSet {
 }
 
 fn num_buckets(max_val: u32) -> u32 {
-    (max_val + 63u32) / 64u32
+    max_val.div_ceil(64u32)
 }
 
 impl BitSet {
@@ -199,10 +199,10 @@ impl BitSet {
 
     /// Create a new `BitSet` that may contain elements
     /// within `[0, max_val)`.
-    pub fn with_max_value(max_value: u32) -> BitSet {
+    pub fn with_max_value(max_value: u32) -> Self {
         let num_buckets = num_buckets(max_value);
         let tinybitsets = vec![TinySet::empty(); num_buckets as usize].into_boxed_slice();
-        BitSet {
+        Self {
             tinysets: tinybitsets,
             len: 0,
             max_value,
@@ -211,7 +211,7 @@ impl BitSet {
 
     /// Create a new `BitSet` that may contain elements. Initially all values will be set.
     /// within `[0, max_val)`.
-    pub fn with_max_value_and_full(max_value: u32) -> BitSet {
+    pub fn with_max_value_and_full(max_value: u32) -> Self {
         let num_buckets = num_buckets(max_value);
         let mut tinybitsets = vec![TinySet::full(); num_buckets as usize].into_boxed_slice();
 
@@ -220,7 +220,7 @@ impl BitSet {
         if lower != 0 {
             tinybitsets[tinybitsets.len() - 1] = TinySet::range_lower(lower);
         }
-        BitSet {
+        Self {
             tinysets: tinybitsets,
             len: max_value as u64,
             max_value,
@@ -333,7 +333,7 @@ impl ReadOnlyBitSet {
         let (max_value_data, data) = data.split(4);
         assert_eq!(data.len() % 8, 0);
         let max_value: u32 = u32::from_le_bytes(max_value_data.as_ref().try_into().unwrap());
-        ReadOnlyBitSet { data, max_value }
+        Self { data, max_value }
     }
 
     /// Number of elements in the bitset.
@@ -393,12 +393,12 @@ impl ReadOnlyBitSet {
 }
 
 impl<'a> From<&'a BitSet> for ReadOnlyBitSet {
-    fn from(bitset: &'a BitSet) -> ReadOnlyBitSet {
+    fn from(bitset: &'a BitSet) -> Self {
         let mut buffer = Vec::with_capacity(bitset.tinysets.len() * 8 + 4);
         bitset
             .serialize(&mut buffer)
             .expect("serializing into a buffer should never fail");
-        ReadOnlyBitSet::open(OwnedBytes::new(buffer))
+        Self::open(OwnedBytes::new(buffer))
     }
 }
 

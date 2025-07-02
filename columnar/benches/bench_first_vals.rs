@@ -29,7 +29,7 @@ fn get_test_columns() -> Columns {
         dataframe_writer.record_numerical(idx as u32, "multi_values", NumericalValue::U64(*val));
         dataframe_writer.record_numerical(idx as u32, "multi_values", NumericalValue::U64(*val));
     }
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut buffer: Vec<u8> = vec![];
     dataframe_writer
         .serialize(data.len() as u32, &mut buffer)
         .unwrap();

@@ -53,7 +53,7 @@ impl DateOptions {
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
     #[must_use]
-    pub fn set_stored(mut self) -> DateOptions {
+    pub fn set_stored(mut self) -> Self {
         self.stored = true;
         self
     }
@@ -65,7 +65,7 @@ impl DateOptions {
     ///
     /// This is required for the field to be searchable.
     #[must_use]
-    pub fn set_indexed(mut self) -> DateOptions {
+    pub fn set_indexed(mut self) -> Self {
         self.indexed = true;
         self
     }
@@ -75,7 +75,7 @@ impl DateOptions {
     /// Setting an integer as fieldnorm will generate
     /// the fieldnorm data for it.
     #[must_use]
-    pub fn set_fieldnorm(mut self) -> DateOptions {
+    pub fn set_fieldnorm(mut self) -> Self {
         self.fieldnorms = true;
         self
     }
@@ -84,7 +84,7 @@ impl DateOptions {
     ///
     /// Fast fields are designed for random access.
     #[must_use]
-    pub fn set_fast(mut self) -> DateOptions {
+    pub fn set_fast(mut self) -> Self {
         self.fast = true;
         self
     }
@@ -94,7 +94,7 @@ impl DateOptions {
     ///
     /// Internal storage precision, used to optimize storage
     /// compression on fast fields.
-    pub fn set_precision(mut self, precision: DateTimePrecision) -> DateOptions {
+    pub fn set_precision(mut self, precision: DateTimePrecision) -> Self {
         self.precision = precision;
         self
     }
@@ -109,14 +109,14 @@ impl DateOptions {
 }
 
 impl From<()> for DateOptions {
-    fn from(_: ()) -> DateOptions {
-        DateOptions::default()
+    fn from(_: ()) -> Self {
+        Self::default()
     }
 }
 
 impl From<FastFlag> for DateOptions {
     fn from(_: FastFlag) -> Self {
-        DateOptions {
+        Self {
             fast: true,
             ..Default::default()
         }
@@ -125,7 +125,7 @@ impl From<FastFlag> for DateOptions {
 
 impl From<StoredFlag> for DateOptions {
     fn from(_: StoredFlag) -> Self {
-        DateOptions {
+        Self {
             stored: true,
             ..Default::default()
         }
@@ -134,7 +134,7 @@ impl From<StoredFlag> for DateOptions {
 
 impl From<IndexedFlag> for DateOptions {
     fn from(_: IndexedFlag) -> Self {
-        DateOptions {
+        Self {
             indexed: true,
             fieldnorms: true,
             ..Default::default()
@@ -142,12 +142,12 @@ impl From<IndexedFlag> for DateOptions {
     }
 }
 
-impl<T: Into<DateOptions>> BitOr<T> for DateOptions {
-    type Output = DateOptions;
+impl<T: Into<Self>> BitOr<T> for DateOptions {
+    type Output = Self;
 
-    fn bitor(self, other: T) -> DateOptions {
+    fn bitor(self, other: T) -> Self {
         let other = other.into();
-        DateOptions {
+        Self {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,

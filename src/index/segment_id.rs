@@ -45,8 +45,8 @@ fn create_uuid() -> Uuid {
 
 impl SegmentId {
     #[doc(hidden)]
-    pub fn generate_random() -> SegmentId {
-        SegmentId(create_uuid())
+    pub fn generate_random() -> Self {
+        Self(create_uuid())
     }
 
     /// Returns a shorter identifier of the segment.
@@ -71,7 +71,7 @@ impl SegmentId {
     /// Build a `SegmentId` string from the full uuid string.
     ///
     /// E.g. "a5c4dfcbdfe645089129e308e26d5523"
-    pub fn from_uuid_string(uuid_string: &str) -> Result<SegmentId, SegmentIdParseError> {
+    pub fn from_uuid_string(uuid_string: &str) -> Result<Self, SegmentIdParseError> {
         FromStr::from_str(uuid_string)
     }
 }
@@ -98,7 +98,7 @@ impl FromStr for SegmentId {
 
     fn from_str(uuid_string: &str) -> Result<Self, SegmentIdParseError> {
         let uuid = Uuid::parse_str(uuid_string).map_err(SegmentIdParseError)?;
-        Ok(SegmentId(uuid))
+        Ok(Self(uuid))
     }
 }
 

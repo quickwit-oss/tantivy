@@ -41,7 +41,7 @@ struct NumericOptionsDeser {
 
 impl From<NumericOptionsDeser> for NumericOptions {
     fn from(deser: NumericOptionsDeser) -> Self {
-        NumericOptions {
+        Self {
             indexed: deser.indexed,
             fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
             fast: deser.fast,
@@ -94,7 +94,7 @@ impl NumericOptions {
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
     #[must_use]
-    pub fn set_stored(mut self) -> NumericOptions {
+    pub fn set_stored(mut self) -> Self {
         self.stored = true;
         self
     }
@@ -106,7 +106,7 @@ impl NumericOptions {
     ///
     /// This is required for the field to be searchable.
     #[must_use]
-    pub fn set_indexed(mut self) -> NumericOptions {
+    pub fn set_indexed(mut self) -> Self {
         self.indexed = true;
         self
     }
@@ -116,7 +116,7 @@ impl NumericOptions {
     /// Setting an integer as fieldnorm will generate
     /// the fieldnorm data for it.
     #[must_use]
-    pub fn set_fieldnorm(mut self) -> NumericOptions {
+    pub fn set_fieldnorm(mut self) -> Self {
         self.fieldnorms = true;
         self
     }
@@ -125,21 +125,21 @@ impl NumericOptions {
     ///
     /// Fast fields are designed for random access.
     #[must_use]
-    pub fn set_fast(mut self) -> NumericOptions {
+    pub fn set_fast(mut self) -> Self {
         self.fast = true;
         self
     }
 }
 
 impl From<()> for NumericOptions {
-    fn from(_: ()) -> NumericOptions {
-        NumericOptions::default()
+    fn from(_: ()) -> Self {
+        Self::default()
     }
 }
 
 impl From<CoerceFlag> for NumericOptions {
-    fn from(_: CoerceFlag) -> NumericOptions {
-        NumericOptions {
+    fn from(_: CoerceFlag) -> Self {
+        Self {
             indexed: false,
             fieldnorms: false,
             stored: false,
@@ -151,7 +151,7 @@ impl From<CoerceFlag> for NumericOptions {
 
 impl From<FastFlag> for NumericOptions {
     fn from(_: FastFlag) -> Self {
-        NumericOptions {
+        Self {
             indexed: false,
             fieldnorms: false,
             stored: false,
@@ -163,7 +163,7 @@ impl From<FastFlag> for NumericOptions {
 
 impl From<StoredFlag> for NumericOptions {
     fn from(_: StoredFlag) -> Self {
-        NumericOptions {
+        Self {
             indexed: false,
             fieldnorms: false,
             stored: true,
@@ -175,7 +175,7 @@ impl From<StoredFlag> for NumericOptions {
 
 impl From<IndexedFlag> for NumericOptions {
     fn from(_: IndexedFlag) -> Self {
-        NumericOptions {
+        Self {
             indexed: true,
             fieldnorms: true,
             stored: false,
@@ -185,12 +185,12 @@ impl From<IndexedFlag> for NumericOptions {
     }
 }
 
-impl<T: Into<NumericOptions>> BitOr<T> for NumericOptions {
-    type Output = NumericOptions;
+impl<T: Into<Self>> BitOr<T> for NumericOptions {
+    type Output = Self;
 
-    fn bitor(self, other: T) -> NumericOptions {
+    fn bitor(self, other: T) -> Self {
         let other = other.into();
-        NumericOptions {
+        Self {
             indexed: self.indexed | other.indexed,
             fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,

@@ -96,7 +96,7 @@ pub(crate) mod tests {
         let searcher = index.reader()?.searcher();
         let inverted_index = searcher.segment_reader(0u32).inverted_index(title)?;
         let term = Term::from_field_text(title, "abc");
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         {
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
@@ -218,7 +218,7 @@ pub(crate) mod tests {
 
     #[test]
     pub fn test_position_and_fieldnorm1() -> crate::Result<()> {
-        let mut positions = Vec::new();
+        let mut positions = vec![];
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -325,7 +325,7 @@ pub(crate) mod tests {
 
     #[test]
     pub fn test_position_and_fieldnorm2() -> crate::Result<()> {
-        let mut positions: Vec<u32> = Vec::new();
+        let mut positions: Vec<u32> = vec![];
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -507,8 +507,8 @@ pub(crate) mod tests {
     pub(crate) struct UnoptimizedDocSet<TDocSet: DocSet>(TDocSet);
 
     impl<TDocSet: DocSet> UnoptimizedDocSet<TDocSet> {
-        pub fn wrap(docset: TDocSet) -> UnoptimizedDocSet<TDocSet> {
-            UnoptimizedDocSet(docset)
+        pub fn wrap(docset: TDocSet) -> Self {
+            Self(docset)
         }
     }
 
@@ -690,7 +690,7 @@ mod bench {
             .unwrap()
             .unwrap();
 
-        let mut existing_docs = Vec::new();
+        let mut existing_docs = vec![];
         for doc in &docs {
             if *doc >= segment_postings.doc() {
                 existing_docs.push(*doc);

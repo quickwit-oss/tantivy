@@ -19,8 +19,8 @@ pub struct FileWatcher {
 }
 
 impl FileWatcher {
-    pub fn new(path: &Path) -> FileWatcher {
-        FileWatcher {
+    pub fn new(path: &Path) -> Self {
+        Self {
             path: Arc::from(path),
             callbacks: Default::default(),
             state: Default::default(),
@@ -46,7 +46,7 @@ impl FileWatcher {
                 let mut current_checksum_opt = None;
 
                 while state.load(Ordering::SeqCst) == 1 {
-                    if let Ok(checksum) = FileWatcher::compute_checksum(&path) {
+                    if let Ok(checksum) = Self::compute_checksum(&path) {
                         let metafile_has_changed = current_checksum_opt
                             .map(|current_checksum| current_checksum != checksum)
                             .unwrap_or(true);

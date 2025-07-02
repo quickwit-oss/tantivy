@@ -36,14 +36,14 @@ impl StoreWriter {
         compressor: Compressor,
         block_size: usize,
         dedicated_thread: bool,
-    ) -> io::Result<StoreWriter> {
+    ) -> io::Result<Self> {
         let block_compressor = BlockCompressor::new(compressor, writer, dedicated_thread)?;
-        Ok(StoreWriter {
+        Ok(Self {
             compressor,
             block_size,
             num_docs_in_current_block: 0,
-            doc_pos: Vec::new(),
-            current_block: Vec::new(),
+            doc_pos: vec![],
+            current_block: vec![],
             block_compressor,
         })
     }

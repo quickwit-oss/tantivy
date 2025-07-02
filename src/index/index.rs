@@ -63,7 +63,7 @@ fn save_new_metas(
     save_metas(
         &IndexMeta {
             index_settings,
-            segments: Vec::new(),
+            segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,
@@ -101,26 +101,18 @@ fn save_new_metas(
 /// };
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 /// ```
+#[derive(Default)]
 pub struct IndexBuilder {
     schema: Option<Schema>,
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
 }
-impl Default for IndexBuilder {
-    fn default() -> Self {
-        IndexBuilder::new()
-    }
-}
+
 impl IndexBuilder {
     /// Creates a new `IndexBuilder`
     pub fn new() -> Self {
-        Self {
-            schema: None,
-            index_settings: IndexSettings::default(),
-            tokenizer_manager: TokenizerManager::default(),
-            fast_field_tokenizer_manager: TokenizerManager::default(),
-        }
+        Self::default()
     }
 
     /// Set the settings
@@ -320,7 +312,7 @@ impl Index {
     /// The index will be allocated in anonymous memory.
     /// This is useful for indexing small set of documents
     /// for instances like unit test or temporary in memory index.
-    pub fn create_in_ram(schema: Schema) -> Index {
+    pub fn create_in_ram(schema: Schema) -> Self {
         IndexBuilder::new().schema(schema).create_in_ram().unwrap()
     }
 
@@ -330,10 +322,7 @@ impl Index {
     /// If a previous index was in this directory, then it returns
     /// a [`TantivyError::IndexAlreadyExists`] error.
     #[cfg(feature = "mmap")]
-    pub fn create_in_dir<P: AsRef<Path>>(
-        directory_path: P,
-        schema: Schema,
-    ) -> crate::Result<Index> {
+    pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> crate::Result<Self> {
         IndexBuilder::new()
             .schema(schema)
             .create_in_dir(directory_path)
@@ -343,7 +332,7 @@ impl Index {
     pub fn open_or_create<T: Into<Box<dyn Directory>>>(
         dir: T,
         schema: Schema,
-    ) -> crate::Result<Index> {
+    ) -> crate::Result<Self> {
         let dir = dir.into();
         IndexBuilder::new().schema(schema).open_or_create(dir)
     }
@@ -358,7 +347,7 @@ impl Index {
     /// For other unit tests, prefer the [`RamDirectory`],
     /// see: [`IndexBuilder::create_in_ram()`].
     #[cfg(feature = "mmap")]
-    pub fn create_from_tempdir(schema: Schema) -> crate::Result<Index> {
+    pub fn create_from_tempdir(schema: Schema) -> crate::Result<Self> {
         IndexBuilder::new().schema(schema).create_from_tempdir()
     }
 
@@ -369,7 +358,7 @@ impl Index {
         dir: T,
         schema: Schema,
         settings: IndexSettings,
-    ) -> crate::Result<Index> {
+    ) -> crate::Result<Self> {
         let dir: Box<dyn Directory> = dir.into();
         let mut builder = IndexBuilder::new().schema(schema);
         builder = builder.settings(settings);
@@ -381,9 +370,9 @@ impl Index {
         directory: ManagedDirectory,
         metas: &IndexMeta,
         inventory: SegmentMetaInventory,
-    ) -> Index {
+    ) -> Self {
         let schema = metas.schema.clone();
-        Index {
+        Self {
             settings: metas.index_settings.clone(),
             directory,
             schema,
@@ -461,9 +450,9 @@ impl Index {
 
     /// Opens a new directory from an index path.
     #[cfg(feature = "mmap")]
-    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
+    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Self> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        Index::open(mmap_directory)
+        Self::open(mmap_directory)
     }
 
     /// Returns the list of the segment metas tracked by the index.
@@ -507,12 +496,12 @@ impl Index {
     }
 
     /// Open the index using the provided directory
-    pub fn open<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+    pub fn open<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Self> {
         let directory = directory.into();
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;
-        let index = Index::open_from_metas(directory, &metas, inventory);
+        let index = Self::open_from_metas(directory, &metas, inventory);
         Ok(index)
     }
 

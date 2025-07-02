@@ -33,9 +33,9 @@ pub struct SearcherSpaceUsage {
 }
 
 impl SearcherSpaceUsage {
-    pub(crate) fn new() -> SearcherSpaceUsage {
-        SearcherSpaceUsage {
-            segments: Vec::new(),
+    pub(crate) fn new() -> Self {
+        Self {
+            segments: vec![],
             total: Default::default(),
         }
     }
@@ -88,7 +88,7 @@ impl SegmentSpaceUsage {
         fieldnorms: PerFieldSpaceUsage,
         store: StoreSpaceUsage,
         deletes: ByteCount,
-    ) -> SegmentSpaceUsage {
+    ) -> Self {
         let total = termdict.total()
             + postings.total()
             + positions.total()
@@ -96,7 +96,7 @@ impl SegmentSpaceUsage {
             + fieldnorms.total()
             + store.total()
             + deletes;
-        SegmentSpaceUsage {
+        Self {
             num_docs,
             termdict,
             postings,
@@ -186,8 +186,8 @@ pub struct StoreSpaceUsage {
 }
 
 impl StoreSpaceUsage {
-    pub(crate) fn new(data: ByteCount, offsets: ByteCount) -> StoreSpaceUsage {
-        StoreSpaceUsage { data, offsets }
+    pub(crate) fn new(data: ByteCount, offsets: ByteCount) -> Self {
+        Self { data, offsets }
     }
 
     /// Space usage for the data part of the store
@@ -217,13 +217,13 @@ pub struct PerFieldSpaceUsage {
 }
 
 impl PerFieldSpaceUsage {
-    pub(crate) fn new(fields: Vec<FieldUsage>) -> PerFieldSpaceUsage {
+    pub(crate) fn new(fields: Vec<FieldUsage>) -> Self {
         let total = fields.iter().map(FieldUsage::total).sum();
         let field_usage_map: HashMap<Field, FieldUsage> = fields
             .into_iter()
             .map(|field_usage| (field_usage.field(), field_usage))
             .collect();
-        PerFieldSpaceUsage {
+        Self {
             fields: field_usage_map,
             total,
         }
@@ -255,11 +255,11 @@ pub struct FieldUsage {
 }
 
 impl FieldUsage {
-    pub(crate) fn empty(field: Field) -> FieldUsage {
-        FieldUsage {
+    pub(crate) fn empty(field: Field) -> Self {
+        Self {
             field,
             num_bytes: Default::default(),
-            sub_num_bytes: Vec::new(),
+            sub_num_bytes: vec![],
         }
     }
 

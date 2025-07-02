@@ -36,7 +36,7 @@ impl BinarySerializable for DocStoreFooter {
         let compressor_id = u8::deserialize(reader)?;
         let mut skip_buf = [0; 15];
         reader.read_exact(&mut skip_buf)?;
-        Ok(DocStoreFooter {
+        Ok(Self {
             offset,
             doc_store_version,
             decompressor: Decompressor::from_id(compressor_id),
@@ -54,15 +54,15 @@ impl DocStoreFooter {
         decompressor: Decompressor,
         doc_store_version: DocStoreVersion,
     ) -> Self {
-        DocStoreFooter {
+        Self {
             offset,
             doc_store_version,
             decompressor,
         }
     }
 
-    pub fn extract_footer(file: FileSlice) -> io::Result<(DocStoreFooter, FileSlice)> {
-        if file.len() < DocStoreFooter::SIZE_IN_BYTES {
+    pub fn extract_footer(file: FileSlice) -> io::Result<(Self, FileSlice)> {
+        if file.len() < Self::SIZE_IN_BYTES {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
@@ -71,9 +71,9 @@ impl DocStoreFooter {
                 ),
             ));
         }
-        let (body, footer_slice) = file.split_from_end(DocStoreFooter::SIZE_IN_BYTES);
+        let (body, footer_slice) = file.split_from_end(Self::SIZE_IN_BYTES);
         let mut footer_bytes = footer_slice.read_bytes()?;
-        let footer = DocStoreFooter::deserialize(&mut footer_bytes)?;
+        let footer = Self::deserialize(&mut footer_bytes)?;
         Ok((footer, body))
     }
 }

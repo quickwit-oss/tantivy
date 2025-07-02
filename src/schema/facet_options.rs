@@ -24,30 +24,30 @@ impl FacetOptions {
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
     #[must_use]
-    pub fn set_stored(mut self) -> FacetOptions {
+    pub fn set_stored(mut self) -> Self {
         self.stored = true;
         self
     }
 }
 
 impl From<()> for FacetOptions {
-    fn from(_: ()) -> FacetOptions {
-        FacetOptions::default()
+    fn from(_: ()) -> Self {
+        Self::default()
     }
 }
 
 impl From<StoredFlag> for FacetOptions {
     fn from(_: StoredFlag) -> Self {
-        FacetOptions { stored: true }
+        Self { stored: true }
     }
 }
 
-impl<T: Into<FacetOptions>> BitOr<T> for FacetOptions {
-    type Output = FacetOptions;
+impl<T: Into<Self>> BitOr<T> for FacetOptions {
+    type Output = Self;
 
-    fn bitor(self, other: T) -> FacetOptions {
+    fn bitor(self, other: T) -> Self {
         let other = other.into();
-        FacetOptions {
+        Self {
             stored: self.stored | other.stored,
         }
     }
@@ -66,7 +66,7 @@ where
 
 impl From<IndexedFlag> for FacetOptions {
     fn from(_: IndexedFlag) -> Self {
-        FacetOptions { stored: false }
+        Self { stored: false }
     }
 }
 

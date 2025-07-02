@@ -56,8 +56,8 @@ pub enum AggregationResult {
 impl AggregationResult {
     pub(crate) fn get_bucket_count(&self) -> u64 {
         match self {
-            AggregationResult::BucketResult(bucket) => bucket.get_bucket_count(),
-            AggregationResult::MetricResult(_) => 0,
+            Self::BucketResult(bucket) => bucket.get_bucket_count(),
+            Self::MetricResult(_) => 0,
         }
     }
 
@@ -67,12 +67,12 @@ impl AggregationResult {
         agg_property: &str,
     ) -> crate::Result<Option<f64>> {
         match self {
-            AggregationResult::BucketResult(_bucket) => Err(TantivyError::InternalError(
+            Self::BucketResult(_bucket) => Err(TantivyError::InternalError(
                 "Tried to retrieve value from bucket aggregation. This is not supported and \
                  should not happen during collection phase, but should be caught during validation"
                     .to_string(),
             )),
-            AggregationResult::MetricResult(metric) => metric.get_value(agg_property),
+            Self::MetricResult(metric) => metric.get_value(agg_property),
         }
     }
 }
@@ -106,20 +106,20 @@ pub enum MetricResult {
 impl MetricResult {
     fn get_value(&self, agg_property: &str) -> crate::Result<Option<f64>> {
         match self {
-            MetricResult::Average(avg) => Ok(avg.value),
-            MetricResult::Count(count) => Ok(count.value),
-            MetricResult::Max(max) => Ok(max.value),
-            MetricResult::Min(min) => Ok(min.value),
-            MetricResult::Stats(stats) => stats.get_value(agg_property),
-            MetricResult::ExtendedStats(extended_stats) => extended_stats.get_value(agg_property),
-            MetricResult::Sum(sum) => Ok(sum.value),
-            MetricResult::Percentiles(_) => Err(TantivyError::AggregationError(
+            Self::Average(avg) => Ok(avg.value),
+            Self::Count(count) => Ok(count.value),
+            Self::Max(max) => Ok(max.value),
+            Self::Min(min) => Ok(min.value),
+            Self::Stats(stats) => stats.get_value(agg_property),
+            Self::ExtendedStats(extended_stats) => extended_stats.get_value(agg_property),
+            Self::Sum(sum) => Ok(sum.value),
+            Self::Percentiles(_) => Err(TantivyError::AggregationError(
                 AggregationError::InvalidRequest("percentiles can't be used to order".to_string()),
             )),
-            MetricResult::TopHits(_) => Err(TantivyError::AggregationError(
+            Self::TopHits(_) => Err(TantivyError::AggregationError(
                 AggregationError::InvalidRequest("top_hits can't be used to order".to_string()),
             )),
-            MetricResult::Cardinality(card) => Ok(card.value),
+            Self::Cardinality(card) => Ok(card.value),
         }
     }
 }
@@ -161,13 +161,11 @@ pub enum BucketResult {
 impl BucketResult {
     pub(crate) fn get_bucket_count(&self) -> u64 {
         match self {
-            BucketResult::Range { buckets } => {
+            Self::Range { buckets } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
+            Self::Histogram { buckets } => {
                 buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
             }
-            BucketResult::Histogram { buckets } => {
-                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
-            }
-            BucketResult::Terms {
+            Self::Terms {
                 buckets,
                 sum_other_doc_count: _,
                 doc_count_error_upper_bound: _,
@@ -190,8 +188,8 @@ pub enum BucketEntries<T> {
 impl<T> BucketEntries<T> {
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a T> + 'a> {
         match self {
-            BucketEntries::Vec(vec) => Box::new(vec.iter()),
-            BucketEntries::HashMap(map) => Box::new(map.values()),
+            Self::Vec(vec) => Box::new(vec.iter()),
+            Self::HashMap(map) => Box::new(map.values()),
         }
     }
 }

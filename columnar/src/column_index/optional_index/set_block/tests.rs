@@ -5,7 +5,7 @@ use crate::column_index::optional_index::set_block::{DenseBlockCodec, SparseBloc
 use crate::column_index::optional_index::{SelectCursor, Set, SetCodec};
 
 fn test_set_helper<C: SetCodec<Item = u16>>(vals: &[u16]) -> usize {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     C::serialize(vals.iter().copied(), &mut buffer).unwrap();
     let tested_set = C::open(buffer.as_slice());
     let hash_set: HashMap<C::Item, C::Item> = vals
@@ -73,7 +73,7 @@ proptest! {
 
 #[test]
 fn test_simple_translate_codec_codec_idx_to_original_idx_dense() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     DenseBlockCodec::serialize([1, 3, 17, 32, 30_000, 30_001].iter().copied(), &mut buffer)
         .unwrap();
     let tested_set = DenseBlockCodec::open(buffer.as_slice());
@@ -86,7 +86,7 @@ fn test_simple_translate_codec_codec_idx_to_original_idx_dense() {
 
 #[test]
 fn test_simple_translate_codec_idx_to_original_idx_sparse() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     SparseBlockCodec::serialize([1, 3, 17].iter().copied(), &mut buffer).unwrap();
     let tested_set = SparseBlockCodec::open(buffer.as_slice());
     assert!(tested_set.contains(1));
@@ -98,7 +98,7 @@ fn test_simple_translate_codec_idx_to_original_idx_sparse() {
 
 #[test]
 fn test_simple_translate_codec_idx_to_original_idx_dense() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     DenseBlockCodec::serialize(0u16..150u16, &mut buffer).unwrap();
     let tested_set = DenseBlockCodec::open(buffer.as_slice());
     assert!(tested_set.contains(1));
@@ -110,7 +110,7 @@ fn test_simple_translate_codec_idx_to_original_idx_dense() {
 
 #[test]
 fn test_simple_translate_idx_to_value_idx_dense() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     DenseBlockCodec::serialize([1, 10].iter().copied(), &mut buffer).unwrap();
     let tested_set = DenseBlockCodec::open(buffer.as_slice());
     assert!(tested_set.contains(1));
@@ -127,7 +127,7 @@ fn test_simple_translate_idx_to_value_idx_dense() {
 
 #[test]
 fn test_simple_translate_idx_to_value_idx_sparse() {
-    let mut buffer = Vec::new();
+    let mut buffer = vec![];
     SparseBlockCodec::serialize([1, 10].iter().copied(), &mut buffer).unwrap();
     let tested_set = SparseBlockCodec::open(buffer.as_slice());
     assert!(tested_set.contains(1));

@@ -17,8 +17,8 @@ struct RetryPolicy {
 }
 
 impl RetryPolicy {
-    fn no_retry() -> RetryPolicy {
-        RetryPolicy {
+    fn no_retry() -> Self {
+        Self {
             num_retries: 0,
             wait_in_ms: 0,
         }
@@ -49,7 +49,7 @@ struct DirectoryLockGuard {
 
 impl<T: Send + Sync + 'static> From<Box<T>> for DirectoryLock {
     fn from(underlying: Box<T>) -> Self {
-        DirectoryLock(underlying)
+        Self(underlying)
     }
 }
 
