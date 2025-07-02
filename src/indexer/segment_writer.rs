@@ -873,8 +873,8 @@ mod tests {
 
         fn assert_type(reader: &SegmentReader, field: &str, typ: ColumnType) {
             let cols = reader.fast_fields().dynamic_column_handles(field).unwrap();
-            assert_eq!(cols.len(), 1, "{}", field);
-            assert_eq!(cols[0].column_type(), typ, "{}", field);
+            assert_eq!(cols.len(), 1, "{field}");
+            assert_eq!(cols[0].column_type(), typ, "{field}");
         }
         assert_type(segment_reader, "json.toto", ColumnType::Str);
         assert_type(segment_reader, "json.float", ColumnType::F64);

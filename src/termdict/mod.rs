@@ -84,20 +84,14 @@ impl TermDictionary {
         let mut dict_type = dict_type.read_bytes()?;
         let dict_type = u32::deserialize(&mut dict_type)?;
         let dict_type = DictionaryType::try_from(dict_type).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Unsupported dictionary type, found {dict_type}"),
-            )
+            io::Error::other(format!("Unsupported dictionary type, found {dict_type}"))
         })?;
 
         if dict_type != CURRENT_TYPE {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "Unsupported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
-                     {dict_type:?}",
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "Unsupported dictionary type, compiled tantivy with {CURRENT_TYPE:?}, but got \
+                 {dict_type:?}",
+            )));
         }
 
         InnerTermDict::open(main_slice).map(TermDictionary)

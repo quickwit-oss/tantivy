@@ -124,8 +124,7 @@ impl RegexPhraseQuery {
         if field_type != Type::Str {
             return Err(crate::TantivyError::SchemaError(format!(
                 "RegexPhraseQuery can only be used with a field of type text currently, but got \
-                 {:?}",
-                field_type
+                 {field_type:?}"
             )));
         }
 

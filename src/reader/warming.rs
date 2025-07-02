@@ -152,7 +152,7 @@ impl WarmingStateInner {
                 // rely on deterministic gc in tests
                 #[cfg(not(test))]
                 if let Err(err) = std::panic::catch_unwind(|| inner.lock().unwrap().gc_maybe()) {
-                    error!("Panic in Warmer GC {:?}", err);
+                    error!("Panic in Warmer GC {err:?}");
                 }
                 // avoid unused var warning in tests
                 #[cfg(test)]
