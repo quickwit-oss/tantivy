@@ -320,7 +320,9 @@ impl StoreReader {
                     doc_pos = 0;
                 }
 
-                let alive = alive_bitset.is_none_or(|bitset| bitset.is_alive(doc_id));
+                let alive = alive_bitset
+                    .map(|bitset| bitset.is_alive(doc_id))
+                    .unwrap_or(true);
                 let res = if alive {
                     Some((curr_block.clone(), doc_pos))
                 } else {
