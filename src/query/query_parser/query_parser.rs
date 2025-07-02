@@ -206,6 +206,9 @@ pub struct QueryParser {
     tokenizer_manager: TokenizerManager,
     boost: FxHashMap<Field, Score>,
     fuzzy: FxHashMap<Field, Fuzzy>,
+    /// If true, an empty query (e.g. "" or only whitespace) will match all
+    /// documents instead of matching none.
+    empty_query_match_all: bool,
 }
 
 #[derive(Clone)]
@@ -260,6 +263,7 @@ impl QueryParser {
             conjunction_by_default: false,
             boost: Default::default(),
             fuzzy: Default::default(),
+            empty_query_match_all: false,
         }
     }
 
@@ -320,13 +324,26 @@ impl QueryParser {
         );
     }
 
+    /// Configure the behaviour of an empty query (e.g. an empty string or only whitespace).
+    ///
+    /// If `should_match_all` is `true`, an empty query will match all documents in the index.
+    /// Otherwise (the default), an empty query matches no documents.
+    pub fn set_empty_query_match_all(&mut self, should_match_all: bool) {
+        self.empty_query_match_all = should_match_all;
+    }
+
+    /// Returns the current behaviour for empty queries.
+    pub fn get_empty_query_match_all(&self) -> bool {
+        self.empty_query_match_all
+    }
+
     /// Parse a query
     ///
     /// Note that `parse_query` returns an error if the input
     /// is not a valid query.
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(&self.fuzzy, logical_ast))
+        Ok(self.logical_ast_to_query(logical_ast))
     }
 
     /// Parse a query leniently
@@ -339,7 +356,7 @@ impl QueryParser {
     /// In case it encountered such issues, they are reported as a Vec of errors.
     pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, Vec<QueryParserError>) {
         let (logical_ast, errors) = self.parse_query_to_logical_ast_lenient(query);
-        (convert_to_query(&self.fuzzy, logical_ast), errors)
+        (self.logical_ast_to_query(logical_ast), errors)
     }
 
     /// Build a query from an already parsed user input AST
@@ -355,7 +372,7 @@ impl QueryParser {
         if !err.is_empty() {
             return Err(err.swap_remove(0));
         }
-        Ok(convert_to_query(&self.fuzzy, logical_ast))
+        Ok(self.logical_ast_to_query(logical_ast))
     }
 
     /// Build leniently a query from an already parsed user input AST.
@@ -366,7 +383,7 @@ impl QueryParser {
         user_input_ast: UserInputAst,
     ) -> (Box<dyn Query>, Vec<QueryParserError>) {
         let (logical_ast, errors) = self.compute_logical_ast_lenient(user_input_ast);
-        (convert_to_query(&self.fuzzy, logical_ast), errors)
+        (self.logical_ast_to_query(logical_ast), errors)
     }
 
     /// Parse the user query into an AST.
@@ -854,6 +871,20 @@ impl QueryParser {
                     "Range query need to target a specific field.".to_string(),
                 )],
             ),
+        }
+    }
+
+    /// Convert a logical AST into a runnable `Query`, taking into account the parser configuration.
+    fn logical_ast_to_query(&self, logical_ast: LogicalAst) -> Box<dyn Query> {
+        match trim_ast(logical_ast) {
+            Some(trimmed_ast) => convert_to_query(&self.fuzzy, trimmed_ast),
+            None => {
+                if self.empty_query_match_all {
+                    Box::new(AllQuery)
+                } else {
+                    Box::new(EmptyQuery)
+                }
+            }
         }
     }
 }
