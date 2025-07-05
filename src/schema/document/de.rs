@@ -97,6 +97,9 @@ where T: DocumentDeserializeOwned
 
 /// A deserializer that can walk through each entry in the document.
 pub trait DocumentDeserializer<'de> {
+    /// Resets the deserializer to the start of the document    
+    fn reset_position(&self);
+
     /// A indicator as to how many values are in the document.
     ///
     /// This can be used to pre-allocate entries but should not
@@ -113,13 +116,13 @@ pub trait DocumentDeserializer<'de> {
 
     /// Expose behaviour from `DocumentDeserializer` as an iterator for convenience.
     ///
-    /// This will advance the position of the internal deserializer, so calling this multiple times
-    /// will not behave as expected.
+    /// This will reset the position of the deserializer to the start of the document when called
     fn iter<T>(&'de self) -> impl Iterator<Item = Result<(Field, T), DeserializeError>>
     where
         T: TryFrom<RefValue<'de>>,
         T::Error: Into<DeserializeError>,
     {
+        self.reset_position();
         std::iter::from_fn(|| match self.next_field() {
             Ok(Some((field, value))) => Some(Ok((field, value))),
             Ok(None) => None,
@@ -386,6 +389,10 @@ impl<'de> DocumentDeserializer<'de> for BinaryDocumentDeserializer {
         *self.position.borrow_mut() += 1;
 
         Ok(Some((field, value)))
+    }
+
+    fn reset_position(&self) {
+        *self.position.borrow_mut() = 0;
     }
 }
 
