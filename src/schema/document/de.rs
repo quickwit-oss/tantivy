@@ -393,6 +393,7 @@ impl<'de> DocumentDeserializer<'de> for BinaryDocumentDeserializer {
 
     fn reset_position(&self) {
         *self.position.borrow_mut() = 0;
+        self.reader.reset();
     }
 }
 

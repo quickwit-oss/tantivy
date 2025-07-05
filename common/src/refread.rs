@@ -87,6 +87,11 @@ impl RefReader {
             Ok(())
         }
     }
+
+    /// Resets the interal position of the reader to the beginning.
+    pub fn reset(&self) {
+        *self.pos.borrow_mut() = 0;
+    }
 }
 
 impl std::io::Read for RefReader {
