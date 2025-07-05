@@ -15,7 +15,7 @@ use super::Decompressor;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
-use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserializeOwned};
+use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserialize};
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
@@ -236,7 +236,7 @@ impl StoreReader {
     ///
     /// It should not be called to score documents
     /// for instance.
-    pub fn get<D: DocumentDeserializeOwned>(&self, doc_id: DocId) -> crate::Result<D> {
+    pub fn get<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
         let deserializer = self.get_raw(doc_id)?;
         D::deserialize(&deserializer).map_err(crate::TantivyError::from)
     }
@@ -284,7 +284,7 @@ impl StoreReader {
     /// Iterator over all Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
     /// The `alive_bitset` has to be forwarded from the `SegmentReader` or the results may be wrong.
-    pub fn iter<'a: 'b, 'b, D: DocumentDeserializeOwned>(
+    pub fn iter<'a: 'b, 'b, D: DocumentDeserialize>(
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<D>> + 'b {
@@ -433,7 +433,7 @@ impl StoreReader {
     }
 
     /// Fetches a document asynchronously. Async version of [`get`](Self::get).
-    pub async fn get_async<D: DocumentDeserializeOwned>(
+    pub async fn get_async<D: DocumentDeserialize>(
         &self,
         doc_id: DocId,
         executor: &Executor,

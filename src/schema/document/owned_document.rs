@@ -9,7 +9,7 @@ pub use CompactDoc as TantivyDocument;
 
 use super::{ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::document::{
-    DeserializeError, Document, DocumentDeserializeOwned, DocumentDeserializer,
+    DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
 };
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
@@ -375,7 +375,7 @@ impl PartialEq for CompactDoc {
 
 impl Eq for CompactDoc {}
 
-impl DocumentDeserializeOwned for CompactDoc {
+impl DocumentDeserialize for CompactDoc {
     fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de> {
         let mut doc = CompactDoc::default();

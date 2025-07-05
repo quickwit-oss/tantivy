@@ -63,7 +63,7 @@ impl From<io::Error> for DeserializeError {
 ///
 /// If your type contains references such as `&str` or `&[u8]` you should use `DocumentDeserialize`
 /// instead.
-pub trait DocumentDeserializeOwned: Sized {
+pub trait DocumentDeserialize: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
     fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
     where D: DocumentDeserializer<'de>;
@@ -72,7 +72,7 @@ pub trait DocumentDeserializeOwned: Sized {
 /// The core trait for deserializing a document with borrowed values.
 ///
 /// Automatically implemented for all types that implement `DocumentDeserializeOwned`.
-pub trait DocumentDeserialize<'de>: Sized {
+pub trait DocumentDeserializeRef<'de>: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
     fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
     where
@@ -83,8 +83,8 @@ pub trait DocumentDeserialize<'de>: Sized {
 // Implement `DocumentDeserializeRef` for all types that implement `DocumentDeserialize`.
 // If a type implements `DocumentDeserialize` that means it owns all values so there is no
 // difference between deserializing with owned and borrowed values.
-impl<'de, T> DocumentDeserialize<'de> for T
-where T: DocumentDeserializeOwned
+impl<'de, T> DocumentDeserializeRef<'de> for T
+where T: DocumentDeserialize
 {
     fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
     where

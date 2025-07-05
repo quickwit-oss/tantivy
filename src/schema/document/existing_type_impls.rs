@@ -14,7 +14,7 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use super::facet::Facet;
-use super::{DocumentDeserialize, ReferenceValueLeaf};
+use super::{DocumentDeserializeRef, ReferenceValueLeaf};
 use crate::schema::document::{
     ArrayAccess, DeserializeError, Document, DocumentDeserializer, ObjectAccess, RefValue,
     ReferenceValue, Value,
@@ -271,7 +271,7 @@ impl Document for BTreeMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl<'de, T> DocumentDeserialize<'de> for BTreeMap<Field, T>
+impl<'de, T> DocumentDeserializeRef<'de> for BTreeMap<Field, T>
 where
     T: TryFrom<RefValue<'de>>,
     T::Error: Into<DeserializeError>,
@@ -298,7 +298,7 @@ impl Document for HashMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl<'de, T> DocumentDeserialize<'de> for HashMap<Field, T>
+impl<'de, T> DocumentDeserializeRef<'de> for HashMap<Field, T>
 where
     T: TryFrom<RefValue<'de>>,
     T::Error: Into<DeserializeError>,
