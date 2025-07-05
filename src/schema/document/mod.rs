@@ -168,16 +168,15 @@ mod value;
 use std::collections::BTreeMap;
 use std::mem;
 
-pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
-    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializeRef,
-    DocumentDeserializer, ObjectAccess, RefValue, ValueType,
+    ArrayAccess, BinaryDocumentDeserializer, DeserializeError, DocumentDeserialize,
+    DocumentDeserializeRef, DocumentDeserializer, ObjectAccess, RefValue, ValueType,
 };
 pub use self::owned_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
 };
 pub use self::owned_value::OwnedValue;
-pub use self::se::BinaryDocumentSerializer;
+pub(crate) use self::se::BinaryDocumentSerializer;
 pub use self::value::{ReferenceValue, ReferenceValueLeaf, Value};
 use super::*;
 
