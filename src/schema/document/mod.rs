@@ -38,7 +38,7 @@
 //! ```
 //! use std::collections::{btree_map, BTreeMap};
 //! use tantivy::schema::{Document, Field};
-//! use tantivy::schema::document::{DeserializeError, DocumentDeserializeOwned, DocumentDeserializer};
+//! use tantivy::schema::document::{DeserializeError, DocumentDeserialize, DocumentDeserializer};
 //!
 //! /// Our custom document to let us use a map of `serde_json::Values`.
 //! #[allow(dead_code)]
@@ -68,7 +68,7 @@
 //! // back when it's deserialized from the doc store.
 //! // The API for this is very similar to serde but a little bit
 //! // more specialised, giving you access to types like IP addresses, datetime, etc...
-//! impl DocumentDeserializeOwned for MyCustomDocument {
+//! impl DocumentDeserialize for MyCustomDocument {
 //!     fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
 //!     where D: DocumentDeserializer<'de>
 //!     {

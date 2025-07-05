@@ -94,9 +94,9 @@ impl Searcher {
     /// a deserializer with ownership of the raw document bytes.
     ///
     /// This allows for deserialization into a type that contains references such as `&str` or
-    /// `&[u8]` via the `DocumentDeserialize` trait.
+    /// `&[u8]` via the `DocumentDeserializeRef` trait.
     ///
-    /// If your type implements `DocumentDeserializeOwned` you should use `.doc(doc_address)`
+    /// If your type implements `DocumentDeserialize` you should use `.doc(doc_address)`
     /// instead since it's more convenient.
     pub fn doc_raw(&self, doc_address: DocAddress) -> crate::Result<BinaryDocumentDeserializer> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];

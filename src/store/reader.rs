@@ -245,9 +245,9 @@ impl StoreReader {
     /// deserializer with ownership of the raw document bytes.
     ///
     /// This allows for deserialization into a type that contains references such as `&str` or
-    /// `&[u8]` via the `DocumentDeserialize` trait.
+    /// `&[u8]` via the `DocumentDeserializeRef` trait.
     ///
-    /// If your type implements `DocumentDeserializeOwned` you should use `.get(doc_id)` instead
+    /// If your type implements `DocumentDeserialize` you should use `.get(doc_id)` instead
     /// since it's more convenient.
     pub fn get_raw(&self, doc_id: DocId) -> crate::Result<BinaryDocumentDeserializer> {
         let doc_bytes = self.get_document_bytes(doc_id)?;

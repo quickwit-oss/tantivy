@@ -71,7 +71,7 @@ pub trait DocumentDeserialize: Sized {
 
 /// The core trait for deserializing a document with borrowed values.
 ///
-/// Automatically implemented for all types that implement `DocumentDeserializeOwned`.
+/// Automatically implemented for all types that implement `DocumentDeserialize`.
 pub trait DocumentDeserializeRef<'de>: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
     fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
