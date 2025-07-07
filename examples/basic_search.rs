@@ -51,7 +51,7 @@ fn main() -> tantivy::Result<()> {
 
     // Our second field is body.
     // We want full-text search for it, but we do not
-    // need to be able to be able to retrieve it
+    // need to be able to retrieve it
     // for our application.
     //
     // We can make our index lighter by omitting the `STORED` flag.
