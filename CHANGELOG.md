@@ -6,15 +6,8 @@ Tantivy 0.25
 - make zstd optional in sstable [#2633](https://github.com/quickwit-oss/tantivy/pull/2633)(@Parth)
 
 ## Features/Improvements
-- docs: fix a typo in basic example [#2668](https://github.com/quickwit-oss/tantivy/pull/2668)(@DaleSeo)
-- chore: Update ParadeDB logo [#2669](https://github.com/quickwit-oss/tantivy/pull/2669)(@philippemnoel)
-- clippy [#2661](https://github.com/quickwit-oss/tantivy/pull/2661)(@PSeitz)
 - add docs/example and Vec<u32> values to sstable [#2660](https://github.com/quickwit-oss/tantivy/pull/2660)(@PSeitz)
-- fix import in test [#2657](https://github.com/quickwit-oss/tantivy/pull/2657)(@PSeitz-dd)
-- update CHANGELOG [#2621](https://github.com/quickwit-oss/tantivy/pull/2621)(@PSeitz)
 - Add string fast field support to `TopDocs`. [#2642](https://github.com/quickwit-oss/tantivy/pull/2642)(@stuhood)
-- Fix a typo for the comments of search_with_executor() [#2653](https://github.com/quickwit-oss/tantivy/pull/2653)(@xingtanzjr)
-- release tantivy: bump versions [#2625](https://github.com/quickwit-oss/tantivy/pull/2625)(@PSeitz)
 - update edition to 2024 [#2620](https://github.com/quickwit-oss/tantivy/pull/2620)(@PSeitz)
 
 Tantivy 0.24
