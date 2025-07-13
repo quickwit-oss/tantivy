@@ -195,8 +195,22 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use ordered_float::OrderedFloat;
+
     use super::{TopCollector, TopSegmentCollector};
     use crate::DocAddress;
+
+    /// Individual segments are not sorted, and we convert their results to a set to emphasize that.
+    fn segment_results_set(
+        results: Vec<(f32, DocAddress)>,
+    ) -> HashSet<(OrderedFloat<f32>, DocAddress)> {
+        results
+            .into_iter()
+            .map(|(score, doc)| (OrderedFloat(score), doc))
+            .collect()
+    }
 
     #[test]
     fn test_top_collector_not_at_capacity() {
@@ -205,13 +219,12 @@ mod tests {
         top_collector.collect(3, 0.2);
         top_collector.collect(5, 0.3);
         assert_eq!(
-            top_collector.harvest(),
-            // Note: Individual segments are not sorted.
-            vec![
-                (0.8, DocAddress::new(0, 1)),
+            segment_results_set(top_collector.harvest()),
+            segment_results_set(vec![
                 (0.2, DocAddress::new(0, 3)),
                 (0.3, DocAddress::new(0, 5)),
-            ]
+                (0.8, DocAddress::new(0, 1)),
+            ]),
         );
     }
 
@@ -224,14 +237,13 @@ mod tests {
         top_collector.collect(7, 0.9);
         top_collector.collect(9, -0.2);
         assert_eq!(
-            top_collector.harvest(),
-            // Note: Individual segments are not sorted.
-            vec![
-                (0.8, DocAddress::new(0, 1)),
+            segment_results_set(top_collector.harvest()),
+            segment_results_set(vec![
                 (0.2, DocAddress::new(0, 3)),
                 (0.3, DocAddress::new(0, 5)),
+                (0.8, DocAddress::new(0, 1)),
                 (0.9, DocAddress::new(0, 7)),
-            ]
+            ]),
         );
     }
 
