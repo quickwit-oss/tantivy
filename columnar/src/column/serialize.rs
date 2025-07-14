@@ -120,8 +120,7 @@ pub fn open_column_bytes(
     );
     let (dictionary_bytes, column_bytes) = body.split(dictionary_len as usize);
 
-    let dictionary_bytes = dictionary_bytes.read_bytes()?;
-    let dictionary = Arc::new(Dictionary::from_bytes(dictionary_bytes)?);
+    let dictionary = Arc::new(Dictionary::open(dictionary_bytes)?);
     let term_ord_column = crate::column::open_column_u64::<u64>(column_bytes, format_version)?;
     Ok(BytesColumn {
         dictionary,
