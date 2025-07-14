@@ -307,7 +307,7 @@ mod tests {
         dict_builder.insert(b"abandon", &3)?;
         let buffer = dict_builder.finish()?;
         let owned_bytes = OwnedBytes::new(buffer);
-        Dictionary::from_bytes(owned_bytes)
+        Dictionary::from_bytes_for_tests(owned_bytes)
     }
 
     #[test]
