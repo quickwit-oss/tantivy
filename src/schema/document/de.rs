@@ -61,8 +61,7 @@ impl From<io::Error> for DeserializeError {
 
 /// A convenience trait for deserializing a struct that does not contain borrowed values.
 ///
-/// If your type contains references such as `&str` or `&[u8]` you should use `DocumentDeserialize`
-/// instead.
+/// If your type contains references such as `&str` or `&[u8]` use `DocumentDeserializeRef` instead.
 pub trait DocumentDeserialize: Sized {
     /// Attempts to deserialize Self from a given document deserializer.
     fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>

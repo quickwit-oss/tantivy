@@ -14,10 +14,10 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use super::facet::Facet;
-use super::{DocumentDeserializeRef, ReferenceValueLeaf};
+use super::ReferenceValueLeaf;
 use crate::schema::document::{
-    ArrayAccess, DeserializeError, Document, DocumentDeserializer, ObjectAccess, RefValue,
-    ReferenceValue, Value,
+    ArrayAccess, DeserializeError, Document, DocumentDeserialize, DocumentDeserializer,
+    ObjectAccess, RefValue, ReferenceValue, Value,
 };
 use crate::schema::Field;
 use crate::tokenizer::PreTokenizedString;
@@ -271,16 +271,9 @@ impl Document for BTreeMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl<'de, T> DocumentDeserializeRef<'de> for BTreeMap<Field, T>
-where
-    T: TryFrom<RefValue<'de>>,
-    T::Error: Into<DeserializeError>,
-{
-    fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
-    where
-        D: DocumentDeserializer<'de>,
-        'borrow: 'de,
-    {
+impl DocumentDeserialize for BTreeMap<Field, crate::schema::OwnedValue> {
+    fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
+    where D: DocumentDeserializer<'de> {
         deserializer.iter().collect::<Result<_, _>>()
     }
 }
@@ -298,16 +291,9 @@ impl Document for HashMap<Field, crate::schema::OwnedValue> {
         FieldCopyingIterator(self.iter())
     }
 }
-impl<'de, T> DocumentDeserializeRef<'de> for HashMap<Field, T>
-where
-    T: TryFrom<RefValue<'de>>,
-    T::Error: Into<DeserializeError>,
-{
-    fn deserialize<'borrow, D>(deserializer: &'borrow D) -> Result<Self, DeserializeError>
-    where
-        D: DocumentDeserializer<'de>,
-        'borrow: 'de,
-    {
+impl DocumentDeserialize for HashMap<Field, crate::schema::OwnedValue> {
+    fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
+    where D: DocumentDeserializer<'de> {
         deserializer.iter().try_fold(
             HashMap::with_capacity(deserializer.size_hint()),
             |mut acc, r| {

@@ -80,6 +80,7 @@
 //! }
 //!
 //! /// Our custom iterator just helps us to avoid some messy generics.
+//! #[allow(dead_code)]
 //! pub struct MyCustomIter<'a>(btree_map::Iter<'a, Field, serde_json::Value>);
 //! impl<'a> Iterator for MyCustomIter<'a> {
 //!     // Here we can see our field-value pairs being produced by the iterator.
