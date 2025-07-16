@@ -72,9 +72,15 @@ impl SSTableIndex {
     }
 
     /// Get the [`BlockAddr`] of the block containing the `ord`-th term.
-    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> BlockAddr {
+    pub(crate) fn get_block_with_ord(&self, ord: TermOrdinal) -> (BlockAddr, u64) {
         // locate_with_ord always returns an index within range
-        self.get_block(self.locate_with_ord(ord)).unwrap()
+        let block_pos = self.locate_with_ord(ord);
+        (
+            self.get_block(block_pos).unwrap(),
+            self.get_block(block_pos + 1)
+                .map(|b| b.first_ordinal)
+                .unwrap_or(u64::MAX),
+        )
     }
 
     pub(crate) fn get_block_for_automaton<'a>(
