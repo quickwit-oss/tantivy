@@ -786,7 +786,7 @@ impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNCompu
     }
 }
 
-impl<Score, D, const R: bool> TopNComputer<Score, D, R>
+impl<Score, D, const REVERSE_ORDER: bool> TopNComputer<Score, D, REVERSE_ORDER>
 where
     Score: PartialOrd + Clone,
     D: Ord,
@@ -807,7 +807,10 @@ where
     #[inline]
     pub fn push(&mut self, feature: Score, doc: D) {
         if let Some(last_median) = self.threshold.clone() {
-            if feature < last_median {
+            if !REVERSE_ORDER && feature > last_median {
+                return;
+            }
+            if REVERSE_ORDER && feature < last_median {
                 return;
             }
         }
@@ -842,7 +845,7 @@ where
     }
 
     /// Returns the top n elements in sorted order.
-    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
+    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, D, REVERSE_ORDER>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -853,7 +856,7 @@ where
     /// Returns the top n elements in stored order.
     /// Useful if you do not need the elements in sorted order,
     /// for example when merging the results of multiple segments.
-    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
+    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, D, REVERSE_ORDER>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -863,9 +866,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::{TopDocs, TopNComputer};
     use crate::collector::top_collector::ComparableDoc;
-    use crate::collector::Collector;
+    use crate::collector::{Collector, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;
@@ -957,6 +962,44 @@ mod tests {
                 computer.push(1u32, 1u32);
             }
             let _vals = computer.into_sorted_vec();
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_topn_computer_asc_prop(
+          limit in 0..10_usize,
+          docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
+        ) {
+            let mut computer: TopNComputer<_, _, false> = TopNComputer::new(limit);
+            for (feature, doc) in &docs {
+                computer.push(*feature, *doc);
+            }
+            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc }).collect::<Vec<_>>();
+            comparable_docs.sort();
+            comparable_docs.truncate(limit);
+            prop_assert_eq!(
+                computer.into_sorted_vec(),
+                comparable_docs,
+            );
+        }
+
+        #[test]
+        fn test_topn_computer_desc_prop(
+          limit in 0..10_usize,
+          docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
+        ) {
+            let mut computer: TopNComputer<_, _, true> = TopNComputer::new(limit);
+            for (feature, doc) in &docs {
+                computer.push(*feature, *doc);
+            }
+            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc }).collect::<Vec<_>>();
+            comparable_docs.sort();
+            comparable_docs.truncate(limit);
+            prop_assert_eq!(
+                computer.into_sorted_vec(),
+                comparable_docs,
+            );
         }
     }
 
@@ -1372,5 +1415,30 @@ mod tests {
             ]
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_topn_computer_asc() {
+        let mut computer: TopNComputer<u32, u32, false> = TopNComputer::new(2);
+
+        computer.push(1u32, 1u32);
+        computer.push(2u32, 2u32);
+        computer.push(3u32, 3u32);
+        computer.push(2u32, 4u32);
+        computer.push(4u32, 5u32);
+        computer.push(1u32, 6u32);
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    feature: 1u32,
+                    doc: 1u32,
+                },
+                ComparableDoc {
+                    feature: 1u32,
+                    doc: 6u32,
+                }
+            ]
+        );
     }
 }
