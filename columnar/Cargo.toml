@@ -12,10 +12,10 @@ categories = ["database-implementations", "data-structures", "compression"]
 itertools = "0.14.0"
 fastdivide = "0.4.0"
 
-stacker = { version= "0.5", path = "../stacker", package="tantivy-stacker"}
-sstable = { version= "0.5", path = "../sstable", package = "tantivy-sstable" }
-common = { version= "0.9", path = "../common", package = "tantivy-common" }
-tantivy-bitpacker = { version= "0.8", path = "../bitpacker/" }
+stacker = { version = "0.5", path = "../stacker", package = "tantivy-stacker" }
+sstable = { version = "0.5", path = "../sstable", package = "tantivy-sstable" }
+common = { version = "0.9", path = "../common", package = "tantivy-common" }
+tantivy-bitpacker = { version = "0.8", path = "../bitpacker/" }
 serde = "1.0.152"
 downcast-rs = "2.0.1"
 
