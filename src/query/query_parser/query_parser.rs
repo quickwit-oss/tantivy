@@ -2,12 +2,14 @@ use std::net::{AddrParseError, IpAddr};
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::{FromStr, ParseBoolError};
+use std::sync::Arc;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use itertools::Itertools;
 use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 use rustc_hash::FxHashMap;
+use tantivy_fst::Regex;
 
 use super::logical_ast::*;
 use crate::index::Index;
@@ -15,7 +17,7 @@ use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
-    PhraseQuery, Query, TermQuery, TermSetQuery,
+    PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -860,6 +862,43 @@ impl QueryParser {
                     "Range query need to target a specific field.".to_string(),
                 )],
             ),
+            UserInputLeaf::Regex { field, pattern } => {
+                let full_path = try_tuple!(field.ok_or_else(|| {
+                    QueryParserError::UnsupportedQuery(
+                        "Regex query need to target a specific field.".to_string(),
+                    )
+                }));
+                let (field, json_path) = try_tuple!(self
+                    .split_full_path(&full_path)
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
+                if !json_path.is_empty() {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Regex query does not support json paths.".to_string(),
+                        )],
+                    );
+                }
+                if !matches!(
+                    self.schema.get_field_entry(field).field_type(),
+                    FieldType::Str(_)
+                ) {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Regex query only supported on text fields".to_string(),
+                        )],
+                    );
+                }
+                let pattern = try_tuple!(Regex::new(&pattern).map_err(|e| {
+                    QueryParserError::UnsupportedQuery(format!("Invalid regex: {e}"))
+                }));
+                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Regex {
+                    pattern: Arc::new(pattern),
+                    field,
+                }));
+                (Some(logical_ast), Vec::new())
+            }
         }
     }
 }
@@ -902,6 +941,9 @@ fn convert_literal_to_query(
         LogicalLiteral::Range { lower, upper } => Box::new(RangeQuery::new(lower, upper)),
         LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
+        LogicalLiteral::Regex { pattern, field } => {
+            Box::new(RegexQuery::from_regex(pattern, field))
+        }
     }
 }
 
@@ -1983,5 +2025,36 @@ mod test {
             query_parser.parse_query("abc"),
             Err(QueryParserError::ExpectedInt(_))
         );
+    }
+
+    #[test]
+    pub fn test_regex() {
+        let expected_regex = tantivy_fst::Regex::new(r".*b").unwrap();
+        test_parse_query_to_logical_ast_helper(
+            "title:/.*b/",
+            format!("Regex(Field(0), {:#?})", expected_regex).as_str(),
+            false,
+        );
+
+        let err = parse_query_to_logical_ast("float:/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query only supported on text fields"
+        );
+
+        let err = parse_query_to_logical_ast("/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query need to target a specific field."
+        );
+
+        let err = parse_query_to_logical_ast("title.subpath:/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query does not support json paths."
+        );
+
+        let err = parse_query_to_logical_ast("title:/[A-Z*b/", false).unwrap_err();
+        assert_eq!(err.to_string(), "Unsupported query: Invalid regex: regex parse error:\n    [A-Z*b\n    ^\nerror: unclosed character class");
     }
 }

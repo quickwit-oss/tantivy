@@ -367,7 +367,10 @@ fn literal(inp: &str) -> IResult<&str, UserInputAst> {
     // something (a field name) got parsed before
     alt((
         map(
-            tuple((opt(field_name), alt((range, set, exists, term_or_phrase)))),
+            tuple((
+                opt(field_name),
+                alt((range, set, exists, regex, term_or_phrase)),
+            )),
             |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
         ),
         term_group,
@@ -388,6 +391,10 @@ fn literal_no_group_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>>
                     (
                         value((), peek(one_of("{[><"))),
                         map(range_infallible, |(range, errs)| (Some(range), errs)),
+                    ),
+                    (
+                        value((), peek(one_of("/"))),
+                        map(regex_infallible, |(regex, errs)| (Some(regex), errs)),
                     ),
                 ),
                 delimited_infallible(space0_infallible, term_or_phrase_infallible, nothing),
@@ -686,6 +693,61 @@ fn set_infallible(mut inp: &str) -> JResult<&str, UserInputLeaf> {
             elements.push(term);
         }
         inp = rest;
+    }
+}
+
+fn regex(inp: &str) -> IResult<&str, UserInputLeaf> {
+    map(
+        terminated(
+            delimited(
+                char('/'),
+                many1(alt((preceded(char('\\'), char('/')), none_of("/")))),
+                char('/'),
+            ),
+            peek(alt((multispace1, eof))),
+        ),
+        |elements| UserInputLeaf::Regex {
+            field: None,
+            pattern: elements.into_iter().collect::<String>(),
+        },
+    )(inp)
+}
+
+fn regex_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
+    match terminated_infallible(
+        delimited_infallible(
+            opt_i_err(char('/'), "missing delimiter /"),
+            opt_i(many1(alt((preceded(char('\\'), char('/')), none_of("/"))))),
+            opt_i_err(char('/'), "missing delimiter /"),
+        ),
+        opt_i_err(
+            peek(alt((multispace1, eof))),
+            "expected whitespace or end of input",
+        ),
+    )(inp)
+    {
+        Ok((rest, (elements_part, errors))) => {
+            let pattern = match elements_part {
+                Some(elements_part) => elements_part.into_iter().collect(),
+                None => String::new(),
+            };
+            let res = UserInputLeaf::Regex {
+                field: None,
+                pattern,
+            };
+            Ok((rest, (res, errors)))
+        }
+        Err(e) => {
+            let errs = vec![LenientErrorInternal {
+                pos: inp.len(),
+                message: e.to_string(),
+            }];
+            let res = UserInputLeaf::Regex {
+                field: None,
+                pattern: String::new(),
+            };
+            Ok((inp, (res, errs)))
+        }
     }
 }
 
@@ -1688,5 +1750,62 @@ mod test {
     #[test]
     fn test_invalid_field() {
         test_is_parse_err(r#"!bc:def"#, "!bc:def");
+    }
+
+    #[test]
+    fn test_regex_parser() {
+        let r = parse_to_ast(r#"a:/joh?n(ath[oa]n)/"#);
+        assert!(r.is_ok(), "Failed to parse custom query: {r:?}");
+        let (_, input) = r.unwrap();
+        match input {
+            UserInputAst::Leaf(leaf) => match leaf.as_ref() {
+                UserInputLeaf::Regex { field, pattern } => {
+                    assert_eq!(field, &Some("a".to_string()));
+                    assert_eq!(pattern, "joh?n(ath[oa]n)");
+                }
+                _ => panic!("Expected a regex leaf, got {leaf:?}"),
+            },
+            _ => panic!("Expected a leaf"),
+        }
+        let r = parse_to_ast(r#"a:/\\/cgi-bin\\/luci.*/"#);
+        assert!(r.is_ok(), "Failed to parse custom query: {r:?}");
+        let (_, input) = r.unwrap();
+        match input {
+            UserInputAst::Leaf(leaf) => match leaf.as_ref() {
+                UserInputLeaf::Regex { field, pattern } => {
+                    assert_eq!(field, &Some("a".to_string()));
+                    assert_eq!(pattern, "\\/cgi-bin\\/luci.*");
+                }
+                _ => panic!("Expected a regex leaf, got {leaf:?}"),
+            },
+            _ => panic!("Expected a leaf"),
+        }
+    }
+
+    #[test]
+    fn test_regex_parser_lenient() {
+        let literal = |query| literal_infallible(query).unwrap().1;
+
+        let (res, errs) = literal(r#"a:/joh?n(ath[oa]n)/"#);
+        let expected = UserInputLeaf::Regex {
+            field: Some("a".to_string()),
+            pattern: "joh?n(ath[oa]n)".to_string(),
+        }
+        .into();
+        assert_eq!(res.unwrap(), expected);
+        assert!(errs.is_empty(), "Expected no errors, got: {errs:?}");
+
+        let (res, errs) = literal("title:/joh?n(ath[oa]n)");
+        let expected = UserInputLeaf::Regex {
+            field: Some("title".to_string()),
+            pattern: "joh?n(ath[oa]n)".to_string(),
+        }
+        .into();
+        assert_eq!(res.unwrap(), expected);
+        assert_eq!(errs.len(), 1, "Expected 1 error, got: {errs:?}");
+        assert_eq!(
+            errs[0].message, "missing delimiter /",
+            "Unexpected error message"
+        );
     }
 }
