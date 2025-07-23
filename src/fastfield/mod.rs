@@ -395,7 +395,7 @@ mod tests {
             .unwrap()
             .first_or_default_col(0);
         for a in 0..n {
-            assert_eq!(col.get_val(a as u32), permutation[a]);
+            assert_eq!(col.get_val(a as u32), permutation[a], "for doc {a}");
         }
     }
 
