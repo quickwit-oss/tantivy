@@ -69,6 +69,12 @@ pub struct BitUnpacker {
     mask: u64,
 }
 
+pub type BlockNumber = usize;
+
+// 16k
+const BLOCK_SIZE_MIN_POW: u8 = 14;
+const BLOCK_SIZE_MIN: usize = 2 << BLOCK_SIZE_MIN_POW;
+
 impl BitUnpacker {
     /// Creates a bit unpacker, that assumes the same bitwidth for all values.
     ///
@@ -82,6 +88,7 @@ impl BitUnpacker {
         } else {
             (1u64 << num_bits) - 1u64
         };
+
         BitUnpacker {
             num_bits: u32::from(num_bits),
             mask,
@@ -92,10 +99,63 @@ impl BitUnpacker {
         self.num_bits as u8
     }
 
+    /// Calculates a block number for the given `idx`.
+    #[inline]
+    pub fn block_num(&self, idx: u32) -> BlockNumber {
+        // Find the address in bits of the index.
+        let addr_in_bits = (idx * self.num_bits) as usize;
+
+        // Then round down to the nearest byte.
+        let addr_in_bytes = addr_in_bits >> 3;
+
+        // And compute the containing BlockNumber.
+        addr_in_bytes >> (BLOCK_SIZE_MIN_POW + 1)
+    }
+
+    /// Given a block number and dataset length, calculates a data Range for the block.
+    pub fn block(&self, block: BlockNumber, data_len: usize) -> Range<usize> {
+        let block_addr = block << (BLOCK_SIZE_MIN_POW + 1);
+        // We extend the end of the block by a constant factor, so that it overlaps the next
+        // block. That ensures that we never need to read on a block boundary.
+        block_addr..(std::cmp::min(block_addr + BLOCK_SIZE_MIN + 8, data_len))
+    }
+
+    /// Calculates the number of blocks for the given data_len.
+    ///
+    /// Usually only called at startup to pre-allocate structures.
+    pub fn block_count(&self, data_len: usize) -> usize {
+        let block_count = data_len / (BLOCK_SIZE_MIN as usize);
+        if data_len % (BLOCK_SIZE_MIN as usize) == 0 {
+            block_count
+        } else {
+            block_count + 1
+        }
+    }
+
+    /// Returns a range within the data which covers the given id_range.
+    ///
+    /// NOTE: This method is used for batch reads which bypass blocks to avoid dealing with block
+    /// boundaries.
+    #[inline]
+    pub fn block_oblivious_range(&self, id_range: Range<u32>, data_len: usize) -> Range<usize> {
+        let start_in_bits = id_range.start * self.num_bits;
+        let start = (start_in_bits >> 3) as usize;
+        let end_in_bits = id_range.end * self.num_bits;
+        let end = (end_in_bits >> 3) as usize;
+        // TODO: We fetch more than we need and then truncate.
+        start..(std::cmp::min(end + 8, data_len))
+    }
+
     #[inline]
     pub fn get(&self, idx: u32, data: &[u8]) -> u64 {
+        self.get_from_subset(idx, 0, data)
+    }
+
+    /// Get the value at the given idx, which must exist within the given subset of the data.
+    #[inline]
+    pub fn get_from_subset(&self, idx: u32, data_offset: usize, data: &[u8]) -> u64 {
         let addr_in_bits = idx * self.num_bits;
-        let addr = (addr_in_bits >> 3) as usize;
+        let addr = (addr_in_bits >> 3) as usize - data_offset;
         if addr + 8 > data.len() {
             if self.num_bits == 0 {
                 return 0;
@@ -129,7 +189,7 @@ impl BitUnpacker {
     // #Panics
     //
     // This methods panics if `num_bits` is > 32.
-    fn get_batch_u32s(&self, start_idx: u32, data: &[u8], output: &mut [u32]) {
+    fn get_batch_u32s(&self, start_idx: u32, data_offset: usize, data: &[u8], output: &mut [u32]) {
         assert!(
             self.bit_width() <= 32,
             "Bitwidth must be <= 32 to use this method."
@@ -140,14 +200,14 @@ impl BitUnpacker {
         let end_bit_read = end_idx * self.num_bits;
         let end_byte_read = (end_bit_read + 7) / 8;
         assert!(
-            end_byte_read as usize <= data.len(),
+            end_byte_read as usize <= data_offset + data.len(),
             "Requested index is out of bounds."
         );
 
         // Simple slow implementation of get_batch_u32s, to deal with our ramps.
         let get_batch_ramp = |start_idx: u32, output: &mut [u32]| {
             for (out, idx) in output.iter_mut().zip(start_idx..) {
-                *out = self.get(idx, data) as u32;
+                *out = self.get_from_subset(idx, data_offset, data) as u32;
             }
         };
 
@@ -177,7 +237,7 @@ impl BitUnpacker {
         get_batch_ramp(start_idx, &mut output[..entrance_ramp_len as usize]);
 
         // Highway
-        let mut offset = (highway_start * self.num_bits) as usize / 8;
+        let mut offset = ((highway_start * self.num_bits) as usize / 8) - data_offset;
         let mut output_cursor = (highway_start - start_idx) as usize;
         for _ in 0..num_blocks {
             offset += BitPacker1x.decompress(
@@ -200,15 +260,26 @@ impl BitUnpacker {
         data: &[u8],
         positions: &mut Vec<u32>,
     ) {
+        self.get_ids_for_value_range_from_subset(range, id_range, 0, data, positions)
+    }
+
+    pub fn get_ids_for_value_range_from_subset(
+        &self,
+        range: RangeInclusive<u64>,
+        id_range: Range<u32>,
+        data_offset: usize,
+        data: &[u8],
+        positions: &mut Vec<u32>,
+    ) {
         if self.bit_width() > 32 {
-            self.get_ids_for_value_range_slow(range, id_range, data, positions)
+            self.get_ids_for_value_range_slow(range, id_range, data_offset, data, positions)
         } else {
             if *range.start() > u32::MAX as u64 {
                 positions.clear();
                 return;
             }
             let range_u32 = (*range.start() as u32)..=(*range.end()).min(u32::MAX as u64) as u32;
-            self.get_ids_for_value_range_fast(range_u32, id_range, data, positions)
+            self.get_ids_for_value_range_fast(range_u32, id_range, data_offset, data, positions)
         }
     }
 
@@ -216,6 +287,7 @@ impl BitUnpacker {
         &self,
         range: RangeInclusive<u64>,
         id_range: Range<u32>,
+        data_offset: usize,
         data: &[u8],
         positions: &mut Vec<u32>,
     ) {
@@ -223,7 +295,7 @@ impl BitUnpacker {
         for i in id_range {
             // If we cared we could make this branchless, but the slow implementation should rarely
             // kick in.
-            let val = self.get(i, data);
+            let val = self.get_from_subset(i, data_offset, data);
             if range.contains(&val) {
                 positions.push(i);
             }
@@ -234,11 +306,12 @@ impl BitUnpacker {
         &self,
         value_range: RangeInclusive<u32>,
         id_range: Range<u32>,
+        data_offset: usize,
         data: &[u8],
         positions: &mut Vec<u32>,
     ) {
         positions.resize(id_range.len(), 0u32);
-        self.get_batch_u32s(id_range.start, data, positions);
+        self.get_batch_u32s(id_range.start, data_offset, data, positions);
         crate::filter_vec::filter_vec_in_place(value_range, id_range.start, positions)
     }
 }
@@ -329,14 +402,14 @@ mod test {
     fn test_get_batch_panics_over_32_bits() {
         let bitunpacker = BitUnpacker::new(33);
         let mut output: [u32; 1] = [0u32];
-        bitunpacker.get_batch_u32s(0, &[0, 0, 0, 0, 0, 0, 0, 0], &mut output[..]);
+        bitunpacker.get_batch_u32s(0, 0, &[0, 0, 0, 0, 0, 0, 0, 0], &mut output[..]);
     }
 
     #[test]
     fn test_get_batch_limit() {
         let bitunpacker = BitUnpacker::new(1);
         let mut output: [u32; 3] = [0u32, 0u32, 0u32];
-        bitunpacker.get_batch_u32s(8 * 4 - 3, &[0u8, 0u8, 0u8, 0u8], &mut output[..]);
+        bitunpacker.get_batch_u32s(8 * 4 - 3, 0, &[0u8, 0u8, 0u8, 0u8], &mut output[..]);
     }
 
     #[test]
@@ -345,7 +418,7 @@ mod test {
         let bitunpacker = BitUnpacker::new(1);
         let mut output: [u32; 3] = [0u32, 0u32, 0u32];
         // We are missing exactly one bit.
-        bitunpacker.get_batch_u32s(8 * 4 - 2, &[0u8, 0u8, 0u8, 0u8], &mut output[..]);
+        bitunpacker.get_batch_u32s(8 * 4 - 2, 0, &[0u8, 0u8, 0u8, 0u8], &mut output[..]);
     }
 
     proptest::proptest! {
@@ -368,7 +441,7 @@ mod test {
             for len in [0, 1, 2, 32, 33, 34, 64] {
                 for start_idx in 0u32..32u32 {
                     output.resize(len, 0);
-                    bitunpacker.get_batch_u32s(start_idx, &buffer, &mut output);
+                    bitunpacker.get_batch_u32s(start_idx, 0, &buffer, &mut output);
                     for (i, output_byte) in output.iter().enumerate() {
                         let expected = (start_idx + i as u32) & mask;
                         assert_eq!(*output_byte, expected);

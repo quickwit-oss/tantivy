@@ -1,9 +1,10 @@
 use std::io::{self, Write};
 use std::num::NonZeroU64;
 use std::ops::{Range, RangeInclusive};
+use std::sync::{Arc, OnceLock};
 
 use common::file_slice::FileSlice;
-use common::{BinarySerializable, OwnedBytes};
+use common::{BinarySerializable, HasLen, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
 
@@ -14,9 +15,40 @@ use crate::{ColumnValues, RowId};
 /// fast field is required.
 #[derive(Clone)]
 pub struct BitpackedReader {
-    data: OwnedBytes,
+    data: FileSlice,
     bit_unpacker: BitUnpacker,
     stats: ColumnStats,
+    blocks: Arc<[OnceLock<Block>]>,
+}
+
+impl BitpackedReader {
+    #[inline(always)]
+    fn unpack_val(&self, doc: u32) -> u64 {
+        let block_num = self.bit_unpacker.block_num(doc);
+
+        if block_num == 0 && self.blocks.len() == 0 {
+            return 0;
+        }
+
+        let block = self.blocks[block_num].get_or_init(|| {
+            let block_range = self.bit_unpacker.block(block_num, self.data.len());
+            let offset = block_range.start;
+            let data = self
+                .data
+                .slice(block_range)
+                .read_bytes()
+                .expect("Failed to read column values.");
+            Block { offset, data }
+        });
+
+        self.bit_unpacker
+            .get_from_subset(doc, block.offset, &block.data)
+    }
+}
+
+struct Block {
+    offset: usize,
+    data: OwnedBytes,
 }
 
 #[inline(always)]
@@ -62,8 +94,9 @@ fn transform_range_before_linear_transformation(
 impl ColumnValues for BitpackedReader {
     #[inline(always)]
     fn get_val(&self, doc: u32) -> u64 {
-        self.stats.min_value + self.stats.gcd.get() * self.bit_unpacker.get(doc, &self.data)
+        self.stats.min_value + self.stats.gcd.get() * self.unpack_val(doc)
     }
+
     #[inline]
     fn min_value(&self) -> u64 {
         self.stats.min_value
@@ -89,10 +122,23 @@ impl ColumnValues for BitpackedReader {
             positions.clear();
             return;
         };
-        self.bit_unpacker.get_ids_for_value_range(
+        // TODO: This does not use the `self.blocks` cache, because callers are usually already
+        // doing sequential, and fairly dense reads. Fix it to iterate over blocks if that
+        // assumption turns out to be incorrect!
+        let data_range = self
+            .bit_unpacker
+            .block_oblivious_range(doc_id_range.clone(), self.data.len());
+        let data_offset = data_range.start;
+        let data_subset = self
+            .data
+            .slice(data_range)
+            .read_bytes()
+            .expect("Failed to read column values.");
+        self.bit_unpacker.get_ids_for_value_range_from_subset(
             transformed_range,
             doc_id_range,
-            &self.data,
+            data_offset,
+            &data_subset,
             positions,
         );
     }
@@ -139,14 +185,19 @@ impl ColumnCodec for BitpackedCodec {
 
     /// Opens a fast field given a file.
     fn load(file_slice: FileSlice) -> io::Result<Self::ColumnValues> {
-        let mut data = file_slice.read_bytes()?;
-        let stats = ColumnStats::deserialize(&mut data)?;
+        let (stats, data) = ColumnStats::deserialize_from_tail(file_slice)?;
+
         let num_bits = num_bits(&stats);
         let bit_unpacker = BitUnpacker::new(num_bits);
+        let block_count = bit_unpacker.block_count(data.len());
         Ok(BitpackedReader {
             data,
             bit_unpacker,
             stats,
+            blocks: (0..block_count)
+                .into_iter()
+                .map(|_| OnceLock::new())
+                .collect(),
         })
     }
 }
