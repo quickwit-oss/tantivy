@@ -2,7 +2,8 @@ use std::io;
 use std::io::Write;
 use std::num::NonZeroU64;
 
-use common::{BinarySerializable, VInt};
+use common::file_slice::FileSlice;
+use common::{BinarySerializable, HasLen, VInt};
 
 use crate::RowId;
 
@@ -28,9 +29,21 @@ impl ColumnStats {
 }
 
 impl ColumnStats {
+    /// Deserialize from the tail of the given FileSlice, and return the stats and remaining prefix
+    /// FileSlice.
+    pub fn deserialize_from_tail(file_slice: FileSlice) -> io::Result<(Self, FileSlice)> {
+        // [`deserialize_with_size`] deserializes 4 variable-width encoded u64s, which
+        // could end up being, in the worst case, 9 bytes each. this is where the 36 comes from
+        let (stats, _) = file_slice.clone().split(36.min(file_slice.len())); // hope that's enough bytes
+        let mut stats = stats.read_bytes()?;
+        let (stats, stats_nbytes) = ColumnStats::deserialize_with_size(&mut stats)?;
+        let (_, remainder) = file_slice.split(stats_nbytes);
+        Ok((stats, remainder))
+    }
+
     /// Same as [`BinarySeerializable::deserialize`] but also returns the number of bytes
     /// consumed from the reader `R`
-    pub fn deserialize_with_size<R: io::Read>(reader: &mut R) -> io::Result<(Self, usize)> {
+    fn deserialize_with_size<R: io::Read>(reader: &mut R) -> io::Result<(Self, usize)> {
         let mut nbytes = 0;
 
         let (min_value, len) = VInt::deserialize_with_size(reader)?;
