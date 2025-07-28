@@ -165,7 +165,7 @@ mod macros;
 mod future_result;
 
 // Re-exports
-pub use common::DateTime;
+pub use common::{DateTime, ByteCount};
 pub use {columnar, query_grammar, time};
 
 pub use crate::error::TantivyError;

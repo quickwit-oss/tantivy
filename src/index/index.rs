@@ -216,7 +216,7 @@ impl IndexBuilder {
 
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
-        let dir = dir.into();
+        let dir: Box<dyn Directory> = dir.into();
         if !Index::exists(&*dir)? {
             return self.create(dir);
         }
@@ -494,7 +494,7 @@ impl Index {
             .into_iter()
             .map(|segment| SegmentReader::open(&segment)?.fields_metadata())
             .collect::<Result<_, _>>()?;
-        Ok(merge_field_meta_data(fields_metadata, &self.schema()))
+        Ok(merge_field_meta_data(fields_metadata))
     }
 
     /// Creates a new segment_meta (Advanced user only).
