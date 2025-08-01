@@ -9,7 +9,7 @@ use crate::ByteCount;
 pub struct TinySet(u64);
 
 impl fmt::Debug for TinySet {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.into_iter().collect::<Vec<u32>>().fmt(f)
     }
 }
@@ -182,6 +182,7 @@ pub struct BitSet {
     max_value: u32,
 }
 
+#[inline(always)]
 fn num_buckets(max_val: u32) -> u32 {
     (max_val + 63u32) / 64u32
 }
