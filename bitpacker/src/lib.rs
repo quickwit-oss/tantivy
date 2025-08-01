@@ -1,3 +1,5 @@
+// #[allow(clippy::manual_div_ceil)]
+
 mod bitpacker;
 mod blocked_bitpacker;
 mod filter_vec;

@@ -1,3 +1,5 @@
+#![allow(clippy::manual_div_ceil)]
+
 mod column_type;
 mod format_version;
 mod merge;

@@ -394,7 +394,7 @@ impl SSTableIndexBuilder {
 
 fn fst_error_to_io_error(error: tantivy_fst::Error) -> io::Error {
     match error {
-        tantivy_fst::Error::Fst(fst_error) => io::Error::new(io::ErrorKind::Other, fst_error),
+        tantivy_fst::Error::Fst(fst_error) => io::Error::other(fst_error),
         tantivy_fst::Error::Io(ioerror) => ioerror,
     }
 }

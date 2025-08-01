@@ -305,15 +305,14 @@ fn term_group_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     let (inp, (field_name, _, _, _)) =
         tuple((field_name, multispace0, char('('), multispace0))(inp).expect("precondition failed");
 
-    let res = delimited_infallible(
+    delimited_infallible(
         nothing,
         map(ast_infallible, |(mut ast, errors)| {
             ast.set_default_field(field_name.to_string());
             (ast, errors)
         }),
         opt_i_err(char(')'), "expected ')'"),
-    )(inp);
-    res
+    )(inp)
 }
 
 fn exists(inp: &str) -> IResult<&str, UserInputLeaf> {

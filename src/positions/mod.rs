@@ -40,9 +40,6 @@ const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 
 #[cfg(test)]
 pub(crate) mod tests {
-
-    use std::iter;
-
     use proptest::prelude::*;
     use proptest::sample::select;
 

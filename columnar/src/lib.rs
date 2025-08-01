@@ -17,7 +17,7 @@
 //!       column.
 //!     - [column_values]: Stores the values of a column in a dense format.
 
-#![cfg_attr(all(feature = "unstable", test), feature(test))]
+// #![cfg_attr(all(feature = "unstable", test), feature(test))]
 
 #[cfg(test)]
 #[macro_use]
