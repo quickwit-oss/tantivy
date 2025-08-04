@@ -1693,4 +1693,15 @@ mod test {
     fn test_invalid_field() {
         test_is_parse_err(r#"!bc:def"#, "!bc:def");
     }
+
+    #[test]
+    fn test_space_before_value() {
+        test_parse_query_to_ast_helper("field : a", r#""field":a"#);
+        test_parse_query_to_ast_helper("field:    a", r#""field":a"#);
+        test_parse_query_to_ast_helper("field         :a", r#""field":a"#);
+        test_parse_query_to_ast_helper(
+            "field : 'happy tax payer' AND other_field  : 1",
+            r#"(+"field":'happy tax payer' +"other_field":1)"#,
+        );
+    }
 }
