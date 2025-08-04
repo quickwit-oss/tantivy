@@ -208,6 +208,7 @@ pub struct QueryParser {
     tokenizer_manager: TokenizerManager,
     boost: FxHashMap<Field, Score>,
     fuzzy: FxHashMap<Field, Fuzzy>,
+    regexes_allowed: bool,
 }
 
 #[derive(Clone)]
@@ -262,6 +263,7 @@ impl QueryParser {
             conjunction_by_default: false,
             boost: Default::default(),
             fuzzy: Default::default(),
+            regexes_allowed: false,
         }
     }
 
@@ -320,6 +322,11 @@ impl QueryParser {
                 transpose_cost_one,
             },
         );
+    }
+
+    /// Allow regexes in queries
+    pub fn allow_regexes(&mut self) {
+        self.regexes_allowed = true;
     }
 
     /// Parse a query
@@ -863,6 +870,14 @@ impl QueryParser {
                 )],
             ),
             UserInputLeaf::Regex { field, pattern } => {
+                if !self.regexes_allowed {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Regex queries are not allowed.".to_string(),
+                        )],
+                    );
+                }
                 let full_path = try_tuple!(field.ok_or_else(|| {
                     QueryParserError::UnsupportedQuery(
                         "Regex query need to target a specific field.".to_string(),
@@ -1142,10 +1157,14 @@ mod test {
         query: &str,
         default_conjunction: bool,
         default_fields: &[&'static str],
+        allow_regexes: bool,
     ) -> Result<LogicalAst, QueryParserError> {
         let mut query_parser = make_query_parser_with_default_fields(default_fields);
         if default_conjunction {
             query_parser.set_conjunction_by_default();
+        }
+        if allow_regexes {
+            query_parser.allow_regexes();
         }
         query_parser.parse_query_to_logical_ast(query)
     }
@@ -1158,6 +1177,7 @@ mod test {
             query,
             default_conjunction,
             &["title", "text"],
+            true,
         )
     }
 
@@ -1172,6 +1192,7 @@ mod test {
             query,
             default_conjunction,
             default_fields,
+            true,
         )
         .unwrap();
         let query_str = format!("{query:?}");
@@ -2036,25 +2057,42 @@ mod test {
             false,
         );
 
+        // Invalid field
         let err = parse_query_to_logical_ast("float:/.*b/", false).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Unsupported query: Regex query only supported on text fields"
         );
 
+        // No field specified
         let err = parse_query_to_logical_ast("/.*b/", false).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Unsupported query: Regex query need to target a specific field."
         );
 
+        // Regex on a json path
         let err = parse_query_to_logical_ast("title.subpath:/.*b/", false).unwrap_err();
         assert_eq!(
             err.to_string(),
             "Unsupported query: Regex query does not support json paths."
         );
 
+        // Invalid regex
         let err = parse_query_to_logical_ast("title:/[A-Z*b/", false).unwrap_err();
         assert_eq!(err.to_string(), "Unsupported query: Invalid regex: regex parse error:\n    [A-Z*b\n    ^\nerror: unclosed character class");
+
+        // Regexes not allowed
+        let err = parse_query_to_logical_ast_with_default_fields(
+            "title:/.*b/",
+            false,
+            &["title", "text"],
+            false,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex queries are not allowed."
+        );
     }
 }
