@@ -183,7 +183,7 @@ pub struct BitSet {
 }
 
 fn num_buckets(max_val: u32) -> u32 {
-    (max_val + 63u32) / 64u32
+    max_val.div_ceil(64u32)
 }
 
 impl BitSet {
