@@ -90,6 +90,8 @@
 //!         Some((*field, value))
 //!     }
 //! }
+//!
+//! # let my_custom_document = MyCustomDocument { fields: BTreeMap::new() };
 //! ```
 //!
 //! You may have noticed in this example that we haven't needed to implement any custom value types,
