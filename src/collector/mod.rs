@@ -97,7 +97,7 @@ pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 mod top_collector;
 
 mod top_orderable;
-pub use self::top_orderable::{Feature, FieldFeature, ScoreFeature};
+pub use self::top_orderable::{Feature, FieldFeature, ScoreFeature, TopOrderable};
 
 mod top_score_collector;
 pub use self::top_collector::ComparableDoc;
