@@ -313,8 +313,8 @@ impl<D: Document> IndexWriter<D> {
             return Err(TantivyError::InvalidArgument(err_msg));
         }
         if options.num_worker_threads == 0 {
-            let err_msg = "At least one worker thread is required, got 0".to_string();
-            return Err(TantivyError::InvalidArgument(err_msg));
+            // let err_msg = "At least one worker thread is required, got 0".to_string();
+            // return Err(TantivyError::InvalidArgument(err_msg));
         }
 
         let (document_sender, document_receiver) =
@@ -2635,10 +2635,15 @@ mod tests {
         let _field = schema_builder.add_bool_field("example", STORED);
         let index = Index::create_in_ram(schema_builder.build());
 
+        // NB:  tantivy proper probably can't work with zero worker threads, but we (pg_search) do
+        // indexing and merging in the foreground and don't need the worker threads
         let opt_wo_threads = IndexWriterOptions::builder().num_worker_threads(0).build();
         let result = index.writer_with_options::<TantivyDocument>(opt_wo_threads);
-        assert!(result.is_err(), "Writer should reject 0 thread count");
-        assert!(matches!(result, Err(TantivyError::InvalidArgument(_))));
+        assert!(result.is_ok(), "Writer should accept 0 thread count");
+        // the above actually created a writer which then takes a lock, which causes the next
+        // attempt to open an IndexWriter to fail in a way that's different than expected.
+        // Dropping the Result<IndexWriter> we just made lets the test carry on unchanged
+        drop(result);
 
         let opt_with_low_memory = IndexWriterOptions::builder()
             .memory_budget_per_thread(10 << 10)
