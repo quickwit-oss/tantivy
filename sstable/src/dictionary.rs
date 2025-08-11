@@ -507,38 +507,58 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Returns true if and only if all terms have been found.
     pub fn sorted_ords_to_term_cb<F: FnMut(&[u8]) -> io::Result<()>>(
         &self,
-        ord: impl Iterator<Item = TermOrdinal>,
+        mut ords: impl Iterator<Item = TermOrdinal>,
         mut cb: F,
     ) -> io::Result<bool> {
+        let Some(mut ord) = ords.next() else {
+            return Ok(true);
+        };
+
+        // Open the block for the first ordinal.
         let mut bytes = Vec::new();
-        let mut current_block_addr = self.sstable_index.get_block_with_ord(0);
+        let mut current_block_addr = self.sstable_index.get_block_with_ord(ord);
         let mut current_sstable_delta_reader =
             self.sstable_delta_reader_block(current_block_addr.clone())?;
-        let mut current_ordinal = 0;
-        for ord in ord {
-            assert!(ord >= current_ordinal);
-            // check if block changed for new term_ord
-            let new_block_addr = self.sstable_index.get_block_with_ord(ord);
-            if new_block_addr != current_block_addr {
-                current_block_addr = new_block_addr;
-                current_ordinal = current_block_addr.first_ordinal;
-                current_sstable_delta_reader =
-                    self.sstable_delta_reader_block(current_block_addr.clone())?;
-                bytes.clear();
-            }
+        let mut current_block_ordinal = current_block_addr.first_ordinal;
 
-            // move to ord inside that block
-            for _ in current_ordinal..=ord {
+        loop {
+            // move to the ord inside the current block
+            while current_block_ordinal <= ord {
                 if !current_sstable_delta_reader.advance()? {
                     return Ok(false);
                 }
                 bytes.truncate(current_sstable_delta_reader.common_prefix_len());
                 bytes.extend_from_slice(current_sstable_delta_reader.suffix());
+                current_block_ordinal += 1;
             }
-            current_ordinal = ord + 1;
             cb(&bytes)?;
+
+            // fetch the next ordinal
+            let Some(next_ord) = ords.next() else {
+                return Ok(true);
+            };
+
+            // advance forward if the new ord is different than the one we just processed
+            //
+            // this allows the input TermOrdinal iterator to contain duplicates, so long as it's
+            // still sorted
+            if next_ord < ord {
+                panic!("Ordinals were not sorted: received {next_ord} after {ord}");
+            } else if next_ord > ord {
+                // check if block changed for new term_ord
+                let new_block_addr = self.sstable_index.get_block_with_ord(next_ord);
+                if new_block_addr != current_block_addr {
+                    current_block_addr = new_block_addr;
+                    current_block_ordinal = current_block_addr.first_ordinal;
+                    current_sstable_delta_reader =
+                        self.sstable_delta_reader_block(current_block_addr.clone())?;
+                    bytes.clear();
+                }
+                ord = next_ord;
+            } else {
+                // The next ord is equal to the previous ord: no need to seek or advance.
+            }
         }
-        Ok(true)
     }
 
     /// Returns the number of terms in the dictionary.

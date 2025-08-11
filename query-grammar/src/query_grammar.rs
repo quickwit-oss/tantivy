@@ -36,7 +36,7 @@ fn field_name(inp: &str) -> IResult<&str, String> {
                 alt((first_char, escape_sequence())),
                 many0(alt((simple_char, escape_sequence(), char('\\')))),
             )),
-            char(':'),
+            tuple((multispace0, char(':'), multispace0)),
         ),
         |(first_char, next)| once(first_char).chain(next).collect(),
     )(inp)
@@ -1345,6 +1345,10 @@ mod test {
             super::field_name("~my~field:a"),
             Ok(("a", "~my~field".to_string()))
         );
+        assert_eq!(
+            super::field_name(".my.field.name : a"),
+            Ok(("a", ".my.field.name".to_string()))
+        );
         for special_char in SPECIAL_CHARS.iter() {
             let query = &format!("\\{special_char}my\\{special_char}field:a");
             assert_eq!(
@@ -1805,7 +1809,18 @@ mod test {
         assert_eq!(errs.len(), 1, "Expected 1 error, got: {errs:?}");
         assert_eq!(
             errs[0].message, "missing delimiter /",
-            "Unexpected error message"
+            "Unexpected error message",
+        );
+    }
+
+    #[test]
+    fn test_space_before_value() {
+        test_parse_query_to_ast_helper("field : a", r#""field":a"#);
+        test_parse_query_to_ast_helper("field:    a", r#""field":a"#);
+        test_parse_query_to_ast_helper("field         :a", r#""field":a"#);
+        test_parse_query_to_ast_helper(
+            "field : 'happy tax payer' AND other_field  : 1",
+            r#"(+"field":'happy tax payer' +"other_field":1)"#,
         );
     }
 }

@@ -1854,6 +1854,15 @@ mod test {
     }
 
     #[test]
+    fn test_space_before_value() {
+        test_parse_query_to_logical_ast_helper(
+            "title: a",
+            r#"Term(field=0, type=Str, "a")"#,
+            false,
+        );
+    }
+
+    #[test]
     fn test_escaped_field() {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field(r"a\.b", STRING);
