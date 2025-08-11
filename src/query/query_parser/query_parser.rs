@@ -2080,7 +2080,11 @@ mod test {
 
         // Invalid regex
         let err = parse_query_to_logical_ast("title:/[A-Z*b/", false).unwrap_err();
-        assert_eq!(err.to_string(), "Unsupported query: Invalid regex: regex parse error:\n    [A-Z*b\n    ^\nerror: unclosed character class");
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Invalid regex: regex parse error:\n    [A-Z*b\n    ^\nerror: \
+             unclosed character class"
+        );
 
         // Regexes not allowed
         let err = parse_query_to_logical_ast_with_default_fields(
