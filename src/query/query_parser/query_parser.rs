@@ -337,12 +337,35 @@ impl QueryParser {
         self.empty_query_match_all
     }
 
+    #[inline]
+    fn empty_query_result(&self) -> Box<dyn Query> {
+        if self.empty_query_match_all {
+            Box::new(AllQuery)
+        } else {
+            Box::new(EmptyQuery)
+        }
+    }
+
+    #[inline]
+    fn is_user_input_ast_empty(user_input_ast: &UserInputAst) -> bool {
+        matches!(user_input_ast, UserInputAst::Clause(clauses) if clauses.is_empty())
+    }
+
     /// Parse a query
     ///
     /// Note that `parse_query` returns an error if the input
     /// is not a valid query.
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
-        let logical_ast = self.parse_query_to_logical_ast(query)?;
+        // Parse to user input AST first so we can decide on empty-query behaviour early
+        let user_input_ast = query_grammar::parse_query(query)
+            .map_err(|_| QueryParserError::SyntaxError(query.to_string()))?;
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return Ok(self.empty_query_result());
+        }
+        let (logical_ast, mut err) = self.compute_logical_ast_lenient(user_input_ast);
+        if !err.is_empty() {
+            return Err(err.swap_remove(0));
+        }
         Ok(self.logical_ast_to_query(logical_ast))
     }
 
@@ -355,7 +378,21 @@ impl QueryParser {
     ///
     /// In case it encountered such issues, they are reported as a Vec of errors.
     pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, Vec<QueryParserError>) {
-        let (logical_ast, errors) = self.parse_query_to_logical_ast_lenient(query);
+        let (user_input_ast, grammar_errors) = query_grammar::parse_query_lenient(query);
+        let mut errors: Vec<_> = grammar_errors
+            .into_iter()
+            .map(|error| {
+                QueryParserError::SyntaxError(format!(
+                    "{} at position {}",
+                    error.message, error.pos
+                ))
+            })
+            .collect();
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return (self.empty_query_result(), errors);
+        }
+        let (logical_ast, mut ast_errors) = self.compute_logical_ast_lenient(user_input_ast);
+        errors.append(&mut ast_errors);
         (self.logical_ast_to_query(logical_ast), errors)
     }
 
@@ -368,6 +405,9 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAst,
     ) -> Result<Box<dyn Query>, QueryParserError> {
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return Ok(self.empty_query_result());
+        }
         let (logical_ast, mut err) = self.compute_logical_ast_lenient(user_input_ast);
         if !err.is_empty() {
             return Err(err.swap_remove(0));
@@ -382,6 +422,9 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAst,
     ) -> (Box<dyn Query>, Vec<QueryParserError>) {
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return (self.empty_query_result(), Vec::new());
+        }
         let (logical_ast, errors) = self.compute_logical_ast_lenient(user_input_ast);
         (self.logical_ast_to_query(logical_ast), errors)
     }
@@ -878,13 +921,7 @@ impl QueryParser {
     fn logical_ast_to_query(&self, logical_ast: LogicalAst) -> Box<dyn Query> {
         match trim_ast(logical_ast) {
             Some(trimmed_ast) => convert_to_query(&self.fuzzy, trimmed_ast),
-            None => {
-                if self.empty_query_match_all {
-                    Box::new(AllQuery)
-                } else {
-                    Box::new(EmptyQuery)
-                }
-            }
+            None => Box::new(EmptyQuery),
         }
     }
 }
