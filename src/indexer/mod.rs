@@ -61,6 +61,8 @@ type AddBatchReceiver<D> = channel::Receiver<AddBatch<D>>;
 #[cfg(test)]
 mod tests_mmap {
 
+    use common::ByteCount;
+
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::AggregationCollector;
@@ -280,11 +282,14 @@ mod tests_mmap {
             field_name_out
         };
 
-        let mut fields = reader.searcher().segment_readers()[0]
+        let mut fields: Vec<(String, Type)> = reader.searcher().segment_readers()[0]
             .inverted_index(field)
             .unwrap()
-            .list_encoded_fields()
-            .unwrap();
+            .list_encoded_json_fields()
+            .unwrap()
+            .into_iter()
+            .map(|field_space| (field_space.field_name, field_space.field_type))
+            .collect();
         assert_eq!(fields.len(), 8);
         fields.sort();
         let mut expected_fields = vec![
@@ -385,7 +390,12 @@ mod tests_mmap {
         let reader = &searcher.segment_readers()[0];
         let inverted_index = reader.inverted_index(json_field).unwrap();
         assert_eq!(
-            inverted_index.list_encoded_fields().unwrap(),
+            inverted_index
+                .list_encoded_json_fields()
+                .unwrap()
+                .into_iter()
+                .map(|field_space| (field_space.field_name, field_space.field_type))
+                .collect::<Vec<_>>(),
             [
                 ("k8s.container.name".to_string(), Type::Str),
                 ("sub\u{1}a".to_string(), Type::I64),
@@ -402,17 +412,39 @@ mod tests_mmap {
     fn test_json_fields_metadata_expanded_dots_one_segment() {
         test_json_fields_metadata(true, true);
     }
+
     #[test]
     fn test_json_fields_metadata_expanded_dots_multi_segment() {
         test_json_fields_metadata(true, false);
     }
+
     #[test]
     fn test_json_fields_metadata_no_expanded_dots_one_segment() {
         test_json_fields_metadata(false, true);
     }
+
     #[test]
     fn test_json_fields_metadata_no_expanded_dots_multi_segment() {
         test_json_fields_metadata(false, false);
+    }
+
+    #[track_caller]
+    fn assert_size_eq(lhs: Option<ByteCount>, rhs: Option<ByteCount>) {
+        let ignore_actual_values = |size_opt: Option<ByteCount>| size_opt.map(|val| val > 0);
+        assert_eq!(ignore_actual_values(lhs), ignore_actual_values(rhs));
+    }
+
+    #[track_caller]
+    fn assert_field_metadata_eq_but_ignore_field_size(
+        expected: &FieldMetadata,
+        actual: &FieldMetadata,
+    ) {
+        assert_eq!(&expected.field_name, &actual.field_name);
+        assert_eq!(&expected.typ, &actual.typ);
+        assert_eq!(&expected.stored, &actual.stored);
+        assert_size_eq(expected.postings_size, actual.postings_size);
+        assert_size_eq(expected.positions_size, actual.positions_size);
+        assert_size_eq(expected.fast_size, actual.fast_size);
     }
 
     fn test_json_fields_metadata(expanded_dots: bool, one_segment: bool) {
@@ -453,81 +485,101 @@ mod tests_mmap {
         assert_eq!(searcher.num_docs(), 3);
 
         let fields_metadata = index.fields_metadata().unwrap();
-        assert_eq!(
-            fields_metadata,
-            [
-                FieldMetadata {
-                    field_name: "empty".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::U64
+
+        let expected_fields = &[
+            FieldMetadata {
+                field_name: "empty".to_string(),
+                stored: true,
+                typ: Type::U64,
+                term_dictionary_size: Some(0u64.into()),
+                fast_size: Some(1u64.into()),
+                postings_size: Some(0u64.into()),
+                positions_size: Some(0u64.into()),
+            },
+            FieldMetadata {
+                field_name: if expanded_dots {
+                    "json.shadow.k8s.container.name".to_string()
+                } else {
+                    "json.shadow.k8s\\.container\\.name".to_string()
                 },
-                FieldMetadata {
-                    field_name: if expanded_dots {
-                        "json.shadow.k8s.container.name".to_string()
-                    } else {
-                        "json.shadow.k8s\\.container\\.name".to_string()
-                    },
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::Str
-                },
-                FieldMetadata {
-                    field_name: "json.shadow.sub.a".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::I64
-                },
-                FieldMetadata {
-                    field_name: "json.shadow.sub.b".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::I64
-                },
-                FieldMetadata {
-                    field_name: "json.shadow.suber.a".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::I64
-                },
-                FieldMetadata {
-                    field_name: "json.shadow.suber.a".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::Str
-                },
-                FieldMetadata {
-                    field_name: "json.shadow.suber.b".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::I64
-                },
-                FieldMetadata {
-                    field_name: "json.shadow.val".to_string(),
-                    indexed: true,
-                    stored: true,
-                    fast: true,
-                    typ: Type::Str
-                },
-                FieldMetadata {
-                    field_name: "numbers".to_string(),
-                    indexed: false,
-                    stored: false,
-                    fast: true,
-                    typ: Type::U64
-                }
-            ]
-        );
+                stored: true,
+                typ: Type::Str,
+                term_dictionary_size: Some(1u64.into()),
+                fast_size: Some(1u64.into()),
+                postings_size: Some(1u64.into()),
+                positions_size: Some(1u64.into()),
+            },
+            FieldMetadata {
+                field_name: "json.shadow.sub.a".to_string(),
+                typ: Type::I64,
+                stored: true,
+                fast_size: Some(1u64.into()),
+                term_dictionary_size: Some(1u64.into()),
+                postings_size: Some(1u64.into()),
+                positions_size: Some(1u64.into()),
+            },
+            FieldMetadata {
+                field_name: "json.shadow.sub.b".to_string(),
+                typ: Type::I64,
+                stored: true,
+                fast_size: Some(1u64.into()),
+                term_dictionary_size: Some(1u64.into()),
+                postings_size: Some(1u64.into()),
+                positions_size: Some(1u64.into()),
+            },
+            FieldMetadata {
+                field_name: "json.shadow.suber.a".to_string(),
+                stored: true,
+                typ: Type::I64,
+                fast_size: Some(1u64.into()),
+                term_dictionary_size: Some(1u64.into()),
+                postings_size: Some(1u64.into()),
+                positions_size: Some(1u64.into()),
+            },
+            FieldMetadata {
+                field_name: "json.shadow.suber.a".to_string(),
+                typ: Type::Str,
+                stored: true,
+                fast_size: Some(1u64.into()),
+                term_dictionary_size: Some(1u64.into()),
+                postings_size: Some(1u64.into()),
+                positions_size: Some(1u64.into()),
+            },
+            FieldMetadata {
+                field_name: "json.shadow.suber.b".to_string(),
+                typ: Type::I64,
+                stored: true,
+                fast_size: Some(1u64.into()),
+                term_dictionary_size: Some(1u64.into()),
+                postings_size: Some(1u64.into()),
+                positions_size: Some(1u64.into()),
+            },
+            FieldMetadata {
+                field_name: "json.shadow.val".to_string(),
+                typ: Type::Str,
+                stored: true,
+                fast_size: Some(1u64.into()),
+                term_dictionary_size: Some(1u64.into()),
+                postings_size: Some(1u64.into()),
+                positions_size: Some(1u64.into()),
+            },
+            FieldMetadata {
+                field_name: "numbers".to_string(),
+                stored: false,
+                typ: Type::U64,
+                fast_size: Some(1u64.into()),
+                term_dictionary_size: None,
+                postings_size: None,
+                positions_size: None,
+            },
+        ];
+        assert_eq!(fields_metadata.len(), expected_fields.len());
+        for (expected, value) in expected_fields.iter().zip(fields_metadata.iter()) {
+            assert_field_metadata_eq_but_ignore_field_size(expected, value);
+        }
         let query_parser = QueryParser::for_index(&index, vec![]);
         // Test if returned field name can be queried
-        for indexed_field in fields_metadata.iter().filter(|meta| meta.indexed) {
+        for indexed_field in fields_metadata.iter().filter(|meta| meta.is_indexed()) {
             let val = if indexed_field.typ == Type::Str {
                 "a"
             } else {
@@ -543,7 +595,10 @@ mod tests_mmap {
             }
         }
         // Test if returned field name can be used for aggregation
-        for fast_field in fields_metadata.iter().filter(|meta| meta.fast) {
+        for fast_field in fields_metadata
+            .iter()
+            .filter(|field_metadata| field_metadata.is_fast())
+        {
             let agg_req_str = json!(
             {
               "termagg": {
