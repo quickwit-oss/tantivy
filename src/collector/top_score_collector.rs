@@ -1293,6 +1293,220 @@ mod tests {
         assert_eq!(page_0, &page_2[..page_0.len()]);
     }
 
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        /// Build multiple segments with equal-scoring docs and verify stable ordering
+        /// across pages when increasing limit or offset.
+        #[test]
+        fn proptest_stable_ordering_across_segments_with_pagination(
+            docs_per_segment in proptest::collection::vec(1usize..50, 2..5)
+        ) {
+            use crate::indexer::NoMergePolicy;
+
+            // Build an index with multiple segments; all docs will have the same score using AllQuery.
+            let mut schema_builder = Schema::builder();
+            let text = schema_builder.add_text_field("text", TEXT);
+            let schema = schema_builder.build();
+            let index = Index::create_in_ram(schema);
+            let mut writer = index.writer_for_tests().unwrap();
+            writer.set_merge_policy(Box::new(NoMergePolicy));
+
+            for num_docs in &docs_per_segment {
+                for _ in 0..*num_docs {
+                    writer.add_document(doc!(text => "x")).unwrap();
+                }
+                writer.commit().unwrap();
+            }
+
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+
+            let total_docs: usize = docs_per_segment.iter().sum();
+            // Full result set, first assert all scores are identical.
+            let full_with_scores: Vec<(Score, DocAddress)> = searcher
+                .search(&AllQuery, &TopDocs::with_limit(total_docs))
+                .unwrap();
+            // Sanity: at least one document was returned.
+            prop_assert!(!full_with_scores.is_empty());
+            let first_score = full_with_scores[0].0;
+            prop_assert!(full_with_scores.iter().all(|(score, _)| *score == first_score));
+
+            // Keep only the addresses for the remaining checks.
+            let full: Vec<DocAddress> = full_with_scores
+                .into_iter()
+                .map(|(_score, addr)| addr)
+                .collect();
+
+            // Sanity: we actually created multiple segments and have documents.
+            prop_assert!(docs_per_segment.len() >= 2);
+            prop_assert!(total_docs >= 2);
+
+            // 1) Increasing limit should preserve prefix ordering.
+            for k in 1..=total_docs {
+                let page: Vec<DocAddress> = searcher
+                    .search(&AllQuery, &TopDocs::with_limit(k))
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_score, addr)| addr)
+                    .collect();
+                prop_assert_eq!(page, full[..k].to_vec());
+            }
+
+            // 2) Offset + limit pages should always match the corresponding slice.
+            //    For each offset, check three representative page sizes:
+            //    - first page (size 1)
+            //    - a middle page (roughly half of remaining)
+            //    - the last page (size = remaining)
+            for offset in 0..total_docs {
+                let remaining = total_docs - offset;
+
+                let assert_page_eq = |limit: usize| -> proptest::test_runner::TestCaseResult {
+                    let page: Vec<DocAddress> = searcher
+                        .search(&AllQuery, &TopDocs::with_limit(limit).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    prop_assert_eq!(page, full[offset..offset + limit].to_vec());
+                    Ok(())
+                };
+
+                // Smallest page.
+                assert_page_eq(1)?;
+                // A middle-sized page (dedupes to 1 if remaining == 1).
+                assert_page_eq((remaining / 2).max(1))?;
+                // Largest page for this offset.
+                assert_page_eq(remaining)?;
+            }
+
+            // 3) Concatenating fixed-size pages by offset reproduces the full order.
+            for page_size in 1..=total_docs.min(5) {
+                let mut concat: Vec<DocAddress> = Vec::new();
+                let mut offset = 0;
+                while offset < total_docs {
+                    let size = page_size.min(total_docs - offset);
+                    let page: Vec<DocAddress> = searcher
+                        .search(&AllQuery, &TopDocs::with_limit(size).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    concat.extend(page);
+                    offset += size;
+                }
+                // Avoid moving `full` across loop iterations.
+                prop_assert_eq!(concat, full.clone());
+            }
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        /// Build multiple segments with same-scoring term matches and verify stable ordering
+        /// across pages for a real scoring query (TermQuery with identical TF and fieldnorm).
+        #[test]
+        fn proptest_stable_ordering_across_segments_with_term_query_and_pagination(
+            docs_per_segment in proptest::collection::vec(1usize..50, 2..5)
+        ) {
+            use crate::indexer::NoMergePolicy;
+            use crate::schema::IndexRecordOption;
+            use crate::query::TermQuery;
+            use crate::Term;
+
+            // Build an index with multiple segments; each doc has exactly one token "x",
+            // ensuring equal BM25 scores across all matching docs (same TF=1 and fieldnorm=1).
+            let mut schema_builder = Schema::builder();
+            let text = schema_builder.add_text_field("text", TEXT);
+            let schema = schema_builder.build();
+            let index = Index::create_in_ram(schema);
+            let mut writer = index.writer_for_tests().unwrap();
+            writer.set_merge_policy(Box::new(NoMergePolicy));
+
+            for num_docs in &docs_per_segment {
+                for _ in 0..*num_docs {
+                    writer.add_document(doc!(text => "x")).unwrap();
+                }
+                writer.commit().unwrap();
+            }
+
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+
+            let total_docs: usize = docs_per_segment.iter().sum();
+            let term = Term::from_field_text(text, "x");
+            let tq = TermQuery::new(term, IndexRecordOption::WithFreqs);
+
+            // Full result set, first assert all scores are identical across docs.
+            let full_with_scores: Vec<(Score, DocAddress)> = searcher
+                .search(&tq, &TopDocs::with_limit(total_docs))
+                .unwrap();
+            // Sanity: at least one document was returned.
+            prop_assert!(!full_with_scores.is_empty());
+            let first_score = full_with_scores[0].0;
+            prop_assert!(full_with_scores.iter().all(|(score, _)| *score == first_score));
+
+            // Keep only the addresses for the remaining checks.
+            let full: Vec<DocAddress> = full_with_scores
+                .into_iter()
+                .map(|(_score, addr)| addr)
+                .collect();
+
+            // Sanity: we actually created multiple segments and have documents.
+            prop_assert!(docs_per_segment.len() >= 2);
+            prop_assert!(total_docs >= 2);
+
+            // 1) Increasing limit should preserve prefix ordering.
+            for k in 1..=total_docs {
+                let page: Vec<DocAddress> = searcher
+                    .search(&tq, &TopDocs::with_limit(k))
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_score, addr)| addr)
+                    .collect();
+                prop_assert_eq!(page, full[..k].to_vec());
+            }
+
+            // 2) Offset + limit pages should always match the corresponding slice.
+            //    Check three representative page sizes for each offset: 1, ~half, and remaining.
+            for offset in 0..total_docs {
+                let remaining = total_docs - offset;
+
+                let assert_page_eq = |limit: usize| -> proptest::test_runner::TestCaseResult {
+                    let page: Vec<DocAddress> = searcher
+                        .search(&tq, &TopDocs::with_limit(limit).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    prop_assert_eq!(page, full[offset..offset + limit].to_vec());
+                    Ok(())
+                };
+
+                assert_page_eq(1)?;
+                assert_page_eq((remaining / 2).max(1))?;
+                assert_page_eq(remaining)?;
+            }
+
+            // 3) Concatenating fixed-size pages by offset reproduces the full order.
+            for page_size in 1..=total_docs.min(5) {
+                let mut concat: Vec<DocAddress> = Vec::new();
+                let mut offset = 0;
+                while offset < total_docs {
+                    let size = page_size.min(total_docs - offset);
+                    let page: Vec<DocAddress> = searcher
+                        .search(&tq, &TopDocs::with_limit(size).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    concat.extend(page);
+                    offset += size;
+                }
+                prop_assert_eq!(concat, full.clone());
+            }
+        }
+    }
+
     #[test]
     #[should_panic]
     fn test_top_0() {
