@@ -44,23 +44,17 @@ pub(crate) struct InvertedIndexFieldSpace {
     pub num_terms: u64,
 }
 
-impl InvertedIndexFieldSpace {
-    // Creates an empty FieldSpace object for a given term.
-    fn try_from(term: &[u8]) -> Option<InvertedIndexFieldSpace> {
-        let index = term.iter().position(|&byte| byte == JSON_END_OF_PATH)?;
-        let field_type_code = term.get(index + 1).copied()?;
-        let field_type = Type::from_code(field_type_code)?;
-        // Let's flush the current field.
-        let field_name = String::from_utf8_lossy(&term[..index]).to_string();
-        Some(InvertedIndexFieldSpace {
-            field_name,
-            field_type,
-            postings_size: ByteCount::default(),
-            positions_size: ByteCount::default(),
-            num_terms: 0u64,
-        })
-    }
+/// Returns None if the term is not a valid JSON path.
+fn extract_field_name_and_field_type_from_json_path(term: &[u8]) -> Option<(String, Type)> {
+    let index = term.iter().position(|&byte| byte == JSON_END_OF_PATH)?;
+    let field_type_code = term.get(index + 1).copied()?;
+    let field_type = Type::from_code(field_type_code)?;
+    // Let's flush the current field.
+    let field_name = String::from_utf8_lossy(&term[..index]).to_string();
+    Some((field_name, field_type))
+}
 
+impl InvertedIndexFieldSpace {
     fn record(&mut self, term_info: &TermInfo) {
         self.postings_size += ByteCount::from(term_info.posting_num_bytes() as u64);
         self.positions_size += ByteCount::from(term_info.positions_num_bytes() as u64);
@@ -136,12 +130,21 @@ impl InvertedIndexReader {
             current_field_bytes.clear();
 
             // And create a new one.
-            let Some(mut field_space) = InvertedIndexFieldSpace::try_from(term) else {
+            let Some((field_name, field_type)) =
+                extract_field_name_and_field_type_from_json_path(term)
+            else {
                 error!(
                     "invalid term bytes encountered {term:?}. this only happens if the term \
                      dictionary is corrupted. please report"
                 );
                 continue;
+            };
+            let mut field_space = InvertedIndexFieldSpace {
+                field_name,
+                field_type,
+                postings_size: ByteCount::default(),
+                positions_size: ByteCount::default(),
+                num_terms: 0u64,
             };
             field_space.record(&term_info);
 
