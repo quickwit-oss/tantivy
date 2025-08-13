@@ -1,5 +1,3 @@
-#![cfg_attr(all(feature = "unstable", test), feature(test))]
-
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 

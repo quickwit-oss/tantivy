@@ -1,3 +1,7 @@
+// manual divceil actually generates code that is not optimal (to accept the full range of u32) and
+// perf matters here.
+#![allow(clippy::manual_div_ceil)]
+
 use std::io;
 use std::ops::{Range, RangeInclusive};
 

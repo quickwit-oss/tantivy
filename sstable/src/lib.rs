@@ -1,3 +1,5 @@
+#![allow(clippy::manual_div_ceil)]
+
 //! `tantivy_sstable` is a crate that provides a sorted string table data structure.
 //!
 //! It is used in `tantivy` to store the term dictionary.
