@@ -17,14 +17,9 @@
 //!       column.
 //!     - [column_values]: Stores the values of a column in a dense format.
 
-#![cfg_attr(all(feature = "unstable", test), feature(test))]
-
 #[cfg(test)]
 #[macro_use]
 extern crate more_asserts;
-
-#[cfg(all(test, feature = "unstable"))]
-extern crate test;
 
 use std::fmt::Display;
 use std::io;

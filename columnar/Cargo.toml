@@ -33,6 +33,29 @@ harness = false
 name = "bench_access"
 harness = false
 
+[[bench]]
+name = "bench_first_vals"
+harness = false
+
+[[bench]]
+name = "bench_values_u64"
+harness = false
+
+[[bench]]
+name = "bench_values_u128"
+harness = false
+
+[[bench]]
+name = "bench_create_column_values"
+harness = false
+
+[[bench]]
+name = "bench_column_values_get"
+harness = false
+
+[[bench]]
+name = "bench_optional_index"
+harness = false
+
 [features]
-unstable = []
 zstd-compression = ["sstable/zstd-compression"]
