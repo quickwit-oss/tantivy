@@ -1,15 +1,12 @@
-#![feature(test)]
-
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
+use binggan::{InputGroup, black_box};
 use common::OwnedBytes;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng, random};
 use tantivy_columnar::ColumnValues;
-use test::Bencher;
-extern crate test;
 
 // TODO does this make sense for IPv6 ?
 fn generate_random() -> Vec<u64> {
@@ -47,78 +44,77 @@ fn get_data_50percent_item() -> Vec<u128> {
     }
     data.push(SINGLE_ITEM);
     data.shuffle(&mut rng);
-    let data = data.iter().map(|el| *el as u128).collect::<Vec<_>>();
-    data
+    data.iter().map(|el| *el as u128).collect::<Vec<_>>()
 }
 
-#[bench]
-fn bench_intfastfield_getrange_u128_50percent_hit(b: &mut Bencher) {
+fn main() {
     let data = get_data_50percent_item();
-    let column = get_u128_column_from_data(&data);
+    let column_range = get_u128_column_from_data(&data);
+    let column_random = get_u128_column_random();
 
-    b.iter(|| {
+    struct Inputs {
+        data: Vec<u128>,
+        column_range: Arc<dyn ColumnValues<u128>>,
+        column_random: Arc<dyn ColumnValues<u128>>,
+    }
+
+    let inputs = Inputs {
+        data,
+        column_range,
+        column_random,
+    };
+    let mut group: InputGroup<Inputs> =
+        InputGroup::new_with_inputs(vec![("u128 benches".to_string(), inputs)]);
+
+    group.register(
+        "intfastfield_getrange_u128_50percent_hit",
+        |inp: &Inputs| {
+            let mut positions = Vec::new();
+            inp.column_range.get_row_ids_for_value_range(
+                *FIFTY_PERCENT_RANGE.start() as u128..=*FIFTY_PERCENT_RANGE.end() as u128,
+                0..inp.data.len() as u32,
+                &mut positions,
+            );
+            black_box(positions.len());
+        },
+    );
+
+    group.register("intfastfield_getrange_u128_single_hit", |inp: &Inputs| {
         let mut positions = Vec::new();
-        column.get_row_ids_for_value_range(
-            *FIFTY_PERCENT_RANGE.start() as u128..=*FIFTY_PERCENT_RANGE.end() as u128,
-            0..data.len() as u32,
-            &mut positions,
-        );
-        positions
-    });
-}
-
-#[bench]
-fn bench_intfastfield_getrange_u128_single_hit(b: &mut Bencher) {
-    let data = get_data_50percent_item();
-    let column = get_u128_column_from_data(&data);
-
-    b.iter(|| {
-        let mut positions = Vec::new();
-        column.get_row_ids_for_value_range(
+        inp.column_range.get_row_ids_for_value_range(
             *SINGLE_ITEM_RANGE.start() as u128..=*SINGLE_ITEM_RANGE.end() as u128,
-            0..data.len() as u32,
+            0..inp.data.len() as u32,
             &mut positions,
         );
-        positions
+        black_box(positions.len());
     });
-}
 
-#[bench]
-fn bench_intfastfield_getrange_u128_hit_all(b: &mut Bencher) {
-    let data = get_data_50percent_item();
-    let column = get_u128_column_from_data(&data);
-
-    b.iter(|| {
+    group.register("intfastfield_getrange_u128_hit_all", |inp: &Inputs| {
         let mut positions = Vec::new();
-        column.get_row_ids_for_value_range(0..=u128::MAX, 0..data.len() as u32, &mut positions);
-        positions
+        inp.column_range.get_row_ids_for_value_range(
+            0..=u128::MAX,
+            0..inp.data.len() as u32,
+            &mut positions,
+        );
+        black_box(positions.len());
     });
-}
-// U128 RANGE END
 
-#[bench]
-fn bench_intfastfield_scan_all_fflookup_u128(b: &mut Bencher) {
-    let column = get_u128_column_random();
-
-    b.iter(|| {
+    group.register("intfastfield_scan_all_fflookup_u128", |inp: &Inputs| {
         let mut a = 0u128;
-        for i in 0u64..column.num_vals() as u64 {
-            a += column.get_val(i as u32);
+        for i in 0u64..inp.column_random.num_vals() as u64 {
+            a += inp.column_random.get_val(i as u32);
         }
-        a
+        black_box(a);
     });
-}
 
-#[bench]
-fn bench_intfastfield_jumpy_stride5_u128(b: &mut Bencher) {
-    let column = get_u128_column_random();
-
-    b.iter(|| {
-        let n = column.num_vals();
+    group.register("intfastfield_jumpy_stride5_u128", |inp: &Inputs| {
+        let n = inp.column_random.num_vals();
         let mut a = 0u128;
         for i in (0..n / 5).map(|val| val * 5) {
-            a += column.get_val(i);
+            a += inp.column_random.get_val(i);
         }
-        a
+        black_box(a);
     });
+
+    group.run();
 }
