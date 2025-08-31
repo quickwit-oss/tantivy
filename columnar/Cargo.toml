@@ -11,7 +11,6 @@ categories = ["database-implementations", "data-structures", "compression"]
 [dependencies]
 itertools = "0.14.0"
 fastdivide = "0.4.0"
-
 stacker = { version= "0.6", path = "../stacker", package="tantivy-stacker"}
 sstable = { version= "0.6", path = "../sstable", package = "tantivy-sstable" }
 common = { version= "0.10", path = "../common", package = "tantivy-common" }
