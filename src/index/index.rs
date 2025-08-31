@@ -588,7 +588,7 @@ impl Index {
         num_threads: usize,
         overall_memory_budget_in_bytes: usize,
     ) -> crate::Result<IndexWriter<D>> {
-        let memory_arena_in_bytes_per_thread = overall_memory_budget_in_bytes / num_threads;
+        let memory_arena_in_bytes_per_thread = overall_memory_budget_in_bytes / num_threads.max(1);
         let options = IndexWriterOptions::builder()
             .num_worker_threads(num_threads)
             .memory_budget_per_thread(memory_arena_in_bytes_per_thread)
