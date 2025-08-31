@@ -5,8 +5,9 @@ use std::io::Write;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
+use parking_lot::RwLock;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use super::segment_manager::SegmentManager;
@@ -317,6 +318,12 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     Ok(merged_index)
 }
 
+struct Pools {
+    pool: ThreadPool,
+    merge_thread_pool: ThreadPool,
+    merge_errors: Arc<RwLock<Vec<TantivyError>>>,
+}
+
 pub(crate) struct InnerSegmentUpdater {
     // we keep a copy of the current active IndexMeta to
     // avoid loading the file every time we need it in the
@@ -325,10 +332,7 @@ pub(crate) struct InnerSegmentUpdater {
     // This should be up to date as all update happen through
     // the unique active `SegmentUpdater`.
     active_index_meta: RwLock<Arc<IndexMeta>>,
-    pool: ThreadPool,
-    merge_thread_pool: ThreadPool,
-    merge_errors: Arc<RwLock<Vec<TantivyError>>>,
-
+    pools: Option<Pools>,
     index: Index,
     segment_manager: SegmentManager,
     merge_policy: RwLock<Arc<dyn MergePolicy>>,
@@ -348,40 +352,56 @@ impl SegmentUpdater {
     ) -> crate::Result<SegmentUpdater> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
-        let mut builder = ThreadPoolBuilder::new()
-            .thread_name(|_| "segment_updater".to_string())
-            .num_threads(1);
 
-        if let Some(panic_handler) = panic_handler.as_ref() {
-            let panic_handler = panic_handler.clone();
-            builder = builder.panic_handler(move |any| {
-                panic_handler(any);
-            });
-        }
-
-        let pool = builder.build().map_err(|_| {
-            crate::TantivyError::SystemError("Failed to spawn segment updater thread".to_string())
-        })?;
-        let mut builder = ThreadPoolBuilder::new()
-            .thread_name(|i| format!("merge_thread_{i}"))
-            .num_threads(num_merge_threads);
-        if let Some(panic_handler) = panic_handler {
-            let panic_handler = panic_handler.clone();
-            builder = builder.panic_handler(move |any| {
-                panic_handler(any);
-            });
-        }
-
-        let merge_thread_pool = builder.build().map_err(|_| {
-            crate::TantivyError::SystemError("Failed to spawn segment merging thread".to_string())
-        })?;
         let index_meta = index.load_metas()?;
         Ok(SegmentUpdater {
             inner: Arc::new(InnerSegmentUpdater {
                 active_index_meta: RwLock::new(Arc::new(index_meta)),
-                pool,
-                merge_thread_pool,
-                merge_errors: Default::default(),
+                pools: (num_merge_threads > 0).then(|| {
+                    let mut builder = ThreadPoolBuilder::new()
+                        .thread_name(|_| "segment_updater".to_string())
+                        .num_threads(1);
+
+                    if let Some(panic_handler) = panic_handler.as_ref() {
+                        let panic_handler = panic_handler.clone();
+                        builder = builder.panic_handler(move |any| {
+                            panic_handler(any);
+                        });
+                    }
+
+                    let pool = builder
+                        .build()
+                        .map_err(|_| {
+                            crate::TantivyError::SystemError(
+                                "Failed to spawn segment updater thread".to_string(),
+                            )
+                        })
+                        .unwrap();
+
+                    let mut builder = ThreadPoolBuilder::new()
+                        .thread_name(|i| format!("merge_thread_{i}"))
+                        .num_threads(num_merge_threads);
+                    if let Some(panic_handler) = panic_handler {
+                        let panic_handler = panic_handler.clone();
+                        builder = builder.panic_handler(move |any| {
+                            panic_handler(any);
+                        });
+                    }
+                    let merge_thread_pool = builder
+                        .build()
+                        .map_err(|_| {
+                            crate::TantivyError::SystemError(
+                                "Failed to spawn segment merging thread".to_string(),
+                            )
+                        })
+                        .unwrap();
+
+                    Pools {
+                        pool,
+                        merge_thread_pool,
+                        merge_errors: Default::default(),
+                    }
+                }),
                 index,
                 segment_manager,
                 merge_policy: RwLock::new(Arc::new(DefaultMergePolicy::default())),
@@ -394,12 +414,12 @@ impl SegmentUpdater {
     }
 
     pub fn get_merge_policy(&self) -> Arc<dyn MergePolicy> {
-        self.merge_policy.read().unwrap().clone()
+        self.merge_policy.read().clone()
     }
 
     pub fn set_merge_policy(&self, merge_policy: Box<dyn MergePolicy>) {
         let arc_merge_policy = Arc::from(merge_policy);
-        *self.merge_policy.write().unwrap() = arc_merge_policy;
+        *self.merge_policy.write() = arc_merge_policy;
     }
 
     fn schedule_task<T: 'static + Send, F: FnOnce() -> crate::Result<T> + 'static + Send>(
@@ -412,10 +432,14 @@ impl SegmentUpdater {
         let (scheduled_result, sender) = FutureResult::create(
             "A segment_updater future did not succeed. This should never happen.",
         );
-        self.pool.spawn(|| {
-            let task_result = task();
-            let _ = sender.send(task_result);
-        });
+        self.pools
+            .as_ref()
+            .expect("thread pools should have been configured")
+            .pool
+            .spawn(|| {
+                let task_result = task();
+                let _ = sender.send(task_result);
+            });
         scheduled_result
     }
 
@@ -538,11 +562,11 @@ impl SegmentUpdater {
     }
 
     fn store_meta(&self, index_meta: &IndexMeta) {
-        *self.active_index_meta.write().unwrap() = Arc::new(index_meta.clone());
+        *self.active_index_meta.write() = Arc::new(index_meta.clone());
     }
 
     fn load_meta(&self) -> Arc<IndexMeta> {
-        self.active_index_meta.read().unwrap().clone()
+        self.active_index_meta.read().clone()
     }
 
     pub(crate) fn make_merge_operation(
@@ -605,38 +629,48 @@ impl SegmentUpdater {
             FutureResult::create("Merge operation failed.");
 
         let cancel = self.cancel.box_clone();
-        let merge_errors = self.merge_errors.clone();
-        self.merge_thread_pool.spawn(move || {
-            // The fact that `merge_operation` is moved here is important.
-            // Its lifetime is used to track how many merging thread are currently running,
-            // as well as which segment is currently in merge and therefore should not be
-            // candidate for another merge.
-            match merge(
-                &segment_updater.index,
-                segment_entries,
-                merge_operation.target_opstamp(),
-                cancel,
-                false,
-            ) {
-                Ok(after_merge_segment_entry) => {
-                    let res = segment_updater.end_merge(merge_operation, after_merge_segment_entry);
-                    let _send_result = merging_future_send.send(res);
-                }
-                Err(merge_error) => {
-                    warn!(
-                        "Merge of {:?} was cancelled: {:?}",
-                        merge_operation.segment_ids().to_vec(),
-                        merge_error
-                    );
-                    if cfg!(test) {
-                        panic!("{merge_error:?}");
+        let merge_errors = self
+            .pools
+            .as_ref()
+            .expect("thread pools should have been configured")
+            .merge_errors
+            .clone();
+        self.pools
+            .as_ref()
+            .expect("thread pools should have been configured")
+            .merge_thread_pool
+            .spawn(move || {
+                // The fact that `merge_operation` is moved here is important.
+                // Its lifetime is used to track how many merging thread are currently running,
+                // as well as which segment is currently in merge and therefore should not be
+                // candidate for another merge.
+                match merge(
+                    &segment_updater.index,
+                    segment_entries,
+                    merge_operation.target_opstamp(),
+                    cancel,
+                    false,
+                ) {
+                    Ok(after_merge_segment_entry) => {
+                        let res =
+                            segment_updater.end_merge(merge_operation, after_merge_segment_entry);
+                        let _send_result = merging_future_send.send(res);
                     }
+                    Err(merge_error) => {
+                        warn!(
+                            "Merge of {:?} was cancelled: {:?}",
+                            merge_operation.segment_ids().to_vec(),
+                            merge_error
+                        );
+                        if cfg!(test) {
+                            panic!("{merge_error:?}");
+                        }
 
-                    merge_errors.write().unwrap().push(merge_error.clone());
-                    let _send_result = merging_future_send.send(Err(merge_error));
+                        merge_errors.write().push(merge_error.clone());
+                        let _send_result = merging_future_send.send(Err(merge_error));
+                    }
                 }
-            }
-        });
+            });
 
         scheduled_result
     }
@@ -679,7 +713,11 @@ impl SegmentUpdater {
     }
 
     pub(crate) fn get_merge_errors(&self) -> Vec<TantivyError> {
-        self.merge_errors.read().unwrap().clone()
+        if let Some(pools) = self.pools.as_ref() {
+            pools.merge_errors.read().clone()
+        } else {
+            Vec::new()
+        }
     }
 
     fn consider_merge_options(&self) {
