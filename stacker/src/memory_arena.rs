@@ -22,10 +22,18 @@
 //!
 //! Instead, you store and access your data via `.write(...)` and `.read(...)`, which under the hood
 //! stores your object using `ptr::write_unaligned` and `ptr::read_unaligned`.
+use std::sync::Arc;
 use std::{mem, ptr};
 
-const NUM_BITS_PAGE_ADDR: usize = 20;
-const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+
+// Tanty's default is 20 bits, or 1MB.  Tantivy uses the memory arena during indexing and generally
+// assumes long-running indexing threads.  We (pg_search) do indexing on the main thread and our
+// indexing patterns are typically 1 document per segment.  :(  Using half tantivy's default memory
+// saves quite a bit of indexing overhead
+const NUM_BITS_PAGE_ADDR: usize = 19;
+const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 512k large
 
 /// Represents a pointer into the `MemoryArena`
 /// .
@@ -91,18 +99,45 @@ pub fn load<Item: Copy + 'static>(data: &[u8]) -> Item {
 /// The `MemoryArena`
 pub struct MemoryArena {
     pages: Vec<Page>,
+    capacity: usize,
 }
+
+static ARENA_POOL: Lazy<Arc<Mutex<Vec<MemoryArena>>>> = Lazy::new(|| Default::default());
 
 impl Default for MemoryArena {
     fn default() -> MemoryArena {
-        let first_page = Page::new(0);
-        MemoryArena {
-            pages: vec![first_page],
-        }
+        ARENA_POOL.lock().pop().unwrap_or_else(|| {
+            let first_page = Page::new(0);
+            MemoryArena {
+                pages: vec![first_page],
+                capacity: 1,
+            }
+        })
+    }
+}
+
+impl Drop for MemoryArena {
+    fn drop(&mut self) {
+        let my_pages = std::mem::replace(&mut self.pages, Vec::new());
+        let my_capacity = self.capacity;
+        let mut recycled = MemoryArena {
+            pages: my_pages,
+            capacity: my_capacity,
+        };
+
+        recycled.reset();
+        ARENA_POOL.lock().push(recycled);
     }
 }
 
 impl MemoryArena {
+    pub fn reset(&mut self) {
+        unsafe {
+            self.pages.set_len(1);
+        }
+        self.pages[0].len = 0;
+    }
+
     /// Returns an estimate in number of bytes
     /// of resident memory consumed by the `MemoryArena`.
     ///
@@ -171,11 +206,27 @@ impl MemoryArena {
     /// Add a page and allocate len on it.
     /// Return the address
     fn add_page(&mut self, len: usize) -> Addr {
-        let new_page_id = self.pages.len();
-        let mut page = Page::new(new_page_id);
-        page.len = len;
-        self.pages.push(page);
-        Addr::new(new_page_id, 0)
+        let npages = self.pages.len();
+
+        if npages + 1 < self.capacity {
+            // we have a hidden, pre-allocated page
+
+            unsafe {
+                // make it live
+                self.pages.set_len(npages + 1);
+                let page = self.pages.get_unchecked_mut(npages);
+                page.len = len;
+                Addr::new(page.page_id, 0)
+            }
+        } else {
+            // must allocate a new page and add it to the arena
+            let new_page_id = self.pages.len();
+            let mut page = Page::new(new_page_id);
+            page.len = len;
+            self.pages.push(page);
+            self.capacity += 1;
+            Addr::new(new_page_id, 0)
+        }
     }
 
     /// Allocates `len` bytes and returns the allocated address.

@@ -12,7 +12,9 @@ murmurhash32 = "0.3"
 common = { version = "0.7", path = "../common/", package = "tantivy-common" }
 ahash = { version = "0.8.11", default-features = false, optional = true }
 rand_distr = "0.4.3"
-
+fixedbitset = "0.5.7"
+once_cell = "1.21.3"
+parking_lot = "0.12.4"
 
 [[bench]]
 harness = false

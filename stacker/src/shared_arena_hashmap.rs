@@ -1,5 +1,6 @@
-use std::iter::{Cloned, Filter};
 use std::mem;
+
+use fixedbitset::{FixedBitSet, Ones};
 
 use super::{Addr, MemoryArena};
 use crate::fastcpy::fast_short_slice_copy;
@@ -41,7 +42,9 @@ impl KeyValue {
     fn is_empty(&self) -> bool {
         self.key_value_addr.is_null()
     }
+
     #[inline]
+    #[allow(dead_code)]
     fn is_not_empty_ref(&self) -> bool {
         !self.key_value_addr.is_null()
     }
@@ -62,6 +65,7 @@ impl KeyValue {
 /// So one MemoryArena can be shared with multiple SharedArenaHashMap.
 pub struct SharedArenaHashMap {
     table: Vec<KeyValue>,
+    used: FixedBitSet,
     mask: usize,
     len: usize,
 }
@@ -88,24 +92,26 @@ impl LinearProbing {
     }
 }
 
-type IterNonEmpty<'a> = Filter<Cloned<std::slice::Iter<'a, KeyValue>>, fn(&KeyValue) -> bool>;
-
 pub struct Iter<'a> {
+    used: Ones<'a>,
     hashmap: &'a SharedArenaHashMap,
     memory_arena: &'a MemoryArena,
-    inner: IterNonEmpty<'a>,
 }
 
 impl<'a> Iterator for Iter<'a> {
     type Item = (&'a [u8], Addr);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(move |kv| {
-            let (key, offset): (&'a [u8], Addr) = self
-                .hashmap
-                .get_key_value(kv.key_value_addr, self.memory_arena);
-            (key, offset)
-        })
+        let next = self.used.next()?;
+        let kv = unsafe { self.hashmap.table.get_unchecked(next) };
+        Some(
+            self.hashmap
+                .get_key_value(kv.key_value_addr, self.memory_arena),
+        )
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.used.size_hint()
     }
 }
 
@@ -132,9 +138,17 @@ impl SharedArenaHashMap {
 
         SharedArenaHashMap {
             table,
+            used: FixedBitSet::with_capacity(table_size_power_of_2),
             mask: table_size_power_of_2 - 1,
             len: 0,
         }
+    }
+
+    pub fn reset(&mut self) {
+        // NB:  thanks to `self.used` we don't need to reset the contents of the table
+        // self.table.fill(KeyValue::default());
+        self.used.clear();
+        self.len = 0;
     }
 
     #[inline]
@@ -220,6 +234,9 @@ impl SharedArenaHashMap {
             key_value_addr,
             hash,
         };
+        unsafe {
+            self.used.set_unchecked(bucket, true);
+        }
     }
 
     #[inline]
@@ -235,11 +252,7 @@ impl SharedArenaHashMap {
     #[inline]
     pub fn iter<'a>(&'a self, memory_arena: &'a MemoryArena) -> Iter<'a> {
         Iter {
-            inner: self
-                .table
-                .iter()
-                .cloned()
-                .filter(KeyValue::is_not_empty_ref),
+            used: self.used.ones(),
             hashmap: self,
             memory_arena,
         }
@@ -249,14 +262,21 @@ impl SharedArenaHashMap {
         let new_len = (self.table.len() * 2).max(1 << 3);
         let mask = new_len - 1;
         self.mask = mask;
-        let new_table = vec![KeyValue::default(); new_len];
-        let old_table = mem::replace(&mut self.table, new_table);
-        for key_value in old_table.into_iter().filter(KeyValue::is_not_empty_ref) {
+
+        // assign a new table and used bitset, taking the old ones so we can use them for resizing
+        let old_table = mem::replace(&mut self.table, vec![KeyValue::default(); new_len]);
+        let old_used = mem::replace(&mut self.used, FixedBitSet::with_capacity(new_len));
+
+        for idx in old_used.ones() {
+            let key_value = unsafe { old_table.get_unchecked(idx) };
             let mut probe = LinearProbing::compute(key_value.hash, mask);
             loop {
                 let bucket = probe.next_probe();
                 if self.table[bucket].is_empty() {
-                    self.table[bucket] = key_value;
+                    self.table[bucket] = *key_value;
+                    unsafe {
+                        self.used.set_unchecked(bucket, true);
+                    }
                     break;
                 }
             }
@@ -272,7 +292,7 @@ impl SharedArenaHashMap {
         loop {
             let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
-            if kv.is_empty() {
+            if !self.used[bucket] {
                 return None;
             } else if kv.hash == hash {
                 if let Some(val_addr) =
@@ -316,8 +336,9 @@ impl SharedArenaHashMap {
         let mut probe = self.probe(hash);
         let mut bucket = probe.next_probe();
         let mut kv: KeyValue = self.table[bucket];
+        let mut used = self.used[bucket];
         loop {
-            if kv.is_empty() {
+            if !used {
                 // The key does not exist yet.
                 let val = updater(None);
                 let num_bytes = std::mem::size_of::<u16>() + key.len() + std::mem::size_of::<V>();
@@ -347,6 +368,7 @@ impl SharedArenaHashMap {
             // This allows fetching the next bucket before the loop jmp
             bucket = probe.next_probe();
             kv = self.table[bucket];
+            used = self.used[bucket];
         }
     }
 }
