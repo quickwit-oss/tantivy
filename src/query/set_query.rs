@@ -52,7 +52,7 @@ impl TermSetQuery {
                     .iter()
                     .map(|key| (key.serialized_value_bytes(), 0)),
             )
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
             sub_queries.push((
                 Occur::Should,

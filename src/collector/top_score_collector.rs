@@ -2,11 +2,13 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use columnar::ColumnValues;
+use columnar::{ColumnValues, StrColumn};
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
-use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
+use crate::collector::custom_score_top_collector::{
+    CustomScoreTopCollector, CustomScoreTopSegmentCollector,
+};
 use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
@@ -14,6 +16,7 @@ use crate::collector::{
 };
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::query::Weight;
+use crate::termdict::TermOrdinal;
 use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 struct FastFieldConvertCollector<
@@ -80,6 +83,163 @@ where
             })
             .collect::<Vec<_>>();
         Ok(transformed_result)
+    }
+}
+
+struct StringConvertCollector {
+    pub collector: CustomScoreTopCollector<ScorerByField, u64>,
+    pub field: String,
+    order: Order,
+    limit: usize,
+    offset: usize,
+}
+
+impl Collector for StringConvertCollector {
+    type Fruit = Vec<(String, DocAddress)>;
+
+    type Child = StringConvertSegmentCollector;
+
+    fn for_segment(
+        &self,
+        segment_local_id: crate::SegmentOrdinal,
+        segment: &SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        let schema = segment.schema();
+        let field = schema.get_field(&self.field)?;
+        let field_entry = schema.get_field_entry(field);
+        if !field_entry.is_fast() {
+            return Err(TantivyError::SchemaError(format!(
+                "Field {:?} is not a fast field.",
+                field_entry.name()
+            )));
+        }
+        let requested_type = crate::schema::Type::Str;
+        let schema_type = field_entry.field_type().value_type();
+        if schema_type != requested_type {
+            return Err(TantivyError::SchemaError(format!(
+                "Field {:?} is of type {schema_type:?}!={requested_type:?}",
+                field_entry.name()
+            )));
+        }
+        let ff = segment
+            .fast_fields()
+            .str(&self.field)?
+            .expect("ff should be a str field");
+        Ok(StringConvertSegmentCollector {
+            collector: self.collector.for_segment(segment_local_id, segment)?,
+            ff,
+            order: self.order.clone(),
+        })
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.collector.requires_scoring()
+    }
+
+    fn merge_fruits(
+        &self,
+        child_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
+        if self.limit == 0 {
+            return Ok(Vec::new());
+        }
+        if self.order.is_desc() {
+            let mut top_collector: TopNComputer<_, _, true> =
+                TopNComputer::new(self.limit + self.offset);
+            for child_fruit in child_fruits {
+                for (feature, doc) in child_fruit {
+                    top_collector.push(feature, doc);
+                }
+            }
+            Ok(top_collector
+                .into_sorted_vec()
+                .into_iter()
+                .skip(self.offset)
+                .map(|cdoc| (cdoc.feature, cdoc.doc))
+                .collect())
+        } else {
+            let mut top_collector: TopNComputer<_, _, false> =
+                TopNComputer::new(self.limit + self.offset);
+            for child_fruit in child_fruits {
+                for (feature, doc) in child_fruit {
+                    top_collector.push(feature, doc);
+                }
+            }
+
+            Ok(top_collector
+                .into_sorted_vec()
+                .into_iter()
+                .skip(self.offset)
+                .map(|cdoc| (cdoc.feature, cdoc.doc))
+                .collect())
+        }
+    }
+}
+
+struct StringConvertSegmentCollector {
+    pub collector: CustomScoreTopSegmentCollector<ScorerByFastFieldReader, u64>,
+    ff: StrColumn,
+    order: Order,
+}
+
+impl SegmentCollector for StringConvertSegmentCollector {
+    type Fruit = Vec<(String, DocAddress)>;
+
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.collector.collect(doc, score);
+    }
+
+    fn harvest(self) -> Vec<(String, DocAddress)> {
+        let top_ordinals: Vec<(TermOrdinal, DocAddress)> = self.collector.harvest();
+
+        // Collect terms.
+        let mut terms: Vec<String> = Vec::with_capacity(top_ordinals.len());
+        let result = if self.order.is_asc() {
+            self.ff.dictionary().sorted_ords_to_term_cb(
+                top_ordinals.iter().map(|(term_ord, _)| u64::MAX - term_ord),
+                |term| {
+                    terms.push(
+                        std::str::from_utf8(term)
+                            .expect("Failed to decode term as unicode")
+                            .to_owned(),
+                    );
+                    Ok(())
+                },
+            )
+        } else {
+            self.ff.dictionary().sorted_ords_to_term_cb(
+                top_ordinals.iter().rev().map(|(term_ord, _)| *term_ord),
+                |term| {
+                    terms.push(
+                        std::str::from_utf8(term)
+                            .expect("Failed to decode term as unicode")
+                            .to_owned(),
+                    );
+                    Ok(())
+                },
+            )
+        };
+
+        assert!(
+            result.expect("Failed to read terms from term dictionary"),
+            "Not all terms were matched in segment."
+        );
+
+        // Zip them back with their docs.
+        if self.order.is_asc() {
+            terms
+                .into_iter()
+                .zip(top_ordinals)
+                .map(|(term, (_, doc))| (term, doc))
+                .collect()
+        } else {
+            terms
+                .into_iter()
+                .rev()
+                .zip(top_ordinals)
+                .map(|(term, (_, doc))| (term, doc))
+                .collect()
+        }
     }
 }
 
@@ -407,6 +567,30 @@ impl TopDocs {
             field: fast_field.to_string(),
             fast_value: PhantomData,
             order,
+        }
+    }
+
+    /// Like `order_by_fast_field`, but for a `String` fast field.
+    pub fn order_by_string_fast_field(
+        self,
+        fast_field: impl ToString,
+        order: Order,
+    ) -> impl Collector<Fruit = Vec<(String, DocAddress)>> {
+        let limit = self.0.limit;
+        let offset = self.0.offset;
+        let u64_collector = CustomScoreTopCollector::new(
+            ScorerByField {
+                field: fast_field.to_string(),
+                order: order.clone(),
+            },
+            self.0.into_tscore(),
+        );
+        StringConvertCollector {
+            collector: u64_collector,
+            field: fast_field.to_string(),
+            order,
+            limit,
+            offset,
         }
     }
 
@@ -786,7 +970,7 @@ impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNCompu
     }
 }
 
-impl<Score, D, const R: bool> TopNComputer<Score, D, R>
+impl<Score, D, const REVERSE_ORDER: bool> TopNComputer<Score, D, REVERSE_ORDER>
 where
     Score: PartialOrd + Clone,
     D: Ord,
@@ -807,7 +991,10 @@ where
     #[inline]
     pub fn push(&mut self, feature: Score, doc: D) {
         if let Some(last_median) = self.threshold.clone() {
-            if feature < last_median {
+            if !REVERSE_ORDER && feature > last_median {
+                return;
+            }
+            if REVERSE_ORDER && feature < last_median {
                 return;
             }
         }
@@ -842,7 +1029,7 @@ where
     }
 
     /// Returns the top n elements in sorted order.
-    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
+    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, D, REVERSE_ORDER>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -853,7 +1040,7 @@ where
     /// Returns the top n elements in stored order.
     /// Useful if you do not need the elements in sorted order,
     /// for example when merging the results of multiple segments.
-    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, D, R>> {
+    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, D, REVERSE_ORDER>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -863,9 +1050,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::{TopDocs, TopNComputer};
     use crate::collector::top_collector::ComparableDoc;
-    use crate::collector::Collector;
+    use crate::collector::{Collector, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;
@@ -957,6 +1146,44 @@ mod tests {
                 computer.push(1u32, 1u32);
             }
             let _vals = computer.into_sorted_vec();
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_topn_computer_asc_prop(
+          limit in 0..10_usize,
+          docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
+        ) {
+            let mut computer: TopNComputer<_, _, false> = TopNComputer::new(limit);
+            for (feature, doc) in &docs {
+                computer.push(*feature, *doc);
+            }
+            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc }).collect::<Vec<_>>();
+            comparable_docs.sort();
+            comparable_docs.truncate(limit);
+            prop_assert_eq!(
+                computer.into_sorted_vec(),
+                comparable_docs,
+            );
+        }
+
+        #[test]
+        fn test_topn_computer_desc_prop(
+          limit in 0..10_usize,
+          docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
+        ) {
+            let mut computer: TopNComputer<_, _, true> = TopNComputer::new(limit);
+            for (feature, doc) in &docs {
+                computer.push(*feature, *doc);
+            }
+            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc }).collect::<Vec<_>>();
+            comparable_docs.sort();
+            comparable_docs.truncate(limit);
+            prop_assert_eq!(
+                computer.into_sorted_vec(),
+                comparable_docs,
+            );
         }
     }
 
@@ -1064,6 +1291,220 @@ mod tests {
 
         assert_eq!(page_1, &page_2[..page_1.len()]);
         assert_eq!(page_0, &page_2[..page_0.len()]);
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        /// Build multiple segments with equal-scoring docs and verify stable ordering
+        /// across pages when increasing limit or offset.
+        #[test]
+        fn proptest_stable_ordering_across_segments_with_pagination(
+            docs_per_segment in proptest::collection::vec(1usize..50, 2..5)
+        ) {
+            use crate::indexer::NoMergePolicy;
+
+            // Build an index with multiple segments; all docs will have the same score using AllQuery.
+            let mut schema_builder = Schema::builder();
+            let text = schema_builder.add_text_field("text", TEXT);
+            let schema = schema_builder.build();
+            let index = Index::create_in_ram(schema);
+            let mut writer = index.writer_for_tests().unwrap();
+            writer.set_merge_policy(Box::new(NoMergePolicy));
+
+            for num_docs in &docs_per_segment {
+                for _ in 0..*num_docs {
+                    writer.add_document(doc!(text => "x")).unwrap();
+                }
+                writer.commit().unwrap();
+            }
+
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+
+            let total_docs: usize = docs_per_segment.iter().sum();
+            // Full result set, first assert all scores are identical.
+            let full_with_scores: Vec<(Score, DocAddress)> = searcher
+                .search(&AllQuery, &TopDocs::with_limit(total_docs))
+                .unwrap();
+            // Sanity: at least one document was returned.
+            prop_assert!(!full_with_scores.is_empty());
+            let first_score = full_with_scores[0].0;
+            prop_assert!(full_with_scores.iter().all(|(score, _)| *score == first_score));
+
+            // Keep only the addresses for the remaining checks.
+            let full: Vec<DocAddress> = full_with_scores
+                .into_iter()
+                .map(|(_score, addr)| addr)
+                .collect();
+
+            // Sanity: we actually created multiple segments and have documents.
+            prop_assert!(docs_per_segment.len() >= 2);
+            prop_assert!(total_docs >= 2);
+
+            // 1) Increasing limit should preserve prefix ordering.
+            for k in 1..=total_docs {
+                let page: Vec<DocAddress> = searcher
+                    .search(&AllQuery, &TopDocs::with_limit(k))
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_score, addr)| addr)
+                    .collect();
+                prop_assert_eq!(page, full[..k].to_vec());
+            }
+
+            // 2) Offset + limit pages should always match the corresponding slice.
+            //    For each offset, check three representative page sizes:
+            //    - first page (size 1)
+            //    - a middle page (roughly half of remaining)
+            //    - the last page (size = remaining)
+            for offset in 0..total_docs {
+                let remaining = total_docs - offset;
+
+                let assert_page_eq = |limit: usize| -> proptest::test_runner::TestCaseResult {
+                    let page: Vec<DocAddress> = searcher
+                        .search(&AllQuery, &TopDocs::with_limit(limit).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    prop_assert_eq!(page, full[offset..offset + limit].to_vec());
+                    Ok(())
+                };
+
+                // Smallest page.
+                assert_page_eq(1)?;
+                // A middle-sized page (dedupes to 1 if remaining == 1).
+                assert_page_eq((remaining / 2).max(1))?;
+                // Largest page for this offset.
+                assert_page_eq(remaining)?;
+            }
+
+            // 3) Concatenating fixed-size pages by offset reproduces the full order.
+            for page_size in 1..=total_docs.min(5) {
+                let mut concat: Vec<DocAddress> = Vec::new();
+                let mut offset = 0;
+                while offset < total_docs {
+                    let size = page_size.min(total_docs - offset);
+                    let page: Vec<DocAddress> = searcher
+                        .search(&AllQuery, &TopDocs::with_limit(size).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    concat.extend(page);
+                    offset += size;
+                }
+                // Avoid moving `full` across loop iterations.
+                prop_assert_eq!(concat, full.clone());
+            }
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        /// Build multiple segments with same-scoring term matches and verify stable ordering
+        /// across pages for a real scoring query (TermQuery with identical TF and fieldnorm).
+        #[test]
+        fn proptest_stable_ordering_across_segments_with_term_query_and_pagination(
+            docs_per_segment in proptest::collection::vec(1usize..50, 2..5)
+        ) {
+            use crate::indexer::NoMergePolicy;
+            use crate::schema::IndexRecordOption;
+            use crate::query::TermQuery;
+            use crate::Term;
+
+            // Build an index with multiple segments; each doc has exactly one token "x",
+            // ensuring equal BM25 scores across all matching docs (same TF=1 and fieldnorm=1).
+            let mut schema_builder = Schema::builder();
+            let text = schema_builder.add_text_field("text", TEXT);
+            let schema = schema_builder.build();
+            let index = Index::create_in_ram(schema);
+            let mut writer = index.writer_for_tests().unwrap();
+            writer.set_merge_policy(Box::new(NoMergePolicy));
+
+            for num_docs in &docs_per_segment {
+                for _ in 0..*num_docs {
+                    writer.add_document(doc!(text => "x")).unwrap();
+                }
+                writer.commit().unwrap();
+            }
+
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+
+            let total_docs: usize = docs_per_segment.iter().sum();
+            let term = Term::from_field_text(text, "x");
+            let tq = TermQuery::new(term, IndexRecordOption::WithFreqs);
+
+            // Full result set, first assert all scores are identical across docs.
+            let full_with_scores: Vec<(Score, DocAddress)> = searcher
+                .search(&tq, &TopDocs::with_limit(total_docs))
+                .unwrap();
+            // Sanity: at least one document was returned.
+            prop_assert!(!full_with_scores.is_empty());
+            let first_score = full_with_scores[0].0;
+            prop_assert!(full_with_scores.iter().all(|(score, _)| *score == first_score));
+
+            // Keep only the addresses for the remaining checks.
+            let full: Vec<DocAddress> = full_with_scores
+                .into_iter()
+                .map(|(_score, addr)| addr)
+                .collect();
+
+            // Sanity: we actually created multiple segments and have documents.
+            prop_assert!(docs_per_segment.len() >= 2);
+            prop_assert!(total_docs >= 2);
+
+            // 1) Increasing limit should preserve prefix ordering.
+            for k in 1..=total_docs {
+                let page: Vec<DocAddress> = searcher
+                    .search(&tq, &TopDocs::with_limit(k))
+                    .unwrap()
+                    .into_iter()
+                    .map(|(_score, addr)| addr)
+                    .collect();
+                prop_assert_eq!(page, full[..k].to_vec());
+            }
+
+            // 2) Offset + limit pages should always match the corresponding slice.
+            //    Check three representative page sizes for each offset: 1, ~half, and remaining.
+            for offset in 0..total_docs {
+                let remaining = total_docs - offset;
+
+                let assert_page_eq = |limit: usize| -> proptest::test_runner::TestCaseResult {
+                    let page: Vec<DocAddress> = searcher
+                        .search(&tq, &TopDocs::with_limit(limit).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    prop_assert_eq!(page, full[offset..offset + limit].to_vec());
+                    Ok(())
+                };
+
+                assert_page_eq(1)?;
+                assert_page_eq((remaining / 2).max(1))?;
+                assert_page_eq(remaining)?;
+            }
+
+            // 3) Concatenating fixed-size pages by offset reproduces the full order.
+            for page_size in 1..=total_docs.min(5) {
+                let mut concat: Vec<DocAddress> = Vec::new();
+                let mut offset = 0;
+                while offset < total_docs {
+                    let size = page_size.min(total_docs - offset);
+                    let page: Vec<DocAddress> = searcher
+                        .search(&tq, &TopDocs::with_limit(size).and_offset(offset))
+                        .unwrap()
+                        .into_iter()
+                        .map(|(_score, addr)| addr)
+                        .collect();
+                    concat.extend(page);
+                    offset += size;
+                }
+                prop_assert_eq!(concat, full.clone());
+            }
+        }
     }
 
     #[test]
@@ -1212,6 +1653,160 @@ mod tests {
             ]
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_top_field_collector_string() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let city = schema_builder.add_text_field("city", TEXT | FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+                city => "austin",
+        ))?;
+        index_writer.add_document(doc!(
+                city => "greenville",
+        ))?;
+        index_writer.add_document(doc!(
+            city => "tokyo",
+        ))?;
+        index_writer.commit()?;
+
+        fn query(
+            index: &Index,
+            order: Order,
+            limit: usize,
+            offset: usize,
+        ) -> crate::Result<Vec<(String, DocAddress)>> {
+            let searcher = index.reader()?.searcher();
+            let top_collector = TopDocs::with_limit(limit)
+                .and_offset(offset)
+                .order_by_string_fast_field("city", order);
+            searcher.search(&AllQuery, &top_collector)
+        }
+
+        assert_eq!(
+            &query(&index, Order::Desc, 3, 0)?,
+            &[
+                ("tokyo".to_owned(), DocAddress::new(0, 2)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+                ("austin".to_owned(), DocAddress::new(0, 0)),
+            ]
+        );
+
+        assert_eq!(
+            &query(&index, Order::Desc, 2, 0)?,
+            &[
+                ("tokyo".to_owned(), DocAddress::new(0, 2)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+            ]
+        );
+
+        assert_eq!(&query(&index, Order::Desc, 3, 3)?, &[]);
+
+        assert_eq!(
+            &query(&index, Order::Desc, 2, 1)?,
+            &[
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+                ("austin".to_owned(), DocAddress::new(0, 0)),
+            ]
+        );
+
+        assert_eq!(
+            &query(&index, Order::Asc, 3, 0)?,
+            &[
+                ("austin".to_owned(), DocAddress::new(0, 0)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+                ("tokyo".to_owned(), DocAddress::new(0, 2)),
+            ]
+        );
+
+        assert_eq!(
+            &query(&index, Order::Asc, 2, 1)?,
+            &[
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+                ("tokyo".to_owned(), DocAddress::new(0, 2)),
+            ]
+        );
+
+        assert_eq!(
+            &query(&index, Order::Asc, 2, 0)?,
+            &[
+                ("austin".to_owned(), DocAddress::new(0, 0)),
+                ("greenville".to_owned(), DocAddress::new(0, 1)),
+            ]
+        );
+
+        assert_eq!(&query(&index, Order::Asc, 3, 3)?, &[]);
+
+        Ok(())
+    }
+
+    proptest! {
+        #[test]
+        fn test_top_field_collect_string_prop(
+          order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
+          limit in 1..256_usize,
+          offset in 0..256_usize,
+          segments_terms in
+            proptest::collection::vec(
+                proptest::collection::vec(0..32_u8, 1..32_usize),
+                0..8_usize,
+            )
+        ) {
+            let mut schema_builder = Schema::builder();
+            let city = schema_builder.add_text_field("city", TEXT | FAST);
+            let schema = schema_builder.build();
+            let index = Index::create_in_ram(schema);
+            let mut index_writer = index.writer_for_tests()?;
+
+            // A Vec<Vec<u8>>, where the outer Vec represents segments, and the inner Vec
+            // represents terms.
+            for segment_terms in segments_terms.into_iter() {
+                for term in segment_terms.into_iter() {
+                    let term = format!("{term:0>3}");
+                    index_writer.add_document(doc!(
+                        city => term,
+                    ))?;
+                }
+                index_writer.commit()?;
+            }
+
+            let searcher = index.reader()?.searcher();
+            let top_n_results = searcher.search(&AllQuery, &TopDocs::with_limit(limit)
+                .and_offset(offset)
+                .order_by_string_fast_field("city", order.clone()))?;
+            let all_results = searcher.search(&AllQuery, &DocSetCollector)?.into_iter().map(|doc_address| {
+                // Get the term for this address.
+                // NOTE: We can't determine the SegmentIds that will be generated for Segments
+                // ahead of time, so we can't pre-compute the expected `DocAddress`es.
+                let column = searcher.segment_readers()[doc_address.segment_ord as usize].fast_fields().str("city").unwrap().unwrap();
+                let term_ord = column.term_ords(doc_address.doc_id).next().unwrap();
+                let mut city = Vec::new();
+                column.dictionary().ord_to_term(term_ord, &mut city).unwrap();
+                (String::try_from(city).unwrap(), doc_address)
+            });
+
+            // Using the TopDocs collector should always be equivalent to sorting, skipping the
+            // offset, and then taking the limit.
+            let sorted_docs: Vec<_> = if order.is_desc() {
+                let mut comparable_docs: Vec<ComparableDoc<_, _, true>> =
+                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc}).collect();
+                comparable_docs.sort();
+                comparable_docs.into_iter().map(|cd| (cd.feature, cd.doc)).collect()
+            } else {
+                let mut comparable_docs: Vec<ComparableDoc<_, _, false>> =
+                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc}).collect();
+                comparable_docs.sort();
+                comparable_docs.into_iter().map(|cd| (cd.feature, cd.doc)).collect()
+            };
+            let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
+            prop_assert_eq!(
+                expected_docs,
+                top_n_results
+            );
+        }
     }
 
     #[test]
@@ -1372,5 +1967,30 @@ mod tests {
             ]
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_topn_computer_asc() {
+        let mut computer: TopNComputer<u32, u32, false> = TopNComputer::new(2);
+
+        computer.push(1u32, 1u32);
+        computer.push(2u32, 2u32);
+        computer.push(3u32, 3u32);
+        computer.push(2u32, 4u32);
+        computer.push(4u32, 5u32);
+        computer.push(1u32, 6u32);
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    feature: 1u32,
+                    doc: 1u32,
+                },
+                ComparableDoc {
+                    feature: 1u32,
+                    doc: 6u32,
+                }
+            ]
+        );
     }
 }

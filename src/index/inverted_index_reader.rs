@@ -1,8 +1,7 @@
 use std::io;
 
 use common::json_path_writer::JSON_END_OF_PATH;
-use common::BinarySerializable;
-use fnv::FnvHashSet;
+use common::{BinarySerializable, ByteCount};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
@@ -34,6 +33,33 @@ pub struct InvertedIndexReader {
     positions_file_slice: FileSlice,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
+}
+
+/// Object that records the amount of space used by a field in an inverted index.
+pub(crate) struct InvertedIndexFieldSpace {
+    pub field_name: String,
+    pub field_type: Type,
+    pub postings_size: ByteCount,
+    pub positions_size: ByteCount,
+    pub num_terms: u64,
+}
+
+/// Returns None if the term is not a valid JSON path.
+fn extract_field_name_and_field_type_from_json_path(term: &[u8]) -> Option<(String, Type)> {
+    let index = term.iter().position(|&byte| byte == JSON_END_OF_PATH)?;
+    let field_type_code = term.get(index + 1).copied()?;
+    let field_type = Type::from_code(field_type_code)?;
+    // Let's flush the current field.
+    let field_name = String::from_utf8_lossy(&term[..index]).to_string();
+    Some((field_name, field_type))
+}
+
+impl InvertedIndexFieldSpace {
+    fn record(&mut self, term_info: &TermInfo) {
+        self.postings_size += ByteCount::from(term_info.posting_num_bytes() as u64);
+        self.positions_size += ByteCount::from(term_info.positions_num_bytes() as u64);
+        self.num_terms += 1;
+    }
 }
 
 impl InvertedIndexReader {
@@ -81,19 +107,55 @@ impl InvertedIndexReader {
     ///
     /// Notice: This requires a full scan and therefore **very expensive**.
     /// TODO: Move to sstable to use the index.
-    pub fn list_encoded_fields(&self) -> io::Result<Vec<(String, Type)>> {
+    pub(crate) fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>> {
         let mut stream = self.termdict.stream()?;
-        let mut fields = Vec::new();
-        let mut fields_set = FnvHashSet::default();
-        while let Some((term, _term_info)) = stream.next() {
-            if let Some(index) = term.iter().position(|&byte| byte == JSON_END_OF_PATH) {
-                if !fields_set.contains(&term[..index + 2]) {
-                    fields_set.insert(term[..index + 2].to_vec());
-                    let typ = Type::from_code(term[index + 1]).unwrap();
-                    fields.push((String::from_utf8_lossy(&term[..index]).to_string(), typ));
+        let mut fields: Vec<InvertedIndexFieldSpace> = Vec::new();
+
+        let mut current_field_opt: Option<InvertedIndexFieldSpace> = None;
+        // Current field bytes, including the JSON_END_OF_PATH.
+        let mut current_field_bytes: Vec<u8> = Vec::new();
+
+        while let Some((term, term_info)) = stream.next() {
+            if let Some(current_field) = &mut current_field_opt {
+                if term.starts_with(&current_field_bytes) {
+                    // We are still in the same field.
+                    current_field.record(term_info);
+                    continue;
                 }
             }
+
+            // This is a new field!
+            // Let's flush the current field.
+            fields.extend(current_field_opt.take());
+            current_field_bytes.clear();
+
+            // And create a new one.
+            let Some((field_name, field_type)) =
+                extract_field_name_and_field_type_from_json_path(term)
+            else {
+                error!(
+                    "invalid term bytes encountered {term:?}. this only happens if the term \
+                     dictionary is corrupted. please report"
+                );
+                continue;
+            };
+            let mut field_space = InvertedIndexFieldSpace {
+                field_name,
+                field_type,
+                postings_size: ByteCount::default(),
+                positions_size: ByteCount::default(),
+                num_terms: 0u64,
+            };
+            field_space.record(&term_info);
+
+            // We include the json type and the json end of path to make sure the prefix check
+            // is meaningful.
+            current_field_bytes.extend_from_slice(&term[..field_space.field_name.len() + 2]);
+            current_field_opt = Some(field_space);
         }
+
+        // We need to flush the last field as well.
+        fields.extend(current_field_opt.take());
 
         Ok(fields)
     }

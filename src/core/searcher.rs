@@ -227,7 +227,7 @@ impl Searcher {
     /// It is powerless at making search faster if your index consists in
     /// one large segment.
     ///
-    /// Also, keep in my multithreading a single query on several
+    /// Also, keep in mind multithreading a single query on several
     /// threads will not improve your throughput. It can actually
     /// hurt it. It will however, decrease the average response time.
     pub fn search_with_executor<C: Collector>(

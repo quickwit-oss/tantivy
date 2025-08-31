@@ -778,6 +778,12 @@ impl QueryParser {
                         asts.push(LogicalAst::Leaf(Box::new(ast)).boost(boost));
                     }
                 }
+                if !asts.is_empty() {
+                    // if some fields failed but other succeeded, we consider this a success, it
+                    // probably means the default_fields contains
+                    // text and non-text fields, and the non-text ones failed
+                    errors.clear();
+                }
                 let result_ast: LogicalAst = if asts.len() == 1 {
                     asts.into_iter().next().unwrap()
                 } else {
@@ -1090,25 +1096,58 @@ mod test {
         make_query_parser_with_default_fields(&["title", "text"])
     }
 
-    fn parse_query_to_logical_ast(
+    fn parse_query_to_logical_ast_with_default_fields(
         query: &str,
         default_conjunction: bool,
+        default_fields: &[&'static str],
     ) -> Result<LogicalAst, QueryParserError> {
-        let mut query_parser = make_query_parser();
+        let mut query_parser = make_query_parser_with_default_fields(default_fields);
         if default_conjunction {
             query_parser.set_conjunction_by_default();
         }
         query_parser.parse_query_to_logical_ast(query)
     }
 
+    fn parse_query_to_logical_ast(
+        query: &str,
+        default_conjunction: bool,
+    ) -> Result<LogicalAst, QueryParserError> {
+        parse_query_to_logical_ast_with_default_fields(
+            query,
+            default_conjunction,
+            &["title", "text"],
+        )
+    }
+
+    #[track_caller]
+    fn test_parse_query_to_logical_ast_helper_with_default_fields(
+        query: &str,
+        expected: &str,
+        default_conjunction: bool,
+        default_fields: &[&'static str],
+    ) {
+        let query = parse_query_to_logical_ast_with_default_fields(
+            query,
+            default_conjunction,
+            default_fields,
+        )
+        .unwrap();
+        let query_str = format!("{query:?}");
+        assert_eq!(query_str, expected);
+    }
+
+    #[track_caller]
     fn test_parse_query_to_logical_ast_helper(
         query: &str,
         expected: &str,
         default_conjunction: bool,
     ) {
-        let query = parse_query_to_logical_ast(query, default_conjunction).unwrap();
-        let query_str = format!("{query:?}");
-        assert_eq!(query_str, expected);
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            query,
+            expected,
+            default_conjunction,
+            &["title", "text"],
+        )
     }
 
     #[test]
@@ -1752,6 +1791,15 @@ mod test {
     }
 
     #[test]
+    fn test_space_before_value() {
+        test_parse_query_to_logical_ast_helper(
+            "title: a",
+            r#"Term(field=0, type=Str, "a")"#,
+            false,
+        );
+    }
+
+    #[test]
     fn test_escaped_field() {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field(r"a\.b", STRING);
@@ -1921,5 +1969,28 @@ mod test {
                  minimum_number_should_match: 1 }"
             );
         }
+    }
+
+    #[test]
+    pub fn test_set_default_field_integer() {
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "2324",
+            "(Term(field=0, type=Str, \"2324\") Term(field=2, type=I64, 2324))",
+            false,
+            &["title", "signed"],
+        );
+
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "abc",
+            "Term(field=0, type=Str, \"abc\")",
+            false,
+            &["title", "signed"],
+        );
+
+        let query_parser = make_query_parser_with_default_fields(&["signed"]);
+        assert_matches!(
+            query_parser.parse_query("abc"),
+            Err(QueryParserError::ExpectedInt(_))
+        );
     }
 }

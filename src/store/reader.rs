@@ -52,7 +52,7 @@ impl BinarySerializable for DocStoreVersion {
             v => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("Invalid doc store version {}", v),
+                    format!("Invalid doc store version {v}"),
                 ))
             }
         })
@@ -331,7 +331,9 @@ impl StoreReader {
                     doc_pos = 0;
                 }
 
-                let alive = alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
+                let alive = alive_bitset
+                    .map(|bitset| bitset.is_alive(doc_id))
+                    .unwrap_or(true);
                 let res = if alive {
                     Some((curr_block.clone(), doc_pos))
                 } else {

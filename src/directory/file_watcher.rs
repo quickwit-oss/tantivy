@@ -51,7 +51,7 @@ impl FileWatcher {
                             .map(|current_checksum| current_checksum != checksum)
                             .unwrap_or(true);
                         if metafile_has_changed {
-                            info!("Meta file {:?} was modified", path);
+                            info!("Meta file {path:?} was modified");
                             current_checksum_opt = Some(checksum);
                             // We actually ignore callbacks failing here.
                             // We just wait for the end of their execution.
@@ -75,7 +75,7 @@ impl FileWatcher {
         let reader = match fs::File::open(path) {
             Ok(f) => io::BufReader::new(f),
             Err(e) => {
-                warn!("Failed to open meta file {:?}: {:?}", path, e);
+                warn!("Failed to open meta file {path:?}: {e:?}");
                 return Err(e);
             }
         };

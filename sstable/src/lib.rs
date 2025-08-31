@@ -1,3 +1,40 @@
+//! `tantivy_sstable` is a crate that provides a sorted string table data structure.
+//!
+//! It is used in `tantivy` to store the term dictionary.
+//!
+//! A `sstable` is a map of sorted `&[u8]` keys to values.
+//! The keys are encoded using incremental encoding.
+//!
+//! Values and keys are compressed using zstd with the default feature flag `zstd-compression`.
+//!
+//! # Example
+//!
+//! Here is an example of how to create and search an `sstable`:
+//!
+//! ```rust
+//! use common::OwnedBytes;
+//! use tantivy_sstable::{Dictionary, MonotonicU64SSTable};
+//!
+//! // Create a new sstable in memory.
+//! let mut builder = Dictionary::<MonotonicU64SSTable>::builder(Vec::new()).unwrap();
+//! builder.insert(b"apple", &1).unwrap();
+//! builder.insert(b"banana", &2).unwrap();
+//! builder.insert(b"orange", &3).unwrap();
+//! let sstable_bytes = builder.finish().unwrap();
+//!
+//! // Open the sstable.
+//! let sstable =
+//!     Dictionary::<MonotonicU64SSTable>::from_bytes(OwnedBytes::new(sstable_bytes)).unwrap();
+//!
+//! // Search for a key.
+//! let value = sstable.get(b"banana").unwrap();
+//! assert_eq!(value, Some(2));
+//!
+//! // Search for a non-existent key.
+//! let value = sstable.get(b"grape").unwrap();
+//! assert_eq!(value, None);
+//! ```
+
 use std::io::{self, Write};
 use std::ops::Range;
 
@@ -19,6 +56,7 @@ pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;
 use common::{BinarySerializable, OwnedBytes};
+use value::{VecU32ValueReader, VecU32ValueWriter};
 
 pub use self::block_reader::BlockReader;
 pub use self::delta::{DeltaReader, DeltaWriter};
@@ -128,6 +166,15 @@ impl SSTable for RangeSSTable {
     type ValueReader = RangeValueReader;
 
     type ValueWriter = RangeValueWriter;
+}
+
+/// SSTable associating keys to Vec<u32>.
+pub struct VecU32ValueSSTable;
+
+impl SSTable for VecU32ValueSSTable {
+    type Value = Vec<u32>;
+    type ValueReader = VecU32ValueReader;
+    type ValueWriter = VecU32ValueWriter;
 }
 
 /// SSTable reader.

@@ -177,8 +177,7 @@ impl Weight for FastFieldRangeWeight {
         } else {
             assert!(
                 maps_to_u64_fastfield(field_type.value_type()),
-                "{:?}",
-                field_type
+                "{field_type:?}"
             );
 
             let bounds = self.bounds.map_bound_res(|term| {
@@ -193,8 +192,7 @@ impl Weight for FastFieldRangeWeight {
                     val.to_u64()
                 } else {
                     return Err(TantivyError::InvalidArgument(format!(
-                        "Expected term with u64, i64, f64 or date, but got {:?}",
-                        term
+                        "Expected term with u64, i64, f64 or date, but got {term:?}"
                     )));
                 };
                 Ok(val)
@@ -254,12 +252,9 @@ fn search_on_json_numerical_field(
     else {
         return Ok(Box::new(EmptyScorer));
     };
-    let actual_column_type: NumericalType = col_type.numerical_type().unwrap_or_else(|| {
-        panic!(
-            "internal error: couldn't cast to numerical_type: {:?}",
-            col_type
-        )
-    });
+    let actual_column_type: NumericalType = col_type
+        .numerical_type()
+        .unwrap_or_else(|| panic!("internal error: couldn't cast to numerical_type: {col_type:?}"));
 
     let bounds = match typ.numerical_type().unwrap() {
         NumericalType::I64 => {
@@ -1058,7 +1053,7 @@ mod tests {
     fn doc_from_id_1(id: u64) -> Doc {
         let id = id * 1000;
         Doc {
-            id_name: format!("id_name{:010}", id),
+            id_name: format!("id_name{id:010}"),
             id,
         }
     }
@@ -1242,7 +1237,7 @@ mod tests {
 
         let field_path = |field: &str| {
             if json {
-                format!("json.{}", field)
+                format!("json.{field}")
             } else {
                 field.to_string()
             }

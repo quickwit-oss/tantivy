@@ -229,6 +229,7 @@ impl TopHitsAggregationReq {
         self.sort
             .iter()
             .map(|KeyOrder { field, .. }| field.as_str())
+            .chain(self.doc_value_fields.iter().map(|s| s.as_str()))
             .collect()
     }
 
