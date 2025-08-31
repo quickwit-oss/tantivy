@@ -94,6 +94,8 @@ pub(crate) fn serialize_postings(
         field_serializer.close()?;
     }
 
+    IndexingContext::checkin(ctx);
+
     Ok(())
 }
 

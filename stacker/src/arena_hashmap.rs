@@ -35,6 +35,11 @@ impl ArenaHashMap {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.shared_arena_hashmap.reset();
+        self.memory_arena.reset();
+    }
+
     #[inline]
     pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
         self.memory_arena.read(addr)
