@@ -1495,6 +1495,62 @@ mod test {
     }
 
     #[test]
+    fn test_empty_query_match_all_when_enabled_parse_strict() {
+        let mut query_parser = make_query_parser();
+        // enable the new behavior: empty input matches all documents
+        query_parser.set_empty_query_match_all(true);
+
+        let query = query_parser.parse_query("").unwrap();
+        assert_eq!(format!("{query:?}"), "AllQuery");
+
+        let query_ws = query_parser.parse_query("   ").unwrap();
+        assert_eq!(format!("{query_ws:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_empty_query_match_all_when_enabled_parse_lenient() {
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+
+        let (query, errs) = query_parser.parse_query_lenient("");
+        assert!(errs.is_empty());
+        assert_eq!(format!("{query:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_empty_query_match_all_when_enabled_build_from_ast() {
+        use query_grammar::UserInputAst;
+
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+
+        let ast = UserInputAst::Clause(Vec::new());
+        let query = query_parser.build_query_from_user_input_ast(ast).unwrap();
+        assert_eq!(format!("{query:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_empty_query_match_all_when_enabled_build_from_ast_lenient() {
+        use query_grammar::UserInputAst;
+
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+
+        let ast = UserInputAst::Clause(Vec::new());
+        let (query, errs) = query_parser.build_query_from_user_input_ast_lenient(ast);
+        assert!(errs.is_empty());
+        assert_eq!(format!("{query:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_get_set_empty_query_match_all() {
+        let mut query_parser = make_query_parser();
+        assert!(!query_parser.get_empty_query_match_all());
+        query_parser.set_empty_query_match_all(true);
+        assert!(query_parser.get_empty_query_match_all());
+    }
+
+    #[test]
     fn test_parse_query_to_ast_ab_c() {
         test_parse_query_to_logical_ast_helper(
             "(+title:a +title:b) title:c",
