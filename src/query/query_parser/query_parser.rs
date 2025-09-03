@@ -337,7 +337,6 @@ impl QueryParser {
         self.empty_query_match_all
     }
 
-    #[inline]
     fn empty_query_result(&self) -> Box<dyn Query> {
         if self.empty_query_match_all {
             Box::new(AllQuery)
@@ -346,7 +345,6 @@ impl QueryParser {
         }
     }
 
-    #[inline]
     fn is_user_input_ast_empty(user_input_ast: &UserInputAst) -> bool {
         matches!(user_input_ast, UserInputAst::Clause(clauses) if clauses.is_empty())
     }
