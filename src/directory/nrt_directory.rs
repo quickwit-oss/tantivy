@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
+use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::{Directory, DirectoryLock, FileHandle, FileSlice, Lock, TerminatingWrite,
                        WatchCallback, WatchHandle, WritePtr};
@@ -38,7 +39,11 @@ impl NrtDirectory {
             let guard = self.overlay_paths.read().unwrap();
             guard.iter().cloned().collect()
         };
+        // First copy all non-meta files. `meta.json` must be written last atomically.
         for path in snapshot_paths {
+            if path == *META_FILEPATH {
+                continue;
+            }
             // Skip if base already has the file
             if self.base.exists(&path).unwrap_or(false) {
                 continue;
@@ -59,6 +64,13 @@ impl NrtDirectory {
             let mut dest_wrt: WritePtr = self.base.open_write(&path)?;
             dest_wrt.write_all(bytes.as_slice())?;
             dest_wrt.terminate()?;
+        }
+        // Then, if present, write `meta.json` atomically to the base directory.
+        if self.overlay.exists(&*META_FILEPATH).unwrap_or(false) {
+            // Read meta from overlay atomically to a buffer and then write to base atomically.
+            if let Ok(meta_bytes) = self.overlay.atomic_read(&*META_FILEPATH) {
+                self.base.atomic_write(&*META_FILEPATH, &meta_bytes)?;
+            }
         }
         Ok(())
     }
@@ -117,7 +129,10 @@ impl Directory for NrtDirectory {
             let mut guard = self.overlay_paths.write().unwrap();
             guard.insert(path.to_path_buf());
         }
-        self.overlay.atomic_write(path, data)
+        // Always write to the overlay first. We do not write meta.json to base here,
+        // to ensure meta is published only after all files are persisted in sync_directory().
+        self.overlay.atomic_write(path, data)?;
+        Ok(())
     }
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, crate::directory::error::LockError> {
