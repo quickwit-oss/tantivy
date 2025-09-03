@@ -23,6 +23,10 @@ pub enum UserInputLeaf {
     Exists {
         field: String,
     },
+    Regex {
+        field: Option<String>,
+        pattern: String,
+    },
 }
 
 impl UserInputLeaf {
@@ -46,6 +50,7 @@ impl UserInputLeaf {
             UserInputLeaf::Exists { field: _ } => UserInputLeaf::Exists {
                 field: field.expect("Exist query without a field isn't allowed"),
             },
+            UserInputLeaf::Regex { field: _, pattern } => UserInputLeaf::Regex { field, pattern },
         }
     }
 
@@ -102,6 +107,14 @@ impl Debug for UserInputLeaf {
             UserInputLeaf::All => write!(formatter, "*"),
             UserInputLeaf::Exists { field } => {
                 write!(formatter, "$exists(\"{field}\")")
+            }
+            UserInputLeaf::Regex { field, pattern } => {
+                if let Some(field) = field {
+                    // TODO properly escape field (in case of \")
+                    write!(formatter, "\"{field}\":")?;
+                }
+                // TODO properly escape pattern (in case of \")
+                write!(formatter, "/{pattern}/")
             }
         }
     }
