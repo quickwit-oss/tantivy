@@ -180,7 +180,7 @@ impl BooleanQuery {
     pub fn new(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
         // If the bool query includes at least one should clause
         // and no Must or MustNot clauses, the default value is 1. Otherwise, the default value is
-        // 0. Keep pace with Elasticsearch.
+        // 0. Keep compatible with Elasticsearch.
         let mut minimum_required = 0;
         for (occur, _) in &subqueries {
             match occur {

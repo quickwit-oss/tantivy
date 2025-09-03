@@ -191,7 +191,7 @@ impl Directory for RamDirectory {
             .fs
             .read()
             .map_err(|e| OpenReadError::IoError {
-                io_error: Arc::new(io::Error::new(io::ErrorKind::Other, e.to_string())),
+                io_error: Arc::new(io::Error::other(e.to_string())),
                 filepath: path.to_path_buf(),
             })?
             .exists(path))

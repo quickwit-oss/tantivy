@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.24.0"
+version = "0.25.0"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
@@ -33,7 +33,7 @@ tempfile = { version = "3.12.0", optional = true }
 log = "0.4.16"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-fs4 = { version = "0.8.0", optional = true }
+fs4 = { version = "0.13.1", optional = true }
 levenshtein_automata = "0.2.1"
 uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
@@ -57,13 +57,13 @@ measure_time = "0.9.0"
 arc-swap = "1.5.0"
 bon = "3.3.1"
 
-columnar = { version = "0.5", path = "./columnar", package = "tantivy-columnar" }
-sstable = { version = "0.5", path = "./sstable", package = "tantivy-sstable", optional = true }
-stacker = { version = "0.5", path = "./stacker", package = "tantivy-stacker" }
-query-grammar = { version = "0.24.0", path = "./query-grammar", package = "tantivy-query-grammar" }
-tantivy-bitpacker = { version = "0.8", path = "./bitpacker" }
-common = { version = "0.9", path = "./common/", package = "tantivy-common" }
-tokenizer-api = { version = "0.5", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
+columnar = { version = "0.6", path = "./columnar", package = "tantivy-columnar" }
+sstable = { version = "0.6", path = "./sstable", package = "tantivy-sstable", optional = true }
+stacker = { version = "0.6", path = "./stacker", package = "tantivy-stacker" }
+query-grammar = { version = "0.25.0", path = "./query-grammar", package = "tantivy-query-grammar" }
+tantivy-bitpacker = { version = "0.9", path = "./bitpacker" }
+common = { version = "0.10", path = "./common/", package = "tantivy-common" }
+tokenizer-api = { version = "0.6", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
 sketches-ddsketch = { version = "0.3.0", features = ["use_serde"] }
 hyperloglogplus = { version = "0.4.1", features = ["const-loop"] }
 futures-util = { version = "0.3.28", optional = true }

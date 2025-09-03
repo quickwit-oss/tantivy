@@ -81,8 +81,7 @@ impl RegexPhraseWeight {
             num_terms += term_infos.len();
             if num_terms > self.max_expansions as usize {
                 return Err(crate::TantivyError::InvalidArgument(format!(
-                    "Phrase query exceeded max expansions {}",
-                    num_terms
+                    "Phrase query exceeded max expansions {num_terms}"
                 )));
             }
             let union = Self::get_union_from_term_infos(&term_infos, reader, &inverted_index)?;

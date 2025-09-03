@@ -65,8 +65,7 @@ impl Executor {
                                 if let Err(err) = fruit_sender_ref.send((idx, fruit)) {
                                     error!(
                                         "Failed to send search task. It probably means all search \
-                                         threads have panicked. {:?}",
-                                        err
+                                         threads have panicked. {err:?}"
                                     );
                                 }
                             });

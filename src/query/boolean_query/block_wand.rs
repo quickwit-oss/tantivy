@@ -436,7 +436,7 @@ mod tests {
         let fieldnorms_expanded = fieldnorms
             .iter()
             .cloned()
-            .flat_map(|fieldnorm| iter::repeat(fieldnorm).take(REPEAT))
+            .flat_map(|fieldnorm| std::iter::repeat_n(fieldnorm, REPEAT))
             .collect::<Vec<u32>>();
 
         let postings_lists_expanded: Vec<Vec<(DocId, u32)>> = posting_lists

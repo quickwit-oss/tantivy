@@ -172,7 +172,7 @@ mod tests {
             let doc = i * 10;
             doc_and_tfs.push((doc, 1u32 + doc % 3u32));
         }
-        let fieldnorms: Vec<u32> = std::iter::repeat(10u32).take(3_000).collect();
+        let fieldnorms: Vec<u32> = std::iter::repeat_n(10u32, 3_000).collect();
         let mut term_scorer = TermScorer::create_for_test(&doc_and_tfs, &fieldnorms, bm25_weight);
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.shallow_seek(1289);
@@ -238,7 +238,7 @@ mod tests {
         doc_tfs.push((257, 3u32));
         doc_tfs.push((258, 1u32));
 
-        let fieldnorms: Vec<u32> = std::iter::repeat(20u32).take(300).collect();
+        let fieldnorms: Vec<u32> = std::iter::repeat_n(20u32, 300).collect();
         let bm25_weight = Bm25Weight::for_one_term(10, 129, 20.0);
         let mut docs = TermScorer::create_for_test(&doc_tfs[..], &fieldnorms[..], bm25_weight);
         assert_nearly_equals!(docs.block_max_score(), 2.5161593);
@@ -304,7 +304,7 @@ mod tests {
         writer.set_merge_policy(Box::new(NoMergePolicy));
         for _ in 0..3_000 {
             let term_freq = rng.gen_range(1..10000);
-            let words: Vec<&str> = std::iter::repeat("bbbb").take(term_freq).collect();
+            let words: Vec<&str> = std::iter::repeat_n("bbbb", term_freq).collect();
             let text = words.join(" ");
             writer.add_document(doc!(text_field=>text))?;
         }

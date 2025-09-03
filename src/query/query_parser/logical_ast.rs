@@ -1,8 +1,11 @@
 use std::fmt;
 use std::ops::Bound;
+use std::sync::Arc;
+
+use tantivy_fst::Regex;
 
 use crate::query::Occur;
-use crate::schema::Term;
+use crate::schema::{Field, Term};
 use crate::Score;
 
 #[derive(Clone)]
@@ -21,6 +24,10 @@ pub enum LogicalLiteral {
         elements: Vec<Term>,
     },
     All,
+    Regex {
+        pattern: Arc<Regex>,
+        field: Field,
+    },
 }
 
 pub enum LogicalAst {
@@ -147,6 +154,10 @@ impl fmt::Debug for LogicalLiteral {
                 write!(formatter, "]")
             }
             LogicalLiteral::All => write!(formatter, "*"),
+            LogicalLiteral::Regex {
+                ref pattern,
+                ref field,
+            } => write!(formatter, "Regex({field:?}, {pattern:?})"),
         }
     }
 }
