@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use columnar::{ColumnType, ColumnValues, DynamicColumn, MonotonicallyMappableToU64};
+use columnar::{Column, ColumnType, ColumnValues, DynamicColumn, MonotonicallyMappableToU64};
 
 use crate::collector::{Collector, ComparableDoc, SegmentCollector};
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
@@ -107,7 +107,7 @@ pub trait Feature: Sync + Send + 'static {
     fn is_score(&self) -> bool;
 
     /// Open a FeatureColumn for this Feature.
-    fn open(&self, segment_reader: &SegmentReader, order: Order) -> crate::Result<FeatureColumn>;
+    fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn>;
 
     /// Get the value for this Feature from its associated FeatureColumn at the given DocId.
     fn get(
@@ -142,10 +142,12 @@ struct ErasedFeature<F: Feature>(F);
 /// A (partial) implementation of PartialOrd for OwnedValue.
 ///
 /// Intended for use within columns of homogenous types, and so will panic for OwnedValues with
-/// mismatched types.
+/// mismatched types. The one exception is Null, for which we do define all comparisons.
 fn owned_value_partial_cmp(a: &OwnedValue, b: &OwnedValue) -> Option<std::cmp::Ordering> {
     match (a, b) {
         (OwnedValue::Null, OwnedValue::Null) => None,
+        (OwnedValue::Null, _) => Some(std::cmp::Ordering::Less),
+        (_, OwnedValue::Null) => Some(std::cmp::Ordering::Greater),
         (OwnedValue::Str(a), OwnedValue::Str(b)) => a.partial_cmp(b),
         (OwnedValue::PreTokStr(a), OwnedValue::PreTokStr(b)) => a.partial_cmp(b),
         (OwnedValue::U64(a), OwnedValue::U64(b)) => a.partial_cmp(b),
@@ -160,17 +162,17 @@ fn owned_value_partial_cmp(a: &OwnedValue, b: &OwnedValue) -> Option<std::cmp::O
     }
 }
 
-impl Feature for Arc<dyn Feature<Output = OwnedValue, SegmentOutput = u64>> {
+impl Feature for Arc<dyn Feature<Output = OwnedValue, SegmentOutput = Option<u64>>> {
     type Output = OwnedValue;
-    type SegmentOutput = u64;
+    type SegmentOutput = Option<u64>;
 
     fn is_score(&self) -> bool {
         self.deref().is_score()
     }
 
     /// Open a FeatureColumn for this Feature.
-    fn open(&self, segment_reader: &SegmentReader, order: Order) -> crate::Result<FeatureColumn> {
-        self.deref().open(segment_reader, order)
+    fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
+        self.deref().open(segment_reader)
     }
 
     /// Get the value for this Feature from its associated FeatureColumn at the given DocId.
@@ -205,7 +207,7 @@ pub struct ScoreFeature;
 
 impl ScoreFeature {
     /// Erase the type of the feature, and return it as a boxed trait object.
-    pub fn erased(self) -> Arc<dyn Feature<Output = OwnedValue, SegmentOutput = u64>> {
+    pub fn erased(self) -> Arc<dyn Feature<Output = OwnedValue, SegmentOutput = Option<u64>>> {
         Arc::new(ErasedFeature(self))
     }
 }
@@ -218,7 +220,7 @@ impl Feature for ScoreFeature {
         true
     }
 
-    fn open(&self, _segment_reader: &SegmentReader, _order: Order) -> crate::Result<FeatureColumn> {
+    fn open(&self, _segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
         Ok(FeatureColumn::Score)
     }
 
@@ -256,15 +258,15 @@ impl Feature for ScoreFeature {
 
 impl Feature for ErasedFeature<ScoreFeature> {
     type Output = OwnedValue;
-    type SegmentOutput = u64;
+    type SegmentOutput = Option<u64>;
 
     fn is_score(&self) -> bool {
         true
     }
 
     /// Open a FeatureColumn for this Feature.
-    fn open(&self, segment_reader: &SegmentReader, order: Order) -> crate::Result<FeatureColumn> {
-        self.0.open(segment_reader, order)
+    fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
+        self.0.open(segment_reader)
     }
 
     /// Get the value for this Feature from its associated FeatureColumn at the given DocId.
@@ -275,7 +277,7 @@ impl Feature for ErasedFeature<ScoreFeature> {
         doc: DocId,
         score: Score,
     ) -> Self::SegmentOutput {
-        (self.0.get(column, order, doc, score) as f64).to_u64()
+        Some((self.0.get(column, order, doc, score) as f64).to_u64())
     }
 
     /// Decode SegmentOutputs into Outputs.
@@ -288,12 +290,18 @@ impl Feature for ErasedFeature<ScoreFeature> {
         if order.is_asc() {
             segment_output
                 .into_iter()
-                .map(|v| OwnedValue::F64(-(f64::from_u64(v))))
+                .map(|v| match v {
+                    Some(v) => OwnedValue::F64(-(f64::from_u64(v))),
+                    None => OwnedValue::Null,
+                })
                 .collect()
         } else {
             segment_output
                 .into_iter()
-                .map(|v| OwnedValue::F64(f64::from_u64(v)))
+                .map(|v| match v {
+                    Some(v) => OwnedValue::F64(f64::from_u64(v)),
+                    None => OwnedValue::Null,
+                })
                 .collect()
         }
     }
@@ -322,20 +330,20 @@ impl FieldFeature<String> {
     }
 
     /// Erase the type of the feature, and return it as a boxed trait object.
-    pub fn erased(self) -> Arc<dyn Feature<Output = OwnedValue, SegmentOutput = u64>> {
+    pub fn erased(self) -> Arc<dyn Feature<Output = OwnedValue, SegmentOutput = Option<u64>>> {
         Arc::new(ErasedFeature(self))
     }
 }
 
 impl Feature for FieldFeature<String> {
-    type Output = String;
+    type Output = Option<String>;
     type SegmentOutput = u64;
 
     fn is_score(&self) -> bool {
         false
     }
 
-    fn open(&self, segment_reader: &SegmentReader, order: Order) -> crate::Result<FeatureColumn> {
+    fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
         // We interpret this field as u64, regardless of its type, that way,
         // we avoid needless conversion. Regardless of the fast field type, the
         // mapping is monotonic, so it is sufficient to compute our top-K docs.
@@ -354,10 +362,7 @@ impl Feature for FieldFeature<String> {
                 field_name: self.field.to_owned(),
             })?
             .open()?;
-        let mut default_value = 0u64;
-        if order.is_asc() {
-            default_value = u64::MAX;
-        }
+        let default_value = u64::MAX;
         Ok(FeatureColumn::String(
             dynamic_column,
             sort_column.first_or_default_col(default_value),
@@ -405,18 +410,26 @@ impl Feature for FieldFeature<String> {
         };
         ordinals.sort_unstable_by_key(|(_, ord)| *ord);
 
+        // Handle trailing nulls.
+        let end_idx = if matches!(ordinals.last(), Some((_, u64::MAX))) {
+            ordinals.partition_point(|(_, ord)| *ord < u64::MAX)
+        } else {
+            ordinals.len()
+        };
+
         // Collect terms.
         let mut terms = Vec::with_capacity(ordinals.len());
-        let result =
-            ff.dictionary()
-                .sorted_ords_to_term_cb(ordinals.iter().map(|(_, ord)| *ord), |term| {
-                    terms.push(
-                        std::str::from_utf8(term)
-                            .expect("Failed to decode term as unicode")
-                            .to_owned(),
-                    );
-                    Ok(())
-                });
+        let result = ff.dictionary().sorted_ords_to_term_cb(
+            ordinals[0..end_idx].iter().map(|(_, ord)| *ord),
+            |term| {
+                terms.push(
+                    std::str::from_utf8(term)
+                        .expect("Failed to decode term as unicode")
+                        .to_owned(),
+                );
+                Ok(())
+            },
+        );
         assert!(
             result.expect("Failed to read terms from term dictionary"),
             "Not all terms were matched in segment."
@@ -424,9 +437,9 @@ impl Feature for FieldFeature<String> {
 
         // Rearrange back to row order.
         let mut result = Vec::with_capacity(terms.len());
-        result.resize_with(terms.len(), || String::new());
+        result.resize_with(ordinals.len(), || None);
         for ((idx, _), term) in ordinals.into_iter().zip(terms.into_iter()) {
-            result[idx] = term;
+            result[idx] = Some(term);
         }
 
         if order.is_desc() {
@@ -443,15 +456,15 @@ impl Feature for FieldFeature<String> {
 
 impl Feature for ErasedFeature<FieldFeature<String>> {
     type Output = OwnedValue;
-    type SegmentOutput = u64;
+    type SegmentOutput = Option<u64>;
 
     fn is_score(&self) -> bool {
         self.0.is_score()
     }
 
     /// Open a FeatureColumn for this Feature.
-    fn open(&self, segment_reader: &SegmentReader, order: Order) -> crate::Result<FeatureColumn> {
-        self.0.open(segment_reader, order)
+    fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
+        self.0.open(segment_reader)
     }
 
     /// Get the value for this Feature from its associated FeatureColumn at the given DocId.
@@ -462,7 +475,7 @@ impl Feature for ErasedFeature<FieldFeature<String>> {
         doc: DocId,
         score: Score,
     ) -> Self::SegmentOutput {
-        self.0.get(column, order, doc, score)
+        Some(self.0.get(column, order, doc, score))
     }
 
     /// Decode SegmentOutputs into Outputs.
@@ -473,9 +486,19 @@ impl Feature for ErasedFeature<FieldFeature<String>> {
         segment_output: Vec<Self::SegmentOutput>,
     ) -> Vec<Self::Output> {
         self.0
-            .decode(column, order, segment_output)
+            .decode(
+                column,
+                order,
+                segment_output
+                    .into_iter()
+                    .map(|s| s.expect("An erased String feature never produces None."))
+                    .collect(),
+            )
             .into_iter()
-            .map(OwnedValue::Str)
+            .map(|s| match s {
+                Some(s) => OwnedValue::Str(s),
+                None => OwnedValue::Null,
+            })
             .collect()
     }
 
@@ -536,20 +559,20 @@ impl FieldFeature<DateTime> {
 
 impl<F: FastValue> FieldFeature<F> {
     /// Erase the type of the feature, and return it as a boxed trait object.
-    pub fn erased(self) -> Arc<dyn Feature<Output = OwnedValue, SegmentOutput = u64>> {
+    pub fn erased(self) -> Arc<dyn Feature<Output = OwnedValue, SegmentOutput = Option<u64>>> {
         Arc::new(ErasedFeature(self))
     }
 }
 
 impl<F: FastValue> Feature for FieldFeature<F> {
-    type Output = F;
-    type SegmentOutput = u64;
+    type Output = Option<F>;
+    type SegmentOutput = Option<u64>;
 
     fn is_score(&self) -> bool {
         false
     }
 
-    fn open(&self, segment_reader: &SegmentReader, order: Order) -> crate::Result<FeatureColumn> {
+    fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
         // We interpret this field as u64, regardless of its type, that way,
         // we avoid needless conversion. Regardless of the fast field type, the
         // mapping is monotonic, so it is sufficient to compute our top-K docs.
@@ -560,13 +583,7 @@ impl<F: FastValue> Feature for FieldFeature<F> {
             sort_column_opt.ok_or_else(|| FastFieldNotAvailableError {
                 field_name: self.field.to_owned(),
             })?;
-        let mut default_value = 0u64;
-        if order.is_asc() {
-            default_value = u64::MAX;
-        }
-        Ok(FeatureColumn::Numeric(
-            sort_column.first_or_default_col(default_value),
-        ))
+        Ok(FeatureColumn::Numeric(sort_column))
     }
 
     fn get(
@@ -579,11 +596,11 @@ impl<F: FastValue> Feature for FieldFeature<F> {
         let FeatureColumn::Numeric(sort_column) = column else {
             panic!("Field column type does not match field definition type.");
         };
-        let value = sort_column.get_val(doc);
+        let value = sort_column.first(doc);
         if order.is_desc() {
             value
         } else {
-            u64::MAX - value
+            value.map(|v| u64::MAX - v)
         }
     }
 
@@ -594,11 +611,14 @@ impl<F: FastValue> Feature for FieldFeature<F> {
         segment_output: Vec<Self::SegmentOutput>,
     ) -> Vec<Self::Output> {
         if order.is_desc() {
-            segment_output.into_iter().map(F::from_u64).collect()
+            segment_output
+                .into_iter()
+                .map(|v| v.map(F::from_u64))
+                .collect()
         } else {
             segment_output
                 .into_iter()
-                .map(|o| F::from_u64(u64::MAX - o))
+                .map(|o| o.map(|v| F::from_u64(u64::MAX - v)))
                 .collect()
         }
     }
@@ -610,15 +630,15 @@ impl<F: FastValue> Feature for FieldFeature<F> {
 
 impl<F: FastValue> Feature for ErasedFeature<FieldFeature<F>> {
     type Output = OwnedValue;
-    type SegmentOutput = u64;
+    type SegmentOutput = Option<u64>;
 
     fn is_score(&self) -> bool {
         self.0.is_score()
     }
 
     /// Open a FeatureColumn for this Feature.
-    fn open(&self, segment_reader: &SegmentReader, order: Order) -> crate::Result<FeatureColumn> {
-        self.0.open(segment_reader, order)
+    fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
+        self.0.open(segment_reader)
     }
 
     /// Get the value for this Feature from its associated FeatureColumn at the given DocId.
@@ -640,11 +660,20 @@ impl<F: FastValue> Feature for ErasedFeature<FieldFeature<F>> {
         segment_output: Vec<Self::SegmentOutput>,
     ) -> Vec<Self::Output> {
         if order.is_desc() {
-            segment_output.into_iter().map(OwnedValue::U64).collect()
+            segment_output
+                .into_iter()
+                .map(|v| match v {
+                    Some(v) => OwnedValue::U64(v),
+                    None => OwnedValue::Null,
+                })
+                .collect()
         } else {
             segment_output
                 .into_iter()
-                .map(|o| OwnedValue::U64(u64::MAX - o))
+                .map(|v| match v {
+                    Some(v) => OwnedValue::U64(u64::MAX - v),
+                    None => OwnedValue::Null,
+                })
                 .collect()
         }
     }
@@ -656,7 +685,7 @@ impl<F: FastValue> Feature for ErasedFeature<FieldFeature<F>> {
 
 pub enum FeatureColumn {
     Score,
-    Numeric(Arc<dyn ColumnValues<u64>>),
+    Numeric(Column<u64>),
     String(DynamicColumn, Arc<dyn ColumnValues<u64>>),
 }
 
@@ -776,10 +805,13 @@ impl<O: TopOrderable> Collector for TopOrderableCollector<O> {
             segment_fruits,
             |a: &(O::Output, DocAddress), b: &(O::Output, DocAddress)| self.orderable.compare(a, b),
         )
-        .skip(self.offset)
-        .take(self.limit)
-        .collect();
-        Ok(merged)
+        .collect::<Vec<_>>();
+
+        Ok(merged
+            .into_iter()
+            .skip(self.offset)
+            .take(self.limit)
+            .collect())
     }
 }
 
@@ -936,7 +968,7 @@ macro_rules! impl_top_orderable {
                 segment_reader: &SegmentReader,
             ) -> crate::Result<Self::SegmentComparator> {
                 Ok(($(
-                    (self.$idx.0.clone(), self.$idx.0.open(segment_reader, self.$idx.1.clone())?, self.$idx.1.clone())
+                    (self.$idx.0.clone(), self.$idx.0.open(segment_reader)?, self.$idx.1.clone())
                 ),+,))
             }
 
@@ -947,7 +979,7 @@ macro_rules! impl_top_orderable {
                 // Collects all feature columns from the tuple elements.
                 [
                     $(
-                        self.$idx.0.open(segment_reader, self.$idx.1.clone()).map(|fc| (fc, self.$idx.1.clone()))
+                        self.$idx.0.open(segment_reader).map(|fc| (fc, self.$idx.1.clone()))
                     ),+
                 ]
                 .into_iter()
@@ -1054,8 +1086,8 @@ pub trait TopNCompare {
     type Accepted: Clone + PartialOrd;
 
     /// Given the current threshold of accepted values and a candidate doc_id/score, compare the
-    /// candidate value to the threshold, and convert the candidate to Accepted if it is TODO-than
-    /// the threshold.
+    /// candidate value to the threshold, and convert the candidate to Accepted if it is
+    /// greater-than the threshold.
     fn accept(
         &self,
         threshold_value: &Self::Accepted,
@@ -1064,25 +1096,27 @@ pub trait TopNCompare {
         doc_id: DocId,
     ) -> Option<Self::Accepted>;
 
-    /// Given the current threshold of accepted values and a candidate doc_id/score, compare the
-    /// candidate value to the threshold, and convert the candidate to Accepted if it is TODO-than
-    /// the threshold.
+    /// Get an Accepted value for the given Score and DocId.
     fn get(&self, score: Score, doc_id: DocId) -> Self::Accepted;
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use proptest::prelude::*;
 
     use super::{FieldFeature, ScoreFeature};
     use crate::collector::top_collector::ComparableDoc;
     use crate::collector::{DocSetCollector, TopDocs};
+    use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, QueryParser};
     use crate::schema::{Schema, FAST, TEXT};
-    use crate::{DocAddress, Document, Index, Order, Score};
+    use crate::{DocAddress, Document, Index, Order, Score, Searcher};
 
     fn make_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
+        let id = schema_builder.add_u64_field("id", FAST);
         let city = schema_builder.add_text_field("city", TEXT | FAST);
         let catchphrase = schema_builder.add_text_field("catchphrase", TEXT);
         let altitude = schema_builder.add_f64_field("altitude", FAST);
@@ -1091,6 +1125,7 @@ mod tests {
 
         fn create_segment(index: &Index, docs: Vec<impl Document>) -> crate::Result<()> {
             let mut index_writer = index.writer_for_tests()?;
+            index_writer.set_merge_policy(Box::new(NoMergePolicy));
             for doc in docs {
                 index_writer.add_document(doc)?;
             }
@@ -1102,11 +1137,13 @@ mod tests {
             &index,
             vec![
                 doc!(
+                    id => 0_u64,
                     city => "austin",
                     catchphrase => "Hills, Barbeque, Glow",
                     altitude => 149.0,
                 ),
                 doc!(
+                    id => 1_u64,
                     city => "greenville",
                     catchphrase => "Grow, Glow, Glow",
                     altitude => 27.0,
@@ -1116,12 +1153,38 @@ mod tests {
         create_segment(
             &index,
             vec![doc!(
+                id => 2_u64,
                 city => "tokyo",
                 catchphrase => "Glow, Glow, Glow",
                 altitude => 40.0,
             )],
         )?;
+        create_segment(
+            &index,
+            vec![doc!(
+                id => 3_u64,
+                catchphrase => "No, No, No",
+                altitude => 0.0,
+            )],
+        )?;
         Ok(index)
+    }
+
+    // NOTE: You cannot determine the SegmentIds that will be generated for Segments
+    // ahead of time, so DocAddresses must be mapped back to a unique id for each Searcher.
+    fn id_mapping(searcher: &Searcher) -> HashMap<DocAddress, u64> {
+        searcher
+            .search(&AllQuery, &DocSetCollector)
+            .unwrap()
+            .into_iter()
+            .map(|doc_address| {
+                let column = searcher.segment_readers()[doc_address.segment_ord as usize]
+                    .fast_fields()
+                    .u64("id")
+                    .unwrap();
+                (doc_address, column.first(doc_address.doc_id).unwrap())
+            })
+            .collect()
     }
 
     #[test]
@@ -1133,9 +1196,10 @@ mod tests {
             order: Order,
             limit: usize,
             offset: usize,
-            expected: Vec<(String, DocAddress)>,
+            expected: Vec<(Option<String>, u64)>,
         ) -> crate::Result<()> {
             let searcher = index.reader()?.searcher();
+            let ids = id_mapping(&searcher);
 
             // Try as primitive.
             let top_collector = TopDocs::with_limit(limit)
@@ -1144,7 +1208,7 @@ mod tests {
             let actual = searcher
                 .search(&AllQuery, &top_collector)?
                 .into_iter()
-                .map(|((s,), doc)| (s, doc))
+                .map(|((s,), doc)| (s, ids[&doc]))
                 .collect::<Vec<_>>();
             assert_eq!(actual, expected);
 
@@ -1155,14 +1219,11 @@ mod tests {
             let actual = searcher
                 .search(&AllQuery, &top_collector)?
                 .into_iter()
-                .map(|(_, doc)| doc)
+                .map(|(_, doc)| ids[&doc])
                 .collect::<Vec<_>>();
             assert_eq!(
                 actual,
-                expected
-                    .iter()
-                    .map(|(_, doc)| *doc)
-                    .collect::<Vec<DocAddress>>()
+                expected.iter().map(|(_, doc)| *doc).collect::<Vec<u64>>()
             );
 
             Ok(())
@@ -1171,22 +1232,17 @@ mod tests {
         assert_query(
             &index,
             Order::Asc,
-            3,
+            4,
             0,
             vec![
-                ("austin".to_owned(), DocAddress::new(0, 0)),
-                ("greenville".to_owned(), DocAddress::new(0, 1)),
-                ("tokyo".to_owned(), DocAddress::new(1, 0)),
+                (None, 3),
+                (Some("austin".to_owned()), 0),
+                (Some("greenville".to_owned()), 1),
+                (Some("tokyo".to_owned()), 2),
             ],
         )?;
 
-        assert_query(
-            &index,
-            Order::Asc,
-            1,
-            0,
-            vec![("austin".to_owned(), DocAddress::new(0, 0))],
-        )?;
+        assert_query(&index, Order::Asc, 1, 0, vec![(None, 3)])?;
 
         assert_query(
             &index,
@@ -1194,20 +1250,21 @@ mod tests {
             2,
             1,
             vec![
-                ("greenville".to_owned(), DocAddress::new(0, 1)),
-                ("tokyo".to_owned(), DocAddress::new(1, 0)),
+                (Some("austin".to_owned()), 0),
+                (Some("greenville".to_owned()), 1),
             ],
         )?;
 
         assert_query(
             &index,
             Order::Desc,
-            3,
+            4,
             0,
             vec![
-                ("tokyo".to_owned(), DocAddress::new(1, 0)),
-                ("greenville".to_owned(), DocAddress::new(0, 1)),
-                ("austin".to_owned(), DocAddress::new(0, 0)),
+                (Some("tokyo".to_owned()), 2),
+                (Some("greenville".to_owned()), 1),
+                (Some("austin".to_owned()), 0),
+                (None, 3),
             ],
         )?;
 
@@ -1217,8 +1274,8 @@ mod tests {
             2,
             1,
             vec![
-                ("greenville".to_owned(), DocAddress::new(0, 1)),
-                ("austin".to_owned(), DocAddress::new(0, 0)),
+                (Some("greenville".to_owned()), 1),
+                (Some("austin".to_owned()), 0),
             ],
         )?;
 
@@ -1227,7 +1284,7 @@ mod tests {
             Order::Desc,
             1,
             0,
-            vec![("tokyo".to_owned(), DocAddress::new(1, 0))],
+            vec![(Some("tokyo".to_owned()), 2)],
         )?;
 
         Ok(())
@@ -1240,9 +1297,10 @@ mod tests {
         fn assert_query(
             index: &Index,
             order: Order,
-            expected: Vec<(f64, DocAddress)>,
+            expected: Vec<(Option<f64>, u64)>,
         ) -> crate::Result<()> {
             let searcher = index.reader()?.searcher();
+            let ids = id_mapping(&searcher);
 
             // Try as primitive.
             let top_collector =
@@ -1250,7 +1308,7 @@ mod tests {
             let actual = searcher
                 .search(&AllQuery, &top_collector)?
                 .into_iter()
-                .map(|((f,), doc)| (f, doc))
+                .map(|((f,), doc)| (f, ids[&doc]))
                 .collect::<Vec<_>>();
             assert_eq!(actual, expected);
 
@@ -1260,14 +1318,11 @@ mod tests {
             let actual = searcher
                 .search(&AllQuery, &top_collector)?
                 .into_iter()
-                .map(|(_, doc)| doc)
+                .map(|(_, doc)| ids[&doc])
                 .collect::<Vec<_>>();
             assert_eq!(
                 actual,
-                expected
-                    .iter()
-                    .map(|(_, doc)| *doc)
-                    .collect::<Vec<DocAddress>>()
+                expected.iter().map(|(_, id)| *id).collect::<Vec<u64>>()
             );
 
             Ok(())
@@ -1276,21 +1331,13 @@ mod tests {
         assert_query(
             &index,
             Order::Asc,
-            vec![
-                (27.0, DocAddress::new(0, 1)),
-                (40.0, DocAddress::new(1, 0)),
-                (149.0, DocAddress::new(0, 0)),
-            ],
+            vec![(Some(0.0), 3), (Some(27.0), 1), (Some(40.0), 2)],
         )?;
 
         assert_query(
             &index,
             Order::Desc,
-            vec![
-                (149.0, DocAddress::new(0, 0)),
-                (40.0, DocAddress::new(1, 0)),
-                (27.0, DocAddress::new(0, 1)),
-            ],
+            vec![(Some(149.0), 0), (Some(40.0), 2), (Some(27.0), 1)],
         )?;
 
         Ok(())
@@ -1300,31 +1347,30 @@ mod tests {
     fn test_order_by_score() -> crate::Result<()> {
         let index = make_index()?;
 
-        fn query(index: &Index, order: Order) -> crate::Result<Vec<((Score,), DocAddress)>> {
+        fn query(index: &Index, order: Order) -> crate::Result<Vec<((Score,), u64)>> {
             let searcher = index.reader()?.searcher();
-            let top_collector = TopDocs::with_limit(3).order_by(((ScoreFeature, order),));
+            let ids = id_mapping(&searcher);
+
+            let top_collector = TopDocs::with_limit(4).order_by(((ScoreFeature, order),));
             let field = index.schema().get_field("catchphrase").unwrap();
             let query_parser = QueryParser::for_index(&index, vec![field]);
             let text_query = query_parser.parse_query("glow")?;
-            searcher.search(&text_query, &top_collector)
+
+            Ok(searcher
+                .search(&text_query, &top_collector)?
+                .into_iter()
+                .map(|(score, doc)| (score, ids[&doc]))
+                .collect())
         }
 
         assert_eq!(
             &query(&index, Order::Asc)?,
-            &[
-                ((0.13353144,), DocAddress::new(0, 0)),
-                ((0.18360573,), DocAddress::new(0, 1)),
-                ((0.20983513,), DocAddress::new(1, 0)),
-            ]
+            &[((0.35667497,), 0), ((0.4904281,), 1), ((0.5604893,), 2),]
         );
 
         assert_eq!(
             &query(&index, Order::Desc)?,
-            &[
-                ((0.20983513,), DocAddress::new(1, 0)),
-                ((0.18360573,), DocAddress::new(0, 1)),
-                ((0.13353144,), DocAddress::new(0, 0)),
-            ]
+            &[((0.5604893,), 2), ((0.4904281,), 1), ((0.35667497,), 0),]
         );
         Ok(())
     }
@@ -1337,30 +1383,38 @@ mod tests {
             index: &Index,
             score_order: Order,
             city_order: Order,
-        ) -> crate::Result<Vec<((Score, String), DocAddress)>> {
+        ) -> crate::Result<Vec<((Score, Option<String>), u64)>> {
             let searcher = index.reader()?.searcher();
-            let top_collector = TopDocs::with_limit(3).order_by((
+            let ids = id_mapping(&searcher);
+
+            let top_collector = TopDocs::with_limit(4).order_by((
                 (ScoreFeature, score_order),
                 (FieldFeature::string("city"), city_order),
             ));
-            searcher.search(&AllQuery, &top_collector)
+            Ok(searcher
+                .search(&AllQuery, &top_collector)?
+                .into_iter()
+                .map(|(f, doc)| (f, ids[&doc]))
+                .collect())
         }
 
         assert_eq!(
             &query(&index, Order::Asc, Order::Asc)?,
             &[
-                ((1.0, "austin".to_owned()), DocAddress::new(0, 0)),
-                ((1.0, "greenville".to_owned()), DocAddress::new(0, 1)),
-                ((1.0, "tokyo".to_owned()), DocAddress::new(1, 0)),
+                ((1.0, None), 3),
+                ((1.0, Some("austin".to_owned())), 0),
+                ((1.0, Some("greenville".to_owned())), 1),
+                ((1.0, Some("tokyo".to_owned())), 2),
             ]
         );
 
         assert_eq!(
             &query(&index, Order::Asc, Order::Desc)?,
             &[
-                ((1.0, "tokyo".to_owned()), DocAddress::new(1, 0)),
-                ((1.0, "greenville".to_owned()), DocAddress::new(0, 1)),
-                ((1.0, "austin".to_owned()), DocAddress::new(0, 0)),
+                ((1.0, Some("tokyo".to_owned())), 2),
+                ((1.0, Some("greenville".to_owned())), 1),
+                ((1.0, Some("austin".to_owned())), 0),
+                ((1.0, None), 3),
             ]
         );
         Ok(())
@@ -1404,13 +1458,13 @@ mod tests {
                 ))?;
             let all_results = searcher.search(&AllQuery, &DocSetCollector)?.into_iter().map(|doc_address| {
                 // Get the term for this address.
-                // NOTE: We can't determine the SegmentIds that will be generated for Segments
-                // ahead of time, so we can't pre-compute the expected `DocAddress`es.
                 let column = searcher.segment_readers()[doc_address.segment_ord as usize].fast_fields().str("city").unwrap().unwrap();
-                let term_ord = column.term_ords(doc_address.doc_id).next().unwrap();
-                let mut city = Vec::new();
-                column.dictionary().ord_to_term(term_ord, &mut city).unwrap();
-                (String::try_from(city).unwrap(), doc_address)
+                let value = column.term_ords(doc_address.doc_id).next().map(|term_ord| {
+                    let mut city = Vec::new();
+                    column.dictionary().ord_to_term(term_ord, &mut city).unwrap();
+                    String::try_from(city).unwrap()
+                });
+                (value, doc_address)
             });
 
             // Using the TopDocs collector should always be equivalent to sorting, skipping the

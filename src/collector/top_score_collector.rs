@@ -453,9 +453,9 @@ impl TopDocs {
     /// assert_eq!(
     ///     top_docs,
     ///     &[
-    ///         ((1.0, "austin".to_owned()), DocAddress::new(0, 0)),
-    ///         ((1.0, "greenville".to_owned()), DocAddress::new(0, 1)),
-    ///         ((1.0, "tokyo".to_owned()), DocAddress::new(0, 2)),
+    ///         ((1.0, Some("austin".to_owned())), DocAddress::new(0, 0)),
+    ///         ((1.0, Some("greenville".to_owned())), DocAddress::new(0, 1)),
+    ///         ((1.0, Some("tokyo".to_owned())), DocAddress::new(0, 2)),
     ///     ]
     /// );
     /// # Ok(())
