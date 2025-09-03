@@ -56,7 +56,7 @@ impl<T: Send + Sync + 'static> From<Box<T>> for DirectoryLock {
 impl Drop for DirectoryLockGuard {
     fn drop(&mut self) {
         if let Err(e) = self.directory.delete(&self.path) {
-            error!("Failed to remove the lock file. {:?}", e);
+            error!("Failed to remove the lock file. {e:?}");
         }
     }
 }

@@ -518,7 +518,7 @@ impl SegmentTermCollector {
                 |term| {
                     let entry = entries[idx];
                     let intermediate_entry = into_intermediate_bucket_entry(entry.0, entry.1)
-                        .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                        .map_err(io::Error::other)?;
                     dict.insert(
                         IntermediateKey::Str(
                             String::from_utf8(term.to_vec()).expect("could not convert to String"),

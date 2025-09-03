@@ -405,7 +405,7 @@ impl<D: Document> IndexWriter<D> {
             .map_err(|_| error_in_index_worker_thread("Failed to join merging thread."));
 
         if let Err(ref e) = result {
-            error!("Some merging thread failed {:?}", e);
+            error!("Some merging thread failed {e:?}");
         }
 
         result
@@ -679,7 +679,7 @@ impl<D: Document> IndexWriter<D> {
 
         let commit_opstamp = self.stamper.stamp();
         let prepared_commit = PreparedCommit::new(self, commit_opstamp);
-        info!("Prepared commit {}", commit_opstamp);
+        info!("Prepared commit {commit_opstamp}");
         Ok(prepared_commit)
     }
 
