@@ -1,4 +1,4 @@
-Tantivy 0.25 - Unreleased
+Tantivy 0.25
 ================================
 
 ## Bugfixes
