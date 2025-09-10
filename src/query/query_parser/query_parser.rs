@@ -495,24 +495,17 @@ impl QueryParser {
                 Ok(terms.into_iter().next().unwrap())
             }
             FieldType::JsonObject(ref json_options) => {
-                let get_term_with_path = || {
-                    Term::from_field_json_path(
-                        field,
-                        json_path,
-                        json_options.is_expand_dots_enabled(),
-                    )
-                };
+                let mut term = Term::from_field_json_path(
+                    field,
+                    json_path,
+                    json_options.is_expand_dots_enabled(),
+                );
                 if let Some(term) =
                     // Try to convert the phrase to a fast value
-                    convert_to_fast_value_and_append_to_json_term(
-                        get_term_with_path(),
-                        phrase,
-                        false,
-                    )
+                    convert_to_fast_value_and_append_to_json_term(&term, phrase, false)
                 {
                     Ok(term)
                 } else {
-                    let mut term = get_term_with_path();
                     term.append_type_and_str(phrase);
                     Ok(term)
                 }
@@ -1028,7 +1021,7 @@ fn generate_literals_for_json_object(
 
     // Try to convert the phrase to a fast value
     if let Some(term) =
-        convert_to_fast_value_and_append_to_json_term(get_term_with_path(), phrase, true)
+        convert_to_fast_value_and_append_to_json_term(&get_term_with_path(), phrase, true)
     {
         logical_literals.push(LogicalLiteral::Term(term));
     }

@@ -370,6 +370,8 @@ macro_rules! fail_point {
 /// Common test utilities.
 #[cfg(test)]
 pub mod tests {
+    use std::collections::BTreeMap;
+
     use common::{BinarySerializable, FixedSize};
     use query_grammar::{UserInputAst, UserInputLeaf, UserInputLiteral};
     use rand::distributions::{Bernoulli, Uniform};
@@ -382,7 +384,7 @@ pub mod tests {
     use crate::index::SegmentReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::postings::Postings;
-    use crate::query::BooleanQuery;
+    use crate::query::{BooleanQuery, QueryParser};
     use crate::schema::*;
     use crate::{DateTime, DocAddress, Index, IndexWriter, ReloadPolicy};
 
@@ -1222,5 +1224,50 @@ pub mod tests {
             offset_dt.to_ordinal_date()
         );
         assert_eq!(dt_from_ts_nanos.to_hms_micro(), offset_dt.to_hms_micro());
+    }
+
+    #[test]
+    fn test_json_number_ambiguity() {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("number", crate::schema::TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        {
+            let mut doc = TantivyDocument::new();
+            let mut obj = BTreeMap::default();
+            obj.insert("key".to_string(), OwnedValue::I64(1i64));
+            doc.add_object(json_field, obj);
+            index_writer.add_document(doc).unwrap();
+        }
+        {
+            let mut doc = TantivyDocument::new();
+            let mut obj = BTreeMap::default();
+            obj.insert("key".to_string(), OwnedValue::U64(1u64));
+            doc.add_object(json_field, obj);
+            index_writer.add_document(doc).unwrap();
+        }
+        {
+            let mut doc = TantivyDocument::new();
+            let mut obj = BTreeMap::default();
+            obj.insert("key".to_string(), OwnedValue::F64(1.0f64));
+            doc.add_object(json_field, obj);
+            index_writer.add_document(doc).unwrap();
+        }
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(searcher.num_docs(), 3);
+        {
+            let parser = QueryParser::for_index(&index, vec![]);
+            let query = parser.parse_query("number.key:1").unwrap();
+            let count = searcher.search(&query, &crate::collector::Count).unwrap();
+            assert_eq!(count, 3);
+        }
+        {
+            let parser = QueryParser::for_index(&index, vec![]);
+            let query = parser.parse_query("number.key:1.0").unwrap();
+            let count = searcher.search(&query, &crate::collector::Count).unwrap();
+            assert_eq!(count, 3);
+        }
     }
 }
