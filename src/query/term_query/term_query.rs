@@ -128,14 +128,13 @@ impl Query for TermQuery {
         // on the fast field matching exactly this term.
         //
         // Note: This is considerable slower since it requires to scan the entire fast field.
-        // Note2: In the range query case we do not support scoring, so this will change the
-        // semantics of the query.
         // TODO: The range query would gain from having a single-value optimization
         let schema = enable_scoring.schema();
         let field_entry = schema.get_field_entry(self.term.field());
         if !field_entry.is_indexed()
             && field_entry.is_fast()
             && is_type_valid_for_fastfield_range_query(self.term.typ())
+            && !enable_scoring.is_scoring_enabled()
         {
             let range_query = RangeQuery::new(
                 Bound::Included(self.term.clone()),

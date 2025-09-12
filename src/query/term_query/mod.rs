@@ -11,7 +11,7 @@ mod tests {
     use crate::docset::DocSet;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::{EnableScoring, Query, QueryParser, Scorer, TermQuery};
-    use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
+    use crate::schema::{Field, IndexRecordOption, Schema, FAST, STRING, TEXT};
     use crate::{assert_nearly_equals, DocAddress, Index, IndexWriter, Term, TERMINATED};
 
     #[test]
@@ -263,11 +263,10 @@ mod tests {
     #[test]
     fn test_term_query_fallback_text_fast_only() -> crate::Result<()> {
         use crate::collector::Count;
-        use crate::schema::TextOptions;
 
         // FAST-only text field (not indexed)
         let mut schema_builder = Schema::builder();
-        let text_field = schema_builder.add_text_field("t", TextOptions::default().set_fast(None));
+        let text_field = schema_builder.add_text_field("text", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -296,6 +295,7 @@ mod tests {
         assert_eq!(searcher.search(&tq_hello, &Count)?, 2);
         assert_eq!(searcher.search(&tq_world, &Count)?, 1);
         assert_eq!(searcher.search(&tq_missing, &Count)?, 0);
+
         Ok(())
     }
 
@@ -407,6 +407,37 @@ mod tests {
         assert_eq!(searcher.search(&tq_ip1, &Count)?, 2);
         assert_eq!(searcher.search(&tq_ip2, &Count)?, 1);
         assert_eq!(searcher.search(&tq_ip3, &Count)?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_query_fallback_fastfield_with_scores_errors() -> crate::Result<()> {
+        use crate::collector::TopDocs;
+
+        // FAST-only numeric field (not indexed) should error when scoring is required
+        let mut schema_builder = Schema::builder();
+        let num_field = schema_builder.add_u64_field("num", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.add_document(doc!(num_field => 10u64))?;
+            index_writer.add_document(doc!(num_field => 20u64))?;
+            index_writer.commit()?;
+        }
+
+        let searcher = index.reader()?.searcher();
+        let tq = TermQuery::new(
+            Term::from_field_u64(num_field, 10u64),
+            IndexRecordOption::Basic,
+        );
+
+        // Using TopDocs requires scoring; since the field is not indexed,
+        // TermQuery cannot score and should return a SchemaError.
+        let res = searcher.search(&tq, &TopDocs::with_limit(1));
+        assert!(matches!(res, Err(crate::TantivyError::SchemaError(_))));
+
         Ok(())
     }
 }
