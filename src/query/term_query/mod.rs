@@ -11,7 +11,7 @@ mod tests {
     use crate::docset::DocSet;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::{EnableScoring, Query, QueryParser, Scorer, TermQuery};
-    use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
+    use crate::schema::{Field, IndexRecordOption, Schema, FAST, STRING, TEXT};
     use crate::{assert_nearly_equals, DocAddress, Index, IndexWriter, Term, TERMINATED};
 
     #[test]
@@ -210,6 +210,234 @@ mod tests {
                 Err(crate::TantivyError::InvalidArgument(_msg))
             ));
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_query_fallback_to_fastfield() -> crate::Result<()> {
+        use crate::collector::Count;
+        use crate::schema::FAST;
+
+        // Create a FAST-only numeric field (not indexed)
+        let mut schema_builder = Schema::builder();
+        let num_field = schema_builder.add_u64_field("num", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.add_document(doc!(num_field => 10u64))?;
+            index_writer.add_document(doc!(num_field => 20u64))?;
+            index_writer.add_document(doc!(num_field => 10u64))?;
+            index_writer.commit()?;
+        }
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        // TermQuery should fall back to a fastfield range query and match correctly.
+        let tq_10 = TermQuery::new(
+            Term::from_field_u64(num_field, 10u64),
+            IndexRecordOption::Basic,
+        );
+        let tq_20 = TermQuery::new(
+            Term::from_field_u64(num_field, 20u64),
+            IndexRecordOption::Basic,
+        );
+        let tq_30 = TermQuery::new(
+            Term::from_field_u64(num_field, 30u64),
+            IndexRecordOption::Basic,
+        );
+
+        let count_10 = searcher.search(&tq_10, &Count)?;
+        let count_20 = searcher.search(&tq_20, &Count)?;
+        let count_30 = searcher.search(&tq_30, &Count)?;
+
+        assert_eq!(count_10, 2);
+        assert_eq!(count_20, 1);
+        assert_eq!(count_30, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_query_fallback_text_fast_only() -> crate::Result<()> {
+        use crate::collector::Count;
+
+        // FAST-only text field (not indexed)
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field => "hello"))?;
+            index_writer.add_document(doc!(text_field => "world"))?;
+            index_writer.add_document(doc!(text_field => "hello"))?;
+            index_writer.commit()?;
+        }
+
+        let searcher = index.reader()?.searcher();
+        let tq_hello = TermQuery::new(
+            Term::from_field_text(text_field, "hello"),
+            IndexRecordOption::Basic,
+        );
+        let tq_world = TermQuery::new(
+            Term::from_field_text(text_field, "world"),
+            IndexRecordOption::Basic,
+        );
+        let tq_missing = TermQuery::new(
+            Term::from_field_text(text_field, "nope"),
+            IndexRecordOption::Basic,
+        );
+
+        assert_eq!(searcher.search(&tq_hello, &Count)?, 2);
+        assert_eq!(searcher.search(&tq_world, &Count)?, 1);
+        assert_eq!(searcher.search(&tq_missing, &Count)?, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_query_fallback_json_fast_only() -> crate::Result<()> {
+        use crate::collector::Count;
+        use crate::fastfield::FastValue;
+        use crate::schema::FAST;
+
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.add_document(doc!(json_field => json!({"a": 10, "b": "x"})))?;
+            index_writer.add_document(doc!(json_field => json!({"a": 20, "b": "y"})))?;
+            index_writer.add_document(doc!(json_field => json!({"a": 10, "b": "z"})))?;
+            index_writer.commit()?;
+        }
+
+        fn json_term_fast<T: FastValue>(field: Field, path: &str, v: T) -> Term {
+            let mut term = Term::from_field_json_path(field, path, true);
+            term.append_type_and_fast_value(v);
+            term
+        }
+        fn json_term_str(field: Field, path: &str, v: &str) -> Term {
+            let mut term = Term::from_field_json_path(field, path, true);
+            term.append_type_and_str(v);
+            term
+        }
+
+        let searcher = index.reader()?.searcher();
+        // numeric path match
+        let tq_a10 = TermQuery::new(
+            json_term_fast(json_field, "a", 10u64),
+            IndexRecordOption::Basic,
+        );
+        let tq_a20 = TermQuery::new(
+            json_term_fast(json_field, "a", 20u64),
+            IndexRecordOption::Basic,
+        );
+        let tq_a30 = TermQuery::new(
+            json_term_fast(json_field, "a", 30u64),
+            IndexRecordOption::Basic,
+        );
+        assert_eq!(searcher.search(&tq_a10, &Count)?, 2);
+        assert_eq!(searcher.search(&tq_a20, &Count)?, 1);
+        assert_eq!(searcher.search(&tq_a30, &Count)?, 0);
+
+        // string path match
+        let tq_bx = TermQuery::new(
+            json_term_str(json_field, "b", "x"),
+            IndexRecordOption::Basic,
+        );
+        let tq_by = TermQuery::new(
+            json_term_str(json_field, "b", "y"),
+            IndexRecordOption::Basic,
+        );
+        let tq_bm = TermQuery::new(
+            json_term_str(json_field, "b", "missing"),
+            IndexRecordOption::Basic,
+        );
+        assert_eq!(searcher.search(&tq_bx, &Count)?, 1);
+        assert_eq!(searcher.search(&tq_by, &Count)?, 1);
+        assert_eq!(searcher.search(&tq_bm, &Count)?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_query_fallback_ip_fast_only() -> crate::Result<()> {
+        use std::net::IpAddr;
+        use std::str::FromStr;
+
+        use crate::collector::Count;
+        use crate::schema::{IntoIpv6Addr, FAST};
+
+        let mut schema_builder = Schema::builder();
+        let ip_field = schema_builder.add_ip_addr_field("ip", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let ip1 = IpAddr::from_str("127.0.0.1").unwrap().into_ipv6_addr();
+        let ip2 = IpAddr::from_str("127.0.0.2").unwrap().into_ipv6_addr();
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.add_document(doc!(ip_field => ip1))?;
+            index_writer.add_document(doc!(ip_field => ip2))?;
+            index_writer.add_document(doc!(ip_field => ip1))?;
+            index_writer.commit()?;
+        }
+
+        let searcher = index.reader()?.searcher();
+        let tq_ip1 = TermQuery::new(
+            Term::from_field_ip_addr(ip_field, ip1),
+            IndexRecordOption::Basic,
+        );
+        let tq_ip2 = TermQuery::new(
+            Term::from_field_ip_addr(ip_field, ip2),
+            IndexRecordOption::Basic,
+        );
+        let ip3 = IpAddr::from_str("127.0.0.3").unwrap().into_ipv6_addr();
+        let tq_ip3 = TermQuery::new(
+            Term::from_field_ip_addr(ip_field, ip3),
+            IndexRecordOption::Basic,
+        );
+
+        assert_eq!(searcher.search(&tq_ip1, &Count)?, 2);
+        assert_eq!(searcher.search(&tq_ip2, &Count)?, 1);
+        assert_eq!(searcher.search(&tq_ip3, &Count)?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_query_fallback_fastfield_with_scores_errors() -> crate::Result<()> {
+        use crate::collector::TopDocs;
+
+        // FAST-only numeric field (not indexed) should error when scoring is required
+        let mut schema_builder = Schema::builder();
+        let num_field = schema_builder.add_u64_field("num", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests()?;
+            index_writer.add_document(doc!(num_field => 10u64))?;
+            index_writer.add_document(doc!(num_field => 20u64))?;
+            index_writer.commit()?;
+        }
+
+        let searcher = index.reader()?.searcher();
+        let tq = TermQuery::new(
+            Term::from_field_u64(num_field, 10u64),
+            IndexRecordOption::Basic,
+        );
+
+        // Using TopDocs requires scoring; since the field is not indexed,
+        // TermQuery cannot score and should return a SchemaError.
+        let res = searcher.search(&tq, &TopDocs::with_limit(1));
+        assert!(matches!(res, Err(crate::TantivyError::SchemaError(_))));
+
         Ok(())
     }
 }
