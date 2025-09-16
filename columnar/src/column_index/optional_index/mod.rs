@@ -281,7 +281,8 @@ impl OptionalIndex {
     }
 
     pub fn iter_docs(&self) -> impl Iterator<Item = RowId> + '_ {
-        // TODO optimize
+        // TODO optimize. We could iterate over the blocks directly.
+        // We use the dense value ids and retrieve the doc ids via select.
         let mut select_batch = self.select_cursor();
         (0..self.num_non_null_docs).map(move |rank| select_batch.select(rank))
     }

@@ -131,9 +131,8 @@ impl Weight for ExistsWeight {
         }
 
         // If we have a single dynamic column, use ExistsDocSet
-        // NOTE: This threadshold of 1 has not been benchmarked against (higher values may be
-        // better).
-        if non_empty_columns.len() == 1 {
+        // NOTE: A lower number may be better for very sparse columns
+        if non_empty_columns.len() < 4 {
             let docset = ExistsDocSet::new(non_empty_columns, reader.max_doc());
             return Ok(Box::new(ConstScorer::new(docset, boost)));
         }
