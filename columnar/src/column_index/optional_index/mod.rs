@@ -88,7 +88,7 @@ pub struct OptionalIndex {
 
 impl Iterable<u32> for &OptionalIndex {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
-        Box::new(self.iter_docs())
+        Box::new(self.iter_non_null_docs())
     }
 }
 
@@ -280,8 +280,9 @@ impl OptionalIndex {
         self.num_non_null_docs
     }
 
-    pub fn iter_docs(&self) -> impl Iterator<Item = RowId> + '_ {
-        // TODO optimize
+    pub fn iter_non_null_docs(&self) -> impl Iterator<Item = RowId> + '_ {
+        // TODO optimize. We could iterate over the blocks directly.
+        // We use the dense value ids and retrieve the doc ids via select.
         let mut select_batch = self.select_cursor();
         (0..self.num_non_null_docs).map(move |rank| select_batch.select(rank))
     }
