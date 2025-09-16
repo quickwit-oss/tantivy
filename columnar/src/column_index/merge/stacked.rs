@@ -56,7 +56,7 @@ fn get_doc_ids_with_values<'a>(
         ColumnIndex::Full => Box::new(doc_range),
         ColumnIndex::Optional(optional_index) => Box::new(
             optional_index
-                .iter_docs()
+                .iter_non_null_docs()
                 .map(move |row| row + doc_range.start),
         ),
         ColumnIndex::Multivalued(multivalued_index) => match multivalued_index {
@@ -73,7 +73,7 @@ fn get_doc_ids_with_values<'a>(
             MultiValueIndex::MultiValueIndexV2(multivalued_index) => Box::new(
                 multivalued_index
                     .optional_index
-                    .iter_docs()
+                    .iter_non_null_docs()
                     .map(move |row| row + doc_range.start),
             ),
         },
@@ -177,7 +177,7 @@ impl<'a> Iterable<RowId> for StackedOptionalIndex<'a> {
                         ColumnIndex::Full => Box::new(columnar_row_range),
                         ColumnIndex::Optional(optional_index) => Box::new(
                             optional_index
-                                .iter_docs()
+                                .iter_non_null_docs()
                                 .map(move |row_id: RowId| columnar_row_range.start + row_id),
                         ),
                         ColumnIndex::Multivalued(_) => {

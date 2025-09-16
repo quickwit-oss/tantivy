@@ -216,7 +216,7 @@ impl MultiValueIndex {
     }
 
     /// Returns an iterator over document ids that have at least one value.
-    pub fn iter_docs(&self) -> Box<dyn Iterator<Item = DocId> + '_> {
+    pub fn iter_non_null_docs(&self) -> Box<dyn Iterator<Item = DocId> + '_> {
         match self {
             MultiValueIndex::MultiValueIndexV1(idx) => {
                 let mut doc: DocId = 0u32;
@@ -235,7 +235,9 @@ impl MultiValueIndex {
                     None
                 }))
             }
-            MultiValueIndex::MultiValueIndexV2(idx) => Box::new(idx.optional_index.iter_docs()),
+            MultiValueIndex::MultiValueIndexV2(idx) => {
+                Box::new(idx.optional_index.iter_non_null_docs())
+            }
         }
     }
 

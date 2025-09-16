@@ -137,7 +137,7 @@ impl Weight for ExistsWeight {
             return Ok(Box::new(ConstScorer::new(docset, boost)));
         }
 
-        // If we have multiple dynamic columns, precompute a bitset of matching docs
+        // If we have many dynamic columns, precompute a bitset of matching docs
         let mut doc_bitset = BitSet::with_max_value(max_doc);
         for column in &non_empty_columns {
             match column.column_index() {
@@ -146,12 +146,12 @@ impl Weight for ExistsWeight {
                     // Handled by AllScorer return above.
                 }
                 ColumnIndex::Optional(optional_index) => {
-                    for doc in optional_index.iter_docs() {
+                    for doc in optional_index.iter_non_null_docs() {
                         doc_bitset.insert(doc);
                     }
                 }
                 ColumnIndex::Multivalued(multi_idx) => {
-                    for doc in multi_idx.iter_docs() {
+                    for doc in multi_idx.iter_non_null_docs() {
                         doc_bitset.insert(doc);
                     }
                 }
