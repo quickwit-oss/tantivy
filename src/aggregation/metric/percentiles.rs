@@ -254,16 +254,15 @@ impl SegmentPercentilesCollector {
         docs: &[DocId],
         agg_accessor: &mut AggregationWithAccessor,
     ) {
+        let accessor = &agg_accessor.accessors[0].0;
         if let Some(missing) = self.missing.as_ref() {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &agg_accessor.accessor,
-                *missing,
-            );
+            agg_accessor
+                .column_block_accessor
+                .fetch_block_with_missing(docs, accessor, *missing);
         } else {
             agg_accessor
                 .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
+                .fetch_block(docs, accessor);
         }
 
         for val in agg_accessor.column_block_accessor.iter_vals() {
@@ -297,7 +296,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         doc: crate::DocId,
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessors[0].0;
 
         if let Some(missing) = self.missing {
             let mut has_val = false;
