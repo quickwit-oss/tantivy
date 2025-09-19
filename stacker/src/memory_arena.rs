@@ -35,6 +35,12 @@ use parking_lot::Mutex;
 const NUM_BITS_PAGE_ADDR: usize = 19;
 const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 512k large
 
+// We use 32-bits addresses.
+// - 19 bits for the in-page addressing
+// - 13 bits for the page id.
+// This limits us to 2^13 - 1=8191 for the page id.
+const MAX_PAGES: usize = 1 << (32 - NUM_BITS_PAGE_ADDR);
+
 /// Represents a pointer into the `MemoryArena`
 /// .
 /// Pointer are 32-bits and are split into
@@ -248,11 +254,7 @@ struct Page {
 
 impl Page {
     fn new(page_id: usize) -> Page {
-        // We use 32-bits addresses.
-        // - 20 bits for the in-page addressing
-        // - 12 bits for the page id.
-        // This limits us to 2^12 - 1=4095 for the page id.
-        assert!(page_id < 4096);
+        assert!(page_id < MAX_PAGES);
         Page {
             page_id,
             len: 0,
@@ -301,7 +303,7 @@ impl Page {
 #[cfg(test)]
 mod tests {
 
-    use super::MemoryArena;
+    use super::{MemoryArena, MAX_PAGES};
     use crate::memory_arena::PAGE_SIZE;
 
     #[test]
@@ -375,5 +377,37 @@ mod tests {
 
         assert_eq!(arena.read::<MyTest>(addr_a), a);
         assert_eq!(arena.read::<MyTest>(addr_b), b);
+    }
+
+    #[test]
+    fn test_can_allocate_4GB() {
+        use super::NUM_BITS_PAGE_ADDR;
+
+        let mut arena = MemoryArena::default();
+        for i in 0..MAX_PAGES {
+            let addr = arena.allocate_space(PAGE_SIZE - 1); // -1 to ensure we don't cross page boundary
+            assert_eq!(addr.page_id(), i);
+        }
+        assert_eq!(arena.pages.len(), 1 << (32 - NUM_BITS_PAGE_ADDR));
+        assert_eq!(
+            arena.mem_usage(),
+            PAGE_SIZE * (1 << (32 - NUM_BITS_PAGE_ADDR))
+        );
+    }
+    #[test]
+    #[should_panic]
+    fn test_cannot_allocate_more_than_4GB() {
+        use super::NUM_BITS_PAGE_ADDR;
+
+        let mut arena = MemoryArena::default();
+        for i in 0..MAX_PAGES + 1 {
+            let addr = arena.allocate_space(PAGE_SIZE - 1); // -1 to ensure we don't cross page boundary
+            assert_eq!(addr.page_id(), i);
+        }
+        assert_eq!(arena.pages.len(), 1 << (32 - NUM_BITS_PAGE_ADDR));
+        assert_eq!(
+            arena.mem_usage(),
+            PAGE_SIZE * (1 << (32 - NUM_BITS_PAGE_ADDR))
+        );
     }
 }
