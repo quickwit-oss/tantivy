@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::Occur;
 
-#[derive(PartialEq, Clone, Serialize)]
+#[derive(PartialEq, Eq, Hash, Clone, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum UserInputLeaf {
@@ -120,7 +120,7 @@ impl Debug for UserInputLeaf {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Delimiter {
     SingleQuotes,
@@ -128,7 +128,7 @@ pub enum Delimiter {
     None,
 }
 
-#[derive(PartialEq, Clone, Serialize)]
+#[derive(PartialEq, Eq, Hash, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
@@ -167,7 +167,7 @@ impl fmt::Debug for UserInputLiteral {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Serialize)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Serialize)]
 #[serde(tag = "type", content = "value")]
 #[serde(rename_all = "snake_case")]
 pub enum UserInputBound {
@@ -204,11 +204,11 @@ impl UserInputBound {
     }
 }
 
-#[derive(PartialEq, Clone, Serialize)]
+#[derive(PartialEq, Eq, Hash, Clone, Serialize)]
 #[serde(into = "UserInputAstSerde")]
 pub enum UserInputAst {
     Clause(Vec<(Option<Occur>, UserInputAst)>),
-    Boost(Box<UserInputAst>, f64),
+    Boost(Box<UserInputAst>, ordered_float::OrderedFloat<f64>),
     Leaf(Box<UserInputLeaf>),
 }
 
@@ -230,9 +230,10 @@ impl From<UserInputAst> for UserInputAstSerde {
     fn from(ast: UserInputAst) -> Self {
         match ast {
             UserInputAst::Clause(clause) => UserInputAstSerde::Bool { clauses: clause },
-            UserInputAst::Boost(underlying, boost) => {
-                UserInputAstSerde::Boost { underlying, boost }
-            }
+            UserInputAst::Boost(underlying, boost) => UserInputAstSerde::Boost {
+                underlying,
+                boost: boost.into_inner(),
+            },
             UserInputAst::Leaf(leaf) => UserInputAstSerde::Leaf(leaf),
         }
     }
@@ -391,7 +392,7 @@ mod tests {
     #[test]
     fn test_boost_serialization() {
         let inner_ast = UserInputAst::Leaf(Box::new(UserInputLeaf::All));
-        let boost_ast = UserInputAst::Boost(Box::new(inner_ast), 2.5);
+        let boost_ast = UserInputAst::Boost(Box::new(inner_ast), 2.5.into());
         let json = serde_json::to_string(&boost_ast).unwrap();
         assert_eq!(
             json,
@@ -418,7 +419,7 @@ mod tests {
                     }))),
                 ),
             ])),
-            2.5,
+            2.5.into(),
         );
         let json = serde_json::to_string(&boost_ast).unwrap();
         assert_eq!(
