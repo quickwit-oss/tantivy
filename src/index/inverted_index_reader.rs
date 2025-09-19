@@ -146,7 +146,7 @@ impl InvertedIndexReader {
                 positions_size: ByteCount::default(),
                 num_terms: 0u64,
             };
-            field_space.record(&term_info);
+            field_space.record(term_info);
 
             // We include the json type and the json end of path to make sure the prefix check
             // is meaningful.

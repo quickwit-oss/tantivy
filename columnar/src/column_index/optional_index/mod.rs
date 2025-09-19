@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io;
 use std::sync::Arc;
 
 mod set;
@@ -11,7 +11,7 @@ use set_block::{
 };
 
 use crate::iterable::Iterable;
-use crate::{DocId, InvalidData, RowId};
+use crate::{DocId, RowId};
 
 /// The threshold for for number of elements after which we switch to dense block encoding.
 ///
@@ -333,38 +333,6 @@ impl OptionalIndex {
 enum Block<'a> {
     Dense(DenseBlock<'a>),
     Sparse(SparseBlock<'a>),
-}
-
-#[derive(Debug, Copy, Clone)]
-enum OptionalIndexCodec {
-    Dense = 0,
-    Sparse = 1,
-}
-
-impl OptionalIndexCodec {
-    fn to_code(self) -> u8 {
-        self as u8
-    }
-
-    fn try_from_code(code: u8) -> Result<Self, InvalidData> {
-        match code {
-            0 => Ok(Self::Dense),
-            1 => Ok(Self::Sparse),
-            _ => Err(InvalidData),
-        }
-    }
-}
-
-impl BinarySerializable for OptionalIndexCodec {
-    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_all(&[self.to_code()])
-    }
-
-    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let optional_codec_code = u8::deserialize(reader)?;
-        let optional_codec = Self::try_from_code(optional_codec_code)?;
-        Ok(optional_codec)
-    }
 }
 
 fn serialize_optional_index_block(block_els: &[u16], out: &mut impl io::Write) -> io::Result<()> {

@@ -258,7 +258,7 @@ fn search_on_json_numerical_field(
 
     let bounds = match typ.numerical_type().unwrap() {
         NumericalType::I64 => {
-            let bounds = bounds.map_bound(|term| (term.as_i64().unwrap()));
+            let bounds = bounds.map_bound(|term| term.as_i64().unwrap());
             match actual_column_type {
                 NumericalType::I64 => bounds.map_bound(|&term| term.to_u64()),
                 NumericalType::U64 => {
@@ -282,7 +282,7 @@ fn search_on_json_numerical_field(
             }
         }
         NumericalType::U64 => {
-            let bounds = bounds.map_bound(|term| (term.as_u64().unwrap()));
+            let bounds = bounds.map_bound(|term| term.as_u64().unwrap());
             match actual_column_type {
                 NumericalType::U64 => bounds.map_bound(|&term| term.to_u64()),
                 NumericalType::I64 => {
@@ -306,7 +306,7 @@ fn search_on_json_numerical_field(
             }
         }
         NumericalType::F64 => {
-            let bounds = bounds.map_bound(|term| (term.as_f64().unwrap()));
+            let bounds = bounds.map_bound(|term| term.as_f64().unwrap());
             match actual_column_type {
                 NumericalType::U64 => transform_from_f64_bounds::<u64>(&bounds),
                 NumericalType::I64 => transform_from_f64_bounds::<i64>(&bounds),
