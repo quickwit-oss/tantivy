@@ -45,6 +45,7 @@ impl LogicalAst {
         }
     }
 
+    // TODO: Move to rewrite_ast in query_grammar
     pub fn simplify(self) -> LogicalAst {
         match self {
             LogicalAst::Clause(clauses) => {

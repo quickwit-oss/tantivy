@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::iter::once;
 
+use fnv::FnvHashSet;
 use nom::IResult;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -815,7 +816,7 @@ fn boosted_leaf(inp: &str) -> IResult<&str, UserInputAst> {
         tuple((leaf, fallible(boost))),
         |(leaf, boost_opt)| match boost_opt {
             Some(boost) if (boost - 1.0).abs() > f64::EPSILON => {
-                UserInputAst::Boost(Box::new(leaf), boost)
+                UserInputAst::Boost(Box::new(leaf), boost.into())
             }
             _ => leaf,
         },
@@ -827,7 +828,7 @@ fn boosted_leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
         tuple_infallible((leaf_infallible, boost)),
         |((leaf, boost_opt), error)| match boost_opt {
             Some(boost) if (boost - 1.0).abs() > f64::EPSILON => (
-                leaf.map(|leaf| UserInputAst::Boost(Box::new(leaf), boost)),
+                leaf.map(|leaf| UserInputAst::Boost(Box::new(leaf), boost.into())),
                 error,
             ),
             _ => (leaf, error),
@@ -1078,12 +1079,25 @@ pub fn parse_to_ast_lenient(query_str: &str) -> (UserInputAst, Vec<LenientError>
     (rewrite_ast(res), errors)
 }
 
-/// Removes unnecessary children clauses in AST
-///
-/// Motivated by [issue #1433](https://github.com/quickwit-oss/tantivy/issues/1433)
 fn rewrite_ast(mut input: UserInputAst) -> UserInputAst {
-    if let UserInputAst::Clause(terms) = &mut input {
-        for term in terms {
+    if let UserInputAst::Clause(sub_clauses) = &mut input {
+        // call rewrite_ast recursively on children clauses if applicable
+        let mut new_clauses = Vec::with_capacity(sub_clauses.len());
+        for (occur, clause) in sub_clauses.drain(..) {
+            let rewritten_clause = rewrite_ast(clause);
+            new_clauses.push((occur, rewritten_clause));
+        }
+        *sub_clauses = new_clauses;
+
+        // remove duplicate child clauses
+        // e.g. (+a +b) OR (+c +d) OR (+a +b)  => (+a +b) OR (+c +d)
+        let mut seen = FnvHashSet::default();
+        sub_clauses.retain(|term| seen.insert(term.clone()));
+
+        // Removes unnecessary children clauses in AST
+        //
+        // Motivated by [issue #1433](https://github.com/quickwit-oss/tantivy/issues/1433)
+        for term in sub_clauses {
             rewrite_ast_clause(term);
         }
     }

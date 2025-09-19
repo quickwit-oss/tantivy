@@ -672,7 +672,7 @@ impl QueryParser {
             }
             UserInputAst::Boost(ast, boost) => {
                 let (ast, errors) = self.compute_logical_ast_with_occur_lenient(*ast);
-                (ast.boost(boost as Score), errors)
+                (ast.boost(boost.into_inner() as Score), errors)
             }
             UserInputAst::Leaf(leaf) => {
                 let (ast, errors) = self.compute_logical_ast_from_leaf_lenient(*leaf);
@@ -2047,6 +2047,16 @@ mod test {
         assert_matches!(
             query_parser.parse_query("abc"),
             Err(QueryParserError::ExpectedInt(_))
+        );
+    }
+
+    #[test]
+    pub fn test_deduplication() {
+        let query = "be be";
+        test_parse_query_to_logical_ast_helper(
+            query,
+            "(Term(field=0, type=Str, \"be\") Term(field=1, type=Str, \"be\"))",
+            false,
         );
     }
 
