@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::fieldnorm::FieldNormReader;
 use crate::query::Explanation;
 use crate::schema::Field;
@@ -66,12 +64,6 @@ fn compute_tf_cache(average_fieldnorm: Score) -> [Score; 256] {
         *cache_mut = cached_tf_component(fieldnorm, average_fieldnorm);
     }
     cache
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct Bm25Params {
-    pub idf: Score,
-    pub avg_fieldnorm: Score,
 }
 
 /// A struct used for computing BM25 scores.

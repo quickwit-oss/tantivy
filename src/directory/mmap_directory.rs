@@ -484,10 +484,8 @@ impl Directory for MmapDirectory {
             .map_err(LockError::wrap_io_error)?;
         if lock.is_blocking {
             file.lock_exclusive().map_err(LockError::wrap_io_error)?;
-        } else {
-            if !file.try_lock_exclusive().map_err(|_| LockError::LockBusy)? {
-                return Err(LockError::LockBusy);
-            }
+        } else if !file.try_lock_exclusive().map_err(|_| LockError::LockBusy)? {
+            return Err(LockError::LockBusy);
         }
         // dropping the file handle will release the lock.
         Ok(DirectoryLock::from(Box::new(ReleaseLockFile {

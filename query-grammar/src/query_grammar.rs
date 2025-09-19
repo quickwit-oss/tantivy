@@ -68,7 +68,7 @@ fn interpret_escape(source: &str) -> String {
 
 /// Consume a word outside of any context.
 // TODO should support escape sequences
-fn word(inp: &str) -> IResult<&str, Cow<str>> {
+fn word(inp: &str) -> IResult<&str, Cow<'_, str>> {
     map_res(
         recognize(tuple((
             alt((

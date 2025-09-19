@@ -615,7 +615,7 @@ impl<D: Document> IndexWriter<D> {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`].
-    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<D>> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<'_, D>> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.

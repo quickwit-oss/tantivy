@@ -301,7 +301,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let bounds = self.bounds;
         let interval = self.interval;
         let offset = self.offset;
-        let get_bucket_pos = |val| (get_bucket_pos_f64(val, interval, offset) as i64);
+        let get_bucket_pos = |val| get_bucket_pos_f64(val, interval, offset) as i64;
 
         bucket_agg_accessor
             .column_block_accessor
