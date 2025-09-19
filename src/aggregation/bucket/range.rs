@@ -231,13 +231,15 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
     ) -> crate::Result<()> {
         let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
 
+        let accessor = &bucket_agg_accessor.accessors[0].0;
+
         bucket_agg_accessor
             .column_block_accessor
-            .fetch_block(docs, &bucket_agg_accessor.accessor);
+            .fetch_block(docs, accessor);
 
         for (doc, val) in bucket_agg_accessor
             .column_block_accessor
-            .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+            .iter_docid_vals(docs, accessor)
         {
             let bucket_pos = self.get_bucket_pos(val);
 

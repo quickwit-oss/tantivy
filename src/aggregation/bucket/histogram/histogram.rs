@@ -303,13 +303,15 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let offset = self.offset;
         let get_bucket_pos = |val| (get_bucket_pos_f64(val, interval, offset) as i64);
 
+        let accessor = &bucket_agg_accessor.accessors[0].0;
+
         bucket_agg_accessor
             .column_block_accessor
-            .fetch_block(docs, &bucket_agg_accessor.accessor);
+            .fetch_block(docs, accessor);
 
         for (doc, val) in bucket_agg_accessor
             .column_block_accessor
-            .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+            .iter_docid_vals(docs, accessor)
         {
             let val = self.f64_from_fastfield_u64(val);
 

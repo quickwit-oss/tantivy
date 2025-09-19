@@ -15,7 +15,8 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
-use crate::aggregation::bucket::TermMissingAgg;
+use crate::aggregation::agg_req_with_accessor::MissingTermCollection;
+use crate::aggregation::bucket::SegmentTermMissingCollector;
 use crate::aggregation::metric::{
     CardinalityAggregationReq, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
     TopHitsSegmentCollector,
@@ -86,17 +87,17 @@ pub(crate) fn build_single_agg_segment_collector(
     use AggregationVariants::*;
     match &req.agg.agg {
         Terms(terms_req) => {
-            if req.accessors.is_empty() {
+            if let MissingTermCollection::TermMissingCollector = req.missing_term_collection {
+                Ok(Box::new(SegmentTermMissingCollector::new(
+                    accessor_idx,
+                    &mut req.sub_aggregation,
+                )?))
+            } else {
                 Ok(Box::new(SegmentTermCollector::from_req_and_validate(
                     terms_req,
                     &mut req.sub_aggregation,
-                    req.field_type,
+                    req.accessors[0].1,
                     accessor_idx,
-                )?))
-            } else {
-                Ok(Box::new(TermMissingAgg::new(
-                    accessor_idx,
-                    &mut req.sub_aggregation,
                 )?))
             }
         }
@@ -104,58 +105,63 @@ pub(crate) fn build_single_agg_segment_collector(
             range_req,
             &mut req.sub_aggregation,
             &mut req.limits,
-            req.field_type,
+            req.accessors[0].1,
             accessor_idx,
         )?)),
         Histogram(histogram) => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
             histogram.clone(),
             &mut req.sub_aggregation,
-            req.field_type,
+            req.accessors[0].1,
             accessor_idx,
         )?)),
         DateHistogram(histogram) => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
             histogram.to_histogram_req()?,
             &mut req.sub_aggregation,
-            req.field_type,
+            req.accessors[0].1,
             accessor_idx,
         )?)),
         Average(AverageAggregation { missing, .. }) => {
             Ok(Box::new(SegmentStatsCollector::from_req(
-                req.field_type,
+                req.accessors[0].1,
                 SegmentStatsType::Average,
                 accessor_idx,
                 *missing,
             )))
         }
         Count(CountAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
-            req.field_type,
+            req.accessors[0].1,
             SegmentStatsType::Count,
             accessor_idx,
             *missing,
         ))),
         Max(MaxAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
-            req.field_type,
+            req.accessors[0].1,
             SegmentStatsType::Max,
             accessor_idx,
             *missing,
         ))),
         Min(MinAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
-            req.field_type,
+            req.accessors[0].1,
             SegmentStatsType::Min,
             accessor_idx,
             *missing,
         ))),
         Stats(StatsAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
-            req.field_type,
+            req.accessors[0].1,
             SegmentStatsType::Stats,
             accessor_idx,
             *missing,
         ))),
-        ExtendedStats(ExtendedStatsAggregation { missing, sigma, .. }) => Ok(Box::new(
-            SegmentExtendedStatsCollector::from_req(req.field_type, *sigma, accessor_idx, *missing),
-        )),
+        ExtendedStats(ExtendedStatsAggregation { missing, sigma, .. }) => {
+            Ok(Box::new(SegmentExtendedStatsCollector::from_req(
+                req.accessors[0].1,
+                *sigma,
+                accessor_idx,
+                *missing,
+            )))
+        }
         Sum(SumAggregation { missing, .. }) => Ok(Box::new(SegmentStatsCollector::from_req(
-            req.field_type,
+            req.accessors[0].1,
             SegmentStatsType::Sum,
             accessor_idx,
             *missing,
@@ -163,7 +169,7 @@ pub(crate) fn build_single_agg_segment_collector(
         Percentiles(percentiles_req) => Ok(Box::new(
             SegmentPercentilesCollector::from_req_and_validate(
                 percentiles_req,
-                req.field_type,
+                req.accessors[0].1,
                 accessor_idx,
             )?,
         )),
@@ -173,7 +179,7 @@ pub(crate) fn build_single_agg_segment_collector(
             req.segment_ordinal,
         ))),
         Cardinality(CardinalityAggregationReq { missing, .. }) => Ok(Box::new(
-            SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
+            SegmentCardinalityCollector::from_req(req.accessors[0].1, accessor_idx, missing),
         )),
     }
 }

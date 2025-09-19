@@ -9,7 +9,7 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
+    AggregationWithAccessor, AggregationsWithAccessor, MissingTermCollection,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
@@ -136,16 +136,20 @@ impl SegmentCardinalityCollector {
         docs: &[crate::DocId],
         agg_accessor: &mut AggregationWithAccessor,
     ) {
-        if let Some(missing) = agg_accessor.missing_value_for_accessor {
+        let accessor = &agg_accessor.accessors[0].0;
+        if let MissingTermCollection::Inline {
+            missing_value_for_accessor,
+        } = agg_accessor.missing_term_collection
+        {
             agg_accessor.column_block_accessor.fetch_block_with_missing(
                 docs,
-                &agg_accessor.accessor,
-                missing,
+                accessor,
+                missing_value_for_accessor,
             );
         } else {
             agg_accessor
                 .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
+                .fetch_block(docs, accessor);
         }
     }
 
@@ -246,8 +250,8 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
                 self.entries.insert(term_ord);
             }
         } else if self.column_type == ColumnType::IpAddr {
-            let compact_space_accessor = bucket_agg_accessor
-                .accessor
+            let compact_space_accessor = bucket_agg_accessor.accessors[0]
+                .0
                 .values
                 .clone()
                 .downcast_arc::<CompactSpaceU64Accessor>()

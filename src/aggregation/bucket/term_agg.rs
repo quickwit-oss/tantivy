@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::{CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
+    AggregationWithAccessor, AggregationsWithAccessor, MissingTermCollection,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -295,14 +295,19 @@ impl SegmentAggregationCollector for SegmentTermCollector {
 
         let mem_pre = self.get_memory_consumption();
 
-        if let Some(missing) = bucket_agg_accessor.missing_value_for_accessor {
+        let accessor = &bucket_agg_accessor.accessors[0].0;
+
+        if let MissingTermCollection::Inline {
+            missing_value_for_accessor,
+        } = bucket_agg_accessor.missing_term_collection
+        {
             bucket_agg_accessor
                 .column_block_accessor
-                .fetch_block_with_missing(docs, &bucket_agg_accessor.accessor, missing);
+                .fetch_block_with_missing(docs, accessor, missing_value_for_accessor);
         } else {
             bucket_agg_accessor
                 .column_block_accessor
-                .fetch_block(docs, &bucket_agg_accessor.accessor);
+                .fetch_block(docs, accessor);
         }
 
         for term_id in bucket_agg_accessor.column_block_accessor.iter_vals() {
@@ -313,7 +318,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         if let Some(blueprint) = self.blueprint.as_ref() {
             for (doc, term_id) in bucket_agg_accessor
                 .column_block_accessor
-                .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+                .iter_docid_vals(docs, accessor)
             {
                 let sub_aggregations = self
                     .term_buckets
@@ -568,8 +573,8 @@ impl SegmentTermCollector {
                 dict.insert(IntermediateKey::Bool(val), intermediate_entry);
             }
         } else if self.column_type == ColumnType::IpAddr {
-            let compact_space_accessor = agg_with_accessor
-                .accessor
+            let compact_space_accessor = agg_with_accessor.accessors[0]
+                .0
                 .values
                 .clone()
                 .downcast_arc::<CompactSpaceU64Accessor>()

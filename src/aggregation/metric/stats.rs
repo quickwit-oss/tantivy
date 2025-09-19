@@ -209,16 +209,15 @@ impl SegmentStatsCollector {
         docs: &[DocId],
         agg_accessor: &mut AggregationWithAccessor,
     ) {
+        let accessor = &agg_accessor.accessors[0].0;
         if let Some(missing) = self.missing.as_ref() {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &agg_accessor.accessor,
-                *missing,
-            );
+            agg_accessor
+                .column_block_accessor
+                .fetch_block_with_missing(docs, accessor, *missing);
         } else {
             agg_accessor
                 .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
+                .fetch_block(docs, accessor);
         }
         if [
             ColumnType::I64,
@@ -283,7 +282,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         doc: crate::DocId,
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessors[0].0;
         if let Some(missing) = self.missing {
             let mut has_val = false;
             for val in field.values_for_doc(doc) {

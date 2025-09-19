@@ -10,13 +10,16 @@ use crate::aggregation::segment_agg_result::{
 };
 
 /// The specialized missing term aggregation.
+///
+/// This is instantited by term aggregations when the missing terms cannot be
+/// injected to the term collector (multiple columns or different type).
 #[derive(Default, Debug, Clone)]
-pub struct TermMissingAgg {
+pub struct SegmentTermMissingCollector {
     missing_count: u32,
     accessor_idx: usize,
     sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
 }
-impl TermMissingAgg {
+impl SegmentTermMissingCollector {
     pub(crate) fn new(
         accessor_idx: usize,
         sub_aggregations: &mut AggregationsWithAccessor,
@@ -37,7 +40,7 @@ impl TermMissingAgg {
     }
 }
 
-impl SegmentAggregationCollector for TermMissingAgg {
+impl SegmentAggregationCollector for SegmentTermMissingCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
         agg_with_accessor: &AggregationsWithAccessor,
