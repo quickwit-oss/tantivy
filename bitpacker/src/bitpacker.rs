@@ -48,7 +48,7 @@ impl BitPacker {
 
     pub fn flush<TWrite: io::Write + ?Sized>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
-            let num_bytes = (self.mini_buffer_written + 7) / 8;
+            let num_bytes = self.mini_buffer_written.div_ceil(8);
             let bytes = self.mini_buffer.to_le_bytes();
             output.write_all(&bytes[..num_bytes])?;
             self.mini_buffer_written = 0;
@@ -138,7 +138,7 @@ impl BitUnpacker {
 
         // We use `usize` here to avoid overflow issues.
         let end_bit_read = (end_idx as usize) * self.num_bits;
-        let end_byte_read = (end_bit_read + 7) / 8;
+        let end_byte_read = end_bit_read.div_ceil(8);
         assert!(
             end_byte_read <= data.len(),
             "Requested index is out of bounds."

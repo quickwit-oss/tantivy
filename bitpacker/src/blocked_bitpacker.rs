@@ -140,10 +140,10 @@ impl BlockedBitpacker {
     pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
         // todo performance: we could decompress a whole block and cache it instead
         let bitpacked_elems = self.offset_and_bits.len() * BLOCK_SIZE;
-        let iter = (0..bitpacked_elems)
+        
+        (0..bitpacked_elems)
             .map(move |idx| self.get(idx))
-            .chain(self.buffer.iter().cloned());
-        iter
+            .chain(self.buffer.iter().cloned())
     }
 }
 
