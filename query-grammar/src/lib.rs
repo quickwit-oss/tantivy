@@ -31,11 +31,11 @@ pub fn parse_query_lenient(query: &str) -> (UserInputAst, Vec<LenientError>) {
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_query, parse_query_lenient};
+    use crate::{UserInputAst, parse_query, parse_query_lenient};
 
     #[test]
     fn test_deduplication() {
-        let ast = parse_query("a a").unwrap();
+        let ast: UserInputAst = parse_query("a a").unwrap();
         let json = serde_json::to_string(&ast).unwrap();
         assert_eq!(
             json,
