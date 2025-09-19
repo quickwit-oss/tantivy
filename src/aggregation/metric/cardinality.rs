@@ -9,7 +9,7 @@ use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor, MissingTermCollection,
+    AggregationWithAccessor, AggregationsWithAccessor, TermMissingStrategy,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
@@ -137,14 +137,14 @@ impl SegmentCardinalityCollector {
         agg_accessor: &mut AggregationWithAccessor,
     ) {
         let accessor = &agg_accessor.accessors[0].0;
-        if let MissingTermCollection::Inline {
-            missing_value_for_accessor,
-        } = agg_accessor.missing_term_collection
+        if let TermMissingStrategy::Inline {
+            placeholder_fast_representation,
+        } = agg_accessor.term_missing_strategy
         {
             agg_accessor.column_block_accessor.fetch_block_with_missing(
                 docs,
                 accessor,
-                missing_value_for_accessor,
+                placeholder_fast_representation,
             );
         } else {
             agg_accessor

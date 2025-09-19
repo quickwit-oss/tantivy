@@ -15,7 +15,7 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
-use crate::aggregation::agg_req_with_accessor::MissingTermCollection;
+use crate::aggregation::agg_req_with_accessor::TermMissingStrategy;
 use crate::aggregation::bucket::SegmentTermMissingCollector;
 use crate::aggregation::metric::{
     CardinalityAggregationReq, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
@@ -87,7 +87,7 @@ pub(crate) fn build_single_agg_segment_collector(
     use AggregationVariants::*;
     match &req.agg.agg {
         Terms(terms_req) => {
-            if let MissingTermCollection::TermMissingCollector = req.missing_term_collection {
+            if let TermMissingStrategy::ExternalCollector = req.term_missing_strategy {
                 Ok(Box::new(SegmentTermMissingCollector::new(
                     accessor_idx,
                     &mut req.sub_aggregation,

@@ -34,21 +34,34 @@ impl AggregationsWithAccessor {
     }
 }
 
-pub(crate) enum MissingTermCollection {
-    Inline { missing_value_for_accessor: u64 },
-    TermMissingCollector,
+/// Configures how the aggregation should behave when the field is missing from
+/// a document. For aggregation types that don't support missing fields, set
+/// this to SkipOrNotApplicable.
+pub(crate) enum TermMissingStrategy {
+    /// The aggregation is collected inside the its default collector. The
+    /// missing value placeholder is treated like any other term.
+    Inline {
+        /// Internal representation of the missing value placeholder. See
+        /// [get_missing_val_as_u64_lenient].
+        placeholder_fast_representation: u64,
+    },
+    /// The aggregation requires a dedicated collector to handle missing values.
+    /// Currently, this is only used by term aggregations.
+    ExternalCollector,
+    /// The aggregation is configured to skip missing terms or missing values
+    /// are not applicable.
     SkipOrNotApplicable,
 }
 
 pub struct AggregationWithAccessor {
     pub(crate) segment_ordinal: SegmentOrdinal,
-    pub(crate) missing_term_collection: MissingTermCollection,
+    pub(crate) term_missing_strategy: TermMissingStrategy,
     pub(crate) str_dict_column: Option<StrColumn>,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
     pub(crate) limits: AggregationLimitsGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
-    /// For most aggregations, we are guaranteed to have exactly one accessor.
-    /// Notable exceptions are term missing aggregations and TopHits
+    /// Most aggregations use exactly one accessor. Notable exceptions are Terms
+    /// (for collecting missing values in some special cases) and TopHits.
     pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     /// Map field names to all associated column accessors.
     /// This field is used for `docvalue_fields`, which is currently only supported for `top_hits`.
@@ -67,15 +80,16 @@ impl AggregationWithAccessor {
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
         let mut agg = agg.clone();
 
-        let add_agg_single_column = |agg: &Aggregation,
-                                     accessor: Column<u64>,
-                                     column_type: ColumnType,
-                                     aggs: &mut Vec<AggregationWithAccessor>|
+        // Helper used for setting up most aggregations as they only need one accessor
+        let add_agg_single_accessor = |agg: &Aggregation,
+                                       accessor: Column<u64>,
+                                       column_type: ColumnType,
+                                       aggs: &mut Vec<AggregationWithAccessor>|
          -> crate::Result<()> {
             let res = AggregationWithAccessor {
                 segment_ordinal,
                 accessors: vec![(accessor, column_type)],
-                missing_term_collection: MissingTermCollection::SkipOrNotApplicable,
+                term_missing_strategy: TermMissingStrategy::SkipOrNotApplicable,
                 value_accessors: Default::default(),
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
@@ -102,7 +116,7 @@ impl AggregationWithAccessor {
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_single_column(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Histogram(HistogramAggregation {
                 field: ref field_name,
@@ -110,7 +124,7 @@ impl AggregationWithAccessor {
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_single_column(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             DateHistogram(DateHistogramAggregationReq {
                 field: ref field_name,
@@ -119,7 +133,7 @@ impl AggregationWithAccessor {
                 let (accessor, column_type) =
                     // Only DateTime is supported for DateHistogram
                     get_ff_reader(reader, field_name, Some(&[ColumnType::DateTime]))?;
-                add_agg_single_column(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Terms(TermsAggregation {
                 field: ref field_name,
@@ -191,7 +205,7 @@ impl AggregationWithAccessor {
                         segment_ordinal,
                         value_accessors: Default::default(),
                         accessors,
-                        missing_term_collection: MissingTermCollection::TermMissingCollector,
+                        term_missing_strategy: TermMissingStrategy::ExternalCollector,
                         sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                             sub_aggregation,
                             reader,
@@ -213,29 +227,28 @@ impl AggregationWithAccessor {
                         missing.clone()
                     };
 
-                    let missing_term_collection =
-                        if let Some(missing) = missing_value_term_agg.as_ref() {
-                            let missing_u64_val_opt = get_missing_val_as_u64_lenient(
-                                column_type,
-                                missing,
-                                agg.agg.get_fast_field_names()[0],
-                            )?;
-                            match missing_u64_val_opt {
-                                Some(missing_value_for_accessor) => MissingTermCollection::Inline {
-                                    missing_value_for_accessor,
-                                },
-                                // Note: is it ok to silently ignore values that
-                                // couldn't be converted to u64? unwrap instead?
-                                None => MissingTermCollection::SkipOrNotApplicable,
-                            }
-                        } else {
-                            MissingTermCollection::SkipOrNotApplicable
-                        };
+                    let missing_term_collection = if let Some(missing) =
+                        missing_value_term_agg.as_ref()
+                    {
+                        let missing_u64_val_opt = get_missing_val_as_u64_lenient(
+                            column_type,
+                            missing,
+                            agg.agg.get_fast_field_names()[0],
+                        )?;
+                        match missing_u64_val_opt {
+                            Some(placeholder_fast_representation) => TermMissingStrategy::Inline {
+                                placeholder_fast_representation,
+                            },
+                            None => TermMissingStrategy::SkipOrNotApplicable,
+                        }
+                    } else {
+                        TermMissingStrategy::SkipOrNotApplicable
+                    };
 
                     let limits = limits.clone();
                     let agg = AggregationWithAccessor {
                         segment_ordinal,
-                        missing_term_collection,
+                        term_missing_strategy: missing_term_collection,
                         accessors: vec![(accessor, column_type)],
                         value_accessors: Default::default(),
                         sub_aggregation: get_aggs_with_segment_accessor_and_validate(
@@ -278,7 +291,7 @@ impl AggregationWithAccessor {
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_single_column(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Count(CountAggregation {
                 field: ref field_name,
@@ -296,7 +309,7 @@ impl AggregationWithAccessor {
                 ];
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(&allowed_column_types))?;
-                add_agg_single_column(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Percentiles(ref percentiles) => {
                 let (accessor, column_type) = get_ff_reader(
@@ -304,7 +317,7 @@ impl AggregationWithAccessor {
                     percentiles.field_name(),
                     Some(get_numeric_or_date_column_types()),
                 )?;
-                add_agg_single_column(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             TopHits(ref mut top_hits) => {
                 top_hits.validate_and_resolve_field_names(reader.fast_fields().columnar())?;
@@ -331,7 +344,7 @@ impl AggregationWithAccessor {
                     segment_ordinal,
                     value_accessors,
                     accessors,
-                    missing_term_collection: MissingTermCollection::SkipOrNotApplicable,
+                    term_missing_strategy: TermMissingStrategy::SkipOrNotApplicable,
                     sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                         sub_aggregation,
                         reader,

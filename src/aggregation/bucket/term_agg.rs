@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::{CustomOrder, Order, OrderTarget};
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor, MissingTermCollection,
+    AggregationWithAccessor, AggregationsWithAccessor, TermMissingStrategy,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -297,13 +297,13 @@ impl SegmentAggregationCollector for SegmentTermCollector {
 
         let accessor = &bucket_agg_accessor.accessors[0].0;
 
-        if let MissingTermCollection::Inline {
-            missing_value_for_accessor,
-        } = bucket_agg_accessor.missing_term_collection
+        if let TermMissingStrategy::Inline {
+            placeholder_fast_representation,
+        } = bucket_agg_accessor.term_missing_strategy
         {
             bucket_agg_accessor
                 .column_block_accessor
-                .fetch_block_with_missing(docs, accessor, missing_value_for_accessor);
+                .fetch_block_with_missing(docs, accessor, placeholder_fast_representation);
         } else {
             bucket_agg_accessor
                 .column_block_accessor
