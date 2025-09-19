@@ -186,9 +186,10 @@ impl CompactSpaceBuilder {
 
         // beginning of the blanks
         if let Some(first_blank_start) = self.blanks.first().map(RangeInclusive::start)
-            && *first_blank_start != 0 {
-                covered_space.push(0..=first_blank_start - 1);
-            }
+            && *first_blank_start != 0
+        {
+            covered_space.push(0..=first_blank_start - 1);
+        }
 
         // Between the blanks
         let between_blanks = self.blanks.iter().tuple_windows().map(|(left, right)| {
@@ -202,9 +203,10 @@ impl CompactSpaceBuilder {
 
         // end of the blanks
         if let Some(last_blank_end) = self.blanks.last().map(RangeInclusive::end)
-            && *last_blank_end != u128::MAX {
-                covered_space.push(last_blank_end + 1..=u128::MAX);
-            }
+            && *last_blank_end != u128::MAX
+        {
+            covered_space.push(last_blank_end + 1..=u128::MAX);
+        }
 
         if covered_space.is_empty() {
             covered_space.push(0..=0); // empty data case

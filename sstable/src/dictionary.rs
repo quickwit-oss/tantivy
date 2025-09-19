@@ -308,10 +308,9 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 }
             }
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Unsupported sstable version, expected one of [2, 3], found {version}"),
-                ));
+                return Err(io::Error::other(format!(
+                    "Unsupported sstable version, expected one of [2, 3], found {version}"
+                )));
             }
         };
 

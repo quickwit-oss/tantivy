@@ -305,7 +305,6 @@ fn term_group_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     let (inp, (field_name, _, _, _)) =
         tuple((field_name, multispace0, char('('), multispace0))(inp).expect("precondition failed");
 
-    
     delimited_infallible(
         nothing,
         map(ast_infallible, |(mut ast, errors)| {

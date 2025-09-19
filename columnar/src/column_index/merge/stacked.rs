@@ -106,9 +106,10 @@ fn get_num_values_iterator<'a>(
     match column_index {
         ColumnIndex::Empty { .. } => Box::new(std::iter::empty()),
         ColumnIndex::Full => Box::new(std::iter::repeat_n(1u32, num_docs as usize)),
-        ColumnIndex::Optional(optional_index) => {
-            Box::new(std::iter::repeat_n(1u32, optional_index.num_non_nulls() as usize))
-        }
+        ColumnIndex::Optional(optional_index) => Box::new(std::iter::repeat_n(
+            1u32,
+            optional_index.num_non_nulls() as usize,
+        )),
         ColumnIndex::Multivalued(multivalued_index) => Box::new(
             multivalued_index
                 .get_start_index_column()
