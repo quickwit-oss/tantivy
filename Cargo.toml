@@ -171,3 +171,8 @@ harness = false
 [[bench]]
 name = "exists_json"
 harness = false
+
+[[bench]]
+name = "and_or_queries"
+harness = false
+
