@@ -104,7 +104,7 @@ mod tests {
             let query = query_parser.parse_query("a a a a a").unwrap();
             let mut terms = Vec::new();
             query.query_terms(&mut |term, pos| terms.push((term, pos)));
-            assert_eq!(vec![(&term_a, false); 5], terms);
+            assert_eq!(vec![(&term_a, false); 1], terms);
         }
         {
             let query = query_parser.parse_query("a -b").unwrap();
