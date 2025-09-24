@@ -200,6 +200,12 @@ impl BinarySerializable for Facet {
     }
 }
 
+impl<'a> BinaryRefDeserializable<'a> for Facet {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        Ok(Facet(String::from(<&str>::deserialize_from_ref(reader)?)))
+    }
+}
+
 impl Display for Facet {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for step in self.0.split(FACET_SEP_CHAR) {
