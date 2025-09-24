@@ -55,7 +55,7 @@
 //! // between indexing threads.
 //! let mut index_writer: IndexWriter = index.writer(100_000_000)?;
 //!
-//! // Let's index one documents!
+//! // Let's index a document!
 //! index_writer.add_document(doc!(
 //!     title => "The Old Man and the Sea",
 //!     body => "He was an old man who fished alone in a skiff in \
