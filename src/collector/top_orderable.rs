@@ -317,6 +317,7 @@ pub struct FieldFeature<T>
 where T: Clone + PartialOrd + Sync + Send + 'static
 {
     field: String,
+    score: Option<Score>,
     _output_type: PhantomData<T>,
 }
 
@@ -325,6 +326,7 @@ impl FieldFeature<String> {
     pub fn string(field: impl AsRef<str>) -> Self {
         Self {
             field: field.as_ref().to_owned(),
+            score: None,
             _output_type: PhantomData,
         }
     }
@@ -336,11 +338,11 @@ impl FieldFeature<String> {
 }
 
 impl Feature for FieldFeature<String> {
-    type Output = Option<String>;
-    type SegmentOutput = u64;
+    type Output = (Option<String>, Option<Score>);
+    type SegmentOutput = (u64, Option<Score>);
 
     fn is_score(&self) -> bool {
-        false
+        self.score.is_some()
     }
 
     fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
@@ -374,16 +376,16 @@ impl Feature for FieldFeature<String> {
         column: &FeatureColumn,
         order: Order,
         doc: DocId,
-        _score: Score,
+        score: Score,
     ) -> Self::SegmentOutput {
         let FeatureColumn::String(_, sort_column) = column else {
             panic!("Field column type does not match field definition type.");
         };
         let value = sort_column.get_val(doc);
         if order.is_desc() {
-            value
+            (value, Some(score))
         } else {
-            u64::MAX - value
+            (u64::MAX - value, Some(score))
         }
     }
 
@@ -402,17 +404,17 @@ impl Feature for FieldFeature<String> {
         let mut ordinals: Vec<_> = if order.is_asc() {
             segment_output
                 .into_iter()
-                .map(|term_ord| u64::MAX - term_ord)
+                .map(|(term_ord, score)| (u64::MAX - term_ord, score))
                 .enumerate()
                 .collect()
         } else {
             segment_output.into_iter().rev().enumerate().collect()
         };
-        ordinals.sort_unstable_by_key(|(_, ord)| *ord);
+        ordinals.sort_unstable_by_key(|(_, (ord, _))| *ord);
 
         // Handle trailing nulls.
-        let end_idx = if matches!(ordinals.last(), Some((_, u64::MAX))) {
-            ordinals.partition_point(|(_, ord)| *ord < u64::MAX)
+        let end_idx = if matches!(ordinals.last(), Some((_, (u64::MAX, _)))) {
+            ordinals.partition_point(|(_, (ord, _))| *ord < u64::MAX)
         } else {
             ordinals.len()
         };
@@ -420,7 +422,7 @@ impl Feature for FieldFeature<String> {
         // Collect terms.
         let mut terms = Vec::with_capacity(ordinals.len());
         let result = ff.dictionary().sorted_ords_to_term_cb(
-            ordinals[0..end_idx].iter().map(|(_, ord)| *ord),
+            ordinals[0..end_idx].iter().map(|(_, (ord, _))| *ord),
             |term| {
                 terms.push(
                     std::str::from_utf8(term)
@@ -437,9 +439,9 @@ impl Feature for FieldFeature<String> {
 
         // Rearrange back to row order.
         let mut result = Vec::with_capacity(terms.len());
-        result.resize_with(ordinals.len(), || None);
-        for ((idx, _), term) in ordinals.into_iter().zip(terms.into_iter()) {
-            result[idx] = Some(term);
+        result.resize_with(ordinals.len(), || (None, None));
+        for ((idx, (_, score)), term) in ordinals.into_iter().zip(terms.into_iter()) {
+            result[idx] = (Some(term), score);
         }
 
         if order.is_desc() {
@@ -475,7 +477,7 @@ impl Feature for ErasedFeature<FieldFeature<String>> {
         doc: DocId,
         score: Score,
     ) -> Self::SegmentOutput {
-        Some(self.0.get(column, order, doc, score))
+        Some(self.0.get(column, order, doc, score).0)
     }
 
     /// Decode SegmentOutputs into Outputs.
@@ -489,13 +491,10 @@ impl Feature for ErasedFeature<FieldFeature<String>> {
             .decode(
                 column,
                 order,
-                segment_output
-                    .into_iter()
-                    .map(|s| s.expect("An erased String feature never produces None."))
-                    .collect(),
+                segment_output.into_iter().map(|s| (s.expect("An erased String feature never produces None."), None)).collect(),
             )
             .into_iter()
-            .map(|s| match s {
+            .map(|(s, _)| match s {
                 Some(s) => OwnedValue::Str(s),
                 None => OwnedValue::Null,
             })
@@ -512,6 +511,7 @@ impl FieldFeature<u64> {
     pub fn u64(field: impl AsRef<str>) -> Self {
         Self {
             field: field.as_ref().to_owned(),
+            score: None,
             _output_type: PhantomData,
         }
     }
@@ -522,6 +522,7 @@ impl FieldFeature<i64> {
     pub fn i64(field: impl AsRef<str>) -> Self {
         Self {
             field: field.as_ref().to_owned(),
+            score: None,
             _output_type: PhantomData,
         }
     }
@@ -532,6 +533,7 @@ impl FieldFeature<f64> {
     pub fn f64(field: impl AsRef<str>) -> Self {
         Self {
             field: field.as_ref().to_owned(),
+            score: None,
             _output_type: PhantomData,
         }
     }
@@ -542,6 +544,7 @@ impl FieldFeature<bool> {
     pub fn bool(field: impl AsRef<str>) -> Self {
         Self {
             field: field.as_ref().to_owned(),
+            score: None,
             _output_type: PhantomData,
         }
     }
@@ -552,6 +555,7 @@ impl FieldFeature<DateTime> {
     pub fn datetime(field: impl AsRef<str>) -> Self {
         Self {
             field: field.as_ref().to_owned(),
+            score: None,
             _output_type: PhantomData,
         }
     }
@@ -565,11 +569,11 @@ impl<F: FastValue> FieldFeature<F> {
 }
 
 impl<F: FastValue> Feature for FieldFeature<F> {
-    type Output = Option<F>;
-    type SegmentOutput = Option<u64>;
+    type Output = (Option<F>, Option<Score>);
+    type SegmentOutput = (Option<u64>, Option<Score>);
 
     fn is_score(&self) -> bool {
-        false
+        self.score.is_some()
     }
 
     fn open(&self, segment_reader: &SegmentReader) -> crate::Result<FeatureColumn> {
@@ -591,16 +595,16 @@ impl<F: FastValue> Feature for FieldFeature<F> {
         column: &FeatureColumn,
         order: Order,
         doc: DocId,
-        _score: Score,
+        score: Score,
     ) -> Self::SegmentOutput {
         let FeatureColumn::Numeric(sort_column) = column else {
             panic!("Field column type does not match field definition type.");
         };
         let value = sort_column.first(doc);
         if order.is_desc() {
-            value
+            (value, Some(score))
         } else {
-            value.map(|v| u64::MAX - v)
+            (value.map(|v| u64::MAX - v), Some(score))
         }
     }
 
@@ -613,12 +617,12 @@ impl<F: FastValue> Feature for FieldFeature<F> {
         if order.is_desc() {
             segment_output
                 .into_iter()
-                .map(|v| v.map(F::from_u64))
+                .map(|(v, s)| (v.map(F::from_u64), s))
                 .collect()
         } else {
             segment_output
                 .into_iter()
-                .map(|o| o.map(|v| F::from_u64(u64::MAX - v)))
+                .map(|(v, s)| (v.map(|v| F::from_u64(u64::MAX - v)), s))
                 .collect()
         }
     }
@@ -649,7 +653,7 @@ impl<F: FastValue> Feature for ErasedFeature<FieldFeature<F>> {
         doc: DocId,
         score: Score,
     ) -> Self::SegmentOutput {
-        self.0.get(column, order, doc, score)
+        self.0.get(column, order, doc, score).0
     }
 
     /// Decode SegmentOutputs into Outputs.
@@ -797,7 +801,7 @@ impl<O: TopOrderable> Collector for TopOrderableCollector<O> {
     }
 
     fn requires_scoring(&self) -> bool {
-        self.orderable.requires_scoring()
+        true
     }
 
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
