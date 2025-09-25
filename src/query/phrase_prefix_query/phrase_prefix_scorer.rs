@@ -200,6 +200,10 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
     fn size_hint(&self) -> u32 {
         self.phrase_scorer.size_hint()
     }
+
+    fn cost(&self) -> u64 {
+        self.phrase_scorer.cost()
+    }
 }
 
 impl<TPostings: Postings> Scorer for PhrasePrefixScorer<TPostings> {

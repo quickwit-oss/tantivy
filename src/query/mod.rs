@@ -23,6 +23,7 @@ mod regex_query;
 mod reqopt_scorer;
 mod scorer;
 mod set_query;
+mod size_hint;
 mod term_query;
 mod union;
 mod weight;

@@ -117,6 +117,10 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
         self.underlying.size_hint()
     }
 
+    fn cost(&self) -> u64 {
+        self.underlying.cost()
+    }
+
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
         self.underlying.count(alive_bitset)
     }
