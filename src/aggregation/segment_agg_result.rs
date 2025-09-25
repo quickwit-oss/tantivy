@@ -52,7 +52,8 @@ pub(crate) trait CollectorClone {
 }
 
 impl<T> CollectorClone for T
-where T: 'static + SegmentAggregationCollector + Clone
+where
+    T: 'static + SegmentAggregationCollector + Clone,
 {
     fn clone_box(&self) -> Box<dyn SegmentAggregationCollector> {
         Box::new(self.clone())
@@ -68,11 +69,18 @@ impl Clone for Box<dyn SegmentAggregationCollector> {
 pub(crate) fn build_segment_agg_collector(
     req: &mut AggregationsWithAccessor,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    build_segment_agg_collector_with_reader(req, None)
+}
+
+pub(crate) fn build_segment_agg_collector_with_reader(
+    req: &mut AggregationsWithAccessor,
+    segment_reader: Option<&crate::SegmentReader>,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     // Single collector special case
     if req.aggs.len() == 1 {
         let req = &mut req.aggs.values[0];
         let accessor_idx = 0;
-        return build_single_agg_segment_collector(req, accessor_idx);
+        return build_single_agg_segment_collector_with_reader(req, accessor_idx, segment_reader);
     }
 
     let agg = GenericSegmentAggregationResultsCollector::from_req_and_validate(req)?;
@@ -82,6 +90,14 @@ pub(crate) fn build_segment_agg_collector(
 pub(crate) fn build_single_agg_segment_collector(
     req: &mut AggregationWithAccessor,
     accessor_idx: usize,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    build_single_agg_segment_collector_with_reader(req, accessor_idx, None)
+}
+
+pub(crate) fn build_single_agg_segment_collector_with_reader(
+    req: &mut AggregationWithAccessor,
+    accessor_idx: usize,
+    segment_reader: Option<&crate::SegmentReader>,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     use AggregationVariants::*;
     match &req.agg.agg {
@@ -175,11 +191,34 @@ pub(crate) fn build_single_agg_segment_collector(
         Cardinality(CardinalityAggregationReq { missing, .. }) => Ok(Box::new(
             SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
         )),
-        Filter(_filter_req) => {
-            // For now, return an error - we need to implement this properly
-            Err(crate::TantivyError::InvalidArgument(
-                "Filter aggregation not yet fully implemented in segment collector".to_string()
-            ))
+        Filter(filter_req) => {
+            // Create FilterSegmentCollector
+            use crate::aggregation::bucket::FilterSegmentCollector;
+
+            if let Some(segment_reader) = segment_reader {
+                let schema = segment_reader.schema();
+                let query = filter_req.parse_query(&schema)?;
+
+                // Follow the same pattern as other bucket aggregations
+                let sub_aggregations = if req.sub_aggregation.is_empty() {
+                    None
+                } else {
+                    // Use the standard build_segment_agg_collector like terms aggregation does
+                    Some(build_segment_agg_collector(&mut req.sub_aggregation)?)
+                };
+
+                Ok(Box::new(FilterSegmentCollector::new(
+                    query,
+                    schema.clone(),
+                    segment_reader,
+                    sub_aggregations,
+                    accessor_idx,
+                )?))
+            } else {
+                Err(crate::TantivyError::InvalidArgument(
+                    "Filter aggregation requires SegmentReader access".to_string(),
+                ))
+            }
         }
     }
 }

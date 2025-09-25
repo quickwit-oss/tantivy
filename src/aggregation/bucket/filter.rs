@@ -154,6 +154,8 @@ pub struct FilterSegmentCollector {
     sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
     /// Segment reader reference for document evaluation
     segment_reader: SegmentReader,
+    /// Accessor index for this filter aggregation
+    accessor_idx: usize,
 }
 
 impl FilterSegmentCollector {
@@ -163,6 +165,7 @@ impl FilterSegmentCollector {
         schema: Schema,
         segment_reader: &SegmentReader,
         sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
+        accessor_idx: usize,
     ) -> crate::Result<Self> {
         let mut evaluator = DocumentQueryEvaluator::new(query, schema);
         evaluator.initialize_for_segment(segment_reader)?;
@@ -172,6 +175,7 @@ impl FilterSegmentCollector {
             doc_count: 0,
             sub_aggregations,
             segment_reader: segment_reader.clone(),
+            accessor_idx,
         })
     }
 }
@@ -208,16 +212,9 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
             )?;
         }
 
-        // For now, store as a custom intermediate result
-        // TODO: Add Filter variant to IntermediateBucketResult
-        use crate::aggregation::intermediate_agg_result::IntermediateMetricResult;
-        use crate::aggregation::metric::IntermediateCount;
-
-        let doc_count_metric = IntermediateMetricResult::Count(IntermediateCount::default());
-        results.push(
-            "doc_count".to_string(),
-            IntermediateAggregationResult::Metric(doc_count_metric),
-        )?;
+        // For now, we'll just add the sub-aggregation results
+        // The doc_count will be handled by the final result conversion
+        // TODO: Add proper Filter variant to IntermediateBucketResult
 
         // Add sub-aggregation results
         for (key, value) in sub_aggregation_results.aggs_res {
@@ -238,7 +235,8 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
 
             // If we have sub-aggregations, collect on them for this filtered document
             if let Some(sub_aggs) = &mut self.sub_aggregations {
-                sub_aggs.collect(doc, agg_with_accessor)?;
+                let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
+                sub_aggs.collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
             }
         }
         Ok(())
@@ -252,6 +250,15 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         // Batch processing for better performance
         for &doc in docs {
             self.collect(doc, agg_with_accessor)?;
+        }
+        Ok(())
+    }
+
+    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
+        if let Some(sub_aggs) = &mut self.sub_aggregations {
+            let sub_aggregation_accessor =
+                &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
+            sub_aggs.flush(sub_aggregation_accessor)?;
         }
         Ok(())
     }

@@ -345,11 +345,11 @@ impl AggregationWithAccessor {
                 add_agg_with_accessors(&agg, accessors, &mut res, value_accessors)?;
             }
             Filter(ref _filter_req) => {
-                // Filter aggregation doesn't need fast field accessors
-                // It uses query evaluation instead
-                // Create a dummy accessor for now
+                // Filter aggregation doesn't need fast field accessors for itself
+                // But we still need to provide a proper accessor for the framework
+                // Use a dummy accessor with the correct number of documents
                 use columnar::Column;
-                let dummy_accessor = Column::build_empty_column(0);
+                let dummy_accessor = Column::build_empty_column(reader.num_docs());
                 add_agg_with_accessor(&agg, dummy_accessor, ColumnType::Str, &mut res)?;
             }
         };
