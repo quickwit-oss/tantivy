@@ -80,7 +80,7 @@ fn test_filter_aggregation_with_field_boosts() -> tantivy::Result<()> {
     // Test filter aggregation that should benefit from the boost
     let agg_request = json!({
         "rust_items": {
-            "filter": { "term": { "title": "rust" } },
+            "filter": { "query_string": "title:rust" },
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } },
                 "count": { "value_count": { "field": "title" } }
@@ -131,7 +131,7 @@ fn test_filter_aggregation_with_fuzzy_matching() -> tantivy::Result<()> {
     // Test filter aggregation with a slightly misspelled term that should match with fuzzy
     let agg_request = json!({
         "programming_items": {
-            "filter": { "term": { "title": "programing" } }, // Missing 'm' - should match "programming" with fuzzy
+            "filter": { "query_string": "title:programing" }, // Missing 'm' - should match "programming" with fuzzy
             "aggs": {
                 "avg_rating": { "avg": { "field": "rating" } },
                 "count": { "value_count": { "field": "title" } }
@@ -181,7 +181,7 @@ fn test_filter_aggregation_with_default_fields() -> tantivy::Result<()> {
     // However, the infrastructure is in place for future enhancements.
     let agg_request = json!({
         "books_category": {
-            "filter": { "term": { "category": "books" } },
+            "filter": { "query_string": "category:books" },
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } },
                 "max_rating": { "max": { "field": "rating" } }
@@ -235,7 +235,7 @@ fn test_filter_aggregation_custom_query_parser() -> tantivy::Result<()> {
     // to be enhanced to accept a custom QueryParser)
 
     let filter_agg = tantivy::aggregation::bucket::FilterAggregation::new(
-        json!({ "term": { "title": "rust" } }),
+        json!({ "query_string": "title:rust" }),
     );
 
     // Test the new parse_query_with_parser method

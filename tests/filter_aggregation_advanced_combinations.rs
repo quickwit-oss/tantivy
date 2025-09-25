@@ -145,7 +145,7 @@ fn test_multi_level_nested_aggregations() -> tantivy::Result<()> {
     // Test deeply nested: Filter → Terms → Range → Terms → Metrics
     let agg_request = json!({
         "active_products": {
-            "filter": { "term": { "status": "active" } },
+            "filter": { "query_string": "status:active" },
             "aggs": {
                 "by_category": {
                     "terms": { "field": "category" },
@@ -209,7 +209,7 @@ fn test_complex_business_kpis() -> tantivy::Result<()> {
     // Test complex business metrics calculation
     let agg_request = json!({
         "premium_segment_analysis": {
-            "filter": { "term": { "premium": true } },
+            "filter": { "query_string": "premium:true" },
             "aggs": {
                 "profitability_by_subcategory": {
                     "terms": { "field": "subcategory" },
@@ -238,7 +238,7 @@ fn test_complex_business_kpis() -> tantivy::Result<()> {
         },
 
         "mass_market_analysis": {
-            "filter": { "term": { "premium": false } },
+            "filter": { "query_string": "premium:false" },
             "aggs": {
                 "volume_leaders": {
                     "terms": { "field": "brand", "size": 5 },
@@ -301,16 +301,16 @@ fn test_advanced_filter_combinations_with_bool_queries() -> tantivy::Result<()> 
             "filter": {
                 "bool": {
                     "must": [
-                        { "range": { "price": { "gte": "500" } } },
-                        { "term": { "available": true } },
-                        { "range": { "rating": { "gte": "4.0" } } }
+                        "price:[500 TO *]",
+                        "available:true",
+                        "rating:[4.0 TO *]"
                     ],
                     "should": [
-                        { "term": { "featured": true } },
-                        { "term": { "premium": true } }
+                        "featured:true",
+                        "premium:true"
                     ],
                     "must_not": [
-                        { "term": { "status": "discontinued" } }
+                        "status:discontinued"
                     ]
                 }
             },
@@ -346,8 +346,8 @@ fn test_advanced_filter_combinations_with_bool_queries() -> tantivy::Result<()> 
             "filter": {
                 "bool": {
                     "must": [
-                        { "range": { "price": { "lt": "300" } } },
-                        { "range": { "sales": { "gte": "5000" } } }
+                        "price:[* TO 300}",
+                        "sales:[5000 TO *]"
                     ]
                 }
             },
@@ -402,7 +402,7 @@ fn test_mixed_aggregation_types_comprehensive() -> tantivy::Result<()> {
     // Test all aggregation types together in complex combinations
     let agg_request = json!({
         "comprehensive_product_analysis": {
-            "filter": { "match_all": {} },
+            "filter": { "query_string": "*" },
             "aggs": {
                 // Metric aggregations on different fields
                 "overall_stats": {
@@ -525,7 +525,7 @@ fn test_filter_aggregation_performance_scenarios() -> tantivy::Result<()> {
     // Test scenarios that stress different aspects of the aggregation system
     let agg_request = json!({
         "high_cardinality_analysis": {
-            "filter": { "term": { "available": true } },
+            "filter": { "query_string": "available:true" },
             "aggs": {
                 "brand_performance": {
                     "terms": { "field": "brand", "size": 100 },
@@ -542,7 +542,7 @@ fn test_filter_aggregation_performance_scenarios() -> tantivy::Result<()> {
         },
 
         "multi_dimensional_slicing": {
-            "filter": { "range": { "rating": { "gte": "4.0" } } },
+            "filter": { "query_string": "rating:[4.0 TO *]" },
             "aggs": {
                 "category_region_matrix": {
                     "terms": { "field": "category" },
@@ -574,7 +574,7 @@ fn test_filter_aggregation_performance_scenarios() -> tantivy::Result<()> {
         },
 
         "range_intensive_analysis": {
-            "filter": { "term": { "status": "active" } },
+            "filter": { "query_string": "status:active" },
             "aggs": {
                 "price_ranges": {
                     "range": {

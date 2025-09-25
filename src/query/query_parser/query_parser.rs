@@ -412,7 +412,7 @@ impl QueryParser {
     /// let tokenizer_manager = TokenizerManager::default();
     /// let query_parser = QueryParser::new(schema, vec![category_field], tokenizer_manager);
     ///
-    /// let query_json = json!({ "term": { "category": "electronics" } });
+    /// let query_json = json!({ "query_string": "category:electronics" });
     /// let query = query_parser.parse_json_query(&query_json).unwrap();
     /// ```
     pub fn parse_json_query(&self, query_json: &Value) -> Result<Box<dyn Query>, QueryParserError> {
@@ -462,6 +462,11 @@ impl QueryParser {
     }
 
     /// Strict JSON query parsing (internal)
+    ///
+    /// Supports Tantivy's boolean JSON syntax:
+    /// - `{ "bool": { "must": [...], "should": [...], "must_not": [...] } }`
+    /// - `{ "query_string": "field:value OR other_field:other_value" }`
+    /// - `"*"` (match all)
     fn parse_json_query_strict(
         &self,
         query_json: &Value,
@@ -482,19 +487,26 @@ impl QueryParser {
 
                 let (query_type, query_params) = obj.iter().next().unwrap();
                 match query_type.as_str() {
-                    "term" => self.parse_json_term_query(query_params),
-                    "range" => self.parse_json_range_query(query_params),
                     "bool" => self.parse_json_bool_query(query_params),
-                    "match" => self.parse_json_match_query(query_params),
-                    "match_all" => Ok(Box::new(AllQuery)),
+                    "query_string" => self.parse_json_query_string(query_params),
                     _ => Err(QueryParserError::UnsupportedQuery(format!(
-                        "Unsupported JSON query type: {}",
+                        "Unsupported JSON query type: '{}'. Supported types: 'bool', 'query_string'",
                         query_type
                     ))),
                 }
             }
+            Value::String(query_str) => {
+                // Support simple string queries like "*" for match_all
+                if query_str == "*" {
+                    Ok(Box::new(AllQuery))
+                } else {
+                    // Parse as a query string
+                    self.parse_query(query_str)
+                        .map_err(|e| QueryParserError::SyntaxError(e.to_string()))
+                }
+            }
             _ => Err(QueryParserError::SyntaxError(
-                "Query must be a JSON object".to_string(),
+                "Query must be a JSON object or string".to_string(),
             )),
         }
     }
@@ -1031,115 +1043,10 @@ impl QueryParser {
         }
     }
 
-    /// Parse Elasticsearch term query: { "term": { "field": "value" } }
-    fn parse_json_term_query(&self, params: &Value) -> Result<Box<dyn Query>, QueryParserError> {
-        let obj = params.as_object().ok_or_else(|| {
-            QueryParserError::SyntaxError("Term query parameters must be an object".to_string())
-        })?;
-
-        if obj.len() != 1 {
-            return Err(QueryParserError::SyntaxError(
-                "Term query must specify exactly one field".to_string(),
-            ));
-        }
-
-        let (field_name, field_value) = obj.iter().next().unwrap();
-        let _field = self
-            .schema
-            .get_field(field_name)
-            .map_err(|_| QueryParserError::FieldDoesNotExist(field_name.to_string()))?;
-
-        // Convert the JSON value to a string for parsing
-        let value_str = self.json_value_to_query_string(field_value)?;
-
-        // Create a query string in the format "field:value" and use existing parse_query
-        let query_str = format!("{}:{}", field_name, value_str);
-
-        // Use the existing string parser which handles boosts, fuzzy, etc.
-        self.parse_query(&query_str)
-    }
-
-    /// Parse Elasticsearch range query: { "range": { "field": { "gte": 10, "lt": 20 } } }
-    fn parse_json_range_query(&self, params: &Value) -> Result<Box<dyn Query>, QueryParserError> {
-        let obj = params.as_object().ok_or_else(|| {
-            QueryParserError::SyntaxError("Range query parameters must be an object".to_string())
-        })?;
-
-        if obj.len() != 1 {
-            return Err(QueryParserError::SyntaxError(
-                "Range query must specify exactly one field".to_string(),
-            ));
-        }
-
-        let (field_name, range_params) = obj.iter().next().unwrap();
-        let _field = self
-            .schema
-            .get_field(field_name)
-            .map_err(|_| QueryParserError::FieldDoesNotExist(field_name.to_string()))?;
-
-        let range_obj = range_params.as_object().ok_or_else(|| {
-            QueryParserError::SyntaxError(
-                "Range query field parameters must be an object".to_string(),
-            )
-        })?;
-
-        // Build a range query string in Tantivy's format
-        let mut lower_bound = None;
-        let mut upper_bound = None;
-        let mut lower_inclusive = true;
-        let mut upper_inclusive = true;
-
-        for (bound_type, bound_value) in range_obj {
-            let value_str = self.json_value_to_range_string(bound_value)?;
-
-            match bound_type.as_str() {
-                "gte" => {
-                    lower_bound = Some(value_str);
-                    lower_inclusive = true;
-                }
-                "gt" => {
-                    lower_bound = Some(value_str);
-                    lower_inclusive = false;
-                }
-                "lte" => {
-                    upper_bound = Some(value_str);
-                    upper_inclusive = true;
-                }
-                "lt" => {
-                    upper_bound = Some(value_str);
-                    upper_inclusive = false;
-                }
-                _ => {
-                    return Err(QueryParserError::SyntaxError(format!(
-                        "Unsupported range bound: {}",
-                        bound_type
-                    )))
-                }
-            }
-        }
-
-        if lower_bound.is_none() && upper_bound.is_none() {
-            return Err(QueryParserError::SyntaxError(
-                "Range query must specify at least one bound".to_string(),
-            ));
-        }
-
-        // Create a range query string in Tantivy's format: "field:[lower TO upper]"
-        let lower_str = lower_bound.as_deref().unwrap_or("*");
-        let upper_str = upper_bound.as_deref().unwrap_or("*");
-        let left_bracket = if lower_inclusive { "[" } else { "{" };
-        let right_bracket = if upper_inclusive { "]" } else { "}" };
-
-        let query_str = format!(
-            "{}:{}{} TO {}{}",
-            field_name, left_bracket, lower_str, upper_str, right_bracket
-        );
-
-        // Use the existing string parser which handles field validation, etc.
-        self.parse_query(&query_str)
-    }
-
-    /// Parse Elasticsearch bool query: { "bool": { "must": [...], "should": [...], "must_not": [...] } }
+    /// Parse Tantivy bool query: { "bool": { "must": [...], "should": [...], "must_not": [...] } }
+    /// Each clause can contain either:
+    /// - String queries (parsed using Tantivy's query parser)
+    /// - Nested boolean queries
     fn parse_json_bool_query(&self, params: &Value) -> Result<Box<dyn Query>, QueryParserError> {
         let obj = params.as_object().ok_or_else(|| {
             QueryParserError::SyntaxError("Bool query parameters must be an object".to_string())
@@ -1154,7 +1061,7 @@ impl QueryParser {
                 "must_not" => Occur::MustNot,
                 _ => {
                     return Err(QueryParserError::SyntaxError(format!(
-                        "Unsupported bool query clause: {}",
+                        "Unsupported bool query clause: '{}'. Supported clauses: 'must', 'should', 'must_not'",
                         clause_type
                     )))
                 }
@@ -1173,53 +1080,24 @@ impl QueryParser {
             }
         }
 
+        if subqueries.is_empty() {
+            return Err(QueryParserError::SyntaxError(
+                "Bool query must contain at least one clause".to_string(),
+            ));
+        }
+
         Ok(Box::new(BooleanQuery::new(subqueries)))
     }
 
-    /// Parse Elasticsearch match query: { "match": { "field": "value" } }
-    /// Note: This implementation uses the existing QueryParser which handles text analysis and tokenization
-    fn parse_json_match_query(&self, params: &Value) -> Result<Box<dyn Query>, QueryParserError> {
-        // For match queries, we can use the same logic as term queries since the existing
-        // parser handles tokenization and text analysis
-        self.parse_json_term_query(params)
-    }
+    /// Parse query_string query: { "query_string": "field:value OR other_field:other_value" }
+    fn parse_json_query_string(&self, params: &Value) -> Result<Box<dyn Query>, QueryParserError> {
+        let query_str = params.as_str().ok_or_else(|| {
+            QueryParserError::SyntaxError("query_string value must be a string".to_string())
+        })?;
 
-    /// Convert a JSON value to a string suitable for query parsing
-    fn json_value_to_query_string(&self, value: &Value) -> Result<String, QueryParserError> {
-        match value {
-            Value::String(s) => {
-                if s.is_empty() {
-                    // Handle empty string case - use quotes to make it a valid query
-                    Ok("\"\"".to_string())
-                } else if s.trim().is_empty() {
-                    // Handle whitespace-only strings - use quotes to preserve them
-                    Ok(format!("\"{}\"", s))
-                } else if s.contains(':') || s.contains('-') || s.contains('T') {
-                    // Handle date/time strings and other special formats - use quotes
-                    Ok(format!("\"{}\"", s))
-                } else {
-                    Ok(s.clone())
-                }
-            }
-            Value::Number(n) => Ok(n.to_string()),
-            Value::Bool(b) => Ok(b.to_string()),
-            _ => Err(QueryParserError::SyntaxError(
-                "Query value must be string, number, or boolean".to_string(),
-            )),
-        }
-    }
-
-    /// Convert a JSON value to a string suitable for range query parsing
-    /// Range queries don't need quotes around values as they're parsed differently
-    fn json_value_to_range_string(&self, value: &Value) -> Result<String, QueryParserError> {
-        match value {
-            Value::String(s) => Ok(s.clone()),
-            Value::Number(n) => Ok(n.to_string()),
-            Value::Bool(b) => Ok(b.to_string()),
-            _ => Err(QueryParserError::SyntaxError(
-                "Range query value must be string, number, or boolean".to_string(),
-            )),
-        }
+        // Use Tantivy's existing query parser
+        self.parse_query(query_str)
+            .map_err(|e| QueryParserError::SyntaxError(e.to_string()))
     }
 }
 
@@ -2430,21 +2308,21 @@ mod test {
 
         let query_parser = make_query_parser();
 
-        // Test term query
-        let query_json = json!({ "term": { "title": "hello" } });
+        // Test query_string query
+        let query_json = json!({ "query_string": "title:hello" });
         let query = query_parser.parse_json_query(&query_json).unwrap();
         let query_str = format!("{query:?}");
         // Should contain the term query for "hello"
         assert!(query_str.contains("hello") && query_str.contains("TermQuery"));
 
-        // Test range query
-        let query_json = json!({ "range": { "title": { "gte": "a", "lt": "z" } } });
+        // Test range query using query_string
+        let query_json = json!({ "query_string": "title:[a TO z}" });
         let query = query_parser.parse_json_query(&query_json).unwrap();
         // Range queries create RangeQuery objects
         assert!(format!("{query:?}").contains("RangeQuery"));
 
-        // Test match_all query
-        let query_json = json!({ "match_all": {} });
+        // Test match_all query using string syntax
+        let query_json = json!("*");
         let query = query_parser.parse_json_query(&query_json).unwrap();
         assert_eq!(format!("{query:?}"), "AllQuery");
     }
@@ -2460,7 +2338,7 @@ mod test {
         query_parser.set_field_boost(title_field, 2.0);
 
         // Test that JSON queries inherit the boost
-        let query_json = json!({ "term": { "title": "hello" } });
+        let query_json = json!({ "query_string": "title:hello" });
         let query = query_parser.parse_json_query(&query_json).unwrap();
 
         // The query should be boosted
@@ -2479,7 +2357,7 @@ mod test {
         query_parser.set_field_fuzzy(title_field, false, 1, true);
 
         // Test that JSON queries inherit fuzzy settings
-        let query_json = json!({ "term": { "title": "hello" } });
+        let query_json = json!({ "query_string": "title:hello" });
         let query = query_parser.parse_json_query(&query_json).unwrap();
 
         // The query should use fuzzy matching
@@ -2493,17 +2371,17 @@ mod test {
 
         let query_parser = make_query_parser();
 
-        // Test bool query with multiple clauses
+        // Test bool query with multiple clauses using string queries
         let query_json = json!({
             "bool": {
                 "must": [
-                    { "term": { "title": "hello" } }
+                    "title:hello"
                 ],
                 "should": [
-                    { "term": { "text": "world" } }
+                    "text:world"
                 ],
                 "must_not": [
-                    { "term": { "title": "goodbye" } }
+                    "title:goodbye"
                 ]
             }
         });
@@ -2536,8 +2414,8 @@ mod test {
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Unsupported"));
 
-        // Test invalid field
-        let query_json = json!({ "term": { "nonexistent_field": "value" } });
+        // Test invalid field using query_string
+        let query_json = json!({ "query_string": "nonexistent_field:value" });
         let result = query_parser.parse_json_query(&query_json);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
@@ -2560,7 +2438,7 @@ mod test {
         assert!(errors[0].to_string().contains("Unsupported"));
 
         // Test lenient parsing with valid query
-        let query_json = json!({ "match_all": {} });
+        let query_json = json!("*");
         let (query, errors) = query_parser.parse_json_query_lenient(&query_json);
 
         // Should return valid query and no errors

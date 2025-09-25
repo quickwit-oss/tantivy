@@ -222,7 +222,7 @@ fn test_filter_with_nested_bucket_aggregations() -> tantivy::Result<()> {
     // Test filter aggregation with nested terms aggregation and metrics
     let agg_request = json!({
         "electronics_analysis": {
-            "filter": { "term": { "category": "electronics" } },
+            "filter": { "query_string": "category:electronics" },
             "aggs": {
                 "brands": {
                     "terms": { "field": "brand" },
@@ -274,7 +274,7 @@ fn test_multiple_filters_with_different_aggregation_combinations() -> tantivy::R
 
     let agg_request = json!({
         "premium_products": {
-            "filter": { "range": { "price": { "gte": "1000" } } },
+            "filter": { "query_string": "price:[1000 TO *]" },
             "aggs": {
                 "categories": {
                     "terms": { "field": "category" },
@@ -287,7 +287,7 @@ fn test_multiple_filters_with_different_aggregation_combinations() -> tantivy::R
             }
         },
         "budget_products": {
-            "filter": { "range": { "price": { "lt": "200" } } },
+            "filter": { "query_string": "price:[* TO 200}" },
             "aggs": {
                 "brand_performance": {
                     "terms": { "field": "brand" },
@@ -305,7 +305,7 @@ fn test_multiple_filters_with_different_aggregation_combinations() -> tantivy::R
             }
         },
         "featured_products": {
-            "filter": { "term": { "is_featured": true } },
+            "filter": { "query_string": "is_featured:true" },
             "aggs": {
                 "price_distribution": {
                     "range": {
@@ -361,7 +361,7 @@ fn test_complex_ecommerce_analytics_scenario() -> tantivy::Result<()> {
     // Real-world e-commerce dashboard scenario
     let agg_request = json!({
         "in_stock_analysis": {
-            "filter": { "term": { "in_stock": true } },
+            "filter": { "query_string": "in_stock:true" },
             "aggs": {
                 "category_breakdown": {
                     "terms": { "field": "category" },
@@ -400,8 +400,8 @@ fn test_complex_ecommerce_analytics_scenario() -> tantivy::Result<()> {
             "filter": {
                 "bool": {
                     "must": [
-                        { "range": { "rating": { "gte": "4.5" } } },
-                        { "range": { "sales_count": { "gte": "1000" } } }
+                        "rating:[4.5 TO *]",
+                        "sales_count:[1000 TO *]"
                     ]
                 }
             },
@@ -449,10 +449,10 @@ fn test_deeply_nested_filter_combinations() -> tantivy::Result<()> {
     // Test filter within filter (nested filters)
     let agg_request = json!({
         "electronics_deep_dive": {
-            "filter": { "term": { "category": "electronics" } },
+            "filter": { "query_string": "category:electronics" },
             "aggs": {
                 "smartphone_analysis": {
-                    "filter": { "term": { "tags": "smartphone" } },
+                    "filter": { "query_string": "tags:smartphone" },
                     "aggs": {
                         "brand_comparison": {
                             "terms": { "field": "brand" },
@@ -479,7 +479,7 @@ fn test_deeply_nested_filter_combinations() -> tantivy::Result<()> {
                     }
                 },
                 "laptop_analysis": {
-                    "filter": { "term": { "tags": "laptop" } },
+                    "filter": { "query_string": "tags:laptop" },
                     "aggs": {
                         "availability_impact": {
                             "terms": { "field": "in_stock" },
@@ -518,7 +518,7 @@ fn test_all_metric_types_with_filter_combinations() -> tantivy::Result<()> {
     // Comprehensive test of all metric aggregation types
     let agg_request = json!({
         "comprehensive_metrics": {
-            "filter": { "match_all": {} },
+            "filter": { "query_string": "*" },
             "aggs": {
                 // All metric types on different fields
                 "price_stats": { "stats": { "field": "price" } },
@@ -563,7 +563,7 @@ fn test_all_metric_types_with_filter_combinations() -> tantivy::Result<()> {
         },
 
         "filtered_comprehensive": {
-            "filter": { "term": { "in_stock": true } },
+            "filter": { "query_string": "in_stock:true" },
             "aggs": {
                 "available_inventory_metrics": {
                     "terms": { "field": "category" },
@@ -608,7 +608,7 @@ fn test_real_world_business_scenarios() -> tantivy::Result<()> {
     // Scenario 1: Marketing Campaign Analysis
     let marketing_analysis = json!({
         "discounted_products_performance": {
-            "filter": { "range": { "discount_pct": { "gt": "0" } } },
+            "filter": { "query_string": "discount_pct:{0 TO *]" },
             "aggs": {
                 "discount_tiers": {
                     "range": {
@@ -646,7 +646,7 @@ fn test_real_world_business_scenarios() -> tantivy::Result<()> {
     // Scenario 2: Inventory Management
     let inventory_analysis = json!({
         "low_stock_alert": {
-            "filter": { "range": { "quantity": { "lt": "50" } } },
+            "filter": { "query_string": "quantity:[* TO 50}" },
             "aggs": {
                 "critical_categories": {
                     "terms": { "field": "category" },
@@ -659,7 +659,7 @@ fn test_real_world_business_scenarios() -> tantivy::Result<()> {
             }
         },
         "out_of_stock_impact": {
-            "filter": { "term": { "in_stock": false } },
+            "filter": { "query_string": "in_stock:false" },
             "aggs": {
                 "lost_opportunities": {
                     "terms": { "field": "category" },

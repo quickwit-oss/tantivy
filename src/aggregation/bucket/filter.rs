@@ -361,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_term_query() {
+    fn test_parse_query_string() {
         use crate::schema::INDEXED;
         let mut schema_builder = Schema::builder();
         let category_field = schema_builder.add_text_field("category", TEXT); // TEXT fields are indexed by default
@@ -376,12 +376,12 @@ mod tests {
             tokenizer_manager,
         );
 
-        // Test string term query
-        let query_json = json!({ "term": { "category": "electronics" } });
+        // Test string query
+        let query_json = json!({ "query_string": "category:electronics" });
         let _query = query_parser.parse_json_query(&query_json).unwrap();
 
-        // Test numeric term query
-        let query_json = json!({ "term": { "price": 100 } });
+        // Test numeric query
+        let query_json = json!({ "query_string": "price:100" });
         let _query = query_parser.parse_json_query(&query_json).unwrap();
     }
 
@@ -396,12 +396,12 @@ mod tests {
         let tokenizer_manager = TokenizerManager::default();
         let query_parser = QueryParser::new(schema.clone(), vec![price_field], tokenizer_manager);
 
-        let query_json = json!({ "range": { "price": { "gte": 10, "lt": 100 } } });
+        let query_json = json!({ "query_string": "price:[10 TO 100}" });
         let _query = query_parser.parse_json_query(&query_json).unwrap();
     }
 
     #[test]
-    fn test_parse_elasticsearch_query() {
+    fn test_parse_boolean_query() {
         let mut schema_builder = Schema::builder();
         let category_field = schema_builder.add_text_field("category", TEXT);
         let schema = schema_builder.build();
@@ -411,12 +411,17 @@ mod tests {
         let query_parser =
             QueryParser::new(schema.clone(), vec![category_field], tokenizer_manager);
 
-        // Test term query
-        let query_json = json!({ "term": { "category": "electronics" } });
+        // Test boolean query with string clauses
+        let query_json = json!({
+            "bool": {
+                "must": ["category:electronics"],
+                "must_not": ["category:discontinued"]
+            }
+        });
         let _query = query_parser.parse_json_query(&query_json).unwrap();
 
-        // Test match_all query
-        let query_json = json!({ "match_all": {} });
+        // Test match_all query using string syntax
+        let query_json = json!("*");
         let _query = query_parser.parse_json_query(&query_json).unwrap();
 
         // Test invalid query type
@@ -501,17 +506,17 @@ mod tests {
         let _price_field = schema_builder.add_u64_field("price", FAST);
         let schema = schema_builder.build();
 
-        // Test complex bool query
+        // Test complex bool query using string queries
         let query_json = json!({
             "bool": {
                 "must": [
-                    { "term": { "category": "electronics" } }
+                    "category:electronics"
                 ],
                 "should": [
-                    { "range": { "price": { "gte": 100, "lt": 500 } } }
+                    "price:[100 TO 500}"
                 ],
                 "must_not": [
-                    { "term": { "category": "discontinued" } }
+                    "category:discontinued"
                 ]
             }
         });

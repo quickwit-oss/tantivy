@@ -108,10 +108,10 @@ fn test_filter_aggregation_basic_term_filter() -> tantivy::Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
 
-    // Test basic filter aggregation with term query
+    // Test basic filter aggregation with query string
     let agg_request = json!({
         "electronics_only": {
-            "filter": { "term": { "category": "electronics" } },
+            "filter": { "query_string": "category:electronics" },
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } },
                 "max_price": { "max": { "field": "price" } },
@@ -148,7 +148,7 @@ fn test_filter_aggregation_range_filter() -> tantivy::Result<()> {
     // Test filter aggregation with range query
     let agg_request = json!({
         "expensive_items": {
-            "filter": { "range": { "price": { "gte": "500" } } },
+            "filter": { "query_string": "price:[500 TO *]" },
             "aggs": {
                 "avg_rating": { "avg": { "field": "rating" } },
                 "count": { "value_count": { "field": "price" } }
@@ -185,8 +185,8 @@ fn test_filter_aggregation_bool_query() -> tantivy::Result<()> {
             "filter": {
                 "bool": {
                     "must": [
-                        { "term": { "category": "electronics" } },
-                        { "range": { "price": { "gte": "1000" } } }
+                        "category:electronics",
+                        "price:[1000 TO *]"
                     ]
                 }
             },
@@ -233,7 +233,7 @@ fn test_filter_aggregation_with_main_query() -> tantivy::Result<()> {
     // Test filter aggregation on top of main query
     let agg_request = json!({
         "electronics_in_stock": {
-            "filter": { "term": { "category": "electronics" } },
+            "filter": { "query_string": "category:electronics" },
             "aggs": {
                 "count": { "value_count": { "field": "price" } }
             }
@@ -266,7 +266,7 @@ fn test_filter_aggregation_empty_result() -> tantivy::Result<()> {
     // Test filter aggregation that matches no documents
     let agg_request = json!({
         "nonexistent_category": {
-            "filter": { "term": { "category": "furniture" } },
+            "filter": { "query_string": "category:furniture" },
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -298,19 +298,19 @@ fn test_multiple_filter_aggregations() -> tantivy::Result<()> {
     // Test multiple filter aggregations in one request
     let agg_request = json!({
         "electronics": {
-            "filter": { "term": { "category": "electronics" } },
+            "filter": { "query_string": "category:electronics" },
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
         },
         "clothing": {
-            "filter": { "term": { "category": "clothing" } },
+            "filter": { "query_string": "category:clothing" },
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
         },
         "books": {
-            "filter": { "term": { "category": "books" } },
+            "filter": { "query_string": "category:books" },
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -348,15 +348,15 @@ fn test_filter_aggregation_performance() -> tantivy::Result<()> {
 
     let agg_request = json!({
         "filter1": {
-            "filter": { "term": { "category": "electronics" } },
+            "filter": { "query_string": "category:electronics" },
             "aggs": { "avg_price": { "avg": { "field": "price" } } }
         },
         "filter2": {
-            "filter": { "term": { "category": "clothing" } },
+            "filter": { "query_string": "category:clothing" },
             "aggs": { "avg_price": { "avg": { "field": "price" } } }
         },
         "filter3": {
-            "filter": { "range": { "price": { "gte": "100" } } },
+            "filter": { "query_string": "price:[100 TO *]" },
             "aggs": { "avg_rating": { "avg": { "field": "rating" } } }
         }
     });
@@ -384,7 +384,7 @@ fn test_filter_aggregation_with_nested_sub_aggregations() -> tantivy::Result<()>
     // Test filter aggregation with multiple levels of sub-aggregations
     let agg_request = json!({
         "electronics_analysis": {
-            "filter": { "term": { "category": "electronics" } },
+            "filter": { "query_string": "category:electronics" },
             "aggs": {
                 "price_stats": { "stats": { "field": "price" } },
                 "rating_stats": { "stats": { "field": "rating" } },

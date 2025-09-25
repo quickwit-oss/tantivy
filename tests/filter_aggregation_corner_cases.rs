@@ -86,17 +86,17 @@ fn test_filter_aggregation_malformed_queries() -> tantivy::Result<()> {
                 "aggs": { "count": { "value_count": { "field": "u64_field" } } }
             }
         }),
-        // Missing field in term query
+        // Missing field in query string
         json!({
             "missing_field_filter": {
-                "filter": { "term": {} },
+                "filter": { "query_string": "" },
                 "aggs": { "count": { "value_count": { "field": "u64_field" } } }
             }
         }),
         // Invalid field name
         json!({
             "nonexistent_field_filter": {
-                "filter": { "term": { "nonexistent_field": "value" } },
+                "filter": { "query_string": "nonexistent_field:value" },
                 "aggs": { "count": { "value_count": { "field": "u64_field" } } }
             }
         }),
@@ -138,19 +138,19 @@ fn test_filter_aggregation_extreme_values() -> tantivy::Result<()> {
     // Test with extreme numeric values
     let agg_request = json!({
         "max_u64_filter": {
-            "filter": { "term": { "u64_field": u64::MAX.to_string() } },
+            "filter": { "query_string": format!("u64_field:{}", u64::MAX) },
             "aggs": {
                 "stats": { "stats": { "field": "u64_field" } }
             }
         },
         "zero_u64_filter": {
-            "filter": { "term": { "u64_field": "0" } },
+            "filter": { "query_string": "u64_field:0" },
             "aggs": {
                 "avg": { "avg": { "field": "f64_field" } }
             }
         },
         "max_f64_filter": {
-            "filter": { "range": { "f64_field": { "gte": "1e308" } } },
+            "filter": { "query_string": "f64_field:[1e308 TO *]" },
             "aggs": {
                 "count": { "value_count": { "field": "f64_field" } }
             }
@@ -186,13 +186,13 @@ fn test_filter_aggregation_empty_strings_and_special_chars() -> tantivy::Result<
     // Test with empty strings and special characters
     let agg_request = json!({
         "empty_string_filter": {
-            "filter": { "term": { "text_field": "" } },
+            "filter": { "query_string": "text_field:\"\"" },
             "aggs": {
                 "count": { "value_count": { "field": "text_field" } }
             }
         },
         "unicode_filter": {
-            "filter": { "term": { "text_field": "🚀" } },
+            "filter": { "query_string": "text_field:🚀" },
             "aggs": {
                 "count": { "value_count": { "field": "text_field" } }
             }
@@ -224,13 +224,13 @@ fn test_filter_aggregation_date_edge_cases() -> tantivy::Result<()> {
     // Test with date edge cases
     let agg_request = json!({
         "epoch_filter": {
-            "filter": { "term": { "date_field": "1970-01-01T00:00:00Z" } },
+            "filter": { "query_string": "date_field:\"1970-01-01T00:00:00Z\"" },
             "aggs": {
                 "count": { "value_count": { "field": "date_field" } }
             }
         },
         "far_future_filter": {
-            "filter": { "range": { "date_field": { "gte": "2038-01-19T03:14:07Z" } } },
+            "filter": { "query_string": "date_field:[2038-01-19T03:14:07Z TO *]" },
             "aggs": {
                 "avg_u64": { "avg": { "field": "u64_field" } }
             }
@@ -265,15 +265,15 @@ fn test_filter_aggregation_deeply_nested_bool_queries() -> tantivy::Result<()> {
                         {
                             "bool": {
                                 "should": [
-                                    { "term": { "text_field": "normal" } },
-                                    { "term": { "text_field": "extreme" } }
+                                    "text_field:normal",
+                                    "text_field:extreme"
                                 ]
                             }
                         },
                         {
                             "bool": {
                                 "must_not": [
-                                    { "term": { "text_field": "nonexistent" } }
+                                    "text_field:nonexistent"
                                 ]
                             }
                         }
@@ -323,7 +323,7 @@ fn test_filter_aggregation_memory_and_performance() -> tantivy::Result<()> {
     // Test filter aggregation with many sub-aggregations
     let agg_request = json!({
         "large_filter": {
-            "filter": { "range": { "value": { "gte": "5000" } } },
+            "filter": { "query_string": "value:[5000 TO *]" },
             "aggs": {
                 "avg": { "avg": { "field": "value" } },
                 "min": { "min": { "field": "value" } },
@@ -369,7 +369,7 @@ fn test_filter_aggregation_concurrent_access() -> tantivy::Result<()> {
 
                 let agg_request = json!({
                     format!("concurrent_filter_{}", i): {
-                        "filter": { "term": { "text_field": "normal" } },
+                        "filter": { "query_string": "text_field:normal" },
                         "aggs": {
                             "avg": { "avg": { "field": "u64_field" } }
                         }
@@ -403,7 +403,7 @@ fn test_filter_aggregation_json_serialization_edge_cases() -> tantivy::Result<()
     // Test JSON serialization with various edge cases
     let agg_request = json!({
         "serialization_test": {
-            "filter": { "term": { "text_field": "normal" } },
+            "filter": { "query_string": "text_field:normal" },
             "aggs": {
                 "stats_with_nulls": { "stats": { "field": "u64_field" } }
             }

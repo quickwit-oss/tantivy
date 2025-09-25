@@ -85,10 +85,10 @@ fn test_filter_aggregation_malformed_queries() -> tantivy::Result<()> {
         ),
         // Empty term query
         (
-            "empty_term_query",
+            "empty_query_string",
             json!({
-                "empty_term_filter": {
-                    "filter": { "term": {} },
+                "empty_query_filter": {
+                    "filter": { "query_string": "" },
                     "aggs": { "count": { "value_count": { "field": "u64_field" } } }
                 }
             }),
@@ -98,7 +98,7 @@ fn test_filter_aggregation_malformed_queries() -> tantivy::Result<()> {
             "nonexistent_field",
             json!({
                 "nonexistent_field_filter": {
-                    "filter": { "term": { "nonexistent_field": "value" } },
+                    "filter": { "query_string": "nonexistent_field:value" },
                     "aggs": { "count": { "value_count": { "field": "u64_field" } } }
                 }
             }),
@@ -133,13 +133,13 @@ fn test_filter_aggregation_empty_and_special_strings() -> tantivy::Result<()> {
     // Test with empty strings and special cases
     let agg_request = json!({
         "empty_string_filter": {
-            "filter": { "term": { "text_field": "" } },
+            "filter": { "query_string": "text_field:\"\"" },
             "aggs": {
                 "count": { "value_count": { "field": "text_field" } }
             }
         },
         "whitespace_filter": {
-            "filter": { "term": { "text_field": " " } },
+            "filter": { "query_string": "text_field:\" \"" },
             "aggs": {
                 "count": { "value_count": { "field": "text_field" } }
             }
@@ -177,15 +177,15 @@ fn test_filter_aggregation_complex_nested_bool_queries() -> tantivy::Result<()> 
                         {
                             "bool": {
                                 "should": [
-                                    { "term": { "text_field": "normal" } },
-                                    { "term": { "text_field": "extreme" } }
+                                    "text_field:normal",
+                                    "text_field:extreme"
                                 ]
                             }
                         },
                         {
                             "bool": {
                                 "must_not": [
-                                    { "term": { "text_field": "nonexistent" } }
+                                    "text_field:nonexistent"
                                 ]
                             }
                         }
@@ -285,7 +285,7 @@ fn test_filter_aggregation_json_serialization() -> tantivy::Result<()> {
     // Test JSON serialization with various result types
     let agg_request = json!({
         "serialization_test": {
-            "filter": { "term": { "text_field": "normal" } },
+            "filter": { "query_string": "text_field:normal" },
             "aggs": {
                 "stats_with_nulls": { "stats": { "field": "u64_field" } },
                 "terms_result": { "terms": { "field": "text_field" } }
@@ -333,7 +333,7 @@ fn test_filter_aggregation_memory_stress() -> tantivy::Result<()> {
     // Test filter aggregation with many sub-aggregations
     let agg_request = json!({
         "memory_test": {
-            "filter": { "range": { "value": { "gte": "5000" } } },
+            "filter": { "query_string": "value:[5000 TO *]" },
             "aggs": {
                 "avg": { "avg": { "field": "value" } },
                 "min": { "min": { "field": "value" } },
@@ -383,7 +383,7 @@ fn test_filter_aggregation_concurrent_queries() -> tantivy::Result<()> {
 
                 let agg_request = json!({
                     format!("concurrent_filter_{}", i): {
-                        "filter": { "term": { "text_field": "normal" } },
+                        "filter": { "query_string": "text_field:normal" },
                         "aggs": {
                             "avg": { "avg": { "field": "u64_field" } }
                         }

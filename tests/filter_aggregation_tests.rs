@@ -85,7 +85,7 @@ fn test_filter_aggregation_all_field_types() -> tantivy::Result<()> {
     // Test filter aggregation with different field types in sub-aggregations
     let agg_request = json!({
         "electronics_filter": {
-            "filter": { "term": { "text_field": "electronics" } },
+            "filter": { "query_string": "text_field:electronics" },
             "aggs": {
                 "u64_stats": { "stats": { "field": "u64_field" } },
                 "i64_avg": { "avg": { "field": "i64_field" } },
@@ -120,13 +120,13 @@ fn test_filter_aggregation_bool_field_queries() -> tantivy::Result<()> {
     // Test filter aggregation with bool field in filter query
     let agg_request = json!({
         "active_items": {
-            "filter": { "term": { "bool_field": true } },
+            "filter": { "query_string": "bool_field:true" },
             "aggs": {
                 "avg_price": { "avg": { "field": "u64_field" } }
             }
         },
         "inactive_items": {
-            "filter": { "term": { "bool_field": false } },
+            "filter": { "query_string": "bool_field:false" },
             "aggs": {
                 "count": { "value_count": { "field": "u64_field" } }
             }
@@ -160,19 +160,19 @@ fn test_filter_aggregation_numeric_range_queries() -> tantivy::Result<()> {
     // Test filter aggregation with range queries on different numeric types
     let agg_request = json!({
         "expensive_items": {
-            "filter": { "range": { "u64_field": { "gte": "500" } } },
+            "filter": { "query_string": "u64_field:[500 TO *]" },
             "aggs": {
                 "count": { "value_count": { "field": "u64_field" } }
             }
         },
         "positive_i64": {
-            "filter": { "range": { "i64_field": { "gt": "0" } } },
+            "filter": { "query_string": "i64_field:{0 TO *]" },
             "aggs": {
                 "avg_f64": { "avg": { "field": "f64_field" } }
             }
         },
         "high_rating": {
-            "filter": { "range": { "f64_field": { "gte": "4.5" } } },
+            "filter": { "query_string": "f64_field:[4.5 TO *]" },
             "aggs": {
                 "max_price": { "max": { "field": "u64_field" } }
             }
@@ -211,8 +211,8 @@ fn test_filter_aggregation_complex_bool_queries() -> tantivy::Result<()> {
             "filter": {
                 "bool": {
                     "must": [
-                        { "term": { "text_field": "electronics" } },
-                        { "range": { "u64_field": { "gte": "800" } } }
+                        "text_field:electronics",
+                        "u64_field:[800 TO *]"
                     ]
                 }
             },
@@ -224,7 +224,7 @@ fn test_filter_aggregation_complex_bool_queries() -> tantivy::Result<()> {
             "filter": {
                 "bool": {
                     "must_not": [
-                        { "term": { "text_field": "books" } }
+                        "text_field:books"
                     ]
                 }
             },
@@ -261,7 +261,7 @@ fn test_filter_aggregation_nested_sub_aggregations() -> tantivy::Result<()> {
     // Test filter aggregation with nested sub-aggregations
     let agg_request = json!({
         "all_items": {
-            "filter": { "match_all": {} },
+            "filter": { "query_string": "*" },
             "aggs": {
                 "by_category": {
                     "terms": { "field": "text_field" },
@@ -297,19 +297,19 @@ fn test_filter_aggregation_edge_cases() -> tantivy::Result<()> {
     // Test edge cases
     let agg_request = json!({
         "no_matches": {
-            "filter": { "term": { "text_field": "nonexistent" } },
+            "filter": { "query_string": "text_field:nonexistent" },
             "aggs": {
                 "count": { "value_count": { "field": "u64_field" } }
             }
         },
         "all_matches": {
-            "filter": { "match_all": {} },
+            "filter": { "query_string": "*" },
             "aggs": {
                 "total_count": { "value_count": { "field": "text_field" } }
             }
         },
         "empty_sub_aggs": {
-            "filter": { "term": { "text_field": "electronics" } }
+            "filter": { "query_string": "text_field:electronics" }
         }
     });
 
@@ -338,7 +338,7 @@ fn test_filter_aggregation_field_type_compatibility() -> tantivy::Result<()> {
     // Test that different aggregation types work with different field types
     let agg_request = json!({
         "field_type_test": {
-            "filter": { "match_all": {} },
+            "filter": { "query_string": "*" },
             "aggs": {
                 // Numeric field aggregations
                 "u64_avg": { "avg": { "field": "u64_field" } },
