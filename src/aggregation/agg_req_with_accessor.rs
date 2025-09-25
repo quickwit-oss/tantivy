@@ -34,26 +34,34 @@ impl AggregationsWithAccessor {
     }
 }
 
+/// Configures how the aggregation should behave when the field is missing from
+/// a document. For aggregation types that don't support missing fields, set
+/// this to SkipOrNotApplicable.
+pub(crate) enum TermMissingStrategy {
+    /// The aggregation is collected inside the its default collector. The
+    /// missing value placeholder is treated like any other term.
+    Inline {
+        /// Internal representation of the missing value placeholder. See
+        /// [get_missing_val_as_u64_lenient].
+        placeholder_fast_representation: u64,
+    },
+    /// The aggregation requires a dedicated collector to handle missing values.
+    /// Currently, this is only used by term aggregations.
+    ExternalCollector,
+    /// The aggregation is configured to skip missing terms or missing values
+    /// are not applicable.
+    SkipOrNotApplicable,
+}
+
 pub struct AggregationWithAccessor {
     pub(crate) segment_ordinal: SegmentOrdinal,
-    /// In general there can be buckets without fast field access, e.g. buckets that are created
-    /// based on search terms. That is not that case currently, but eventually this needs to be
-    /// Option or moved.
-    pub(crate) accessor: Column<u64>,
-    /// Load insert u64 for missing use case
-    pub(crate) missing_value_for_accessor: Option<u64>,
+    pub(crate) term_missing_strategy: TermMissingStrategy,
     pub(crate) str_dict_column: Option<StrColumn>,
-    pub(crate) field_type: ColumnType,
     pub(crate) sub_aggregation: AggregationsWithAccessor,
     pub(crate) limits: AggregationLimitsGuard,
     pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
-    /// Used for missing term aggregation, which checks all columns for existence.
-    /// And also for `top_hits` aggregation, which may sort on multiple fields.
-    /// By convention the missing aggregation is chosen, when this property is set
-    /// (instead bein set in `agg`).
-    /// If this needs to used by other aggregations, we need to refactor this.
-    // NOTE: we can make all other aggregations use this instead of the `accessor` and `field_type`
-    // (making them obsolete) But will it have a performance impact?
+    /// Most aggregations use exactly one accessor. Notable exceptions are Terms
+    /// (for collecting missing values in some special cases) and TopHits.
     pub(crate) accessors: Vec<(Column<u64>, ColumnType)>,
     /// Map field names to all associated column accessors.
     /// This field is used for `docvalue_fields`, which is currently only supported for `top_hits`.
@@ -72,17 +80,17 @@ impl AggregationWithAccessor {
     ) -> crate::Result<Vec<AggregationWithAccessor>> {
         let mut agg = agg.clone();
 
-        let add_agg_with_accessor = |agg: &Aggregation,
-                                     accessor: Column<u64>,
-                                     column_type: ColumnType,
-                                     aggs: &mut Vec<AggregationWithAccessor>|
+        // Helper used for setting up most aggregations as they only need one accessor
+        let add_agg_single_accessor = |agg: &Aggregation,
+                                       accessor: Column<u64>,
+                                       column_type: ColumnType,
+                                       aggs: &mut Vec<AggregationWithAccessor>|
          -> crate::Result<()> {
             let res = AggregationWithAccessor {
                 segment_ordinal,
-                accessor,
-                accessors: Default::default(),
+                accessors: vec![(accessor, column_type)],
+                term_missing_strategy: TermMissingStrategy::SkipOrNotApplicable,
                 value_accessors: Default::default(),
-                field_type: column_type,
                 sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                     sub_aggregation,
                     reader,
@@ -91,37 +99,6 @@ impl AggregationWithAccessor {
                 )?,
                 agg: agg.clone(),
                 limits: limits.clone(),
-                missing_value_for_accessor: None,
-                str_dict_column: None,
-                column_block_accessor: Default::default(),
-            };
-            aggs.push(res);
-            Ok(())
-        };
-
-        let add_agg_with_accessors = |agg: &Aggregation,
-                                      accessors: Vec<(Column<u64>, ColumnType)>,
-                                      aggs: &mut Vec<AggregationWithAccessor>,
-                                      value_accessors: HashMap<String, Vec<DynamicColumn>>|
-         -> crate::Result<()> {
-            let (accessor, field_type) = accessors.first().expect("at least one accessor");
-            let limits = limits.clone();
-            let res = AggregationWithAccessor {
-                segment_ordinal,
-                // TODO: We should do away with the `accessor` field altogether
-                accessor: accessor.clone(),
-                value_accessors,
-                field_type: *field_type,
-                accessors,
-                sub_aggregation: get_aggs_with_segment_accessor_and_validate(
-                    sub_aggregation,
-                    reader,
-                    segment_ordinal,
-                    &limits,
-                )?,
-                agg: agg.clone(),
-                limits,
-                missing_value_for_accessor: None,
                 str_dict_column: None,
                 column_block_accessor: Default::default(),
             };
@@ -139,7 +116,7 @@ impl AggregationWithAccessor {
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Histogram(HistogramAggregation {
                 field: ref field_name,
@@ -147,7 +124,7 @@ impl AggregationWithAccessor {
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             DateHistogram(DateHistogramAggregationReq {
                 field: ref field_name,
@@ -156,7 +133,7 @@ impl AggregationWithAccessor {
                 let (accessor, column_type) =
                     // Only DateTime is supported for DateHistogram
                     get_ff_reader(reader, field_name, Some(&[ColumnType::DateTime]))?;
-                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Terms(TermsAggregation {
                 field: ref field_name,
@@ -224,7 +201,23 @@ impl AggregationWithAccessor {
                         .iter()
                         .map(|c_t| (c_t.0.clone(), c_t.1))
                         .collect();
-                    add_agg_with_accessors(&agg, accessors, &mut res, Default::default())?;
+                    let agg = AggregationWithAccessor {
+                        segment_ordinal,
+                        value_accessors: Default::default(),
+                        accessors,
+                        term_missing_strategy: TermMissingStrategy::ExternalCollector,
+                        sub_aggregation: get_aggs_with_segment_accessor_and_validate(
+                            sub_aggregation,
+                            reader,
+                            segment_ordinal,
+                            &limits,
+                        )?,
+                        agg: agg.clone(),
+                        limits: limits.clone(),
+                        str_dict_column: None,
+                        column_block_accessor: Default::default(),
+                    };
+                    res.push(agg);
                 }
 
                 for (accessor, column_type) in column_and_types {
@@ -234,25 +227,30 @@ impl AggregationWithAccessor {
                         missing.clone()
                     };
 
-                    let missing_value_for_accessor =
-                        if let Some(missing) = missing_value_term_agg.as_ref() {
-                            get_missing_val_as_u64_lenient(
-                                column_type,
-                                missing,
-                                agg.agg.get_fast_field_names()[0],
-                            )?
-                        } else {
-                            None
-                        };
+                    let missing_term_collection = if let Some(missing) =
+                        missing_value_term_agg.as_ref()
+                    {
+                        let missing_u64_val_opt = get_missing_val_as_u64_lenient(
+                            column_type,
+                            missing,
+                            agg.agg.get_fast_field_names()[0],
+                        )?;
+                        match missing_u64_val_opt {
+                            Some(placeholder_fast_representation) => TermMissingStrategy::Inline {
+                                placeholder_fast_representation,
+                            },
+                            None => TermMissingStrategy::SkipOrNotApplicable,
+                        }
+                    } else {
+                        TermMissingStrategy::SkipOrNotApplicable
+                    };
 
                     let limits = limits.clone();
                     let agg = AggregationWithAccessor {
                         segment_ordinal,
-                        missing_value_for_accessor,
-                        accessor,
-                        accessors: Default::default(),
+                        term_missing_strategy: missing_term_collection,
+                        accessors: vec![(accessor, column_type)],
                         value_accessors: Default::default(),
-                        field_type: column_type,
                         sub_aggregation: get_aggs_with_segment_accessor_and_validate(
                             sub_aggregation,
                             reader,
@@ -293,7 +291,7 @@ impl AggregationWithAccessor {
             }) => {
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(get_numeric_or_date_column_types()))?;
-                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Count(CountAggregation {
                 field: ref field_name,
@@ -311,7 +309,7 @@ impl AggregationWithAccessor {
                 ];
                 let (accessor, column_type) =
                     get_ff_reader(reader, field_name, Some(&allowed_column_types))?;
-                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             Percentiles(ref percentiles) => {
                 let (accessor, column_type) = get_ff_reader(
@@ -319,7 +317,7 @@ impl AggregationWithAccessor {
                     percentiles.field_name(),
                     Some(get_numeric_or_date_column_types()),
                 )?;
-                add_agg_with_accessor(&agg, accessor, column_type, &mut res)?;
+                add_agg_single_accessor(&agg, accessor, column_type, &mut res)?;
             }
             TopHits(ref mut top_hits) => {
                 top_hits.validate_and_resolve_field_names(reader.fast_fields().columnar())?;
@@ -342,7 +340,23 @@ impl AggregationWithAccessor {
                     })
                     .collect::<crate::Result<_>>()?;
 
-                add_agg_with_accessors(&agg, accessors, &mut res, value_accessors)?;
+                let agg = AggregationWithAccessor {
+                    segment_ordinal,
+                    value_accessors,
+                    accessors,
+                    term_missing_strategy: TermMissingStrategy::SkipOrNotApplicable,
+                    sub_aggregation: get_aggs_with_segment_accessor_and_validate(
+                        sub_aggregation,
+                        reader,
+                        segment_ordinal,
+                        &limits,
+                    )?,
+                    agg: agg.clone(),
+                    limits,
+                    str_dict_column: None,
+                    column_block_accessor: Default::default(),
+                };
+                res.push(agg);
             }
         };
 
@@ -352,7 +366,7 @@ impl AggregationWithAccessor {
 
 /// Get the missing value as internal u64 representation
 ///
-/// For terms we use u64::MAX as sentinel value
+/// For terms we use u64::MAX as sentinel value.
 /// For numerical data we convert the value into the representation
 /// we would get from the fast field, when we open it as u64_lenient_for_type.
 ///
