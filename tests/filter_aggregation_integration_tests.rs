@@ -8,7 +8,7 @@ use tantivy::{doc, Index, IndexWriter};
 /// Create a test index with sample e-commerce data
 fn create_test_index() -> tantivy::Result<(Index, Schema)> {
     let mut schema_builder = Schema::builder();
-    
+
     // Add fields for e-commerce data
     let category_field = schema_builder.add_text_field("category", TEXT);
     let brand_field = schema_builder.add_text_field("brand", TEXT);
@@ -16,12 +16,12 @@ fn create_test_index() -> tantivy::Result<(Index, Schema)> {
     let rating_field = schema_builder.add_f64_field("rating", FAST);
     let in_stock_field = schema_builder.add_bool_field("in_stock", FAST);
     let name_field = schema_builder.add_text_field("name", TEXT | STORED);
-    
+
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema.clone());
-    
+
     let mut index_writer: IndexWriter = index.writer(50_000_000)?;
-    
+
     // Add sample documents
     let documents = vec![
         // Electronics
@@ -49,7 +49,6 @@ fn create_test_index() -> tantivy::Result<(Index, Schema)> {
             in_stock_field => false,
             name_field => "MacBook Pro"
         ),
-        
         // Clothing
         doc!(
             category_field => "clothing",
@@ -75,7 +74,6 @@ fn create_test_index() -> tantivy::Result<(Index, Schema)> {
             in_stock_field => false,
             name_field => "Premium Jacket"
         ),
-        
         // Books
         doc!(
             category_field => "books",
@@ -94,13 +92,13 @@ fn create_test_index() -> tantivy::Result<(Index, Schema)> {
             name_field => "Programming Guide"
         ),
     ];
-    
+
     for doc in documents {
         index_writer.add_document(doc)?;
     }
-    
+
     index_writer.commit()?;
-    
+
     Ok((index, schema))
 }
 
@@ -109,7 +107,7 @@ fn test_filter_aggregation_basic_term_filter() -> tantivy::Result<()> {
     let (index, _schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Test basic filter aggregation with term query
     let agg_request = json!({
         "electronics_only": {
@@ -121,23 +119,23 @@ fn test_filter_aggregation_basic_term_filter() -> tantivy::Result<()> {
             }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let agg_result = searcher.search(&AllQuery, &collector)?;
-    
+
     // Verify the filter aggregation exists
     assert!(agg_result.0.contains_key("electronics_only"));
-    
+
     let electronics_result = &agg_result.0["electronics_only"];
     println!("Electronics aggregation result: {:?}", electronics_result);
-    
+
     // The aggregation should have processed only electronics items (3 items: iPhone, Galaxy, MacBook)
     // Expected average price: (999 + 799 + 1299) / 3 = 1032.33
     // Expected max price: 1299
     // Expected min price: 799
-    
+
     Ok(())
 }
 
@@ -146,7 +144,7 @@ fn test_filter_aggregation_range_filter() -> tantivy::Result<()> {
     let (index, _schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Test filter aggregation with range query
     let agg_request = json!({
         "expensive_items": {
@@ -157,21 +155,21 @@ fn test_filter_aggregation_range_filter() -> tantivy::Result<()> {
             }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let agg_result = searcher.search(&AllQuery, &collector)?;
-    
+
     // Verify the filter aggregation exists
     assert!(agg_result.0.contains_key("expensive_items"));
-    
+
     let expensive_result = &agg_result.0["expensive_items"];
     println!("Expensive items aggregation result: {:?}", expensive_result);
-    
+
     // Should include: iPhone (999), Galaxy (799), MacBook (1299) = 3 items
     // Expected average rating: (4.5 + 4.2 + 4.7) / 3 = 4.47
-    
+
     Ok(())
 }
 
@@ -180,7 +178,7 @@ fn test_filter_aggregation_bool_query() -> tantivy::Result<()> {
     let (index, _schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Test filter aggregation with boolean query
     let agg_request = json!({
         "premium_electronics": {
@@ -197,21 +195,24 @@ fn test_filter_aggregation_bool_query() -> tantivy::Result<()> {
             }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let agg_result = searcher.search(&AllQuery, &collector)?;
-    
+
     // Verify the filter aggregation exists
     assert!(agg_result.0.contains_key("premium_electronics"));
-    
+
     let premium_result = &agg_result.0["premium_electronics"];
-    println!("Premium electronics aggregation result: {:?}", premium_result);
-    
+    println!(
+        "Premium electronics aggregation result: {:?}",
+        premium_result
+    );
+
     // Should include: iPhone (999 - no, < 1000), MacBook (1299 - yes) = 1 item
     // Expected average rating: 4.7
-    
+
     Ok(())
 }
 
@@ -220,18 +221,19 @@ fn test_filter_aggregation_with_main_query() -> tantivy::Result<()> {
     let (index, schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Create a main query that filters to in-stock items only
     let in_stock_field = schema.get_field("in_stock").unwrap();
-    use tantivy::schema::Term;
     use std::ops::Bound;
-    let main_query = tantivy::query::BooleanQuery::new(vec![
-        (tantivy::query::Occur::Must, Box::new(tantivy::query::FastFieldRangeQuery::new(
+    use tantivy::schema::Term;
+    let main_query = tantivy::query::BooleanQuery::new(vec![(
+        tantivy::query::Occur::Must,
+        Box::new(tantivy::query::FastFieldRangeQuery::new(
             Bound::Included(Term::from_field_u64(in_stock_field, 1u64)),
             Bound::Included(Term::from_field_u64(in_stock_field, 1u64)),
-        )) as Box<dyn tantivy::query::Query>)
-    ]);
-    
+        )) as Box<dyn tantivy::query::Query>,
+    )]);
+
     // Test filter aggregation on top of main query
     let agg_request = json!({
         "electronics_in_stock": {
@@ -241,21 +243,21 @@ fn test_filter_aggregation_with_main_query() -> tantivy::Result<()> {
             }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let agg_result = searcher.search(&main_query, &collector)?;
-    
+
     // Verify the filter aggregation exists
     assert!(agg_result.0.contains_key("electronics_in_stock"));
-    
+
     let result = &agg_result.0["electronics_in_stock"];
     println!("Electronics in stock aggregation result: {:?}", result);
-    
+
     // Main query filters to in-stock items: iPhone, Galaxy, Nike shoes, Adidas shoes, Books (5 items)
     // Filter aggregation further filters to electronics: iPhone, Galaxy (2 items)
-    
+
     Ok(())
 }
 
@@ -264,7 +266,7 @@ fn test_filter_aggregation_empty_result() -> tantivy::Result<()> {
     let (index, _schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Test filter aggregation that matches no documents
     let agg_request = json!({
         "nonexistent_category": {
@@ -274,20 +276,20 @@ fn test_filter_aggregation_empty_result() -> tantivy::Result<()> {
             }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let agg_result = searcher.search(&AllQuery, &collector)?;
-    
+
     // Verify the filter aggregation exists even with no matches
     assert!(agg_result.0.contains_key("nonexistent_category"));
-    
+
     let result = &agg_result.0["nonexistent_category"];
     println!("Empty filter aggregation result: {:?}", result);
-    
+
     // Should have 0 documents and null/empty aggregation results
-    
+
     Ok(())
 }
 
@@ -296,7 +298,7 @@ fn test_multiple_filter_aggregations() -> tantivy::Result<()> {
     let (index, _schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Test multiple filter aggregations in one request
     let agg_request = json!({
         "electronics": {
@@ -318,24 +320,24 @@ fn test_multiple_filter_aggregations() -> tantivy::Result<()> {
             }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let agg_result = searcher.search(&AllQuery, &collector)?;
-    
+
     // Verify all filter aggregations exist
     assert!(agg_result.0.contains_key("electronics"));
     assert!(agg_result.0.contains_key("clothing"));
     assert!(agg_result.0.contains_key("books"));
-    
+
     println!("Multiple filter aggregations result: {:?}", agg_result);
-    
+
     // Each should have different average prices:
     // Electronics: (999 + 799 + 1299) / 3 = 1032.33
     // Clothing: (120 + 85 + 200) / 3 = 135
     // Books: (15 + 45) / 2 = 30
-    
+
     Ok(())
 }
 
@@ -344,10 +346,10 @@ fn test_filter_aggregation_performance() -> tantivy::Result<()> {
     let (index, _schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Test that filter aggregations are efficient
     let start = std::time::Instant::now();
-    
+
     let agg_request = json!({
         "filter1": {
             "filter": { "term": { "category": "electronics" } },
@@ -362,18 +364,18 @@ fn test_filter_aggregation_performance() -> tantivy::Result<()> {
             "aggs": { "avg_rating": { "avg": { "field": "rating" } } }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let _agg_result = searcher.search(&AllQuery, &collector)?;
-    
+
     let duration = start.elapsed();
     println!("Filter aggregation performance test took: {:?}", duration);
-    
+
     // Should complete quickly (< 100ms for this small dataset)
     assert!(duration.as_millis() < 100);
-    
+
     Ok(())
 }
 
@@ -382,7 +384,7 @@ fn test_filter_aggregation_with_nested_sub_aggregations() -> tantivy::Result<()>
     let (index, _schema) = create_test_index()?;
     let reader = index.reader()?;
     let searcher = reader.searcher();
-    
+
     // Test filter aggregation with multiple levels of sub-aggregations
     let agg_request = json!({
         "electronics_analysis": {
@@ -399,17 +401,17 @@ fn test_filter_aggregation_with_nested_sub_aggregations() -> tantivy::Result<()>
             }
         }
     });
-    
+
     let aggregations: Aggregations = serde_json::from_value(agg_request)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
-    
+
     let agg_result = searcher.search(&AllQuery, &collector)?;
-    
+
     // Verify the filter aggregation exists
     assert!(agg_result.0.contains_key("electronics_analysis"));
-    
+
     let result = &agg_result.0["electronics_analysis"];
     println!("Nested sub-aggregations result: {:?}", result);
-    
+
     Ok(())
 }

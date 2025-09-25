@@ -192,26 +192,14 @@ pub(crate) fn build_single_agg_segment_collector_with_reader(
             SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
         )),
         Filter(filter_req) => {
-            // Create FilterSegmentCollector
+            // Create FilterSegmentCollector following the same pattern as other bucket aggregations
             use crate::aggregation::bucket::FilterSegmentCollector;
 
             if let Some(segment_reader) = segment_reader {
-                let schema = segment_reader.schema();
-                let query = filter_req.parse_query(&schema)?;
-
-                // Follow the same pattern as other bucket aggregations
-                let sub_aggregations = if req.sub_aggregation.is_empty() {
-                    None
-                } else {
-                    // Use the standard build_segment_agg_collector like terms aggregation does
-                    Some(build_segment_agg_collector(&mut req.sub_aggregation)?)
-                };
-
-                Ok(Box::new(FilterSegmentCollector::new(
-                    query,
-                    schema.clone(),
+                Ok(Box::new(FilterSegmentCollector::from_req_and_validate(
+                    filter_req,
+                    &mut req.sub_aggregation,
                     segment_reader,
-                    sub_aggregations,
                     accessor_idx,
                 )?))
             } else {

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
-    IntermediateAggregationResult, IntermediateAggregationResults,
+    IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
 use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
 use crate::query::{AllQuery, BooleanQuery, Query, RangeQuery, TermQuery, Weight};
@@ -159,7 +159,41 @@ pub struct FilterSegmentCollector {
 }
 
 impl FilterSegmentCollector {
-    /// Create a new filter segment collector
+    /// Create a new filter segment collector following the same pattern as other bucket aggregations
+    pub fn from_req_and_validate(
+        filter_req: &FilterAggregation,
+        sub_aggregations: &mut AggregationsWithAccessor,
+        segment_reader: &SegmentReader,
+        accessor_idx: usize,
+    ) -> crate::Result<Self> {
+        let schema = segment_reader.schema();
+        let query = filter_req.parse_query(&schema)?;
+
+        let mut evaluator = DocumentQueryEvaluator::new(query, schema.clone());
+        evaluator.initialize_for_segment(segment_reader)?;
+
+        // Follow the same pattern as terms aggregation
+        let has_sub_aggregations = !sub_aggregations.is_empty();
+        let sub_agg_collector = if has_sub_aggregations {
+            use crate::aggregation::segment_agg_result::build_segment_agg_collector;
+            // CRITICAL: Use the same sub_aggregations structure that will be used at runtime
+            // This ensures that the accessor indices match between build-time and runtime
+            let sub_aggregation = build_segment_agg_collector(sub_aggregations)?;
+            Some(sub_aggregation)
+        } else {
+            None
+        };
+
+        Ok(FilterSegmentCollector {
+            evaluator,
+            doc_count: 0,
+            sub_aggregations: sub_agg_collector,
+            segment_reader: segment_reader.clone(),
+            accessor_idx,
+        })
+    }
+
+    /// Create a new filter segment collector (deprecated - use from_req_and_validate)
     pub fn new(
         query: Box<dyn Query>,
         schema: Schema,
@@ -206,20 +240,26 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         let mut sub_aggregation_results = IntermediateAggregationResults::default();
 
         if let Some(sub_aggs) = self.sub_aggregations {
+            // Use the same pattern as collect: pass the sub-aggregation accessor structure
+            let bucket_agg_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
             sub_aggs.add_intermediate_aggregation_result(
-                agg_with_accessor,
+                &bucket_agg_accessor.sub_aggregation,
                 &mut sub_aggregation_results,
             )?;
         }
 
-        // For now, we'll just add the sub-aggregation results
-        // The doc_count will be handled by the final result conversion
-        // TODO: Add proper Filter variant to IntermediateBucketResult
+        // Create the proper filter bucket result
+        let filter_bucket_result = IntermediateBucketResult::Filter {
+            doc_count: self.doc_count,
+            sub_aggregations: sub_aggregation_results,
+        };
 
-        // Add sub-aggregation results
-        for (key, value) in sub_aggregation_results.aggs_res {
-            results.push(key, value)?;
-        }
+        // Get the name of this filter aggregation
+        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        results.push(
+            name,
+            IntermediateAggregationResult::Bucket(filter_bucket_result),
+        )?;
 
         Ok(())
     }

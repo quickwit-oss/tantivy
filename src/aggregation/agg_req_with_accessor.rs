@@ -350,7 +350,7 @@ impl AggregationWithAccessor {
                 // Use a dummy accessor with the correct number of documents
                 use columnar::Column;
                 let dummy_accessor = Column::build_empty_column(reader.num_docs());
-                add_agg_with_accessor(&agg, dummy_accessor, ColumnType::Str, &mut res)?;
+                add_agg_with_accessor(&agg, dummy_accessor, ColumnType::U64, &mut res)?;
             }
         };
 
