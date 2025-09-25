@@ -7,7 +7,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
 use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
-use crate::query::{Query, Weight};
+use crate::query::{Query, QueryParser, Weight};
 use crate::schema::Schema;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
 
@@ -45,8 +45,35 @@ impl FilterAggregation {
     }
 
     /// Parse the stored query JSON into a Tantivy Query object
+    ///
+    /// This method uses QueryParser to enable advanced features like field boosts,
+    /// fuzzy matching, and default fields. For basic parsing without these features,
+    /// use the standalone `crate::query::parse_query` function.
     pub fn parse_query(&self, schema: &Schema) -> crate::Result<Box<dyn Query>> {
-        crate::query::parse_query(&self.query, schema)
+        use crate::query::QueryParser;
+        use crate::tokenizer::TokenizerManager;
+
+        // Create a QueryParser with default settings
+        // This enables feature inheritance like boosts and fuzzy matching
+        let tokenizer_manager = TokenizerManager::default();
+        let query_parser = QueryParser::new(schema.clone(), vec![], tokenizer_manager);
+
+        query_parser
+            .parse_json_query(&self.query)
+            .map_err(|e| crate::TantivyError::InvalidArgument(e.to_string()))
+    }
+
+    /// Parse the stored query JSON into a Tantivy Query object with custom QueryParser
+    ///
+    /// This method allows using a pre-configured QueryParser with custom settings
+    /// like field boosts, fuzzy matching, default fields, etc.
+    pub fn parse_query_with_parser(
+        &self,
+        query_parser: &QueryParser,
+    ) -> crate::Result<Box<dyn Query>> {
+        query_parser
+            .parse_json_query(&self.query)
+            .map_err(|e| crate::TantivyError::InvalidArgument(e.to_string()))
     }
 
     /// Get the fast field names used by this aggregation (none for filter aggregation)
@@ -316,8 +343,9 @@ pub struct IntermediateFilterBucketResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::query::parse_query;
+    use crate::query::QueryParser;
     use crate::schema::{Schema, FAST, INDEXED, TEXT};
+    use crate::tokenizer::TokenizerManager;
     use serde_json::json;
 
     #[test]
@@ -336,47 +364,64 @@ mod tests {
     fn test_parse_term_query() {
         use crate::schema::INDEXED;
         let mut schema_builder = Schema::builder();
-        let _category_field = schema_builder.add_text_field("category", TEXT); // TEXT fields are indexed by default
-        let _price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
+        let category_field = schema_builder.add_text_field("category", TEXT); // TEXT fields are indexed by default
+        let price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
         let schema = schema_builder.build();
 
+        // Create QueryParser for testing
+        let tokenizer_manager = TokenizerManager::default();
+        let query_parser = QueryParser::new(
+            schema.clone(),
+            vec![category_field, price_field],
+            tokenizer_manager,
+        );
+
         // Test string term query
-        let query_json = json!({ "category": "electronics" });
-        let _query = parse_query(&json!({ "term": query_json }), &schema).unwrap();
+        let query_json = json!({ "term": { "category": "electronics" } });
+        let _query = query_parser.parse_json_query(&query_json).unwrap();
 
         // Test numeric term query
-        let query_json = json!({ "price": 100 });
-        let _query = parse_query(&json!({ "term": query_json }), &schema).unwrap();
+        let query_json = json!({ "term": { "price": 100 } });
+        let _query = query_parser.parse_json_query(&query_json).unwrap();
     }
 
     #[test]
     fn test_parse_range_query() {
         use crate::schema::INDEXED;
         let mut schema_builder = Schema::builder();
-        let _price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
+        let price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
         let schema = schema_builder.build();
 
-        let query_json = json!({ "price": { "gte": 10, "lt": 100 } });
-        let _query = parse_query(&json!({ "range": query_json }), &schema).unwrap();
+        // Create QueryParser for testing
+        let tokenizer_manager = TokenizerManager::default();
+        let query_parser = QueryParser::new(schema.clone(), vec![price_field], tokenizer_manager);
+
+        let query_json = json!({ "range": { "price": { "gte": 10, "lt": 100 } } });
+        let _query = query_parser.parse_json_query(&query_json).unwrap();
     }
 
     #[test]
     fn test_parse_elasticsearch_query() {
         let mut schema_builder = Schema::builder();
-        let _category_field = schema_builder.add_text_field("category", TEXT);
+        let category_field = schema_builder.add_text_field("category", TEXT);
         let schema = schema_builder.build();
+
+        // Create QueryParser for testing
+        let tokenizer_manager = TokenizerManager::default();
+        let query_parser =
+            QueryParser::new(schema.clone(), vec![category_field], tokenizer_manager);
 
         // Test term query
         let query_json = json!({ "term": { "category": "electronics" } });
-        let _query = parse_query(&query_json, &schema).unwrap();
+        let _query = query_parser.parse_json_query(&query_json).unwrap();
 
         // Test match_all query
         let query_json = json!({ "match_all": {} });
-        let _query = parse_query(&query_json, &schema).unwrap();
+        let _query = query_parser.parse_json_query(&query_json).unwrap();
 
         // Test invalid query type
         let query_json = json!({ "invalid_query": {} });
-        let result = parse_query(&query_json, &schema);
+        let result = query_parser.parse_json_query(&query_json);
         assert!(result.is_err());
     }
 
@@ -471,7 +516,15 @@ mod tests {
             }
         });
 
-        let _query = parse_query(&query_json, &schema).unwrap();
+        // Create QueryParser for testing
+        let tokenizer_manager = TokenizerManager::default();
+        let query_parser = QueryParser::new(
+            schema.clone(),
+            vec![_category_field, _price_field],
+            tokenizer_manager,
+        );
+
+        let _query = query_parser.parse_json_query(&query_json).unwrap();
         // Should parse successfully without errors
     }
 }
