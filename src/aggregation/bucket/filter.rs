@@ -175,10 +175,12 @@ impl FilterSegmentCollector {
         // Follow the same pattern as terms aggregation
         let has_sub_aggregations = !sub_aggregations.is_empty();
         let sub_agg_collector = if has_sub_aggregations {
-            use crate::aggregation::segment_agg_result::build_segment_agg_collector;
-            // CRITICAL: Use the same sub_aggregations structure that will be used at runtime
+            use crate::aggregation::segment_agg_result::build_segment_agg_collector_with_reader;
+            // Use the same sub_aggregations structure that will be used at runtime
             // This ensures that the accessor indices match between build-time and runtime
-            let sub_aggregation = build_segment_agg_collector(sub_aggregations)?;
+            // Pass the segment_reader to ensure nested filter aggregations also get access
+            let sub_aggregation =
+                build_segment_agg_collector_with_reader(sub_aggregations, Some(segment_reader))?;
             Some(sub_aggregation)
         } else {
             None

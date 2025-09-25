@@ -2,7 +2,7 @@ use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
-use tantivy::schema::{Schema, FAST, STORED, TEXT};
+use tantivy::schema::{Schema, FAST, INDEXED, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
 
 /// Create a test index with sample e-commerce data
@@ -14,7 +14,7 @@ fn create_test_index() -> tantivy::Result<(Index, Schema)> {
     let brand_field = schema_builder.add_text_field("brand", TEXT | FAST);
     let price_field = schema_builder.add_u64_field("price", FAST);
     let rating_field = schema_builder.add_f64_field("rating", FAST);
-    let in_stock_field = schema_builder.add_bool_field("in_stock", FAST);
+    let in_stock_field = schema_builder.add_bool_field("in_stock", FAST | INDEXED);
     let name_field = schema_builder.add_text_field("name", TEXT | STORED);
 
     let schema = schema_builder.build();
@@ -222,19 +222,18 @@ fn test_filter_aggregation_with_main_query() -> tantivy::Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
 
-    // Create a main query that filters to electronics category
-    let category_field = schema.get_field("category").unwrap();
+    // Create a main query that filters to in-stock items only
+    let in_stock_field = schema.get_field("in_stock").unwrap();
     use tantivy::schema::Term;
     let main_query = tantivy::query::TermQuery::new(
-        Term::from_field_text(category_field, "electronics"),
+        Term::from_field_bool(in_stock_field, true),
         tantivy::schema::IndexRecordOption::Basic,
     );
 
     // Test filter aggregation on top of main query
-    // Main query filters to electronics, filter aggregation also filters to electronics
     let agg_request = json!({
-        "electronics_subset": {
-            "filter": { "term": { "brand": "apple" } },
+        "electronics_in_stock": {
+            "filter": { "term": { "category": "electronics" } },
             "aggs": {
                 "count": { "value_count": { "field": "price" } }
             }
@@ -247,13 +246,13 @@ fn test_filter_aggregation_with_main_query() -> tantivy::Result<()> {
     let agg_result = searcher.search(&main_query, &collector)?;
 
     // Verify the filter aggregation exists
-    assert!(agg_result.0.contains_key("electronics_subset"));
+    assert!(agg_result.0.contains_key("electronics_in_stock"));
 
-    let result = &agg_result.0["electronics_subset"];
-    println!("Electronics subset aggregation result: {:?}", result);
+    let result = &agg_result.0["electronics_in_stock"];
+    println!("Electronics in stock aggregation result: {:?}", result);
 
-    // Main query filters to electronics: iPhone, Galaxy, MacBook (3 items)
-    // Filter aggregation further filters to Apple brand: iPhone, MacBook (2 items)
+    // Main query filters to in-stock items: iPhone, Galaxy, Nike shoes, Adidas shoes, Books (5 items)
+    // Filter aggregation further filters to electronics: iPhone, Galaxy (2 items)
 
     Ok(())
 }
