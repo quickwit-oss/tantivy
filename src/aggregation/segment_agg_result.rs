@@ -83,7 +83,10 @@ pub(crate) fn build_segment_agg_collector_with_reader(
         return build_single_agg_segment_collector_with_reader(req, accessor_idx, segment_reader);
     }
 
-    let agg = GenericSegmentAggregationResultsCollector::from_req_and_validate(req)?;
+    let agg = GenericSegmentAggregationResultsCollector::from_req_and_validate_with_reader(
+        req,
+        segment_reader,
+    )?;
     Ok(Box::new(agg))
 }
 
@@ -272,11 +275,20 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
 
 impl GenericSegmentAggregationResultsCollector {
     pub(crate) fn from_req_and_validate(req: &mut AggregationsWithAccessor) -> crate::Result<Self> {
+        Self::from_req_and_validate_with_reader(req, None)
+    }
+
+    pub(crate) fn from_req_and_validate_with_reader(
+        req: &mut AggregationsWithAccessor,
+        segment_reader: Option<&crate::SegmentReader>,
+    ) -> crate::Result<Self> {
         let aggs = req
             .aggs
             .values_mut()
             .enumerate()
-            .map(|(accessor_idx, req)| build_single_agg_segment_collector(req, accessor_idx))
+            .map(|(accessor_idx, req)| {
+                build_single_agg_segment_collector_with_reader(req, accessor_idx, segment_reader)
+            })
             .collect::<crate::Result<Vec<Box<dyn SegmentAggregationCollector>>>>()?;
 
         Ok(GenericSegmentAggregationResultsCollector { aggs })

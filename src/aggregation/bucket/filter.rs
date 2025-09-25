@@ -8,7 +8,7 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
 use crate::query::{AllQuery, BooleanQuery, Query, RangeQuery, TermQuery, Weight};
-use crate::schema::{IndexRecordOption, Schema, Term};
+use crate::schema::{FieldType, IndexRecordOption, Schema, Term};
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
@@ -444,7 +444,31 @@ fn parse_range_query(params: &serde_json::Value, schema: &Schema) -> crate::Resu
                     ));
                 }
             }
-            Value::String(s) => Term::from_field_text(field, s),
+            Value::String(s) => {
+                // Try to parse string as number for numeric fields
+                let field_entry = schema.get_field_entry(field);
+                match field_entry.field_type() {
+                    FieldType::U64(_) => {
+                        let parsed_u64 = s.parse::<u64>().map_err(|_| {
+                            TantivyError::InvalidArgument(format!("Invalid u64 value: {}", s))
+                        })?;
+                        Term::from_field_u64(field, parsed_u64)
+                    }
+                    FieldType::I64(_) => {
+                        let parsed_i64 = s.parse::<i64>().map_err(|_| {
+                            TantivyError::InvalidArgument(format!("Invalid i64 value: {}", s))
+                        })?;
+                        Term::from_field_i64(field, parsed_i64)
+                    }
+                    FieldType::F64(_) => {
+                        let parsed_f64 = s.parse::<f64>().map_err(|_| {
+                            TantivyError::InvalidArgument(format!("Invalid f64 value: {}", s))
+                        })?;
+                        Term::from_field_f64(field, parsed_f64)
+                    }
+                    _ => Term::from_field_text(field, s),
+                }
+            }
             _ => {
                 return Err(TantivyError::InvalidArgument(
                     "Range query values must be numbers or strings".to_string(),

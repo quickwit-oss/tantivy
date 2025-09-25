@@ -284,21 +284,52 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
-        if let Some(missing) = self.missing {
-            let mut has_val = false;
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.stats.collect(val1);
-                has_val = true;
-            }
-            if !has_val {
-                self.stats
-                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
+
+        // Handle different field types properly, similar to collect_block_with_field
+        if [
+            ColumnType::I64,
+            ColumnType::U64,
+            ColumnType::F64,
+            ColumnType::DateTime,
+        ]
+        .contains(&self.field_type)
+        {
+            // Handle numeric types normally
+            if let Some(missing) = self.missing {
+                let mut has_val = false;
+                for val in field.values_for_doc(doc) {
+                    let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                    self.stats.collect(val1);
+                    has_val = true;
+                }
+                if !has_val {
+                    self.stats
+                        .collect(f64_from_fastfield_u64(missing, &self.field_type));
+                }
+            } else {
+                for val in field.values_for_doc(doc) {
+                    let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                    self.stats.collect(val1);
+                }
             }
         } else {
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.stats.collect(val1);
+            // Handle non-numeric types (like Str) by just counting values
+            if let Some(_missing) = self.missing {
+                let mut has_val = false;
+                for _val in field.values_for_doc(doc) {
+                    // we ignore the value and simply record that we got something
+                    self.stats.collect(0.0);
+                    has_val = true;
+                }
+                if !has_val {
+                    // Record the missing value as a count
+                    self.stats.collect(0.0);
+                }
+            } else {
+                for _val in field.values_for_doc(doc) {
+                    // we ignore the value and simply record that we got something
+                    self.stats.collect(0.0);
+                }
             }
         }
 

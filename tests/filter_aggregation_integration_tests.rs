@@ -10,8 +10,8 @@ fn create_test_index() -> tantivy::Result<(Index, Schema)> {
     let mut schema_builder = Schema::builder();
 
     // Add fields for e-commerce data
-    let category_field = schema_builder.add_text_field("category", TEXT);
-    let brand_field = schema_builder.add_text_field("brand", TEXT);
+    let category_field = schema_builder.add_text_field("category", TEXT | FAST);
+    let brand_field = schema_builder.add_text_field("brand", TEXT | FAST);
     let price_field = schema_builder.add_u64_field("price", FAST);
     let rating_field = schema_builder.add_f64_field("rating", FAST);
     let in_stock_field = schema_builder.add_bool_field("in_stock", FAST);
@@ -148,7 +148,7 @@ fn test_filter_aggregation_range_filter() -> tantivy::Result<()> {
     // Test filter aggregation with range query
     let agg_request = json!({
         "expensive_items": {
-            "filter": { "range": { "price": { "gte": 500 } } },
+            "filter": { "range": { "price": { "gte": "500" } } },
             "aggs": {
                 "avg_rating": { "avg": { "field": "rating" } },
                 "count": { "value_count": { "field": "price" } }
@@ -186,7 +186,7 @@ fn test_filter_aggregation_bool_query() -> tantivy::Result<()> {
                 "bool": {
                     "must": [
                         { "term": { "category": "electronics" } },
-                        { "range": { "price": { "gte": 1000 } } }
+                        { "range": { "price": { "gte": "1000" } } }
                     ]
                 }
             },
@@ -360,7 +360,7 @@ fn test_filter_aggregation_performance() -> tantivy::Result<()> {
             "aggs": { "avg_price": { "avg": { "field": "price" } } }
         },
         "filter3": {
-            "filter": { "range": { "price": { "gte": 100 } } },
+            "filter": { "range": { "price": { "gte": "100" } } },
             "aggs": { "avg_rating": { "avg": { "field": "rating" } } }
         }
     });
