@@ -241,6 +241,13 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Cardinality(_) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::Cardinality(CardinalityCollector::default()),
         ),
+        Filter(_) => {
+            // For now, return a simple count metric
+            // TODO: Implement proper filter bucket result
+            IntermediateAggregationResult::Metric(IntermediateMetricResult::Count(
+                IntermediateCount::default(),
+            ))
+        }
     }
 }
 

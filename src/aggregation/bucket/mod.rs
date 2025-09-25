@@ -22,6 +22,7 @@
 //! - [Range](RangeAggregation)
 //! - [Terms](TermsAggregation)
 
+mod filter;
 mod histogram;
 mod range;
 mod term_agg;
@@ -30,6 +31,7 @@ mod term_missing_agg;
 use std::collections::HashMap;
 use std::fmt;
 
+pub use filter::*;
 pub use histogram::*;
 pub use range::*;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -102,7 +104,9 @@ pub struct CustomOrder {
 
 impl Serialize for CustomOrder {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         let map: HashMap<String, Order> =
             std::iter::once((self.target.to_string(), self.order)).collect();
         map.serialize(serializer)
@@ -111,7 +115,9 @@ impl Serialize for CustomOrder {
 
 impl<'de> Deserialize<'de> for CustomOrder {
     fn deserialize<D>(deserializer: D) -> Result<CustomOrder, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         let value = serde_json::Value::deserialize(deserializer)?;
         let return_err = |message, val: serde_json::Value| {
             de::Error::custom(format!(

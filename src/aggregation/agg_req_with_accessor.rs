@@ -344,6 +344,14 @@ impl AggregationWithAccessor {
 
                 add_agg_with_accessors(&agg, accessors, &mut res, value_accessors)?;
             }
+            Filter(ref _filter_req) => {
+                // Filter aggregation doesn't need fast field accessors
+                // It uses query evaluation instead
+                // Create a dummy accessor for now
+                use columnar::Column;
+                let dummy_accessor = Column::build_empty_column(0);
+                add_agg_with_accessor(&agg, dummy_accessor, ColumnType::Str, &mut res)?;
+            }
         };
 
         Ok(res)

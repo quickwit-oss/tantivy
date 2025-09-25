@@ -175,6 +175,12 @@ pub(crate) fn build_single_agg_segment_collector(
         Cardinality(CardinalityAggregationReq { missing, .. }) => Ok(Box::new(
             SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
         )),
+        Filter(_filter_req) => {
+            // For now, return an error - we need to implement this properly
+            Err(crate::TantivyError::InvalidArgument(
+                "Filter aggregation not yet fully implemented in segment collector".to_string()
+            ))
+        }
     }
 }
 
