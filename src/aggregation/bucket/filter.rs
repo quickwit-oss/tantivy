@@ -7,8 +7,8 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
 use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
-use crate::query::{AllQuery, BooleanQuery, Query, RangeQuery, TermQuery, Weight};
-use crate::schema::{FieldType, IndexRecordOption, Schema, Term};
+use crate::query::{AllQuery, BooleanQuery, Query, Weight};
+use crate::schema::Schema;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
@@ -313,7 +313,7 @@ pub struct IntermediateFilterBucketResult {
     pub sub_aggregations: IntermediateAggregationResults,
 }
 
-/// Parse Elasticsearch query JSON into Tantivy Query objects
+/// Parse Elasticsearch query JSON into Tantivy Query objects using Tantivy's QueryParser
 pub fn parse_elasticsearch_query(
     query_json: &serde_json::Value,
     schema: &Schema,
@@ -336,10 +336,10 @@ pub fn parse_elasticsearch_query(
 
             let (query_type, query_params) = obj.iter().next().unwrap();
             match query_type.as_str() {
-                "term" => parse_term_query(query_params, schema),
-                "range" => parse_range_query(query_params, schema),
+                "term" => parse_term_query_with_tantivy_parser(query_params, schema),
+                "range" => parse_range_query_with_tantivy_parser(query_params, schema),
                 "bool" => parse_bool_query(query_params, schema),
-                "match" => parse_match_query(query_params, schema),
+                "match" => parse_match_query_with_tantivy_parser(query_params, schema),
                 "match_all" => Ok(Box::new(AllQuery)),
                 _ => Err(TantivyError::InvalidArgument(format!(
                     "Unsupported query type: {}",
@@ -353,8 +353,13 @@ pub fn parse_elasticsearch_query(
     }
 }
 
-/// Parse Elasticsearch term query: { "term": { "field": "value" } }
-fn parse_term_query(params: &serde_json::Value, schema: &Schema) -> crate::Result<Box<dyn Query>> {
+/// Parse Elasticsearch term query using Tantivy's QueryParser: { "term": { "field": "value" } }
+fn parse_term_query_with_tantivy_parser(
+    params: &serde_json::Value,
+    schema: &Schema,
+) -> crate::Result<Box<dyn Query>> {
+    use crate::query::QueryParser;
+    use crate::tokenizer::TokenizerManager;
     use serde_json::Value;
 
     let obj = params.as_object().ok_or_else(|| {
@@ -372,28 +377,24 @@ fn parse_term_query(params: &serde_json::Value, schema: &Schema) -> crate::Resul
         TantivyError::InvalidArgument(format!("Field '{}' not found in schema", field_name))
     })?;
 
-    let term = match field_value {
-        Value::String(s) => Term::from_field_text(field, s),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                Term::from_field_i64(field, i)
-            } else if let Some(u) = n.as_u64() {
-                Term::from_field_u64(field, u)
-            } else if let Some(f) = n.as_f64() {
-                Term::from_field_f64(field, f)
+    // Convert the JSON value to a string for parsing
+    let value_str = match field_value {
+        Value::String(s) => {
+            if s.is_empty() {
+                // Handle empty string case - use quotes to make it a valid query
+                "\"\"".to_string()
+            } else if s.trim().is_empty() {
+                // Handle whitespace-only strings - use quotes to preserve them
+                format!("\"{}\"", s)
+            } else if s.contains(':') || s.contains('-') || s.contains('T') {
+                // Handle date/time strings and other special formats - use quotes
+                format!("\"{}\"", s)
             } else {
-                return Err(TantivyError::InvalidArgument(
-                    "Invalid number format in term query".to_string(),
-                ));
+                s.clone()
             }
         }
-        Value::Bool(b) => {
-            if *b {
-                Term::from_field_u64(field, 1)
-            } else {
-                Term::from_field_u64(field, 0)
-            }
-        }
+        Value::Number(n) => n.to_string(),
+        Value::Bool(b) => b.to_string(),
         _ => {
             return Err(TantivyError::InvalidArgument(
                 "Term query value must be string, number, or boolean".to_string(),
@@ -401,13 +402,26 @@ fn parse_term_query(params: &serde_json::Value, schema: &Schema) -> crate::Resul
         }
     };
 
-    Ok(Box::new(TermQuery::new(term, IndexRecordOption::Basic)))
+    // Use Tantivy's QueryParser to properly handle type conversion
+    let tokenizer_manager = TokenizerManager::default();
+    let query_parser = QueryParser::new(schema.clone(), vec![field], tokenizer_manager);
+
+    // Create a query string in the format "field:value"
+    let query_str = format!("{}:{}", field_name, value_str);
+
+    query_parser
+        .parse_query(&query_str)
+        .map_err(|e| TantivyError::InvalidArgument(format!("Failed to parse term query: {}", e)))
 }
 
-/// Parse Elasticsearch range query: { "range": { "field": { "gte": 10, "lt": 20 } } }
-fn parse_range_query(params: &serde_json::Value, schema: &Schema) -> crate::Result<Box<dyn Query>> {
+/// Parse Elasticsearch range query using Tantivy's QueryParser: { "range": { "field": { "gte": 10, "lt": 20 } } }
+fn parse_range_query_with_tantivy_parser(
+    params: &serde_json::Value,
+    schema: &Schema,
+) -> crate::Result<Box<dyn Query>> {
+    use crate::query::QueryParser;
+    use crate::tokenizer::TokenizerManager;
     use serde_json::Value;
-    use std::ops::Bound;
 
     let obj = params.as_object().ok_or_else(|| {
         TantivyError::InvalidArgument("Range query parameters must be an object".to_string())
@@ -428,71 +442,74 @@ fn parse_range_query(params: &serde_json::Value, schema: &Schema) -> crate::Resu
         TantivyError::InvalidArgument("Range query field parameters must be an object".to_string())
     })?;
 
-    let mut lower_bound = Bound::Unbounded;
-    let mut upper_bound = Bound::Unbounded;
+    // Build a range query string in Tantivy's format
+    let mut lower_bound = None;
+    let mut upper_bound = None;
+    let mut lower_inclusive = true;
+    let mut upper_inclusive = true;
 
-    for (op, value) in range_obj {
-        let term_value = match value {
-            Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    Term::from_field_i64(field, i)
-                } else if let Some(u) = n.as_u64() {
-                    Term::from_field_u64(field, u)
-                } else if let Some(f) = n.as_f64() {
-                    Term::from_field_f64(field, f)
-                } else {
-                    return Err(TantivyError::InvalidArgument(
-                        "Invalid number format in range query".to_string(),
-                    ));
-                }
-            }
-            Value::String(s) => {
-                // Try to parse string as number for numeric fields
-                let field_entry = schema.get_field_entry(field);
-                match field_entry.field_type() {
-                    FieldType::U64(_) => {
-                        let parsed_u64 = s.parse::<u64>().map_err(|_| {
-                            TantivyError::InvalidArgument(format!("Invalid u64 value: {}", s))
-                        })?;
-                        Term::from_field_u64(field, parsed_u64)
-                    }
-                    FieldType::I64(_) => {
-                        let parsed_i64 = s.parse::<i64>().map_err(|_| {
-                            TantivyError::InvalidArgument(format!("Invalid i64 value: {}", s))
-                        })?;
-                        Term::from_field_i64(field, parsed_i64)
-                    }
-                    FieldType::F64(_) => {
-                        let parsed_f64 = s.parse::<f64>().map_err(|_| {
-                            TantivyError::InvalidArgument(format!("Invalid f64 value: {}", s))
-                        })?;
-                        Term::from_field_f64(field, parsed_f64)
-                    }
-                    _ => Term::from_field_text(field, s),
-                }
-            }
+    for (bound_type, bound_value) in range_obj {
+        let value_str = match bound_value {
+            Value::String(s) => s.clone(),
+            Value::Number(n) => n.to_string(),
+            Value::Bool(b) => b.to_string(),
             _ => {
                 return Err(TantivyError::InvalidArgument(
-                    "Range query values must be numbers or strings".to_string(),
+                    "Range query value must be string, number, or boolean".to_string(),
                 ))
             }
         };
 
-        match op.as_str() {
-            "gte" => lower_bound = Bound::Included(term_value),
-            "gt" => lower_bound = Bound::Excluded(term_value),
-            "lte" => upper_bound = Bound::Included(term_value),
-            "lt" => upper_bound = Bound::Excluded(term_value),
+        match bound_type.as_str() {
+            "gte" => {
+                lower_bound = Some(value_str);
+                lower_inclusive = true;
+            }
+            "gt" => {
+                lower_bound = Some(value_str);
+                lower_inclusive = false;
+            }
+            "lte" => {
+                upper_bound = Some(value_str);
+                upper_inclusive = true;
+            }
+            "lt" => {
+                upper_bound = Some(value_str);
+                upper_inclusive = false;
+            }
             _ => {
                 return Err(TantivyError::InvalidArgument(format!(
-                    "Unsupported range operator: {}",
-                    op
+                    "Unsupported range bound: {}",
+                    bound_type
                 )))
             }
         }
     }
 
-    Ok(Box::new(RangeQuery::new(lower_bound, upper_bound)))
+    if lower_bound.is_none() && upper_bound.is_none() {
+        return Err(TantivyError::InvalidArgument(
+            "Range query must specify at least one bound".to_string(),
+        ));
+    }
+
+    // Use Tantivy's QueryParser to properly handle type conversion
+    let tokenizer_manager = TokenizerManager::default();
+    let query_parser = QueryParser::new(schema.clone(), vec![field], tokenizer_manager);
+
+    // Create a range query string in Tantivy's format: "field:[lower TO upper]"
+    let lower_str = lower_bound.as_deref().unwrap_or("*");
+    let upper_str = upper_bound.as_deref().unwrap_or("*");
+    let left_bracket = if lower_inclusive { "[" } else { "{" };
+    let right_bracket = if upper_inclusive { "]" } else { "}" };
+
+    let query_str = format!(
+        "{}:{}{} TO {}{}",
+        field_name, left_bracket, lower_str, upper_str, right_bracket
+    );
+
+    query_parser
+        .parse_query(&query_str)
+        .map_err(|e| TantivyError::InvalidArgument(format!("Failed to parse range query: {}", e)))
 }
 
 /// Parse Elasticsearch bool query: { "bool": { "must": [...], "should": [...], "must_not": [...] } }
@@ -535,12 +552,14 @@ fn parse_bool_query(params: &serde_json::Value, schema: &Schema) -> crate::Resul
     Ok(Box::new(BooleanQuery::new(subqueries)))
 }
 
-/// Parse Elasticsearch match query: { "match": { "field": "value" } }
-/// Note: This is a simplified implementation that converts to term query
-fn parse_match_query(params: &serde_json::Value, schema: &Schema) -> crate::Result<Box<dyn Query>> {
-    // For now, we'll implement match as a simple term query
-    // In a full implementation, this would involve text analysis and tokenization
-    parse_term_query(params, schema)
+/// Parse Elasticsearch match query using Tantivy's QueryParser: { "match": { "field": "value" } }
+/// Note: This implementation uses Tantivy's QueryParser which handles text analysis and tokenization
+fn parse_match_query_with_tantivy_parser(
+    params: &serde_json::Value,
+    schema: &Schema,
+) -> crate::Result<Box<dyn Query>> {
+    // For match queries, we can use the same logic as term queries since QueryParser handles tokenization
+    parse_term_query_with_tantivy_parser(params, schema)
 }
 
 #[cfg(test)]
@@ -563,28 +582,30 @@ mod tests {
 
     #[test]
     fn test_parse_term_query() {
+        use crate::schema::INDEXED;
         let mut schema_builder = Schema::builder();
-        let _category_field = schema_builder.add_text_field("category", TEXT);
-        let _price_field = schema_builder.add_u64_field("price", FAST);
+        let _category_field = schema_builder.add_text_field("category", TEXT); // TEXT fields are indexed by default
+        let _price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
         let schema = schema_builder.build();
 
         // Test string term query
         let query_json = json!({ "category": "electronics" });
-        let _query = parse_term_query(&query_json, &schema).unwrap();
+        let _query = parse_term_query_with_tantivy_parser(&query_json, &schema).unwrap();
 
         // Test numeric term query
         let query_json = json!({ "price": 100 });
-        let _query = parse_term_query(&query_json, &schema).unwrap();
+        let _query = parse_term_query_with_tantivy_parser(&query_json, &schema).unwrap();
     }
 
     #[test]
     fn test_parse_range_query() {
+        use crate::schema::INDEXED;
         let mut schema_builder = Schema::builder();
-        let _price_field = schema_builder.add_u64_field("price", FAST);
+        let _price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
         let schema = schema_builder.build();
 
         let query_json = json!({ "price": { "gte": 10, "lt": 100 } });
-        let _query = parse_range_query(&query_json, &schema).unwrap();
+        let _query = parse_range_query_with_tantivy_parser(&query_json, &schema).unwrap();
     }
 
     #[test]
