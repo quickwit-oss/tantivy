@@ -193,12 +193,24 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        if self.phrase_scorer.seek_into_the_danger_zone(target) {
+            self.matches_prefix()
+        } else {
+            false
+        }
+    }
+
     fn doc(&self) -> DocId {
         self.phrase_scorer.doc()
     }
 
     fn size_hint(&self) -> u32 {
         self.phrase_scorer.size_hint()
+    }
+
+    fn cost(&self) -> u64 {
+        self.phrase_scorer.cost()
     }
 }
 
