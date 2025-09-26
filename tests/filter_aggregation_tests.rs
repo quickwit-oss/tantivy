@@ -217,7 +217,7 @@ fn mixed_aggregations() -> tantivy::Result<()> {
     let aggregations: Aggregations = serde_json::from_value(agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
-    
+
     assert!(result.0.contains_key("electronics"));
     Ok(())
 }

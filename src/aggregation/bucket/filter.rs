@@ -335,7 +335,9 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
 /// Intermediate result for filter aggregation
 #[derive(Debug, Clone, PartialEq)]
 pub struct IntermediateFilterBucketResult {
+    /// Document count in this bucket
     pub doc_count: u64,
+    /// Sub-aggregation results
     pub sub_aggregations: IntermediateAggregationResults,
 }
 
