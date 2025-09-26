@@ -6,10 +6,8 @@ use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
-use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
-};
-use crate::query::{EnableScoring, Query, QueryParser, Weight};
+use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
+use crate::query::{Query, QueryParser, Weight};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
@@ -22,7 +20,7 @@ use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
 /// ```json
 /// {
 ///   "t_shirts": {
-///     "filter": { "term": { "type": "t-shirt" } },
+///     "filter": { "query_string": "type:t-shirt" },
 ///     "aggs": {
 ///       "avg_price": { "avg": { "field": "price" } }
 ///     }
@@ -95,6 +93,7 @@ pub struct DocumentQueryEvaluator {
 }
 
 impl DocumentQueryEvaluator {
+    /// Create a new document query evaluator
     pub fn new(query: Box<dyn Query>, schema: Schema) -> Self {
         Self {
             query,
@@ -432,56 +431,10 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_aggregation_json_parsing() {
-        use crate::aggregation::agg_req::{AggregationVariants, Aggregations};
-
-        // Test basic filter aggregation parsing
-        let agg_request = json!({
-            "t_shirts": {
-                "filter": { "term": { "type": "t-shirt" } },
-                "aggs": {
-                    "avg_price": { "avg": { "field": "price" } }
-                }
-            }
-        });
-
-        // This should parse successfully now that we've added Filter to AggregationVariants
-        let aggregations: Aggregations = serde_json::from_value(agg_request).unwrap();
-
-        assert_eq!(aggregations.len(), 1);
-
-        // Verify the structure
-        let t_shirts_agg = aggregations.get("t_shirts").unwrap();
-
-        // Check if it's a filter aggregation
-        match &t_shirts_agg.agg {
-            AggregationVariants::Filter(filter_agg) => {
-                // Verify the filter query is stored correctly
-                assert!(filter_agg.query.is_object());
-                let query_obj = filter_agg.query.as_object().unwrap();
-                assert!(query_obj.contains_key("term"));
-            }
-            _ => panic!("Expected filter aggregation, got something else"),
-        }
-
-        // Check sub-aggregations
-        assert!(t_shirts_agg.sub_aggregation.contains_key("avg_price"));
-
-        // Verify the sub-aggregation is an average aggregation
-        let avg_agg = t_shirts_agg.sub_aggregation.get("avg_price").unwrap();
-        match &avg_agg.agg {
-            AggregationVariants::Average(_) => {
-                // Expected
-            }
-            _ => panic!("Expected average aggregation in sub-aggregation"),
-        }
-    }
-
-    #[test]
     fn test_document_query_evaluator() {
         use crate::query::TermQuery;
         use crate::schema::{IndexRecordOption, Term};
-        use crate::schema::{Schema, FAST, TEXT};
+        use crate::schema::{Schema, TEXT};
 
         let mut schema_builder = Schema::builder();
         let category_field = schema_builder.add_text_field("category", TEXT);
