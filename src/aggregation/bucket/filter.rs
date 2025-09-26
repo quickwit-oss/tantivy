@@ -7,7 +7,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
 use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
-use crate::query::{Query, QueryParser, Weight};
+use crate::query::{Query, QueryParser, RangeQuery, TermQuery, Weight};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
@@ -149,10 +149,10 @@ impl DocumentQueryEvaluator {
     /// Returns Some(bool) if we can evaluate quickly, None if we need full evaluation
     fn try_fast_path_evaluation(
         &self,
-        _doc: DocId,
-        _segment_reader: &SegmentReader,
+        doc: DocId,
+        segment_reader: &SegmentReader,
     ) -> crate::Result<Option<bool>> {
-        use crate::query::AllQuery;
+        use crate::query::{AllQuery, RangeQuery, TermQuery};
         use downcast_rs::Downcast;
 
         // Try to downcast to specific query types for fast evaluation
@@ -161,12 +161,398 @@ impl DocumentQueryEvaluator {
             return Ok(Some(true));
         }
 
-        // For now, only implement AllQuery fast path
-        // Term and Range queries would require accessing private fields
-        // which is not ideal for maintainability
+        if let Some(term_query) = self.query.downcast_ref::<TermQuery>() {
+            return self.evaluate_term_query_fast(term_query, doc, segment_reader);
+        }
+
+        if let Some(range_query) = self.query.downcast_ref::<RangeQuery>() {
+            return self.evaluate_range_query_fast(range_query, doc, segment_reader);
+        }
 
         // For other query types, use full evaluation
         Ok(None)
+    }
+
+    /// Fast evaluation for term queries using fast fields
+    fn evaluate_term_query_fast(
+        &self,
+        term_query: &TermQuery,
+        doc: DocId,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<Option<bool>> {
+        let term = term_query.term();
+        let field = term.field();
+        let field_entry = self.schema.get_field_entry(field);
+
+        // Only use fast path if field is configured as fast field
+        if !field_entry.is_fast() {
+            return Ok(None);
+        }
+
+        let fast_fields = segment_reader.fast_fields();
+
+        match term.typ() {
+            crate::schema::Type::Str => {
+                if let Ok(Some(column)) = fast_fields.str(field_entry.name()) {
+                    if let Some(term_text) = term.value().as_str() {
+                        let mut term_ord_buffer = Vec::new();
+
+                        // Get term ordinals for this document
+                        for term_ord in column.term_ords(doc) {
+                            term_ord_buffer.clear();
+                            if column.ord_to_bytes(term_ord, &mut term_ord_buffer)? {
+                                if let Ok(doc_term) = std::str::from_utf8(&term_ord_buffer) {
+                                    if doc_term == term_text {
+                                        return Ok(Some(true));
+                                    }
+                                }
+                            }
+                        }
+                        return Ok(Some(false));
+                    }
+                }
+            }
+            crate::schema::Type::U64 => {
+                if let Ok(column) = fast_fields.u64(field_entry.name()) {
+                    let term_value = term.value().as_u64().unwrap();
+                    for doc_value in column.values_for_doc(doc) {
+                        if doc_value == term_value {
+                            return Ok(Some(true));
+                        }
+                    }
+                    return Ok(Some(false));
+                }
+            }
+            crate::schema::Type::I64 => {
+                if let Ok(column) = fast_fields.i64(field_entry.name()) {
+                    let term_value = term.value().as_i64().unwrap();
+                    for doc_value in column.values_for_doc(doc) {
+                        if doc_value == term_value {
+                            return Ok(Some(true));
+                        }
+                    }
+                    return Ok(Some(false));
+                }
+            }
+            crate::schema::Type::F64 => {
+                if let Ok(column) = fast_fields.f64(field_entry.name()) {
+                    let term_value = term.value().as_f64().unwrap();
+                    for doc_value in column.values_for_doc(doc) {
+                        if (doc_value - term_value).abs() < f64::EPSILON {
+                            return Ok(Some(true));
+                        }
+                    }
+                    return Ok(Some(false));
+                }
+            }
+            crate::schema::Type::Bool => {
+                if let Ok(column) = fast_fields.bool(field_entry.name()) {
+                    let term_value = term.value().as_bool().unwrap();
+                    for doc_value in column.values_for_doc(doc) {
+                        if doc_value == term_value {
+                            return Ok(Some(true));
+                        }
+                    }
+                    return Ok(Some(false));
+                }
+            }
+            crate::schema::Type::Date => {
+                if let Ok(column) = fast_fields.date(field_entry.name()) {
+                    let term_value = term.value().as_date().unwrap();
+                    for doc_value in column.values_for_doc(doc) {
+                        if doc_value == term_value {
+                            return Ok(Some(true));
+                        }
+                    }
+                    return Ok(Some(false));
+                }
+            }
+            _ => {
+                // Unsupported type for fast path
+                return Ok(None);
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Fast evaluation for range queries using fast fields
+    fn evaluate_range_query_fast(
+        &self,
+        range_query: &RangeQuery,
+        doc: DocId,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<Option<bool>> {
+        let field = range_query.field();
+        let field_entry = self.schema.get_field_entry(field);
+
+        // Only use fast path if field is configured as fast field
+        if !field_entry.is_fast() {
+            return Ok(None);
+        }
+
+        let fast_fields = segment_reader.fast_fields();
+
+        match range_query.value_type() {
+            crate::schema::Type::U64 => {
+                if let Ok(column) = fast_fields.u64(field_entry.name()) {
+                    return Ok(Some(self.check_u64_range(range_query, &column, doc)?));
+                }
+            }
+            crate::schema::Type::I64 => {
+                if let Ok(column) = fast_fields.i64(field_entry.name()) {
+                    return Ok(Some(self.check_i64_range(range_query, &column, doc)?));
+                }
+            }
+            crate::schema::Type::F64 => {
+                if let Ok(column) = fast_fields.f64(field_entry.name()) {
+                    return Ok(Some(self.check_f64_range(range_query, &column, doc)?));
+                }
+            }
+            crate::schema::Type::Date => {
+                if let Ok(column) = fast_fields.date(field_entry.name()) {
+                    return Ok(Some(self.check_date_range(range_query, &column, doc)?));
+                }
+            }
+            _ => {
+                // Unsupported type for fast path
+                return Ok(None);
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn check_u64_range(
+        &self,
+        range_query: &RangeQuery,
+        column: &crate::fastfield::Column<u64>,
+        doc: DocId,
+    ) -> crate::Result<bool> {
+        use std::ops::Bound;
+
+        let (lower_bound, upper_bound) = range_query.bounds();
+
+        for doc_value in column.values_for_doc(doc) {
+            let matches = match (lower_bound, upper_bound) {
+                (Bound::Included(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_u64().unwrap();
+                    let upper_val = upper.value().as_u64().unwrap();
+                    doc_value >= lower_val && doc_value <= upper_val
+                }
+                (Bound::Included(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_u64().unwrap();
+                    let upper_val = upper.value().as_u64().unwrap();
+                    doc_value >= lower_val && doc_value < upper_val
+                }
+                (Bound::Excluded(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_u64().unwrap();
+                    let upper_val = upper.value().as_u64().unwrap();
+                    doc_value > lower_val && doc_value <= upper_val
+                }
+                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_u64().unwrap();
+                    let upper_val = upper.value().as_u64().unwrap();
+                    doc_value > lower_val && doc_value < upper_val
+                }
+                (Bound::Unbounded, Bound::Included(upper)) => {
+                    let upper_val = upper.value().as_u64().unwrap();
+                    doc_value <= upper_val
+                }
+                (Bound::Unbounded, Bound::Excluded(upper)) => {
+                    let upper_val = upper.value().as_u64().unwrap();
+                    doc_value < upper_val
+                }
+                (Bound::Included(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_u64().unwrap();
+                    doc_value >= lower_val
+                }
+                (Bound::Excluded(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_u64().unwrap();
+                    doc_value > lower_val
+                }
+                (Bound::Unbounded, Bound::Unbounded) => true,
+            };
+
+            if matches {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn check_i64_range(
+        &self,
+        range_query: &RangeQuery,
+        column: &crate::fastfield::Column<i64>,
+        doc: DocId,
+    ) -> crate::Result<bool> {
+        use std::ops::Bound;
+
+        let (lower_bound, upper_bound) = range_query.bounds();
+
+        for doc_value in column.values_for_doc(doc) {
+            let matches = match (lower_bound, upper_bound) {
+                (Bound::Included(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_i64().unwrap();
+                    let upper_val = upper.value().as_i64().unwrap();
+                    doc_value >= lower_val && doc_value <= upper_val
+                }
+                (Bound::Included(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_i64().unwrap();
+                    let upper_val = upper.value().as_i64().unwrap();
+                    doc_value >= lower_val && doc_value < upper_val
+                }
+                (Bound::Excluded(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_i64().unwrap();
+                    let upper_val = upper.value().as_i64().unwrap();
+                    doc_value > lower_val && doc_value <= upper_val
+                }
+                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_i64().unwrap();
+                    let upper_val = upper.value().as_i64().unwrap();
+                    doc_value > lower_val && doc_value < upper_val
+                }
+                (Bound::Unbounded, Bound::Included(upper)) => {
+                    let upper_val = upper.value().as_i64().unwrap();
+                    doc_value <= upper_val
+                }
+                (Bound::Unbounded, Bound::Excluded(upper)) => {
+                    let upper_val = upper.value().as_i64().unwrap();
+                    doc_value < upper_val
+                }
+                (Bound::Included(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_i64().unwrap();
+                    doc_value >= lower_val
+                }
+                (Bound::Excluded(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_i64().unwrap();
+                    doc_value > lower_val
+                }
+                (Bound::Unbounded, Bound::Unbounded) => true,
+            };
+
+            if matches {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn check_f64_range(
+        &self,
+        range_query: &RangeQuery,
+        column: &crate::fastfield::Column<f64>,
+        doc: DocId,
+    ) -> crate::Result<bool> {
+        use std::ops::Bound;
+
+        let (lower_bound, upper_bound) = range_query.bounds();
+
+        for doc_value in column.values_for_doc(doc) {
+            let matches = match (lower_bound, upper_bound) {
+                (Bound::Included(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_f64().unwrap();
+                    let upper_val = upper.value().as_f64().unwrap();
+                    doc_value >= lower_val && doc_value <= upper_val
+                }
+                (Bound::Included(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_f64().unwrap();
+                    let upper_val = upper.value().as_f64().unwrap();
+                    doc_value >= lower_val && doc_value < upper_val
+                }
+                (Bound::Excluded(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_f64().unwrap();
+                    let upper_val = upper.value().as_f64().unwrap();
+                    doc_value > lower_val && doc_value <= upper_val
+                }
+                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_f64().unwrap();
+                    let upper_val = upper.value().as_f64().unwrap();
+                    doc_value > lower_val && doc_value < upper_val
+                }
+                (Bound::Unbounded, Bound::Included(upper)) => {
+                    let upper_val = upper.value().as_f64().unwrap();
+                    doc_value <= upper_val
+                }
+                (Bound::Unbounded, Bound::Excluded(upper)) => {
+                    let upper_val = upper.value().as_f64().unwrap();
+                    doc_value < upper_val
+                }
+                (Bound::Included(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_f64().unwrap();
+                    doc_value >= lower_val
+                }
+                (Bound::Excluded(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_f64().unwrap();
+                    doc_value > lower_val
+                }
+                (Bound::Unbounded, Bound::Unbounded) => true,
+            };
+
+            if matches {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn check_date_range(
+        &self,
+        range_query: &RangeQuery,
+        column: &crate::fastfield::Column<crate::DateTime>,
+        doc: DocId,
+    ) -> crate::Result<bool> {
+        use std::ops::Bound;
+
+        let (lower_bound, upper_bound) = range_query.bounds();
+
+        for doc_value in column.values_for_doc(doc) {
+            let matches = match (lower_bound, upper_bound) {
+                (Bound::Included(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_date().unwrap();
+                    let upper_val = upper.value().as_date().unwrap();
+                    doc_value >= lower_val && doc_value <= upper_val
+                }
+                (Bound::Included(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_date().unwrap();
+                    let upper_val = upper.value().as_date().unwrap();
+                    doc_value >= lower_val && doc_value < upper_val
+                }
+                (Bound::Excluded(lower), Bound::Included(upper)) => {
+                    let lower_val = lower.value().as_date().unwrap();
+                    let upper_val = upper.value().as_date().unwrap();
+                    doc_value > lower_val && doc_value <= upper_val
+                }
+                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
+                    let lower_val = lower.value().as_date().unwrap();
+                    let upper_val = upper.value().as_date().unwrap();
+                    doc_value > lower_val && doc_value < upper_val
+                }
+                (Bound::Unbounded, Bound::Included(upper)) => {
+                    let upper_val = upper.value().as_date().unwrap();
+                    doc_value <= upper_val
+                }
+                (Bound::Unbounded, Bound::Excluded(upper)) => {
+                    let upper_val = upper.value().as_date().unwrap();
+                    doc_value < upper_val
+                }
+                (Bound::Included(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_date().unwrap();
+                    doc_value >= lower_val
+                }
+                (Bound::Excluded(lower), Bound::Unbounded) => {
+                    let lower_val = lower.value().as_date().unwrap();
+                    doc_value > lower_val
+                }
+                (Bound::Unbounded, Bound::Unbounded) => true,
+            };
+
+            if matches {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }
 
