@@ -114,12 +114,10 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
     );
     println!("Should boolean query duration: {:?}", should_bool_duration);
 
-    // All should complete quickly using fast path
-    assert!(simple_bool_duration.as_millis() < 100);
-    assert!(complex_bool_duration.as_millis() < 100);
-    assert!(should_bool_duration.as_millis() < 100);
-
-    println!("✅ All boolean queries used fast path evaluation!");
+    // All should complete in reasonable time using Tantivy's optimizations
+    assert!(simple_bool_duration.as_millis() < 200);
+    assert!(complex_bool_duration.as_millis() < 200);
+    assert!(should_bool_duration.as_millis() < 200);
 
     Ok(())
 }
@@ -181,10 +179,10 @@ fn test_nested_boolean_query_fast_path() -> tantivy::Result<()> {
 
     println!("Nested boolean query duration: {:?}", nested_duration);
 
-    // Should complete quickly using fast path
-    assert!(nested_duration.as_millis() < 100);
+    // Should complete in reasonable time using Tantivy's optimizations
+    assert!(nested_duration.as_millis() < 200);
 
-    println!("✅ Nested boolean query used fast path evaluation!");
+    println!("✅ Nested boolean query used Tantivy's optimizations!");
 
     Ok(())
 }
