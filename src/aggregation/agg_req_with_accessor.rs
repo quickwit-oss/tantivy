@@ -345,9 +345,11 @@ impl AggregationWithAccessor {
                 add_agg_with_accessors(&agg, accessors, &mut res, value_accessors)?;
             }
             Filter(ref _filter_req) => {
-                // Filter aggregation doesn't need fast field accessors for itself
-                // But we still need to provide a proper accessor for the framework
-                // Use a dummy accessor with the correct number of documents
+                // Filter aggregations don't need a specific field accessor like other aggregations
+                // (terms, histogram, stats) because they:
+                // 1. Access fast fields dynamically during query evaluation (fast path optimization)
+                // 2. Sub-aggregations get their own real accessors through the normal framework
+                // We provide a dummy accessor to satisfy the framework's accessor requirement
                 use columnar::Column;
                 let dummy_accessor = Column::build_empty_column(reader.num_docs());
                 add_agg_with_accessor(&agg, dummy_accessor, ColumnType::U64, &mut res)?;
