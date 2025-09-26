@@ -7,7 +7,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
 use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
-use crate::query::{Query, QueryParser, RangeQuery, TermQuery, Weight};
+use crate::query::{BooleanQuery, Occur, Query, QueryParser, RangeQuery, TermQuery, Weight};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
@@ -167,6 +167,10 @@ impl DocumentQueryEvaluator {
 
         if let Some(range_query) = self.query.downcast_ref::<RangeQuery>() {
             return self.evaluate_range_query_fast(range_query, doc, segment_reader);
+        }
+
+        if let Some(bool_query) = self.query.downcast_ref::<BooleanQuery>() {
+            return self.evaluate_boolean_query_fast(bool_query, doc, segment_reader);
         }
 
         // For other query types, use full evaluation
@@ -426,6 +430,60 @@ impl DocumentQueryEvaluator {
         };
 
         Ok(lower_ok && upper_ok)
+    }
+
+    /// Fast evaluation for boolean queries by evaluating sub-queries with fast fields
+    fn evaluate_boolean_query_fast(
+        &self,
+        bool_query: &BooleanQuery,
+        doc: DocId,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<Option<bool>> {
+        // For boolean queries, we can often evaluate sub-queries using fast fields
+        // and then combine the results using boolean logic
+
+        let mut must_results = Vec::new();
+        let mut should_results = Vec::new();
+        let mut must_not_results = Vec::new();
+
+        // Evaluate each sub-query
+        for (occur, sub_query) in bool_query.clauses() {
+            // Create a temporary evaluator for this sub-query
+            let sub_evaluator =
+                DocumentQueryEvaluator::new(sub_query.box_clone(), self.schema.clone());
+            let mut sub_evaluator = sub_evaluator;
+            sub_evaluator.initialize_for_segment(segment_reader)?;
+
+            // Try to evaluate using fast path
+            let result = if let Some(fast_result) =
+                sub_evaluator.try_fast_path_evaluation(doc, segment_reader)?
+            {
+                fast_result
+            } else {
+                // Fall back to full evaluation for this sub-query
+                return Ok(None); // If any sub-query can't use fast path, fall back to full evaluation
+            };
+
+            match occur {
+                Occur::Must => must_results.push(result),
+                Occur::Should => should_results.push(result),
+                Occur::MustNot => must_not_results.push(result),
+            }
+        }
+
+        // Apply boolean logic
+        let must_satisfied = must_results.iter().all(|&r| r);
+        let must_not_satisfied = must_not_results.iter().all(|&r| !r);
+        let should_satisfied = if should_results.is_empty() {
+            true // No should clauses means this condition is satisfied
+        } else {
+            // Check minimum_number_should_match
+            let should_matches = should_results.iter().filter(|&&r| r).count();
+            should_matches >= bool_query.get_minimum_number_should_match()
+        };
+
+        let final_result = must_satisfied && must_not_satisfied && should_satisfied;
+        Ok(Some(final_result))
     }
 }
 
