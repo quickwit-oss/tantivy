@@ -31,7 +31,8 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use super::bucket::{
-    DateHistogramAggregationReq, FilterAggregation, HistogramAggregation, RangeAggregation, TermsAggregation,
+    DateHistogramAggregationReq, FilterAggregation, HistogramAggregation, RangeAggregation,
+    TermsAggregation,
 };
 use super::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,

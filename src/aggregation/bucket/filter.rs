@@ -6,9 +6,12 @@ use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
-use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
-use crate::query::{Query, QueryParser, Weight};
+use crate::aggregation::segment_agg_result::{
+    build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
+};
+use crate::query::{EnableScoring, Query, QueryParser, Weight};
 use crate::schema::Schema;
+use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
@@ -50,9 +53,6 @@ impl FilterAggregation {
     /// fuzzy matching, and default fields. For basic parsing without these features,
     /// use the standalone `crate::query::parse_query` function.
     pub fn parse_query(&self, schema: &Schema) -> crate::Result<Box<dyn Query>> {
-        use crate::query::QueryParser;
-        use crate::tokenizer::TokenizerManager;
-
         // Create a QueryParser with default settings
         // This enables feature inheritance like boosts and fuzzy matching
         let tokenizer_manager = TokenizerManager::default();
@@ -60,7 +60,7 @@ impl FilterAggregation {
 
         query_parser
             .parse_json_query(&self.query)
-            .map_err(|e| crate::TantivyError::InvalidArgument(e.to_string()))
+            .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
     }
 
     /// Parse the stored query JSON into a Tantivy Query object with custom QueryParser
@@ -73,7 +73,7 @@ impl FilterAggregation {
     ) -> crate::Result<Box<dyn Query>> {
         query_parser
             .parse_json_query(&self.query)
-            .map_err(|e| crate::TantivyError::InvalidArgument(e.to_string()))
+            .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
     }
 
     /// Get the fast field names used by this aggregation (none for filter aggregation)
@@ -247,7 +247,7 @@ impl Debug for FilterSegmentCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FilterSegmentCollector")
             .field("doc_count", &self.doc_count)
-            .field("has_sub_aggregations", &self.sub_aggregations.is_some())
+            .field("has_sub_aggs", &self.sub_aggregations.is_some())
             .field("evaluator", &self.evaluator)
             .finish()
     }
@@ -266,21 +266,21 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         agg_with_accessor: &AggregationsWithAccessor,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
-        let mut sub_aggregation_results = IntermediateAggregationResults::default();
+        let mut sub_results = IntermediateAggregationResults::default();
 
         if let Some(sub_aggs) = self.sub_aggregations {
             // Use the same pattern as collect: pass the sub-aggregation accessor structure
-            let bucket_agg_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
+            let bucket_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
             sub_aggs.add_intermediate_aggregation_result(
-                &bucket_agg_accessor.sub_aggregation,
-                &mut sub_aggregation_results,
+                &bucket_accessor.sub_aggregation,
+                &mut sub_results,
             )?;
         }
 
         // Create the proper filter bucket result
         let filter_bucket_result = IntermediateBucketResult::Filter {
             doc_count: self.doc_count,
-            sub_aggregations: sub_aggregation_results,
+            sub_aggregations: sub_results,
         };
 
         // Get the name of this filter aggregation
@@ -324,10 +324,9 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
     }
 
     fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
-        if let Some(sub_aggs) = &mut self.sub_aggregations {
-            let sub_aggregation_accessor =
-                &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
-            sub_aggs.flush(sub_aggregation_accessor)?;
+        if let Some(ref mut sub_aggs) = self.sub_aggregations {
+            let accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
+            sub_aggs.flush(accessor)?;
         }
         Ok(())
     }

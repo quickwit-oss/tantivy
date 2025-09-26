@@ -4,8 +4,7 @@ use super::agg_result::AggregationResults;
 use super::buf_collector::BufAggregationCollector;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::{
-    build_segment_agg_collector, build_segment_agg_collector_with_reader, AggregationLimitsGuard,
-    SegmentAggregationCollector,
+    build_segment_agg_collector_with_reader, AggregationLimitsGuard, SegmentAggregationCollector,
 };
 use crate::aggregation::agg_req_with_accessor::get_aggs_with_segment_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};

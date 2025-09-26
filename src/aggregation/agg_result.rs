@@ -174,7 +174,9 @@ impl BucketResult {
                 sum_other_doc_count: _,
                 doc_count_error_upper_bound: _,
             } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
-            BucketResult::Filter(filter_result) => 1 + filter_result.sub_aggregations.get_bucket_count(),
+            BucketResult::Filter(filter_result) => {
+                1 + filter_result.sub_aggregations.get_bucket_count()
+            }
         }
     }
 }

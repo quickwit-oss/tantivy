@@ -241,12 +241,10 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Cardinality(_) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::Cardinality(CardinalityCollector::default()),
         ),
-        Filter(_) => {
-            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Filter {
-                doc_count: 0,
-                sub_aggregations: IntermediateAggregationResults::default(),
-            })
-        }
+        Filter(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Filter {
+            doc_count: 0,
+            sub_aggregations: IntermediateAggregationResults::default(),
+        }),
     }
 }
 
@@ -522,20 +520,21 @@ impl IntermediateBucketResult {
                 req.sub_aggregation(),
                 limits,
             ),
-            IntermediateBucketResult::Filter { doc_count, sub_aggregations } => {
+            IntermediateBucketResult::Filter {
+                doc_count,
+                sub_aggregations,
+            } => {
                 // Convert sub-aggregation results to final format
-                let final_sub_aggregations = sub_aggregations.into_final_result(
-                    req.sub_aggregation().clone(),
-                    limits.clone(),
-                )?;
-                
+                let final_sub_aggregations = sub_aggregations
+                    .into_final_result(req.sub_aggregation().clone(), limits.clone())?;
+
                 // Create a filter bucket result (similar to Elasticsearch format)
                 use crate::aggregation::agg_result::FilterBucketResult;
                 Ok(BucketResult::Filter(FilterBucketResult {
                     doc_count,
                     sub_aggregations: final_sub_aggregations,
                 }))
-            },
+            }
         }
     }
 
