@@ -176,6 +176,14 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     fn size_hint(&self) -> u32 {
         self.column.num_docs()
     }
+
+    /// Returns a best-effort hint of the
+    /// cost to drive the docset.
+    fn cost(&self) -> u64 {
+        // Advancing the docset is relatively expensive since it scans the column.
+        // Keep cost relative to a term query driver; use num_docs as baseline.
+        self.column.num_docs() as u64
+    }
 }
 
 #[cfg(test)]

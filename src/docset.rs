@@ -87,6 +87,17 @@ pub trait DocSet: Send {
     /// length of the docset.
     fn size_hint(&self) -> u32;
 
+    /// Returns a best-effort hint of the cost to consume the entire docset.
+    ///
+    /// Consuming means calling advance until [`TERMINATED`] is returned.
+    /// The cost should be relative to the cost of driving a Term query,
+    /// which would be the number of documents in the DocSet.
+    ///
+    /// By default this returns `size_hint()`.
+    fn cost(&self) -> u64 {
+        self.size_hint() as u64
+    }
+
     /// Returns the number documents matching.
     /// Calling this method consumes the `DocSet`.
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
@@ -134,6 +145,10 @@ impl DocSet for &mut dyn DocSet {
         (**self).size_hint()
     }
 
+    fn cost(&self) -> u64 {
+        (**self).cost()
+    }
+
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
         (**self).count(alive_bitset)
     }
@@ -167,6 +182,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn size_hint(&self) -> u32 {
         let unboxed: &TDocSet = self.borrow();
         unboxed.size_hint()
+    }
+
+    fn cost(&self) -> u64 {
+        let unboxed: &TDocSet = self.borrow();
+        unboxed.cost()
     }
 
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {

@@ -368,6 +368,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         slop: u32,
         offset: usize,
     ) -> PhraseScorer<TPostings> {
+        let num_docs = fieldnorm_reader.num_docs();
         let max_offset = term_postings_with_offset
             .iter()
             .map(|&(offset, _)| offset)
@@ -382,7 +383,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             })
             .collect::<Vec<_>>();
         let mut scorer = PhraseScorer {
-            intersection_docset: Intersection::new(postings_with_offsets),
+            intersection_docset: Intersection::new(postings_with_offsets, num_docs),
             num_terms: num_docsets,
             left_positions: Vec::with_capacity(100),
             right_positions: Vec::with_capacity(100),
@@ -534,6 +535,15 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
 
     fn size_hint(&self) -> u32 {
         self.intersection_docset.size_hint()
+    }
+
+    /// Returns a best-effort hint of the
+    /// cost to drive the docset.
+    fn cost(&self) -> u64 {
+        // Evaluating phrase matches is generally more expensive than simple term matches,
+        // as it requires loading and comparing positions. Use a conservative multiplier
+        // based on the number of terms.
+        self.intersection_docset.size_hint() as u64 * 10 * self.num_terms as u64
     }
 }
 
