@@ -11,6 +11,7 @@ use crate::query::{Query, QueryParser, RangeQuery, TermQuery, Weight};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
+use common::bounds::BoundsRange;
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
 ///
@@ -153,7 +154,6 @@ impl DocumentQueryEvaluator {
         segment_reader: &SegmentReader,
     ) -> crate::Result<Option<bool>> {
         use crate::query::{AllQuery, RangeQuery, TermQuery};
-        use downcast_rs::Downcast;
 
         // Try to downcast to specific query types for fast evaluation
         if let Some(_all_query) = self.query.downcast_ref::<AllQuery>() {
@@ -296,22 +296,22 @@ impl DocumentQueryEvaluator {
         match range_query.value_type() {
             crate::schema::Type::U64 => {
                 if let Ok(column) = fast_fields.u64(field_entry.name()) {
-                    return Ok(Some(self.check_u64_range(range_query, &column, doc)?));
+                    return Ok(Some(self.check_range(range_query, &column, doc)?));
                 }
             }
             crate::schema::Type::I64 => {
                 if let Ok(column) = fast_fields.i64(field_entry.name()) {
-                    return Ok(Some(self.check_i64_range(range_query, &column, doc)?));
+                    return Ok(Some(self.check_range(range_query, &column, doc)?));
                 }
             }
             crate::schema::Type::F64 => {
                 if let Ok(column) = fast_fields.f64(field_entry.name()) {
-                    return Ok(Some(self.check_f64_range(range_query, &column, doc)?));
+                    return Ok(Some(self.check_range(range_query, &column, doc)?));
                 }
             }
             crate::schema::Type::Date => {
                 if let Ok(column) = fast_fields.date(field_entry.name()) {
-                    return Ok(Some(self.check_date_range(range_query, &column, doc)?));
+                    return Ok(Some(self.check_range(range_query, &column, doc)?));
                 }
             }
             _ => {
@@ -323,236 +323,109 @@ impl DocumentQueryEvaluator {
         Ok(None)
     }
 
-    fn check_u64_range(
+    /// Range checking using BoundsRange
+    fn check_range<T>(
         &self,
         range_query: &RangeQuery,
-        column: &crate::fastfield::Column<u64>,
+        column: &crate::fastfield::Column<T>,
         doc: DocId,
-    ) -> crate::Result<bool> {
-        use std::ops::Bound;
+    ) -> crate::Result<bool>
+    where
+        T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static,
+    {
+        // Transform the BoundsRange<Term> to BoundsRange<T> using map_bound
+        let term_bounds = range_query.bounds_range();
 
-        let (lower_bound, upper_bound) = range_query.bounds();
-
+        // Check each document value against the range
         for doc_value in column.values_for_doc(doc) {
-            let matches = match (lower_bound, upper_bound) {
-                (Bound::Included(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_u64().unwrap();
-                    let upper_val = upper.value().as_u64().unwrap();
-                    doc_value >= lower_val && doc_value <= upper_val
-                }
-                (Bound::Included(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_u64().unwrap();
-                    let upper_val = upper.value().as_u64().unwrap();
-                    doc_value >= lower_val && doc_value < upper_val
-                }
-                (Bound::Excluded(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_u64().unwrap();
-                    let upper_val = upper.value().as_u64().unwrap();
-                    doc_value > lower_val && doc_value <= upper_val
-                }
-                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_u64().unwrap();
-                    let upper_val = upper.value().as_u64().unwrap();
-                    doc_value > lower_val && doc_value < upper_val
-                }
-                (Bound::Unbounded, Bound::Included(upper)) => {
-                    let upper_val = upper.value().as_u64().unwrap();
-                    doc_value <= upper_val
-                }
-                (Bound::Unbounded, Bound::Excluded(upper)) => {
-                    let upper_val = upper.value().as_u64().unwrap();
-                    doc_value < upper_val
-                }
-                (Bound::Included(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_u64().unwrap();
-                    doc_value >= lower_val
-                }
-                (Bound::Excluded(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_u64().unwrap();
-                    doc_value > lower_val
-                }
-                (Bound::Unbounded, Bound::Unbounded) => true,
-            };
-
-            if matches {
+            if self.check_value_against_term_bounds(doc_value, term_bounds)? {
                 return Ok(true);
             }
         }
         Ok(false)
     }
 
-    fn check_i64_range(
+    /// Check if a value matches the term bounds - type-specific implementations
+    fn check_value_against_term_bounds<T>(
         &self,
-        range_query: &RangeQuery,
-        column: &crate::fastfield::Column<i64>,
-        doc: DocId,
-    ) -> crate::Result<bool> {
-        use std::ops::Bound;
+        value: T,
+        bounds: &BoundsRange<crate::schema::Term>,
+    ) -> crate::Result<bool>
+    where
+        T: PartialOrd + Copy + 'static,
+    {
+        use std::any::TypeId;
 
-        let (lower_bound, upper_bound) = range_query.bounds();
+        // Handle each type specifically since we can't make this truly generic
+        let type_id = TypeId::of::<T>();
 
-        for doc_value in column.values_for_doc(doc) {
-            let matches = match (lower_bound, upper_bound) {
-                (Bound::Included(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_i64().unwrap();
-                    let upper_val = upper.value().as_i64().unwrap();
-                    doc_value >= lower_val && doc_value <= upper_val
-                }
-                (Bound::Included(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_i64().unwrap();
-                    let upper_val = upper.value().as_i64().unwrap();
-                    doc_value >= lower_val && doc_value < upper_val
-                }
-                (Bound::Excluded(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_i64().unwrap();
-                    let upper_val = upper.value().as_i64().unwrap();
-                    doc_value > lower_val && doc_value <= upper_val
-                }
-                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_i64().unwrap();
-                    let upper_val = upper.value().as_i64().unwrap();
-                    doc_value > lower_val && doc_value < upper_val
-                }
-                (Bound::Unbounded, Bound::Included(upper)) => {
-                    let upper_val = upper.value().as_i64().unwrap();
-                    doc_value <= upper_val
-                }
-                (Bound::Unbounded, Bound::Excluded(upper)) => {
-                    let upper_val = upper.value().as_i64().unwrap();
-                    doc_value < upper_val
-                }
-                (Bound::Included(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_i64().unwrap();
-                    doc_value >= lower_val
-                }
-                (Bound::Excluded(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_i64().unwrap();
-                    doc_value > lower_val
-                }
-                (Bound::Unbounded, Bound::Unbounded) => true,
-            };
-
-            if matches {
-                return Ok(true);
-            }
+        if type_id == TypeId::of::<u64>() {
+            let value = unsafe { *((&value) as *const T as *const u64) };
+            self.check_bounds_generic(value, bounds, |term| term.value().as_u64())
+        } else if type_id == TypeId::of::<i64>() {
+            let value = unsafe { *((&value) as *const T as *const i64) };
+            self.check_bounds_generic(value, bounds, |term| term.value().as_i64())
+        } else if type_id == TypeId::of::<f64>() {
+            let value = unsafe { *((&value) as *const T as *const f64) };
+            self.check_bounds_generic(value, bounds, |term| term.value().as_f64())
+        } else if type_id == TypeId::of::<crate::DateTime>() {
+            let value = unsafe { *((&value) as *const T as *const crate::DateTime) };
+            self.check_bounds_generic(value, bounds, |term| term.value().as_date())
+        } else {
+            Err(TantivyError::InvalidArgument(
+                "Unsupported type for range checking".to_string(),
+            ))
         }
-        Ok(false)
     }
 
-    fn check_f64_range(
+    /// Generic bounds checking logic
+    fn check_bounds_generic<T, F>(
         &self,
-        range_query: &RangeQuery,
-        column: &crate::fastfield::Column<f64>,
-        doc: DocId,
-    ) -> crate::Result<bool> {
+        value: T,
+        bounds: &BoundsRange<crate::schema::Term>,
+        extractor: F,
+    ) -> crate::Result<bool>
+    where
+        T: PartialOrd,
+        F: Fn(&crate::schema::Term) -> Option<T>,
+    {
         use std::ops::Bound;
 
-        let (lower_bound, upper_bound) = range_query.bounds();
-
-        for doc_value in column.values_for_doc(doc) {
-            let matches = match (lower_bound, upper_bound) {
-                (Bound::Included(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_f64().unwrap();
-                    let upper_val = upper.value().as_f64().unwrap();
-                    doc_value >= lower_val && doc_value <= upper_val
-                }
-                (Bound::Included(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_f64().unwrap();
-                    let upper_val = upper.value().as_f64().unwrap();
-                    doc_value >= lower_val && doc_value < upper_val
-                }
-                (Bound::Excluded(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_f64().unwrap();
-                    let upper_val = upper.value().as_f64().unwrap();
-                    doc_value > lower_val && doc_value <= upper_val
-                }
-                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_f64().unwrap();
-                    let upper_val = upper.value().as_f64().unwrap();
-                    doc_value > lower_val && doc_value < upper_val
-                }
-                (Bound::Unbounded, Bound::Included(upper)) => {
-                    let upper_val = upper.value().as_f64().unwrap();
-                    doc_value <= upper_val
-                }
-                (Bound::Unbounded, Bound::Excluded(upper)) => {
-                    let upper_val = upper.value().as_f64().unwrap();
-                    doc_value < upper_val
-                }
-                (Bound::Included(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_f64().unwrap();
-                    doc_value >= lower_val
-                }
-                (Bound::Excluded(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_f64().unwrap();
-                    doc_value > lower_val
-                }
-                (Bound::Unbounded, Bound::Unbounded) => true,
-            };
-
-            if matches {
-                return Ok(true);
+        // Check lower bound
+        let lower_ok = match &bounds.lower_bound {
+            Bound::Included(term) => {
+                let bound_value = extractor(term).ok_or_else(|| {
+                    TantivyError::InvalidArgument("Failed to extract bound value".to_string())
+                })?;
+                value >= bound_value
             }
-        }
-        Ok(false)
-    }
-
-    fn check_date_range(
-        &self,
-        range_query: &RangeQuery,
-        column: &crate::fastfield::Column<crate::DateTime>,
-        doc: DocId,
-    ) -> crate::Result<bool> {
-        use std::ops::Bound;
-
-        let (lower_bound, upper_bound) = range_query.bounds();
-
-        for doc_value in column.values_for_doc(doc) {
-            let matches = match (lower_bound, upper_bound) {
-                (Bound::Included(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_date().unwrap();
-                    let upper_val = upper.value().as_date().unwrap();
-                    doc_value >= lower_val && doc_value <= upper_val
-                }
-                (Bound::Included(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_date().unwrap();
-                    let upper_val = upper.value().as_date().unwrap();
-                    doc_value >= lower_val && doc_value < upper_val
-                }
-                (Bound::Excluded(lower), Bound::Included(upper)) => {
-                    let lower_val = lower.value().as_date().unwrap();
-                    let upper_val = upper.value().as_date().unwrap();
-                    doc_value > lower_val && doc_value <= upper_val
-                }
-                (Bound::Excluded(lower), Bound::Excluded(upper)) => {
-                    let lower_val = lower.value().as_date().unwrap();
-                    let upper_val = upper.value().as_date().unwrap();
-                    doc_value > lower_val && doc_value < upper_val
-                }
-                (Bound::Unbounded, Bound::Included(upper)) => {
-                    let upper_val = upper.value().as_date().unwrap();
-                    doc_value <= upper_val
-                }
-                (Bound::Unbounded, Bound::Excluded(upper)) => {
-                    let upper_val = upper.value().as_date().unwrap();
-                    doc_value < upper_val
-                }
-                (Bound::Included(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_date().unwrap();
-                    doc_value >= lower_val
-                }
-                (Bound::Excluded(lower), Bound::Unbounded) => {
-                    let lower_val = lower.value().as_date().unwrap();
-                    doc_value > lower_val
-                }
-                (Bound::Unbounded, Bound::Unbounded) => true,
-            };
-
-            if matches {
-                return Ok(true);
+            Bound::Excluded(term) => {
+                let bound_value = extractor(term).ok_or_else(|| {
+                    TantivyError::InvalidArgument("Failed to extract bound value".to_string())
+                })?;
+                value > bound_value
             }
-        }
-        Ok(false)
+            Bound::Unbounded => true,
+        };
+
+        // Check upper bound
+        let upper_ok = match &bounds.upper_bound {
+            Bound::Included(term) => {
+                let bound_value = extractor(term).ok_or_else(|| {
+                    TantivyError::InvalidArgument("Failed to extract bound value".to_string())
+                })?;
+                value <= bound_value
+            }
+            Bound::Excluded(term) => {
+                let bound_value = extractor(term).ok_or_else(|| {
+                    TantivyError::InvalidArgument("Failed to extract bound value".to_string())
+                })?;
+                value < bound_value
+            }
+            Bound::Unbounded => true,
+        };
+
+        Ok(lower_ok && upper_ok)
     }
 }
 
@@ -580,7 +453,7 @@ pub struct FilterSegmentCollector {
 
 impl FilterSegmentCollector {
     /// Create a new filter segment collector following the same pattern as other bucket aggregations
-    pub fn from_req_and_validate(
+    pub(crate) fn from_req_and_validate(
         filter_req: &FilterAggregation,
         sub_aggregations: &mut AggregationsWithAccessor,
         segment_reader: &SegmentReader,
@@ -610,26 +483,6 @@ impl FilterSegmentCollector {
             evaluator,
             doc_count: 0,
             sub_aggregations: sub_agg_collector,
-            segment_reader: segment_reader.clone(),
-            accessor_idx,
-        })
-    }
-
-    /// Create a new filter segment collector (deprecated - use from_req_and_validate)
-    pub fn new(
-        query: Box<dyn Query>,
-        schema: Schema,
-        segment_reader: &SegmentReader,
-        sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
-        accessor_idx: usize,
-    ) -> crate::Result<Self> {
-        let mut evaluator = DocumentQueryEvaluator::new(query, schema);
-        evaluator.initialize_for_segment(segment_reader)?;
-
-        Ok(FilterSegmentCollector {
-            evaluator,
-            doc_count: 0,
-            sub_aggregations,
             segment_reader: segment_reader.clone(),
             accessor_idx,
         })
