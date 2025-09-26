@@ -103,7 +103,7 @@ impl DocumentQueryEvaluator {
     }
 
     /// Initialize the evaluator for a specific segment
-    pub fn initialize_for_segment(&mut self, segment_reader: &SegmentReader) -> crate::Result<()> {
+    pub fn initialize_for_segment(&mut self, _segment_reader: &SegmentReader) -> crate::Result<()> {
         use crate::query::EnableScoring;
         self.weight = Some(
             self.query
@@ -152,12 +152,20 @@ impl DocumentQueryEvaluator {
         _doc: DocId,
         _segment_reader: &SegmentReader,
     ) -> crate::Result<Option<bool>> {
-        // TODO: Implement fast paths for:
-        // - Term queries using fast fields
-        // - Range queries using fast fields
-        // - Simple boolean combinations
+        use crate::query::AllQuery;
+        use downcast_rs::Downcast;
 
-        // For now, always use full evaluation
+        // Try to downcast to specific query types for fast evaluation
+        if let Some(_all_query) = self.query.downcast_ref::<AllQuery>() {
+            // AllQuery matches all documents
+            return Ok(Some(true));
+        }
+
+        // For now, only implement AllQuery fast path
+        // Term and Range queries would require accessing private fields
+        // which is not ideal for maintainability
+
+        // For other query types, use full evaluation
         Ok(None)
     }
 }
