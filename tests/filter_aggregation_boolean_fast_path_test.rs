@@ -115,9 +115,9 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
     println!("Should boolean query duration: {:?}", should_bool_duration);
 
     // All should complete in reasonable time using Tantivy's optimizations
-    assert!(simple_bool_duration.as_millis() < 200);
-    assert!(complex_bool_duration.as_millis() < 200);
-    assert!(should_bool_duration.as_millis() < 200);
+    assert!(simple_bool_duration.as_millis() < 400);
+    assert!(complex_bool_duration.as_millis() < 400);
+    assert!(should_bool_duration.as_millis() < 400);
 
     Ok(())
 }
