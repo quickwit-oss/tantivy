@@ -227,19 +227,6 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_array()
     }
 
-    /// Returns a full block, regardless of whether the block is complete or incomplete (
-    /// as it happens for the last block of the posting list).
-    ///
-    /// In the latter case, the block is guaranteed to be padded with the sentinel value:
-    /// `TERMINATED`. The array is also guaranteed to be aligned on 16 bytes = 128 bits.
-    ///
-    /// This method is useful to run SSE2 linear search.
-    #[inline]
-    pub(crate) fn full_block(&self) -> &[DocId; COMPRESSION_BLOCK_SIZE] {
-        debug_assert!(self.block_is_loaded());
-        self.doc_decoder.full_output()
-    }
-
     /// Return the document at index `idx` of the block.
     #[inline]
     pub fn doc(&self, idx: usize) -> u32 {
@@ -275,22 +262,36 @@ impl BlockSegmentPostings {
     ///
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
-    pub fn seek(&mut self, target_doc: DocId) {
-        self.shallow_seek(target_doc);
+    pub fn seek(&mut self, target_doc: DocId) -> usize {
+        // Move to the block that might contain our document.
+        self.seek_block(target_doc);
         self.load_block();
+
+        // At this point we are on the block that might contain our document.
+        let doc = self.doc_decoder.seek_within_block(target_doc);
+
+        // The last block is not full and padded with TERMINATED,
+        // so we are guaranteed to have at least one value (real or padding)
+        // that is >= target_doc.
+        debug_assert!(doc < COMPRESSION_BLOCK_SIZE);
+
+        // `doc` is now the first element >= `target_doc`.
+        // If all docs are smaller than target, the current block is incomplete and padded
+        // with TERMINATED. After the search, the cursor points to the first TERMINATED.
+        doc
     }
 
     pub(crate) fn position_offset(&self) -> u64 {
         self.skip_reader.position_offset()
     }
 
-    /// Dangerous API! This calls seek on the skip list,
+    /// Dangerous API! This calls seeks the next block on the skip list,
     /// but does not `.load_block()` afterwards.
     ///
     /// `.load_block()` needs to be called manually afterwards.
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
-    pub(crate) fn shallow_seek(&mut self, target_doc: DocId) {
+    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
             self.block_loaded = false;

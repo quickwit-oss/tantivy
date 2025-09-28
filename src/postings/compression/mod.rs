@@ -151,9 +151,11 @@ impl BlockDecoder {
         &self.output[..self.output_len]
     }
 
+    /// Return in-block index of first value >= `target`.
+    /// Uses the padded buffer to enable branchless search.
     #[inline]
-    pub(crate) fn full_output(&self) -> &[u32; COMPRESSION_BLOCK_SIZE] {
-        &self.output
+    pub(crate) fn seek_within_block(&self, target: u32) -> usize {
+        crate::postings::branchless_binary_search(&self.output, target)
     }
 
     #[inline]
