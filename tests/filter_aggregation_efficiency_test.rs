@@ -1,9 +1,13 @@
+mod common;
+
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::{AllQuery, QueryParser};
 use tantivy::schema::{Schema, FAST, TEXT};
 use tantivy::{doc, Index, IndexWriter};
+
+use common::filter_test_helpers::*;
 
 fn create_index() -> tantivy::Result<Index> {
     let mut schema_builder = Schema::builder();

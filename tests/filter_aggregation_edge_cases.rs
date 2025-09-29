@@ -1,9 +1,13 @@
+mod common;
+
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
+
+use common::filter_test_helpers::*;
 
 fn create_edge_case_index() -> tantivy::Result<(Index, Schema)> {
     let mut schema_builder = Schema::builder();
@@ -81,9 +85,25 @@ fn test_extreme_numeric_values() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
+    // Validate extreme numeric values with actual counts
     assert!(result.0.contains_key("max_u64"));
+    let max_u64_result = result.0.get("max_u64").unwrap();
+    assert!(validate_filter_bucket(max_u64_result, 1)); // Only 1 document with u64::MAX
+
+    let max_u64_bucket = get_filter_bucket(max_u64_result).unwrap();
+    let stats_result = max_u64_bucket.sub_aggregations.0.get("stats").unwrap();
+    if let Some(stats) = get_stats(stats_result) {
+        assert_eq!(stats.count, 1);
+        assert_eq!(stats.max, Some(u64::MAX as f64));
+    }
+
     assert!(result.0.contains_key("zero_u64"));
+    let zero_u64_result = result.0.get("zero_u64").unwrap();
+    assert!(validate_filter_bucket(zero_u64_result, 1)); // Only 1 document with u64 = 0
+
     assert!(result.0.contains_key("max_f64"));
+    let max_f64_result = result.0.get("max_f64").unwrap();
+    assert!(validate_filter_bucket(max_f64_result, 1)); // Only 1 document with f64::MAX
     Ok(())
 }
 
