@@ -113,7 +113,7 @@ impl ExecutionStats {
 
         // Verify single query execution
         if self.query_executions == 1 {
-            println!("✅ Single query execution - EFFICIENT");
+            println!("Single query execution - EFFICIENT");
         } else {
             println!(
                 "❌ Multiple query executions ({}) - INEFFICIENT",
@@ -124,7 +124,7 @@ impl ExecutionStats {
         // Verify reasonable number of segment collectors
         if self.segment_collectors_created > 0 && self.segment_collectors_created <= 10 {
             println!(
-                "✅ Reasonable segment collectors ({}) - EFFICIENT",
+                "Reasonable segment collectors ({}) - EFFICIENT",
                 self.segment_collectors_created
             );
         } else if self.segment_collectors_created > 0 {
@@ -137,7 +137,7 @@ impl ExecutionStats {
         // Verify document processing efficiency
         let total_docs = self.collect_calls + self.documents_in_blocks;
         if total_docs > 0 {
-            println!("✅ Documents processed: {} - SINGLE PASS", total_docs);
+            println!("Documents processed: {} - SINGLE PASS", total_docs);
         } else {
             println!("❌ No documents processed - UNEXPECTED");
         }
@@ -209,25 +209,25 @@ fn test_architectural_efficiency_guarantees() -> tantivy::Result<()> {
     // Test 1: Multiple independent filters should process each document once
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
         },
         "books": {
-            "filter": { "query_string": "category:books" },
+            "filter": "category:books",
             "aggs": {
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "in_stock": {
-            "filter": { "query_string": "in_stock:true" },
+            "filter": "in_stock:true",
             "aggs": {
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "premium": {
-            "filter": { "query_string": "price:[500 TO *]" },
+            "filter": "price:[500 TO *]",
             "aggs": {
                 "brands": { "terms": { "field": "brand", "size": 10 } }
             }
@@ -247,7 +247,7 @@ fn test_architectural_efficiency_guarantees() -> tantivy::Result<()> {
     assert!(result.0.contains_key("in_stock"));
     assert!(result.0.contains_key("premium"));
 
-    println!("✅ Multiple independent filters executed successfully");
+    println!("Multiple independent filters executed successfully");
 
     // Examine efficiency counters at the end
     let stats = counter.get_stats();
@@ -260,7 +260,7 @@ fn test_architectural_efficiency_guarantees() -> tantivy::Result<()> {
         stats.query_executions, 1,
         "Should have exactly 1 query execution for multiple filters"
     );
-    println!("✅ COUNTER VERIFIED: Single query execution for multiple filters");
+    println!("COUNTER VERIFIED: Single query execution for multiple filters");
 
     // Key architectural insight: Tantivy's design guarantees efficiency
     // 1. Single query execution finds matching documents
@@ -282,19 +282,19 @@ fn test_nested_filter_efficiency() -> tantivy::Result<()> {
     // Deep nesting should still be single-pass
     let agg = json!({
         "all": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "in_stock": {
-                    "filter": { "query_string": "in_stock:true" },
+                    "filter": "in_stock:true",
                     "aggs": {
                         "expensive": {
-                            "filter": { "query_string": "price:[100 TO *]" },
+                            "filter": "price:[100 TO *]",
                             "aggs": {
                                 "electronics": {
-                                    "filter": { "query_string": "category:electronics" },
+                                    "filter": "category:electronics",
                                     "aggs": {
                                         "premium": {
-                                            "filter": { "query_string": "price:[800 TO *]" },
+                                            "filter": "price:[800 TO *]",
                                             "aggs": {
                                                 "count": { "value_count": { "field": "brand" } }
                                             }
@@ -337,7 +337,7 @@ fn test_nested_filter_efficiency() -> tantivy::Result<()> {
 
     assert_aggregation_results_match(&result.0, expected, 0.1);
 
-    println!("✅ Deep nested filters executed efficiently");
+    println!("Deep nested filters executed efficiently");
 
     // Nested efficiency guarantees:
     // - Each document evaluated once at each level
@@ -359,13 +359,13 @@ fn test_filter_vs_query_efficiency() -> tantivy::Result<()> {
     // Method 1: Filter aggregation (efficient)
     let filter_agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
         },
         "books": {
-            "filter": { "query_string": "category:books" },
+            "filter": "category:books",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -408,8 +408,8 @@ fn test_filter_vs_query_efficiency() -> tantivy::Result<()> {
     // - Filter aggregation: 1 query execution, 1 document pass, multiple filter evaluations
     // - Separate queries: N query executions, N document passes, N index scans
 
-    println!("✅ Filter aggregation is architecturally more efficient than separate queries");
-    println!("✅ Single index scan vs multiple index scans");
+    println!("Filter aggregation is architecturally more efficient than separate queries");
+    println!("Single index scan vs multiple index scans");
 
     Ok(())
 }
@@ -424,18 +424,18 @@ fn test_memory_efficiency_with_many_filters() -> tantivy::Result<()> {
 
     // Create many filters to test memory efficiency
     let agg = json!({
-        "all_products": { "filter": { "query_string": "*" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "electronics": { "filter": { "query_string": "category:electronics" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "books": { "filter": { "query_string": "category:books" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "clothing": { "filter": { "query_string": "category:clothing" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "in_stock": { "filter": { "query_string": "in_stock:true" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "out_of_stock": { "filter": { "query_string": "in_stock:false" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "cheap": { "filter": { "query_string": "price:[0 TO 100]" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "mid_range": { "filter": { "query_string": "price:[100 TO 500]" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "expensive": { "filter": { "query_string": "price:[500 TO *]" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "apple": { "filter": { "query_string": "brand:Apple" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "samsung": { "filter": { "query_string": "brand:Samsung" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "nike": { "filter": { "query_string": "brand:Nike" }, "aggs": { "count": { "value_count": { "field": "brand" } } } }
+        "all_products": { "filter": "*", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "electronics": { "filter": "category:electronics", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "books": { "filter": "category:books", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "clothing": { "filter": "category:clothing", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "in_stock": { "filter": "in_stock:true", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "out_of_stock": { "filter": "in_stock:false", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "cheap": { "filter": "price:[0 TO 100]", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "mid_range": { "filter": "price:[100 TO 500]", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "expensive": { "filter": "price:[500 TO *]", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "apple": { "filter": "brand:Apple", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "samsung": { "filter": "brand:Samsung", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "nike": { "filter": "brand:Nike", "aggs": { "count": { "value_count": { "field": "brand" } } } }
     });
 
     let aggregations: Aggregations = serde_json::from_value(agg)?;
@@ -445,7 +445,7 @@ fn test_memory_efficiency_with_many_filters() -> tantivy::Result<()> {
     // Verify all filters executed
     assert_eq!(result.0.len(), 12);
 
-    println!("✅ 12 filters executed efficiently in single pass");
+    println!("12 filters executed efficiently in single pass");
 
     // Memory efficiency characteristics:
     // - Memory usage is O(filters) not O(documents × filters)
@@ -466,15 +466,15 @@ fn test_execution_order_independence() -> tantivy::Result<()> {
 
     // Same filters in different orders should produce identical results
     let agg1 = json!({
-        "electronics": { "filter": { "query_string": "category:electronics" }, "aggs": { "avg_price": { "avg": { "field": "price" } } } },
-        "books": { "filter": { "query_string": "category:books" }, "aggs": { "avg_price": { "avg": { "field": "price" } } } },
-        "in_stock": { "filter": { "query_string": "in_stock:true" }, "aggs": { "count": { "value_count": { "field": "brand" } } } }
+        "electronics": { "filter": "category:electronics", "aggs": { "avg_price": { "avg": { "field": "price" } } } },
+        "books": { "filter": "category:books", "aggs": { "avg_price": { "avg": { "field": "price" } } } },
+        "in_stock": { "filter": "in_stock:true", "aggs": { "count": { "value_count": { "field": "brand" } } } }
     });
 
     let agg2 = json!({
-        "in_stock": { "filter": { "query_string": "in_stock:true" }, "aggs": { "count": { "value_count": { "field": "brand" } } } },
-        "books": { "filter": { "query_string": "category:books" }, "aggs": { "avg_price": { "avg": { "field": "price" } } } },
-        "electronics": { "filter": { "query_string": "category:electronics" }, "aggs": { "avg_price": { "avg": { "field": "price" } } } }
+        "in_stock": { "filter": "in_stock:true", "aggs": { "count": { "value_count": { "field": "brand" } } } },
+        "books": { "filter": "category:books", "aggs": { "avg_price": { "avg": { "field": "price" } } } },
+        "electronics": { "filter": "category:electronics", "aggs": { "avg_price": { "avg": { "field": "price" } } } }
     });
 
     let aggregations1: Aggregations = serde_json::from_value(agg1)?;
@@ -494,8 +494,8 @@ fn test_execution_order_independence() -> tantivy::Result<()> {
     let electronics2 = &result2.0["electronics"];
     assert_eq!(electronics1, electronics2);
 
-    println!("✅ Filter execution order does not affect results");
-    println!("✅ Execution is deterministic and order-independent");
+    println!("Filter execution order does not affect results");
+    println!("Execution is deterministic and order-independent");
 
     Ok(())
 }
@@ -579,10 +579,10 @@ fn test_execution_counter_verification() -> tantivy::Result<()> {
     // Test with multiple filters and nested aggregations
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "in_stock": {
-                    "filter": { "query_string": "in_stock:true" },
+                    "filter": "in_stock:true",
                     "aggs": {
                         "avg_price": { "avg": { "field": "price" } },
                         "count": { "value_count": { "field": "brand" } }
@@ -591,13 +591,13 @@ fn test_execution_counter_verification() -> tantivy::Result<()> {
             }
         },
         "books": {
-            "filter": { "query_string": "category:books" },
+            "filter": "category:books",
             "aggs": {
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "premium": {
-            "filter": { "query_string": "price:[500 TO *]" },
+            "filter": "price:[500 TO *]",
             "aggs": {
                 "brands": { "terms": { "field": "brand", "size": 10 } }
             }
@@ -633,7 +633,7 @@ fn test_execution_counter_verification() -> tantivy::Result<()> {
     let total_docs = stats.collect_calls + stats.documents_in_blocks;
     assert!(total_docs > 0, "Should process documents");
 
-    println!("✅ VERIFICATION: All efficiency counters confirm optimal execution!");
+    println!("VERIFICATION: All efficiency counters confirm optimal execution!");
 
     Ok(())
 }
@@ -660,40 +660,40 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
     // Now we only need same-level filters, no base filter needed
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } },
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "books": {
-            "filter": { "query_string": "category:books" },
+            "filter": "category:books",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } },
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "clothing": {
-            "filter": { "query_string": "category:clothing" },
+            "filter": "category:clothing",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } },
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "expensive": {
-            "filter": { "query_string": "price:[500 TO *]" },
+            "filter": "price:[500 TO *]",
             "aggs": {
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "affordable": {
-            "filter": { "query_string": "price:[0 TO 200]" },
+            "filter": "price:[0 TO 200]",
             "aggs": {
                 "count": { "value_count": { "field": "brand" } }
             }
         },
         "high_value": {
-            "filter": { "query_string": "price:[800 TO *]" },
+            "filter": "price:[800 TO *]",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -808,10 +808,10 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
     // CRITICAL: Verify we're processing only the matching documents (efficient pattern)
     // With proper base query usage, we should process only ~7 documents
     if total_docs <= 10 {
-        println!("  - ✅ EFFICIENT: Processing only matching documents!");
-        println!("  - ✅ Base query limits document set before aggregation processing");
+        println!("  - EFFICIENT: Processing only matching documents!");
+        println!("  - Base query limits document set before aggregation processing");
         println!(
-            "  - ✅ Same-level filters process only the {} matching documents",
+            "  - Same-level filters process only the {} matching documents",
             total_docs
         );
     } else {
@@ -842,9 +842,9 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
         stats.collect_block_calls, stats.collect_calls, stats.segment_collectors_created
     );
 
-    println!("✅ VERIFIED: Single index traversal with base query filtering!");
-    println!("✅ VERIFIED: Same-level filters processed during single pass!");
-    println!("✅ VERIFIED: No redundant document processing or multiple traversals!");
+    println!("VERIFIED: Single index traversal with base query filtering!");
+    println!("VERIFIED: Same-level filters processed during single pass!");
+    println!("VERIFIED: No redundant document processing or multiple traversals!");
 
     Ok(())
 }
@@ -865,16 +865,16 @@ fn test_efficient_vs_inefficient_base_query_patterns() -> tantivy::Result<()> {
 
     let agg_inefficient = json!({
         "premium_analysis": {
-            "filter": { "query_string": "brand:premium" },
+            "filter": "brand:premium",
             "aggs": {
                 "electronics": {
-                    "filter": { "query_string": "category:electronics" },
+                    "filter": "category:electronics",
                     "aggs": {
                         "avg_price": { "avg": { "field": "price" } }
                     }
                 },
                 "books": {
-                    "filter": { "query_string": "category:books" },
+                    "filter": "category:books",
                     "aggs": {
                         "avg_price": { "avg": { "field": "price" } }
                     }
@@ -908,8 +908,8 @@ fn test_efficient_vs_inefficient_base_query_patterns() -> tantivy::Result<()> {
         7
     );
 
-    // ✅ EFFICIENT PATTERN: Use base query as main search query
-    println!("\n--- ✅ EFFICIENT: Base Query as Main Search Query ---");
+    // EFFICIENT PATTERN: Use base query as main search query
+    println!("\n--- EFFICIENT: Base Query as Main Search Query ---");
     let counter_efficient = ExecutionCounter::new();
 
     // Parse the base query to use as main search query
@@ -923,13 +923,13 @@ fn test_efficient_vs_inefficient_base_query_patterns() -> tantivy::Result<()> {
     // Now we only need same-level filters, no base filter needed
     let agg_efficient = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
         },
         "books": {
-            "filter": { "query_string": "category:books" },
+            "filter": "category:books",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -985,8 +985,10 @@ fn test_efficient_vs_inefficient_base_query_patterns() -> tantivy::Result<()> {
         efficient_docs
     );
 
-    println!("✅ VERIFIED: Proper base query usage dramatically reduces document processing!");
-    println!("✅ VERIFIED: Filter aggregations work efficiently when base query limits the document set!");
+    println!("VERIFIED: Proper base query usage dramatically reduces document processing!");
+    println!(
+        "VERIFIED: Filter aggregations work efficiently when base query limits the document set!"
+    );
 
     Ok(())
 }

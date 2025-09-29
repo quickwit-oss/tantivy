@@ -34,7 +34,7 @@ fn test_term_query_fast_path() -> tantivy::Result<()> {
     // Test TermQuery fast path for text field
     let text_agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "count": { "value_count": { "field": "price" } }
             }
@@ -48,7 +48,7 @@ fn test_term_query_fast_path() -> tantivy::Result<()> {
     // Test TermQuery fast path for u64 field
     let u64_agg = json!({
         "price_150": {
-            "filter": { "query_string": "price:150" },
+            "filter": "price:150",
             "aggs": {
                 "count": { "value_count": { "field": "category" } }
             }
@@ -62,7 +62,7 @@ fn test_term_query_fast_path() -> tantivy::Result<()> {
     // Test TermQuery fast path for bool field
     let bool_agg = json!({
         "in_stock": {
-            "filter": { "query_string": "in_stock:true" },
+            "filter": "in_stock:true",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -103,7 +103,7 @@ fn test_range_query_fast_path() -> tantivy::Result<()> {
     // Test RangeQuery fast path for u64 field
     let u64_range_agg = json!({
         "mid_price": {
-            "filter": { "query_string": "price:[500 TO 600]" },
+            "filter": "price:[500 TO 600]",
             "aggs": {
                 "count": { "value_count": { "field": "price" } }
             }
@@ -117,7 +117,7 @@ fn test_range_query_fast_path() -> tantivy::Result<()> {
     // Test RangeQuery fast path for f64 field
     let f64_range_agg = json!({
         "mid_rating": {
-            "filter": { "query_string": "rating:[5.0 TO 7.0]" },
+            "filter": "rating:[5.0 TO 7.0]",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -131,7 +131,7 @@ fn test_range_query_fast_path() -> tantivy::Result<()> {
     // Test RangeQuery fast path for i64 field
     let i64_range_agg = json!({
         "positive_scores": {
-            "filter": { "query_string": "score:[0 TO *]" },
+            "filter": "score:[0 TO *]",
             "aggs": {
                 "count": { "value_count": { "field": "score" } }
             }
@@ -170,7 +170,7 @@ fn test_fast_path_vs_full_evaluation() -> tantivy::Result<()> {
     // Test simple term query (should use fast path)
     let simple_agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "count": { "value_count": { "field": "price" } }
             }
@@ -184,14 +184,7 @@ fn test_fast_path_vs_full_evaluation() -> tantivy::Result<()> {
     // Test complex boolean query (should fall back to full evaluation)
     let complex_agg = json!({
         "complex": {
-            "filter": {
-                "bool": {
-                    "must": [
-                        { "query_string": "category:electronics" },
-                        { "query_string": "price:[200 TO 300]" }
-                    ]
-                }
-            },
+            "filter": "category:electronics AND price:[200 TO 300]",
             "aggs": {
                 "count": { "value_count": { "field": "price" } }
             }

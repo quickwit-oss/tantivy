@@ -34,14 +34,7 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
     // Test 1: Simple boolean query with fast field terms (should use fast path)
     let simple_bool_agg = json!({
         "electronics_in_stock": {
-            "filter": {
-                "bool": {
-                    "must": [
-                        { "query_string": "category:electronics" },
-                        { "query_string": "in_stock:true" }
-                    ]
-                }
-            },
+            "filter": "category:electronics AND in_stock:true",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -55,18 +48,7 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
     // Test 2: Complex boolean query with range and term queries (should use fast path)
     let complex_bool_agg = json!({
         "premium_electronics": {
-            "filter": {
-                "bool": {
-                    "must": [
-                        { "query_string": "category:electronics" },
-                        { "query_string": "price:[500 TO *]" },
-                        { "query_string": "rating:[4.0 TO *]" }
-                    ],
-                    "must_not": [
-                        { "query_string": "in_stock:false" }
-                    ]
-                }
-            },
+            "filter": "category:electronics AND price:[500 TO *] AND rating:[4.0 TO *] AND NOT in_stock:false",
             "aggs": {
                 "count": { "value_count": { "field": "price" } }
             }
@@ -80,14 +62,7 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
     // Test 3: Boolean query with should clauses (should use fast path)
     let should_bool_agg = json!({
         "books_or_electronics": {
-            "filter": {
-                "bool": {
-                    "should": [
-                        { "query_string": "category:books" },
-                        { "query_string": "category:electronics" }
-                    ]
-                }
-            },
+            "filter": "category:books OR category:electronics",
             "aggs": {
                 "max_price": { "max": { "field": "price" } }
             }
@@ -128,22 +103,7 @@ fn test_nested_boolean_query_fast_path() -> tantivy::Result<()> {
     // Test nested boolean query (should use fast path for sub-queries)
     let nested_bool_agg = json!({
         "premium_branded_electronics": {
-            "filter": {
-                "bool": {
-                    "must": [
-                        { "query_string": "category:electronics" },
-                        {
-                            "bool": {
-                                "should": [
-                                    { "query_string": "brand:Apple" },
-                                    { "query_string": "brand:Samsung" }
-                                ]
-                            }
-                        },
-                        { "query_string": "price:[200 TO 800]" }
-                    ]
-                }
-            },
+            "filter": "category:electronics AND (brand:Apple OR brand:Samsung) AND price:[200 TO 800]",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -154,7 +114,7 @@ fn test_nested_boolean_query_fast_path() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
 
-    println!("✅ Nested boolean query works correctly!");
+    println!("Nested boolean query works correctly!");
 
     Ok(())
 }

@@ -38,7 +38,7 @@ fn test_all_query_fast_path() -> tantivy::Result<()> {
     // Test AllQuery fast path - should match all documents
     let agg = json!({
         "all_items": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "count": { "value_count": { "field": "category" } }
             }
@@ -68,7 +68,7 @@ fn test_complex_query_fallback() -> tantivy::Result<()> {
     // Test complex query that should fall back to full evaluation
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -115,7 +115,7 @@ fn test_performance_comparison() -> tantivy::Result<()> {
     // Test AllQuery (fast path)
     let all_query_agg = json!({
         "all": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "count": { "value_count": { "field": "value" } },
                 "avg": { "avg": { "field": "value" } }
@@ -130,7 +130,7 @@ fn test_performance_comparison() -> tantivy::Result<()> {
     // Test complex query (full evaluation)
     let complex_agg = json!({
         "even": {
-            "filter": { "query_string": "category:even" },
+            "filter": "category:even",
             "aggs": {
                 "count": { "value_count": { "field": "value" } },
                 "avg": { "avg": { "field": "value" } }

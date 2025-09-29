@@ -68,15 +68,15 @@ fn test_extreme_numeric_values() -> tantivy::Result<()> {
 
     let agg = json!({
         "max_u64": {
-            "filter": { "query_string": format!("u64_field:{}", u64::MAX) },
+            "filter": format!("u64_field:{}", u64::MAX),
             "aggs": { "stats": { "stats": { "field": "u64_field" } } }
         },
         "zero_u64": {
-            "filter": { "query_string": "u64_field:0" },
+            "filter": "u64_field:0",
             "aggs": { "avg": { "avg": { "field": "f64_field" } } }
         },
         "max_f64": {
-            "filter": { "query_string": "f64_field:[1e308 TO *]" },
+            "filter": "f64_field:[1e308 TO *]",
             "aggs": { "count": { "value_count": { "field": "f64_field" } } }
         }
     });
@@ -123,7 +123,7 @@ fn test_empty_and_special_strings() -> tantivy::Result<()> {
 
     let agg = json!({
         "empty_string": {
-            "filter": { "query_string": "text_field:\"\"" },
+            "filter": "text_field:\"\"",
             "aggs": { "count": { "value_count": { "field": "text_field" } } }
         }
     });
@@ -154,11 +154,11 @@ fn test_date_edge_cases() -> tantivy::Result<()> {
 
     let agg = json!({
         "epoch_time": {
-            "filter": { "query_string": "date_field:\"1970-01-01T00:00:00Z\"" },
+            "filter": "date_field:\"1970-01-01T00:00:00Z\"",
             "aggs": { "count": { "value_count": { "field": "date_field" } } }
         },
         "far_future": {
-            "filter": { "query_string": "date_field:[2038-01-19T03:14:07Z TO *]" },
+            "filter": "date_field:[2038-01-19T03:14:07Z TO *]",
             "aggs": { "avg": { "avg": { "field": "u64_field" } } }
         }
     });
@@ -203,13 +203,13 @@ fn test_malformed_queries() -> tantivy::Result<()> {
         }),
         json!({
             "empty": {
-                "filter": { "query_string": "" },
+                "filter": "",
                 "aggs": { "count": { "value_count": { "field": "u64_field" } } }
             }
         }),
         json!({
             "nonexistent": {
-                "filter": { "query_string": "nonexistent_field:value" },
+                "filter": "nonexistent_field:value",
                 "aggs": { "count": { "value_count": { "field": "u64_field" } } }
             }
         }),
@@ -241,7 +241,7 @@ fn test_field_type_compatibility() -> tantivy::Result<()> {
 
     let agg = json!({
         "field_types": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "text_count": { "value_count": { "field": "text_field" } },
                 "numeric_terms": { "terms": { "field": "u64_field" } },
@@ -309,25 +309,7 @@ fn test_deeply_nested_bool_queries() -> tantivy::Result<()> {
 
     let agg = json!({
         "complex_bool": {
-            "filter": {
-                "bool": {
-                    "must": [
-                        {
-                            "bool": {
-                                "should": [
-                                    "text_field:normal",
-                                    "text_field:extreme"
-                                ]
-                            }
-                        },
-                        {
-                            "bool": {
-                                "must_not": ["text_field:nonexistent"]
-                            }
-                        }
-                    ]
-                }
-            },
+            "filter": "(text_field:normal OR text_field:extreme) AND NOT text_field:nonexistent",
             "aggs": { "stats": { "stats": { "field": "u64_field" } } }
         }
     });
@@ -366,7 +348,7 @@ fn test_concurrent_access() -> tantivy::Result<()> {
                 let searcher = reader.searcher();
                 let agg = json!({
                     format!("concurrent_{}", i): {
-                        "filter": { "query_string": "text_field:normal" },
+                        "filter": "text_field:normal",
                         "aggs": { "avg": { "avg": { "field": "u64_field" } } }
                     }
                 });

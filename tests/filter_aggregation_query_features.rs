@@ -71,7 +71,7 @@ fn test_field_boosts() -> tantivy::Result<()> {
 
     let agg = json!({
         "rust_items": {
-            "filter": { "query_string": "title:rust" },
+            "filter": "title:rust",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } },
                 "count": { "value_count": { "field": "title" } }
@@ -105,7 +105,7 @@ fn test_fuzzy_matching() -> tantivy::Result<()> {
 
     let agg = json!({
         "programming_items": {
-            "filter": { "query_string": "title:programing" }, // Missing 'm'
+            "filter": "title:programing", // Missing 'm'
             "aggs": {
                 "avg_rating": { "avg": { "field": "rating" } },
                 "count": { "value_count": { "field": "title" } }
@@ -142,7 +142,7 @@ fn test_custom_query_parser() -> tantivy::Result<()> {
 
     // Test custom parser with filter aggregation
     let filter_agg = tantivy::aggregation::bucket::FilterAggregation::new(
-        json!({ "query_string": "title:rust" }),
+        "title:rust".to_string(),
     );
 
     let query = filter_agg.parse_query_with_parser(&query_parser)?;

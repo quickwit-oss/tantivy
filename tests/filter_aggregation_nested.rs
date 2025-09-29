@@ -60,16 +60,16 @@ fn test_deeply_nested_filters() -> tantivy::Result<()> {
     // Test 4 levels of nested filters
     let agg = json!({
         "all_products": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "electronics_only": {
-                    "filter": { "query_string": "category:electronics" },
+                    "filter": "category:electronics",
                     "aggs": {
                         "premium_electronics": {
-                            "filter": { "query_string": "price:[800 TO *]" },
+                            "filter": "price:[800 TO *]",
                             "aggs": {
                                 "high_rated_premium": {
-                                    "filter": { "query_string": "rating:[4.5 TO *]" },
+                                    "filter": "rating:[4.5 TO *]",
                                     "aggs": {
                                         "count": { "value_count": { "field": "brand" } },
                                         "avg_price": { "avg": { "field": "price" } }
@@ -110,7 +110,7 @@ fn test_deeply_nested_filters() -> tantivy::Result<()> {
     });
 
     assert_aggregation_results_match(&result.0, expected, 1.0);
-    println!("✅ 4-level nested filter aggregation works!");
+    println!("4-level nested filter aggregation works!");
     Ok(())
 }
 
@@ -123,30 +123,30 @@ fn test_multiple_nested_branches() -> tantivy::Result<()> {
     // Test multiple nested branches from the same parent
     let agg = json!({
         "by_region": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "us_products": {
-                    "filter": { "query_string": "region:US" },
+                    "filter": "region:US",
                     "aggs": {
                         "us_electronics": {
-                            "filter": { "query_string": "category:electronics" },
+                            "filter": "category:electronics",
                             "aggs": { "count": { "value_count": { "field": "brand" } } }
                         },
                         "us_books": {
-                            "filter": { "query_string": "category:books" },
+                            "filter": "category:books",
                             "aggs": { "avg_price": { "avg": { "field": "price" } } }
                         }
                     }
                 },
                 "eu_products": {
-                    "filter": { "query_string": "region:EU" },
+                    "filter": "region:EU",
                     "aggs": {
                         "eu_electronics": {
-                            "filter": { "query_string": "category:electronics" },
+                            "filter": "category:electronics",
                             "aggs": { "max_price": { "max": { "field": "price" } } }
                         },
                         "eu_clothing": {
-                            "filter": { "query_string": "category:clothing" },
+                            "filter": "category:clothing",
                             "aggs": { "min_rating": { "min": { "field": "rating" } } }
                         }
                     }
@@ -197,7 +197,7 @@ fn test_multiple_nested_branches() -> tantivy::Result<()> {
     });
 
     assert_aggregation_results_match(&result.0, expected, 0.1);
-    println!("✅ Multiple nested branches work!");
+    println!("Multiple nested branches work!");
     Ok(())
 }
 
@@ -210,30 +210,13 @@ fn test_nested_with_complex_boolean_queries() -> tantivy::Result<()> {
     // Test nested filters with complex boolean queries
     let agg = json!({
         "complex_nested": {
-            "filter": {
-                "bool": {
-                    "must": [
-                        { "query_string": "in_stock:true" }
-                    ]
-                }
-            },
+            "filter": "in_stock:true",
             "aggs": {
                 "premium_available": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                { "query_string": "price:[500 TO *]" },
-                                { "query_string": "rating:[4.0 TO *]" }
-                            ],
-                            "should": [
-                                { "query_string": "brand:Apple" },
-                                { "query_string": "brand:Samsung" }
-                            ]
-                        }
-                    },
+                    "filter": "price:[500 TO *] AND rating:[4.0 TO *] AND (brand:Apple OR brand:Samsung)",
                     "aggs": {
                         "by_category": {
-                            "filter": { "query_string": "category:electronics" },
+                            "filter": "category:electronics",
                             "aggs": {
                                 "stats": { "stats": { "field": "price" } }
                             }
@@ -269,7 +252,7 @@ fn test_nested_with_complex_boolean_queries() -> tantivy::Result<()> {
     });
 
     assert_aggregation_results_match(&result.0, expected, 0.1);
-    println!("✅ Nested filters with complex boolean queries work!");
+    println!("Nested filters with complex boolean queries work!");
     Ok(())
 }
 
@@ -282,13 +265,13 @@ fn test_nested_filter_with_metrics() -> tantivy::Result<()> {
     // Test nested filters with multiple metric aggregations
     let agg = json!({
         "electronics_analysis": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "premium_only": {
-                    "filter": { "query_string": "price:[1000 TO *]" },
+                    "filter": "price:[1000 TO *]",
                     "aggs": {
                         "high_rated": {
-                            "filter": { "query_string": "rating:[4.7 TO *]" },
+                            "filter": "rating:[4.7 TO *]",
                             "aggs": {
                                 "stats": { "stats": { "field": "price" } },
                                 "avg_rating": { "avg": { "field": "rating" } },
@@ -332,7 +315,7 @@ fn test_nested_filter_with_metrics() -> tantivy::Result<()> {
     });
 
     assert_aggregation_results_match(&result.0, expected, 0.1);
-    println!("✅ Nested filters with multiple metrics work!");
+    println!("Nested filters with multiple metrics work!");
     Ok(())
 }
 
@@ -344,19 +327,19 @@ fn test_nested_filter_performance() -> tantivy::Result<()> {
 
     let agg = json!({
         "level1": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "level2": {
-                    "filter": { "query_string": "in_stock:true" },
+                    "filter": "in_stock:true",
                     "aggs": {
                         "level3": {
-                            "filter": { "query_string": "rating:[4.0 TO *]" },
+                            "filter": "rating:[4.0 TO *]",
                             "aggs": {
                                 "level4": {
-                                    "filter": { "query_string": "price:[100 TO *]" },
+                                    "filter": "price:[100 TO *]",
                                     "aggs": {
                                         "level5": {
-                                            "filter": { "query_string": "category:electronics" },
+                                            "filter": "category:electronics",
                                             "aggs": {
                                                 "final_count": { "value_count": { "field": "brand" } }
                                             }
@@ -398,6 +381,6 @@ fn test_nested_filter_performance() -> tantivy::Result<()> {
     });
 
     assert_aggregation_results_match(&result.0, expected, 0.1);
-    println!("✅ Deep nested filters work correctly!");
+    println!("Deep nested filters work correctly!");
     Ok(())
 }

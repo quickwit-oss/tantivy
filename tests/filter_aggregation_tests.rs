@@ -50,7 +50,7 @@ fn basic_filter() -> tantivy::Result<()> {
 
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "avg_price": { "avg": { "field": "price" } }
             }
@@ -83,11 +83,11 @@ fn multiple_filters() -> tantivy::Result<()> {
 
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": { "avg_price": { "avg": { "field": "price" } } }
         },
         "in_stock": {
-            "filter": { "query_string": "in_stock:true" },
+            "filter": "in_stock:true",
             "aggs": { "count": { "value_count": { "field": "price" } } }
         }
     });
@@ -124,13 +124,13 @@ fn nested_filters() -> tantivy::Result<()> {
 
     let agg = json!({
         "all": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "electronics": {
-                    "filter": { "query_string": "category:electronics" },
+                    "filter": "category:electronics",
                     "aggs": {
                         "expensive": {
-                            "filter": { "query_string": "price:[800 TO *]" },
+                            "filter": "price:[800 TO *]",
                             "aggs": {
                                 "count": { "value_count": { "field": "price" } }
                             }
@@ -179,7 +179,7 @@ fn filter_with_base_query() -> tantivy::Result<()> {
 
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": { "count": { "value_count": { "field": "price" } } }
         }
     });
@@ -200,11 +200,7 @@ fn bool_queries() -> tantivy::Result<()> {
 
     let agg = json!({
         "premium_electronics": {
-            "filter": {
-                "bool": {
-                    "must": ["category:electronics", "price:[800 TO *]"]
-                }
-            },
+            "filter": "category:electronics AND price:[800 TO *]",
             "aggs": { "avg_rating": { "avg": { "field": "rating" } } }
         }
     });
@@ -225,7 +221,7 @@ fn empty_results() -> tantivy::Result<()> {
 
     let agg = json!({
         "nonexistent": {
-            "filter": { "query_string": "category:furniture" },
+            "filter": "category:furniture",
             "aggs": { "avg_price": { "avg": { "field": "price" } } }
         }
     });
@@ -246,7 +242,7 @@ fn mixed_aggregations() -> tantivy::Result<()> {
 
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "price_stats": { "stats": { "field": "price" } },
                 "brands": {
@@ -304,7 +300,7 @@ fn test_all_field_types() -> tantivy::Result<()> {
 
     let agg = json!({
         "electronics_filter": {
-            "filter": { "query_string": "text_field:electronics" },
+            "filter": "text_field:electronics",
             "aggs": {
                 "u64_stats": { "stats": { "field": "u64_field" } },
                 "i64_avg": { "avg": { "field": "i64_field" } },
@@ -331,11 +327,11 @@ fn test_range_queries() -> tantivy::Result<()> {
 
     let agg = json!({
         "expensive": {
-            "filter": { "query_string": "price:[500 TO *]" },
+            "filter": "price:[500 TO *]",
             "aggs": { "count": { "value_count": { "field": "price" } } }
         },
         "high_rated": {
-            "filter": { "query_string": "rating:[4.5 TO *]" },
+            "filter": "rating:[4.5 TO *]",
             "aggs": { "avg_price": { "avg": { "field": "price" } } }
         }
     });
@@ -357,11 +353,11 @@ fn test_bool_field_queries() -> tantivy::Result<()> {
 
     let agg = json!({
         "in_stock": {
-            "filter": { "query_string": "in_stock:true" },
+            "filter": "in_stock:true",
             "aggs": { "avg_price": { "avg": { "field": "price" } } }
         },
         "out_of_stock": {
-            "filter": { "query_string": "in_stock:false" },
+            "filter": "in_stock:false",
             "aggs": { "count": { "value_count": { "field": "price" } } }
         }
     });

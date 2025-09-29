@@ -45,11 +45,11 @@ fn test_single_traversal() -> tantivy::Result<()> {
     let agg = json!({
         "total": { "value_count": { "field": "status" } },
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": { "count": { "value_count": { "field": "category" } } }
         },
         "apple": {
-            "filter": { "query_string": "brand:Apple" },
+            "filter": "brand:Apple",
             "aggs": { "count": { "value_count": { "field": "brand" } } }
         }
     });
@@ -81,13 +81,13 @@ fn test_nested_efficiency() -> tantivy::Result<()> {
     // Nested filters should use document-level evaluation
     let agg = json!({
         "all": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "electronics": {
-                    "filter": { "query_string": "category:electronics" },
+                    "filter": "category:electronics",
                     "aggs": {
                         "available": {
-                            "filter": { "query_string": "status:available" },
+                            "filter": "status:available",
                             "aggs": { "count": { "value_count": { "field": "brand" } } }
                         }
                     }

@@ -51,7 +51,7 @@ fn test_all_metric_types() -> tantivy::Result<()> {
 
     let agg = json!({
         "all_metrics": {
-            "filter": { "query_string": "*" },
+            "filter": "*",
             "aggs": {
                 "price_stats": { "stats": { "field": "price" } },
                 "price_avg": { "avg": { "field": "price" } },
@@ -108,7 +108,7 @@ fn test_nested_bucket_aggregations() -> tantivy::Result<()> {
 
     let agg = json!({
         "electronics": {
-            "filter": { "query_string": "category:electronics" },
+            "filter": "category:electronics",
             "aggs": {
                 "by_brand": {
                     "terms": { "field": "brand" },
@@ -148,22 +148,15 @@ fn test_multiple_filter_types() -> tantivy::Result<()> {
 
     let agg = json!({
         "premium": {
-            "filter": { "query_string": "price:[1000 TO *]" },
+            "filter": "price:[1000 TO *]",
             "aggs": { "avg_rating": { "avg": { "field": "rating" } } }
         },
         "discounted": {
-            "filter": { "query_string": "discount:[5.0 TO *]" },
+            "filter": "discount:[5.0 TO *]",
             "aggs": { "total_sales": { "sum": { "field": "sales" } } }
         },
         "high_performers": {
-            "filter": {
-                "bool": {
-                    "must": [
-                        "rating:[4.5 TO *]",
-                        "sales:[1000 TO *]"
-                    ]
-                }
-            },
+            "filter": "rating:[4.5 TO *] AND sales:[1000 TO *]",
             "aggs": { "categories": { "terms": { "field": "category" } } }
         }
     });
@@ -202,7 +195,7 @@ fn test_performance_with_large_dataset() -> tantivy::Result<()> {
 
     let agg = json!({
         "large_filter": {
-            "filter": { "query_string": "value:[500 TO *]" },
+            "filter": "value:[500 TO *]",
             "aggs": {
                 "avg": { "avg": { "field": "value" } },
                 "categories": { "terms": { "field": "category", "size": 20 } }
