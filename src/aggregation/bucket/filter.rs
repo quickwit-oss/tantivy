@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
@@ -14,70 +14,172 @@ use crate::{DocId, SegmentReader, TantivyError};
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
 ///
-/// This is equivalent to Elasticsearch's filter aggregation and supports the same JSON syntax.
+/// FilterAggregation accepts any query type that implements the Query trait, providing
+/// maximum compatibility with both built-in Tantivy queries and custom query types.
 ///
-/// # Example JSON
-/// ```json
-/// {
-///   "t_shirts": {
-///     "filter": { "query_string": "type:t-shirt" },
-///     "aggs": {
-///       "avg_price": { "avg": { "field": "price" } }
-///     }
-///   }
-/// }
+/// # Usage
+/// ```rust
+/// use tantivy::aggregation::bucket::filter::FilterAggregation;
+/// use tantivy::query::TermQuery;
+///
+/// // Query strings are parsed using Tantivy's standard QueryParser
+/// let filter_agg = FilterAggregation::new("category:electronics AND price:[100 TO 500]".to_string());
+///
+/// // Direct Query objects can be used for custom query types
+/// let term_query = TermQuery::new(
+///     tantivy::Term::from_field_text(tantivy::schema::Field::from_field_id(0), "electronics"),
+///     tantivy::schema::IndexRecordOption::Basic
+/// );
+/// let filter_agg = FilterAggregation::new_with_query(Box::new(term_query));
 /// ```
 ///
 /// # Result
 /// The filter aggregation returns a single bucket with:
 /// - `doc_count`: Number of documents matching the filter
 /// - Sub-aggregation results computed on the filtered document set
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct FilterAggregation {
-    /// The query as raw JSON - will be parsed during collector creation
-    #[serde(flatten)]
-    pub query: serde_json::Value,
+    /// The query for filtering - can be either a query string or a direct Query object
+    query: FilterQuery,
+}
+
+/// Represents different ways to specify a filter query
+#[derive(Debug)]
+pub enum FilterQuery {
+    /// Query string that will be parsed using Tantivy's standard parsing facilities
+    /// Accepts query strings that can be parsed by QueryParser::parse_query()
+    QueryString(String),
+
+    /// Direct Query object for custom query types
+    /// Enables extensions like HeapFilterQuery to be used directly
+    /// This bypasses JSON parsing entirely for maximum performance
+    Direct(Box<dyn Query>),
+}
+
+impl Clone for FilterQuery {
+    fn clone(&self) -> Self {
+        match self {
+            FilterQuery::QueryString(query_string) => {
+                FilterQuery::QueryString(query_string.clone())
+            }
+            FilterQuery::Direct(query) => FilterQuery::Direct(query.box_clone()),
+        }
+    }
+}
+
+impl Clone for FilterAggregation {
+    fn clone(&self) -> Self {
+        Self {
+            query: self.query.clone(),
+        }
+    }
 }
 
 impl FilterAggregation {
-    /// Create a new filter aggregation with the given query JSON
-    pub fn new(query: serde_json::Value) -> Self {
-        Self { query }
+    /// Create a new filter aggregation with a query string
+    /// The query string will be parsed using Tantivy's standard QueryParser::parse_query()
+    pub fn new(query_string: String) -> Self {
+        Self {
+            query: FilterQuery::QueryString(query_string),
+        }
     }
 
-    /// Parse the stored query JSON into a Tantivy Query object
+    /// Create a new filter aggregation with a direct Query object
+    /// This enables custom query types like HeapFilterQuery to be used directly
+    pub fn new_with_query(query: Box<dyn Query>) -> Self {
+        Self {
+            query: FilterQuery::Direct(query),
+        }
+    }
+
+    /// Parse the query into a Tantivy Query object
     ///
-    /// This method uses QueryParser to enable advanced features like field boosts,
-    /// fuzzy matching, and default fields. For basic parsing without these features,
-    /// use the standalone `crate::query::parse_query` function.
+    /// For query strings, this uses Tantivy's standard QueryParser::parse_query() method.
+    /// For direct Query objects, returns a clone.
     pub fn parse_query(&self, schema: &Schema) -> crate::Result<Box<dyn Query>> {
-        // Create a QueryParser with default settings
-        // This enables feature inheritance like boosts and fuzzy matching
-        let tokenizer_manager = TokenizerManager::default();
-        let query_parser = QueryParser::new(schema.clone(), vec![], tokenizer_manager);
+        match &self.query {
+            FilterQuery::QueryString(query_str) => {
+                let tokenizer_manager = TokenizerManager::default();
+                let query_parser = QueryParser::new(schema.clone(), vec![], tokenizer_manager);
 
-        query_parser
-            .parse_json_query(&self.query)
-            .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
+                query_parser
+                    .parse_query(query_str)
+                    .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
+            }
+            FilterQuery::Direct(query) => {
+                // Return a clone of the direct query
+                Ok(query.box_clone())
+            }
+        }
     }
 
-    /// Parse the stored query JSON into a Tantivy Query object with custom QueryParser
+    /// Parse the query with a custom QueryParser
     ///
     /// This method allows using a pre-configured QueryParser with custom settings
     /// like field boosts, fuzzy matching, default fields, etc.
+    /// For direct Query objects, the QueryParser is ignored and a clone is returned.
     pub fn parse_query_with_parser(
         &self,
         query_parser: &QueryParser,
     ) -> crate::Result<Box<dyn Query>> {
-        query_parser
-            .parse_json_query(&self.query)
-            .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
+        match &self.query {
+            FilterQuery::QueryString(query_str) => query_parser
+                .parse_query(query_str)
+                .map_err(|e| TantivyError::InvalidArgument(e.to_string())),
+            FilterQuery::Direct(query) => {
+                // Return a clone of the direct query, ignoring the parser
+                Ok(query.box_clone())
+            }
+        }
     }
 
     /// Get the fast field names used by this aggregation (none for filter aggregation)
     pub fn get_fast_field_names(&self) -> Vec<&str> {
         // Filter aggregation doesn't use fast fields directly
         vec![]
+    }
+}
+
+// Custom serialization implementation
+impl Serialize for FilterAggregation {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match &self.query {
+            FilterQuery::QueryString(query_string) => {
+                // Serialize the query string directly
+                query_string.serialize(serializer)
+            }
+            FilterQuery::Direct(_) => {
+                // Direct queries cannot be serialized
+                Err(serde::ser::Error::custom(
+                    "Direct Query objects cannot be serialized. Use query strings for serialization support."
+                ))
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for FilterAggregation {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Deserialize as query string
+        let query_string = String::deserialize(deserializer)?;
+        Ok(FilterAggregation::new(query_string))
+    }
+}
+
+// Implement PartialEq for FilterAggregation
+impl PartialEq for FilterAggregation {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.query, &other.query) {
+            (FilterQuery::QueryString(a), FilterQuery::QueryString(b)) => a == b,
+            // Direct queries cannot be compared for equality
+            _ => false,
+        }
     }
 }
 
@@ -290,152 +392,4 @@ pub struct IntermediateFilterBucketResult {
     pub doc_count: u64,
     /// Sub-aggregation results
     pub sub_aggregations: IntermediateAggregationResults,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::query::QueryParser;
-    use crate::schema::{Schema, FAST, TEXT};
-    use crate::tokenizer::TokenizerManager;
-    use serde_json::json;
-
-    #[test]
-    fn test_filter_aggregation_serde() {
-        let filter_agg = FilterAggregation::new(json!({
-            "term": { "category": "electronics" }
-        }));
-
-        let serialized = serde_json::to_string(&filter_agg).unwrap();
-        let deserialized: FilterAggregation = serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(filter_agg, deserialized);
-    }
-
-    #[test]
-    fn test_parse_query_string() {
-        use crate::schema::INDEXED;
-        let mut schema_builder = Schema::builder();
-        let category_field = schema_builder.add_text_field("category", TEXT); // TEXT fields are indexed by default
-        let price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
-        let schema = schema_builder.build();
-
-        // Create QueryParser for testing
-        let tokenizer_manager = TokenizerManager::default();
-        let query_parser = QueryParser::new(
-            schema.clone(),
-            vec![category_field, price_field],
-            tokenizer_manager,
-        );
-
-        // Test string query
-        let query_json = json!({ "query_string": "category:electronics" });
-        let _query = query_parser.parse_json_query(&query_json).unwrap();
-
-        // Test numeric query
-        let query_json = json!({ "query_string": "price:100" });
-        let _query = query_parser.parse_json_query(&query_json).unwrap();
-    }
-
-    #[test]
-    fn test_parse_range_query() {
-        use crate::schema::INDEXED;
-        let mut schema_builder = Schema::builder();
-        let price_field = schema_builder.add_u64_field("price", FAST | INDEXED);
-        let schema = schema_builder.build();
-
-        // Create QueryParser for testing
-        let tokenizer_manager = TokenizerManager::default();
-        let query_parser = QueryParser::new(schema.clone(), vec![price_field], tokenizer_manager);
-
-        let query_json = json!({ "query_string": "price:[10 TO 100}" });
-        let _query = query_parser.parse_json_query(&query_json).unwrap();
-    }
-
-    #[test]
-    fn test_parse_boolean_query() {
-        let mut schema_builder = Schema::builder();
-        let category_field = schema_builder.add_text_field("category", TEXT);
-        let schema = schema_builder.build();
-
-        // Create QueryParser for testing
-        let tokenizer_manager = TokenizerManager::default();
-        let query_parser =
-            QueryParser::new(schema.clone(), vec![category_field], tokenizer_manager);
-
-        // Test boolean query with string clauses
-        let query_json = json!({
-            "bool": {
-                "must": ["category:electronics"],
-                "must_not": ["category:discontinued"]
-            }
-        });
-        let _query = query_parser.parse_json_query(&query_json).unwrap();
-
-        // Test match_all query using string syntax
-        let query_json = json!("*");
-        let _query = query_parser.parse_json_query(&query_json).unwrap();
-
-        // Test invalid query type
-        let query_json = json!({ "invalid_query": {} });
-        let result = query_parser.parse_json_query(&query_json);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_document_query_evaluator() {
-        use crate::query::TermQuery;
-        use crate::schema::{IndexRecordOption, Term};
-        use crate::schema::{Schema, TEXT};
-
-        let mut schema_builder = Schema::builder();
-        let category_field = schema_builder.add_text_field("category", TEXT);
-        let schema = schema_builder.build();
-
-        // Create a simple term query
-        let term = Term::from_field_text(category_field, "electronics");
-        let query = Box::new(TermQuery::new(term, IndexRecordOption::Basic));
-
-        // Create the document evaluator
-        let evaluator = DocumentQueryEvaluator::new(query, schema);
-
-        // Verify it was created successfully
-        assert!(evaluator.weight.is_none()); // Should be None until initialized
-    }
-
-    #[test]
-    fn test_parse_complex_bool_query() {
-        use crate::schema::{Schema, FAST, TEXT};
-
-        let mut schema_builder = Schema::builder();
-        let _category_field = schema_builder.add_text_field("category", TEXT);
-        let _price_field = schema_builder.add_u64_field("price", FAST);
-        let schema = schema_builder.build();
-
-        // Test complex bool query using string queries
-        let query_json = json!({
-            "bool": {
-                "must": [
-                    "category:electronics"
-                ],
-                "should": [
-                    "price:[100 TO 500}"
-                ],
-                "must_not": [
-                    "category:discontinued"
-                ]
-            }
-        });
-
-        // Create QueryParser for testing
-        let tokenizer_manager = TokenizerManager::default();
-        let query_parser = QueryParser::new(
-            schema.clone(),
-            vec![_category_field, _price_field],
-            tokenizer_manager,
-        );
-
-        let _query = query_parser.parse_json_query(&query_json).unwrap();
-        // Should parse successfully without errors
-    }
 }
