@@ -648,51 +648,54 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
 
     let counter = ExecutionCounter::new();
 
-    // Base query: full-text search for "premium" items, then multiple same-level filters
-    // This should only match 6 documents that contain "premium" in their brand field
+    // EFFICIENT PATTERN: Use "premium" as base query, then same-level filters
+    // Parse the base query to use as main search query for efficiency
+    use tantivy::query::QueryParser;
+    use tantivy::tokenizer::TokenizerManager;
+    let schema = index.schema();
+    let tokenizer_manager = TokenizerManager::default();
+    let query_parser = QueryParser::new(schema.clone(), vec![], tokenizer_manager);
+    let base_query = query_parser.parse_query("brand:premium")?;
+
+    // Now we only need same-level filters, no base filter needed
     let agg = json!({
-        "premium_analysis": {
-            "filter": { "query_string": "brand:premium" },
+        "electronics": {
+            "filter": { "query_string": "category:electronics" },
             "aggs": {
-                "electronics": {
-                    "filter": { "query_string": "category:electronics" },
-                    "aggs": {
-                        "avg_price": { "avg": { "field": "price" } },
-                        "count": { "value_count": { "field": "brand" } }
-                    }
-                },
-                "books": {
-                    "filter": { "query_string": "category:books" },
-                    "aggs": {
-                        "avg_price": { "avg": { "field": "price" } },
-                        "count": { "value_count": { "field": "brand" } }
-                    }
-                },
-                "clothing": {
-                    "filter": { "query_string": "category:clothing" },
-                    "aggs": {
-                        "avg_price": { "avg": { "field": "price" } },
-                        "count": { "value_count": { "field": "brand" } }
-                    }
-                },
-                "expensive": {
-                    "filter": { "query_string": "price:[500 TO *]" },
-                    "aggs": {
-                        "count": { "value_count": { "field": "brand" } }
-                    }
-                },
-                "affordable": {
-                    "filter": { "query_string": "price:[0 TO 200]" },
-                    "aggs": {
-                        "count": { "value_count": { "field": "brand" } }
-                    }
-                },
-                "high_value": {
-                    "filter": { "query_string": "price:[800 TO *]" },
-                    "aggs": {
-                        "avg_price": { "avg": { "field": "price" } }
-                    }
-                }
+                "avg_price": { "avg": { "field": "price" } },
+                "count": { "value_count": { "field": "brand" } }
+            }
+        },
+        "books": {
+            "filter": { "query_string": "category:books" },
+            "aggs": {
+                "avg_price": { "avg": { "field": "price" } },
+                "count": { "value_count": { "field": "brand" } }
+            }
+        },
+        "clothing": {
+            "filter": { "query_string": "category:clothing" },
+            "aggs": {
+                "avg_price": { "avg": { "field": "price" } },
+                "count": { "value_count": { "field": "brand" } }
+            }
+        },
+        "expensive": {
+            "filter": { "query_string": "price:[500 TO *]" },
+            "aggs": {
+                "count": { "value_count": { "field": "brand" } }
+            }
+        },
+        "affordable": {
+            "filter": { "query_string": "price:[0 TO 200]" },
+            "aggs": {
+                "count": { "value_count": { "field": "brand" } }
+            }
+        },
+        "high_value": {
+            "filter": { "query_string": "price:[800 TO *]" },
+            "aggs": {
+                "avg_price": { "avg": { "field": "price" } }
             }
         }
     });
@@ -703,10 +706,10 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
 
     // Track query execution
     counter.increment_query_executions();
-    let result = searcher.search(&AllQuery, &instrumented_collector)?;
+    let result = searcher.search(&*base_query, &instrumented_collector)?;
 
-    // Verify structure works with full-text base query filter
-    // ALL documents with "premium" in brand field are processed (including out-of-stock):
+    // Verify structure works with efficient base query pattern
+    // Base query "brand:premium" limits processing to only 7 matching documents:
     // - "Apple iPhone premium smartphone" (electronics, 1200, in-stock)
     // - "Sony premium headphones" (electronics, 900, OUT-OF-STOCK)
     // - "LG premium display monitor" (electronics, 700, in-stock)
@@ -715,52 +718,49 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
     // - "Puma sport premium gear" (clothing, 100, in-stock)
     // - "Reebok premium fitness wear" (clothing, 90, in-stock)
     let expected = json!({
-        "premium_analysis": {
-            "doc_count": 7,  // ALL "premium" items (including Sony which is out of stock)
-            "electronics": {
-                "doc_count": 3,  // Apple (1200), Sony (900), LG (700)
-                "avg_price": {
-                    "value": 933.3333333333334  // (1200 + 900 + 700) / 3
-                },
-                "count": {
-                    "value": 3.0
-                }
+        "electronics": {
+            "doc_count": 3,  // Apple (1200), Sony (900), LG (700)
+            "avg_price": {
+                "value": 933.3333333333334  // (1200 + 900 + 700) / 3
             },
-            "books": {
-                "doc_count": 1,  // Simon Schuster premium cookbook (35)
-                "avg_price": {
-                    "value": 35.0
-                },
-                "count": {
-                    "value": 1.0
-                }
+            "count": {
+                "value": 3.0
+            }
+        },
+        "books": {
+            "doc_count": 1,  // Simon Schuster premium cookbook (35)
+            "avg_price": {
+                "value": 35.0
             },
-            "clothing": {
-                "doc_count": 3,  // Nike (150), Puma (100), Reebok (90)
-                "avg_price": {
-                    "value": 113.33333333333333  // (150 + 100 + 90) / 3
-                },
-                "count": {
-                    "value": 3.0
-                }
+            "count": {
+                "value": 1.0
+            }
+        },
+        "clothing": {
+            "doc_count": 3,  // Nike (150), Puma (100), Reebok (90)
+            "avg_price": {
+                "value": 113.33333333333333  // (150 + 100 + 90) / 3
             },
-            "expensive": {
-                "doc_count": 3,  // Apple (1200), Sony (900), LG (700)
-                "count": {
-                    "value": 3.0
-                }
-            },
-            "affordable": {
-                "doc_count": 4,  // Simon (35), Nike (150), Puma (100), Reebok (90)
-                "count": {
-                    "value": 4.0
-                }
-            },
-            "high_value": {
-                "doc_count": 2,  // Apple (1200), Sony (900)
-                "avg_price": {
-                    "value": 1050.0  // (1200 + 900) / 2
-                }
+            "count": {
+                "value": 3.0
+            }
+        },
+        "expensive": {
+            "doc_count": 3,  // Apple (1200), Sony (900), LG (700)
+            "count": {
+                "value": 3.0
+            }
+        },
+        "affordable": {
+            "doc_count": 4,  // Simon (35), Nike (150), Puma (100), Reebok (90)
+            "count": {
+                "value": 4.0
+            }
+        },
+        "high_value": {
+            "doc_count": 2,  // Apple (1200), Sony (900)
+            "avg_price": {
+                "value": 1050.0  // (1200 + 900) / 2
             }
         }
     });
@@ -786,11 +786,11 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
     let total_docs = stats.collect_calls + stats.documents_in_blocks;
     assert!(total_docs > 0, "Should process documents");
 
-    // CRITICAL: Verify we're not processing more documents than the base query should match
-    // Base query "brand:premium" should only match 6-7 documents, not all 15
+    // CRITICAL: Verify we're processing only the documents that match the base query
+    // Base query "brand:premium" should only match 7 documents, and that's all we should process
     assert!(
-        total_docs <= 15,
-        "Should not process more than total documents (got {})",
+        total_docs <= 10,
+        "Should process only matching documents (~7), got {}",
         total_docs
     );
 
@@ -802,17 +802,24 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
     println!("  - Documents actually processed: {}", total_docs);
     println!(
         "  - Processing efficiency: {:.1}%",
-        (7.0 / total_docs as f64) * 100.0
+        (total_docs as f64 / 15.0) * 100.0
     );
 
-    // CRITICAL: Verify we're processing roughly the right number of documents
-    // We expect to process all 15 documents because Tantivy still needs to evaluate
-    // the base query filter on each document, but the key is that it's done in a single pass
-    if total_docs == 15 {
-        println!("  - ✅ Single-pass processing: All documents evaluated once for base query");
-        println!("  - ✅ Filter aggregation then processes only matching subset (7 docs)");
+    // CRITICAL: Verify we're processing only the matching documents (efficient pattern)
+    // With proper base query usage, we should process only ~7 documents
+    if total_docs <= 10 {
+        println!("  - ✅ EFFICIENT: Processing only matching documents!");
+        println!("  - ✅ Base query limits document set before aggregation processing");
+        println!(
+            "  - ✅ Same-level filters process only the {} matching documents",
+            total_docs
+        );
     } else {
-        println!("  - ⚠️  Unexpected document processing count");
+        println!(
+            "  - ❌ INEFFICIENT: Processing too many documents ({})",
+            total_docs
+        );
+        println!("  - ❌ Should process only ~7 documents with proper base query usage");
     }
 
     // Verify single traversal pattern
@@ -838,6 +845,148 @@ fn test_base_query_with_same_level_filters() -> tantivy::Result<()> {
     println!("✅ VERIFIED: Single index traversal with base query filtering!");
     println!("✅ VERIFIED: Same-level filters processed during single pass!");
     println!("✅ VERIFIED: No redundant document processing or multiple traversals!");
+
+    Ok(())
+}
+
+#[test]
+fn test_efficient_vs_inefficient_base_query_patterns() -> tantivy::Result<()> {
+    let index = create_test_index()?;
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
+
+    println!("=== EFFICIENCY COMPARISON: Proper Base Query Usage ===");
+    println!("🔍 Demonstrating the difference between efficient and inefficient patterns");
+
+    // ❌ INEFFICIENT PATTERN: AllQuery + filter aggregation
+    // This processes ALL 15 documents, then filters them
+    println!("\n--- ❌ INEFFICIENT: AllQuery + Filter Aggregation ---");
+    let counter_inefficient = ExecutionCounter::new();
+
+    let agg_inefficient = json!({
+        "premium_analysis": {
+            "filter": { "query_string": "brand:premium" },
+            "aggs": {
+                "electronics": {
+                    "filter": { "query_string": "category:electronics" },
+                    "aggs": {
+                        "avg_price": { "avg": { "field": "price" } }
+                    }
+                },
+                "books": {
+                    "filter": { "query_string": "category:books" },
+                    "aggs": {
+                        "avg_price": { "avg": { "field": "price" } }
+                    }
+                }
+            }
+        }
+    });
+
+    let aggregations_inefficient: Aggregations = serde_json::from_value(agg_inefficient)?;
+    let instrumented_collector_inefficient = InstrumentedAggregationCollector::new(
+        aggregations_inefficient,
+        counter_inefficient.clone(),
+    );
+
+    counter_inefficient.increment_query_executions();
+    let _result_inefficient = searcher.search(&AllQuery, &instrumented_collector_inefficient)?;
+
+    let stats_inefficient = counter_inefficient.get_stats();
+    println!("📊 INEFFICIENT RESULTS:");
+    println!(
+        "  - Documents processed: {}",
+        stats_inefficient.collect_calls + stats_inefficient.documents_in_blocks
+    );
+    println!(
+        "  - Query executions: {}",
+        stats_inefficient.query_executions
+    );
+    println!(
+        "  - Efficiency: Processing ALL {} documents to find {} matches",
+        stats_inefficient.collect_calls + stats_inefficient.documents_in_blocks,
+        7
+    );
+
+    // ✅ EFFICIENT PATTERN: Use base query as main search query
+    println!("\n--- ✅ EFFICIENT: Base Query as Main Search Query ---");
+    let counter_efficient = ExecutionCounter::new();
+
+    // Parse the base query to use as main search query
+    use tantivy::query::QueryParser;
+    use tantivy::tokenizer::TokenizerManager;
+    let schema = index.schema();
+    let tokenizer_manager = TokenizerManager::default();
+    let query_parser = QueryParser::new(schema.clone(), vec![], tokenizer_manager);
+    let base_query = query_parser.parse_query("brand:premium")?;
+
+    // Now we only need same-level filters, no base filter needed
+    let agg_efficient = json!({
+        "electronics": {
+            "filter": { "query_string": "category:electronics" },
+            "aggs": {
+                "avg_price": { "avg": { "field": "price" } }
+            }
+        },
+        "books": {
+            "filter": { "query_string": "category:books" },
+            "aggs": {
+                "avg_price": { "avg": { "field": "price" } }
+            }
+        }
+    });
+
+    let aggregations_efficient: Aggregations = serde_json::from_value(agg_efficient)?;
+    let instrumented_collector_efficient =
+        InstrumentedAggregationCollector::new(aggregations_efficient, counter_efficient.clone());
+
+    counter_efficient.increment_query_executions();
+    let _result_efficient = searcher.search(&*base_query, &instrumented_collector_efficient)?;
+
+    let stats_efficient = counter_efficient.get_stats();
+    println!("📊 EFFICIENT RESULTS:");
+    println!(
+        "  - Documents processed: {}",
+        stats_efficient.collect_calls + stats_efficient.documents_in_blocks
+    );
+    println!("  - Query executions: {}", stats_efficient.query_executions);
+    println!("  - Efficiency: Processing only matching documents (should be ~7)");
+
+    // 🎯 CRITICAL EFFICIENCY VERIFICATION
+    println!("\n🎯 EFFICIENCY ANALYSIS:");
+    let inefficient_docs = stats_inefficient.collect_calls + stats_inefficient.documents_in_blocks;
+    let efficient_docs = stats_efficient.collect_calls + stats_efficient.documents_in_blocks;
+
+    println!(
+        "  - Inefficient pattern processed: {} documents",
+        inefficient_docs
+    );
+    println!(
+        "  - Efficient pattern processed: {} documents",
+        efficient_docs
+    );
+    println!(
+        "  - Efficiency improvement: {:.1}x fewer documents",
+        inefficient_docs as f64 / efficient_docs as f64
+    );
+
+    // The efficient pattern should process significantly fewer documents
+    assert!(
+        efficient_docs < inefficient_docs,
+        "Efficient pattern should process fewer documents! Efficient: {}, Inefficient: {}",
+        efficient_docs,
+        inefficient_docs
+    );
+
+    // The efficient pattern should process roughly only the matching documents
+    assert!(
+        efficient_docs <= 10, // Allow some margin for index structure
+        "Efficient pattern should process ~7 documents, got {}",
+        efficient_docs
+    );
+
+    println!("✅ VERIFIED: Proper base query usage dramatically reduces document processing!");
+    println!("✅ VERIFIED: Filter aggregations work efficiently when base query limits the document set!");
 
     Ok(())
 }
