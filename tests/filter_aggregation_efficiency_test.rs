@@ -7,8 +7,6 @@ use tantivy::query::{AllQuery, QueryParser};
 use tantivy::schema::{Schema, FAST, TEXT};
 use tantivy::{doc, Index, IndexWriter};
 
-use common::filter_test_helpers::*;
-
 fn create_index() -> tantivy::Result<Index> {
     let mut schema_builder = Schema::builder();
     let category = schema_builder.add_text_field("category", TEXT | FAST);

@@ -67,29 +67,36 @@ fn test_all_metric_types() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    // Validate all metric types with actual values
-    assert!(result.0.contains_key("all_metrics"));
-    let all_metrics_result = result.0.get("all_metrics").unwrap();
-    assert!(validate_filter_bucket(all_metrics_result, 7)); // All 7 products
-    
-    let all_metrics_bucket = get_filter_bucket(all_metrics_result).unwrap();
-    
-    // Validate stats aggregation
-    let price_stats_result = all_metrics_bucket.sub_aggregations.0.get("price_stats").unwrap();
-    if let Some(stats) = get_stats(price_stats_result) {
-        assert_eq!(stats.count, 7);
-        assert_eq!(stats.min, Some(25.0));
-        assert_eq!(stats.max, Some(1199.0));
-        // Sum: 1199 + 999 + 299 + 150 + 160 + 25 + 45 = 2877
-        assert!((stats.sum - 2877.0).abs() < 1.0); // Sum of all prices
-    }
-    
-    // Validate individual metrics
-    let price_avg_result = all_metrics_bucket.sub_aggregations.0.get("price_avg").unwrap();
-    assert!(validate_metric_value(price_avg_result, 411.0, 1.0)); // 2877/7 ≈ 411.0
-    
-    let price_count_result = all_metrics_bucket.sub_aggregations.0.get("price_count").unwrap();
-    assert!(validate_metric_value(price_count_result, 7.0, 0.1));
+    // Compare entire result with expected JSON structure
+    let expected = json!({
+        "all_metrics": {
+            "doc_count": 7,  // All 7 products
+            "price_stats": {
+                "count": 7,
+                "min": 25.0,
+                "max": 1199.0,
+                "sum": 2877.0,  // 1199 + 999 + 299 + 150 + 160 + 25 + 45 = 2877
+                "avg": 411.0    // 2877/7 ≈ 411.0
+            },
+            "price_avg": {
+                "value": 411.0
+            },
+            "price_sum": {
+                "value": 2877.0
+            },
+            "price_min": {
+                "value": 25.0
+            },
+            "price_max": {
+                "value": 1199.0
+            },
+            "price_count": {
+                "value": 7.0
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 1.0);
     Ok(())
 }
 

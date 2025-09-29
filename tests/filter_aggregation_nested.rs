@@ -87,51 +87,29 @@ fn test_deeply_nested_filters() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    // Validate 4-level nested structure with actual values
-    assert!(result.0.contains_key("all_products"));
-    let all_result = result.0.get("all_products").unwrap();
-    assert!(validate_filter_bucket(all_result, 10)); // All 10 products
+    // Compare entire 4-level nested result with expected JSON structure
+    let expected = json!({
+        "all_products": {
+            "doc_count": 10,  // All 10 products
+            "electronics_only": {
+                "doc_count": 4,  // 4 electronics
+                "premium_electronics": {
+                    "doc_count": 3,  // 3 items >= 800 (Apple:1200, Samsung:800, Apple:1500)
+                    "high_rated_premium": {
+                        "doc_count": 3,  // 3 items >= 4.5 rating (Apple:4.8, Samsung:4.5, Apple:4.9)
+                        "count": {
+                            "value": 3.0
+                        },
+                        "avg_price": {
+                            "value": 1166.67  // Average of 1200, 800, 1500 = 1166.67
+                        }
+                    }
+                }
+            }
+        }
+    });
 
-    let all_bucket = get_filter_bucket(all_result).unwrap();
-
-    let electronics_result = all_bucket
-        .sub_aggregations
-        .0
-        .get("electronics_only")
-        .unwrap();
-    assert!(validate_filter_bucket(electronics_result, 4)); // 4 electronics
-
-    let electronics_bucket = get_filter_bucket(electronics_result).unwrap();
-
-    let premium_result = electronics_bucket
-        .sub_aggregations
-        .0
-        .get("premium_electronics")
-        .unwrap();
-    assert!(validate_filter_bucket(premium_result, 3)); // 3 items >= 800
-
-    let premium_bucket = get_filter_bucket(premium_result).unwrap();
-
-    let high_rated_result = premium_bucket
-        .sub_aggregations
-        .0
-        .get("high_rated_premium")
-        .unwrap();
-    assert!(validate_filter_bucket(high_rated_result, 3)); // 3 items >= 4.5 rating
-
-    let high_rated_bucket = get_filter_bucket(high_rated_result).unwrap();
-
-    // Check sub-aggregations
-    let count_result = high_rated_bucket.sub_aggregations.0.get("count").unwrap();
-    assert!(validate_metric_value(count_result, 3.0, 0.1));
-
-    let avg_price_result = high_rated_bucket
-        .sub_aggregations
-        .0
-        .get("avg_price")
-        .unwrap();
-    // Average of 1200, 800, 1500 = 1166.67
-    assert!(validate_metric_value(avg_price_result, 1166.67, 1.0));
+    assert_aggregation_results_match(&result.0, expected, 1.0);
     println!("✅ 4-level nested filter aggregation works!");
     Ok(())
 }
@@ -181,69 +159,44 @@ fn test_multiple_nested_branches() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    // Validate multiple nested branches with actual values
-    assert!(result.0.contains_key("by_region"));
-    let by_region_result = result.0.get("by_region").unwrap();
-    assert!(validate_filter_bucket(by_region_result, 10)); // All 10 products
+    // Compare entire multiple nested branches result with expected JSON structure
+    let expected = json!({
+        "by_region": {
+            "doc_count": 10,  // All 10 products
+            "us_products": {
+                "doc_count": 6,  // 6 US products
+                "us_electronics": {
+                    "doc_count": 2,  // Apple(1200), Samsung(800)
+                    "count": {
+                        "value": 2.0
+                    }
+                },
+                "us_books": {
+                    "doc_count": 2,  // Penguin(25), Random(20)
+                    "avg_price": {
+                        "value": 22.5  // Average of 25 and 20
+                    }
+                }
+            },
+            "eu_products": {
+                "doc_count": 4,  // 4 EU products
+                "eu_electronics": {
+                    "doc_count": 2,  // Sony(600), Apple(1500)
+                    "max_price": {
+                        "value": 1500.0
+                    }
+                },
+                "eu_clothing": {
+                    "doc_count": 1,  // Adidas(100)
+                    "min_rating": {
+                        "value": 4.2
+                    }
+                }
+            }
+        }
+    });
 
-    let by_region_bucket = get_filter_bucket(by_region_result).unwrap();
-
-    // Validate US products branch
-    let us_products_result = by_region_bucket
-        .sub_aggregations
-        .0
-        .get("us_products")
-        .unwrap();
-    assert!(validate_filter_bucket(us_products_result, 6)); // 6 US products
-
-    let us_products_bucket = get_filter_bucket(us_products_result).unwrap();
-
-    // US electronics: Apple(1200), Samsung(800) = 2 items
-    let us_electronics_result = us_products_bucket
-        .sub_aggregations
-        .0
-        .get("us_electronics")
-        .unwrap();
-    assert!(validate_filter_bucket(us_electronics_result, 2));
-
-    // US books: Penguin(25), Random(20) = 2 items
-    let us_books_result = us_products_bucket
-        .sub_aggregations
-        .0
-        .get("us_books")
-        .unwrap();
-    assert!(validate_filter_bucket(us_books_result, 2));
-
-    let us_books_bucket = get_filter_bucket(us_books_result).unwrap();
-    let us_avg_price_result = us_books_bucket.sub_aggregations.0.get("avg_price").unwrap();
-    // Average of 25 and 20 = 22.5
-    assert!(validate_metric_value(us_avg_price_result, 22.5, 0.1));
-
-    // Validate EU products branch
-    let eu_products_result = by_region_bucket
-        .sub_aggregations
-        .0
-        .get("eu_products")
-        .unwrap();
-    assert!(validate_filter_bucket(eu_products_result, 4)); // 4 EU products
-
-    let eu_products_bucket = get_filter_bucket(eu_products_result).unwrap();
-
-    // EU electronics: Sony(600), Apple(1500) = 2 items
-    let eu_electronics_result = eu_products_bucket
-        .sub_aggregations
-        .0
-        .get("eu_electronics")
-        .unwrap();
-    assert!(validate_filter_bucket(eu_electronics_result, 2));
-
-    let eu_electronics_bucket = get_filter_bucket(eu_electronics_result).unwrap();
-    let eu_max_price_result = eu_electronics_bucket
-        .sub_aggregations
-        .0
-        .get("max_price")
-        .unwrap();
-    assert!(validate_metric_value(eu_max_price_result, 1500.0, 0.1));
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     println!("✅ Multiple nested branches work!");
     Ok(())
 }
@@ -295,7 +248,27 @@ fn test_nested_with_complex_boolean_queries() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    assert!(result.0.contains_key("complex_nested"));
+    // Compare complex boolean nested result with expected JSON structure
+    let expected = json!({
+        "complex_nested": {
+            "doc_count": 7,  // 7 in_stock items
+            "premium_available": {
+                "doc_count": 3,  // Apple(1200, 4.8), Samsung(800, 4.5), Apple(1500, 4.9) match criteria
+                "by_category": {
+                    "doc_count": 3,  // All 3 are electronics
+                    "stats": {
+                        "count": 3,
+                        "min": 800.0,
+                        "max": 1500.0,
+                        "sum": 3500.0,  // 1200 + 800 + 1500
+                        "avg": 1166.67  // 3500 / 3
+                    }
+                }
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     println!("✅ Nested filters with complex boolean queries work!");
     Ok(())
 }
@@ -332,7 +305,33 @@ fn test_nested_filter_with_metrics() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    assert!(result.0.contains_key("electronics_analysis"));
+    // Compare nested metrics result with expected JSON structure
+    let expected = json!({
+        "electronics_analysis": {
+            "doc_count": 4,  // 4 electronics
+            "premium_only": {
+                "doc_count": 2,  // Apple(1200), Apple(1500) >= 1000
+                "high_rated": {
+                    "doc_count": 2,  // Both Apple items >= 4.7 rating (4.8, 4.9)
+                    "stats": {
+                        "count": 2,
+                        "min": 1200.0,
+                        "max": 1500.0,
+                        "sum": 2700.0,
+                        "avg": 1350.0
+                    },
+                    "avg_rating": {
+                        "value": 4.85  // (4.8 + 4.9) / 2
+                    },
+                    "count": {
+                        "value": 2.0
+                    }
+                }
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     println!("✅ Nested filters with multiple metrics work!");
     Ok(())
 }
@@ -381,7 +380,29 @@ fn test_nested_filter_performance() -> tantivy::Result<()> {
 
     let duration = start.elapsed();
 
-    assert!(result.0.contains_key("level1"));
+    // Compare 5-level nested performance result with expected JSON structure
+    let expected = json!({
+        "level1": {
+            "doc_count": 10,  // All products
+            "level2": {
+                "doc_count": 7,  // in_stock items
+                "level3": {
+                    "doc_count": 7,  // rating >= 4.0 (all in_stock items have rating >= 4.0)
+                    "level4": {
+                        "doc_count": 5,  // price >= 100 (excludes books: Penguin:25, Random:20)
+                        "level5": {
+                            "doc_count": 3,  // electronics only (Apple:1200, Samsung:800, Apple:1500)
+                            "final_count": {
+                                "value": 3.0
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     assert!(duration.as_millis() < 100); // Should be very fast
 
     println!("5-level nested filter duration: {:?}", duration);

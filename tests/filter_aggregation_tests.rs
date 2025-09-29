@@ -61,15 +61,17 @@ fn basic_filter() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    // Validate the filter bucket exists and has correct values
-    assert!(result.0.contains_key("electronics"));
+    // Compare entire result with expected JSON structure
+    let expected = json!({
+        "electronics": {
+            "doc_count": 2,
+            "avg_price": {
+                "value": 899.0
+            }
+        }
+    });
 
-    let electronics_result = result.0.get("electronics").unwrap();
-    assert!(validate_filter_bucket(electronics_result, 2));
-
-    let filter_bucket = get_filter_bucket(electronics_result).unwrap();
-    let avg_price_result = filter_bucket.sub_aggregations.0.get("avg_price").unwrap();
-    assert!(validate_metric_value(avg_price_result, 899.0, 0.1));
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     Ok(())
 }
 
@@ -94,28 +96,23 @@ fn multiple_filters() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    // Validate electronics filter
-    assert!(result.0.contains_key("electronics"));
-    let electronics_result = result.0.get("electronics").unwrap();
-    assert!(validate_filter_bucket(electronics_result, 2));
+    // Compare entire result with expected JSON structure
+    let expected = json!({
+        "electronics": {
+            "doc_count": 2,
+            "avg_price": {
+                "value": 899.0  // (999 + 799) / 2 = 899
+            }
+        },
+        "in_stock": {
+            "doc_count": 3,  // electronics (2) + books (1)
+            "count": {
+                "value": 3.0
+            }
+        }
+    });
 
-    let electronics_bucket = get_filter_bucket(electronics_result).unwrap();
-    let avg_price_result = electronics_bucket
-        .sub_aggregations
-        .0
-        .get("avg_price")
-        .unwrap();
-    assert!(validate_metric_value(avg_price_result, 899.0, 0.1)); // (999 + 799) / 2 = 899
-
-    // Validate in_stock filter
-    assert!(result.0.contains_key("in_stock"));
-    let in_stock_result = result.0.get("in_stock").unwrap();
-    // 3 documents are in_stock: electronics (2) + books (1)
-    assert!(validate_filter_bucket(in_stock_result, 3));
-
-    let in_stock_bucket = get_filter_bucket(in_stock_result).unwrap();
-    let count_result = in_stock_bucket.sub_aggregations.0.get("count").unwrap();
-    assert!(validate_metric_value(count_result, 3.0, 0.1));
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     Ok(())
 }
 
@@ -148,31 +145,23 @@ fn nested_filters() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    // Validate nested filter structure and values
-    assert!(result.0.contains_key("all"));
-    let all_result = result.0.get("all").unwrap();
-    assert!(validate_filter_bucket(all_result, 4)); // All 4 documents should match "*"
+    // Compare entire nested result with expected JSON structure
+    let expected = json!({
+        "all": {
+            "doc_count": 4,  // All 4 documents should match "*"
+            "electronics": {
+                "doc_count": 2,  // 2 electronics
+                "expensive": {
+                    "doc_count": 1,  // Only 999 >= 800 (799 is not >= 800)
+                    "count": {
+                        "value": 1.0
+                    }
+                }
+            }
+        }
+    });
 
-    let all_bucket = get_filter_bucket(all_result).unwrap();
-
-    // Check electronics sub-filter
-    let electronics_result = all_bucket.sub_aggregations.0.get("electronics").unwrap();
-    assert!(validate_filter_bucket(electronics_result, 2)); // 2 electronics
-
-    let electronics_bucket = get_filter_bucket(electronics_result).unwrap();
-
-    // Check expensive sub-filter (price >= 800)
-    let expensive_result = electronics_bucket
-        .sub_aggregations
-        .0
-        .get("expensive")
-        .unwrap();
-    // Only 2 electronics items: 999 and 799, but only 999 >= 800
-    assert!(validate_filter_bucket(expensive_result, 1));
-
-    let expensive_bucket = get_filter_bucket(expensive_result).unwrap();
-    let count_result = expensive_bucket.sub_aggregations.0.get("count").unwrap();
-    assert!(validate_metric_value(count_result, 1.0, 0.1));
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     Ok(())
 }
 

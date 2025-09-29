@@ -85,25 +85,33 @@ fn test_extreme_numeric_values() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    // Validate extreme numeric values with actual counts
-    assert!(result.0.contains_key("max_u64"));
-    let max_u64_result = result.0.get("max_u64").unwrap();
-    assert!(validate_filter_bucket(max_u64_result, 1)); // Only 1 document with u64::MAX
+    // Compare entire extreme values result with expected JSON structure
+    let expected = json!({
+        "max_u64": {
+            "doc_count": 1,  // Only 1 document with u64::MAX
+            "stats": {
+                "count": 1,
+                "min": u64::MAX as f64,
+                "max": u64::MAX as f64,
+                "sum": u64::MAX as f64,
+                "avg": u64::MAX as f64
+            }
+        },
+        "zero_u64": {
+            "doc_count": 1,  // Only 1 document with u64 = 0
+            "avg": {
+                "value": 2.2250738585072014e-308  // f64::MIN_POSITIVE
+            }
+        },
+        "max_f64": {
+            "doc_count": 1,  // Only 1 document with f64::MAX
+            "count": {
+                "value": 1.0
+            }
+        }
+    });
 
-    let max_u64_bucket = get_filter_bucket(max_u64_result).unwrap();
-    let stats_result = max_u64_bucket.sub_aggregations.0.get("stats").unwrap();
-    if let Some(stats) = get_stats(stats_result) {
-        assert_eq!(stats.count, 1);
-        assert_eq!(stats.max, Some(u64::MAX as f64));
-    }
-
-    assert!(result.0.contains_key("zero_u64"));
-    let zero_u64_result = result.0.get("zero_u64").unwrap();
-    assert!(validate_filter_bucket(zero_u64_result, 1)); // Only 1 document with u64 = 0
-
-    assert!(result.0.contains_key("max_f64"));
-    let max_f64_result = result.0.get("max_f64").unwrap();
-    assert!(validate_filter_bucket(max_f64_result, 1)); // Only 1 document with f64::MAX
+    assert_aggregation_results_match(&result.0, expected, 1e-300);
     Ok(())
 }
 
@@ -124,7 +132,17 @@ fn test_empty_and_special_strings() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    assert!(result.0.contains_key("empty_string"));
+    // Compare empty string result with expected JSON structure
+    let expected = json!({
+        "empty_string": {
+            "doc_count": 0,  // Empty string query doesn't match any documents
+            "count": {
+                "value": 0.0
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     Ok(())
 }
 
@@ -149,8 +167,23 @@ fn test_date_edge_cases() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    assert!(result.0.contains_key("epoch_time"));
-    assert!(result.0.contains_key("far_future"));
+    // Compare date edge cases result with expected JSON structure
+    let expected = json!({
+        "epoch_time": {
+            "doc_count": 1,  // Only 1 document with epoch time (timestamp 0)
+            "count": {
+                "value": 1.0
+            }
+        },
+        "far_future": {
+            "doc_count": 0,  // No documents match far future date
+            "avg": {
+                "value": null  // No values to average
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     Ok(())
 }
 
@@ -226,7 +259,45 @@ fn test_field_type_compatibility() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    assert!(result.0.contains_key("field_types"));
+    // Compare field type compatibility result with expected JSON structure
+    let expected = json!({
+        "field_types": {
+            "doc_count": 4,  // All 4 documents
+            "text_count": {
+                "value": 4.0  // Count of text field values
+            },
+            "numeric_terms": {
+                "buckets": [
+                    { "key": 1, "doc_count": 1 },
+                    { "key": u64::MAX, "doc_count": 1 },
+                    { "key": 100, "doc_count": 1 },
+                    { "key": 0, "doc_count": 1 }
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            },
+            "bool_aggs": {
+                "buckets": [
+                    {
+                        "key": 1,  // true
+                        "doc_count": 3,
+                        "key_as_string": "true",
+                        "bool_count": { "value": 3.0 }
+                    },
+                    {
+                        "key": 0,  // false
+                        "doc_count": 1,
+                        "key_as_string": "false",
+                        "bool_count": { "value": 1.0 }
+                    }
+                ],
+                "doc_count_error_upper_bound": 0,
+                "sum_other_doc_count": 0
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 0.1);
     Ok(())
 }
 
@@ -265,7 +336,21 @@ fn test_deeply_nested_bool_queries() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    assert!(result.0.contains_key("complex_bool"));
+    // Compare deeply nested bool queries result with expected JSON structure
+    let expected = json!({
+        "complex_bool": {
+            "doc_count": 0,  // Complex boolean query doesn't match any documents
+            "stats": {
+                "count": 0,
+                "min": null,
+                "max": null,
+                "sum": 0.0,
+                "avg": null
+            }
+        }
+    });
+
+    assert_aggregation_results_match(&result.0, expected, 1e10); // Large tolerance for u64::MAX
     Ok(())
 }
 

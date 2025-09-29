@@ -1,51 +1,100 @@
-use tantivy::aggregation::agg_result::{AggregationResult, BucketResult, MetricResult};
-use tantivy::aggregation::metric::Stats;
+use rustc_hash::FxHashMap;
+use serde_json::Value;
+use tantivy::aggregation::agg_result::{AggregationResult, AggregationResults};
 
-/// Helper function to extract filter bucket result
-pub fn get_filter_bucket(result: &AggregationResult) -> Option<&tantivy::aggregation::agg_result::FilterBucketResult> {
-    if let AggregationResult::BucketResult(BucketResult::Filter(filter_result)) = result {
-        Some(filter_result)
-    } else {
-        None
+/// Convert HashMap of aggregation results to JSON for comparison
+pub fn aggregation_results_to_json(results: &FxHashMap<String, AggregationResult>) -> Value {
+    let agg_results = AggregationResults(results.clone());
+    serde_json::to_value(&agg_results).expect("Failed to serialize aggregation results")
+}
+
+/// Compare two JSON values with tolerance for floating point numbers
+#[allow(dead_code)]
+pub fn json_values_match(actual: &Value, expected: &Value, tolerance: f64) -> bool {
+    match (actual, expected) {
+        (Value::Number(a), Value::Number(e)) => {
+            let a_f64 = a.as_f64().unwrap_or(0.0);
+            let e_f64 = e.as_f64().unwrap_or(0.0);
+            (a_f64 - e_f64).abs() < tolerance
+        }
+        (Value::Object(a_map), Value::Object(e_map)) => {
+            if a_map.len() != e_map.len() {
+                return false;
+            }
+            for (key, expected_val) in e_map {
+                match a_map.get(key) {
+                    Some(actual_val) => {
+                        if !json_values_match(actual_val, expected_val, tolerance) {
+                            return false;
+                        }
+                    }
+                    None => return false,
+                }
+            }
+            true
+        }
+        (Value::Array(a_arr), Value::Array(e_arr)) => {
+            if a_arr.len() != e_arr.len() {
+                return false;
+            }
+            for (actual_item, expected_item) in a_arr.iter().zip(e_arr.iter()) {
+                if !json_values_match(actual_item, expected_item, tolerance) {
+                    return false;
+                }
+            }
+            true
+        }
+        _ => actual == expected,
     }
 }
 
-/// Helper function to extract metric value from various metric types
-pub fn get_metric_value(result: &AggregationResult) -> Option<f64> {
-    match result {
-        AggregationResult::MetricResult(MetricResult::Average(avg)) => avg.value,
-        AggregationResult::MetricResult(MetricResult::Count(count)) => count.value,
-        AggregationResult::MetricResult(MetricResult::Sum(sum)) => sum.value,
-        AggregationResult::MetricResult(MetricResult::Min(min)) => min.value,
-        AggregationResult::MetricResult(MetricResult::Max(max)) => max.value,
-        AggregationResult::MetricResult(MetricResult::Cardinality(card)) => card.value,
-        _ => None,
+/// Assert that aggregation results match expected JSON structure
+///
+/// This utility provides a way to validate entire aggregation results by comparing
+/// them against an expected JSON structure. It handles floating point comparisons with
+/// tolerance and provides error messages when assertions fail.
+///
+/// # Arguments
+/// * `actual_results` - The HashMap returned from aggregation search results (.0 field)
+/// * `expected_json` - A serde_json::Value representing the expected structure
+/// * `tolerance` - Floating point tolerance for numeric comparisons
+///
+/// # Example
+/// ```rust
+/// let expected = json!({
+///     "electronics": {
+///         "doc_count": 2,
+///         "avg_price": {
+///             "value": 899.0
+///         }
+///     }
+/// });
+/// assert_aggregation_results_match(&result.0, expected, 0.1);
+/// ```
+#[allow(dead_code)]
+pub fn assert_aggregation_results_match(
+    actual_results: &FxHashMap<String, AggregationResult>,
+    expected_json: Value,
+    tolerance: f64,
+) {
+    let actual_json = aggregation_results_to_json(actual_results);
+
+    if !json_values_match(&actual_json, &expected_json, tolerance) {
+        panic!(
+            "Aggregation results do not match expected JSON.\nActual:\n{}\nExpected:\n{}",
+            serde_json::to_string_pretty(&actual_json).unwrap(),
+            serde_json::to_string_pretty(&expected_json).unwrap()
+        );
     }
 }
 
-/// Helper function to extract stats from a stats aggregation
-pub fn get_stats(result: &AggregationResult) -> Option<&Stats> {
-    if let AggregationResult::MetricResult(MetricResult::Stats(stats)) = result {
-        Some(stats)
-    } else {
-        None
-    }
-}
-
-/// Helper function to validate a filter bucket with expected doc count
-pub fn validate_filter_bucket(result: &AggregationResult, expected_doc_count: u64) -> bool {
-    if let Some(filter_bucket) = get_filter_bucket(result) {
-        filter_bucket.doc_count == expected_doc_count
-    } else {
-        false
-    }
-}
-
-/// Helper function to validate a metric value within tolerance
-pub fn validate_metric_value(result: &AggregationResult, expected_value: f64, tolerance: f64) -> bool {
-    if let Some(actual_value) = get_metric_value(result) {
-        (actual_value - expected_value).abs() < tolerance
-    } else {
-        false
-    }
+/// Macro for asserting aggregation results with default tolerance
+#[macro_export]
+macro_rules! assert_agg_results {
+    ($actual:expr, $expected:expr) => {
+        assert_aggregation_results_match($actual, $expected, 0.1)
+    };
+    ($actual:expr, $expected:expr, $tolerance:expr) => {
+        assert_aggregation_results_match($actual, $expected, $tolerance)
+    };
 }
