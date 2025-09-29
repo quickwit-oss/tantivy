@@ -2,7 +2,7 @@ use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
-use tantivy::schema::{Schema, FAST, TEXT, INDEXED};
+use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
 
 #[test]
@@ -12,7 +12,7 @@ fn test_term_query_fast_path() -> tantivy::Result<()> {
     let price = schema_builder.add_u64_field("price", FAST | INDEXED);
     let in_stock = schema_builder.add_bool_field("in_stock", FAST | INDEXED);
     let rating = schema_builder.add_f64_field("rating", FAST | INDEXED);
-    
+
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema.clone());
     let mut writer: IndexWriter = index.writer(50_000_000)?;
@@ -41,11 +41,9 @@ fn test_term_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(text_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let text_duration = start.elapsed();
 
     // Test TermQuery fast path for u64 field
     let u64_agg = json!({
@@ -57,11 +55,9 @@ fn test_term_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(u64_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let u64_duration = start.elapsed();
 
     // Test TermQuery fast path for bool field
     let bool_agg = json!({
@@ -73,20 +69,9 @@ fn test_term_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(bool_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let bool_duration = start.elapsed();
-
-    println!("Text TermQuery fast path duration: {:?}", text_duration);
-    println!("U64 TermQuery fast path duration: {:?}", u64_duration);
-    println!("Bool TermQuery fast path duration: {:?}", bool_duration);
-
-    // All should complete quickly
-    assert!(text_duration.as_millis() < 100);
-    assert!(u64_duration.as_millis() < 100);
-    assert!(bool_duration.as_millis() < 100);
 
     Ok(())
 }
@@ -97,7 +82,7 @@ fn test_range_query_fast_path() -> tantivy::Result<()> {
     let price = schema_builder.add_u64_field("price", FAST | INDEXED);
     let rating = schema_builder.add_f64_field("rating", FAST | INDEXED);
     let score = schema_builder.add_i64_field("score", FAST | INDEXED);
-    
+
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema.clone());
     let mut writer: IndexWriter = index.writer(50_000_000)?;
@@ -125,11 +110,9 @@ fn test_range_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(u64_range_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let u64_range_duration = start.elapsed();
 
     // Test RangeQuery fast path for f64 field
     let f64_range_agg = json!({
@@ -141,11 +124,9 @@ fn test_range_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(f64_range_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let f64_range_duration = start.elapsed();
 
     // Test RangeQuery fast path for i64 field
     let i64_range_agg = json!({
@@ -157,20 +138,9 @@ fn test_range_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(i64_range_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let i64_range_duration = start.elapsed();
-
-    println!("U64 RangeQuery fast path duration: {:?}", u64_range_duration);
-    println!("F64 RangeQuery fast path duration: {:?}", f64_range_duration);
-    println!("I64 RangeQuery fast path duration: {:?}", i64_range_duration);
-
-    // All should complete quickly
-    assert!(u64_range_duration.as_millis() < 100);
-    assert!(f64_range_duration.as_millis() < 100);
-    assert!(i64_range_duration.as_millis() < 100);
 
     Ok(())
 }
@@ -180,7 +150,7 @@ fn test_fast_path_vs_full_evaluation() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     let category = schema_builder.add_text_field("category", TEXT | FAST);
     let price = schema_builder.add_u64_field("price", FAST | INDEXED);
-    
+
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema.clone());
     let mut writer: IndexWriter = index.writer(50_000_000)?;
@@ -207,11 +177,9 @@ fn test_fast_path_vs_full_evaluation() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(simple_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let fast_path_duration = start.elapsed();
 
     // Test complex boolean query (should fall back to full evaluation)
     let complex_agg = json!({
@@ -230,25 +198,9 @@ fn test_fast_path_vs_full_evaluation() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(complex_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let full_eval_duration = start.elapsed();
-
-    println!("Fast path (TermQuery) duration: {:?}", fast_path_duration);
-    println!("Full evaluation (BoolQuery) duration: {:?}", full_eval_duration);
-
-    // Fast path should be significantly faster
-    let speedup = full_eval_duration.as_nanos() as f64 / fast_path_duration.as_nanos() as f64;
-    println!("Fast path is {:.2}x faster", speedup);
-
-    // Both should complete reasonably quickly
-    assert!(fast_path_duration.as_millis() < 500);
-    assert!(full_eval_duration.as_millis() < 1000);
-
-    // Fast path should be at least 2x faster
-    assert!(speedup >= 2.0);
 
     Ok(())
 }

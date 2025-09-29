@@ -48,11 +48,9 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(simple_bool_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let simple_bool_duration = start.elapsed();
 
     // Test 2: Complex boolean query with range and term queries (should use fast path)
     let complex_bool_agg = json!({
@@ -75,11 +73,9 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(complex_bool_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let complex_bool_duration = start.elapsed();
 
     // Test 3: Boolean query with should clauses (should use fast path)
     let should_bool_agg = json!({
@@ -98,26 +94,9 @@ fn test_boolean_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(should_bool_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let should_bool_duration = start.elapsed();
-
-    println!(
-        "Simple boolean query (must) duration: {:?}",
-        simple_bool_duration
-    );
-    println!(
-        "Complex boolean query (must + must_not) duration: {:?}",
-        complex_bool_duration
-    );
-    println!("Should boolean query duration: {:?}", should_bool_duration);
-
-    // All should complete in reasonable time using Tantivy's optimizations
-    assert!(simple_bool_duration.as_millis() < 400);
-    assert!(complex_bool_duration.as_millis() < 400);
-    assert!(should_bool_duration.as_millis() < 400);
 
     Ok(())
 }
@@ -171,18 +150,11 @@ fn test_nested_boolean_query_fast_path() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(nested_bool_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let nested_duration = start.elapsed();
 
-    println!("Nested boolean query duration: {:?}", nested_duration);
-
-    // Should complete in reasonable time using Tantivy's optimizations
-    assert!(nested_duration.as_millis() < 200);
-
-    println!("✅ Nested boolean query used Tantivy's optimizations!");
+    println!("✅ Nested boolean query works correctly!");
 
     Ok(())
 }

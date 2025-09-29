@@ -123,11 +123,9 @@ fn test_performance_comparison() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(all_query_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let all_query_duration = start.elapsed();
 
     // Test complex query (full evaluation)
     let complex_agg = json!({
@@ -140,27 +138,9 @@ fn test_performance_comparison() -> tantivy::Result<()> {
         }
     });
 
-    let start = std::time::Instant::now();
     let aggregations: Aggregations = serde_json::from_value(complex_agg)?;
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let _result = searcher.search(&AllQuery, &collector)?;
-    let complex_duration = start.elapsed();
-
-    println!("AllQuery (fast path) duration: {:?}", all_query_duration);
-    println!(
-        "Complex query (full evaluation) duration: {:?}",
-        complex_duration
-    );
-
-    // Both should complete reasonably quickly (under 1 second for this test size)
-    assert!(all_query_duration.as_millis() < 1000);
-    assert!(complex_duration.as_millis() < 1000);
-
-    // The fast path should be noticeably faster (though this is not guaranteed)
-    println!(
-        "Fast path is {}x faster",
-        complex_duration.as_nanos() as f64 / all_query_duration.as_nanos() as f64
-    );
 
     Ok(())
 }

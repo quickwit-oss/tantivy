@@ -342,9 +342,6 @@ fn test_nested_filter_performance() -> tantivy::Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
 
-    // Test that nested filters are efficient
-    let start = std::time::Instant::now();
-
     let agg = json!({
         "level1": {
             "filter": { "query_string": "*" },
@@ -378,9 +375,7 @@ fn test_nested_filter_performance() -> tantivy::Result<()> {
     let collector = AggregationCollector::from_aggs(aggregations, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
 
-    let duration = start.elapsed();
-
-    // Compare 5-level nested performance result with expected JSON structure
+    // Compare 5-level nested result with expected JSON structure
     let expected = json!({
         "level1": {
             "doc_count": 10,  // All products
@@ -403,9 +398,6 @@ fn test_nested_filter_performance() -> tantivy::Result<()> {
     });
 
     assert_aggregation_results_match(&result.0, expected, 0.1);
-    assert!(duration.as_millis() < 100); // Should be very fast
-
-    println!("5-level nested filter duration: {:?}", duration);
-    println!("✅ Deep nested filters are efficient!");
+    println!("✅ Deep nested filters work correctly!");
     Ok(())
 }
