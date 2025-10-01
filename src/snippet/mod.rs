@@ -74,10 +74,9 @@ const DEFAULT_SNIPPET_POSTFIX: &str = "</b>";
 
 #[derive(Debug)]
 pub(crate) struct FragmentCandidate {
-    score: Score,
     start_offset: usize,
     stop_offset: usize,
-    highlighted: Vec<Range<usize>>,
+    highlighted: Vec<(Range<usize>, Score)>,
 }
 
 impl FragmentCandidate {
@@ -88,7 +87,6 @@ impl FragmentCandidate {
     /// stop_offset is set to start_offset, which is taken as a param.
     fn new(start_offset: usize) -> FragmentCandidate {
         FragmentCandidate {
-            score: 0.0,
             start_offset,
             stop_offset: start_offset,
             highlighted: vec![],
@@ -104,9 +102,21 @@ impl FragmentCandidate {
         self.stop_offset = token.offset_to;
 
         if let Some(&score) = terms.get(&token.text.to_lowercase()) {
-            self.score += score;
-            self.highlighted.push(token.offset_from..token.offset_to);
+            self.highlighted
+                .push((token.offset_from..token.offset_to, score));
         }
+    }
+
+    fn score(&self) -> Score {
+        self.highlighted.iter().map(|(_, score)| score).sum()
+    }
+
+    fn len(&self) -> usize {
+        self.highlighted.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.highlighted.is_empty()
     }
 }
 
@@ -143,7 +153,7 @@ impl Snippet {
 
     /// Returns `true` if the snippet is empty.
     pub fn is_empty(&self) -> bool {
-        self.highlighted.len() == 0
+        self.highlighted.is_empty()
     }
 
     /// Returns a highlighted html from the `Snippet`.
@@ -207,24 +217,73 @@ fn search_fragments(
     text: &str,
     terms: &BTreeMap<String, Score>,
     max_num_chars: usize,
+    fragment_limit: Option<usize>,
+    fragment_offset: Option<usize>,
 ) -> Vec<FragmentCandidate> {
     let mut token_stream = tokenizer.token_stream(text);
     let mut fragment = FragmentCandidate::new(0);
     let mut fragments: Vec<FragmentCandidate> = vec![];
+
+    // Process all fragments first, without applying offset/limit to token stream
     while let Some(next) = token_stream.next() {
         if (next.offset_to - fragment.start_offset) > max_num_chars {
-            if fragment.score > 0.0 {
+            if fragment.score() > 0.0 {
                 fragments.push(fragment)
             };
             fragment = FragmentCandidate::new(next.offset_from);
         }
+
         fragment.try_add_token(next, terms);
     }
-    if fragment.score > 0.0 {
+    if fragment.score() > 0.0 {
         fragments.push(fragment)
     }
 
-    fragments
+    if fragment_offset.is_none() && fragment_limit.is_none() {
+        return fragments;
+    }
+
+    // Skip the first offset snippets, and take the next limit snippets
+    // across all FragmentCandidates
+    let offset_count = fragment_offset.unwrap_or(0);
+    let limit_count = fragment_limit.unwrap_or(fragments.len());
+
+    let mut remaining_offset = offset_count;
+    let mut remaining_limit = limit_count;
+    let mut filtered_fragments = Vec::new();
+
+    for mut fragment in fragments {
+        if remaining_limit == 0 {
+            break;
+        }
+
+        let num_snippets = fragment.len();
+
+        if remaining_offset >= num_snippets {
+            remaining_offset -= num_snippets;
+            continue;
+        }
+
+        let skip_from_this_fragment = remaining_offset;
+        let take_from_this_fragment =
+            std::cmp::min(num_snippets - skip_from_this_fragment, remaining_limit);
+
+        fragment.highlighted = fragment
+            .highlighted
+            .into_iter()
+            .skip(skip_from_this_fragment)
+            .take(take_from_this_fragment)
+            .collect();
+
+        remaining_offset = 0;
+        remaining_limit -= take_from_this_fragment;
+
+        if !fragment.is_empty() {
+            filtered_fragments.push(fragment);
+        }
+    }
+
+    filtered_fragments
 }
 
 /// Returns a Snippet
@@ -234,8 +293,8 @@ fn search_fragments(
 fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str) -> Snippet {
     let best_fragment_opt = fragments.iter().max_by(|left, right| {
         let cmp_score = left
-            .score
-            .partial_cmp(&right.score)
+            .score()
+            .partial_cmp(&right.score())
             .unwrap_or(Ordering::Equal);
         if cmp_score == Ordering::Equal {
             (right.start_offset, right.stop_offset).cmp(&(left.start_offset, left.stop_offset))
@@ -248,7 +307,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
         let highlighted = fragment
             .highlighted
             .iter()
-            .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
+            .map(|(item, _)| item.start - fragment.start_offset..item.end - fragment.start_offset)
             .collect();
         Snippet::new(fragment_text, highlighted)
     } else {
@@ -379,6 +438,8 @@ pub struct SnippetGenerator {
     tokenizer: TextAnalyzer,
     field: Field,
     max_num_chars: usize,
+    fragment_limit: Option<usize>,
+    fragment_offset: Option<usize>,
 }
 
 impl SnippetGenerator {
@@ -394,8 +455,19 @@ impl SnippetGenerator {
             tokenizer,
             field,
             max_num_chars,
+            fragment_limit: None,
+            fragment_offset: None,
         }
     }
+
+    pub fn set_limit(&mut self, limit: usize) {
+        self.fragment_limit = Some(limit);
+    }
+
+    pub fn set_offset(&mut self, offset: usize) {
+        self.fragment_offset = Some(offset);
+    }
+
     /// Creates a new snippet generator
     pub fn create(
         searcher: &Searcher,
@@ -438,6 +510,8 @@ impl SnippetGenerator {
             tokenizer,
             field,
             max_num_chars: DEFAULT_MAX_NUM_CHARS,
+            fragment_limit: None,
+            fragment_offset: None,
         })
     }
 
@@ -479,6 +553,8 @@ impl SnippetGenerator {
             text,
             &self.terms_text,
             self.max_num_chars,
+            self.fragment_limit,
+            self.fragment_offset,
         );
         select_best_fragment_combination(&fragment_candidates[..], text)
     }
@@ -523,11 +599,13 @@ Survey in 2016, 2017, and 2018."#;
             TEST_TEXT,
             &terms,
             100,
+            None,
+            None,
         );
         assert_eq!(fragments.len(), 7);
         {
             let first = &fragments[0];
-            assert_eq!(first.score, 1.9);
+            assert_eq!(first.score(), 1.9);
             assert_eq!(first.stop_offset, 89);
         }
         let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
@@ -555,10 +633,12 @@ Survey in 2016, 2017, and 2018."#;
                 TEST_TEXT,
                 &terms,
                 20,
+                None,
+                None,
             );
             {
                 let first = &fragments[0];
-                assert_eq!(first.score, 1.0);
+                assert_eq!(first.score(), 1.0);
                 assert_eq!(first.stop_offset, 17);
             }
             let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
@@ -574,11 +654,13 @@ Survey in 2016, 2017, and 2018."#;
                 TEST_TEXT,
                 &terms,
                 20,
+                None,
+                None,
             );
             // assert_eq!(fragments.len(), 7);
             {
                 let first = &fragments[0];
-                assert_eq!(first.score, 0.9);
+                assert_eq!(first.score(), 0.9);
                 assert_eq!(first.stop_offset, 17);
             }
             let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
@@ -593,13 +675,19 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("c"), 1.0);
 
-        let fragments =
-            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            3,
+            None,
+            None,
+        );
 
         assert_eq!(fragments.len(), 1);
         {
             let first = &fragments[0];
-            assert_eq!(first.score, 1.0);
+            assert_eq!(first.score(), 1.0);
             assert_eq!(first.start_offset, 4);
             assert_eq!(first.stop_offset, 7);
         }
@@ -616,13 +704,19 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("f"), 1.0);
 
-        let fragments =
-            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            3,
+            None,
+            None,
+        );
 
         assert_eq!(fragments.len(), 2);
         {
             let first = &fragments[0];
-            assert_eq!(first.score, 1.0);
+            assert_eq!(first.score(), 1.0);
             assert_eq!(first.stop_offset, 11);
             assert_eq!(first.start_offset, 8);
         }
@@ -640,13 +734,19 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("f"), 1.0);
         terms.insert(String::from("a"), 0.9);
 
-        let fragments =
-            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 7);
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            7,
+            None,
+            None,
+        );
 
         assert_eq!(fragments.len(), 2);
         {
             let first = &fragments[0];
-            assert_eq!(first.score, 0.9);
+            assert_eq!(first.score(), 0.9);
             assert_eq!(first.stop_offset, 7);
             assert_eq!(first.start_offset, 0);
         }
@@ -663,8 +763,14 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("z"), 1.0);
 
-        let fragments =
-            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            3,
+            None,
+            None,
+        );
 
         assert_eq!(fragments.len(), 0);
 
@@ -679,8 +785,14 @@ Survey in 2016, 2017, and 2018."#;
         let text = "a b c d";
 
         let terms = BTreeMap::new();
-        let fragments =
-            search_fragments(&mut From::from(SimpleTokenizer::default()), text, &terms, 3);
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            text,
+            &terms,
+            3,
+            None,
+            None,
+        );
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
@@ -794,12 +906,14 @@ Survey in 2016, 2017, and 2018."#;
             text,
             &terms,
             3,
+            None,
+            None,
         );
 
         assert_eq!(fragments.len(), 1);
         {
             let first = &fragments[0];
-            assert_eq!(first.score, 1.9);
+            assert_eq!(first.score(), 1.9);
             assert_eq!(first.start_offset, 0);
             assert_eq!(first.stop_offset, 3);
         }
@@ -817,6 +931,8 @@ Survey in 2016, 2017, and 2018."#;
             TEST_TEXT,
             &terms,
             100,
+            None,
+            None,
         );
         let mut snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
         assert_eq!(
@@ -830,6 +946,44 @@ Survey in 2016, 2017, and 2018."#;
             "<q class=\"super\">Rust</q> is a systems programming <q class=\"super\">language</q> \
              sponsored by\nMozilla which describes it as a &quot;safe"
         );
+    }
+
+    #[test]
+    fn test_snippet_with_limit_and_offset() {
+        let terms = btreemap! {
+            String::from("rust") => 1.0,
+            String::from("language") => 0.9,
+        };
+        let fragments = search_fragments(
+            &mut From::from(SimpleTokenizer::default()),
+            TEST_TEXT,
+            &terms,
+            100,
+            Some(2),
+            Some(1),
+        );
+        assert_eq!(fragments.len(), 2);
+        {
+            let first = &fragments[0];
+            assert_eq!(first.score(), 0.9);
+            assert_eq!(first.stop_offset, 89);
+        }
+        {
+            let second = &fragments[1];
+            assert_eq!(second.score(), 0.9);
+            assert_eq!(second.stop_offset, 190);
+        }
+        let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
+        assert_eq!(
+            snippet.fragment,
+            "Rust is a systems programming language sponsored by\nMozilla which describes it as a \
+             \"safe"
+        );
+        assert_eq!(
+            snippet.to_html(),
+            "Rust is a systems programming <b>language</b> sponsored by\nMozilla which describes \
+             it as a &quot;safe"
+        )
     }
 
     #[test]
