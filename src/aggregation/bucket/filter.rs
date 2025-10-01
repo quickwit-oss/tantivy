@@ -190,6 +190,10 @@ pub struct DocumentQueryEvaluator {
     query: Box<dyn Query>,
     /// Cached weight for the current segment
     weight: Option<Box<dyn Weight>>,
+    /// Note: We can't pre-create the scorer because it maintains state (current doc position)
+    /// that would be invalid across multiple document evaluations.
+    /// Instead, we cache the SegmentReader which is cheap (Arc-based internally).
+    segment_reader: Option<SegmentReader>,
     /// Schema for field resolution
     schema: Schema,
 }
@@ -200,40 +204,47 @@ impl DocumentQueryEvaluator {
         Self {
             query,
             weight: None,
+            segment_reader: None,
             schema,
         }
     }
 
     /// Initialize the evaluator for a specific segment
-    pub fn initialize_for_segment(&mut self, _segment_reader: &SegmentReader) -> crate::Result<()> {
+    ///
+    /// Note: SegmentReader is cloned here but the clone is cheap because:
+    /// - SegmentReader uses Arc<OnceLock<...>> for all data structures
+    /// - All data is memory-mapped, so no actual data is copied
+    pub fn initialize_for_segment(&mut self, segment_reader: &SegmentReader) -> crate::Result<()> {
         use crate::query::EnableScoring;
         self.weight = Some(
             self.query
                 .weight(EnableScoring::disabled_from_schema(&self.schema))?,
         );
+        self.segment_reader = Some(segment_reader.clone());
         Ok(())
     }
 
     /// Efficiently evaluate if a document matches the filter query
     /// This is the core performance-critical method
-    pub fn matches_document(
-        &self,
-        doc: DocId,
-        segment_reader: &SegmentReader,
-    ) -> crate::Result<bool> {
-        if let Some(weight) = &self.weight {
-            // Use Tantivy's DocSet infrastructure directly - no custom fast path needed
-            // Tantivy already handles all optimizations (fast fields, bitsets, etc.)
-            let mut scorer = weight.scorer(segment_reader, 1.0)?;
-            use crate::DocSet;
-
-            // Use the same pattern as Weight::explain to handle seek ordering correctly
-            Ok(!(scorer.doc() > doc || scorer.seek(doc) != doc))
-        } else {
-            Err(TantivyError::InvalidArgument(
+    pub fn matches_document(&self, doc: DocId) -> crate::Result<bool> {
+        let weight = self.weight.as_ref().ok_or_else(|| {
+            TantivyError::InvalidArgument(
                 "DocumentQueryEvaluator not initialized for segment".to_string(),
-            ))
-        }
+            )
+        })?;
+
+        let segment_reader = self.segment_reader.as_ref().ok_or_else(|| {
+            TantivyError::InvalidArgument(
+                "DocumentQueryEvaluator not initialized for segment".to_string(),
+            )
+        })?;
+
+        // This already handles all optimizations (fast fields, bitsets, etc.)
+        let mut scorer = weight.scorer(segment_reader, 1.0)?;
+        use crate::DocSet;
+
+        // Use the same pattern as Weight::explain to handle seek ordering correctly
+        Ok(!(scorer.doc() > doc || scorer.seek(doc) != doc))
     }
 }
 impl Debug for DocumentQueryEvaluator {
@@ -247,13 +258,12 @@ impl Debug for DocumentQueryEvaluator {
 /// Segment collector for filter aggregation
 pub struct FilterSegmentCollector {
     /// Document evaluator for the filter query
+    /// The evaluator internally stores a SegmentReader
     evaluator: DocumentQueryEvaluator,
     /// Document count in this bucket
     doc_count: u64,
     /// Sub-aggregation collectors
     sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
-    /// Segment reader reference for document evaluation
-    segment_reader: SegmentReader,
     /// Accessor index for this filter aggregation
     accessor_idx: usize,
 }
@@ -290,7 +300,6 @@ impl FilterSegmentCollector {
             evaluator,
             doc_count: 0,
             sub_aggregations: sub_agg_collector,
-            segment_reader: segment_reader.clone(),
             accessor_idx,
         })
     }
@@ -352,7 +361,7 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
         // This is the core efficiency: evaluate filter on document already matched by main query
-        if self.evaluator.matches_document(doc, &self.segment_reader)? {
+        if self.evaluator.matches_document(doc)? {
             self.doc_count += 1;
 
             // If we have sub-aggregations, collect on them for this filtered document
