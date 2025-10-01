@@ -1,11 +1,9 @@
-use rustc_hash::FxHashMap;
 use serde_json::Value;
-use tantivy::aggregation::agg_result::{AggregationResult, AggregationResults};
+use tantivy::aggregation::agg_result::AggregationResults;
 
-/// Convert HashMap of aggregation results to JSON for comparison
-pub fn aggregation_results_to_json(results: &FxHashMap<String, AggregationResult>) -> Value {
-    let agg_results = AggregationResults(results.clone());
-    serde_json::to_value(&agg_results).expect("Failed to serialize aggregation results")
+/// Convert AggregationResults to JSON for comparison
+pub fn aggregation_results_to_json(results: &AggregationResults) -> Value {
+    serde_json::to_value(results).expect("Failed to serialize aggregation results")
 }
 
 /// Compare two JSON values with tolerance for floating point numbers
@@ -55,7 +53,7 @@ pub fn json_values_match(actual: &Value, expected: &Value, tolerance: f64) -> bo
 /// tolerance and provides error messages when assertions fail.
 ///
 /// # Arguments
-/// * `actual_results` - The HashMap returned from aggregation search results (.0 field)
+/// * `actual_results` - The AggregationResults returned from aggregation search
 /// * `expected_json` - A serde_json::Value representing the expected structure
 /// * `tolerance` - Floating point tolerance for numeric comparisons
 ///
@@ -69,11 +67,11 @@ pub fn json_values_match(actual: &Value, expected: &Value, tolerance: f64) -> bo
 ///         }
 ///     }
 /// });
-/// assert_aggregation_results_match(&result.0, expected, 0.1);
+/// assert_aggregation_results_match(&result, expected, 0.1);
 /// ```
 #[allow(dead_code)]
 pub fn assert_aggregation_results_match(
-    actual_results: &FxHashMap<String, AggregationResult>,
+    actual_results: &AggregationResults,
     expected_json: Value,
     tolerance: f64,
 ) {

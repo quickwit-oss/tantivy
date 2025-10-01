@@ -90,13 +90,6 @@ pub(crate) fn build_segment_agg_collector_with_reader(
     Ok(Box::new(agg))
 }
 
-pub(crate) fn build_single_agg_segment_collector(
-    req: &mut AggregationWithAccessor,
-    accessor_idx: usize,
-) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    build_single_agg_segment_collector_with_reader(req, accessor_idx, None)
-}
-
 pub(crate) fn build_single_agg_segment_collector_with_reader(
     req: &mut AggregationWithAccessor,
     accessor_idx: usize,
@@ -274,6 +267,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
 }
 
 impl GenericSegmentAggregationResultsCollector {
+    #[allow(dead_code)]
     pub(crate) fn from_req_and_validate(req: &mut AggregationsWithAccessor) -> crate::Result<Self> {
         Self::from_req_and_validate_with_reader(req, None)
     }
