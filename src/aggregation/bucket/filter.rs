@@ -6,16 +6,15 @@ use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
-use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
+use crate::aggregation::segment_agg_result::{
+    build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
+};
 use crate::query::{Query, QueryParser, Weight};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError};
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
-///
-/// FilterAggregation accepts any query type that implements the Query trait, providing
-/// maximum compatibility with both built-in Tantivy queries and custom query types.
 ///
 /// # Usage
 /// ```rust
@@ -77,7 +76,7 @@ impl Clone for FilterAggregation {
 
 impl FilterAggregation {
     /// Create a new filter aggregation with a query string
-    /// The query string will be parsed using Tantivy's standard QueryParser::parse_query()
+    /// The query string will be parsed using the QueryParser::parse_query() method.
     pub fn new(query_string: String) -> Self {
         Self {
             query: FilterQuery::QueryString(query_string),
@@ -85,7 +84,7 @@ impl FilterAggregation {
     }
 
     /// Create a new filter aggregation with a direct Query object
-    /// This enables custom query types like HeapFilterQuery to be used directly
+    /// This enables custom query types to be used directly
     pub fn new_with_query(query: Box<dyn Query>) -> Self {
         Self {
             query: FilterQuery::Direct(query),
@@ -94,7 +93,7 @@ impl FilterAggregation {
 
     /// Parse the query into a Tantivy Query object
     ///
-    /// For query strings, this uses Tantivy's standard QueryParser::parse_query() method.
+    /// For query strings, this uses the QueryParser::parse_query() method.
     /// For direct Query objects, returns a clone.
     pub fn parse_query(&self, schema: &Schema) -> crate::Result<Box<dyn Query>> {
         match &self.query {
@@ -169,7 +168,6 @@ impl<'de> Deserialize<'de> for FilterAggregation {
     }
 }
 
-// Implement PartialEq for FilterAggregation
 impl PartialEq for FilterAggregation {
     fn eq(&self, other: &Self) -> bool {
         match (&self.query, &other.query) {
@@ -180,7 +178,7 @@ impl PartialEq for FilterAggregation {
     }
 }
 
-/// Efficient document evaluator for filter queries
+/// Document evaluator for filter queries
 /// This avoids running separate query executions and instead evaluates queries per document
 pub struct DocumentQueryEvaluator {
     /// The compiled query for evaluation
@@ -221,7 +219,7 @@ impl DocumentQueryEvaluator {
         Ok(())
     }
 
-    /// Efficiently evaluate if a document matches the filter query
+    /// Evaluate if a document matches the filter query
     /// This is the core performance-critical method
     pub fn matches_document(&self, doc: DocId) -> crate::Result<bool> {
         let weight = self.weight.as_ref().ok_or_else(|| {
@@ -238,7 +236,6 @@ impl DocumentQueryEvaluator {
 
         // This already handles all optimizations (fast fields, bitsets, etc.)
         let mut scorer = weight.scorer(segment_reader, 1.0)?;
-        use crate::DocSet;
 
         // Use the same pattern as Weight::explain to handle seek ordering correctly
         Ok(!(scorer.doc() > doc || scorer.seek(doc) != doc))
@@ -283,7 +280,6 @@ impl FilterSegmentCollector {
         // Follow the same pattern as terms aggregation
         let has_sub_aggregations = !sub_aggregations.is_empty();
         let sub_agg_collector = if has_sub_aggregations {
-            use crate::aggregation::segment_agg_result::build_segment_agg_collector_with_reader;
             // Use the same sub_aggregations structure that will be used at runtime
             // This ensures that the accessor indices match between build-time and runtime
             // Pass the segment_reader to ensure nested filter aggregations also get access
