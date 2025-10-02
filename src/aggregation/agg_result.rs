@@ -150,7 +150,7 @@ pub enum BucketResult {
         ///
         /// See [`TermsAggregation`](super::bucket::TermsAggregation)
         buckets: Vec<BucketEntry>,
-        /// The number of documents that didn't make it into to TOP N due to shard_size or size
+        /// The number of documents that didn’t make it into to TOP N due to shard_size or size
         sum_other_doc_count: u64,
         #[serde(skip_serializing_if = "Option::is_none")]
         /// The upper bound error for the doc count of each term.
@@ -175,6 +175,7 @@ impl BucketResult {
                 doc_count_error_upper_bound: _,
             } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
             BucketResult::Filter(filter_result) => {
+                // add one for the filter bucket itself
                 1 + filter_result.sub_aggregations.get_bucket_count()
             }
         }

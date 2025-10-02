@@ -15,7 +15,7 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
-use crate::aggregation::bucket::TermMissingAgg;
+use crate::aggregation::bucket::{FilterSegmentCollector, TermMissingAgg};
 use crate::aggregation::metric::{
     CardinalityAggregationReq, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
     TopHitsSegmentCollector,
@@ -187,9 +187,6 @@ pub(crate) fn build_single_agg_segment_collector_with_reader(
             SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
         )),
         Filter(filter_req) => {
-            // Create FilterSegmentCollector following the same pattern as other bucket aggregations
-            use crate::aggregation::bucket::FilterSegmentCollector;
-
             if let Some(segment_reader) = segment_reader {
                 Ok(Box::new(FilterSegmentCollector::from_req_and_validate(
                     filter_req,
@@ -266,11 +263,6 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
 }
 
 impl GenericSegmentAggregationResultsCollector {
-    #[allow(dead_code)]
-    pub(crate) fn from_req_and_validate(req: &mut AggregationsWithAccessor) -> crate::Result<Self> {
-        Self::from_req_and_validate_with_reader(req, None)
-    }
-
     pub(crate) fn from_req_and_validate_with_reader(
         req: &mut AggregationsWithAccessor,
         segment_reader: Option<&crate::SegmentReader>,

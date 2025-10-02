@@ -10,7 +10,6 @@
 
 mod common;
 
-use common::filter_test_helpers::*;
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::bucket::filter::FilterAggregation;
@@ -88,7 +87,7 @@ fn test_basic_filter_with_metric_agg() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -118,7 +117,7 @@ fn test_filter_with_no_matches() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -162,7 +161,7 @@ fn test_multiple_independent_filters() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -194,7 +193,7 @@ fn test_term_query_filter() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -222,7 +221,7 @@ fn test_range_query_filter() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -250,7 +249,7 @@ fn test_boolean_query_filter() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -286,7 +285,7 @@ fn test_bool_field_filter() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 1.0);
+    assert_agg_results!(&result, expected, 1.0);
     Ok(())
 }
 
@@ -336,7 +335,7 @@ fn test_two_level_nested_filters() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -390,7 +389,7 @@ fn test_deeply_nested_filters() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -438,7 +437,7 @@ fn test_multiple_nested_branches() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -526,7 +525,7 @@ fn test_nested_filters_with_multiple_siblings_at_each_level() -> tantivy::Result
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -581,7 +580,7 @@ fn test_filter_with_terms_sub_agg() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -621,7 +620,7 @@ fn test_filter_with_multiple_metric_aggs() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -661,7 +660,7 @@ fn test_filter_on_empty_index() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -723,7 +722,7 @@ fn test_filter_with_base_query() -> tantivy::Result<()> {
         }
     });
 
-    assert_aggregation_results_match(&result, expected, 0.1);
+    assert_agg_results!(&result, expected);
     Ok(())
 }
 
@@ -865,10 +864,10 @@ fn test_filter_result_correctness_vs_separate_query() -> tantivy::Result<()> {
     });
 
     // Verify filter aggregation result
-    assert_aggregation_results_match(&filter_result, filter_expected, 0.1);
+    assert_agg_results!(&filter_result, filter_expected);
 
     // Verify separate query result matches
-    assert_aggregation_results_match(&separate_result, separate_expected, 0.1);
+    assert_agg_results!(&separate_result, separate_expected);
 
     // This test demonstrates that filter aggregation produces the same results
     // as running a separate query with the same condition

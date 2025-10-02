@@ -24,7 +24,9 @@ use super::metric::{
 };
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
-use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
+use crate::aggregation::agg_result::{
+    AggregationResults, BucketEntries, BucketEntry, FilterBucketResult,
+};
 use crate::aggregation::bucket::TermsAggregationInternal;
 use crate::aggregation::metric::CardinalityCollector;
 use crate::TantivyError;
@@ -527,9 +529,6 @@ impl IntermediateBucketResult {
                 // Convert sub-aggregation results to final format
                 let final_sub_aggregations = sub_aggregations
                     .into_final_result(req.sub_aggregation().clone(), limits.clone())?;
-
-                // Create a filter bucket result (similar to Elasticsearch format)
-                use crate::aggregation::agg_result::FilterBucketResult;
                 Ok(BucketResult::Filter(FilterBucketResult {
                     doc_count,
                     sub_aggregations: final_sub_aggregations,

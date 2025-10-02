@@ -7,7 +7,6 @@ pub fn aggregation_results_to_json(results: &AggregationResults) -> Value {
 }
 
 /// Compare two JSON values with tolerance for floating point numbers
-#[allow(dead_code)]
 pub fn json_values_match(actual: &Value, expected: &Value, tolerance: f64) -> bool {
     match (actual, expected) {
         (Value::Number(a), Value::Number(e)) => {
@@ -69,7 +68,6 @@ pub fn json_values_match(actual: &Value, expected: &Value, tolerance: f64) -> bo
 /// });
 /// assert_aggregation_results_match(&result, expected, 0.1);
 /// ```
-#[allow(dead_code)]
 pub fn assert_aggregation_results_match(
     actual_results: &AggregationResults,
     expected_json: Value,
@@ -90,9 +88,13 @@ pub fn assert_aggregation_results_match(
 #[macro_export]
 macro_rules! assert_agg_results {
     ($actual:expr, $expected:expr) => {
-        assert_aggregation_results_match($actual, $expected, 0.1)
+        $crate::common::filter_test_helpers::assert_aggregation_results_match(
+            $actual, $expected, 0.1,
+        )
     };
     ($actual:expr, $expected:expr, $tolerance:expr) => {
-        assert_aggregation_results_match($actual, $expected, $tolerance)
+        $crate::common::filter_test_helpers::assert_aggregation_results_match(
+            $actual, $expected, $tolerance,
+        )
     };
 }
