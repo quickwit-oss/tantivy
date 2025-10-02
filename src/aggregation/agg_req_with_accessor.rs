@@ -347,7 +347,8 @@ impl AggregationWithAccessor {
             Filter(ref _filter_req) => {
                 // Filter aggregations don't need a specific field accessor like other aggregations
                 // (terms, histogram, stats) because they:
-                // 1. Access fast fields dynamically during query evaluation (fast path optimization)
+                // 1. Access fast fields dynamically during query evaluation (fast path
+                //    optimization)
                 // 2. Sub-aggregations get their own real accessors through the normal framework
                 // We provide a dummy accessor to satisfy the framework's accessor requirement
                 use columnar::Column;

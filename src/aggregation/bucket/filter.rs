@@ -143,9 +143,7 @@ impl FilterAggregation {
 // Custom serialization implementation
 impl Serialize for FilterAggregation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+    where S: Serializer {
         match &self.query {
             FilterQuery::QueryString(query_string) => {
                 // Serialize the query string directly
@@ -154,7 +152,8 @@ impl Serialize for FilterAggregation {
             FilterQuery::Direct(_) => {
                 // Direct queries cannot be serialized
                 Err(serde::ser::Error::custom(
-                    "Direct Query objects cannot be serialized. Use query strings for serialization support."
+                    "Direct Query objects cannot be serialized. Use query strings for \
+                     serialization support.",
                 ))
             }
         }
@@ -163,9 +162,7 @@ impl Serialize for FilterAggregation {
 
 impl<'de> Deserialize<'de> for FilterAggregation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
+    where D: Deserializer<'de> {
         // Deserialize as query string
         let query_string = String::deserialize(deserializer)?;
         Ok(FilterAggregation::new(query_string))
@@ -269,7 +266,8 @@ pub struct FilterSegmentCollector {
 }
 
 impl FilterSegmentCollector {
-    /// Create a new filter segment collector following the same pattern as other bucket aggregations
+    /// Create a new filter segment collector following the same pattern as other bucket
+    /// aggregations
     pub(crate) fn from_req_and_validate(
         filter_req: &FilterAggregation,
         sub_aggregations: &mut AggregationsWithAccessor,
