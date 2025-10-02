@@ -22,7 +22,7 @@ use tantivy::{doc, Index, IndexWriter};
 // Test Data Setup
 // ============================================================================
 
-/// Creates a standard test index with diverse product data
+/// Creates a standard test index with some product data
 fn create_standard_test_index() -> tantivy::Result<Index> {
     let mut schema_builder = Schema::builder();
     let category = schema_builder.add_text_field("category", TEXT | FAST);
@@ -35,7 +35,6 @@ fn create_standard_test_index() -> tantivy::Result<Index> {
     let index = Index::create_in_ram(schema);
     let mut writer: IndexWriter = index.writer(50_000_000)?;
 
-    // 4 products covering different categories and price ranges
     writer.add_document(doc!(
         category => "electronics", brand => "apple",
         price => 999u64, rating => 4.5f64, in_stock => true
@@ -685,8 +684,8 @@ fn test_malformed_query_string() -> tantivy::Result<()> {
             searcher.search(&AllQuery, &collector)
         });
 
-    // Empty string should either work (matching nothing) or error gracefully
-    assert!(result.is_ok() || result.is_err());
+    // Empty string should either work (matching nothing)
+    assert!(result.is_ok());
     Ok(())
 }
 
