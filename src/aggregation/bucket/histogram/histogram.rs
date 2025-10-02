@@ -1199,6 +1199,7 @@ mod tests {
                     "count": 0,
                     "min": Value::Null,
                     "max": Value::Null,
+                    "range": Value::Null,
                     "avg": Value::Null,
                 }
             })

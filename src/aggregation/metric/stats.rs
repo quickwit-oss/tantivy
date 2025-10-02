@@ -63,6 +63,8 @@ pub struct Stats {
     pub min: Option<f64>,
     /// The max value of the fast field values.
     pub max: Option<f64>,
+    /// The range of the fast field values, always equal to (max - min).
+    pub range: Option<f64>,
     /// The average of the fast field values. `None` if count equals zero.
     pub avg: Option<f64>,
 }
@@ -74,6 +76,7 @@ impl Stats {
             "sum" => Ok(Some(self.sum)),
             "min" => Ok(self.min),
             "max" => Ok(self.max),
+            "range" => Ok(self.range),
             "avg" => Ok(self.avg),
             _ => Err(TantivyError::InvalidArgument(format!(
                 "Unknown property {agg_property} on stats metric aggregation"
@@ -127,20 +130,15 @@ impl IntermediateStats {
 
     /// Computes the final stats value.
     pub fn finalize(&self) -> Stats {
-        let min = if self.count == 0 {
-            None
+        let (min, max, range, avg) = if self.count == 0 {
+            (None, None, None, None)
         } else {
-            Some(self.min)
-        };
-        let max = if self.count == 0 {
-            None
-        } else {
-            Some(self.max)
-        };
-        let avg = if self.count == 0 {
-            None
-        } else {
-            Some(self.sum / (self.count as f64))
+            (
+                Some(self.min),
+                Some(self.max),
+                Some(self.max - self.min),
+                Some(self.sum / (self.count as f64)),
+            )
         };
         Stats {
             count: self.count,
@@ -148,6 +146,7 @@ impl IntermediateStats {
             min,
             max,
             avg,
+            range,
         }
     }
 
@@ -361,6 +360,7 @@ mod tests {
                 "count": 0,
                 "max": Value::Null,
                 "min": Value::Null,
+                "range": Value::Null,
                 "sum": 0.0
             })
         );
@@ -397,6 +397,7 @@ mod tests {
                 "count": 1,
                 "max": 10.0,
                 "min": 10.0,
+                "range": 0.0,
                 "sum": 10.0
             })
         );
@@ -471,6 +472,7 @@ mod tests {
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
+                "range": 43.0,
                 "sum": 85.0
             })
         );
@@ -482,6 +484,7 @@ mod tests {
                 "count": 7,
                 "max": 44.0,
                 "min": 1.0,
+                "range": 43.0,
                 "sum": 85.0
             })
         );
@@ -493,6 +496,7 @@ mod tests {
                 "count": 7,
                 "max": 44.5,
                 "min": 1.0,
+                "range": 43.5,
                 "sum": 85.5
             })
         );
@@ -504,6 +508,7 @@ mod tests {
                 "count": 3,
                 "max": 14.0,
                 "min": 7.0,
+                "range": 7.0,
                 "sum": 32.0
             })
         );
@@ -515,6 +520,7 @@ mod tests {
                 "count": 0,
                 "max": serde_json::Value::Null,
                 "min": serde_json::Value::Null,
+                "range": serde_json::Value::Null,
                 "sum": 0.0,
             })
         );
@@ -569,6 +575,7 @@ mod tests {
                 "count": 1,
                 "max": 10.0,
                 "min": 10.0,
+                "range": 0.0,
                 "sum": 10.0
             })
         );
@@ -617,6 +624,7 @@ mod tests {
                 "count": 4,
                 "max": 10.0,
                 "min": 0.0,
+                "range": 10.0,
                 "sum": 10.0
             })
         );
@@ -641,6 +649,7 @@ mod tests {
                 "count": 4,
                 "max": 10.0,
                 "min": 0.0,
+                "range": 10.0,
                 "sum": 10.0
             })
         );

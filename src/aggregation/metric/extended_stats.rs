@@ -74,6 +74,8 @@ pub struct ExtendedStats {
     pub min: Option<f64>,
     /// The max value of the fast field values.
     pub max: Option<f64>,
+    /// The range of the fast field values, always equal to (max - min).
+    pub range: Option<f64>,
     /// The average of the fast field values. `None` if count equals zero.
     pub avg: Option<f64>,
     /// The sum of squares of the fast field values. `None` if count equals zero.
@@ -126,6 +128,7 @@ impl ExtendedStats {
             "sum" => Ok(Some(self.sum)),
             "min" => Ok(self.min),
             "max" => Ok(self.max),
+            "range" => Ok(self.range),
             "avg" => Ok(self.avg),
             "variance" => Ok(self.variance),
             "variance_sampling" => Ok(self.variance_sampling),
@@ -238,12 +241,13 @@ impl IntermediateExtendedStats {
 
     /// Computes the final stats value.
     pub fn finalize(&self) -> Box<ExtendedStats> {
-        let (min, max, avg, sum_of_squares) = if self.intermediate_stats.count == 0 {
-            (None, None, None, None)
+        let (min, max, range, avg, sum_of_squares) = if self.intermediate_stats.count == 0 {
+            (None, None, None, None, None)
         } else {
             (
                 Some(self.intermediate_stats.min),
                 Some(self.intermediate_stats.max),
+                Some(self.intermediate_stats.max - self.intermediate_stats.min),
                 Some(self.mean),
                 Some(self.sum_of_squares_elastic),
             )
@@ -282,6 +286,7 @@ impl IntermediateExtendedStats {
             sum: self.intermediate_stats.sum,
             min,
             max,
+            range,
             avg,
             sum_of_squares,
             variance,
@@ -479,6 +484,12 @@ mod tests {
         );
         assert_eq!(
             agg_res
+                .get_value_from_aggregation("my_stats", "range")?
+                .unwrap(),
+            0.0
+        );
+        assert_eq!(
+            agg_res
                 .get_value_from_aggregation("my_stats", "sum")?
                 .unwrap(),
             1.0
@@ -574,6 +585,12 @@ mod tests {
                 .get_value_from_aggregation("my_stats", "max")?
                 .unwrap(),
             10.0
+        );
+        assert_eq!(
+            agg_res
+                .get_value_from_aggregation("my_stats", "range")?
+                .unwrap(),
+            9.0
         );
         assert_eq!(
             agg_res
@@ -722,6 +739,12 @@ mod tests {
                 .get_value_from_aggregation("my_stats", "max")?
                 .unwrap(),
             6.0
+        );
+        assert_eq!(
+            agg_res
+                .get_value_from_aggregation("my_stats", "range")?
+                .unwrap(),
+            5.0
         );
         assert_eq!(
             agg_res
