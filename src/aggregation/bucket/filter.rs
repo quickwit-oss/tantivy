@@ -272,7 +272,7 @@ impl FilterSegmentCollector {
         accessor_idx: usize,
     ) -> crate::Result<Self> {
         let schema = segment_reader.schema();
-        let query = filter_req.parse_query(&schema)?;
+        let query = filter_req.parse_query(schema)?;
 
         let mut evaluator = DocumentQueryEvaluator::new(query, schema.clone());
         evaluator.initialize_for_segment(segment_reader)?;
