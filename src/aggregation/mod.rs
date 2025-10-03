@@ -389,26 +389,46 @@ impl Display for Key {
 
 /// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
-/// Converts fastfield u64 values to f64 for aggregation purposes:
-/// - Numeric types (U64, I64, F64, DateTime, Bool): converts to appropriate f64 value
-/// - Text type (Str): returns 0.0 to enable counting without meaningful numeric values
-///
-/// This allows stats aggregations to work on text fields by counting occurrences
-/// while ignoring the actual string values.
-///
 /// # Panics
-/// Panics on unexpected column types that are not handled.
+/// Only `u64`, `f64`, `date`, and `i64` are supported.
 pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
     match field_type {
         ColumnType::U64 => val as f64,
         ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
         ColumnType::F64 => f64::from_u64(val),
         ColumnType::Bool => val as f64,
-        // For text fields, return 0.0 to enable counting without meaningful numeric values
-        ColumnType::Str => 0.0,
         _ => {
             panic!("unexpected type {field_type:?}. This should not happen")
         }
+    }
+}
+
+/// Converts a fastfield u64 value to f64 with a default for non-numeric types.
+///
+/// Similar to `f64_from_fastfield_u64`, but instead of panicking on unsupported types,
+/// returns the provided default value. This is useful for aggregations that need to
+/// handle mixed field types gracefully (e.g., counting text field occurrences).
+///
+/// # Arguments
+/// * `val` - The u64 value from the fastfield
+/// * `field_type` - The column type to interpret the value as
+/// * `default` - The default value to return for non-numeric types (Str, etc.)
+///
+/// # Returns
+/// - For numeric types (U64, I64, F64, DateTime, Bool): the converted f64 value
+/// - For non-numeric types: the provided default value
+pub(crate) fn f64_from_fastfield_u64_or_default(
+    val: u64,
+    field_type: &ColumnType,
+    default: f64,
+) -> f64 {
+    match field_type {
+        ColumnType::U64 => val as f64,
+        ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
+        ColumnType::F64 => f64::from_u64(val),
+        ColumnType::Bool => val as f64,
+        // Return default for non-numeric types
+        _ => default,
     }
 }
 

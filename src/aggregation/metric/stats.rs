@@ -220,23 +220,11 @@ impl SegmentStatsCollector {
                 .column_block_accessor
                 .fetch_block(docs, &agg_accessor.accessor);
         }
-        if [
-            ColumnType::I64,
-            ColumnType::U64,
-            ColumnType::F64,
-            ColumnType::DateTime,
-        ]
-        .contains(&self.field_type)
-        {
-            for val in agg_accessor.column_block_accessor.iter_vals() {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.stats.collect(val1);
-            }
-        } else {
-            for _val in agg_accessor.column_block_accessor.iter_vals() {
-                // we ignore the value and simply record that we got something
-                self.stats.collect(0.0);
-            }
+        // Use f64_from_fastfield_u64_or_default to handle non-numeric types gracefully
+        // For text fields, 0.0 allows counting without meaningful numeric values
+        for val in agg_accessor.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64_or_default(val, &self.field_type, 0.0);
+            self.stats.collect(val1);
         }
     }
 }
@@ -285,21 +273,25 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     ) -> crate::Result<()> {
         let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
 
-        // f64_from_fastfield_u64 handles all field types including Str (returns 0.0)
+        // Use f64_from_fastfield_u64_or_default to handle non-numeric types gracefully
+        // For text fields, 0.0 allows counting without meaningful numeric values
         if let Some(missing) = self.missing {
             let mut has_val = false;
             for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                let val1 = f64_from_fastfield_u64_or_default(val, &self.field_type, 0.0);
                 self.stats.collect(val1);
                 has_val = true;
             }
             if !has_val {
-                self.stats
-                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
+                self.stats.collect(f64_from_fastfield_u64_or_default(
+                    missing,
+                    &self.field_type,
+                    0.0,
+                ));
             }
         } else {
             for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                let val1 = f64_from_fastfield_u64_or_default(val, &self.field_type, 0.0);
                 self.stats.collect(val1);
             }
         }
