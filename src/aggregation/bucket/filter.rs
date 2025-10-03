@@ -174,16 +174,12 @@ impl PartialEq for FilterAggregation {
 /// Document evaluator for filter queries
 /// This avoids running separate query executions and instead evaluates queries per document
 struct DocumentQueryEvaluator {
-    /// The compiled query for evaluation
-    query: Box<dyn Query>,
     /// Cached weight for the current segment
     weight: Option<Box<dyn Weight>>,
     /// Note: We can't pre-create the scorer because it maintains state (current doc position)
     /// that would be invalid across multiple document evaluations.
     /// Instead, we cache the SegmentReader which is cheap (Arc-based internally).
     segment_reader: Option<SegmentReader>,
-    /// Schema for field resolution
-    schema: Schema,
 }
 
 impl DocumentQueryEvaluator {
@@ -201,10 +197,8 @@ impl DocumentQueryEvaluator {
         use crate::query::EnableScoring;
         let weight = Some(query.weight(EnableScoring::disabled_from_schema(&schema))?);
         Ok(Self {
-            query,
             weight,
             segment_reader: Some(segment_reader.clone()),
-            schema,
         })
     }
 

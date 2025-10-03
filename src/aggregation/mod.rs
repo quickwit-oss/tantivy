@@ -177,7 +177,9 @@ fn parse_str_into_f64<E: de::Error>(value: &str) -> Result<f64, E> {
 
 /// deserialize Option<f64> from string or float
 pub(crate) fn deserialize_option_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
-where D: Deserializer<'de> {
+where
+    D: Deserializer<'de>,
+{
     struct StringOrFloatVisitor;
 
     impl Visitor<'_> for StringOrFloatVisitor {
@@ -188,32 +190,44 @@ where D: Deserializer<'de> {
         }
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             parse_str_into_f64(value).map(Some)
         }
 
         fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(Some(value))
         }
 
         fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(Some(value as f64))
         }
 
         fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(Some(value as f64))
         }
 
         fn visit_none<E>(self) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(None)
         }
 
         fn visit_unit<E>(self) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(None)
         }
     }
@@ -223,7 +237,9 @@ where D: Deserializer<'de> {
 
 /// deserialize f64 from string or float
 pub(crate) fn deserialize_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
-where D: Deserializer<'de> {
+where
+    D: Deserializer<'de>,
+{
     struct StringOrFloatVisitor;
 
     impl Visitor<'_> for StringOrFloatVisitor {
@@ -234,22 +250,30 @@ where D: Deserializer<'de> {
         }
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             parse_str_into_f64(value)
         }
 
         fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(value)
         }
 
         fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(value as f64)
         }
 
         fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-        where E: de::Error {
+        where
+            E: de::Error,
+        {
             Ok(value as f64)
         }
     }
@@ -389,14 +413,23 @@ impl Display for Key {
 
 /// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
+/// Converts fastfield u64 values to f64 for aggregation purposes:
+/// - Numeric types (U64, I64, F64, DateTime, Bool): converts to appropriate f64 value
+/// - Text type (Str): returns 0.0 to enable counting without meaningful numeric values
+///
+/// This allows stats aggregations to work on text fields by counting occurrences
+/// while ignoring the actual string values.
+///
 /// # Panics
-/// Only `u64`, `f64`, `date`, and `i64` are supported.
+/// Panics on unexpected column types that are not handled.
 pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
     match field_type {
         ColumnType::U64 => val as f64,
         ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
         ColumnType::F64 => f64::from_u64(val),
         ColumnType::Bool => val as f64,
+        // For text fields, return 0.0 to enable counting without meaningful numeric values
+        ColumnType::Str => 0.0,
         _ => {
             panic!("unexpected type {field_type:?}. This should not happen")
         }

@@ -14,7 +14,7 @@ use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::bucket::filter::FilterAggregation;
 use tantivy::aggregation::AggregationCollector;
-use tantivy::query::{AllQuery, Query, TermQuery};
+use tantivy::query::{AllQuery, TermQuery};
 use tantivy::schema::{IndexRecordOption, Schema, Term, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
 
@@ -732,8 +732,6 @@ fn test_filter_with_base_query() -> tantivy::Result<()> {
 #[test]
 fn test_direct_query_object() -> tantivy::Result<()> {
     let index = create_standard_test_index()?;
-    let reader = index.reader()?;
-    let searcher = reader.searcher();
     let schema = index.schema();
 
     // Create a custom query directly
