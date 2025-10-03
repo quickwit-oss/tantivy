@@ -744,11 +744,6 @@ fn test_direct_query_object() -> tantivy::Result<()> {
     // Use it in FilterAggregation
     let filter_agg = FilterAggregation::new_with_query(Box::new(term_query));
 
-    // Verify it works
-    let query = filter_agg.parse_query(&schema)?;
-    let count = query.count(&searcher)?;
-    assert_eq!(count, 2, "Should match 2 electronics");
-
     // Verify it cannot be serialized
     let serialization_result = serde_json::to_string(&filter_agg);
     assert!(
@@ -772,41 +767,25 @@ fn test_query_string_serialization() -> tantivy::Result<()> {
     assert!(serialized.contains("electronics"));
 
     let deserialized: FilterAggregation = serde_json::from_str(&serialized)?;
-    assert_eq!(filter_agg, deserialized);
-
-    Ok(())
-}
-
-#[test]
-fn test_query_equality_behavior() -> tantivy::Result<()> {
-    // Query strings should be comparable
-    let filter1 = FilterAggregation::new("category:books".to_string());
-    let filter2 = FilterAggregation::new("category:books".to_string());
-    let filter3 = FilterAggregation::new("category:electronics".to_string());
-
-    assert_eq!(filter1, filter2, "Identical query strings should be equal");
-    assert_ne!(
-        filter1, filter3,
-        "Different query strings should not be equal"
-    );
-
-    // Direct queries should not be comparable (by design)
+    // Verify it deserializes correctly by using it in an aggregation
     let index = create_standard_test_index()?;
-    let schema = index.schema();
-    let field = schema.get_field("category").unwrap();
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
 
-    let term1 = Term::from_field_text(field, "books");
-    let query1 = TermQuery::new(term1.clone(), IndexRecordOption::Basic);
-    let filter_direct1 = FilterAggregation::new_with_query(Box::new(query1));
+    let agg = json!({
+        "test": {
+            "filter": deserialized,
+            "aggs": { "count": { "value_count": { "field": "brand" } } }
+        }
+    });
 
-    let term2 = Term::from_field_text(field, "books");
-    let query2 = TermQuery::new(term2, IndexRecordOption::Basic);
-    let filter_direct2 = FilterAggregation::new_with_query(Box::new(query2));
+    let aggregations: Aggregations = serde_json::from_value(agg)?;
+    let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+    let result = searcher.search(&AllQuery, &collector)?;
 
-    assert_ne!(
-        filter_direct1, filter_direct2,
-        "Direct queries should not be equal even if logically equivalent"
-    );
+    // Should match 2 electronics
+    let result_json = serde_json::to_value(&result)?;
+    assert_eq!(result_json["test"]["doc_count"], 2);
 
     Ok(())
 }

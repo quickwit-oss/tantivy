@@ -76,6 +76,14 @@ fn main() -> tantivy::Result<()> {
     let agg: Aggregations = serde_json::from_value(agg_req)?;
     let collector = AggregationCollector::from_aggs(agg, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
+
+    let expected = json!({
+        "electronics": {
+            "doc_count": 2,
+            "avg_price": { "value": 899.0 }
+        }
+    });
+    assert_eq!(serde_json::to_value(&result)?, expected);
     println!("{}\n", serde_json::to_string_pretty(&result)?);
 
     // Example 2: Multiple independent filters
@@ -98,6 +106,22 @@ fn main() -> tantivy::Result<()> {
     let agg: Aggregations = serde_json::from_value(agg_req)?;
     let collector = AggregationCollector::from_aggs(agg, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
+
+    let expected = json!({
+        "electronics": {
+            "doc_count": 2,
+            "avg_price": { "value": 899.0 }
+        },
+        "in_stock": {
+            "doc_count": 3,
+            "count": { "value": 3.0 }
+        },
+        "high_rated": {
+            "doc_count": 2,
+            "count": { "value": 2.0 }
+        }
+    });
+    assert_eq!(serde_json::to_value(&result)?, expected);
     println!("{}\n", serde_json::to_string_pretty(&result)?);
 
     // Example 3: Nested filters
@@ -124,6 +148,20 @@ fn main() -> tantivy::Result<()> {
     let agg: Aggregations = serde_json::from_value(agg_req)?;
     let collector = AggregationCollector::from_aggs(agg, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
+
+    let expected = json!({
+        "all_products": {
+            "doc_count": 4,
+            "electronics": {
+                "doc_count": 2,
+                "expensive": {
+                    "doc_count": 1,
+                    "avg_rating": { "value": 4.5 }
+                }
+            }
+        }
+    });
+    assert_eq!(serde_json::to_value(&result)?, expected);
     println!("{}\n", serde_json::to_string_pretty(&result)?);
 
     // Example 4: Filter with sub-aggregation (terms)
@@ -145,6 +183,29 @@ fn main() -> tantivy::Result<()> {
     let agg: Aggregations = serde_json::from_value(agg_req)?;
     let collector = AggregationCollector::from_aggs(agg, Default::default());
     let result = searcher.search(&AllQuery, &collector)?;
+
+    let expected = json!({
+        "electronics": {
+            "doc_count": 2,
+            "by_brand": {
+                "buckets": [
+                    {
+                        "key": "samsung",
+                        "doc_count": 1,
+                        "avg_price": { "value": 799.0 }
+                    },
+                    {
+                        "key": "apple",
+                        "doc_count": 1,
+                        "avg_price": { "value": 999.0 }
+                    }
+                ],
+                "sum_other_doc_count": 0,
+                "doc_count_error_upper_bound": 0
+            }
+        }
+    });
+    assert_eq!(serde_json::to_value(&result)?, expected);
     println!("{}", serde_json::to_string_pretty(&result)?);
 
     Ok(())

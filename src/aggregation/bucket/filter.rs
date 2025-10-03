@@ -36,7 +36,7 @@ use crate::{DocId, SegmentReader, TantivyError};
 /// The filter aggregation returns a single bucket with:
 /// - `doc_count`: Number of documents matching the filter
 /// - Sub-aggregation results computed on the filtered document set
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FilterAggregation {
     /// The query for filtering - can be either a query string or a direct Query object
     query: FilterQuery,
@@ -49,8 +49,7 @@ pub enum FilterQuery {
     /// Accepts query strings that can be parsed by QueryParser::parse_query()
     QueryString(String),
 
-    /// Direct Query object for custom query types
-    /// Enables extensions like HeapFilterQuery to be used directly
+    /// Direct Query object for extension query types
     /// This bypasses JSON parsing entirely for maximum performance
     Direct(Box<dyn Query>),
 }
@@ -62,14 +61,6 @@ impl Clone for FilterQuery {
                 FilterQuery::QueryString(query_string.clone())
             }
             FilterQuery::Direct(query) => FilterQuery::Direct(query.box_clone()),
-        }
-    }
-}
-
-impl Clone for FilterAggregation {
-    fn clone(&self) -> Self {
-        Self {
-            query: self.query.clone(),
         }
     }
 }
@@ -95,7 +86,7 @@ impl FilterAggregation {
     ///
     /// For query strings, this uses the QueryParser::parse_query() method.
     /// For direct Query objects, returns a clone.
-    pub fn parse_query(&self, schema: &Schema) -> crate::Result<Box<dyn Query>> {
+    fn parse_query(&self, schema: &Schema) -> crate::Result<Box<dyn Query>> {
         match &self.query {
             FilterQuery::QueryString(query_str) => {
                 let tokenizer_manager = TokenizerManager::default();
@@ -168,6 +159,8 @@ impl<'de> Deserialize<'de> for FilterAggregation {
     }
 }
 
+// PartialEq is required because AggregationVariants derives it
+// We implement it manually to handle Box<dyn Query> which doesn't impl PartialEq
 impl PartialEq for FilterAggregation {
     fn eq(&self, other: &Self) -> bool {
         match (&self.query, &other.query) {
@@ -180,7 +173,7 @@ impl PartialEq for FilterAggregation {
 
 /// Document evaluator for filter queries
 /// This avoids running separate query executions and instead evaluates queries per document
-pub struct DocumentQueryEvaluator {
+struct DocumentQueryEvaluator {
     /// The compiled query for evaluation
     query: Box<dyn Query>,
     /// Cached weight for the current segment
@@ -194,29 +187,25 @@ pub struct DocumentQueryEvaluator {
 }
 
 impl DocumentQueryEvaluator {
-    /// Create a new document query evaluator
-    pub fn new(query: Box<dyn Query>, schema: Schema) -> Self {
-        Self {
-            query,
-            weight: None,
-            segment_reader: None,
-            schema,
-        }
-    }
-
-    /// Initialize the evaluator for a specific segment
+    /// Create and initialize a document query evaluator for a segment
     ///
     /// Note: SegmentReader is cloned here but the clone is cheap because:
     /// - SegmentReader uses Arc<OnceLock<...>> for all data structures
     /// - All data is memory-mapped, so no actual data is copied
-    pub fn initialize_for_segment(&mut self, segment_reader: &SegmentReader) -> crate::Result<()> {
+    /// - Clone just increments reference counts
+    fn new(
+        query: Box<dyn Query>,
+        schema: Schema,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<Self> {
         use crate::query::EnableScoring;
-        self.weight = Some(
-            self.query
-                .weight(EnableScoring::disabled_from_schema(&self.schema))?,
-        );
-        self.segment_reader = Some(segment_reader.clone());
-        Ok(())
+        let weight = Some(query.weight(EnableScoring::disabled_from_schema(&schema))?);
+        Ok(Self {
+            query,
+            weight,
+            segment_reader: Some(segment_reader.clone()),
+            schema,
+        })
     }
 
     /// Evaluate if a document matches the filter query
@@ -274,8 +263,7 @@ impl FilterSegmentCollector {
         let schema = segment_reader.schema();
         let query = filter_req.parse_query(schema)?;
 
-        let mut evaluator = DocumentQueryEvaluator::new(query, schema.clone());
-        evaluator.initialize_for_segment(segment_reader)?;
+        let evaluator = DocumentQueryEvaluator::new(query, schema.clone(), segment_reader)?;
 
         // Follow the same pattern as terms aggregation
         let has_sub_aggregations = !sub_aggregations.is_empty();
@@ -372,7 +360,7 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         docs: &[DocId],
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        // Batch processing for better performance
+        // TODO: Batch processing for better performance
         for &doc in docs {
             self.collect(doc, agg_with_accessor)?;
         }
