@@ -124,11 +124,11 @@ fn main() -> tantivy::Result<()> {
     assert_eq!(serde_json::to_value(&result)?, expected);
     println!("{}\n", serde_json::to_string_pretty(&result)?);
 
-    // Example 3: Nested filters
+    // Example 3: Nested filters - progressive refinement
     println!("=== Example 3: Nested filters ===");
     let agg_req = json!({
-        "all_products": {
-            "filter": "*",
+        "in_stock": {
+            "filter": "in_stock:true",
             "aggs": {
                 "electronics": {
                     "filter": "category:electronics",
@@ -150,12 +150,12 @@ fn main() -> tantivy::Result<()> {
     let result = searcher.search(&AllQuery, &collector)?;
 
     let expected = json!({
-        "all_products": {
-            "doc_count": 4,
+        "in_stock": {
+            "doc_count": 3,  // apple, samsung, penguin
             "electronics": {
-                "doc_count": 2,
+                "doc_count": 2,  // apple, samsung
                 "expensive": {
-                    "doc_count": 1,
+                    "doc_count": 1,  // only apple (999)
                     "avg_rating": { "value": 4.5 }
                 }
             }
