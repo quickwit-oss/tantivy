@@ -50,9 +50,16 @@ pub enum FilterQuery {
     /// Accepts query strings that can be parsed by QueryParser::parse_query()
     QueryString(String),
 
-    /// Direct Query object for extension query types
-    /// This bypasses JSON parsing entirely for maximum performance
-    Direct(Box<dyn Query>),
+    /// Custom Query object for programmatic query construction
+    ///
+    /// This variant allows passing pre-constructed Query objects directly,
+    /// which is useful for:
+    /// - Custom query types not expressible as query strings
+    /// - Programmatic query construction
+    /// - Extension query types
+    ///
+    /// Note: This variant cannot be serialized to JSON (only QueryString can be serialized)
+    CustomQuery(Box<dyn Query>),
 }
 
 impl Clone for FilterQuery {
@@ -61,7 +68,7 @@ impl Clone for FilterQuery {
             FilterQuery::QueryString(query_string) => {
                 FilterQuery::QueryString(query_string.clone())
             }
-            FilterQuery::Direct(query) => FilterQuery::Direct(query.box_clone()),
+            FilterQuery::CustomQuery(query) => FilterQuery::CustomQuery(query.box_clone()),
         }
     }
 }
@@ -79,7 +86,7 @@ impl FilterAggregation {
     /// This enables custom query types to be used directly
     pub fn new_with_query(query: Box<dyn Query>) -> Self {
         Self {
-            query: FilterQuery::Direct(query),
+            query: FilterQuery::CustomQuery(query),
         }
     }
 
@@ -97,7 +104,7 @@ impl FilterAggregation {
                     .parse_query(query_str)
                     .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
             }
-            FilterQuery::Direct(query) => {
+            FilterQuery::CustomQuery(query) => {
                 // Return a clone of the direct query
                 Ok(query.box_clone())
             }
@@ -117,7 +124,7 @@ impl FilterAggregation {
             FilterQuery::QueryString(query_str) => query_parser
                 .parse_query(query_str)
                 .map_err(|e| TantivyError::InvalidArgument(e.to_string())),
-            FilterQuery::Direct(query) => {
+            FilterQuery::CustomQuery(query) => {
                 // Return a clone of the direct query, ignoring the parser
                 Ok(query.box_clone())
             }
@@ -126,7 +133,9 @@ impl FilterAggregation {
 
     /// Get the fast field names used by this aggregation (none for filter aggregation)
     pub fn get_fast_field_names(&self) -> Vec<&str> {
-        // Filter aggregation doesn't use fast fields directly
+        // Filter aggregation doesn't declare fast field dependencies directly
+        // Note: The query may internally use fast fields for non-indexed fields,
+        // but this is handled by the query execution layer, not aggregation
         vec![]
     }
 }
@@ -142,10 +151,10 @@ impl Serialize for FilterAggregation {
                 // Serialize the query string directly
                 query_string.serialize(serializer)
             }
-            FilterQuery::Direct(_) => {
-                // Direct queries cannot be serialized
+            FilterQuery::CustomQuery(_) => {
+                // Custom queries cannot be serialized
                 Err(serde::ser::Error::custom(
-                    "Direct Query objects cannot be serialized. Use query strings for \
+                    "Custom Query objects cannot be serialized. Use query strings for \
                      serialization support.",
                 ))
             }
@@ -170,7 +179,7 @@ impl PartialEq for FilterAggregation {
     fn eq(&self, other: &Self) -> bool {
         match (&self.query, &other.query) {
             (FilterQuery::QueryString(a), FilterQuery::QueryString(b)) => a == b,
-            // Direct queries cannot be compared for equality
+            // Custom queries cannot be compared for equality
             _ => false,
         }
     }

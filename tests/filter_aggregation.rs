@@ -753,7 +753,7 @@ fn test_direct_query_object() -> tantivy::Result<()> {
     assert!(serialization_result
         .unwrap_err()
         .to_string()
-        .contains("Direct Query objects cannot be serialized"));
+        .contains("Custom Query objects cannot be serialized"));
 
     Ok(())
 }
