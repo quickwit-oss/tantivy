@@ -9,7 +9,7 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
 };
-use crate::query::{Query, QueryParser, Weight};
+use crate::query::{Query, QueryParser, Scorer};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError};
@@ -133,7 +133,9 @@ impl FilterAggregation {
 // Custom serialization implementation
 impl Serialize for FilterAggregation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         match &self.query {
             FilterQuery::QueryString(query_string) => {
                 // Serialize the query string directly
@@ -152,7 +154,9 @@ impl Serialize for FilterAggregation {
 
 impl<'de> Deserialize<'de> for FilterAggregation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         // Deserialize as query string
         let query_string = String::deserialize(deserializer)?;
         Ok(FilterAggregation::new(query_string))
@@ -174,60 +178,45 @@ impl PartialEq for FilterAggregation {
 /// Document evaluator for filter queries
 /// This avoids running separate query executions and instead evaluates queries per document
 struct DocumentQueryEvaluator {
-    /// Cached weight for the current segment
-    weight: Option<Box<dyn Weight>>,
-    /// Note: We can't pre-create the scorer because it maintains state (current doc position)
-    /// that would be invalid across multiple document evaluations.
-    /// Instead, we cache the SegmentReader which is cheap (Arc-based internally).
-    segment_reader: Option<SegmentReader>,
+    /// The scorer for document matching
+    /// We create this once per segment and reuse it for all document checks.
+    /// This is critical for performance.
+    scorer: Option<Box<dyn Scorer>>,
 }
 
 impl DocumentQueryEvaluator {
     /// Create and initialize a document query evaluator for a segment
-    ///
-    /// Note: SegmentReader is cloned here but the clone is cheap because:
-    /// - SegmentReader uses Arc<OnceLock<...>> for all data structures
-    /// - All data is memory-mapped, so no actual data is copied
-    /// - Clone just increments reference counts
     fn new(
         query: Box<dyn Query>,
         schema: Schema,
         segment_reader: &SegmentReader,
     ) -> crate::Result<Self> {
         use crate::query::EnableScoring;
-        let weight = Some(query.weight(EnableScoring::disabled_from_schema(&schema))?);
+        let weight = query.weight(EnableScoring::disabled_from_schema(&schema))?;
+        let scorer = weight.scorer(segment_reader, 1.0)?;
         Ok(Self {
-            weight,
-            segment_reader: Some(segment_reader.clone()),
+            scorer: Some(scorer),
         })
     }
 
     /// Evaluate if a document matches the filter query
     /// This is the core performance-critical method
-    pub fn matches_document(&self, doc: DocId) -> crate::Result<bool> {
-        let weight = self.weight.as_ref().ok_or_else(|| {
+    pub fn matches_document(&mut self, doc: DocId) -> crate::Result<bool> {
+        let scorer = self.scorer.as_mut().ok_or_else(|| {
             TantivyError::InvalidArgument(
                 "DocumentQueryEvaluator not initialized for segment".to_string(),
             )
         })?;
-
-        let segment_reader = self.segment_reader.as_ref().ok_or_else(|| {
-            TantivyError::InvalidArgument(
-                "DocumentQueryEvaluator not initialized for segment".to_string(),
-            )
-        })?;
-
-        // This already handles all optimizations (fast fields, bitsets, etc.)
-        let mut scorer = weight.scorer(segment_reader, 1.0)?;
 
         // Use the same pattern as Weight::explain to handle seek ordering correctly
+        // The scorer maintains its position, so we can efficiently check if doc matches
         Ok(!(scorer.doc() > doc || scorer.seek(doc) != doc))
     }
 }
 impl Debug for DocumentQueryEvaluator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocumentQueryEvaluator")
-            .field("has_weight", &self.weight.is_some())
+            .field("has_scorer", &self.scorer.is_some())
             .finish()
     }
 }

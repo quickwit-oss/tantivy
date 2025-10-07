@@ -10,12 +10,14 @@
 
 mod common;
 
+use std::time::Instant;
+
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::bucket::filter::FilterAggregation;
 use tantivy::aggregation::AggregationCollector;
-use tantivy::query::{AllQuery, TermQuery};
-use tantivy::schema::{IndexRecordOption, Schema, Term, FAST, INDEXED, TEXT};
+use tantivy::query::{AllQuery, QueryParser, TermQuery};
+use tantivy::schema::{IndexRecordOption, Schema, Term, FAST, INDEXED, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
 
 // ============================================================================
@@ -847,5 +849,165 @@ fn test_filter_result_correctness_vs_separate_query() -> tantivy::Result<()> {
 
     // This test demonstrates that filter aggregation produces the same results
     // as running a separate query with the same condition
+    Ok(())
+}
+
+#[test]
+fn test_filter_aggregation_performance() -> tantivy::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let message_field = schema_builder.add_text_field("message", TEXT | STORED);
+    let severity_field = schema_builder.add_u64_field("severity", FAST | STORED | INDEXED);
+    let schema = schema_builder.build();
+
+    // Create index with test data
+    let index = Index::create_in_ram(schema.clone());
+    let mut index_writer: IndexWriter = index.writer(50_000_000)?;
+
+    // Add 100K documents
+    for i in 0..100_000u64 {
+        let severity = (i % 5) + 1;
+        let message = if i % 5 == 0 {
+            "research data"
+        } else {
+            "other data"
+        };
+        index_writer.add_document(doc!(
+            message_field => message,
+            severity_field => severity
+        ))?;
+    }
+    index_writer.commit()?;
+
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
+
+    // Parse query that matches documents
+    let query = QueryParser::for_index(&index, vec![message_field]).parse_query("research")?;
+
+    // Test 1: Direct TermsAggregation (baseline)
+    let direct_agg = json!({
+        "grouped": {
+            "terms": {
+                "field": "severity",
+                "size": 65000
+            },
+            "aggs": {
+                "count": {
+                    "value_count": { "field": "severity" }
+                }
+            }
+        }
+    });
+
+    let start = Instant::now();
+    let aggregations: Aggregations = serde_json::from_value(direct_agg)?;
+    let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+    let direct_result = searcher.search(&query, &collector)?;
+    let direct_time = start.elapsed();
+
+    // Test 2: FilterAggregation with query filter
+    let filter_agg = json!({
+        "filter": {
+            "filter": "message:research",
+            "aggs": {
+                "grouped": {
+                    "terms": {
+                        "field": "severity",
+                        "size": 65000
+                    },
+                    "aggs": {
+                        "count": {
+                            "value_count": { "field": "severity" }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let start = Instant::now();
+    let aggregations: Aggregations = serde_json::from_value(filter_agg)?;
+    let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+    let filter_result = searcher.search(&AllQuery, &collector)?;
+    let filter_time = start.elapsed();
+
+    // Test 3: FilterAggregation with "*" filter (should match direct query results)
+    let match_all_filter_agg = json!({
+        "filter": {
+            "filter": "*",
+            "aggs": {
+                "grouped": {
+                    "terms": {
+                        "field": "severity",
+                        "size": 65000
+                    },
+                    "aggs": {
+                        "count": {
+                            "value_count": { "field": "severity" }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let start = Instant::now();
+    let aggregations: Aggregations = serde_json::from_value(match_all_filter_agg)?;
+    let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+    let match_all_filter_result = searcher.search(&query, &collector)?;
+    let match_all_filter_time = start.elapsed();
+
+    // Print timing results
+    println!("Direct aggregation time: {:?}", direct_time);
+    println!("Filter aggregation (query filter) time: {:?}", filter_time);
+    println!(
+        "Filter aggregation (match-all filter) time: {:?}",
+        match_all_filter_time
+    );
+
+    let slowdown_ratio = filter_time.as_secs_f64() / direct_time.as_secs_f64().max(0.001);
+    let match_all_slowdown =
+        match_all_filter_time.as_secs_f64() / direct_time.as_secs_f64().max(0.001);
+    println!("Query filter slowdown ratio: {:.2}x", slowdown_ratio);
+    println!(
+        "Match-all filter slowdown ratio: {:.2}x",
+        match_all_slowdown
+    );
+
+    // Verify results are equivalent by checking JSON structure
+    let direct_json = serde_json::to_value(&direct_result)?;
+    let filter_json = serde_json::to_value(&filter_result)?;
+    let match_all_filter_json = serde_json::to_value(&match_all_filter_result)?;
+
+    // Direct result has "grouped" at top level
+    let direct_grouped = &direct_json["grouped"];
+
+    // Filter result has "filter" -> "grouped"
+    let filter_grouped = &filter_json["filter"]["grouped"];
+    let match_all_filter_grouped = &match_all_filter_json["filter"]["grouped"];
+
+    // All three should have the same structure
+    assert_eq!(
+        direct_grouped, filter_grouped,
+        "Query filter should match direct aggregation"
+    );
+    assert_eq!(
+        direct_grouped, match_all_filter_grouped,
+        "Match-all filter with base query should match direct aggregation"
+    );
+
+    // Performance assertion: FilterAggregation should not be more than 3x slower
+    assert!(
+        slowdown_ratio < 3.0,
+        "FilterAggregation is {}x slower than direct aggregation (expected < 3x).",
+        slowdown_ratio
+    );
+
+    assert!(
+        match_all_slowdown < 3.0,
+        "Match-all filter is {}x slower than direct aggregation (expected < 3x).",
+        match_all_slowdown
+    );
+
     Ok(())
 }
