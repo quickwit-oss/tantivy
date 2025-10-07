@@ -175,8 +175,9 @@ impl BucketResult {
                 doc_count_error_upper_bound: _,
             } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
             BucketResult::Filter(filter_result) => {
-                // add one for the filter bucket itself
-                1 + filter_result.sub_aggregations.get_bucket_count()
+                // Filter doesn't add to bucket count - it's not a user-facing bucket
+                // Only count sub-aggregation buckets
+                filter_result.sub_aggregations.get_bucket_count()
             }
         }
     }
