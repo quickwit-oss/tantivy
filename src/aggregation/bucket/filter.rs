@@ -9,10 +9,11 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
 };
-use crate::query::{Query, QueryParser, Scorer};
+use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
+use crate::query::{Query, QueryParser, Scorer, Weight};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
-use crate::{DocId, SegmentReader, TantivyError};
+use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
 ///
@@ -212,6 +213,45 @@ impl DocumentQueryEvaluator {
         // The scorer maintains its position, so we can efficiently check if doc matches
         Ok(!(scorer.doc() > doc || scorer.seek(doc) != doc))
     }
+
+    /// Filter a batch of documents efficiently using intersection
+    /// Returns matching documents from the input batch
+    #[inline]
+    pub fn filter_batch(&mut self, docs: &[DocId], output: &mut Vec<DocId>) -> crate::Result<()> {
+        if docs.is_empty() {
+            return Ok(());
+        }
+
+        let scorer = self.scorer.as_mut().ok_or_else(|| {
+            TantivyError::InvalidArgument(
+                "DocumentQueryEvaluator not initialized for segment".to_string(),
+            )
+        })?;
+
+        // Efficient intersection: advance scorer and check against input docs
+        let mut scorer_doc = scorer.doc();
+        if scorer_doc == TERMINATED {
+            return Ok(());
+        }
+
+        for &doc in docs {
+            // Advance scorer to at least doc
+            if scorer_doc < doc {
+                scorer_doc = scorer.seek(doc);
+            }
+
+            // If scorer matches this doc, include it
+            if scorer_doc == doc {
+                output.push(doc);
+                scorer_doc = scorer.advance();
+                if scorer_doc == TERMINATED {
+                    break;
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 impl Debug for DocumentQueryEvaluator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -232,6 +272,8 @@ pub struct FilterSegmentCollector {
     sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
     /// Accessor index for this filter aggregation
     accessor_idx: usize,
+    /// Reusable buffer for matching documents to minimize allocations
+    matching_docs_buffer: Vec<DocId>,
 }
 
 impl FilterSegmentCollector {
@@ -261,11 +303,19 @@ impl FilterSegmentCollector {
             None
         };
 
+        // Pre-allocate buffer to avoid repeated allocations during collection
+        // Use COLLECT_BLOCK_BUFFER_LEN (64) as a reasonable default capacity since:
+        // - Documents are processed in blocks of this size
+        // - Avoids over-allocation for small segments
+        // - Grows automatically if needed for larger batches
+        let buffer_capacity = COLLECT_BLOCK_BUFFER_LEN.min(segment_reader.max_doc() as usize);
+
         Ok(FilterSegmentCollector {
             evaluator,
             doc_count: 0,
             sub_aggregations: sub_agg_collector,
             accessor_idx,
+            matching_docs_buffer: Vec::with_capacity(buffer_capacity),
         })
     }
 }
@@ -338,15 +388,35 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         Ok(())
     }
 
+    #[inline]
     fn collect_block(
         &mut self,
         docs: &[DocId],
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        // TODO: Batch processing for better performance
-        for &doc in docs {
-            self.collect(doc, agg_with_accessor)?;
+        if docs.is_empty() {
+            return Ok(());
         }
+
+        // Use batch filtering for better performance
+        self.matching_docs_buffer.clear();
+        self.evaluator
+            .filter_batch(docs, &mut self.matching_docs_buffer)?;
+
+        self.doc_count += self.matching_docs_buffer.len() as u64;
+
+        // Batch process sub-aggregations if we have matches
+        if !self.matching_docs_buffer.is_empty() {
+            if let Some(sub_aggs) = &mut self.sub_aggregations {
+                let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
+                // Use collect_block for better sub-aggregation performance
+                sub_aggs.collect_block(
+                    &self.matching_docs_buffer,
+                    &mut bucket_agg_accessor.sub_aggregation,
+                )?;
+            }
+        }
+
         Ok(())
     }
 
