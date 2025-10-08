@@ -187,7 +187,7 @@ struct DocumentQueryEvaluator {
     /// The scorer for document matching
     /// We create this once per segment and reuse it for all document checks.
     /// This is critical for performance.
-    scorer: Option<Box<dyn Scorer>>,
+    scorer: Box<dyn Scorer>,
 }
 
 impl DocumentQueryEvaluator {
@@ -200,19 +200,13 @@ impl DocumentQueryEvaluator {
         use crate::query::EnableScoring;
         let weight = query.weight(EnableScoring::disabled_from_schema(&schema))?;
         let scorer = weight.scorer(segment_reader, 1.0)?;
-        Ok(Self {
-            scorer: Some(scorer),
-        })
+        Ok(Self { scorer })
     }
 
     /// Evaluate if a document matches the filter query
     /// This is the core performance-critical method
     pub fn matches_document(&mut self, doc: DocId) -> crate::Result<bool> {
-        let scorer = self.scorer.as_mut().ok_or_else(|| {
-            TantivyError::InvalidArgument(
-                "DocumentQueryEvaluator not initialized for segment".to_string(),
-            )
-        })?;
+        let scorer = &mut self.scorer;
 
         // Use the same pattern as Weight::explain to handle seek ordering correctly
         // The scorer maintains its position, so we can efficiently check if doc matches
@@ -227,11 +221,7 @@ impl DocumentQueryEvaluator {
             return Ok(());
         }
 
-        let scorer = self.scorer.as_mut().ok_or_else(|| {
-            TantivyError::InvalidArgument(
-                "DocumentQueryEvaluator not initialized for segment".to_string(),
-            )
-        })?;
+        let scorer = &mut self.scorer;
 
         // Efficient intersection: advance scorer and check against input docs
         let mut scorer_doc = scorer.doc();
@@ -260,9 +250,7 @@ impl DocumentQueryEvaluator {
 }
 impl Debug for DocumentQueryEvaluator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DocumentQueryEvaluator")
-            .field("has_scorer", &self.scorer.is_some())
-            .finish()
+        f.debug_struct("DocumentQueryEvaluator").finish()
     }
 }
 
