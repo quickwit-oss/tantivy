@@ -29,6 +29,7 @@ impl BinarySerializable for VIntU128 {
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        #[allow(clippy::unbuffered_bytes)]
         let mut bytes = reader.bytes();
         let mut result = 0u128;
         let mut shift = 0u64;
@@ -52,7 +53,7 @@ impl BinarySerializable for VIntU128 {
     }
 }
 
-///   Wrapper over a `u64` that serializes as a variable int.
+/// Wrapper over a `u64` that serializes as a variable int.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
 
@@ -196,6 +197,7 @@ impl BinarySerializable for VInt {
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        #[allow(clippy::unbuffered_bytes)]
         let mut bytes = reader.bytes();
         let mut result = 0u64;
         let mut shift = 0u64;
