@@ -98,6 +98,11 @@ impl RangeQuery {
             .get_inner()
             .expect("At least one bound must be set")
     }
+
+    /// Get the BoundsRange for this range query
+    pub fn bounds_range(&self) -> &BoundsRange<Term> {
+        &self.bounds
+    }
 }
 
 impl Query for RangeQuery {
