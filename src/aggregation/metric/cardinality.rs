@@ -8,9 +8,7 @@ use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
-};
+use crate::aggregation::agg_data::{AggregationsData, CardinalityAggReqData};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
@@ -115,47 +113,44 @@ impl CardinalityAggregationReq {
 pub(crate) struct SegmentCardinalityCollector {
     cardinality: CardinalityCollector,
     entries: FxHashSet<u64>,
-    column_type: ColumnType,
     accessor_idx: usize,
-    missing: Option<Key>,
 }
 
 impl SegmentCardinalityCollector {
-    pub fn from_req(column_type: ColumnType, accessor_idx: usize, missing: &Option<Key>) -> Self {
+    pub fn from_req(column_type: ColumnType, accessor_idx: usize) -> Self {
         Self {
             cardinality: CardinalityCollector::new(column_type as u8),
             entries: Default::default(),
-            column_type,
             accessor_idx,
-            missing: missing.clone(),
         }
     }
 
     fn fetch_block_with_field(
         &mut self,
         docs: &[crate::DocId],
-        agg_accessor: &mut AggregationWithAccessor,
+        agg_data: &mut CardinalityAggReqData,
     ) {
-        if let Some(missing) = agg_accessor.missing_value_for_accessor {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
+        if let Some(missing) = agg_data.missing_value_for_accessor {
+            agg_data.column_block_accessor.fetch_block_with_missing(
                 docs,
-                &agg_accessor.accessor,
+                &agg_data.accessor,
                 missing,
             );
         } else {
-            agg_accessor
+            agg_data
                 .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
+                .fetch_block(docs, &agg_data.accessor);
         }
     }
 
     fn into_intermediate_metric_result(
         mut self,
-        agg_with_accessor: &AggregationWithAccessor,
+        agg_data: &AggregationsData,
     ) -> crate::Result<IntermediateMetricResult> {
-        if self.column_type == ColumnType::Str {
+        let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        if req_data.column_type == ColumnType::Str {
             let fallback_dict = Dictionary::empty();
-            let dict = agg_with_accessor
+            let dict = req_data
                 .str_dict_column
                 .as_ref()
                 .map(|el| el.dictionary())
@@ -180,10 +175,10 @@ impl SegmentCardinalityCollector {
             })?;
             if has_missing {
                 // Replace missing with the actual value provided
-                let missing_key = self
-                    .missing
-                    .as_ref()
-                    .expect("Found sentinel value u64::MAX for term_ord but `missing` is not set");
+                let missing_key =
+                    req_data.req.missing.as_ref().expect(
+                        "Found sentinel value u64::MAX for term_ord but `missing` is not set",
+                    );
                 match missing_key {
                     Key::Str(missing) => {
                         self.cardinality.sketch.insert_any(&missing);
@@ -209,13 +204,13 @@ impl SegmentCardinalityCollector {
 impl SegmentAggregationCollector for SegmentCardinalityCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsData,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
-        let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
+        let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        let name = req_data.name.to_string();
 
-        let intermediate_result = self.into_intermediate_metric_result(agg_with_accessor)?;
+        let intermediate_result = self.into_intermediate_metric_result(agg_data)?;
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_result),
@@ -224,29 +219,25 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         Ok(())
     }
 
-    fn collect(
-        &mut self,
-        doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
-    ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_with_accessor)
+    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+        self.collect_block(&[doc], agg_data)
     }
 
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsData,
     ) -> crate::Result<()> {
-        let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        self.fetch_block_with_field(docs, bucket_agg_accessor);
+        let req_data = agg_data.get_cardinality_req_data_mut(self.accessor_idx);
+        self.fetch_block_with_field(docs, req_data);
 
-        let col_block_accessor = &bucket_agg_accessor.column_block_accessor;
-        if self.column_type == ColumnType::Str {
+        let col_block_accessor = &req_data.column_block_accessor;
+        if req_data.column_type == ColumnType::Str {
             for term_ord in col_block_accessor.iter_vals() {
                 self.entries.insert(term_ord);
             }
-        } else if self.column_type == ColumnType::IpAddr {
-            let compact_space_accessor = bucket_agg_accessor
+        } else if req_data.column_type == ColumnType::IpAddr {
+            let compact_space_accessor = req_data
                 .accessor
                 .values
                 .clone()

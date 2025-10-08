@@ -9,6 +9,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{TopHitsMetricResult, TopHitsVecEntry};
+use crate::aggregation::agg_data::AggregationsData;
 use crate::aggregation::bucket::Order;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateMetricResult,
@@ -566,23 +567,18 @@ impl TopHitsSegmentCollector {
 impl SegmentAggregationCollector for TopHitsSegmentCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor,
+        agg_data: &AggregationsData,
         results: &mut crate::aggregation::intermediate_agg_result::IntermediateAggregationResults,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
 
-        let value_accessors = &agg_with_accessor.aggs.values[self.accessor_idx].value_accessors;
-        let tophits_req = &agg_with_accessor.aggs.values[self.accessor_idx]
-            .agg
-            .agg
-            .as_top_hits()
-            .expect("aggregation request must be of type top hits");
+        let value_accessors = &req_data.value_accessors;
 
         let intermediate_result = IntermediateMetricResult::TopHits(
-            self.into_top_hits_collector(value_accessors, tophits_req),
+            self.into_top_hits_collector(value_accessors, &req_data.req),
         );
         results.push(
-            name,
+            req_data.name.to_string(),
             IntermediateAggregationResult::Metric(intermediate_result),
         )
     }
@@ -591,32 +587,22 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
     fn collect(
         &mut self,
         doc_id: crate::DocId,
-        agg_with_accessor: &mut crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor,
+        agg_data: &mut AggregationsData,
     ) -> crate::Result<()> {
-        let tophits_req = &agg_with_accessor.aggs.values[self.accessor_idx]
-            .agg
-            .agg
-            .as_top_hits()
-            .expect("aggregation request must be of type top hits");
-        let accessors = &agg_with_accessor.aggs.values[self.accessor_idx].accessors;
-        self.collect_with(doc_id, tophits_req, accessors)?;
+        let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
+        self.collect_with(doc_id, &req_data.req, &req_data.accessors)?;
         Ok(())
     }
 
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor,
+        agg_data: &mut AggregationsData,
     ) -> crate::Result<()> {
-        let tophits_req = &agg_with_accessor.aggs.values[self.accessor_idx]
-            .agg
-            .agg
-            .as_top_hits()
-            .expect("aggregation request must be of type top hits");
-        let accessors = &agg_with_accessor.aggs.values[self.accessor_idx].accessors;
+        let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
         // TODO: Consider getting fields with the column block accessor.
         for doc in docs {
-            self.collect_with(*doc, tophits_req, accessors)?;
+            self.collect_with(*doc, &req_data.req, &req_data.accessors)?;
         }
         Ok(())
     }

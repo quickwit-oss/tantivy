@@ -1,12 +1,11 @@
 use super::agg_req::Aggregations;
-use super::agg_req_with_accessor::AggregationsWithAccessor;
 use super::agg_result::AggregationResults;
 use super::buf_collector::BufAggregationCollector;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use super::segment_agg_result::{
-    build_segment_agg_collector, AggregationLimitsGuard, SegmentAggregationCollector,
+use super::segment_agg_result::{AggregationLimitsGuard, SegmentAggregationCollector};
+use crate::aggregation::agg_data::{
+    build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsData,
 };
-use crate::aggregation::agg_req_with_accessor::get_aggs_with_segment_accessor_and_validate;
 use crate::collector::{Collector, SegmentCollector};
 use crate::index::SegmentReader;
 use crate::{DocId, SegmentOrdinal, TantivyError};
@@ -135,7 +134,7 @@ fn merge_fruits(
 
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
-    aggs_with_accessor: AggregationsWithAccessor,
+    aggs_with_accessor: AggregationsData,
     agg_collector: BufAggregationCollector,
     error: Option<TantivyError>,
 }
@@ -149,12 +148,13 @@ impl AggregationSegmentCollector {
         segment_ordinal: SegmentOrdinal,
         limits: &AggregationLimitsGuard,
     ) -> crate::Result<Self> {
-        let mut aggs_with_accessor =
-            get_aggs_with_segment_accessor_and_validate(agg, reader, segment_ordinal, limits)?;
+        let mut agg_data =
+            build_aggregations_data_from_req(agg, reader, segment_ordinal, limits.clone())?;
         let result =
-            BufAggregationCollector::new(build_segment_agg_collector(&mut aggs_with_accessor)?);
+            BufAggregationCollector::new(build_segment_agg_collectors_root(&mut agg_data)?);
+
         Ok(AggregationSegmentCollector {
-            aggs_with_accessor,
+            aggs_with_accessor: agg_data,
             agg_collector: result,
             error: None,
         })

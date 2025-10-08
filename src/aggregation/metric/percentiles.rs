@@ -3,9 +3,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
-};
+use crate::aggregation::agg_data::{AggregationsData, MetricAggReqData};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
@@ -112,7 +110,8 @@ impl PercentilesAggregationReq {
         &self.field
     }
 
-    fn validate(&self) -> crate::Result<()> {
+    /// Validates the request parameters.
+    pub fn validate(&self) -> crate::Result<()> {
         if let Some(percents) = self.percents.as_ref() {
             let all_in_range = percents
                 .iter()
@@ -133,10 +132,8 @@ impl PercentilesAggregationReq {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SegmentPercentilesCollector {
-    field_type: ColumnType,
     pub(crate) percentiles: PercentilesCollector,
     pub(crate) accessor_idx: usize,
-    missing: Option<u64>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -231,43 +228,32 @@ impl PercentilesCollector {
 }
 
 impl SegmentPercentilesCollector {
-    pub fn from_req_and_validate(
-        req: &PercentilesAggregationReq,
-        field_type: ColumnType,
-        accessor_idx: usize,
-    ) -> crate::Result<Self> {
-        req.validate()?;
-        let missing = req
-            .missing
-            .and_then(|val| f64_to_fastfield_u64(val, &field_type));
-
+    pub fn from_req_and_validate(accessor_idx: usize) -> crate::Result<Self> {
         Ok(Self {
-            field_type,
             percentiles: PercentilesCollector::new(),
             accessor_idx,
-            missing,
         })
     }
     #[inline]
     pub(crate) fn collect_block_with_field(
         &mut self,
         docs: &[DocId],
-        agg_accessor: &mut AggregationWithAccessor,
+        req_data: &mut MetricAggReqData,
     ) {
-        if let Some(missing) = self.missing.as_ref() {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
+        if let Some(missing) = req_data.missing_u64.as_ref() {
+            req_data.column_block_accessor.fetch_block_with_missing(
                 docs,
-                &agg_accessor.accessor,
+                &req_data.accessor,
                 *missing,
             );
         } else {
-            agg_accessor
+            req_data
                 .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
+                .fetch_block(docs, &req_data.accessor);
         }
 
-        for val in agg_accessor.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, &self.field_type);
+        for val in req_data.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64(val, &req_data.field_type);
             self.percentiles.collect(val1);
         }
     }
@@ -277,10 +263,10 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
     #[inline]
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsData,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let name = agg_data.get_metric_req_data(self.accessor_idx).name.clone();
         let intermediate_metric_result = IntermediateMetricResult::Percentiles(self.percentiles);
 
         results.push(
@@ -292,27 +278,23 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
     }
 
     #[inline]
-    fn collect(
-        &mut self,
-        doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
-    ) -> crate::Result<()> {
-        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+        let req_data = agg_data.get_metric_req_data(self.accessor_idx);
 
-        if let Some(missing) = self.missing {
+        if let Some(missing) = req_data.missing_u64 {
             let mut has_val = false;
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            for val in req_data.accessor.values_for_doc(doc) {
+                let val1 = f64_from_fastfield_u64(val, &req_data.field_type);
                 self.percentiles.collect(val1);
                 has_val = true;
             }
             if !has_val {
                 self.percentiles
-                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
+                    .collect(f64_from_fastfield_u64(missing, &req_data.field_type));
             }
         } else {
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            for val in req_data.accessor.values_for_doc(doc) {
+                let val1 = f64_from_fastfield_u64(val, &req_data.field_type);
                 self.percentiles.collect(val1);
             }
         }
@@ -324,10 +306,10 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsData,
     ) -> crate::Result<()> {
-        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        self.collect_block_with_field(docs, field);
+        let req_data = agg_data.get_metric_req_data_mut(self.accessor_idx);
+        self.collect_block_with_field(docs, req_data);
         Ok(())
     }
 }
