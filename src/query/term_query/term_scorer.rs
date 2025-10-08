@@ -98,14 +98,17 @@ impl TermScorer {
 }
 
 impl DocSet for TermScorer {
+    #[inline]
     fn advance(&mut self) -> DocId {
         self.postings.advance()
     }
 
+    #[inline]
     fn seek(&mut self, target: DocId) -> DocId {
         self.postings.seek(target)
     }
 
+    #[inline]
     fn doc(&self) -> DocId {
         self.postings.doc()
     }
