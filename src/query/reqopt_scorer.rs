@@ -63,6 +63,10 @@ where
     fn size_hint(&self) -> u32 {
         self.req_scorer.size_hint()
     }
+
+    fn cost(&self) -> u64 {
+        self.req_scorer.cost()
+    }
 }
 
 impl<TReqScorer, TOptScorer, TScoreCombiner> Scorer

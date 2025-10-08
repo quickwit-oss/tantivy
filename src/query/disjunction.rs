@@ -70,6 +70,10 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
     fn size_hint(&self) -> u32 {
         self.scorer.size_hint()
     }
+
+    fn cost(&self) -> u64 {
+        self.scorer.cost()
+    }
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Disjunction<TScorer, TScoreCombiner> {
@@ -145,6 +149,14 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
             .map(|docset| docset.size_hint())
             .max()
             .unwrap_or(0u32)
+    }
+
+    fn cost(&self) -> u64 {
+        self.chains
+            .iter()
+            .map(|docset| docset.cost())
+            .max()
+            .unwrap_or(0u64)
     }
 }
 

@@ -367,10 +367,14 @@ mod tests {
         checkpoints
     }
 
-    fn compute_checkpoints_manual(term_scorers: Vec<TermScorer>, n: usize) -> Vec<(DocId, Score)> {
+    fn compute_checkpoints_manual(
+        term_scorers: Vec<TermScorer>,
+        n: usize,
+        max_doc: u32,
+    ) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
         let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
-        let mut scorer = BufferedUnionScorer::build(term_scorers, SumCombiner::default);
+        let mut scorer = BufferedUnionScorer::build(term_scorers, SumCombiner::default, max_doc);
 
         let mut limit = Score::MIN;
         loop {
@@ -478,7 +482,8 @@ mod tests {
         for top_k in 1..4 {
             let checkpoints_for_each_pruning =
                 compute_checkpoints_for_each_pruning(term_scorers.clone(), top_k);
-            let checkpoints_manual = compute_checkpoints_manual(term_scorers.clone(), top_k);
+            let checkpoints_manual =
+                compute_checkpoints_manual(term_scorers.clone(), top_k, 100_000);
             assert_eq!(checkpoints_for_each_pruning.len(), checkpoints_manual.len());
             for (&(left_doc, left_score), &(right_doc, right_score)) in checkpoints_for_each_pruning
                 .iter()
