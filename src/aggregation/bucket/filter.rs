@@ -11,7 +11,7 @@ use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
 };
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
-use crate::query::{EnableScoring, Query, QueryParser};
+use crate::query::{AllQuery, EnableScoring, Query, QueryParser};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError};
@@ -184,18 +184,26 @@ impl PartialEq for FilterAggregation {
 
 /// Document evaluator for filter queries using BitSet
 struct DocumentQueryEvaluator {
-    /// BitSet containing all matching documents for this segment
-    bitset: BitSet,
+    /// BitSet containing all matching documents for this segment.
+    /// `None` means "match all documents" (optimization for AllQuery).
+    bitset: Option<BitSet>,
 }
 
 impl DocumentQueryEvaluator {
     /// Create and initialize a document query evaluator for a segment
-    /// This executes the query upfront and collects results into a BitSet
+    /// This executes the query upfront and collects results into a BitSet,
+    /// unless the query is AllQuery in which case we skip BitSet creation.
     fn new(
         query: Box<dyn Query>,
         schema: Schema,
         segment_reader: &SegmentReader,
     ) -> crate::Result<Self> {
+        // Optimization: Detect AllQuery and skip BitSet creation
+        // AllQuery matches all documents, so we can just accept everything
+        if query.as_any().downcast_ref::<AllQuery>().is_some() {
+            return Ok(Self { bitset: None });
+        }
+
         // Get the weight for the query
         let weight = query.weight(EnableScoring::disabled_from_schema(&schema))?;
 
@@ -214,23 +222,36 @@ impl DocumentQueryEvaluator {
             doc = scorer.advance();
         }
 
-        Ok(Self { bitset })
+        Ok(Self {
+            bitset: Some(bitset),
+        })
     }
 
     /// Evaluate if a document matches the filter query
-    /// O(1) lookup in the precomputed BitSet
+    /// O(1) lookup in the precomputed BitSet, or always true for AllQuery
     #[inline]
     pub fn matches_document(&self, doc: DocId) -> bool {
-        self.bitset.contains(doc)
+        match &self.bitset {
+            Some(bitset) => bitset.contains(doc),
+            None => true, // AllQuery optimization: accept all documents
+        }
     }
 
     /// Filter a batch of documents
     /// Returns matching documents from the input batch
     #[inline]
     pub fn filter_batch(&self, docs: &[DocId], output: &mut Vec<DocId>) {
-        for &doc in docs {
-            if self.bitset.contains(doc) {
-                output.push(doc);
+        match &self.bitset {
+            Some(bitset) => {
+                for &doc in docs {
+                    if bitset.contains(doc) {
+                        output.push(doc);
+                    }
+                }
+            }
+            None => {
+                // AllQuery optimization: accept all documents
+                output.extend_from_slice(docs);
             }
         }
     }
@@ -239,7 +260,11 @@ impl DocumentQueryEvaluator {
 impl Debug for DocumentQueryEvaluator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocumentQueryEvaluator")
-            .field("num_matches", &self.bitset.len())
+            .field(
+                "num_matches",
+                &self.bitset.as_ref().map(|b| b.len()).unwrap_or(0),
+            )
+            .field("is_all_query", &self.bitset.is_none())
             .finish()
     }
 }
