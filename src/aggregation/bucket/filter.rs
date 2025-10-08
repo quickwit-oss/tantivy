@@ -10,7 +10,7 @@ use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
 };
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
-use crate::query::{Query, QueryParser, Scorer, Weight};
+use crate::query::{Query, QueryParser, Scorer};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
@@ -143,7 +143,9 @@ impl FilterAggregation {
 // Custom serialization implementation
 impl Serialize for FilterAggregation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         match &self.query {
             FilterQuery::QueryString(query_string) => {
                 // Serialize the query string directly
@@ -162,7 +164,9 @@ impl Serialize for FilterAggregation {
 
 impl<'de> Deserialize<'de> for FilterAggregation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         // Deserialize as query string
         let query_string = String::deserialize(deserializer)?;
         Ok(FilterAggregation::new(query_string))
