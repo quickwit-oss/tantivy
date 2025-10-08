@@ -25,8 +25,8 @@ impl TermScorer {
         }
     }
 
-    pub(crate) fn shallow_seek(&mut self, target_doc: DocId) {
-        self.postings.block_cursor.shallow_seek(target_doc);
+    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
+        self.postings.block_cursor.seek_block(target_doc);
     }
 
     #[cfg(test)]
@@ -175,7 +175,7 @@ mod tests {
         let fieldnorms: Vec<u32> = std::iter::repeat_n(10u32, 3_000).collect();
         let mut term_scorer = TermScorer::create_for_test(&doc_and_tfs, &fieldnorms, bm25_weight);
         assert_eq!(term_scorer.doc(), 0u32);
-        term_scorer.shallow_seek(1289);
+        term_scorer.seek_block(1289);
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1289);
         assert_eq!(term_scorer.doc(), 1290);
@@ -242,9 +242,9 @@ mod tests {
         let bm25_weight = Bm25Weight::for_one_term(10, 129, 20.0);
         let mut docs = TermScorer::create_for_test(&doc_tfs[..], &fieldnorms[..], bm25_weight);
         assert_nearly_equals!(docs.block_max_score(), 2.5161593);
-        docs.shallow_seek(135);
+        docs.seek_block(135);
         assert_nearly_equals!(docs.block_max_score(), 3.4597192);
-        docs.shallow_seek(256);
+        docs.seek_block(256);
         // the block is not loaded yet.
         assert_nearly_equals!(docs.block_max_score(), 5.2971773);
         assert_eq!(256, docs.seek(256));
@@ -275,7 +275,7 @@ mod tests {
             {
                 let mut term_scorer = term_weight.specialized_scorer(reader, 1.0)?;
                 for d in docs {
-                    term_scorer.shallow_seek(d);
+                    term_scorer.seek_block(d);
                     block_max_scores_b.push(term_scorer.block_max_score());
                 }
             }

@@ -167,7 +167,7 @@ pub fn block_wand(
         let block_max_score_upperbound: Score = scorers[..pivot_len]
             .iter_mut()
             .map(|scorer| {
-                scorer.shallow_seek(pivot_doc);
+                scorer.seek_block(pivot_doc);
                 scorer.block_max_score()
             })
             .sum();
@@ -234,7 +234,7 @@ pub fn block_wand_single_scorer(
                 return;
             }
             doc = last_doc_in_block + 1;
-            scorer.shallow_seek(doc);
+            scorer.seek_block(doc);
         }
         // Seek will effectively load that block.
         doc = scorer.seek(doc);
@@ -256,7 +256,7 @@ pub fn block_wand_single_scorer(
             }
         }
         doc += 1;
-        scorer.shallow_seek(doc);
+        scorer.seek_block(doc);
     }
 }
 
