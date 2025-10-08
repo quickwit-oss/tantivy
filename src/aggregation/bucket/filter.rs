@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use common::BitSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
@@ -10,10 +11,10 @@ use crate::aggregation::segment_agg_result::{
     build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
 };
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
-use crate::query::{Query, QueryParser, Scorer};
+use crate::query::{EnableScoring, Query, QueryParser};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
-use crate::{DocId, SegmentReader, TantivyError, TERMINATED};
+use crate::{DocId, SegmentReader, TantivyError};
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
 ///
@@ -143,9 +144,7 @@ impl FilterAggregation {
 // Custom serialization implementation
 impl Serialize for FilterAggregation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+    where S: Serializer {
         match &self.query {
             FilterQuery::QueryString(query_string) => {
                 // Serialize the query string directly
@@ -164,9 +163,7 @@ impl Serialize for FilterAggregation {
 
 impl<'de> Deserialize<'de> for FilterAggregation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
+    where D: Deserializer<'de> {
         // Deserialize as query string
         let query_string = String::deserialize(deserializer)?;
         Ok(FilterAggregation::new(query_string))
@@ -185,76 +182,65 @@ impl PartialEq for FilterAggregation {
     }
 }
 
-/// Document evaluator for filter queries
-/// This avoids running separate query executions and instead evaluates queries per document
+/// Document evaluator for filter queries using BitSet
 struct DocumentQueryEvaluator {
-    /// The scorer for document matching
-    /// We create this once per segment and reuse it for all document checks.
-    /// This is critical for performance.
-    scorer: Box<dyn Scorer>,
+    /// BitSet containing all matching documents for this segment
+    bitset: BitSet,
 }
 
 impl DocumentQueryEvaluator {
     /// Create and initialize a document query evaluator for a segment
+    /// This executes the query upfront and collects results into a BitSet
     fn new(
         query: Box<dyn Query>,
         schema: Schema,
         segment_reader: &SegmentReader,
     ) -> crate::Result<Self> {
-        use crate::query::EnableScoring;
+        // Get the weight for the query
         let weight = query.weight(EnableScoring::disabled_from_schema(&schema))?;
-        let scorer = weight.scorer(segment_reader, 1.0)?;
-        Ok(Self { scorer })
+
+        // Get a scorer that iterates over matching documents
+        let mut scorer = weight.scorer(segment_reader, 1.0)?;
+
+        // Create a BitSet to hold all matching documents
+        let max_doc = segment_reader.max_doc();
+        let mut bitset = BitSet::with_max_value(max_doc);
+
+        // Collect all matching documents into the BitSet
+        // This is the upfront cost, but then lookups are O(1)
+        let mut doc = scorer.doc();
+        while doc != crate::TERMINATED {
+            bitset.insert(doc);
+            doc = scorer.advance();
+        }
+
+        Ok(Self { bitset })
     }
 
     /// Evaluate if a document matches the filter query
-    /// This is the core performance-critical method
-    pub fn matches_document(&mut self, doc: DocId) -> crate::Result<bool> {
-        let scorer = &mut self.scorer;
-
-        // Use the same pattern as Weight::explain to handle seek ordering correctly
-        // The scorer maintains its position, so we can efficiently check if doc matches
-        Ok(!(scorer.doc() > doc || scorer.seek(doc) != doc))
+    /// O(1) lookup in the precomputed BitSet
+    #[inline]
+    pub fn matches_document(&self, doc: DocId) -> bool {
+        self.bitset.contains(doc)
     }
 
-    /// Filter a batch of documents efficiently using intersection
+    /// Filter a batch of documents
     /// Returns matching documents from the input batch
     #[inline]
-    pub fn filter_batch(&mut self, docs: &[DocId], output: &mut Vec<DocId>) -> crate::Result<()> {
-        if docs.is_empty() {
-            return Ok(());
-        }
-
-        let scorer = &mut self.scorer;
-
-        // Efficient intersection: advance scorer and check against input docs
-        let mut scorer_doc = scorer.doc();
-        if scorer_doc == TERMINATED {
-            return Ok(());
-        }
-
+    pub fn filter_batch(&self, docs: &[DocId], output: &mut Vec<DocId>) {
         for &doc in docs {
-            // Advance scorer to at least doc
-            if scorer_doc < doc {
-                scorer_doc = scorer.seek(doc);
-            }
-
-            // If scorer matches this doc, include it
-            if scorer_doc == doc {
+            if self.bitset.contains(doc) {
                 output.push(doc);
-                scorer_doc = scorer.advance();
-                if scorer_doc == TERMINATED {
-                    break;
-                }
             }
         }
-
-        Ok(())
     }
 }
+
 impl Debug for DocumentQueryEvaluator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DocumentQueryEvaluator").finish()
+        f.debug_struct("DocumentQueryEvaluator")
+            .field("num_matches", &self.bitset.len())
+            .finish()
     }
 }
 
@@ -372,8 +358,8 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         doc: DocId,
         agg_with_accessor: &mut AggregationsWithAccessor,
     ) -> crate::Result<()> {
-        // This is the core efficiency: evaluate filter on document already matched by main query
-        if self.evaluator.matches_document(doc)? {
+        // O(1) BitSet lookup to check if document matches filter
+        if self.evaluator.matches_document(doc) {
             self.doc_count += 1;
 
             // If we have sub-aggregations, collect on them for this filtered document
@@ -395,10 +381,10 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
             return Ok(());
         }
 
-        // Use batch filtering for better performance
+        // Use batch filtering with O(1) BitSet lookups
         self.matching_docs_buffer.clear();
         self.evaluator
-            .filter_batch(docs, &mut self.matching_docs_buffer)?;
+            .filter_batch(docs, &mut self.matching_docs_buffer);
 
         self.doc_count += self.matching_docs_buffer.len() as u64;
 
