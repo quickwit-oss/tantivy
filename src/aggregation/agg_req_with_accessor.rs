@@ -15,6 +15,7 @@ use super::metric::{
 };
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::VecWithNames;
+use crate::aggregation::bucket::{CompositeAggregationSource, Order};
 use crate::aggregation::{f64_to_fastfield_u64, Key};
 use crate::index::SegmentReader;
 use crate::SegmentOrdinal;
@@ -32,6 +33,12 @@ impl AggregationsWithAccessor {
     pub fn is_empty(&self) -> bool {
         self.aggs.is_empty()
     }
+}
+
+pub struct CompositeAccessor {
+    pub(crate) column: Column<u64>,
+    pub(crate) column_type: ColumnType,
+    pub(crate) str_dict_column: Option<StrColumn>,
 }
 
 pub struct AggregationWithAccessor {
@@ -58,6 +65,8 @@ pub struct AggregationWithAccessor {
     /// Map field names to all associated column accessors.
     /// This field is used for `docvalue_fields`, which is currently only supported for `top_hits`.
     pub(crate) value_accessors: HashMap<String, Vec<DynamicColumn>>,
+    /// TODO: we can have a more flat datastructure with less indirections
+    pub(crate) composite_accessors: Vec<Vec<CompositeAccessor>>,
     pub(crate) agg: Aggregation,
 }
 
@@ -94,6 +103,7 @@ impl AggregationWithAccessor {
                 missing_value_for_accessor: None,
                 str_dict_column: None,
                 column_block_accessor: Default::default(),
+                composite_accessors: Default::default(),
             };
             aggs.push(res);
             Ok(())
@@ -124,6 +134,7 @@ impl AggregationWithAccessor {
                 missing_value_for_accessor: None,
                 str_dict_column: None,
                 column_block_accessor: Default::default(),
+                composite_accessors: Default::default(),
             };
             aggs.push(res);
             Ok(())
@@ -263,6 +274,7 @@ impl AggregationWithAccessor {
                         str_dict_column: str_dict_column.clone(),
                         limits,
                         column_block_accessor: Default::default(),
+                        composite_accessors: Default::default(),
                     };
                     res.push(agg);
                 }
@@ -343,6 +355,86 @@ impl AggregationWithAccessor {
                     .collect::<crate::Result<_>>()?;
 
                 add_agg_with_accessors(&agg, accessors, &mut res, value_accessors)?;
+            }
+            Composite(ref composite) => {
+                let allowed_column_types = [
+                    ColumnType::I64,
+                    ColumnType::U64,
+                    ColumnType::F64,
+                    ColumnType::Str,
+                    ColumnType::DateTime,
+                    ColumnType::Bool,
+                    ColumnType::IpAddr,
+                    // ColumnType::Bytes Unsupported
+                ];
+                let mut composite_accessors = Vec::with_capacity(composite.sources.len());
+                for source in &composite.sources {
+                    match source {
+                        CompositeAggregationSource::Terms(terms_source) => {
+                            let mut column_and_types = get_all_ff_readers(
+                                reader,
+                                &terms_source.field,
+                                Some(&allowed_column_types),
+                            )?;
+
+                            column_and_types.sort_by_key(|(_, col_type)| {
+                                // We want the same order as IntermediateKey:
+                                // IpAddr->Bool->Str->F64->I64->U64
+                                let rank = match col_type {
+                                    ColumnType::IpAddr => 0,
+                                    ColumnType::Bool => 1,
+                                    ColumnType::Str => 2,
+                                    ColumnType::DateTime => 3, // repr as IntermediateKey::Str
+                                    ColumnType::F64 => 4,
+                                    ColumnType::I64 => 5,
+                                    ColumnType::U64 => 6,
+                                    ColumnType::Bytes => panic!("unsupported"),
+                                };
+                                match terms_source.order {
+                                    Order::Asc => rank,
+                                    Order::Desc => -rank,
+                                }
+                            });
+                            let source_collectors: Vec<CompositeAccessor> = column_and_types
+                                .into_iter()
+                                .map(|(column, column_type)| {
+                                    Ok(CompositeAccessor {
+                                        column,
+                                        column_type,
+                                        str_dict_column: reader
+                                            .fast_fields()
+                                            .str(&terms_source.field)?,
+                                    })
+                                })
+                                .collect::<crate::Result<_>>()?;
+                            composite_accessors.push(source_collectors);
+                        }
+                    }
+                }
+                let limits = limits.clone();
+                let agg = AggregationWithAccessor {
+                    segment_ordinal,
+                    missing_value_for_accessor: None,
+                    // dummy value, not used for composite
+                    accessor: Column::build_empty_column(reader.num_docs()),
+                    accessors: Default::default(),
+                    value_accessors: Default::default(),
+                    // dummy value, not used for composite
+                    field_type: ColumnType::U64,
+                    sub_aggregation: get_aggs_with_segment_accessor_and_validate(
+                        sub_aggregation,
+                        reader,
+                        segment_ordinal,
+                        &limits,
+                    )?,
+                    agg: agg.clone(),
+                    // dummy value, not used for composite
+                    str_dict_column: None,
+                    limits,
+                    column_block_accessor: Default::default(),
+                    composite_accessors,
+                };
+                res.push(agg);
             }
         };
 
@@ -461,11 +553,21 @@ fn get_all_ff_reader_or_empty(
     allowed_column_types: Option<&[ColumnType]>,
     fallback_type: ColumnType,
 ) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
-    let ff_fields = reader.fast_fields();
-    let mut ff_field_with_type =
-        ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
+    let mut ff_field_with_type = get_all_ff_readers(reader, field_name, allowed_column_types)?;
     if ff_field_with_type.is_empty() {
         ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
     }
+    Ok(ff_field_with_type)
+}
+
+/// Get all fast field reader.
+fn get_all_ff_readers(
+    reader: &SegmentReader,
+    field_name: &str,
+    allowed_column_types: Option<&[ColumnType]>,
+) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
+    let ff_fields = reader.fast_fields();
+    let ff_field_with_type =
+        ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
     Ok(ff_field_with_type)
 }

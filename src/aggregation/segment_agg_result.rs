@@ -15,7 +15,7 @@ use super::metric::{
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
     SumAggregation,
 };
-use crate::aggregation::bucket::TermMissingAgg;
+use crate::aggregation::bucket::{SegmentCompositeCollector, TermMissingAgg};
 use crate::aggregation::metric::{
     CardinalityAggregationReq, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
     TopHitsSegmentCollector,
@@ -175,6 +175,13 @@ pub(crate) fn build_single_agg_segment_collector(
         Cardinality(CardinalityAggregationReq { missing, .. }) => Ok(Box::new(
             SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
         )),
+        Composite(composite_aggregation) => {
+            Ok(Box::new(SegmentCompositeCollector::from_req_and_validate(
+                composite_aggregation,
+                &mut req.sub_aggregation,
+                accessor_idx,
+            )?))
+        }
     }
 }
 
