@@ -661,9 +661,11 @@ impl Index {
 
     /// Creates a new segment.
     pub fn new_segment(&self) -> Segment {
-        let segment_meta = self
-            .inventory
-            .new_segment_meta(SegmentId::generate_random(), 0);
+        self.new_segment_with_id(SegmentId::generate_random())
+    }
+
+    pub fn new_segment_with_id(&self, segment_id: SegmentId) -> Segment {
+        let segment_meta = self.inventory.new_segment_meta(segment_id, 0);
         self.segment(segment_meta)
     }
 
