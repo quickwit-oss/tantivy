@@ -71,6 +71,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, histogram);
     register!(group, histogram_hard_bounds);
     register!(group, histogram_with_avg_sub_agg);
+    register!(group, histogram_with_term_agg_few);
     register!(group, avg_and_range_with_avg_sub_agg);
 
     group.run();
@@ -334,6 +335,17 @@ fn histogram_with_avg_sub_agg(index: &Index) {
             "histogram": { "field": "score_f64", "interval": 100 },
             "aggs": {
                 "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+fn histogram_with_term_agg_few(index: &Index) {
+    let agg_req = json!({
+        "rangef64": {
+            "histogram": { "field": "score_f64", "interval": 10 },
+            "aggs": {
+                "my_texts": { "terms": { "field": "text_few_terms" } }
             }
         }
     });
