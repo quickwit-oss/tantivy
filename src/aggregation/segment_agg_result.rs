@@ -5,6 +5,8 @@
 
 use std::fmt::Debug;
 
+use columnar::ColumnType;
+
 pub(crate) use super::agg_limits::AggregationLimitsGuard;
 use super::agg_req::AggregationVariants;
 use super::agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAccessor};
@@ -176,9 +178,15 @@ pub(crate) fn build_single_agg_segment_collector(
             SegmentCardinalityCollector::from_req(req.field_type, accessor_idx, missing),
         )),
         Composite(composite_aggregation) => {
+            let col_types: Vec<Vec<ColumnType>> = req
+                .composite_accessors
+                .iter()
+                .map(|a| a.iter().map(|ca| ca.column_type).collect())
+                .collect::<Vec<Vec<ColumnType>>>();
             Ok(Box::new(SegmentCompositeCollector::from_req_and_validate(
                 composite_aggregation,
                 &mut req.sub_aggregation,
+                &col_types,
                 accessor_idx,
             )?))
         }

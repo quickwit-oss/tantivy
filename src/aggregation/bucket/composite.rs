@@ -353,6 +353,7 @@ impl SegmentCompositeCollector {
     pub(crate) fn from_req_and_validate(
         req: &CompositeAggregation,
         sub_aggregations: &mut AggregationsWithAccessor,
+        col_types: &[Vec<ColumnType>], // for validation
         accessor_idx: usize,
     ) -> crate::Result<Self> {
         if req.sources.is_empty() {
@@ -364,6 +365,30 @@ impl SegmentCompositeCollector {
             return Err(TantivyError::InvalidArgument(
                 "composite aggregation 'size' must be > 0".to_string(),
             ));
+        }
+
+        for source_columns in col_types {
+            if source_columns.is_empty() {
+                return Err(TantivyError::InvalidArgument(
+                    "composite aggregation source must have at least one accessor".to_string(),
+                ));
+            }
+            if source_columns.contains(&ColumnType::Bytes) {
+                return Err(TantivyError::InvalidArgument(
+                    "composite aggregation does not support 'bytes' field type".to_string(),
+                ));
+            }
+            if source_columns.contains(&ColumnType::DateTime) && source_columns.len() > 1 {
+                return Err(TantivyError::InvalidArgument(
+                    "composite aggregation expects 'date' fields to have a single column"
+                        .to_string(),
+                ));
+            }
+            if source_columns.contains(&ColumnType::IpAddr) && source_columns.len() > 1 {
+                return Err(TantivyError::InvalidArgument(
+                    "composite aggregation expects 'ip' fields to have a single column".to_string(),
+                ));
+            }
         }
 
         let blueprint = if !sub_aggregations.is_empty() {
@@ -630,6 +655,9 @@ fn recursive_key_visitor(
 
 #[cfg(test)]
 mod tests {
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
+    use common::DateTime;
     use serde_json::json;
 
     use crate::aggregation::agg_req::Aggregations;
@@ -1264,6 +1292,104 @@ mod tests {
                 {"key": {"score": 1}, "doc_count": 2}, // Two docs with score 1.0
                 {"key": {"score": 2}, "doc_count": 1},
                 {"key": {"score": 3}, "doc_count": 1}
+            ])
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn composite_aggregation_test_date_fields() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("timestamp", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            // Add documents with different dates (string timestamps)
+            index_writer
+                .add_document(doc!(date_field => DateTime::from_timestamp_secs(1609459200)))?; // 2021-01-01
+            index_writer
+                .add_document(doc!(date_field => DateTime::from_timestamp_secs(1640995200)))?; // 2022-01-01
+            index_writer
+                .add_document(doc!(date_field => DateTime::from_timestamp_secs(1609459200)))?; // 2021 duplicate
+            index_writer
+                .add_document(doc!(date_field => DateTime::from_timestamp_secs(1672531200)))?; // 2023-01-01
+            index_writer.commit()?;
+        }
+
+        // Test composite aggregation on date field
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_composite": {
+                "composite": {
+                    "sources": [
+                        {"timestamp": {"terms": {"field": "timestamp"}}}
+                    ],
+                    "size": 10
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        let buckets = &res["my_composite"]["buckets"];
+
+        // Should be ordered by date value (as formatted strings)
+        assert_eq!(
+            buckets,
+            &json!([
+                {"key": {"timestamp": "2021-01-01T00:00:00Z"}, "doc_count": 2},
+                {"key": {"timestamp": "2022-01-01T00:00:00Z"}, "doc_count": 1},
+                {"key": {"timestamp": "2023-01-01T00:00:00Z"}, "doc_count": 1}
+            ])
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn composite_aggregation_test_ip_fields() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let ip_field = schema_builder.add_ip_addr_field("ip_addr", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let ipv4 = |ip: &str| ip.parse::<Ipv4Addr>().unwrap().to_ipv6_mapped();
+            let ipv6 = |ip: &str| ip.parse::<Ipv6Addr>().unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.add_document(doc!(ip_field => ipv4("192.168.1.1")))?;
+            index_writer.add_document(doc!(ip_field => ipv4("10.0.0.1")))?;
+            index_writer.add_document(doc!(ip_field => ipv4("192.168.1.1")))?; // duplicate
+            index_writer.add_document(doc!(ip_field => ipv4("172.16.0.1")))?;
+            index_writer.add_document(doc!(ip_field => ipv6("2001:db8::1")))?;
+            index_writer.add_document(doc!(ip_field => ipv6("::1")))?; // localhost
+            index_writer.add_document(doc!(ip_field => ipv6("2001:db8::1")))?; // duplicate
+            index_writer.commit()?;
+        }
+
+        // Test composite aggregation on IP field
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_composite": {
+                "composite": {
+                    "sources": [
+                        {"ip_addr": {"terms": {"field": "ip_addr"}}}
+                    ],
+                    "size": 10
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        let buckets = &res["my_composite"]["buckets"];
+
+        // Should be ordered by IP address
+        assert_eq!(
+            buckets,
+            &json!([
+                {"key": {"ip_addr": "::1"}, "doc_count": 1},
+                {"key": {"ip_addr": "10.0.0.1"}, "doc_count": 1},
+                {"key": {"ip_addr": "172.16.0.1"}, "doc_count": 1},
+                {"key": {"ip_addr": "192.168.1.1"}, "doc_count": 2},
+                {"key": {"ip_addr": "2001:db8::1"}, "doc_count": 2}
             ])
         );
 
