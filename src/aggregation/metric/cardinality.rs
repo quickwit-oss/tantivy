@@ -2,13 +2,13 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{BuildHasher, Hasher};
 
 use columnar::column_values::CompactSpaceU64Accessor;
-use columnar::Dictionary;
+use columnar::{Column, ColumnBlockAccessor, ColumnType, Dictionary, StrColumn};
 use common::f64_to_u64;
 use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_data::{AggregationsSegmentCtx, CardinalityAggReqData};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
@@ -93,6 +93,25 @@ pub struct CardinalityAggregationReq {
     /// { "field": "my_numbers", "missing": "10.0" }
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub missing: Option<Key>,
+}
+
+/// Contains all information required by the SegmentCardinalityCollector to perform the
+/// cardinality aggregation on a segment.
+pub struct CardinalityAggReqData {
+    /// The column accessor to access the fast field values.
+    pub accessor: Column<u64>,
+    /// The column_type of the field.
+    pub column_type: ColumnType,
+    /// The string dictionary column if the field is of type string.
+    pub str_dict_column: Option<StrColumn>,
+    /// The missing value normalized to the internal u64 representation of the field type.
+    pub missing_value_for_accessor: Option<u64>,
+    /// The column block accessor to access the fast field values.
+    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
+    /// The name of the aggregation.
+    pub name: String,
+    /// The aggregation request.
+    pub req: CardinalityAggregationReq,
 }
 
 impl CardinalityAggregationReq {

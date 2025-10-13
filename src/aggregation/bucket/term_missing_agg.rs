@@ -1,13 +1,32 @@
+use columnar::{Column, ColumnType};
 use rustc_hash::FxHashMap;
 
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
+use crate::aggregation::bucket::term_agg::TermsAggregation;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+
+/// Special aggregation to handle missing values for term aggregations.
+/// This missing aggregation will check multiple columns for existence.
+///
+/// This is needed when:
+/// - The field is multi-valued and we therefore have multiple columns
+/// - The field is not text and missing is provided as string (we cannot use the numeric missing
+///   value optimization)
+#[derive(Default)]
+pub struct MissingTermAggReqData {
+    /// The accessors to check for existence of a value.
+    pub accessors: Vec<(Column<u64>, ColumnType)>,
+    /// The name of the aggregation.
+    pub name: String,
+    /// The original terms aggregation request.
+    pub req: TermsAggregation,
+}
 
 /// The specialized missing term aggregation.
 #[derive(Default, Debug, Clone)]

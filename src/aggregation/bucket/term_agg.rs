@@ -4,7 +4,8 @@ use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64, NumericalValue,
+    Column, ColumnBlockAccessor, ColumnType, Dictionary, MonotonicallyMappableToU128,
+    MonotonicallyMappableToU64, NumericalValue, StrColumn,
 };
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -14,6 +15,7 @@ use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::agg_limits::MemoryConsumption;
+use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
@@ -22,6 +24,31 @@ use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::{format_date, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
+
+/// Contains all information required by the SegmentTermCollector to perform the
+/// terms aggregation on a segment.
+pub struct TermsAggReqData {
+    /// The column accessor to access the fast field values.
+    pub accessor: Column<u64>,
+    /// The type of the column.
+    pub column_type: ColumnType,
+    /// The string dictionary column if the field is of type text.
+    pub str_dict_column: Option<StrColumn>,
+    /// The missing value as u64 value.
+    pub missing_value_for_accessor: Option<u64>,
+    /// The column block accessor to access the fast field values.
+    pub column_block_accessor: ColumnBlockAccessor<u64>,
+    /// The type of the fast field.
+    pub field_type: ColumnType,
+    /// Note: sub_aggregation_blueprint is filled later when building collectors
+    pub sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
+    /// Used to build the correct nested result when we have an empty result.
+    pub sug_aggregations: Aggregations,
+    /// The name of the aggregation.
+    pub name: String,
+    /// The normalized term aggregation request.
+    pub req: TermsAggregationInternal,
+}
 
 /// Creates a bucket for every unique term and counts the number of occurrences.
 /// Note that doc_count in the response buckets equals term count here.

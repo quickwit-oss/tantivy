@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+use columnar::{Column, ColumnBlockAccessor, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
@@ -17,6 +18,30 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 use crate::TantivyError;
+
+/// Contains all information required by the SegmentHistogramCollector to perform the
+/// histogram or date_histogram aggregation on a segment.
+pub struct HistogramAggReqData {
+    /// The column accessor to access the fast field values.
+    pub accessor: Column<u64>,
+    /// The field type of the fast field.
+    pub field_type: ColumnType,
+    /// The column block accessor to access the fast field values.
+    pub column_block_accessor: ColumnBlockAccessor<u64>,
+    /// The name of the aggregation.
+    pub name: String,
+    /// The sub aggregation blueprint, used to create sub aggregations for each bucket.
+    /// Will be filled during initialization of the collector.
+    pub sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
+    /// The histogram aggregation request.
+    pub req: HistogramAggregation,
+    /// True if this is a date_histogram aggregation.
+    pub is_date_histogram: bool,
+    /// The bounds to limit the buckets to.
+    pub bounds: HistogramBounds,
+    /// The offset used to calculate the bucket position.
+    pub offset: f64,
+}
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
 /// Each document value is rounded down to its bucket.

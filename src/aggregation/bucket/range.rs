@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
+use columnar::{Column, ColumnBlockAccessor, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,21 @@ use crate::aggregation::intermediate_agg_result::{
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 use crate::TantivyError;
+
+/// Contains all information required by the SegmentRangeCollector to perform the
+/// range aggregation on a segment.
+pub struct RangeAggReqData {
+    /// The column accessor to access the fast field values.
+    pub accessor: Column<u64>,
+    /// The type of the fast field.
+    pub field_type: ColumnType,
+    /// The column block accessor to access the fast field values.
+    pub column_block_accessor: ColumnBlockAccessor<u64>,
+    /// The range aggregation request.
+    pub req: RangeAggregation,
+    /// The name of the aggregation.
+    pub name: String,
+}
 
 /// Provide user-defined buckets to aggregate on.
 ///

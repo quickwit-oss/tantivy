@@ -19,6 +19,23 @@ use crate::aggregation::AggregationError;
 use crate::collector::TopNComputer;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
+// duplicate import removed; already imported above
+
+/// Contains all information required by the TopHitsSegmentCollector to perform the
+/// top_hits aggregation on a segment.
+#[derive(Default)]
+pub struct TopHitsAggReqData {
+    /// The accessors to access the fast field values.
+    pub accessors: Vec<(Column<u64>, ColumnType)>,
+    /// The accessors to access the fast field values for retrieving document fields.
+    pub value_accessors: HashMap<String, Vec<DynamicColumn>>,
+    /// The ordinal of the segment this request data is for.
+    pub segment_ordinal: SegmentOrdinal,
+    /// The name of the aggregation.
+    pub name: String,
+    /// The top_hits aggregation request.
+    pub req: TopHitsAggregationReq,
+}
 
 /// # Top Hits
 ///

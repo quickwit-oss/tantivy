@@ -4,10 +4,11 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::aggregation::agg_data::{AggregationsSegmentCtx, MetricAggReqData};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
+use crate::aggregation::metric::MetricAggReqData;
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 use crate::{DocId, TantivyError};

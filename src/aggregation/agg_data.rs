@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use columnar::{Column, ColumnBlockAccessor, ColumnType, DynamicColumn, StrColumn};
+use columnar::{Column, ColumnType};
 use serde::Serialize;
 
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
@@ -9,15 +7,16 @@ use crate::aggregation::agg_req_with_accessor::{
     get_numeric_or_date_column_types,
 };
 use crate::aggregation::bucket::{
-    HistogramAggregation, HistogramBounds, RangeAggregation, SegmentHistogramCollector,
-    SegmentRangeCollector, SegmentTermCollector, TermMissingAgg, TermsAggregation,
-    TermsAggregationInternal,
+    HistogramAggReqData, HistogramBounds, MissingTermAggReqData, RangeAggReqData,
+    SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector, TermMissingAgg,
+    TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
-    AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
-    MaxAggregation, MinAggregation, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
-    SegmentPercentilesCollector, SegmentStatsCollector, StatsAggregation, StatsType,
-    SumAggregation, TopHitsAggregationReq, TopHitsSegmentCollector,
+    AverageAggregation, CardinalityAggReqData, CardinalityAggregationReq, CountAggregation,
+    ExtendedStatsAggregation, MaxAggregation, MetricAggReqData, MinAggregation,
+    SegmentCardinalityCollector, SegmentExtendedStatsCollector, SegmentPercentilesCollector,
+    SegmentStatsCollector, StatsAggregation, StatsType, SumAggregation, TopHitsAggReqData,
+    TopHitsSegmentCollector,
 };
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
@@ -396,97 +395,7 @@ impl AggKind {
     }
 }
 
-/// Contains all information required by the SegmentTermCollector to perform the
-/// terms aggregation on a segment.
-pub struct TermsAggReqData {
-    pub accessor: Column<u64>,
-    pub column_type: ColumnType,
-    pub str_dict_column: Option<StrColumn>,
-    pub missing_value_for_accessor: Option<u64>,
-    pub column_block_accessor: ColumnBlockAccessor<u64>,
-    pub field_type: ColumnType,
-    /// Note: sub_aggregation_blueprint is filled later when building collectors
-    pub sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
-    pub sug_aggregations: Aggregations,
-    pub name: String,
-    pub req: TermsAggregationInternal,
-}
-
-/// Special aggregation to handle missing values for term aggregations.
-/// This missing aggregation will check multiple columns for existence.
-///
-/// This is needed when:
-/// - The field is multi-valued and we therefore have multiple columns
-/// - The field is not text and missing is provided as string (we cannot use the numeric missing
-///   value optimization)
-#[derive(Default)]
-pub struct MissingTermAggReqData {
-    pub accessors: Vec<(Column<u64>, ColumnType)>,
-    pub name: String,
-    pub req: TermsAggregation,
-}
-
-/// Contains all information required by the SegmentCardinalityCollector to perform the
-/// cardinality aggregation on a segment.
-pub struct CardinalityAggReqData {
-    pub accessor: Column<u64>,
-    pub column_type: ColumnType,
-    pub str_dict_column: Option<StrColumn>,
-    pub missing_value_for_accessor: Option<u64>,
-    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
-    pub name: String,
-    pub req: CardinalityAggregationReq,
-}
-
-/// Contains all information required by the TopHitsSegmentCollector to perform the
-/// top_hits aggregation on a segment.
-#[derive(Default)]
-pub struct TopHitsAggReqData {
-    pub accessors: Vec<(Column<u64>, ColumnType)>,
-    pub value_accessors: HashMap<String, Vec<DynamicColumn>>,
-    pub(crate) segment_ordinal: SegmentOrdinal,
-    pub name: String,
-    pub req: TopHitsAggregationReq,
-}
-
-/// Contains all information required by metric aggregations like avg, min, max, sum, stats,
-/// extended_stats, count, percentiles.
-#[repr(C)]
-pub struct MetricAggReqData {
-    pub is_number_or_date_type: bool,
-    pub field_type: ColumnType,
-    pub missing_u64: Option<u64>,
-    pub column_block_accessor: ColumnBlockAccessor<u64>,
-    pub accessor: Column<u64>,
-    /// Used when converting to intermediate result
-    pub collecting_for: StatsType,
-    pub missing: Option<f64>,
-    pub name: String,
-}
-
-/// Contains all information required by the SegmentHistogramCollector to perform the
-/// histogram or date_histogram aggregation on a segment.
-pub struct HistogramAggReqData {
-    pub accessor: Column<u64>,
-    pub field_type: ColumnType,
-    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
-    pub name: String,
-    pub sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
-    pub req: HistogramAggregation,
-    pub is_date_histogram: bool,
-    pub bounds: HistogramBounds,
-    pub offset: f64,
-}
-
-/// Contains all information required by the SegmentRangeCollector to perform the
-/// range aggregation on a segment.
-pub struct RangeAggReqData {
-    pub accessor: Column<u64>,
-    pub field_type: ColumnType,
-    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
-    pub req: RangeAggregation,
-    pub name: String,
-}
+// ReqData structs moved to their respective collector modules
 
 /// Build AggregationsData by walking the request tree.
 pub(crate) fn build_aggregations_data_from_req(
