@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::aggregation::agg_data::{AggregationsData, MetricAggReqData};
+use crate::aggregation::agg_data::{AggregationsSegmentCtx, MetricAggReqData};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
@@ -263,7 +263,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
     #[inline]
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let name = agg_data.get_metric_req_data(self.accessor_idx).name.clone();
@@ -278,7 +278,11 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
     }
 
     #[inline]
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         let req_data = agg_data.get_metric_req_data(self.accessor_idx);
 
         if let Some(missing) = req_data.missing_u64 {
@@ -306,7 +310,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let req_data = agg_data.get_metric_req_data_mut(self.accessor_idx);
         self.collect_block_with_field(docs, req_data);

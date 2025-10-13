@@ -8,7 +8,7 @@ use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
 use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_data::{AggregationsData, CardinalityAggReqData};
+use crate::aggregation::agg_data::{AggregationsSegmentCtx, CardinalityAggReqData};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
@@ -145,7 +145,7 @@ impl SegmentCardinalityCollector {
 
     fn into_intermediate_metric_result(
         mut self,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateMetricResult> {
         let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
         if req_data.column_type == ColumnType::Str {
@@ -204,7 +204,7 @@ impl SegmentCardinalityCollector {
 impl SegmentAggregationCollector for SegmentCardinalityCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
@@ -219,14 +219,18 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         Ok(())
     }
 
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_data)
     }
 
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let req_data = agg_data.get_cardinality_req_data_mut(self.accessor_idx);
         self.fetch_block_with_field(docs, req_data);

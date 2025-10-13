@@ -4,7 +4,9 @@ use std::ops::Range;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_data::{build_segment_agg_collectors, AggRefNode, AggregationsData};
+use crate::aggregation::agg_data::{
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
+};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
@@ -159,7 +161,7 @@ impl Debug for SegmentRangeBucketEntry {
 impl SegmentRangeBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateRangeBucketEntry> {
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
         if let Some(sub_aggregation) = self.sub_aggregation {
@@ -182,7 +184,7 @@ impl SegmentRangeBucketEntry {
 impl SegmentAggregationCollector for SegmentRangeCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let field_type = self.column_type;
@@ -215,7 +217,11 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
     }
 
     #[inline]
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_data)
     }
 
@@ -223,7 +229,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         // Take request data to avoid borrow conflicts during sub-aggregation
         let mut req = agg_data.take_range_req_data(self.accessor_idx);
@@ -247,7 +253,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
         Ok(())
     }
 
-    fn flush(&mut self, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for bucket in self.buckets.iter_mut() {
             if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {
                 sub_agg.flush(agg_data)?;
@@ -259,7 +265,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
 
 impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
-        req_data: &mut AggregationsData,
+        req_data: &mut AggregationsSegmentCtx,
         node: &AggRefNode,
     ) -> crate::Result<Self> {
         let accessor_idx = node.idx_in_req_data;

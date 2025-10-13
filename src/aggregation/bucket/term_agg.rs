@@ -10,7 +10,9 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::{CustomOrder, Order, OrderTarget};
-use crate::aggregation::agg_data::{build_segment_agg_collectors, AggRefNode, AggregationsData};
+use crate::aggregation::agg_data::{
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
+};
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -233,7 +235,7 @@ impl TermBuckets {
         sub_aggs_mem + buckets_mem
     }
 
-    fn force_flush(&mut self, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn force_flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for sub_aggregations in &mut self.sub_aggs.values_mut() {
             sub_aggregations.as_mut().flush(agg_data)?;
         }
@@ -258,7 +260,7 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
 impl SegmentAggregationCollector for SegmentTermCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let name = agg_data.get_term_req_data(self.accessor_idx).name.clone();
@@ -270,7 +272,11 @@ impl SegmentAggregationCollector for SegmentTermCollector {
     }
 
     #[inline]
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_data)
     }
 
@@ -278,7 +284,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let mut req_data = agg_data.take_term_req_data(self.accessor_idx);
 
@@ -301,7 +307,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
             *entry += 1;
         }
         // has subagg
-        if let Some(blueprint) = req_data.sub_aggregation_blueprint.as_ref().clone() {
+        if let Some(blueprint) = req_data.sub_aggregation_blueprint.as_ref() {
             for (doc, term_id) in req_data
                 .column_block_accessor
                 .iter_docid_vals(docs, &req_data.accessor)
@@ -324,7 +330,7 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         Ok(())
     }
 
-    fn flush(&mut self, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         self.term_buckets.force_flush(agg_data)?;
         Ok(())
     }
@@ -338,7 +344,7 @@ impl SegmentTermCollector {
     }
 
     pub(crate) fn from_req_and_validate(
-        req_data: &mut AggregationsData,
+        req_data: &mut AggregationsSegmentCtx,
         node: &AggRefNode,
     ) -> crate::Result<Self> {
         let terms_req_data = req_data.get_term_req_data(node.idx_in_req_data);
@@ -353,7 +359,7 @@ impl SegmentTermCollector {
 
         // Validate sub aggregation exists
         if let OrderTarget::SubAggregation(sub_agg_name) = &terms_req_data.req.order.target {
-            let (agg_name, _agg_property) = get_agg_name_and_property(&sub_agg_name);
+            let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
 
             node.get_sub_agg(agg_name, &req_data.per_request)
                 .ok_or_else(|| {
@@ -383,7 +389,7 @@ impl SegmentTermCollector {
     #[inline]
     pub(crate) fn into_intermediate_bucket_result(
         mut self,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
         let term_req = agg_data.get_term_req_data(self.accessor_idx);
         let mut entries: Vec<(u64, u32)> = self.term_buckets.entries.into_iter().collect();
@@ -435,7 +441,7 @@ impl SegmentTermCollector {
                         .unwrap_or_else(|| {
                             panic!("Internal Error: could not find subaggregation for id {id}")
                         })
-                        .add_intermediate_aggregation_result(&agg_data, &mut sub_aggregation_res)?;
+                        .add_intermediate_aggregation_result(agg_data, &mut sub_aggregation_res)?;
 
                     IntermediateTermBucketEntry {
                         doc_count,

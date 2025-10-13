@@ -7,27 +7,31 @@ use std::fmt::Debug;
 
 pub(crate) use super::agg_limits::AggregationLimitsGuard;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use crate::aggregation::agg_data::AggregationsData;
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 
 /// A SegmentAggregationCollector is used to collect aggregation results.
 pub trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()>;
 
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()>;
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()>;
 
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()>;
 
     /// Finalize method. Some Aggregator collect blocks of docs before calling `collect_block`.
     /// This method ensures those staged docs will be collected.
-    fn flush(&mut self, _agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn flush(&mut self, _agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         Ok(())
     }
 }
@@ -70,7 +74,7 @@ impl Debug for GenericSegmentAggregationResultsCollector {
 impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         for agg in self.aggs {
@@ -80,7 +84,11 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
         Ok(())
     }
 
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_data)?;
 
         Ok(())
@@ -89,7 +97,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         for collector in &mut self.aggs {
             collector.collect_block(docs, agg_data)?;
@@ -98,7 +106,7 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
         Ok(())
     }
 
-    fn flush(&mut self, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for collector in &mut self.aggs {
             collector.flush(agg_data)?;
         }

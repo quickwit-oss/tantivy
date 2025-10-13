@@ -9,7 +9,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{TopHitsMetricResult, TopHitsVecEntry};
-use crate::aggregation::agg_data::AggregationsData;
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::bucket::Order;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateMetricResult,
@@ -567,7 +567,7 @@ impl TopHitsSegmentCollector {
 impl SegmentAggregationCollector for TopHitsSegmentCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut crate::aggregation::intermediate_agg_result::IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
@@ -587,7 +587,7 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
     fn collect(
         &mut self,
         doc_id: crate::DocId,
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
         self.collect_with(doc_id, &req_data.req, &req_data.accessors)?;
@@ -597,7 +597,7 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
         // TODO: Consider getting fields with the column block accessor.

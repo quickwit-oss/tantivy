@@ -1,6 +1,6 @@
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::agg_data::AggregationsData;
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::DocId;
 
 pub(crate) const DOC_BLOCK_SIZE: usize = 64;
@@ -37,14 +37,18 @@ impl SegmentAggregationCollector for BufAggregationCollector {
     #[inline]
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         Box::new(self.collector).add_intermediate_aggregation_result(agg_data, results)
     }
 
     #[inline]
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         self.staged_docs[self.num_staged_docs] = doc;
         self.num_staged_docs += 1;
         if self.num_staged_docs == self.staged_docs.len() {
@@ -59,7 +63,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         self.collector.collect_block(docs, agg_data)?;
 
@@ -67,7 +71,7 @@ impl SegmentAggregationCollector for BufAggregationCollector {
     }
 
     #[inline]
-    fn flush(&mut self, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         self.collector
             .collect_block(&self.staged_docs[..self.num_staged_docs], agg_data)?;
         self.num_staged_docs = 0;

@@ -4,7 +4,7 @@ use super::buf_collector::BufAggregationCollector;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::segment_agg_result::{AggregationLimitsGuard, SegmentAggregationCollector};
 use crate::aggregation::agg_data::{
-    build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsData,
+    build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsSegmentCtx,
 };
 use crate::collector::{Collector, SegmentCollector};
 use crate::index::SegmentReader;
@@ -134,7 +134,7 @@ fn merge_fruits(
 
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
-    aggs_with_accessor: AggregationsData,
+    aggs_with_accessor: AggregationsSegmentCtx,
     agg_collector: BufAggregationCollector,
     error: Option<TantivyError>,
 }

@@ -1,6 +1,8 @@
 use rustc_hash::FxHashMap;
 
-use crate::aggregation::agg_data::{build_segment_agg_collectors, AggRefNode, AggregationsData};
+use crate::aggregation::agg_data::{
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
+};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
@@ -15,7 +17,10 @@ pub struct TermMissingAgg {
     sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
 }
 impl TermMissingAgg {
-    pub(crate) fn new(req_data: &mut AggregationsData, node: &AggRefNode) -> crate::Result<Self> {
+    pub(crate) fn new(
+        req_data: &mut AggregationsSegmentCtx,
+        node: &AggRefNode,
+    ) -> crate::Result<Self> {
         let has_sub_aggregations = !node.children.is_empty();
         let accessor_idx = node.idx_in_req_data;
         let sub_agg = if has_sub_aggregations {
@@ -36,7 +41,7 @@ impl TermMissingAgg {
 impl SegmentAggregationCollector for TermMissingAgg {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let req_data = agg_data.get_missing_term_req_data(self.accessor_idx);
@@ -55,7 +60,7 @@ impl SegmentAggregationCollector for TermMissingAgg {
         };
         if let Some(sub_agg) = self.sub_agg {
             let mut res = IntermediateAggregationResults::default();
-            sub_agg.add_intermediate_aggregation_result(&agg_data, &mut res)?;
+            sub_agg.add_intermediate_aggregation_result(agg_data, &mut res)?;
             missing_entry.sub_aggregation = res;
         }
         entries.insert(missing.into(), missing_entry);
@@ -76,7 +81,11 @@ impl SegmentAggregationCollector for TermMissingAgg {
         Ok(())
     }
 
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         let req_data = agg_data.get_missing_term_req_data(self.accessor_idx);
         let has_value = req_data
             .accessors
@@ -94,7 +103,7 @@ impl SegmentAggregationCollector for TermMissingAgg {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         for doc in docs {
             self.collect(*doc, agg_data)?;

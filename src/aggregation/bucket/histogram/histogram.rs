@@ -4,7 +4,9 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
 
-use crate::aggregation::agg_data::{build_segment_agg_collectors, AggRefNode, AggregationsData};
+use crate::aggregation::agg_data::{
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
+};
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::agg_result::BucketEntry;
@@ -230,7 +232,7 @@ impl SegmentHistogramBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
         sub_aggregation: Option<Box<dyn SegmentAggregationCollector>>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
         if let Some(sub_aggregation) = sub_aggregation {
@@ -258,7 +260,7 @@ pub struct SegmentHistogramCollector {
 impl SegmentAggregationCollector for SegmentHistogramCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let name = agg_data
@@ -272,7 +274,11 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
     }
 
     #[inline]
-    fn collect(&mut self, doc: crate::DocId, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
         self.collect_block(&[doc], agg_data)
     }
 
@@ -280,7 +286,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let mut req = agg_data.take_histogram_req_data(self.accessor_idx);
         let mem_pre = self.get_memory_consumption();
@@ -321,7 +327,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         Ok(())
     }
 
-    fn flush(&mut self, agg_data: &mut AggregationsData) -> crate::Result<()> {
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for sub_aggregation in self.sub_aggregations.values_mut() {
             sub_aggregation.flush(agg_data)?;
         }
@@ -340,7 +346,7 @@ impl SegmentHistogramCollector {
     /// Converts the collector result into a intermediate bucket result.
     pub fn into_intermediate_bucket_result(
         self,
-        agg_data: &AggregationsData,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
         let mut buckets = Vec::with_capacity(self.buckets.len());
 
@@ -365,7 +371,7 @@ impl SegmentHistogramCollector {
     }
 
     pub(crate) fn from_req_and_validate(
-        agg_data: &mut AggregationsData,
+        agg_data: &mut AggregationsSegmentCtx,
         node: &AggRefNode,
     ) -> crate::Result<Self> {
         let blueprint = if !node.children.is_empty() {

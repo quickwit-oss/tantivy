@@ -28,13 +28,13 @@ use crate::{SegmentOrdinal, SegmentReader};
 #[derive(Default)]
 /// Datastructure holding all request data for executing aggregations on a segment.
 /// It is passed to the collectors during collection.
-pub struct AggregationsData {
+pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
-    pub per_request: PerRequestAggData,
+    pub per_request: PerRequestAggSegCtx,
     pub limits: AggregationLimitsGuard,
 }
 
-impl AggregationsData {
+impl AggregationsSegmentCtx {
     pub(crate) fn push_term_req_data(&mut self, data: TermsAggReqData) -> usize {
         self.per_request.term_req_data.push(Some(Box::new(data)));
         self.per_request.term_req_data.len() - 1
@@ -185,7 +185,7 @@ impl AggregationsData {
 /// The request tree is represented by `agg_tree` which contains nodes with references
 /// into the various request ata vectors.
 #[derive(Default)]
-pub struct PerRequestAggData {
+pub struct PerRequestAggSegCtx {
     // Box for cheap take/put - Only necessary for bucket aggs that have sub-aggregations
     /// TermsAggReqData contains the request data for a terms aggregation.
     pub term_req_data: Vec<Option<Box<TermsAggReqData>>>,
@@ -206,7 +206,7 @@ pub struct PerRequestAggData {
     pub agg_tree: Vec<AggRefNode>,
 }
 
-impl PerRequestAggData {
+impl PerRequestAggSegCtx {
     pub fn get_name(&self, node: &AggRefNode) -> &str {
         let idx = node.idx_in_req_data;
         let kind = node.kind;
@@ -241,7 +241,7 @@ impl PerRequestAggData {
     /// Convert the aggregation tree into a serializable struct representation.
     /// Each node contains: { name, kind, children }.
     pub fn get_view_tree(&self) -> Vec<AggTreeViewNode> {
-        fn node_to_view(node: &AggRefNode, pr: &PerRequestAggData) -> AggTreeViewNode {
+        fn node_to_view(node: &AggRefNode, pr: &PerRequestAggSegCtx) -> AggTreeViewNode {
             let mut children: Vec<AggTreeViewNode> =
                 node.children.iter().map(|c| node_to_view(c, pr)).collect();
             children.sort_by_key(|v| serde_json::to_string(v).unwrap());
@@ -263,13 +263,13 @@ impl PerRequestAggData {
 }
 
 pub(crate) fn build_segment_agg_collectors_root(
-    req: &mut AggregationsData,
+    req: &mut AggregationsSegmentCtx,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     build_segment_agg_collectors(req, &req.per_request.agg_tree.clone())
 }
 
 pub(crate) fn build_segment_agg_collectors(
-    req: &mut AggregationsData,
+    req: &mut AggregationsSegmentCtx,
     nodes: &[AggRefNode],
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     let mut collectors = Vec::new();
@@ -286,7 +286,7 @@ pub(crate) fn build_segment_agg_collectors(
 }
 
 pub(crate) fn build_segment_agg_collector(
-    req: &mut AggregationsData,
+    req: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     match node.kind {
@@ -360,7 +360,7 @@ pub struct AggRefNode {
     pub children: Vec<AggRefNode>,
 }
 impl AggRefNode {
-    pub fn get_sub_agg(&self, name: &str, pr: &PerRequestAggData) -> Option<&AggRefNode> {
+    pub fn get_sub_agg(&self, name: &str, pr: &PerRequestAggSegCtx) -> Option<&AggRefNode> {
         self.children
             .iter()
             .find(|&child| pr.get_name(child) == name)
@@ -494,8 +494,8 @@ pub(crate) fn build_aggregations_data_from_req(
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
     limits: AggregationLimitsGuard,
-) -> crate::Result<AggregationsData> {
-    let mut data = AggregationsData {
+) -> crate::Result<AggregationsSegmentCtx> {
+    let mut data = AggregationsSegmentCtx {
         per_request: Default::default(),
         limits,
     };
@@ -512,7 +512,7 @@ fn build_nodes(
     req: &Aggregation,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsData,
+    data: &mut AggregationsSegmentCtx,
 ) -> crate::Result<Vec<AggRefNode>> {
     use AggregationVariants::*;
     match &req.agg {
@@ -740,7 +740,7 @@ fn build_children(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsData,
+    data: &mut AggregationsSegmentCtx,
 ) -> crate::Result<Vec<AggRefNode>> {
     let mut children = Vec::new();
     for (name, agg) in aggs.iter() {
@@ -805,7 +805,7 @@ fn build_terms_or_cardinality_nodes(
     missing: &Option<Key>,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    data: &mut AggregationsData,
+    data: &mut AggregationsSegmentCtx,
     sub_aggs: &Aggregations,
     req: TermsOrCardinalityRequest,
 ) -> crate::Result<Vec<AggRefNode>> {
