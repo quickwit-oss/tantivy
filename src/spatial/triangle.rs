@@ -5,6 +5,9 @@
 //! contain an additional vertex and packed reconstruction metadata, allowing exact triangle
 //! recovery when needed.
 
+use geo_types::MultiPolygon;
+use i_triangle::i_overlay::i_float::int::point::IntPoint;
+use i_triangle::int::triangulatable::IntTriangulatable;
 use robust::{orient2d, Coord};
 
 const MINY_MINX_MAXY_MAXX_Y_X: i32 = 0;
@@ -300,8 +303,66 @@ impl Triangle {
     }
 }
 
+/// Triangulates a geographic polygon into encoded triangles for block kd-tree indexing.
+///
+/// This function is used by applications to convert a `MultiPolygon` into triangles for indexing
+/// in the block kd-tree. Once triangulated, the encoded triangles can be inserted into the block
+/// kd-tree and queries against the block kd-tree will return the associated `doc_id`.
+///
+/// Takes a polygon with floating-point lat/lon coordinates, converts to integer coordinates with
+/// millimeter precision (using 2^32 scaling), performs constrained Delaunay triangulation, and
+/// encodes the resulting triangles with boundary edge information.
+///
+/// Handles polygons with holes correctly, preserving which triangle edges lie on the original
+/// polygon boundaries versus internal tessellation edges.
+pub fn triangulate<G>(doc_id: u32, geometry: G, triangles: &mut Vec<Triangle>)
+where G: Into<MultiPolygon<f64>> {
+    let multi = geometry.into();
+    for polygon in multi {
+        let exterior: Vec<IntPoint> = polygon
+            .exterior()
+            .coords()
+            .map(|coord| {
+                let lat = (coord.y / (180.0 / (1i64 << 32) as f64)).floor() as i32;
+                let lon = (coord.x / (360.0 / (1i64 << 32) as f64)).floor() as i32;
+                IntPoint::new(lon, lat)
+            })
+            .collect();
+        let mut i_polygon = vec![exterior];
+        for interior in polygon.interiors() {
+            let hole: Vec<IntPoint> = interior
+                .coords()
+                .map(|coord| {
+                    let lat = (coord.y / (180.0 / (1i64 << 32) as f64)).floor() as i32;
+                    let lon = (coord.x / (360.0 / (1i64 << 32) as f64)).floor() as i32;
+                    IntPoint::new(lon, lat)
+                })
+                .collect();
+            i_polygon.push(hole);
+        }
+        let delaunay = i_polygon.triangulate().into_delaunay();
+        for (_, triangle) in delaunay.triangles.iter().enumerate() {
+            let bounds = [
+                triangle.neighbors[0] == usize::MAX,
+                triangle.neighbors[1] == usize::MAX,
+                triangle.neighbors[2] == usize::MAX,
+            ];
+            let v0 = &delaunay.points[triangle.vertices[0].index];
+            let v1 = &delaunay.points[triangle.vertices[1].index];
+            let v2 = &delaunay.points[triangle.vertices[2].index];
+            triangles.push(Triangle::new(
+                doc_id,
+                [v0.y, v0.x, v1.y, v1.x, v2.y, v2.x],
+                bounds,
+            ))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use geo_types::polygon;
+
     use super::*;
 
     #[test]
@@ -372,5 +433,15 @@ mod tests {
             let (decoded_coords, _) = triangle.decode();
             assert_eq!(decoded_coords, coords);
         }
+    }
+
+    #[test]
+    fn triangulate_box() {
+        let polygon = polygon![
+            (x: 0.0, y: 0.0), (x: 10.0, y: 0.0), (x: 10.0, y: 10.0), (x: 0.0, y: 10.0)
+        ];
+        let mut triangles = Vec::new();
+        triangulate(1, polygon, &mut triangles);
+        assert_eq!(triangles.len(), 2);
     }
 }
