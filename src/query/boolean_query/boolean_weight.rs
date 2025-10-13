@@ -40,6 +40,7 @@ where
     ))
 }
 
+/// num_docs is the number of documents in the segment.
 fn scorer_union<TScoreCombiner>(
     scorers: Vec<Box<dyn Scorer>>,
     score_combiner_fn: impl Fn() -> TScoreCombiner,

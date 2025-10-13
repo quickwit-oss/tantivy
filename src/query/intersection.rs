@@ -74,6 +74,7 @@ fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
 }
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
+    /// num_docs is the number of documents in the segment.
     pub(crate) fn new(mut docsets: Vec<TDocSet>, num_docs: u32) -> Intersection<TDocSet, TDocSet> {
         let num_docsets = docsets.len();
         assert!(num_docsets >= 2);

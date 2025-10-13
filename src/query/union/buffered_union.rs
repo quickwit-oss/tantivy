@@ -51,6 +51,7 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     doc: DocId,
     /// Combined score for current `doc` as produced by `TScoreCombiner`.
     score: Score,
+    /// Number of documents in the segment.
     num_docs: u32,
 }
 
@@ -80,6 +81,7 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer, TScoreCombiner> {
+    /// num_docs is the number of documents in the segment.
     pub(crate) fn build(
         docsets: Vec<TScorer>,
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
