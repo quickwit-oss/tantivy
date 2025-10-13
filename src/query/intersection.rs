@@ -1,4 +1,5 @@
 use crate::docset::{DocSet, TERMINATED};
+use crate::query::size_hint::estimate_intersection;
 use crate::query::term_query::TermScorer;
 use crate::query::{EmptyScorer, Scorer};
 use crate::{DocId, Score};
@@ -11,14 +12,18 @@ use crate::{DocId, Score};
 /// For better performance, the function uses a
 /// specialized implementation if the two
 /// shortest scorers are `TermScorer`s.
-pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer> {
+pub fn intersect_scorers(
+    mut scorers: Vec<Box<dyn Scorer>>,
+    num_docs_segment: u32,
+) -> Box<dyn Scorer> {
     if scorers.is_empty() {
         return Box::new(EmptyScorer);
     }
     if scorers.len() == 1 {
         return scorers.pop().unwrap();
     }
-    scorers.sort_by_key(|scorer| scorer.size_hint());
+    // Order by estimated cost to drive each scorer.
+    scorers.sort_by_key(|scorer| scorer.cost());
     let doc = go_to_first_doc(&mut scorers[..]);
     if doc == TERMINATED {
         return Box::new(EmptyScorer);
@@ -34,12 +39,14 @@ pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer> {
             left: *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             right: *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             others: scorers,
+            num_docs: num_docs_segment,
         });
     }
     Box::new(Intersection {
         left,
         right,
         others: scorers,
+        num_docs: num_docs_segment,
     })
 }
 
@@ -48,6 +55,7 @@ pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<dyn Scorer>>
     left: TDocSet,
     right: TDocSet,
     others: Vec<TOtherDocSet>,
+    num_docs: u32,
 }
 
 fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
@@ -66,10 +74,11 @@ fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
 }
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
-    pub(crate) fn new(mut docsets: Vec<TDocSet>) -> Intersection<TDocSet, TDocSet> {
+    /// num_docs is the number of documents in the segment.
+    pub(crate) fn new(mut docsets: Vec<TDocSet>, num_docs: u32) -> Intersection<TDocSet, TDocSet> {
         let num_docsets = docsets.len();
         assert!(num_docsets >= 2);
-        docsets.sort_by_key(|docset| docset.size_hint());
+        docsets.sort_by_key(|docset| docset.cost());
         go_to_first_doc(&mut docsets);
         let left = docsets.remove(0);
         let right = docsets.remove(0);
@@ -77,6 +86,7 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
             left,
             right,
             others: docsets,
+            num_docs,
         }
     }
 }
@@ -141,7 +151,19 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
     }
 
     fn size_hint(&self) -> u32 {
-        self.left.size_hint()
+        estimate_intersection(
+            [self.left.size_hint(), self.right.size_hint()]
+                .into_iter()
+                .chain(self.others.iter().map(DocSet::size_hint)),
+            self.num_docs,
+        )
+    }
+
+    fn cost(&self) -> u64 {
+        // What's the best way to compute the cost of an intersection?
+        // For now we take the cost of the docset driver, which is the first docset.
+        // If there are docsets that are bad at skipping, they should also influence the cost.
+        self.left.cost()
     }
 }
 
@@ -169,7 +191,7 @@ mod tests {
         {
             let left = VecDocSet::from(vec![1, 3, 9]);
             let right = VecDocSet::from(vec![3, 4, 9, 18]);
-            let mut intersection = Intersection::new(vec![left, right]);
+            let mut intersection = Intersection::new(vec![left, right], 10);
             assert_eq!(intersection.doc(), 3);
             assert_eq!(intersection.advance(), 9);
             assert_eq!(intersection.doc(), 9);
@@ -179,7 +201,7 @@ mod tests {
             let a = VecDocSet::from(vec![1, 3, 9]);
             let b = VecDocSet::from(vec![3, 4, 9, 18]);
             let c = VecDocSet::from(vec![1, 5, 9, 111]);
-            let mut intersection = Intersection::new(vec![a, b, c]);
+            let mut intersection = Intersection::new(vec![a, b, c], 10);
             assert_eq!(intersection.doc(), 9);
             assert_eq!(intersection.advance(), TERMINATED);
         }
@@ -189,7 +211,7 @@ mod tests {
     fn test_intersection_zero() {
         let left = VecDocSet::from(vec![0]);
         let right = VecDocSet::from(vec![0]);
-        let mut intersection = Intersection::new(vec![left, right]);
+        let mut intersection = Intersection::new(vec![left, right], 10);
         assert_eq!(intersection.doc(), 0);
         assert_eq!(intersection.advance(), TERMINATED);
     }
@@ -198,7 +220,7 @@ mod tests {
     fn test_intersection_skip() {
         let left = VecDocSet::from(vec![0, 1, 2, 4]);
         let right = VecDocSet::from(vec![2, 5]);
-        let mut intersection = Intersection::new(vec![left, right]);
+        let mut intersection = Intersection::new(vec![left, right], 10);
         assert_eq!(intersection.seek(2), 2);
         assert_eq!(intersection.doc(), 2);
     }
@@ -209,7 +231,7 @@ mod tests {
             || {
                 let left = VecDocSet::from(vec![4]);
                 let right = VecDocSet::from(vec![2, 5]);
-                Box::new(Intersection::new(vec![left, right]))
+                Box::new(Intersection::new(vec![left, right], 10))
             },
             vec![0, 2, 4, 5, 6],
         );
@@ -219,19 +241,22 @@ mod tests {
                 let mut right = VecDocSet::from(vec![2, 5, 10]);
                 left.advance();
                 right.advance();
-                Box::new(Intersection::new(vec![left, right]))
+                Box::new(Intersection::new(vec![left, right], 10))
             },
             vec![0, 1, 2, 3, 4, 5, 6, 7, 10, 11],
         );
         test_skip_against_unoptimized(
             || {
-                Box::new(Intersection::new(vec![
-                    VecDocSet::from(vec![1, 4, 5, 6]),
-                    VecDocSet::from(vec![1, 2, 5, 6]),
-                    VecDocSet::from(vec![1, 4, 5, 6]),
-                    VecDocSet::from(vec![1, 5, 6]),
-                    VecDocSet::from(vec![2, 4, 5, 7, 8]),
-                ]))
+                Box::new(Intersection::new(
+                    vec![
+                        VecDocSet::from(vec![1, 4, 5, 6]),
+                        VecDocSet::from(vec![1, 2, 5, 6]),
+                        VecDocSet::from(vec![1, 4, 5, 6]),
+                        VecDocSet::from(vec![1, 5, 6]),
+                        VecDocSet::from(vec![2, 4, 5, 7, 8]),
+                    ],
+                    10,
+                ))
             },
             vec![0, 1, 2, 3, 4, 5, 6, 7, 10, 11],
         );
@@ -242,7 +267,7 @@ mod tests {
         let a = VecDocSet::from(vec![1, 3]);
         let b = VecDocSet::from(vec![1, 4]);
         let c = VecDocSet::from(vec![3, 9]);
-        let intersection = Intersection::new(vec![a, b, c]);
+        let intersection = Intersection::new(vec![a, b, c], 10);
         assert_eq!(intersection.doc(), TERMINATED);
     }
 }
