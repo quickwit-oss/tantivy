@@ -7,6 +7,7 @@ use columnar::{
     Column, ColumnBlockAccessor, ColumnType, Dictionary, MonotonicallyMappableToU128,
     MonotonicallyMappableToU64, NumericalValue, StrColumn,
 };
+use common::BitSet;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -38,8 +39,6 @@ pub struct TermsAggReqData {
     pub missing_value_for_accessor: Option<u64>,
     /// The column block accessor to access the fast field values.
     pub column_block_accessor: ColumnBlockAccessor<u64>,
-    /// The type of the fast field.
-    pub field_type: ColumnType,
     /// Note: sub_aggregation_blueprint is filled later when building collectors
     pub sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
     /// Used to build the correct nested result when we have an empty result.
@@ -48,6 +47,8 @@ pub struct TermsAggReqData {
     pub name: String,
     /// The normalized term aggregation request.
     pub req: TermsAggregationInternal,
+    /// Preloaded allowed term ords (string columns only). If set, only ords present are collected.
+    pub allowed_term_ids: Option<BitSet>,
 }
 
 /// Creates a bucket for every unique term and counts the number of occurrences.
@@ -120,6 +121,15 @@ pub struct TermsAggReqData {
 /// }
 /// ```
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum IncludeExcludeParam {
+    /// A single string pattern is treated as regex.
+    Regex(String),
+    /// An array of strings is treated as exact values.
+    Values(Vec<String>),
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TermsAggregation {
     /// The field to aggregate on.
@@ -189,6 +199,13 @@ pub struct TermsAggregation {
     /// add text.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub missing: Option<Key>,
+
+    /// Include terms by either regex (single string) or exact values (array).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub include: Option<IncludeExcludeParam>,
+    /// Exclude terms by either regex (single string) or exact values (array).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub exclude: Option<IncludeExcludeParam>,
 }
 
 /// Same as TermsAggregation, but with populated defaults.
@@ -330,6 +347,11 @@ impl SegmentAggregationCollector for SegmentTermCollector {
         }
 
         for term_id in req_data.column_block_accessor.iter_vals() {
+            if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
+                if !allowed_bs.contains(term_id as u32) {
+                    continue;
+                }
+            }
             let entry = self.term_buckets.entries.entry(term_id).or_default();
             *entry += 1;
         }
@@ -339,6 +361,11 @@ impl SegmentAggregationCollector for SegmentTermCollector {
                 .column_block_accessor
                 .iter_docid_vals(docs, &req_data.accessor)
             {
+                if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
+                    if !allowed_bs.contains(term_id as u32) {
+                        continue;
+                    }
+                }
                 let sub_aggregations = self
                     .term_buckets
                     .sub_aggs
@@ -375,11 +402,11 @@ impl SegmentTermCollector {
         node: &AggRefNode,
     ) -> crate::Result<Self> {
         let terms_req_data = req_data.get_term_req_data(node.idx_in_req_data);
-        let field_type = terms_req_data.field_type;
+        let column_type = terms_req_data.column_type;
         let accessor_idx = node.idx_in_req_data;
-        if field_type == ColumnType::Bytes {
+        if column_type == ColumnType::Bytes {
             return Err(TantivyError::InvalidArgument(format!(
-                "terms aggregation is not supported for column type {field_type:?}"
+                "terms aggregation is not supported for column type {column_type:?}"
             )));
         }
         let term_buckets = TermBuckets::default();
@@ -552,13 +579,20 @@ impl SegmentTermCollector {
                 let mut stream = term_dict.stream()?;
                 let empty_sub_aggregation =
                     IntermediateAggregationResults::empty_from_req(&term_req.sug_aggregations);
-                while let Some((key, _ord)) = stream.next() {
+                while stream.advance() {
                     if dict.len() >= term_req.req.segment_size as usize {
                         break;
                     }
 
+                    // Respect allowed filters if present
+                    if let Some(allowed_bs) = term_req.allowed_term_ids.as_ref() {
+                        if !allowed_bs.contains(stream.term_ord() as u32) {
+                            continue;
+                        }
+                    }
+
                     let key = IntermediateKey::Str(
-                        std::str::from_utf8(key)
+                        std::str::from_utf8(stream.key())
                             .map_err(|utf8_err| DataCorruption::comment_only(utf8_err.to_string()))?
                             .to_string(),
                     );
@@ -750,6 +784,77 @@ mod tests {
             serde_json::Value::Null
         );
         assert_eq!(res["my_texts"]["sum_other_doc_count"], 1);
+
+        // include filter: only terma and termc
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "include": ["terma", "termc"],
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termc");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 1);
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+
+        // exclude filter: remove termc
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "exclude": ["termc"],
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 2);
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+
+        // include regex (single string): only termb
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "include": "termb",
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 2);
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
+
+        // include regex (term.*) with exclude regex (termc): expect terma and termb
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "include": "term.*",
+                    "exclude": "termc",
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "terma");
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "termb");
+        assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 2);
+        assert_eq!(res["my_texts"]["sum_other_doc_count"], 0);
 
         // test min_doc_count
         let agg_req: Aggregations = serde_json::from_value(json!({

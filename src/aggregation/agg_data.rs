@@ -1,5 +1,8 @@
-use columnar::{Column, ColumnType};
+use columnar::{Column, ColumnType, StrColumn};
+use common::BitSet;
+use rustc_hash::FxHashSet;
 use serde::Serialize;
+use tantivy_fst::Regex;
 
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::agg_req_with_accessor::{
@@ -7,9 +10,9 @@ use crate::aggregation::agg_req_with_accessor::{
     get_numeric_or_date_column_types,
 };
 use crate::aggregation::bucket::{
-    HistogramAggReqData, HistogramBounds, MissingTermAggReqData, RangeAggReqData,
-    SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector, TermMissingAgg,
-    TermsAggReqData, TermsAggregation, TermsAggregationInternal,
+    HistogramAggReqData, HistogramBounds, IncludeExcludeParam, MissingTermAggReqData,
+    RangeAggReqData, SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector,
+    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     AverageAggregation, CardinalityAggReqData, CardinalityAggregationReq, CountAggregation,
@@ -781,6 +784,18 @@ fn build_terms_or_cardinality_nodes(
         let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
         let (idx, kind) = match req {
             TermsOrCardinalityRequest::Terms(ref req) => {
+                let mut allowed_term_ids = None;
+                if req.include.is_some() || req.exclude.is_some() {
+                    if column_type != ColumnType::Str {
+                        // Skip non-string columns entirely when filtering is requested.
+                        continue;
+                    }
+                    let str_col = str_dict_column
+                        .as_ref()
+                        .expect("str_dict_column must exist for string column");
+                    allowed_term_ids =
+                        build_allowed_term_ids_for_str(str_col, &req.include, &req.exclude)?;
+                };
                 let idx_in_req_data = data.push_term_req_data(TermsAggReqData {
                     accessor,
                     column_type,
@@ -788,11 +803,11 @@ fn build_terms_or_cardinality_nodes(
                     missing_value_for_accessor,
                     column_block_accessor: Default::default(),
                     name: agg_name.to_string(),
-                    field_type: column_type,
                     req: TermsAggregationInternal::from_req(req),
                     // Will be filled later when building collectors
                     sub_aggregation_blueprint: None,
                     sug_aggregations: sub_aggs.clone(),
+                    allowed_term_ids,
                 });
                 (idx_in_req_data, AggKind::Terms)
             }
@@ -817,6 +832,68 @@ fn build_terms_or_cardinality_nodes(
     }
 
     Ok(nodes)
+}
+
+/// Builds a single BitSet of allowed term ordinals for a string dictionary column according to
+/// include/exclude parameters.
+/// - If `include` is None, start with all terms allowed; otherwise start empty and add matches.
+/// - `exclude` patterns/values are removed from the allowed set.
+fn build_allowed_term_ids_for_str(
+    str_col: &StrColumn,
+    include: &Option<IncludeExcludeParam>,
+    exclude: &Option<IncludeExcludeParam>,
+) -> crate::Result<Option<BitSet>> {
+    let mut allowed: Option<BitSet> = None;
+    let num_terms = str_col.dictionary().num_terms() as u32;
+    if let Some(include) = include {
+        let mut bs = BitSet::with_max_value(num_terms);
+        // Start empty and add matches
+        for_each_matching_term_ord(str_col, include, |ord| bs.insert(ord))?;
+        allowed = Some(bs);
+    };
+
+    if let Some(exclude) = exclude {
+        if allowed.is_none() {
+            // Start with all terms allowed
+            allowed = Some(BitSet::with_max_value_and_full(num_terms));
+        }
+        let allowed = allowed.as_mut().unwrap();
+        for_each_matching_term_ord(str_col, exclude, |ord| allowed.remove(ord))?;
+    }
+
+    Ok(allowed)
+}
+
+/// Apply a callback to each matching term ordinal for the given include/exclude parameter.
+fn for_each_matching_term_ord(
+    str_col: &StrColumn,
+    param: &IncludeExcludeParam,
+    mut cb: impl FnMut(u32),
+) -> crate::Result<()> {
+    match param {
+        IncludeExcludeParam::Regex(pattern) => {
+            let re = Regex::new(pattern).map_err(|e| {
+                crate::TantivyError::InvalidArgument(format!("Invalid regex `{}`: {}", pattern, e))
+            })?;
+            // TODO: we can handle patterns like `^prefix.*` more efficiently
+            let mut stream = str_col.dictionary().search(re).into_stream()?;
+            while stream.advance() {
+                cb(stream.term_ord() as u32);
+            }
+        }
+        IncludeExcludeParam::Values(values) => {
+            let set: FxHashSet<&str> = values.iter().map(|s| s.as_str()).collect();
+            let mut stream = str_col.dictionary().stream()?;
+            while stream.advance() {
+                if let Ok(key_str) = std::str::from_utf8(stream.key()) {
+                    if set.contains(key_str) {
+                        cb(stream.term_ord() as u32);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Convert the aggregation tree to something serializable and easy to read.
