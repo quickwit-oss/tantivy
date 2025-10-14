@@ -246,6 +246,7 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
 
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum IntermediateAggregationResult {
     /// Bucket variant
     Bucket(IntermediateBucketResult),
