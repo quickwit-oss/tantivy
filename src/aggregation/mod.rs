@@ -127,10 +127,10 @@
 //! [`AggregationResults`](agg_result::AggregationResults) via the
 //! [`into_final_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_result) method.
 
+mod accessor_helpers;
 mod agg_data;
 mod agg_limits;
 pub mod agg_req;
-mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
 mod buf_collector;

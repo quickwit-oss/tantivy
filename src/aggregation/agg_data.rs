@@ -1,11 +1,11 @@
 use columnar::{Column, ColumnType};
 use serde::Serialize;
 
-use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
-use crate::aggregation::agg_req_with_accessor::{
+use crate::aggregation::accessor_helpers::{
     get_all_ff_reader_or_empty, get_dynamic_columns, get_ff_reader, get_missing_val_as_u64_lenient,
     get_numeric_or_date_column_types,
 };
+use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
     HistogramAggReqData, HistogramBounds, MissingTermAggReqData, RangeAggReqData,
     SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector, TermMissingAgg,
@@ -178,11 +178,12 @@ impl AggregationsSegmentCtx {
     }
 }
 
-/// Each type of aggregation has its own request data struct.
-/// This struct holds all request data to execute the aggregation request on a single segment.
+/// Each type of aggregation has its own request data struct. This struct holds
+/// all request data to execute the aggregation request on a single segment.
 ///
-/// The request tree is represented by `agg_tree` which contains nodes with references
-/// into the various request ata vectors.
+/// The request tree is represented by `agg_tree`. Tree nodes contain the index
+/// of their context in corresponding request data vector (e.g. `term_req_data`
+/// for a node with [AggKind::Terms]).
 #[derive(Default)]
 pub struct PerRequestAggSegCtx {
     // Box for cheap take/put - Only necessary for bucket aggs that have sub-aggregations
@@ -352,6 +353,7 @@ pub(crate) fn build_segment_agg_collector(
     }
 }
 
+/// See [PerRequestAggSegCtx]
 #[derive(Debug, Clone)]
 pub struct AggRefNode {
     pub kind: AggKind,
@@ -394,8 +396,6 @@ impl AggKind {
         }
     }
 }
-
-// ReqData structs moved to their respective collector modules
 
 /// Build AggregationsData by walking the request tree.
 pub(crate) fn build_aggregations_data_from_req(
