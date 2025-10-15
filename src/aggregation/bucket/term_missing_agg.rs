@@ -28,6 +28,13 @@ pub struct MissingTermAggReqData {
     pub req: TermsAggregation,
 }
 
+impl MissingTermAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
 /// The specialized missing term aggregation.
 #[derive(Default, Debug, Clone)]
 pub struct TermMissingAgg {

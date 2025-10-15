@@ -37,6 +37,13 @@ pub struct TopHitsAggReqData {
     pub req: TopHitsAggregationReq,
 }
 
+impl TopHitsAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
 /// # Top Hits
 ///
 /// The top hits aggregation is a useful tool to answer questions like:

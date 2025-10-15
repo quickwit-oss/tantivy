@@ -1,4 +1,3 @@
-use core::num;
 use std::collections::HashMap;
 
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;

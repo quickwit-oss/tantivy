@@ -42,6 +42,12 @@ pub struct HistogramAggReqData {
     /// The offset used to calculate the bucket position.
     pub offset: f64,
 }
+impl HistogramAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
 /// Each document value is rounded down to its bucket.

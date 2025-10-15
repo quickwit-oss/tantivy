@@ -114,6 +114,13 @@ pub struct CardinalityAggReqData {
     pub req: CardinalityAggregationReq,
 }
 
+impl CardinalityAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
 impl CardinalityAggregationReq {
     /// Creates a new [`CardinalityAggregationReq`] instance from a field name.
     pub fn from_field_name(field_name: String) -> Self {

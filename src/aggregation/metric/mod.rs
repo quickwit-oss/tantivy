@@ -67,6 +67,13 @@ pub struct MetricAggReqData {
     pub name: String,
 }
 
+impl MetricAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
 /// Single-metric aggregations use this common result structure.
 ///
 /// Main reason to wrap it in value is to match elasticsearch output structure.
