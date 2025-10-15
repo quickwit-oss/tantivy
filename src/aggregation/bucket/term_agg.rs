@@ -51,6 +51,19 @@ pub struct TermsAggReqData {
     pub allowed_term_ids: Option<BitSet>,
 }
 
+impl TermsAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + std::mem::size_of::<TermsAggregationInternal>()
+            + self
+                .allowed_term_ids
+                .as_ref()
+                .map(|bs| bs.len() / 8)
+                .unwrap_or(0)
+    }
+}
+
 /// Creates a bucket for every unique term and counts the number of occurrences.
 /// Note that doc_count in the response buckets equals term count here.
 ///
@@ -121,8 +134,7 @@ pub struct TermsAggReqData {
 /// }
 /// ```
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum IncludeExcludeParam {
     /// A single string pattern is treated as regex.
     Regex(String),
@@ -130,6 +142,60 @@ pub enum IncludeExcludeParam {
     Values(Vec<String>),
 }
 
+impl Serialize for IncludeExcludeParam {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer {
+        match self {
+            IncludeExcludeParam::Regex(s) => serializer.serialize_str(s),
+            IncludeExcludeParam::Values(v) => v.serialize(serializer),
+        }
+    }
+}
+
+// Custom deserializer to accept either a single string (regex) or an array of strings (values).
+impl<'de> Deserialize<'de> for IncludeExcludeParam {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::Deserializer<'de> {
+        use serde::de::{self, SeqAccess, Visitor};
+        struct IncludeExcludeVisitor;
+
+        impl<'de> Visitor<'de> for IncludeExcludeVisitor {
+            type Value = IncludeExcludeParam;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a string (regex) or an array of strings")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where E: de::Error {
+                Ok(IncludeExcludeParam::Regex(v.to_string()))
+            }
+
+            fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+            where E: de::Error {
+                Ok(IncludeExcludeParam::Regex(v.to_string()))
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where E: de::Error {
+                Ok(IncludeExcludeParam::Regex(v))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where A: SeqAccess<'de> {
+                let mut values: Vec<String> = Vec::new();
+                while let Some(elem) = seq.next_element::<String>()? {
+                    values.push(elem);
+                }
+                Ok(IncludeExcludeParam::Values(values))
+            }
+        }
+
+        deserializer.deserialize_any(IncludeExcludeVisitor)
+    }
+}
+
+/// The terms aggregation allows you to group documents by unique values of a field.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TermsAggregation {
     /// The field to aggregate on.

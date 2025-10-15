@@ -31,6 +31,13 @@ pub struct RangeAggReqData {
     pub name: String,
 }
 
+impl RangeAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
 /// Provide user-defined buckets to aggregate on.
 ///
 /// Two special buckets will automatically be created to cover the whole range of values.

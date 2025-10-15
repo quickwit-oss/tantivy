@@ -209,6 +209,45 @@ pub struct PerRequestAggSegCtx {
 }
 
 impl PerRequestAggSegCtx {
+    /// Estimate the memory consumption of this struct in bytes.
+    fn get_memory_consumption(&self) -> usize {
+        self.term_req_data
+            .iter()
+            .map(|b| b.as_ref().unwrap().get_memory_consumption())
+            .sum::<usize>()
+            + self
+                .histogram_req_data
+                .iter()
+                .map(|b| b.as_ref().unwrap().get_memory_consumption())
+                .sum::<usize>()
+            + self
+                .range_req_data
+                .iter()
+                .map(|b| b.as_ref().unwrap().get_memory_consumption())
+                .sum::<usize>()
+            + self
+                .stats_metric_req_data
+                .iter()
+                .map(|t| t.get_memory_consumption())
+                .sum::<usize>()
+            + self
+                .cardinality_req_data
+                .iter()
+                .map(|t| t.get_memory_consumption())
+                .sum::<usize>()
+            + self
+                .top_hits_req_data
+                .iter()
+                .map(|t| t.get_memory_consumption())
+                .sum::<usize>()
+            + self
+                .missing_term_req_data
+                .iter()
+                .map(|t| t.get_memory_consumption())
+                .sum::<usize>()
+            + self.agg_tree.len() * std::mem::size_of::<AggRefNode>()
+    }
+
     pub fn get_name(&self, node: &AggRefNode) -> &str {
         let idx = node.idx_in_req_data;
         let kind = node.kind;
@@ -279,6 +318,8 @@ pub(crate) fn build_segment_agg_collectors(
         collectors.push(build_segment_agg_collector(req, node)?);
     }
 
+    req.limits
+        .add_memory_consumed(req.per_request.get_memory_consumption() as u64)?;
     // Single collector special case
     if collectors.len() == 1 {
         return Ok(collectors.pop().unwrap());
@@ -788,6 +829,7 @@ fn build_terms_or_cardinality_nodes(
                 if req.include.is_some() || req.exclude.is_some() {
                     if column_type != ColumnType::Str {
                         // Skip non-string columns entirely when filtering is requested.
+                        // When excluding, the behavior could be to include non-string values
                         continue;
                     }
                     let str_col = str_dict_column
@@ -836,8 +878,6 @@ fn build_terms_or_cardinality_nodes(
 
 /// Builds a single BitSet of allowed term ordinals for a string dictionary column according to
 /// include/exclude parameters.
-/// - If `include` is None, start with all terms allowed; otherwise start empty and add matches.
-/// - `exclude` patterns/values are removed from the allowed set.
 fn build_allowed_term_ids_for_str(
     str_col: &StrColumn,
     include: &Option<IncludeExcludeParam>,
@@ -846,10 +886,10 @@ fn build_allowed_term_ids_for_str(
     let mut allowed: Option<BitSet> = None;
     let num_terms = str_col.dictionary().num_terms() as u32;
     if let Some(include) = include {
-        let mut bs = BitSet::with_max_value(num_terms);
-        // Start empty and add matches
-        for_each_matching_term_ord(str_col, include, |ord| bs.insert(ord))?;
-        allowed = Some(bs);
+        // add matches
+        allowed = Some(BitSet::with_max_value(num_terms));
+        let allowed = allowed.as_mut().unwrap();
+        for_each_matching_term_ord(str_col, include, |ord| allowed.insert(ord))?;
     };
 
     if let Some(exclude) = exclude {
