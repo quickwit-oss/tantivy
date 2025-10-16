@@ -3,10 +3,15 @@ use std::collections::HashMap;
 use tantivy_fst::raw::CompiledAddr;
 use tantivy_fst::{Automaton, Map};
 
+use super::term_set_query_fastfield::FastFieldTermSetWeight;
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{AutomatonWeight, BooleanWeight, EnableScoring, Occur, Query, Weight};
-use crate::schema::{Field, Schema};
+use crate::schema::{Field, Schema, Type};
 use crate::{SegmentReader, Term};
+
+/// The term set query will use the fast field implementation if the number of terms is larger than
+/// this threshold.
+const TERM_SET_FAST_FIELD_CARDINALITY_THRESHOLD: usize = 1024;
 
 /// A Term Set Query matches all of the documents containing any of the Term provided
 #[derive(Debug, Clone)]
@@ -22,11 +27,6 @@ impl TermSetQuery {
             terms_map.entry(term.field()).or_default().push(term);
         }
 
-        for terms in terms_map.values_mut() {
-            terms.sort_unstable();
-            terms.dedup();
-        }
-
         TermSetQuery { terms_map }
     }
 
@@ -36,7 +36,7 @@ impl TermSetQuery {
     ) -> crate::Result<BooleanWeight<DoNothingCombiner>> {
         let mut sub_queries: Vec<(_, Box<dyn Weight>)> = Vec::with_capacity(self.terms_map.len());
 
-        for (&field, sorted_terms) in self.terms_map.iter() {
+        for (&field, terms) in self.terms_map.iter() {
             let field_entry = schema.get_field_entry(field);
             let field_type = field_entry.field_type();
             if !field_type.is_indexed() {
@@ -44,20 +44,52 @@ impl TermSetQuery {
                 return Err(crate::TantivyError::SchemaError(error_msg));
             }
 
-            // In practice this won't fail because:
-            // - we are writing to memory, so no IoError
-            // - Terms are ordered
-            let map = Map::from_iter(
-                sorted_terms
-                    .iter()
-                    .map(|key| (key.serialized_value_bytes(), 0)),
-            )
-            .map_err(std::io::Error::other)?;
+            let supported_for_ff = match field_type.value_type() {
+                Type::U64 | Type::I64 | Type::F64 | Type::Date | Type::IpAddr => {
+                    // NOTE: Keep in sync with `FastFieldTermSetWeight::scorer`.
+                    true
+                }
+                Type::Bool => {
+                    // Guaranteed to be low cardinality, so always more efficient to use posting
+                    // lists.
+                    false
+                }
+                Type::Json | Type::Str => {
+                    // Explicitly not supported yet: see `term_set_query_fastfield.rs`.
+                    false
+                }
+                _ => false,
+            };
 
-            sub_queries.push((
-                Occur::Should,
-                Box::new(AutomatonWeight::new(field, SetDfaWrapper(map))),
-            ));
+            // NOTE: At this point, the terms have not been deduped, and so this threshold may not
+            // be perfectly accurate. But in the case of very large input sets, it's worth avoiding
+            // sorting/deduping the terms until after we've determined their type.
+            if field_type.is_fast()
+                && supported_for_ff
+                && terms.len() > TERM_SET_FAST_FIELD_CARDINALITY_THRESHOLD
+            {
+                sub_queries.push((
+                    Occur::Should,
+                    Box::new(FastFieldTermSetWeight::new(field, terms.iter())?),
+                ));
+            } else {
+                let mut sorted_terms: Vec<(&[u8], u64)> = terms
+                    .iter()
+                    .map(|key| (key.serialized_value_bytes(), 0))
+                    .collect::<Vec<_>>();
+                sorted_terms.sort_unstable();
+                sorted_terms.dedup();
+                // In practice this won't fail because:
+                // - we are writing to memory, so no IoError
+                // - `sorted_terms` are ordered
+                let map = Map::from_iter(sorted_terms.into_iter())
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+                sub_queries.push((
+                    Occur::Should,
+                    Box::new(AutomatonWeight::new(field, SetDfaWrapper(map))),
+                ));
+            }
         }
 
         Ok(BooleanWeight::new(
@@ -84,6 +116,59 @@ impl Query for TermSetQuery {
                 visitor(term, false);
             }
         }
+    }
+}
+
+/// `InvertedIndexTermSetQuery` is the same as [TermSetQuery] but only uses the inverted index.
+#[derive(Debug, Clone)]
+pub struct InvertedIndexTermSetQuery {
+    terms_map: HashMap<Field, Vec<Term>>,
+}
+
+impl InvertedIndexTermSetQuery {
+    /// Create a new `InvertedIndexTermSetQuery`.
+    pub fn new<T: IntoIterator<Item = Term>>(terms: T) -> Self {
+        let mut terms_map: HashMap<_, Vec<_>> = HashMap::new();
+        for term in terms {
+            terms_map.entry(term.field()).or_default().push(term);
+        }
+
+        for terms in terms_map.values_mut() {
+            terms.sort_unstable();
+            terms.dedup();
+        }
+
+        InvertedIndexTermSetQuery { terms_map }
+    }
+}
+
+impl Query for InvertedIndexTermSetQuery {
+    fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        let mut sub_queries: Vec<(_, Box<dyn Weight>)> = Vec::with_capacity(self.terms_map.len());
+        for (&field, sorted_terms) in &self.terms_map {
+            let schema = enable_scoring.schema();
+            let field_entry = schema.get_field_entry(field);
+            if !field_entry.field_type().is_indexed() {
+                let error_msg = format!("Field {:?} is not indexed.", field_entry.name());
+                return Err(crate::TantivyError::SchemaError(error_msg));
+            }
+            let map = Map::from_iter(
+                sorted_terms
+                    .iter()
+                    .map(|key| (key.serialized_value_bytes(), 0)),
+            )
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+            sub_queries.push((
+                Occur::Should,
+                Box::new(AutomatonWeight::new(field, SetDfaWrapper(map))),
+            ));
+        }
+        Ok(Box::new(BooleanWeight::new(
+            sub_queries,
+            false,
+            Box::new(DoNothingCombiner::default),
+        )))
     }
 }
 
