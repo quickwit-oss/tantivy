@@ -45,19 +45,17 @@ impl TermSetQuery {
                 return Err(crate::TantivyError::SchemaError(error_msg));
             }
 
-            let supported_for_ff = sorted_terms
-                .get(0)
-                .map(|term| match term.typ() {
-                    Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date | Type::IpAddr => {
-                        true
-                    }
-                    Type::Json | Type::Str => {
-                        // Explicitly not supported yet: see `term_set_query_fastfield.rs`.
-                        false
-                    }
-                    _ => false,
-                })
-                .unwrap_or(false);
+            let supported_for_ff = match field_type.value_type() {
+                Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date | Type::IpAddr => {
+                    // NOTE: Keep in sync with `FastFieldTermSetWeight::scorer`.
+                    true
+                }
+                Type::Json | Type::Str => {
+                    // Explicitly not supported yet: see `term_set_query_fastfield.rs`.
+                    false
+                }
+                _ => false,
+            };
 
             if field_type.is_fast() && supported_for_ff {
                 sub_queries.push((
