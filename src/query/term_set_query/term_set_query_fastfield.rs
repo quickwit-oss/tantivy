@@ -102,7 +102,9 @@ impl Weight for FastFieldTermSetWeight {
             let docset = TermSetDocSet::new(ip_addr_column, values);
             Ok(Box::new(ConstScorer::new(docset, boost)))
         } else {
-            // Numeric types
+            // Numeric types.
+            //
+            // NOTE: Keep in sync with `TermSetQuery::specialized_weight`.
             let mut values = HashSet::new();
             for term in &self.terms {
                 let value = term.value();
@@ -112,11 +114,13 @@ impl Weight for FastFieldTermSetWeight {
                     val.to_u64()
                 } else if let Some(val) = value.as_f64() {
                     val.to_u64()
+                } else if let Some(val) = value.as_bool() {
+                    val.to_u64()
                 } else if let Some(val) = value.as_date() {
                     val.to_u64()
                 } else {
                     return Err(crate::TantivyError::InvalidArgument(format!(
-                        "Expected term with u64, i64, f64 or date, but got {:?}",
+                        "Expected term with u64, i64, f64, bool, or date, but got {:?}",
                         term
                     )));
                 };
@@ -129,6 +133,7 @@ impl Weight for FastFieldTermSetWeight {
                     ColumnType::U64,
                     ColumnType::I64,
                     ColumnType::F64,
+                    ColumnType::Bool,
                     ColumnType::DateTime,
                 ]),
                 field_name,
@@ -229,6 +234,7 @@ mod tests {
         let text_field_fast = schema_builder.add_text_field("text_fast", STRING | FAST);
         let u64_field_fast = schema_builder.add_u64_field("u64_fast", FAST | INDEXED);
         let ip_field_fast = schema_builder.add_ip_addr_field("ip_fast", FAST | INDEXED);
+        let bool_field_fast = schema_builder.add_bool_field("bool_fast", FAST | INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
@@ -238,18 +244,21 @@ mod tests {
                 text_field_fast => "doc1",
                 u64_field_fast => 1u64,
                 ip_field_fast => IpAddr::from_str("127.0.0.1").unwrap().into_ipv6_addr(),
+                bool_field_fast => true,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "doc2",
                 text_field_fast => "doc2",
                 u64_field_fast => 2u64,
                 ip_field_fast => IpAddr::from_str("127.0.0.2").unwrap().into_ipv6_addr(),
+                bool_field_fast => false,
             ))?;
             index_writer.add_document(doc!(
                 text_field => "doc3",
                 text_field_fast => "doc3",
                 u64_field_fast => 3u64,
                 ip_field_fast => IpAddr::from_str("::ffff:127.0.0.3").unwrap().into_ipv6_addr(),
+                bool_field_fast => true,
             ))?;
             index_writer.commit()?;
         }
@@ -310,6 +319,27 @@ mod tests {
 
         let count = searcher.search(&query, &Count)?;
         assert_eq!(count, 2);
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_term_set_query_fast_field_bool() -> crate::Result<()> {
+        let index = create_test_index()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let bool_field_fast = index.schema().get_field("bool_fast").unwrap();
+
+        let query = FastFieldTermSetQuery::new(vec![Term::from_field_bool(bool_field_fast, true)]);
+
+        let count = searcher.search(&query, &Count)?;
+        assert_eq!(count, 2);
+
+        let query = FastFieldTermSetQuery::new(vec![Term::from_field_bool(bool_field_fast, false)]);
+
+        let count = searcher.search(&query, &Count)?;
+        assert_eq!(count, 1);
+
         Ok(())
     }
 
@@ -359,6 +389,10 @@ mod tests {
         assert_eq!(count, 2);
 
         let query = query_parser.parse_query("ip_fast: IN [127.0.0.1 127.0.0.3]")?;
+        let count = searcher.search(&query, &Count)?;
+        assert_eq!(count, 2);
+
+        let query = query_parser.parse_query("bool_fast: IN [true]")?;
         let count = searcher.search(&query, &Count)?;
         assert_eq!(count, 2);
 
