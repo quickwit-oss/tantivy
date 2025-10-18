@@ -9,7 +9,7 @@ pub use common::bounds::BoundsRange;
 pub use self::range_query::*;
 pub use self::range_query_fastfield::*;
 
-// TODO is this correct?
+// NOTE: Keep in sync with `FastFieldRangeWeight::scorer`.
 pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
     match typ {
         Type::Str
