@@ -22,7 +22,7 @@
 //! - [Range](RangeAggregation)
 //! - [Terms](TermsAggregation)
 
-pub mod filter;
+mod filter;
 mod histogram;
 mod range;
 mod term_agg;

@@ -14,7 +14,7 @@ use std::time::Instant;
 
 use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
-use tantivy::aggregation::bucket::filter::FilterAggregation;
+use tantivy::aggregation::bucket::FilterAggregation;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::{AllQuery, QueryParser, TermQuery};
 use tantivy::schema::{IndexRecordOption, Schema, Term, FAST, INDEXED, STORED, TEXT};

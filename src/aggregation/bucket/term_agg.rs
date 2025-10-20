@@ -781,9 +781,7 @@ mod tests {
     use time::{Date, Month};
 
     use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::intermediate_agg_result::{
-        IntermediateAggregationResult, IntermediateAggregationResults,
-    };
+    use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_from_terms, get_test_index_from_values_and_terms,
