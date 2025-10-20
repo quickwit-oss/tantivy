@@ -1,19 +1,42 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
+use columnar::{Column, ColumnBlockAccessor, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
+use crate::aggregation::agg_data::{
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
+};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
-use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, SegmentAggregationCollector,
-};
+use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 use crate::TantivyError;
+
+/// Contains all information required by the SegmentRangeCollector to perform the
+/// range aggregation on a segment.
+pub struct RangeAggReqData {
+    /// The column accessor to access the fast field values.
+    pub accessor: Column<u64>,
+    /// The type of the fast field.
+    pub field_type: ColumnType,
+    /// The column block accessor to access the fast field values.
+    pub column_block_accessor: ColumnBlockAccessor<u64>,
+    /// The range aggregation request.
+    pub req: RangeAggregation,
+    /// The name of the aggregation.
+    pub name: String,
+}
+
+impl RangeAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
 
 /// Provide user-defined buckets to aggregate on.
 ///
@@ -161,12 +184,12 @@ impl Debug for SegmentRangeBucketEntry {
 impl SegmentRangeBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateRangeBucketEntry> {
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
         if let Some(sub_aggregation) = self.sub_aggregation {
             sub_aggregation
-                .add_intermediate_aggregation_result(agg_with_accessor, &mut sub_aggregation_res)?
+                .add_intermediate_aggregation_result(agg_data, &mut sub_aggregation_res)?
         } else {
             Default::default()
         };
@@ -184,12 +207,14 @@ impl SegmentRangeBucketEntry {
 impl SegmentAggregationCollector for SegmentRangeCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let field_type = self.column_type;
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
-        let sub_agg = &agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
+        let name = agg_data
+            .get_range_req_data(self.accessor_idx)
+            .name
+            .to_string();
 
         let buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
             .buckets
@@ -199,7 +224,7 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
                     range_to_string(&range_bucket.range, &field_type)?,
                     range_bucket
                         .bucket
-                        .into_intermediate_bucket_entry(sub_agg)?,
+                        .into_intermediate_bucket_entry(agg_data)?,
                 ))
             })
             .collect::<crate::Result<_>>()?;
@@ -218,66 +243,70 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_with_accessor)
+        self.collect_block(&[doc], agg_data)
     }
 
     #[inline]
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
+        // Take request data to avoid borrow conflicts during sub-aggregation
+        let mut req = agg_data.take_range_req_data(self.accessor_idx);
 
-        bucket_agg_accessor
-            .column_block_accessor
-            .fetch_block(docs, &bucket_agg_accessor.accessor);
+        req.column_block_accessor.fetch_block(docs, &req.accessor);
 
-        for (doc, val) in bucket_agg_accessor
+        for (doc, val) in req
             .column_block_accessor
-            .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+            .iter_docid_vals(docs, &req.accessor)
         {
             let bucket_pos = self.get_bucket_pos(val);
-
             let bucket = &mut self.buckets[bucket_pos];
-
             bucket.bucket.doc_count += 1;
-            if let Some(sub_aggregation) = &mut bucket.bucket.sub_aggregation {
-                sub_aggregation.collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
+            if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {
+                sub_agg.collect(doc, agg_data)?;
             }
         }
+
+        agg_data.put_back_range_req_data(self.accessor_idx, req);
 
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
-        let sub_aggregation_accessor =
-            &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
-
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for bucket in self.buckets.iter_mut() {
             if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {
-                sub_agg.flush(sub_aggregation_accessor)?;
+                sub_agg.flush(agg_data)?;
             }
         }
-
         Ok(())
     }
 }
 
 impl SegmentRangeCollector {
     pub(crate) fn from_req_and_validate(
-        req: &RangeAggregation,
-        sub_aggregation: &mut AggregationsWithAccessor,
-        limits: &mut AggregationLimitsGuard,
-        field_type: ColumnType,
-        accessor_idx: usize,
+        req_data: &mut AggregationsSegmentCtx,
+        node: &AggRefNode,
     ) -> crate::Result<Self> {
+        let accessor_idx = node.idx_in_req_data;
+        let (field_type, ranges) = {
+            let req_view = req_data.get_range_req_data(node.idx_in_req_data);
+            (req_view.field_type, req_view.req.ranges.clone())
+        };
+
         // The range input on the request is f64.
         // We need to convert to u64 ranges, because we read the values as u64.
         // The mapping from the conversion is monotonic so ordering is preserved.
-        let buckets: Vec<_> = extend_validate_ranges(&req.ranges, &field_type)?
+        let sub_agg_prototype = if !node.children.is_empty() {
+            Some(build_segment_agg_collectors(req_data, &node.children)?)
+        } else {
+            None
+        };
+
+        let buckets: Vec<_> = extend_validate_ranges(&ranges, &field_type)?
             .iter()
             .map(|range| {
                 let key = range
@@ -295,11 +324,7 @@ impl SegmentRangeCollector {
                 } else {
                     Some(f64_from_fastfield_u64(range.range.start, &field_type))
                 };
-                let sub_aggregation = if sub_aggregation.is_empty() {
-                    None
-                } else {
-                    Some(build_segment_agg_collector(sub_aggregation)?)
-                };
+                let sub_aggregation = sub_agg_prototype.clone();
 
                 Ok(SegmentRangeAndBucketEntry {
                     range: range.range.clone(),
@@ -314,7 +339,7 @@ impl SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
-        limits.add_memory_consumed(
+        req_data.limits.add_memory_consumed(
             buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
         )?;
 
@@ -467,15 +492,45 @@ mod tests {
             ranges,
             ..Default::default()
         };
+        // Build buckets directly as in from_req_and_validate without AggregationsData
+        let buckets: Vec<_> = extend_validate_ranges(&req.ranges, &field_type)
+            .expect("unexpected error in extend_validate_ranges")
+            .iter()
+            .map(|range| {
+                let key = range
+                    .key
+                    .clone()
+                    .map(|key| Ok(Key::Str(key)))
+                    .unwrap_or_else(|| range_to_key(&range.range, &field_type))
+                    .expect("unexpected error in range_to_key");
+                let to = if range.range.end == u64::MAX {
+                    None
+                } else {
+                    Some(f64_from_fastfield_u64(range.range.end, &field_type))
+                };
+                let from = if range.range.start == u64::MIN {
+                    None
+                } else {
+                    Some(f64_from_fastfield_u64(range.range.start, &field_type))
+                };
+                SegmentRangeAndBucketEntry {
+                    range: range.range.clone(),
+                    bucket: SegmentRangeBucketEntry {
+                        doc_count: 0,
+                        sub_aggregation: None,
+                        key,
+                        from,
+                        to,
+                    },
+                }
+            })
+            .collect();
 
-        SegmentRangeCollector::from_req_and_validate(
-            &req,
-            &mut Default::default(),
-            &mut AggregationLimitsGuard::default(),
-            field_type,
-            0,
-        )
-        .expect("unexpected error")
+        SegmentRangeCollector {
+            buckets,
+            column_type: field_type,
+            accessor_idx: 0,
+        }
     }
 
     #[test]

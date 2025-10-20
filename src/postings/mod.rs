@@ -667,12 +667,15 @@ mod bench {
                 .read_postings(&TERM_D, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
-            let mut intersection = Intersection::new(vec![
-                segment_postings_a,
-                segment_postings_b,
-                segment_postings_c,
-                segment_postings_d,
-            ]);
+            let mut intersection = Intersection::new(
+                vec![
+                    segment_postings_a,
+                    segment_postings_b,
+                    segment_postings_c,
+                    segment_postings_d,
+                ],
+                reader.searcher().num_docs() as u32,
+            );
             while intersection.advance() != TERMINATED {}
         });
     }

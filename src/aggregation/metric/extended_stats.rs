@@ -4,12 +4,11 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
-};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
+use crate::aggregation::metric::MetricAggReqData;
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 use crate::{DocId, TantivyError};
@@ -348,20 +347,20 @@ impl SegmentExtendedStatsCollector {
     pub(crate) fn collect_block_with_field(
         &mut self,
         docs: &[DocId],
-        agg_accessor: &mut AggregationWithAccessor,
+        req_data: &mut MetricAggReqData,
     ) {
         if let Some(missing) = self.missing.as_ref() {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
+            req_data.column_block_accessor.fetch_block_with_missing(
                 docs,
-                &agg_accessor.accessor,
+                &req_data.accessor,
                 *missing,
             );
         } else {
-            agg_accessor
+            req_data
                 .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
+                .fetch_block(docs, &req_data.accessor);
         }
-        for val in agg_accessor.column_block_accessor.iter_vals() {
+        for val in req_data.column_block_accessor.iter_vals() {
             let val1 = f64_from_fastfield_u64(val, &self.field_type);
             self.extended_stats.collect(val1);
         }
@@ -372,10 +371,10 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     #[inline]
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let name = agg_data.get_metric_req_data(self.accessor_idx).name.clone();
         results.push(
             name,
             IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(
@@ -390,12 +389,12 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+        let req_data = agg_data.get_metric_req_data(self.accessor_idx);
         if let Some(missing) = self.missing {
             let mut has_val = false;
-            for val in field.values_for_doc(doc) {
+            for val in req_data.accessor.values_for_doc(doc) {
                 let val1 = f64_from_fastfield_u64(val, &self.field_type);
                 self.extended_stats.collect(val1);
                 has_val = true;
@@ -405,7 +404,7 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
                     .collect(f64_from_fastfield_u64(missing, &self.field_type));
             }
         } else {
-            for val in field.values_for_doc(doc) {
+            for val in req_data.accessor.values_for_doc(doc) {
                 let val1 = f64_from_fastfield_u64(val, &self.field_type);
                 self.extended_stats.collect(val1);
             }
@@ -418,10 +417,10 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        self.collect_block_with_field(docs, field);
+        let req_data = agg_data.get_metric_req_data_mut(self.accessor_idx);
+        self.collect_block_with_field(docs, req_data);
         Ok(())
     }
 }

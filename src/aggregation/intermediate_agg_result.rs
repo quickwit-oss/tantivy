@@ -181,12 +181,17 @@ impl IntermediateAggregationResults {
     }
 
     /// Merge another intermediate aggregation result into this result.
-    ///
-    /// The order of the values need to be the same on both results. This is ensured when the same
-    /// (key values) are present on the underlying `VecWithNames` struct.
-    pub fn merge_fruits(&mut self, other: IntermediateAggregationResults) -> crate::Result<()> {
-        for (left, right) in self.aggs_res.values_mut().zip(other.aggs_res.into_values()) {
-            left.merge_fruits(right)?;
+    pub fn merge_fruits(&mut self, mut other: IntermediateAggregationResults) -> crate::Result<()> {
+        for (key, left) in self.aggs_res.iter_mut() {
+            if let Some(key) = other.aggs_res.remove(key) {
+                left.merge_fruits(key)?;
+            }
+        }
+        // Move remainder of other aggs_res into self.
+        // Note: Currently we don't expect this to happen, as we create empty intermediate results
+        // via [IntermediateAggregationResults::empty_from_req].
+        for (key, value) in other.aggs_res {
+            self.aggs_res.insert(key, value);
         }
         Ok(())
     }
@@ -252,6 +257,7 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
 
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum IntermediateAggregationResult {
     /// Bucket variant
     Bucket(IntermediateBucketResult),

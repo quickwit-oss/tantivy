@@ -6,10 +6,8 @@
 use std::fmt::Debug;
 
 pub(crate) use super::agg_limits::AggregationLimitsGuard;
-use super::agg_req::AggregationVariants;
-use super::agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAccessor};
-use super::bucket::{SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector};
 use super::intermediate_agg_result::IntermediateAggregationResults;
+<<<<<<< HEAD
 use super::metric::{
     AverageAggregation, CountAggregation, ExtendedStatsAggregation, MaxAggregation, MinAggregation,
     SegmentPercentilesCollector, SegmentStatsCollector, SegmentStatsType, StatsAggregation,
@@ -20,34 +18,39 @@ use crate::aggregation::metric::{
     CardinalityAggregationReq, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
     TopHitsSegmentCollector,
 };
+=======
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
+>>>>>>> tantivy-main
 
-pub(crate) trait SegmentAggregationCollector: CollectorClone + Debug {
+/// A SegmentAggregationCollector is used to collect aggregation results.
+pub trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()>;
 
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()>;
 
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()>;
 
     /// Finalize method. Some Aggregator collect blocks of docs before calling `collect_block`.
     /// This method ensures those staged docs will be collected.
-    fn flush(&mut self, _agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, _agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         Ok(())
     }
 }
 
-pub(crate) trait CollectorClone {
+/// A helper trait to enable cloning of Box<dyn SegmentAggregationCollector>
+pub trait CollectorClone {
     fn clone_box(&self) -> Box<dyn SegmentAggregationCollector>;
 }
 
@@ -65,6 +68,7 @@ impl Clone for Box<dyn SegmentAggregationCollector> {
     }
 }
 
+<<<<<<< HEAD
 pub(crate) fn build_segment_agg_collector(
     req: &mut AggregationsWithAccessor,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
@@ -203,6 +207,8 @@ pub(crate) fn build_single_agg_segment_collector_with_reader(
     }
 }
 
+=======
+>>>>>>> tantivy-main
 #[derive(Clone, Default)]
 /// The GenericSegmentAggregationResultsCollector is the generic version of the collector, which
 /// can handle arbitrary complexity of  sub-aggregations. Ideally we never have to pick this one
@@ -222,11 +228,11 @@ impl Debug for GenericSegmentAggregationResultsCollector {
 impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         for agg in self.aggs {
-            agg.add_intermediate_aggregation_result(agg_with_accessor, results)?;
+            agg.add_intermediate_aggregation_result(agg_data, results)?;
         }
 
         Ok(())
@@ -235,9 +241,9 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn collect(
         &mut self,
         doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_with_accessor)?;
+        self.collect_block(&[doc], agg_data)?;
 
         Ok(())
     }
@@ -245,22 +251,23 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn collect_block(
         &mut self,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         for collector in &mut self.aggs {
-            collector.collect_block(docs, agg_with_accessor)?;
+            collector.collect_block(docs, agg_data)?;
         }
 
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for collector in &mut self.aggs {
-            collector.flush(agg_with_accessor)?;
+            collector.flush(agg_data)?;
         }
         Ok(())
     }
 }
+<<<<<<< HEAD
 
 impl GenericSegmentAggregationResultsCollector {
     pub(crate) fn from_req_and_validate_with_reader(
@@ -279,3 +286,5 @@ impl GenericSegmentAggregationResultsCollector {
         Ok(GenericSegmentAggregationResultsCollector { aggs })
     }
 }
+=======
+>>>>>>> tantivy-main

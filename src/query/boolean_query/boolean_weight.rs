@@ -39,9 +39,11 @@ where
     ))
 }
 
+/// num_docs is the number of documents in the segment.
 fn scorer_union<TScoreCombiner>(
     scorers: Vec<Box<dyn Scorer>>,
     score_combiner_fn: impl Fn() -> TScoreCombiner,
+    num_docs: u32,
 ) -> SpecializedScorer
 where
     TScoreCombiner: ScoreCombiner,
@@ -68,6 +70,7 @@ where
                 return SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
                     scorers,
                     score_combiner_fn,
+                    num_docs,
                 )));
             }
         }
@@ -75,16 +78,19 @@ where
     SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
         scorers,
         score_combiner_fn,
+        num_docs,
     )))
 }
 
 fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
     scorer: SpecializedScorer,
     score_combiner_fn: impl Fn() -> TScoreCombiner,
+    num_docs: u32,
 ) -> Box<dyn Scorer> {
     match scorer {
         SpecializedScorer::TermUnion(term_scorers) => {
-            let union_scorer = BufferedUnionScorer::build(term_scorers, score_combiner_fn);
+            let union_scorer =
+                BufferedUnionScorer::build(term_scorers, score_combiner_fn, num_docs);
             Box::new(union_scorer)
         }
         SpecializedScorer::Other(scorer) => scorer,
@@ -151,6 +157,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         boost: Score,
         score_combiner_fn: impl Fn() -> TComplexScoreCombiner,
     ) -> crate::Result<SpecializedScorer> {
+        let num_docs = reader.num_docs();
         let mut per_occur_scorers = self.per_occur_scorers(reader, boost)?;
         // Indicate how should clauses are combined with other clauses.
         enum CombinationMethod {
@@ -167,11 +174,16 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
             }
             match self.minimum_number_should_match {
-                0 => CombinationMethod::Optional(scorer_union(should_scorers, &score_combiner_fn)),
-                1 => {
-                    let scorer_union = scorer_union(should_scorers, &score_combiner_fn);
-                    CombinationMethod::Required(scorer_union)
-                }
+                0 => CombinationMethod::Optional(scorer_union(
+                    should_scorers,
+                    &score_combiner_fn,
+                    num_docs,
+                )),
+                1 => CombinationMethod::Required(scorer_union(
+                    should_scorers,
+                    &score_combiner_fn,
+                    num_docs,
+                )),
                 n if num_of_should_scorers == n => {
                     // When num_of_should_scorers equals the number of should clauses,
                     // they are no different from must clauses.
@@ -200,21 +212,21 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         };
         let exclude_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::MustNot)
-            .map(|scorers| scorer_union(scorers, DoNothingCombiner::default))
+            .map(|scorers| scorer_union(scorers, DoNothingCombiner::default, num_docs))
             .map(|specialized_scorer: SpecializedScorer| {
-                into_box_scorer(specialized_scorer, DoNothingCombiner::default)
+                into_box_scorer(specialized_scorer, DoNothingCombiner::default, num_docs)
             });
         let positive_scorer = match (should_opt, must_scorers) {
             (CombinationMethod::Ignored, Some(must_scorers)) => {
-                SpecializedScorer::Other(intersect_scorers(must_scorers))
+                SpecializedScorer::Other(intersect_scorers(must_scorers, num_docs))
             }
             (CombinationMethod::Optional(should_scorer), Some(must_scorers)) => {
-                let must_scorer = intersect_scorers(must_scorers);
+                let must_scorer = intersect_scorers(must_scorers, num_docs);
                 if self.scoring_enabled {
                     SpecializedScorer::Other(Box::new(
                         RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
                             must_scorer,
-                            into_box_scorer(should_scorer, &score_combiner_fn),
+                            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
                         ),
                     ))
                 } else {
@@ -222,8 +234,8 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 }
             }
             (CombinationMethod::Required(should_scorer), Some(mut must_scorers)) => {
-                must_scorers.push(into_box_scorer(should_scorer, &score_combiner_fn));
-                SpecializedScorer::Other(intersect_scorers(must_scorers))
+                must_scorers.push(into_box_scorer(should_scorer, &score_combiner_fn, num_docs));
+                SpecializedScorer::Other(intersect_scorers(must_scorers, num_docs))
             }
             (CombinationMethod::Ignored, None) => {
                 return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)))
@@ -233,7 +245,8 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             (CombinationMethod::Optional(should_scorer), None) => should_scorer,
         };
         if let Some(exclude_scorer) = exclude_scorer_opt {
-            let positive_scorer_boxed = into_box_scorer(positive_scorer, &score_combiner_fn);
+            let positive_scorer_boxed =
+                into_box_scorer(positive_scorer, &score_combiner_fn, num_docs);
             Ok(SpecializedScorer::Other(Box::new(Exclude::new(
                 positive_scorer_boxed,
                 exclude_scorer,
@@ -246,6 +259,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+        let num_docs = reader.num_docs();
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
         } else if self.weights.len() == 1 {
@@ -258,12 +272,12 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         } else if self.scoring_enabled {
             self.complex_scorer(reader, boost, &self.score_combiner_fn)
                 .map(|specialized_scorer| {
-                    into_box_scorer(specialized_scorer, &self.score_combiner_fn)
+                    into_box_scorer(specialized_scorer, &self.score_combiner_fn, num_docs)
                 })
         } else {
             self.complex_scorer(reader, boost, DoNothingCombiner::default)
                 .map(|specialized_scorer| {
-                    into_box_scorer(specialized_scorer, DoNothingCombiner::default)
+                    into_box_scorer(specialized_scorer, DoNothingCombiner::default, num_docs)
                 })
         }
     }
@@ -296,8 +310,11 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
-                let mut union_scorer =
-                    BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn);
+                let mut union_scorer = BufferedUnionScorer::build(
+                    term_scorers,
+                    &self.score_combiner_fn,
+                    reader.num_docs(),
+                );
                 for_each_scorer(&mut union_scorer, callback);
             }
             SpecializedScorer::Other(mut scorer) => {
@@ -317,8 +334,11 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
 
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
-                let mut union_scorer =
-                    BufferedUnionScorer::build(term_scorers, &self.score_combiner_fn);
+                let mut union_scorer = BufferedUnionScorer::build(
+                    term_scorers,
+                    &self.score_combiner_fn,
+                    reader.num_docs(),
+                );
                 for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
             }
             SpecializedScorer::Other(mut scorer) => {
