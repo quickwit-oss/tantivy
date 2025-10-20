@@ -2,14 +2,9 @@ use super::agg_req::Aggregations;
 use super::agg_result::AggregationResults;
 use super::buf_collector::BufAggregationCollector;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-<<<<<<< HEAD
-use super::segment_agg_result::{
-    build_segment_agg_collector_with_reader, AggregationLimitsGuard, SegmentAggregationCollector,
-=======
 use super::segment_agg_result::{AggregationLimitsGuard, SegmentAggregationCollector};
 use crate::aggregation::agg_data::{
     build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsSegmentCtx,
->>>>>>> tantivy-main
 };
 use crate::collector::{Collector, SegmentCollector};
 use crate::index::SegmentReader;
@@ -153,20 +148,11 @@ impl AggregationSegmentCollector {
         segment_ordinal: SegmentOrdinal,
         limits: &AggregationLimitsGuard,
     ) -> crate::Result<Self> {
-<<<<<<< HEAD
-        let mut aggs_with_accessor =
-            get_aggs_with_segment_accessor_and_validate(agg, reader, segment_ordinal, limits)?;
-        let result = BufAggregationCollector::new(build_segment_agg_collector_with_reader(
-            &mut aggs_with_accessor,
-            Some(reader),
-        )?);
-=======
         let mut agg_data =
             build_aggregations_data_from_req(agg, reader, segment_ordinal, limits.clone())?;
         let result =
             BufAggregationCollector::new(build_segment_agg_collectors_root(&mut agg_data)?);
 
->>>>>>> tantivy-main
         Ok(AggregationSegmentCollector {
             aggs_with_accessor: agg_data,
             agg_collector: result,

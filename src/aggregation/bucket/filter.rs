@@ -3,13 +3,13 @@ use std::fmt::Debug;
 use common::BitSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::aggregation::agg_req_with_accessor::AggregationsWithAccessor;
+use crate::aggregation::agg_data::{
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
+};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
-use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector_with_reader, CollectorClone, SegmentAggregationCollector,
-};
+use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::query::{AllQuery, EnableScoring, Query, QueryParser};
 use crate::schema::Schema;
@@ -182,6 +182,24 @@ impl PartialEq for FilterAggregation {
     }
 }
 
+/// Request data for filter aggregation
+/// This struct holds the per-segment data needed to execute a filter aggregation
+pub struct FilterAggReqData {
+    /// The name of the filter aggregation
+    pub name: String,
+    /// The filter aggregation
+    pub req: FilterAggregation,
+    /// The segment reader
+    pub segment_reader: SegmentReader,
+}
+
+impl FilterAggReqData {
+    pub(crate) fn get_memory_consumption(&self) -> usize {
+        // Rough estimate: name + segment reader reference
+        self.name.len() + std::mem::size_of::<SegmentReader>()
+    }
+}
+
 /// Document evaluator for filter queries using BitSet
 struct DocumentQueryEvaluator {
     /// BitSet containing all matching documents for this segment.
@@ -270,7 +288,7 @@ impl Debug for DocumentQueryEvaluator {
 }
 
 /// Segment collector for filter aggregation
-pub struct FilterSegmentCollector {
+pub struct SegmentFilterCollector {
     /// Document evaluator for the filter query
     /// The evaluator internally stores a SegmentReader
     evaluator: DocumentQueryEvaluator,
@@ -284,53 +302,48 @@ pub struct FilterSegmentCollector {
     matching_docs_buffer: Vec<DocId>,
 }
 
-impl FilterSegmentCollector {
-    /// Create a new filter segment collector following the same pattern as other bucket
-    /// aggregations
+impl SegmentFilterCollector {
+    /// Create a new filter segment collector following the new agg_data pattern
     pub(crate) fn from_req_and_validate(
-        filter_req: &FilterAggregation,
-        sub_aggregations: &mut AggregationsWithAccessor,
-        segment_reader: &SegmentReader,
-        accessor_idx: usize,
+        req: &mut AggregationsSegmentCtx,
+        node: &AggRefNode,
     ) -> crate::Result<Self> {
+        // Clone necessary data before mutable borrow
+        let req_data = req.get_filter_req_data(node.idx_in_req_data);
+        let segment_reader = req_data.segment_reader.clone();
+        let filter_req = req_data.req.clone();
+        let max_doc = segment_reader.max_doc();
+
         let schema = segment_reader.schema();
+
+        // Parse the query
         let query = filter_req.parse_query(schema)?;
 
-        let evaluator = DocumentQueryEvaluator::new(query, schema.clone(), segment_reader)?;
+        let evaluator = DocumentQueryEvaluator::new(query, schema.clone(), &segment_reader)?;
 
-        // Follow the same pattern as terms aggregation
-        let has_sub_aggregations = !sub_aggregations.is_empty();
-        let sub_agg_collector = if has_sub_aggregations {
-            // Use the same sub_aggregations structure that will be used at runtime
-            // This ensures that the accessor indices match between build-time and runtime
-            // Pass the segment_reader to ensure nested filter aggregations also get access
-            let sub_aggregation =
-                build_segment_agg_collector_with_reader(sub_aggregations, Some(segment_reader))?;
-            Some(sub_aggregation)
+        // Build sub-aggregation collectors if any
+        let sub_agg_collector = if !node.children.is_empty() {
+            Some(build_segment_agg_collectors(req, &node.children)?)
         } else {
             None
         };
 
         // Pre-allocate buffer to avoid repeated allocations during collection
-        // Use COLLECT_BLOCK_BUFFER_LEN (64) as a reasonable default capacity since:
-        // - Documents are processed in blocks of this size
-        // - Avoids over-allocation for small segments
-        // - Grows automatically if needed for larger batches
-        let buffer_capacity = COLLECT_BLOCK_BUFFER_LEN.min(segment_reader.max_doc() as usize);
+        let buffer_capacity = COLLECT_BLOCK_BUFFER_LEN.min(max_doc as usize);
 
-        Ok(FilterSegmentCollector {
+        Ok(SegmentFilterCollector {
             evaluator,
             doc_count: 0,
             sub_aggregations: sub_agg_collector,
-            accessor_idx,
+            accessor_idx: node.idx_in_req_data,
             matching_docs_buffer: Vec::with_capacity(buffer_capacity),
         })
     }
 }
 
-impl Debug for FilterSegmentCollector {
+impl Debug for SegmentFilterCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FilterSegmentCollector")
+        f.debug_struct("SegmentFilterCollector")
             .field("doc_count", &self.doc_count)
             .field("has_sub_aggs", &self.sub_aggregations.is_some())
             .field("evaluator", &self.evaluator)
@@ -338,38 +351,38 @@ impl Debug for FilterSegmentCollector {
     }
 }
 
-impl CollectorClone for FilterSegmentCollector {
+impl CollectorClone for SegmentFilterCollector {
     fn clone_box(&self) -> Box<dyn SegmentAggregationCollector> {
         // For now, panic - this needs proper implementation with weight recreation
-        panic!("FilterSegmentCollector cloning not yet implemented - requires weight recreation")
+        panic!("SegmentFilterCollector cloning not yet implemented - requires weight recreation")
     }
 }
 
-impl SegmentAggregationCollector for FilterSegmentCollector {
+impl SegmentAggregationCollector for SegmentFilterCollector {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let mut sub_results = IntermediateAggregationResults::default();
 
         if let Some(sub_aggs) = self.sub_aggregations {
-            // Use the same pattern as collect: pass the sub-aggregation accessor structure
-            let bucket_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
-            sub_aggs.add_intermediate_aggregation_result(
-                &bucket_accessor.sub_aggregation,
-                &mut sub_results,
-            )?;
+            sub_aggs.add_intermediate_aggregation_result(agg_data, &mut sub_results)?;
         }
 
-        // Create the proper filter bucket result
+        // Create the filter bucket result
         let filter_bucket_result = IntermediateBucketResult::Filter {
             doc_count: self.doc_count,
             sub_aggregations: sub_results,
         };
 
         // Get the name of this filter aggregation
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let name = agg_data.per_request.filter_req_data[self.accessor_idx]
+            .as_ref()
+            .expect("filter_req_data slot is empty")
+            .name
+            .clone();
+
         results.push(
             name,
             IntermediateAggregationResult::Bucket(filter_bucket_result),
@@ -378,19 +391,14 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         Ok(())
     }
 
-    fn collect(
-        &mut self,
-        doc: DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
-    ) -> crate::Result<()> {
+    fn collect(&mut self, doc: DocId, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         // O(1) BitSet lookup to check if document matches filter
         if self.evaluator.matches_document(doc) {
             self.doc_count += 1;
 
             // If we have sub-aggregations, collect on them for this filtered document
             if let Some(sub_aggs) = &mut self.sub_aggregations {
-                let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-                sub_aggs.collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
+                sub_aggs.collect(doc, agg_data)?;
             }
         }
         Ok(())
@@ -400,11 +408,14 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
     fn collect_block(
         &mut self,
         docs: &[DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         if docs.is_empty() {
             return Ok(());
         }
+
+        // Take the request data to avoid borrow checker issues with sub-aggregations
+        let req = agg_data.take_filter_req_data(self.accessor_idx);
 
         // Use batch filtering with O(1) BitSet lookups
         self.matching_docs_buffer.clear();
@@ -416,22 +427,20 @@ impl SegmentAggregationCollector for FilterSegmentCollector {
         // Batch process sub-aggregations if we have matches
         if !self.matching_docs_buffer.is_empty() {
             if let Some(sub_aggs) = &mut self.sub_aggregations {
-                let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
                 // Use collect_block for better sub-aggregation performance
-                sub_aggs.collect_block(
-                    &self.matching_docs_buffer,
-                    &mut bucket_agg_accessor.sub_aggregation,
-                )?;
+                sub_aggs.collect_block(&self.matching_docs_buffer, agg_data)?;
             }
         }
+
+        // Put the request data back
+        agg_data.put_back_filter_req_data(self.accessor_idx, req);
 
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         if let Some(ref mut sub_aggs) = self.sub_aggregations {
-            let accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
-            sub_aggs.flush(accessor)?;
+            sub_aggs.flush(agg_data)?;
         }
         Ok(())
     }

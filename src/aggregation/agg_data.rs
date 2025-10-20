@@ -10,9 +10,10 @@ use crate::aggregation::accessor_helpers::{
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
-    HistogramAggReqData, HistogramBounds, IncludeExcludeParam, MissingTermAggReqData,
-    RangeAggReqData, SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector,
-    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
+    FilterAggReqData, HistogramAggReqData, HistogramBounds, IncludeExcludeParam,
+    MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector, SegmentHistogramCollector,
+    SegmentRangeCollector, SegmentTermCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
+    TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     AverageAggregation, CardinalityAggReqData, CardinalityAggregationReq, CountAggregation,
@@ -67,6 +68,10 @@ impl AggregationsSegmentCtx {
         self.per_request.range_req_data.push(Some(Box::new(data)));
         self.per_request.range_req_data.len() - 1
     }
+    pub(crate) fn push_filter_req_data(&mut self, data: FilterAggReqData) -> usize {
+        self.per_request.filter_req_data.push(Some(Box::new(data)));
+        self.per_request.filter_req_data.len() - 1
+    }
 
     #[inline]
     pub(crate) fn get_term_req_data(&self, idx: usize) -> &TermsAggReqData {
@@ -101,6 +106,12 @@ impl AggregationsSegmentCtx {
         self.per_request.range_req_data[idx]
             .as_deref()
             .expect("range_req_data slot is empty (taken)")
+    }
+    #[inline]
+    pub(crate) fn get_filter_req_data(&self, idx: usize) -> &FilterAggReqData {
+        self.per_request.filter_req_data[idx]
+            .as_deref()
+            .expect("filter_req_data slot is empty (taken)")
     }
 
     // ---------- mutable getters ----------
@@ -179,6 +190,21 @@ impl AggregationsSegmentCtx {
         debug_assert!(self.per_request.range_req_data[idx].is_none());
         self.per_request.range_req_data[idx] = Some(value);
     }
+
+    /// Move out the boxed Filter request at `idx`, leaving `None`.
+    #[inline]
+    pub(crate) fn take_filter_req_data(&mut self, idx: usize) -> Box<FilterAggReqData> {
+        self.per_request.filter_req_data[idx]
+            .take()
+            .expect("filter_req_data slot is empty (taken)")
+    }
+
+    /// Put back a Filter request into an empty slot at `idx`.
+    #[inline]
+    pub(crate) fn put_back_filter_req_data(&mut self, idx: usize, value: Box<FilterAggReqData>) {
+        debug_assert!(self.per_request.filter_req_data[idx].is_none());
+        self.per_request.filter_req_data[idx] = Some(value);
+    }
 }
 
 /// Each type of aggregation has its own request data struct. This struct holds
@@ -196,6 +222,8 @@ pub struct PerRequestAggSegCtx {
     pub histogram_req_data: Vec<Option<Box<HistogramAggReqData>>>,
     /// RangeAggReqData contains the request data for a range aggregation.
     pub range_req_data: Vec<Option<Box<RangeAggReqData>>>,
+    /// FilterAggReqData contains the request data for a filter aggregation.
+    pub filter_req_data: Vec<Option<Box<FilterAggReqData>>>,
     /// Shared by avg, min, max, sum, stats, extended_stats, count
     pub stats_metric_req_data: Vec<MetricAggReqData>,
     /// CardinalityAggReqData contains the request data for a cardinality aggregation.
@@ -223,6 +251,11 @@ impl PerRequestAggSegCtx {
                 .sum::<usize>()
             + self
                 .range_req_data
+                .iter()
+                .map(|b| b.as_ref().unwrap().get_memory_consumption())
+                .sum::<usize>()
+            + self
+                .filter_req_data
                 .iter()
                 .map(|b| b.as_ref().unwrap().get_memory_consumption())
                 .sum::<usize>()
@@ -275,6 +308,11 @@ impl PerRequestAggSegCtx {
             AggKind::Range => self.range_req_data[idx]
                 .as_deref()
                 .expect("range_req_data slot is empty (taken)")
+                .name
+                .as_str(),
+            AggKind::Filter => self.filter_req_data[idx]
+                .as_deref()
+                .expect("filter_req_data slot is empty (taken)")
                 .name
                 .as_str(),
         }
@@ -394,6 +432,9 @@ pub(crate) fn build_segment_agg_collector(
         AggKind::Range => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
             req, node,
         )?)),
+        AggKind::Filter => Ok(Box::new(SegmentFilterCollector::from_req_and_validate(
+            req, node,
+        )?)),
     }
 }
 
@@ -423,6 +464,7 @@ pub enum AggKind {
     Histogram,
     DateHistogram,
     Range,
+    Filter,
 }
 
 impl AggKind {
@@ -437,6 +479,7 @@ impl AggKind {
             AggKind::Histogram => "Histogram",
             AggKind::DateHistogram => "DateHistogram",
             AggKind::Range => "Range",
+            AggKind::Filter => "Filter",
         }
     }
 }
@@ -682,6 +725,19 @@ fn build_nodes(
             let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
             Ok(vec![AggRefNode {
                 kind: AggKind::TopHits,
+                idx_in_req_data,
+                children,
+            }])
+        }
+        AggregationVariants::Filter(filter_req) => {
+            let idx_in_req_data = data.push_filter_req_data(FilterAggReqData {
+                name: agg_name.to_string(),
+                req: filter_req.clone(),
+                segment_reader: reader.clone(),
+            });
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
+            Ok(vec![AggRefNode {
+                kind: AggKind::Filter,
                 idx_in_req_data,
                 children,
             }])
