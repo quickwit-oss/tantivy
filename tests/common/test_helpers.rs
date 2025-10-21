@@ -88,12 +88,10 @@ pub fn assert_aggregation_results_match(
 #[macro_export]
 macro_rules! assert_agg_results {
     ($actual:expr, $expected:expr) => {
-        $crate::common::filter_test_helpers::assert_aggregation_results_match(
-            $actual, $expected, 0.1,
-        )
+        $crate::common::test_helpers::assert_aggregation_results_match($actual, $expected, 0.1)
     };
     ($actual:expr, $expected:expr, $tolerance:expr) => {
-        $crate::common::filter_test_helpers::assert_aggregation_results_match(
+        $crate::common::test_helpers::assert_aggregation_results_match(
             $actual, $expected, $tolerance,
         )
     };
