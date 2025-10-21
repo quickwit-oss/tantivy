@@ -2360,7 +2360,8 @@ mod tests {
         let mut agg_res = search(&index, &agg_req)?;
 
         // --- Aggregations: terms on host and tags ---
-        let mut agg_req2: Aggregations = Aggregations::with_capacity(20);
+        let mut agg_req2: Aggregations =
+            Aggregations::with_capacity_and_hasher(20, Default::default());
         agg_req2.insert(
             "tags".to_string(),
             serde_json::from_value(json!({ "terms": { "field": "tags" } }))?,
