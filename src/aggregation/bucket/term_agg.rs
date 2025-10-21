@@ -2285,8 +2285,10 @@ mod tests {
     #[test]
     fn terms_aggs_hosts_and_tags_merge_on_mixed_order_request() -> crate::Result<()> {
         // This test ensures that merging of aggregation results works correctly
-        // even if the order of the aggregation requests is different and
-        // running on different indexes with the same data.
+        // by key name rather than relying on iteration order.
+        // This is a regression test for a bug where merge used .zip() which relied
+        // on iteration order, causing incorrect results when aggregations were built
+        // in different orders on different segments.
         let build_index = || -> crate::Result<Index> {
             let mut schema_builder = Schema::builder();
             let host = schema_builder.add_text_field("host", FAST);
@@ -2371,8 +2373,9 @@ mod tests {
             "hosts".to_string(),
             serde_json::from_value(json!({ "terms": { "field": "host" } }))?,
         );
-        // make sure the order of the aggregation request is different
-        assert_ne!(agg_req.keys().next(), agg_req2.keys().next());
+        // Note: We create agg_req2 with potentially different insertion order than agg_req,
+        // but since Aggregations is a HashMap, iteration order is not guaranteed.
+        // The test verifies that merge works correctly regardless of the actual order.
 
         let agg_res2 = search(&index2, &agg_req2)?;
 
