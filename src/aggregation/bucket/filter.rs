@@ -144,7 +144,9 @@ impl FilterAggregation {
 // Custom serialization implementation
 impl Serialize for FilterAggregation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         match &self.query {
             FilterQuery::QueryString(query_string) => {
                 // Serialize the query string directly
@@ -163,7 +165,9 @@ impl Serialize for FilterAggregation {
 
 impl<'de> Deserialize<'de> for FilterAggregation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         // Deserialize as query string
         let query_string = String::deserialize(deserializer)?;
         Ok(FilterAggregation::new(query_string))
@@ -203,6 +207,8 @@ impl FilterAggReqData {
 /// Document evaluator for filter queries using BitSet
 struct DocumentQueryEvaluator {
     /// BitSet containing all matching documents for this segment.
+    /// For AllQuery, this is a full BitSet (all bits set).
+    /// For other queries, only matching document bits are set.
     bitset: BitSet,
 }
 
@@ -217,12 +223,11 @@ impl DocumentQueryEvaluator {
     ) -> crate::Result<Self> {
         let max_doc = segment_reader.max_doc();
 
-        // Create a BitSet to hold all matching documents
-        let mut bitset = BitSet::with_max_value(max_doc);
-
-        // Optimization: Detect AllQuery and skip BitSet population
+        // Optimization: Detect AllQuery and create a full BitSet
         if query.as_any().downcast_ref::<AllQuery>().is_some() {
-            return Ok(Self { bitset });
+            return Ok(Self {
+                bitset: BitSet::with_max_value_and_full(max_doc),
+            });
         }
 
         // Get the weight for the query
@@ -230,6 +235,9 @@ impl DocumentQueryEvaluator {
 
         // Get a scorer that iterates over matching documents
         let mut scorer = weight.scorer(segment_reader, 1.0)?;
+
+        // Create a BitSet to hold all matching documents
+        let mut bitset = BitSet::with_max_value(max_doc);
 
         // Collect all matching documents into the BitSet
         // This is the upfront cost, but then lookups are O(1)
@@ -243,23 +251,19 @@ impl DocumentQueryEvaluator {
     }
 
     /// Evaluate if a document matches the filter query
-    /// O(1) lookup in the precomputed BitSet, or always true for AllQuery
+    /// O(1) lookup in the precomputed BitSet
     #[inline]
     pub fn matches_document(&self, doc: DocId) -> bool {
-        self.bitset.is_empty() || self.bitset.contains(doc)
+        self.bitset.contains(doc)
     }
 
     /// Filter a batch of documents
     /// Returns matching documents from the input batch
     #[inline]
     pub fn filter_batch(&self, docs: &[DocId], output: &mut Vec<DocId>) {
-        if self.bitset.is_empty() {
-            output.extend_from_slice(docs);
-        } else {
-            for &doc in docs {
-                if self.bitset.contains(doc) {
-                    output.push(doc);
-                }
+        for &doc in docs {
+            if self.bitset.contains(doc) {
+                output.push(doc);
             }
         }
     }
