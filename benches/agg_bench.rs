@@ -75,10 +75,10 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, avg_and_range_with_avg_sub_agg);
 
     // Filter aggregation benchmarks
-    register!(group, filter_agg_all_query);
-    register!(group, filter_agg_term_query);
-    register!(group, filter_agg_all_query_with_sub_agg);
-    register!(group, filter_agg_term_query_with_sub_agg);
+    register!(group, filter_agg_all_query_count_agg);
+    register!(group, filter_agg_term_query_count_agg);
+    register!(group, filter_agg_all_query_with_sub_aggs);
+    register!(group, filter_agg_term_query_with_sub_aggs);
 
     group.run();
 }
@@ -481,7 +481,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
 
 // Filter aggregation benchmarks
 
-fn filter_agg_all_query(index: &Index) {
+fn filter_agg_all_query_count_agg(index: &Index) {
     let agg_req = json!({
         "filtered": {
             "filter": "*",
@@ -493,7 +493,7 @@ fn filter_agg_all_query(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn filter_agg_term_query(index: &Index) {
+fn filter_agg_term_query_count_agg(index: &Index) {
     let agg_req = json!({
         "filtered": {
             "filter": "text:cool",
@@ -505,7 +505,7 @@ fn filter_agg_term_query(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn filter_agg_all_query_with_sub_agg(index: &Index) {
+fn filter_agg_all_query_with_sub_aggs(index: &Index) {
     let agg_req = json!({
         "filtered": {
             "filter": "*",
@@ -521,7 +521,7 @@ fn filter_agg_all_query_with_sub_agg(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn filter_agg_term_query_with_sub_agg(index: &Index) {
+fn filter_agg_term_query_with_sub_aggs(index: &Index) {
     let agg_req = json!({
         "filtered": {
             "filter": "text:cool",
