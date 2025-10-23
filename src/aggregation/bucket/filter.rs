@@ -16,9 +16,97 @@ use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError};
 
+/// A trait for queries that can be both executed and serialized.
+///
+/// This trait extends Tantivy's [`Query`] trait with serialization capabilities,
+/// enabling filter aggregations to work with custom query types that can be
+/// serialized for distributed aggregation scenarios.
+///
+/// # Why This Trait Exists
+///
+/// Tantivy's [`Query`] trait is not object-safe for serialization because it doesn't
+/// require `Serialize`. However, filter aggregations need to serialize queries when:
+/// - Distributing aggregation requests across multiple nodes
+/// - Caching aggregation configurations
+/// - Storing aggregation definitions
+///
+/// This trait bridges that gap by requiring both query execution and serialization.
+///
+/// # Implementation Requirements
+///
+/// To implement `SerializableQuery`, you must:
+/// 1. Implement [`Query`] for query execution
+/// 2. Implement [`Serialize`](serde::Serialize) for serialization
+/// 3. Implement [`Clone`] (required by `clone_box`)
+/// 4. Implement `clone_box()` to enable trait object cloning
+///
+/// # Example
+///
+/// ```rust
+/// use tantivy::aggregation::bucket::SerializableQuery;
+/// use tantivy::query::{Query, EnableScoring, TermQuery, Weight};
+/// use tantivy::schema::{Field, IndexRecordOption};
+/// use tantivy::Term;
+/// use serde::Serialize;
+///
+/// #[derive(Debug, Clone, Serialize)]
+/// struct MySerializableQuery {
+///     field_id: u32,
+///     term: String,
+/// }
+///
+/// impl SerializableQuery for MySerializableQuery {
+///     fn clone_box(&self) -> Box<dyn SerializableQuery> {
+///         Box::new(self.clone())
+///     }
+/// }
+///
+/// impl Query for MySerializableQuery {
+///     fn weight(&self, enable_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
+///         // Construct the actual query from serialized data
+///         let field = Field::from_field_id(self.field_id);
+///         let term = Term::from_field_text(field, &self.term);
+///         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
+///         term_query.weight(enable_scoring)
+///     }
+/// }
+/// ```
+///
+/// # Serialization Format
+///
+/// The serialization format is determined by your `Serialize` implementation.
+/// For distributed aggregations, ensure your format is:
+/// - Stable across versions
+/// - Compact for network efficiency
+/// - Self-describing for debugging
+///
+/// # Performance Considerations
+///
+/// - `clone_box()` is called when cloning filter aggregations
+/// - Serialization occurs when distributing aggregations
+/// - Query execution happens per segment during collection
+///
+/// Keep these operations efficient for best performance.
 pub trait SerializableQuery: Query + erased_serde::Serialize {
+    /// Clone this query into a boxed trait object.
+    ///
+    /// This method enables cloning of trait objects, which is necessary for
+    /// cloning filter aggregations that contain custom queries.
+    ///
+    /// # Implementation
+    ///
+    /// The typical implementation is:
+    /// ```rust,ignore
+    /// fn clone_box(&self) -> Box<dyn SerializableQuery> {
+    ///     Box::new(self.clone())
+    /// }
+    /// ```
+    ///
+    /// This requires your type to implement [`Clone`].
     fn clone_box(&self) -> Box<dyn SerializableQuery>;
 }
+
+// Enable serialization of SerializableQuery trait objects using erased-serde
 erased_serde::serialize_trait_object!(SerializableQuery);
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
