@@ -254,12 +254,6 @@ impl BitSet {
         self.len as usize
     }
 
-    /// Returns true iff the `BitSet` is empty.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
     /// Inserts an element in the `BitSet`
     #[inline]
     pub fn insert(&mut self, el: u32) {
