@@ -6,7 +6,7 @@ use std::ops::Range;
 use super::file_slice::FileSlice;
 use super::{HasLen, OwnedBytes};
 
-const DEFAULT_BUFFER_MAX_SIZE: usize = 4 * 1024 * 1024; // 4 MB
+const DEFAULT_BUFFER_MAX_SIZE: usize = 512 * 1024; // 512K
 
 /// A buffered reader for a FileSlice.
 ///
@@ -14,8 +14,8 @@ const DEFAULT_BUFFER_MAX_SIZE: usize = 4 * 1024 * 1024; // 4 MB
 /// the cost of `read_bytes` calls, while keeping peak memory usage under control.
 ///
 /// TODO: Rather than wrapping a `FileSlice` in buffering, it will usually be better to adjust a
-/// `FileHandle` to directly handle buffering itself (as that allows separate `FileSlice`s read
-/// from the same `FileHandle` to share buffers.)
+/// `FileHandle` to directly handle buffering itself.
+/// TODO: See: https://github.com/paradedb/paradedb/issues/3374
 pub struct BufferedFileSlice {
     file_slice: FileSlice,
     buffer: RefCell<OwnedBytes>,
