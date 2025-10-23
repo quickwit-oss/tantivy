@@ -16,12 +16,45 @@ use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError};
 
+pub trait SerializableQuery: Query + erased_serde::Serialize {
+    fn clone_box(&self) -> Box<dyn SerializableQuery>;
+}
+erased_serde::serialize_trait_object!(SerializableQuery);
+
 /// Filter aggregation creates a single bucket containing documents that match a query.
 ///
 /// # Usage
 /// ```rust
+/// use tantivy::aggregation::bucket::SerializableQuery;
 /// use tantivy::aggregation::bucket::filter::FilterAggregation;
-/// use tantivy::query::TermQuery;
+/// use tantivy::query::{Query, EnableScoring, TermQuery, Weight};
+///
+/// #[derive(Debug, Clone)]
+/// struct SerializableTermQuery(TermQuery);
+/// impl SerializableQuery for SerializableTermQuery {
+///     fn clone_box(&self) -> Box<dyn SerializableQuery> {
+///         Box::new(self.clone())
+///     }
+/// }
+///
+/// impl Query for SerializableTermQuery {
+///     fn weight(&self, enable_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
+///         self.0.weight(enable_scoring)
+///     }
+/// }
+///
+/// impl SerializableTermQuery {
+///     pub fn new(term_query: TermQuery) -> Self {
+///         Self(term_query)
+///     }
+/// }
+///
+/// impl serde::Serialize for SerializableTermQuery {
+///     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+///     where S: serde::Serializer {
+///         "todo".serialize(serializer)
+///     }
+/// }
 ///
 /// // Query strings are parsed using Tantivy's standard QueryParser
 /// let filter_agg = FilterAggregation::new("category:electronics AND price:[100 TO 500]".to_string());
@@ -31,7 +64,8 @@ use crate::{DocId, SegmentReader, TantivyError};
 ///     tantivy::Term::from_field_text(tantivy::schema::Field::from_field_id(0), "electronics"),
 ///     tantivy::schema::IndexRecordOption::Basic
 /// );
-/// let filter_agg = FilterAggregation::new_with_query(Box::new(term_query));
+///
+/// let filter_agg = FilterAggregation::new_with_query(Box::new(SerializableTermQuery::new(term_query)));
 /// ```
 ///
 /// # Result
@@ -60,7 +94,7 @@ pub enum FilterQuery {
     /// - Extension query types
     ///
     /// Note: This variant cannot be serialized to JSON (only QueryString can be serialized)
-    CustomQuery(Box<dyn Query>),
+    CustomQuery(Box<dyn SerializableQuery>),
 }
 
 impl Clone for FilterQuery {
@@ -69,7 +103,7 @@ impl Clone for FilterQuery {
             FilterQuery::QueryString(query_string) => {
                 FilterQuery::QueryString(query_string.clone())
             }
-            FilterQuery::CustomQuery(query) => FilterQuery::CustomQuery(query.box_clone()),
+            FilterQuery::CustomQuery(query) => FilterQuery::CustomQuery(query.clone_box()),
         }
     }
 }
@@ -85,7 +119,7 @@ impl FilterAggregation {
 
     /// Create a new filter aggregation with a direct Query object
     /// This enables custom query types to be used directly
-    pub fn new_with_query(query: Box<dyn Query>) -> Self {
+    pub fn new_with_query(query: Box<dyn SerializableQuery>) -> Self {
         Self {
             query: FilterQuery::CustomQuery(query),
         }
@@ -111,7 +145,7 @@ impl FilterAggregation {
             }
             FilterQuery::CustomQuery(query) => {
                 // Return a clone of the direct query
-                Ok(query.box_clone())
+                Ok(query.clone_box())
             }
         }
     }
@@ -131,7 +165,7 @@ impl FilterAggregation {
                 .map_err(|e| TantivyError::InvalidArgument(e.to_string())),
             FilterQuery::CustomQuery(query) => {
                 // Return a clone of the direct query, ignoring the parser
-                Ok(query.box_clone())
+                Ok(query.clone_box())
             }
         }
     }
@@ -154,13 +188,7 @@ impl Serialize for FilterAggregation {
                 // Serialize the query string directly
                 query_string.serialize(serializer)
             }
-            FilterQuery::CustomQuery(_) => {
-                // Custom queries cannot be serialized
-                Err(serde::ser::Error::custom(
-                    "Custom Query objects cannot be serialized. Use query strings for \
-                     serialization support.",
-                ))
-            }
+            FilterQuery::CustomQuery(query) => erased_serde::serialize(query, serializer),
         }
     }
 }
@@ -1240,6 +1268,36 @@ mod tests {
 
     #[test]
     fn test_direct_query_object() -> crate::Result<()> {
+        use crate::aggregation::bucket::SerializableQuery;
+        use crate::query::{EnableScoring, Query, Weight};
+
+        #[derive(Debug, Clone)]
+        struct SerializableTermQuery(TermQuery);
+        impl SerializableQuery for SerializableTermQuery {
+            fn clone_box(&self) -> Box<dyn SerializableQuery> {
+                Box::new(self.clone())
+            }
+        }
+
+        impl Query for SerializableTermQuery {
+            fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+                self.0.weight(enable_scoring)
+            }
+        }
+
+        impl SerializableTermQuery {
+            pub fn new(term_query: TermQuery) -> Self {
+                Self(term_query)
+            }
+        }
+
+        impl serde::Serialize for SerializableTermQuery {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where S: serde::Serializer {
+                "todo".serialize(serializer)
+            }
+        }
+
         let index = create_standard_test_index()?;
         let schema = index.schema();
 
@@ -1249,18 +1307,15 @@ mod tests {
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
 
         // Use it in FilterAggregation
-        let filter_agg = FilterAggregation::new_with_query(Box::new(term_query));
+        let filter_agg =
+            FilterAggregation::new_with_query(Box::new(SerializableTermQuery::new(term_query)));
 
-        // Verify it cannot be serialized
+        // Verify it can be serialized
         let serialization_result = serde_json::to_string(&filter_agg);
         assert!(
-            serialization_result.is_err(),
-            "Direct queries should not serialize"
+            serialization_result.is_ok(),
+            "Direct queries should serialize"
         );
-        assert!(serialization_result
-            .unwrap_err()
-            .to_string()
-            .contains("Custom Query objects cannot be serialized"));
 
         Ok(())
     }
