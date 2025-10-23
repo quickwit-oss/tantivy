@@ -172,9 +172,22 @@ impl FilterAggregation {
 
     /// Get the fast field names used by this aggregation (none for filter aggregation)
     pub fn get_fast_field_names(&self) -> Vec<&str> {
-        // Filter aggregation doesn't declare fast field dependencies directly
-        // Note: The query may internally use fast fields for non-indexed fields,
-        // but this is handled by the query execution layer, not aggregation
+        // Filter aggregation cannot introspect query fast field dependencies.
+        //
+        // As of PR #2693, queries can fall back to fast fields when fields are not indexed
+        // (e.g., TermQuery falls back to RangeQuery on fast fields). However, the Query
+        // trait has no mechanism to report these dependencies.
+        //
+        // For prefetching optimization, callers must analyze the query themselves to
+        // determine fast field usage. This requires:
+        // 1. Parsing the query string to extract field references
+        // 2. Checking the schema to see if those fields are indexed or fast-only
+        // 3. Collecting fast field names for non-indexed fields
+        //
+        // This limitation exists because:
+        // - Query::weight() is called during execution, not during planning
+        // - The fallback decision is made per-segment based on field configuration
+        // - There's no Query trait method to declare potential fast field dependencies
         vec![]
     }
 }
