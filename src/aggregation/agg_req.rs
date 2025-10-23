@@ -39,6 +39,7 @@ use super::metric::{
     MaxAggregation, MinAggregation, PercentilesAggregationReq, StatsAggregation, SumAggregation,
     TopHitsAggregationReq,
 };
+use crate::aggregation::bucket::CompositeAggregation;
 
 /// The top-level aggregation request structure, which contains [`Aggregation`] and their user
 /// defined names. It is also used in buckets aggregations to define sub-aggregations.
@@ -130,6 +131,9 @@ pub enum AggregationVariants {
     /// Put data into buckets of terms.
     #[serde(rename = "terms")]
     Terms(TermsAggregation),
+    /// Put data into multi level paginated buckets.
+    #[serde(rename = "composite")]
+    Composite(CompositeAggregation),
 
     // Metric aggregation types
     /// Computes the average of the extracted values.
@@ -175,6 +179,11 @@ impl AggregationVariants {
             AggregationVariants::Range(range) => vec![range.field.as_str()],
             AggregationVariants::Histogram(histogram) => vec![histogram.field.as_str()],
             AggregationVariants::DateHistogram(histogram) => vec![histogram.field.as_str()],
+            AggregationVariants::Composite(composite) => composite
+                .sources
+                .iter()
+                .map(|source_map| source_map.field())
+                .collect(),
             AggregationVariants::Average(avg) => vec![avg.field_name()],
             AggregationVariants::Count(count) => vec![count.field_name()],
             AggregationVariants::Max(max) => vec![max.field_name()],
@@ -209,6 +218,14 @@ impl AggregationVariants {
             _ => None,
         }
     }
+
+    pub(crate) fn as_composite(&self) -> Option<&CompositeAggregation> {
+        match &self {
+            AggregationVariants::Composite(composite) => Some(composite),
+            _ => None,
+        }
+    }
+
     pub(crate) fn as_percentile(&self) -> Option<&PercentilesAggregationReq> {
         match &self {
             AggregationVariants::Percentiles(percentile_req) => Some(percentile_req),
