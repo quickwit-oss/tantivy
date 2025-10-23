@@ -792,10 +792,7 @@ mod tests {
     use crate::aggregation::{AggregationLimitsGuard, DistributedAggregationCollector};
     use crate::indexer::NoMergePolicy;
     use crate::query::AllQuery;
-    use crate::schema::{
-        IndexRecordOption, IntoIpv6Addr, Schema, TextFieldIndexing, TextOptions, FAST, STORED,
-        STRING, TEXT,
-    };
+    use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
     use crate::{Index, IndexWriter};
 
     #[test]

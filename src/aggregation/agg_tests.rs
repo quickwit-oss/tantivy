@@ -5,7 +5,6 @@ use crate::aggregation::agg_result::AggregationResults;
 use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
-use crate::aggregation::segment_agg_result::AggregationLimitsGuard;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
 use crate::query::{AllQuery, TermQuery};
