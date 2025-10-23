@@ -1508,29 +1508,6 @@ mod test {
     }
 
     #[test]
-    pub fn test_set_default_field_integer() {
-        test_parse_query_to_logical_ast_helper_with_default_fields(
-            "2324",
-            "(Term(field=0, type=Str, \"2324\") Term(field=2, type=I64, 2324))",
-            false,
-            &["title", "signed"],
-        );
-
-        test_parse_query_to_logical_ast_helper_with_default_fields(
-            "abc",
-            "Term(field=0, type=Str, \"abc\")",
-            false,
-            &["title", "signed"],
-        );
-
-        let query_parser = make_query_parser_with_default_fields(&["signed"]);
-        assert_matches!(
-            query_parser.parse_query("abc"),
-            Err(QueryParserError::ExpectedInt(_))
-        );
-    }
-
-    #[test]
     fn test_parse_bytes_phrase() {
         test_parse_query_to_logical_ast_helper(
             "bytes:\"YnVidQ==\"",
@@ -2048,5 +2025,90 @@ mod test {
                  minimum_number_should_match: 1 }"
             );
         }
+    }
+
+    #[test]
+    pub fn test_set_default_field_integer() {
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "2324",
+            "(Term(field=0, type=Str, \"2324\") Term(field=2, type=I64, 2324))",
+            false,
+            &["title", "signed"],
+        );
+
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "abc",
+            "Term(field=0, type=Str, \"abc\")",
+            false,
+            &["title", "signed"],
+        );
+
+        let query_parser = make_query_parser_with_default_fields(&["signed"]);
+        assert_matches!(
+            query_parser.parse_query("abc"),
+            Err(QueryParserError::ExpectedInt(_))
+        );
+    }
+
+    #[test]
+    pub fn test_deduplication() {
+        let query = "be be";
+        test_parse_query_to_logical_ast_helper(
+            query,
+            "(Term(field=0, type=Str, \"be\") Term(field=1, type=Str, \"be\"))",
+            false,
+        );
+    }
+
+    #[test]
+    pub fn test_regex() {
+        let expected_regex = tantivy_fst::Regex::new(r".*b").unwrap();
+        test_parse_query_to_logical_ast_helper(
+            "title:/.*b/",
+            format!("Regex(Field(0), {:#?})", expected_regex).as_str(),
+            false,
+        );
+
+        // Invalid field
+        let err = parse_query_to_logical_ast("float:/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query only supported on text fields"
+        );
+
+        // No field specified
+        let err = parse_query_to_logical_ast("/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query need to target a specific field."
+        );
+
+        // Regex on a json path
+        let err = parse_query_to_logical_ast("title.subpath:/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query does not support json paths."
+        );
+
+        // Invalid regex
+        let err = parse_query_to_logical_ast("title:/[A-Z*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Invalid regex: regex parse error:\n    [A-Z*b\n    ^\nerror: \
+             unclosed character class"
+        );
+
+        // Regexes not allowed
+        let err = parse_query_to_logical_ast_with_default_fields(
+            "title:/.*b/",
+            false,
+            &["title", "text"],
+            false,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex queries are not allowed."
+        );
     }
 }
