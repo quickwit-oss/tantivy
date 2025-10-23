@@ -342,7 +342,7 @@ mod tests {
     fn test_pack() -> crate::Result<()> {
         let mut store_writer = TermInfoStoreWriter::new();
         let mut term_infos = vec![];
-        let offset = |i| (i * 13 + i * i);
+        let offset = |i| i * 13 + i * i;
         for i in 0usize..1000usize {
             let term_info = TermInfo {
                 doc_freq: i as u32,

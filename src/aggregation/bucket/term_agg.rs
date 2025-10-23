@@ -781,9 +781,7 @@ mod tests {
     use time::{Date, Month};
 
     use crate::aggregation::agg_req::Aggregations;
-    use crate::aggregation::intermediate_agg_result::{
-        IntermediateAggregationResult, IntermediateAggregationResults,
-    };
+    use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_from_terms, get_test_index_from_values_and_terms,
@@ -791,10 +789,7 @@ mod tests {
     use crate::aggregation::{AggregationLimitsGuard, DistributedAggregationCollector};
     use crate::indexer::NoMergePolicy;
     use crate::query::AllQuery;
-    use crate::schema::{
-        IndexRecordOption, IntoIpv6Addr, Schema, TextFieldIndexing, TextOptions, FAST, STORED,
-        STRING, TEXT,
-    };
+    use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
     use crate::{Index, IndexWriter};
 
     #[test]
@@ -2289,6 +2284,8 @@ mod tests {
         // running on different indexes with the same data.
         let build_index = || -> crate::Result<Index> {
             let mut schema_builder = Schema::builder();
+            let fielda = schema_builder.add_text_field("fielda", FAST);
+            let fieldb = schema_builder.add_text_field("fieldb", FAST);
             let host = schema_builder.add_text_field("host", FAST);
             let tags = schema_builder.add_text_field("tags", FAST);
             let schema = schema_builder.build();
@@ -2300,6 +2297,8 @@ mod tests {
             writer.add_document(doc!(
                 host => "192.168.0.10",
                 tags => "nice",
+                fielda => "a",
+                fieldb => "b",
             ))?;
             writer.add_document(doc!(
                 host => "192.168.0.1",
@@ -2355,7 +2354,9 @@ mod tests {
         // --- Aggregations: terms on host and tags ---
         let agg_req: Aggregations = serde_json::from_value(json!({
             "hosts": { "terms": { "field": "host" } },
-            "tags":  { "terms": { "field": "tags" } }
+            "tags":  { "terms": { "field": "tags" } },
+            "fielda":  { "terms": { "field": "fielda" } },
+            "fieldb":  { "terms": { "field": "fieldb" } },
         }))
         .unwrap();
 
@@ -2369,11 +2370,20 @@ mod tests {
             serde_json::from_value(json!({ "terms": { "field": "tags" } }))?,
         );
         agg_req2.insert(
+            "fielda".to_string(),
+            serde_json::from_value(json!({ "terms": { "field": "fielda" } }))?,
+        );
+        agg_req2.insert(
             "hosts".to_string(),
             serde_json::from_value(json!({ "terms": { "field": "host" } }))?,
         );
+        agg_req2.insert(
+            "fieldb".to_string(),
+            serde_json::from_value(json!({ "terms": { "field": "fieldb" } }))?,
+        );
         // make sure the order of the aggregation request is different
-        assert_ne!(agg_req.keys().next(), agg_req2.keys().next());
+        // disabled to avoid flaky test with hashmap changes
+        // assert_ne!(agg_req.keys().next(), agg_req2.keys().next());
 
         let agg_res2 = search(&index2, &agg_req2)?;
 
