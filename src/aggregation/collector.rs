@@ -2,7 +2,8 @@ use super::agg_req::Aggregations;
 use super::agg_result::AggregationResults;
 use super::buf_collector::BufAggregationCollector;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use super::segment_agg_result::{AggregationLimitsGuard, SegmentAggregationCollector};
+use super::segment_agg_result::SegmentAggregationCollector;
+use super::AggContextParams;
 use crate::aggregation::agg_data::{
     build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsSegmentCtx,
 };
@@ -21,7 +22,7 @@ pub const DEFAULT_MEMORY_LIMIT: u64 = 500_000_000;
 /// The collector collects all aggregations by the underlying aggregation request.
 pub struct AggregationCollector {
     agg: Aggregations,
-    limits: AggregationLimitsGuard,
+    context: AggContextParams,
 }
 
 impl AggregationCollector {
@@ -29,8 +30,8 @@ impl AggregationCollector {
     ///
     /// Aggregation fails when the limits in `AggregationLimits` is exceeded. (memory limit and
     /// bucket limit)
-    pub fn from_aggs(agg: Aggregations, limits: AggregationLimitsGuard) -> Self {
-        Self { agg, limits }
+    pub fn from_aggs(agg: Aggregations, context: AggContextParams) -> Self {
+        Self { agg, context }
     }
 }
 
@@ -44,7 +45,7 @@ impl AggregationCollector {
 /// into the final `AggregationResults` via the `into_final_result()` method.
 pub struct DistributedAggregationCollector {
     agg: Aggregations,
-    limits: AggregationLimitsGuard,
+    context: AggContextParams,
 }
 
 impl DistributedAggregationCollector {
@@ -52,8 +53,8 @@ impl DistributedAggregationCollector {
     ///
     /// Aggregation fails when the limits in `AggregationLimits` is exceeded. (memory limit and
     /// bucket limit)
-    pub fn from_aggs(agg: Aggregations, limits: AggregationLimitsGuard) -> Self {
-        Self { agg, limits }
+    pub fn from_aggs(agg: Aggregations, context: AggContextParams) -> Self {
+        Self { agg, context }
     }
 }
 
@@ -71,7 +72,7 @@ impl Collector for DistributedAggregationCollector {
             &self.agg,
             reader,
             segment_local_id,
-            &self.limits,
+            &self.context,
         )
     }
 
@@ -101,7 +102,7 @@ impl Collector for AggregationCollector {
             &self.agg,
             reader,
             segment_local_id,
-            &self.limits,
+            &self.context,
         )
     }
 
@@ -114,7 +115,7 @@ impl Collector for AggregationCollector {
         segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<Self::Fruit> {
         let res = merge_fruits(segment_fruits)?;
-        res.into_final_result(self.agg.clone(), self.limits.clone())
+        res.into_final_result(self.agg.clone(), self.context.limits.clone())
     }
 }
 
@@ -146,10 +147,10 @@ impl AggregationSegmentCollector {
         agg: &Aggregations,
         reader: &SegmentReader,
         segment_ordinal: SegmentOrdinal,
-        limits: &AggregationLimitsGuard,
+        context: &AggContextParams,
     ) -> crate::Result<Self> {
         let mut agg_data =
-            build_aggregations_data_from_req(agg, reader, segment_ordinal, limits.clone())?;
+            build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
         let result =
             BufAggregationCollector::new(build_segment_agg_collectors_root(&mut agg_data)?);
 

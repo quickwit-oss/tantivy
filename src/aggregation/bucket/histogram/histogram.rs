@@ -352,7 +352,10 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
         if mem_delta > 0 {
-            agg_data.limits.add_memory_consumed(mem_delta as u64)?;
+            agg_data
+                .context
+                .limits
+                .add_memory_consumed(mem_delta as u64)?;
         }
 
         Ok(())

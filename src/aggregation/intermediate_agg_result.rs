@@ -24,7 +24,9 @@ use super::metric::{
 };
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
-use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
+use crate::aggregation::agg_result::{
+    AggregationResults, BucketEntries, BucketEntry, FilterBucketResult,
+};
 use crate::aggregation::bucket::TermsAggregationInternal;
 use crate::aggregation::metric::CardinalityCollector;
 use crate::TantivyError;
@@ -246,6 +248,10 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Cardinality(_) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::Cardinality(CardinalityCollector::default()),
         ),
+        Filter(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Filter {
+            doc_count: 0,
+            sub_aggregations: IntermediateAggregationResults::default(),
+        }),
     }
 }
 
@@ -432,6 +438,13 @@ pub enum IntermediateBucketResult {
         /// The term buckets
         buckets: IntermediateTermBucketResult,
     },
+    /// Filter aggregation - a single bucket with sub-aggregations
+    Filter {
+        /// Document count in the filter bucket
+        doc_count: u64,
+        /// Sub-aggregation results
+        sub_aggregations: IntermediateAggregationResults,
+    },
 }
 
 impl IntermediateBucketResult {
@@ -515,6 +528,18 @@ impl IntermediateBucketResult {
                 req.sub_aggregation(),
                 limits,
             ),
+            IntermediateBucketResult::Filter {
+                doc_count,
+                sub_aggregations,
+            } => {
+                // Convert sub-aggregation results to final format
+                let final_sub_aggregations = sub_aggregations
+                    .into_final_result(req.sub_aggregation().clone(), limits.clone())?;
+                Ok(BucketResult::Filter(FilterBucketResult {
+                    doc_count,
+                    sub_aggregations: final_sub_aggregations,
+                }))
+            }
         }
     }
 
@@ -568,6 +593,19 @@ impl IntermediateBucketResult {
 
                 *buckets_left = buckets?;
             }
+            (
+                IntermediateBucketResult::Filter {
+                    doc_count: doc_count_left,
+                    sub_aggregations: sub_aggs_left,
+                },
+                IntermediateBucketResult::Filter {
+                    doc_count: doc_count_right,
+                    sub_aggregations: sub_aggs_right,
+                },
+            ) => {
+                *doc_count_left += doc_count_right;
+                sub_aggs_left.merge_fruits(sub_aggs_right)?;
+            }
             (IntermediateBucketResult::Range(_), _) => {
                 panic!("try merge on different types")
             }
@@ -575,6 +613,9 @@ impl IntermediateBucketResult {
                 panic!("try merge on different types")
             }
             (IntermediateBucketResult::Terms { .. }, _) => {
+                panic!("try merge on different types")
+            }
+            (IntermediateBucketResult::Filter { .. }, _) => {
                 panic!("try merge on different types")
             }
         }
