@@ -175,6 +175,7 @@ impl Weight for FastFieldRangeWeight {
             };
             search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
         } else {
+            // NOTE: Keep in sync with `range_query::is_type_valid_for_fastfield_range_query`.
             assert!(
                 maps_to_u64_fastfield(field_type.value_type()),
                 "{field_type:?}"
@@ -190,9 +191,11 @@ impl Weight for FastFieldRangeWeight {
                     val.to_u64()
                 } else if let Some(val) = value.as_date() {
                     val.to_u64()
+                } else if let Some(val) = value.as_bool() {
+                    val as u64
                 } else {
                     return Err(TantivyError::InvalidArgument(format!(
-                        "Expected term with u64, i64, f64 or date, but got {term:?}"
+                        "Expected term with u64, i64, f64, bool or date, but got {term:?}"
                     )));
                 };
                 Ok(val)
@@ -205,6 +208,7 @@ impl Weight for FastFieldRangeWeight {
                     ColumnType::I64,
                     ColumnType::F64,
                     ColumnType::DateTime,
+                    ColumnType::Bool,
                 ]),
                 &field_name,
             )?
@@ -1035,6 +1039,49 @@ mod tests {
             Bound::Excluded(get_json_term(json_field, "date", dt4)),
         );
         assert_eq!(count(query), 1);
+    }
+
+    #[test]
+    fn test_bool_field_ff_range_query() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let bool_field = schema_builder.add_bool_field("bool_field", FAST | INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(
+              bool_field => true
+            ))?;
+            index_writer.add_document(doc!(
+              bool_field => false
+            ))?;
+            index_writer.add_document(doc!(
+              bool_field => true
+            ))?;
+            index_writer.commit()?;
+        }
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        let create_query = |lower: bool, upper: bool| {
+            RangeQuery::new(
+                Bound::Included(Term::from_field_bool(bool_field, lower)),
+                Bound::Included(Term::from_field_bool(bool_field, upper)),
+            )
+        };
+
+        // Tests range queries on a boolean fast field.
+        let count = searcher.search(&create_query(false, true), &Count)?;
+        assert_eq!(count, 3);
+
+        let count = searcher.search(&create_query(true, true), &Count)?;
+        assert_eq!(count, 2);
+
+        let count = searcher.search(&create_query(false, false), &Count)?;
+        assert_eq!(count, 1);
+
+        Ok(())
     }
 
     #[derive(Clone, Debug)]
