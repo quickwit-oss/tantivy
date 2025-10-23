@@ -128,10 +128,8 @@ fn test_aggregation_flushing(
             .unwrap();
 
     let agg_res: AggregationResults = if use_distributed_collector {
-        let collector = DistributedAggregationCollector::from_aggs(
-            agg_req.clone(),
-            AggregationLimitsGuard::default(),
-        );
+        let collector =
+            DistributedAggregationCollector::from_aggs(agg_req.clone(), Default::default());
 
         let searcher = reader.searcher();
         let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();

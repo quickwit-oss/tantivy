@@ -1508,6 +1508,29 @@ mod test {
     }
 
     #[test]
+    pub fn test_set_default_field_integer() {
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "2324",
+            "(Term(field=0, type=Str, \"2324\") Term(field=2, type=I64, 2324))",
+            false,
+            &["title", "signed"],
+        );
+
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "abc",
+            "Term(field=0, type=Str, \"abc\")",
+            false,
+            &["title", "signed"],
+        );
+
+        let query_parser = make_query_parser_with_default_fields(&["signed"]);
+        assert_matches!(
+            query_parser.parse_query("abc"),
+            Err(QueryParserError::ExpectedInt(_))
+        );
+    }
+
+    #[test]
     fn test_parse_bytes_phrase() {
         test_parse_query_to_logical_ast_helper(
             "bytes:\"YnVidQ==\"",

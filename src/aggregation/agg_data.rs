@@ -25,7 +25,7 @@ use crate::aggregation::metric::{
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_to_fastfield_u64, AggregationLimitsGuard, Key};
+use crate::aggregation::{f64_to_fastfield_u64, AggContextParams, Key};
 use crate::{SegmentOrdinal, SegmentReader};
 
 #[derive(Default)]
@@ -34,7 +34,7 @@ use crate::{SegmentOrdinal, SegmentReader};
 pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
     pub per_request: PerRequestAggSegCtx,
-    pub limits: AggregationLimitsGuard,
+    pub context: AggContextParams,
 }
 
 impl AggregationsSegmentCtx {
@@ -357,7 +357,8 @@ pub(crate) fn build_segment_agg_collectors(
         collectors.push(build_segment_agg_collector(req, node)?);
     }
 
-    req.limits
+    req.context
+        .limits
         .add_memory_consumed(req.per_request.get_memory_consumption() as u64)?;
     // Single collector special case
     if collectors.len() == 1 {
@@ -489,11 +490,11 @@ pub(crate) fn build_aggregations_data_from_req(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    limits: AggregationLimitsGuard,
+    context: AggContextParams,
 ) -> crate::Result<AggregationsSegmentCtx> {
     let mut data = AggregationsSegmentCtx {
         per_request: Default::default(),
-        limits,
+        context,
     };
 
     for (name, agg) in aggs.iter() {
