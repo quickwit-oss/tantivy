@@ -86,8 +86,6 @@ impl Weight for FastFieldRangeWeight {
             //
             // In the JSON case the provided type in term may not exactly match the column type,
             // especially with the numeric type interpolation
-            //
-            //
             let lower_typ = inner_bound(&bounds.lower_bound).map(|bound| bound.typ());
             let upper_typ = inner_bound(&bounds.upper_bound).map(|bound| bound.typ());
 
@@ -278,13 +276,11 @@ fn search_on_json_numerical_field(
     let allowed_column_types: Option<&[ColumnType]> =
         Some(&[ColumnType::F64, ColumnType::I64, ColumnType::U64]);
     let fast_field_reader = reader.fast_fields();
-
     let Some((column, col_type)) =
         fast_field_reader.u64_lenient_for_type(allowed_column_types, field_name)?
     else {
         return Ok(Box::new(EmptyScorer));
     };
-
     let actual_column_type: NumericalType = col_type
         .numerical_type()
         .unwrap_or_else(|| panic!("internal error: couldn't cast to numerical_type: {col_type:?}"));
