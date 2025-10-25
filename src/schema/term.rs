@@ -503,6 +503,9 @@ where B: AsRef<[u8]>
             Type::IpAddr => {
                 write_opt(f, self.as_ip_addr())?;
             }
+            Type::Spatial => {
+                write!(f, "<spatial term formatting not yet implemented>")?;
+            }
         }
         Ok(())
     }

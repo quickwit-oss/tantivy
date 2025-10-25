@@ -20,6 +20,6 @@ pub(crate) fn is_type_valid_for_fastfield_range_query(typ: Type) -> bool {
         | Type::Date
         | Type::Json
         | Type::IpAddr => true,
-        Type::Facet | Type::Bytes => false,
+        Type::Facet | Type::Bytes | Type::Spatial => false,
     }
 }

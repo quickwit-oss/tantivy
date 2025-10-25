@@ -524,6 +524,9 @@ impl QueryParser {
                 let ip_v6 = IpAddr::from_str(phrase)?.into_ipv6_addr();
                 Ok(Term::from_field_ip_addr(field, ip_v6))
             }
+            FieldType::Spatial(_) => Err(QueryParserError::UnsupportedQuery(
+                "Spatial queries are not yet supported in text query parser".to_string(),
+            )),
         }
     }
 
@@ -624,6 +627,10 @@ impl QueryParser {
                 let term = Term::from_field_ip_addr(field, ip_v6);
                 Ok(vec![LogicalLiteral::Term(term)])
             }
+            FieldType::Spatial(_) => Err(QueryParserError::UnsupportedQuery(format!(
+                "Spatial queries are not yet supported for field '{}'",
+                field_name
+            ))),
         }
     }
 

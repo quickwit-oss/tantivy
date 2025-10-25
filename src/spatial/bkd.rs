@@ -10,10 +10,11 @@
 //! branch nodes), enabling zero-copy access through memory-mapped segments without upfront
 //! decompression.
 use std::io;
-use std::io::{Seek, Write};
+use std::io::Write;
 
-use common::BitSet;
+use common::{BitSet, CountingWriter};
 
+use crate::directory::WritePtr;
 use crate::spatial::delta::{compress, decompress, Compressible};
 use crate::spatial::triangle::Triangle;
 
@@ -88,8 +89,8 @@ struct CompressibleTriangleI32<'a> {
 impl<'a> CompressibleTriangleI32<'a> {
     fn new(triangles: &'a [Triangle], dimension: usize) -> Self {
         CompressibleTriangleI32 {
-            triangles: triangles,
-            dimension: dimension,
+            triangles,
+            dimension,
         }
     }
 }
@@ -110,9 +111,7 @@ struct CompressibleTriangleDocID<'a> {
 
 impl<'a> CompressibleTriangleDocID<'a> {
     fn new(triangles: &'a [Triangle]) -> Self {
-        CompressibleTriangleDocID {
-            triangles: triangles,
-        }
+        CompressibleTriangleDocID { triangles }
     }
 }
 
@@ -136,12 +135,12 @@ impl<'a> Compressible for CompressibleTriangleDocID<'a> {
 // We do not compress the tree nodes. We read them directly from the mapping.
 
 //
-fn write_leaf_pages<W: Write + Seek>(
+fn write_leaf_pages(
     triangles: &mut [Triangle],
-    write: &mut W,
+    write: &mut CountingWriter<WritePtr>,
 ) -> io::Result<BuildNode> {
     if triangles.len() <= 512 {
-        let pos = write.stream_position()?;
+        let pos = write.written_bytes();
         let mut spreads = [SpreadSurvey::default(); 4];
         let mut bounding_box = BoundingBoxSurvey::default();
         for triangle in triangles.iter() {
@@ -174,10 +173,10 @@ fn write_leaf_pages<W: Write + Seek>(
         for i in 0..7 {
             compress(&compressible[i], write)?;
         }
-        let len = write.stream_position()? - pos;
+        let len = write.written_bytes() - pos;
         Ok(BuildNode::Leaf {
             bbox: bounding_box.bbox(),
-            pos: pos,
+            pos,
             len: len as u16,
         })
     } else {
@@ -220,7 +219,7 @@ fn write_leaf_pages<W: Write + Seek>(
     }
 }
 
-fn write_leaf_nodes<W: Write + Seek>(node: &BuildNode, write: &mut W) -> io::Result<()> {
+fn write_leaf_nodes(node: &BuildNode, write: &mut CountingWriter<WritePtr>) -> io::Result<()> {
     match node {
         BuildNode::Branch {
             bbox: _,
@@ -242,11 +241,11 @@ fn write_leaf_nodes<W: Write + Seek>(node: &BuildNode, write: &mut W) -> io::Res
     Ok(())
 }
 
-fn write_branch_nodes<W: Write + Seek>(
+fn write_branch_nodes(
     node: &BuildNode,
     branch_offset: &mut i32,
     leaf_offset: &mut i32,
-    write: &mut W,
+    write: &mut CountingWriter<WritePtr>,
 ) -> io::Result<i32> {
     match node {
         BuildNode::Leaf { .. } => {
@@ -284,21 +283,26 @@ fn write_branch_nodes<W: Write + Seek>(
 ///
 /// The `triangles` slice will be reordered during tree construction as partitioning sorts by the
 /// selected dimension at each level.
-pub fn write_block_kd_tree<W: Write + Seek>(
+pub fn write_block_kd_tree(
     triangles: &mut [Triangle],
-    write: &mut W,
+    write: &mut CountingWriter<WritePtr>,
 ) -> io::Result<()> {
+    assert_eq!(
+        triangles.as_ptr() as usize % std::mem::align_of::<Triangle>(),
+        0
+    );
     write.write_all(&1u16.to_le_bytes())?;
     let tree = write_leaf_pages(triangles, write)?;
-    let current = write.stream_position()?;
+    let current = write.written_bytes();
     let aligned = (current + 31) & !31;
     let padding = aligned - current;
     write.write_all(&vec![0u8; padding as usize])?;
     write_leaf_nodes(&tree, write)?;
-    let branch_position = write.stream_position()?;
+    let branch_position = write.written_bytes();
     let mut branch_offset: i32 = 0;
     let mut leaf_offset: i32 = -1;
     let root = write_branch_nodes(&tree, &mut branch_offset, &mut leaf_offset, write)?;
+    write.write_all(&[0u8; 12])?;
     write.write_all(&triangles.len().to_le_bytes())?;
     write.write_all(&root.to_le_bytes())?;
     write.write_all(&branch_position.to_le_bytes())?;
@@ -355,8 +359,9 @@ impl<'a> Segment<'a> {
     /// Reads the footer metadata from the last 12 bytes to locate the tree structure and root
     /// node.
     pub fn new(data: &'a [u8]) -> Self {
+        assert_eq!(data.as_ptr() as usize % std::mem::align_of::<u64>(), 0);
         Segment {
-            data: data,
+            data,
             branch_position: u64::from_le_bytes(data[data.len() - 8..].try_into().unwrap()),
             root_offset: i32::from_le_bytes(
                 data[data.len() - 12..data.len() - 8].try_into().unwrap(),
@@ -757,4 +762,41 @@ pub fn search_contains(
         search_contains(segment, branch_node.right, query, result, excluded)?;
     }
     Ok(())
+}
+
+/// HUSH
+pub struct LeafPageIterator<'a> {
+    segment: &'a Segment<'a>,
+    descent_stack: Vec<i32>,
+}
+
+impl<'a> LeafPageIterator<'a> {
+    /// HUSH
+    pub fn new(segment: &'a Segment<'a>) -> Self {
+        Self {
+            segment,
+            descent_stack: vec![segment.root_offset],
+        }
+    }
+}
+
+impl<'a> Iterator for LeafPageIterator<'a> {
+    type Item = io::Result<Vec<Triangle>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let offset = self.descent_stack.pop()?;
+        if offset < 0 {
+            let leaf_node = self.segment.leaf_node(offset);
+            let leaf_page = self.segment.leaf_page(leaf_node);
+            match decompress_leaf(leaf_page) {
+                Ok(triangles) => Some(Ok(triangles)),
+                Err(e) => Some(Err(e)),
+            }
+        } else {
+            let branch_node = self.segment.branch_node(offset);
+            self.descent_stack.push(branch_node.right);
+            self.descent_stack.push(branch_node.left);
+            self.next()
+        }
+    }
 }

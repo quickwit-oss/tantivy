@@ -15,6 +15,7 @@ use crate::schema::document::{
     ValueDeserializer, ValueVisitor,
 };
 use crate::schema::Facet;
+use crate::spatial::geometry::Geometry;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
@@ -49,6 +50,8 @@ pub enum OwnedValue {
     Object(Vec<(String, Self)>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
+    /// A GeoRust multi-polygon.
+    Geometry(Geometry),
 }
 
 impl AsRef<OwnedValue> for OwnedValue {
@@ -77,6 +80,9 @@ impl<'a> Value<'a> for &'a OwnedValue {
             OwnedValue::IpAddr(val) => ReferenceValueLeaf::IpAddr(*val).into(),
             OwnedValue::Array(array) => ReferenceValue::Array(array.iter()),
             OwnedValue::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
+            OwnedValue::Geometry(geometry) => {
+                ReferenceValueLeaf::Geometry(Box::new(geometry.clone())).into()
+            }
         }
     }
 }
@@ -134,6 +140,10 @@ impl ValueDeserialize for OwnedValue {
                 val: PreTokenizedString,
             ) -> Result<Self::Value, DeserializeError> {
                 Ok(OwnedValue::PreTokStr(val))
+            }
+
+            fn visit_geometry(&self, val: Geometry) -> Result<Self::Value, DeserializeError> {
+                Ok(OwnedValue::Geometry(val))
             }
 
             fn visit_array<'de, A>(&self, mut access: A) -> Result<Self::Value, DeserializeError>
@@ -198,6 +208,7 @@ impl serde::Serialize for OwnedValue {
                 }
             }
             OwnedValue::Array(ref array) => array.serialize(serializer),
+            OwnedValue::Geometry(_) => todo!(),
         }
     }
 }
@@ -285,6 +296,7 @@ impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
                 ReferenceValueLeaf::IpAddr(val) => OwnedValue::IpAddr(val),
                 ReferenceValueLeaf::Bool(val) => OwnedValue::Bool(val),
                 ReferenceValueLeaf::PreTokStr(val) => OwnedValue::PreTokStr(*val.clone()),
+                ReferenceValueLeaf::Geometry(_) => todo!(),
             },
             ReferenceValue::Array(val) => {
                 OwnedValue::Array(val.map(|v| v.as_value().into()).collect())

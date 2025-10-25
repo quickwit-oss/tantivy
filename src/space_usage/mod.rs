@@ -125,6 +125,7 @@ impl SegmentSpaceUsage {
             SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
             SegmentComponent::TempStore => ComponentSpaceUsage::Store(self.store().clone()),
             Delete => Basic(self.deletes()),
+            Spatial => todo!(),
         }
     }
 

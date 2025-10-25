@@ -93,7 +93,6 @@ time = { version = "0.3.10", features = ["serde-well-known", "macros"] }
 postcard = { version = "1.0.4", features = [
     "use-std",
 ], default-features = false }
-geojson = "0.24.2"
 
 [target.'cfg(not(windows))'.dev-dependencies]
 criterion = { version = "0.5", default-features = false }
