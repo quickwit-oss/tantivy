@@ -13,6 +13,7 @@ use crate::schema::document::{
 };
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
+use crate::spatial::geometry::Geometry;
 use crate::tokenizer::PreTokenizedString;
 
 #[repr(C, packed)]
@@ -254,6 +255,7 @@ impl CompactDoc {
             }
             ReferenceValueLeaf::IpAddr(num) => write_into(&mut self.node_data, num.to_u128()),
             ReferenceValueLeaf::PreTokStr(pre_tok) => write_into(&mut self.node_data, *pre_tok),
+            ReferenceValueLeaf::Geometry(geometry) => write_into(&mut self.node_data, *geometry),
         };
         ValueAddr { type_id, val_addr }
     }
@@ -464,6 +466,13 @@ impl<'a> CompactDocValue<'a> {
                 .map(Into::into)
                 .map(ReferenceValueLeaf::PreTokStr)
                 .map(Into::into),
+            // ValueType::Geometry => todo!(),
+            ValueType::Geometry => self
+                .container
+                .read_from::<Geometry>(addr)
+                .map(Into::into)
+                .map(ReferenceValueLeaf::Geometry)
+                .map(Into::into),
             ValueType::Object => Ok(ReferenceValue::Object(CompactDocObjectIter::new(
                 self.container,
                 addr,
@@ -542,6 +551,8 @@ pub enum ValueType {
     Object = 11,
     /// Pre-tokenized str type,
     Array = 12,
+    /// HUSH
+    Geometry = 13,
 }
 
 impl BinarySerializable for ValueType {
@@ -587,6 +598,7 @@ impl<'a> From<&ReferenceValueLeaf<'a>> for ValueType {
             ReferenceValueLeaf::PreTokStr(_) => ValueType::PreTokStr,
             ReferenceValueLeaf::Facet(_) => ValueType::Facet,
             ReferenceValueLeaf::Bytes(_) => ValueType::Bytes,
+            ReferenceValueLeaf::Geometry(_) => ValueType::Geometry,
         }
     }
 }
