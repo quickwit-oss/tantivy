@@ -4,3 +4,4 @@ pub mod bkd;
 pub mod delta;
 pub mod radix_select;
 pub mod triangle;
+pub mod xor;
