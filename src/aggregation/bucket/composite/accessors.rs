@@ -31,6 +31,14 @@ pub struct CompositeAggReqData {
     pub composite_accessors: Vec<CompositeSourceAccessors>,
 }
 
+impl CompositeAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self.composite_accessors.len() * std::mem::size_of::<CompositeSourceAccessors>()
+    }
+}
+
 /// Accessors for a single column in a composite source.
 pub struct CompositeAccessor {
     /// The fast field column

@@ -287,6 +287,11 @@ impl PerRequestAggSegCtx {
                 .iter()
                 .map(|t| t.get_memory_consumption())
                 .sum::<usize>()
+            + self
+                .composite_req_data
+                .iter()
+                .map(|t| t.as_ref().unwrap().get_memory_consumption())
+                .sum::<usize>()
             + self.agg_tree.len() * std::mem::size_of::<AggRefNode>()
     }
 
