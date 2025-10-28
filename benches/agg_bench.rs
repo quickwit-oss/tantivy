@@ -234,7 +234,7 @@ fn terms_many_json_mixed_type_with_avg_sub_agg(index: &Index) {
 }
 fn composite_term_few(index: &Index) {
     let agg_req = json!({
-        "my_texts": {
+        "my_ctf": {
             "composite": {
                 "sources": [
                     { "text_few_terms": { "terms": { "field": "text_few_terms" } } }
@@ -247,7 +247,7 @@ fn composite_term_few(index: &Index) {
 }
 fn composite_term_many_page_1000(index: &Index) {
     let agg_req = json!({
-        "my_texts": {
+        "my_ctmp1000": {
             "composite": {
                 "sources": [
                     { "text_many_terms": { "terms": { "field": "text_many_terms" } } }
@@ -260,7 +260,7 @@ fn composite_term_many_page_1000(index: &Index) {
 }
 fn composite_term_many_page_1000_with_avg_sub_agg(index: &Index) {
     let agg_req = json!({
-        "my_texts": {
+        "my_ctmp1000wasa": {
             "composite": {
                 "sources": [
                     { "text_many_terms": { "terms": { "field": "text_many_terms" } } }
@@ -277,7 +277,7 @@ fn composite_term_many_page_1000_with_avg_sub_agg(index: &Index) {
 }
 fn composite_histogram(index: &Index) {
     let agg_req = json!({
-        "my_texts": {
+        "my_ch": {
             "composite": {
                 "sources": [
                     { "f64_histogram": { "histogram": { "field": "score_f64", "interval": 1 } } }
@@ -290,7 +290,7 @@ fn composite_histogram(index: &Index) {
 }
 fn composite_histogram_calendar(index: &Index) {
     let agg_req = json!({
-        "my_texts": {
+        "my_chc": {
             "composite": {
                 "sources": [
                     { "time_histogram": { "date_histogram": { "field": "timestamp", "calendar_interval": "month" } } }

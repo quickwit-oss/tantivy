@@ -401,8 +401,10 @@ fn resolve_internal_value_repr(
         CompositeAggregationSource::Terms(_) => {
             resolve_term(val, column_type, str_dict_column, column)?
         }
-        CompositeAggregationSource::Histogram(_) => {
-            CompositeIntermediateKey::F64(f64::from_u64(val))
+        CompositeAggregationSource::Histogram(source) => {
+            // Results are collected as interval indices to avoid Fx Hash collisions.
+            // Multiply back by the interval to get the bucket value.
+            CompositeIntermediateKey::F64(i64::from_u64(val) as f64 * source.interval)
         }
         CompositeAggregationSource::DateHistogram(_) => {
             CompositeIntermediateKey::I64(i64::from_u64(val))
@@ -525,8 +527,12 @@ fn recursive_key_visitor(
                             )
                         }
                     };
-                    let bucket_value = (float_value / source.interval).floor() * source.interval;
-                    f64::to_u64(bucket_value)
+                    // We use the interval index (as i64) instead of its value
+                    // (f64) because Fx Hash has a very high collision rate when
+                    // lower bits are similar. The index needs to be multiplied
+                    // back by the interval when building the result.
+                    let bucket_index = (float_value / source.interval).floor() as i64;
+                    i64::to_u64(bucket_index)
                 }
                 CompositeAggregationSource::DateHistogram(_) => {
                     let value_ns = match accessor.column_type {

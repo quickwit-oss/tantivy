@@ -187,13 +187,16 @@ impl CompositeSourceAccessors {
                     .collect::<crate::Result<_>>()?;
                 let after_key = match source_after_key_opt {
                     Some(CompositeKey::I64(key)) => {
-                        PrecomputedAfterKey::Exact((*key as f64).to_u64())
+                        let normalized_key = *key as f64 / source.interval;
+                        num_proj::f64_to_i64(normalized_key).into()
                     }
                     Some(CompositeKey::U64(key)) => {
-                        PrecomputedAfterKey::Exact((*key as f64).to_u64())
+                        let normalized_key = *key as f64 / source.interval;
+                        num_proj::f64_to_i64(normalized_key).into()
                     }
                     Some(CompositeKey::F64(key)) => {
-                        PrecomputedAfterKey::Exact((*key as f64).to_u64())
+                        let normalized_key = *key / source.interval;
+                        num_proj::f64_to_i64(normalized_key).into()
                     }
                     Some(CompositeKey::Null) => {
                         precompute_missing_after_key(true, source.missing_order, source.order)

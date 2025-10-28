@@ -1471,6 +1471,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         {
             let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            index_writer.add_document(doc!(num_field => -0.5f64))?;
             index_writer.add_document(doc!(num_field => 1.0f64))?;
             index_writer.add_document(doc!(num_field => 2.0f64))?;
             index_writer.add_document(doc!(num_field => 5.0f64))?;
@@ -1489,11 +1490,72 @@ mod tests {
                 "size": 10
             }),
             json!([
+                {"key": {"val_hist": -5.0}, "doc_count": 1},
                 {"key": {"val_hist": 0.0}, "doc_count": 2},
                 {"key": {"val_hist": 5.0}, "doc_count": 2},
                 {"key": {"val_hist": 10.0}, "doc_count": 1}
             ]),
         );
+        Ok(())
+    }
+
+    #[test]
+    fn composite_aggregation_histogram_json_mixed_types() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let json_field = schema_builder.add_json_field("json_data", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
+            // this segment's numeric is i64
+            index_writer.add_document(doc!(json_field => json!({"id": "doc1"})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": 100})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": true})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": "doc2"})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": 50})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": false})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": "doc3"})))?;
+            index_writer.commit()?;
+            // this segment's numeric is f64
+            index_writer.add_document(doc!(json_field => json!({"id": 33.3})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": 50})))?;
+            index_writer.add_document(doc!(json_field => json!({"id": -0.01})))?;
+            index_writer.commit()?;
+        }
+
+        exec_and_assert_all_paginations(
+            &index,
+            json!({
+                "sources": [
+                    {"id": {"histogram": {"field": "json_data.id", "interval": 50, "order": "asc"}}}
+                ],
+                "size": 10
+            }),
+            json!([
+                {"key": {"id": -50.0}, "doc_count": 1},
+                {"key": {"id": 0.0}, "doc_count": 1},
+                {"key": {"id": 50.0}, "doc_count": 2},
+                {"key": {"id": 100.0}, "doc_count": 1},
+
+            ]),
+        );
+
+        // Test descending order
+        exec_and_assert_all_paginations(
+            &index,
+            json!({
+                "sources": [
+                    {"id": {"histogram": {"field": "json_data.id", "interval": 50, "order": "desc"}}}
+                ],
+                "size": 10
+            }),
+            json!([
+                {"key": {"id": 100.0}, "doc_count": 1},
+                {"key": {"id": 50.0}, "doc_count": 2},
+                {"key": {"id": 0.0}, "doc_count": 1},
+                {"key": {"id": -50.0}, "doc_count": 1},
+            ]),
+        );
+
         Ok(())
     }
 
