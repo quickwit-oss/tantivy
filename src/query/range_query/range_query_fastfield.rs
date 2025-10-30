@@ -2,6 +2,7 @@
 //! We use this variant only if the fastfield exists, otherwise the default in `range_query` is
 //! used, which uses the term dictionary + postings.
 
+use std::io;
 use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
@@ -9,7 +10,7 @@ use columnar::{
     Column, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, NumericalType,
     StrColumn,
 };
-use common::bounds::{inner_bound, map_bound, transform_bound_inner, BoundsRange, TransformBound};
+use common::bounds::{BoundsRange, TransformBound};
 
 use super::fast_field_range_doc_set::RangeDocSet;
 use crate::query::{
@@ -64,7 +65,6 @@ impl Weight for FastFieldRangeWeight {
             .expect("At least one bound must be set");
         let schema = reader.schema();
         let field_type = schema.get_field_entry(term.field()).field_type();
-
         assert_eq!(
             term.typ(),
             field_type.value_type(),
@@ -86,32 +86,10 @@ impl Weight for FastFieldRangeWeight {
             //
             // In the JSON case the provided type in term may not exactly match the column type,
             // especially with the numeric type interpolation
-            let lower_typ = inner_bound(&bounds.lower_bound).map(|bound| bound.typ());
-            let upper_typ = inner_bound(&bounds.upper_bound).map(|bound| bound.typ());
-
-            let typ = match (lower_typ, upper_typ) {
-                (Some(lower_typ), Some(upper_typ)) => {
-                    // If types are the same, or types are both numerical type, use lower_typ
-                    if lower_typ == upper_typ
-                        || (lower_typ.numerical_type().is_some()
-                            && upper_typ.numerical_type().is_some())
-                    {
-                        lower_typ
-                    // If any type is Str, use Str
-                    } else if lower_typ == Type::Str || upper_typ == Type::Str {
-                        Type::Str
-                    } else {
-                        return Err(crate::TantivyError::InvalidArgument(format!(
-                            "unsupported value bytes type in json term lower type {:?} and upper \
-                             type {:?}",
-                            lower_typ, upper_typ
-                        )));
-                    }
-                }
-                (Some(lower_typ), None) => lower_typ,
-                (None, Some(upper_typ)) => upper_typ,
-                (None, None) => unreachable!(),
-            };
+            let json_value_bytes = term_value
+                .as_json_value_bytes()
+                .expect("expected json type in term");
+            let typ = json_value_bytes.typ();
 
             match typ {
                 Type::Str => {
@@ -134,14 +112,9 @@ impl Weight for FastFieldRangeWeight {
                     };
                     search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
                 }
-                Type::U64 | Type::I64 | Type::F64 => search_on_json_numerical_field(
-                    reader,
-                    &field_name,
-                    lower_typ,
-                    upper_typ,
-                    bounds,
-                    boost,
-                ),
+                Type::U64 | Type::I64 | Type::F64 => {
+                    search_on_json_numerical_field(reader, &field_name, typ, bounds, boost)
+                }
                 Type::Date => {
                     let fast_field_reader = reader.fast_fields();
                     let Some((column, _col_type)) = fast_field_reader
@@ -266,8 +239,7 @@ impl Weight for FastFieldRangeWeight {
 fn search_on_json_numerical_field(
     reader: &SegmentReader,
     field_name: &str,
-    lower_typ: Option<Type>,
-    upper_typ: Option<Type>,
+    typ: Type,
     bounds: BoundsRange<ValueBytes<Vec<u8>>>,
     boost: Score,
 ) -> crate::Result<Box<dyn Scorer>> {
@@ -285,122 +257,19 @@ fn search_on_json_numerical_field(
         .numerical_type()
         .unwrap_or_else(|| panic!("internal error: couldn't cast to numerical_type: {col_type:?}"));
 
-    let lower_bound = bounds.lower_bound;
-    let upper_bound = bounds.upper_bound;
-
-    let lower_bound = match lower_typ {
-        Some(lower_typ) => {
-            match lower_typ.numerical_type().unwrap() {
-                NumericalType::I64 => {
-                    let lower_bound = map_bound(&lower_bound, |term: &ValueBytes<Vec<u8>>| {
-                        term.as_i64().unwrap()
-                    });
-                    match actual_column_type {
-                        NumericalType::I64 => map_bound(&lower_bound, |&term| term.to_u64()),
-                        NumericalType::U64 => transform_bound_inner(&lower_bound, |&val| {
-                            if val < 0 {
-                                return TransformBound::NewBound(Bound::Unbounded);
-                            }
-                            TransformBound::Existing(val as u64)
-                        }),
-                        NumericalType::F64 => {
-                            map_bound(&lower_bound, |&term| (term as f64).to_u64())
-                        }
-                    }
-                }
-                NumericalType::U64 => {
-                    let lower_bound = map_bound(&lower_bound, |term: &ValueBytes<Vec<u8>>| {
-                        term.as_u64().unwrap()
-                    });
-                    match actual_column_type {
-                        NumericalType::U64 => map_bound(&lower_bound, |term| term.to_u64()),
-                        NumericalType::I64 => {
-                            transform_bound_inner(&lower_bound, |&val| {
-                                if val > i64::MAX as u64 {
-                                    // Actual no hits case
-                                    return TransformBound::NewBound(Bound::Excluded(
-                                        i64::MAX as u64,
-                                    ));
-                                }
-                                TransformBound::Existing((val as i64).to_u64())
-                            })
-                        }
-                        NumericalType::F64 => {
-                            map_bound(&lower_bound, |&term| (term as f64).to_u64())
-                        }
-                    }
-                }
-                NumericalType::F64 => {
-                    let lower_bound = map_bound(&lower_bound, |term: &ValueBytes<Vec<u8>>| {
-                        term.as_f64().unwrap()
-                    });
-                    match actual_column_type {
-                        NumericalType::U64 => transform_from_f64_lower_bound::<u64>(&lower_bound),
-                        NumericalType::I64 => transform_from_f64_lower_bound::<i64>(&lower_bound),
-                        NumericalType::F64 => map_bound(&lower_bound, |&term| term.to_u64()),
-                    }
-                }
-            }
+    let bounds = match actual_column_type {
+        NumericalType::I64 => bounds.transform_inner_res::<_, io::Error>(
+            transform_to_i64::<true>,
+            transform_to_i64::<false>,
+        )?,
+        NumericalType::U64 => bounds.transform_inner_res::<_, std::io::Error>(
+            transform_to_u64::<true>,
+            transform_to_u64::<false>,
+        )?,
+        NumericalType::F64 => {
+            bounds.transform_inner_res::<_, std::io::Error>(transform_to_f64, transform_to_f64)?
         }
-        None => Bound::Unbounded,
     };
-
-    let upper_bound = match upper_typ {
-        Some(upper_typ) => {
-            match upper_typ.numerical_type().unwrap() {
-                NumericalType::I64 => {
-                    let upper_bound = map_bound(&upper_bound, |term: &ValueBytes<Vec<u8>>| {
-                        term.as_i64().unwrap()
-                    });
-                    match actual_column_type {
-                        NumericalType::I64 => map_bound(&upper_bound, |&term| term.to_u64()),
-                        NumericalType::U64 => {
-                            transform_bound_inner(&upper_bound, |&val| {
-                                if val < 0 {
-                                    // no hits case
-                                    return TransformBound::NewBound(Bound::Excluded(0));
-                                }
-                                TransformBound::Existing(val as u64)
-                            })
-                        }
-                        NumericalType::F64 => {
-                            map_bound(&upper_bound, |&term| (term as f64).to_u64())
-                        }
-                    }
-                }
-                NumericalType::U64 => {
-                    let upper_bound = map_bound(&upper_bound, |term: &ValueBytes<Vec<u8>>| {
-                        term.as_u64().unwrap()
-                    });
-                    match actual_column_type {
-                        NumericalType::U64 => map_bound(&upper_bound, |&term| term.to_u64()),
-                        NumericalType::I64 => transform_bound_inner(&upper_bound, |&val| {
-                            if val > i64::MAX as u64 {
-                                return TransformBound::NewBound(Bound::Unbounded);
-                            }
-                            TransformBound::Existing((val as i64).to_u64())
-                        }),
-                        NumericalType::F64 => {
-                            map_bound(&upper_bound, |&term| (term as f64).to_u64())
-                        }
-                    }
-                }
-                NumericalType::F64 => {
-                    let upper_bound = map_bound(&upper_bound, |term: &ValueBytes<Vec<u8>>| {
-                        term.as_f64().unwrap()
-                    });
-                    match actual_column_type {
-                        NumericalType::U64 => transform_from_f64_upper_bound::<u64>(&upper_bound),
-                        NumericalType::I64 => transform_from_f64_upper_bound::<i64>(&upper_bound),
-                        NumericalType::F64 => map_bound(&upper_bound, |&term| term.to_u64()),
-                    }
-                }
-            }
-        }
-        None => Bound::Unbounded,
-    };
-    let bounds = BoundsRange::new(lower_bound, upper_bound);
-
     search_on_u64_ff(
         column,
         boost,
@@ -443,43 +312,126 @@ impl IntType for u64 {
     }
 }
 
-fn transform_from_f64_lower_bound<T: IntType + MonotonicallyMappableToU64>(
-    lower_bound: &Bound<f64>,
-) -> Bound<u64> {
-    transform_bound_inner(lower_bound, |&lower_bound| {
-        if lower_bound < T::min().to_f64() {
-            return TransformBound::NewBound(Bound::Unbounded);
-        }
-        if lower_bound > T::max().to_f64() {
-            // no hits case
+fn transform_from_f64<T: IntType + MonotonicallyMappableToU64, const IS_LOWER_BOUND: bool>(
+    val: f64,
+) -> TransformBound<u64> {
+    if val < T::min().to_f64() {
+        return TransformBound::NewBound(Bound::Unbounded);
+    }
+    if val > T::max().to_f64() {
+        // no hits case
+        if IS_LOWER_BOUND {
             return TransformBound::NewBound(Bound::Excluded(u64::MAX));
-        }
-
-        if lower_bound.fract() == 0.0 {
-            TransformBound::Existing(T::from_f64(lower_bound).to_u64())
         } else {
-            TransformBound::NewBound(Bound::Included(T::from_f64(lower_bound.trunc()).to_u64()))
-        }
-    })
-}
-
-fn transform_from_f64_upper_bound<T: IntType + MonotonicallyMappableToU64>(
-    upper_bound: &Bound<f64>,
-) -> Bound<u64> {
-    transform_bound_inner(upper_bound, |&upper_bound| {
-        if upper_bound < T::min().to_f64() {
-            return TransformBound::NewBound(Bound::Unbounded);
-        }
-        if upper_bound > T::max().to_f64() {
-            // no hits case
             return TransformBound::NewBound(Bound::Included(u64::MAX));
         }
-        if upper_bound.fract() == 0.0 {
-            TransformBound::Existing(T::from_f64(upper_bound).to_u64())
-        } else {
-            TransformBound::NewBound(Bound::Included(T::from_f64(upper_bound.trunc()).to_u64()))
+    }
+    if val.fract() == 0.0 {
+        TransformBound::Existing(T::from_f64(val).to_u64())
+    } else {
+        TransformBound::NewBound(Bound::Included(T::from_f64(val.trunc()).to_u64()))
+    }
+}
+
+fn transform_to_i64<const IS_LOWER_BOUND: bool>(
+    term: &ValueBytes<Vec<u8>>,
+) -> io::Result<TransformBound<u64>> {
+    let val = match term.typ() {
+        Type::I64 => {
+            let val = term.as_i64().unwrap();
+            val.to_u64()
         }
-    })
+        Type::U64 => {
+            let val = term.as_u64().unwrap();
+            if val > i64::MAX as u64 {
+                if IS_LOWER_BOUND {
+                    // Actual no hits case
+                    return Ok(TransformBound::NewBound(Bound::Excluded(i64::MAX as u64)));
+                } else {
+                    return Ok(TransformBound::NewBound(Bound::Unbounded));
+                }
+            }
+            (val as i64).to_u64()
+        }
+        Type::F64 => {
+            let val = term.as_f64().unwrap();
+            return Ok(transform_from_f64::<i64, IS_LOWER_BOUND>(val));
+        }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Expected term with u64, i64 or f64, but got {:?}",
+                    term.typ()
+                ),
+            ));
+        }
+    };
+    Ok(TransformBound::Existing(val))
+}
+
+fn transform_to_u64<const IS_LOWER_BOUND: bool>(
+    term: &ValueBytes<Vec<u8>>,
+) -> io::Result<TransformBound<u64>> {
+    let val = match term.typ() {
+        Type::I64 => {
+            let val = term.as_i64().unwrap();
+            if val < 0 {
+                if IS_LOWER_BOUND {
+                    return Ok(TransformBound::NewBound(Bound::Unbounded));
+                } else {
+                    // Actual no hits case
+                    return Ok(TransformBound::NewBound(Bound::Excluded(0)));
+                }
+            }
+            (val as u64).to_u64()
+        }
+        Type::U64 => {
+            let val = term.as_u64().unwrap();
+            val.to_u64()
+        }
+        Type::F64 => {
+            let val = term.as_f64().unwrap();
+            return Ok(transform_from_f64::<u64, IS_LOWER_BOUND>(val));
+        }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Expected term with u64, i64 or f64, but got {:?}",
+                    term.typ()
+                ),
+            ));
+        }
+    };
+    Ok(TransformBound::Existing(val))
+}
+
+fn transform_to_f64(term: &ValueBytes<Vec<u8>>) -> io::Result<TransformBound<u64>> {
+    let val = match term.typ() {
+        Type::I64 => {
+            let val = term.as_i64().unwrap();
+            (val as f64).to_u64()
+        }
+        Type::U64 => {
+            let val = term.as_u64().unwrap();
+            (val as f64).to_u64()
+        }
+        Type::F64 => {
+            let val = term.as_f64().unwrap();
+            val.to_u64()
+        }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Expected term with u64, i64 or f64, but got {:?}",
+                    term.typ()
+                ),
+            ));
+        }
+    };
+    Ok(TransformBound::Existing(val))
 }
 
 fn search_on_u64_ff(
