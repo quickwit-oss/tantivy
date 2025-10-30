@@ -690,13 +690,13 @@ impl TopDocs {
     ///
     /// # See also
     /// - [custom_score(...)](TopDocs::custom_score)
-    pub fn tweak_score<TScore, TScoreTweaker>(
+    pub fn tweak_score<TScoreTweaker, TScore>(
         self,
         score_tweaker: TScoreTweaker,
     ) -> impl Collector<Fruit = Vec<(TScore, DocAddress)>>
     where
-        TScore: 'static + Send + Sync + Clone + PartialOrd,
-        TScoreTweaker: ScoreTweaker<TScore> + Send + Sync,
+        TScore: 'static + Clone + Send + Sync + PartialOrd,
+        TScoreTweaker: ScoreTweaker<Score=TScore> + Send + Sync,
     {
         TweakedScoreTopCollector::new(score_tweaker, self.0.into_tscore())
     }

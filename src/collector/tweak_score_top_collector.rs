@@ -4,7 +4,7 @@ use crate::collector::top_collector::{TopCollector, TopSegmentCollector};
 use crate::collector::{Collector, SegmentCollector};
 use crate::{DocAddress, DocId, Result, Score, SegmentReader};
 
-pub(crate) struct TweakedScoreTopCollector<TScoreTweaker, TScore = Score> {
+pub(crate) struct TweakedScoreTopCollector<TScoreTweaker, TScore> {
     score_tweaker: TScoreTweaker,
     collector: TopCollector<TScore>,
 }
@@ -28,14 +28,20 @@ where TScore: Clone + PartialOrd
 ///
 /// It is the segment local version of the [`ScoreTweaker`].
 pub trait ScoreSegmentTweaker: 'static {
+    /// The final score being emitted.
+    type Score: 'static + PartialOrd + Send + Sync + Clone;
+
     /// Score used by at the segment level by the `ScoreSegmentTweaker`.
-    type SegmentScore: 'static + PartialOrd + Clone + Send + Sync;
+    ///
+    /// It is typically small like a `u64`, and is meant to be converted
+    /// to the final score at the end of the collection of the segment.
+    type SegmentScore: 'static + PartialOrd + Clone + Send + Sync + Clone;
 
     /// Tweak the given `score` for the document `doc`.
     fn score(&mut self, doc: DocId, score: Score) -> Self::SegmentScore;
 
-    /// Returns true if the `ScoreSegmentTweaker` is a good candidate for the lazy evaluation optimization.
-    /// See [`ScoreSegmentTweaker::accept_score_lazy`].
+    /// Returns true if the `ScoreSegmentTweaker` is a good candidate for the lazy evaluation
+    /// optimization. See [`ScoreSegmentTweaker::accept_score_lazy`].
     fn is_lazy() -> bool {
         false
     }
@@ -48,7 +54,8 @@ pub trait ScoreSegmentTweaker: 'static {
     ///
     /// If REVERSE_ORDER is false (resp. true),
     /// - we return None if the score is below the threshold (resp. above to the threshold)
-    /// - we return Some(ordering, score) if the score is above or equal to the threshold (resp. below or equal to)
+    /// - we return Some(ordering, score) if the score is above or equal to the threshold (resp.
+    ///   below or equal to)
     fn accept_score_lazy<const REVERSE_ORDER: bool>(
         &mut self,
         doc_id: DocId,
@@ -68,6 +75,9 @@ pub trait ScoreSegmentTweaker: 'static {
             return Some((cmp, score));
         }
     }
+
+    /// Convert a segment level score into the global level score.
+    fn convert_score(&self, score: Self::SegmentScore) -> Self::Score;
 }
 
 /// `ScoreTweaker` makes it possible to tweak the score
@@ -76,9 +86,11 @@ pub trait ScoreSegmentTweaker: 'static {
 /// The `ScoreTweaker` itself does not make much of the computation itself.
 /// Instead, it helps constructing `Self::Child` instances that will compute
 /// the score at a segment scale.
-pub trait ScoreTweaker<TScore>: Sync {
+pub trait ScoreTweaker: Sync {
+    /// The actual score emitted by the Tweaker.
+    type Score: 'static + Send + Sync + PartialOrd + Clone;
     /// Type of the associated [`ScoreSegmentTweaker`].
-    type Child: ScoreSegmentTweaker<SegmentScore = TScore>;
+    type Child: ScoreSegmentTweaker<Score = Self::Score>;
 
     /// Builds a child tweaker for a specific segment. The child scorer is associated with
     /// a specific segment.
@@ -87,10 +99,10 @@ pub trait ScoreTweaker<TScore>: Sync {
 
 impl<TScoreTweaker, TScore> Collector for TweakedScoreTopCollector<TScoreTweaker, TScore>
 where
-    TScoreTweaker: ScoreTweaker<TScore> + Send + Sync,
-    TScore: 'static + PartialOrd + Clone + Send + Sync,
+    TScoreTweaker: ScoreTweaker<Score = TScore> + Send + Sync,
+    TScore: 'static + Send + PartialOrd + Sync + Clone,
 {
-    type Fruit = Vec<(TScore, DocAddress)>;
+    type Fruit = Vec<(TScoreTweaker::Score, DocAddress)>;
 
     type Child = TopTweakedScoreSegmentCollector<TScoreTweaker::Child>;
 
@@ -127,28 +139,37 @@ impl<TSegmentScoreTweaker> SegmentCollector
     for TopTweakedScoreSegmentCollector<TSegmentScoreTweaker>
 where TSegmentScoreTweaker: 'static + ScoreSegmentTweaker
 {
-    type Fruit = Vec<(TSegmentScoreTweaker::SegmentScore, DocAddress)>;
+    type Fruit = Vec<(TSegmentScoreTweaker::Score, DocAddress)>;
 
     fn collect(&mut self, doc: DocId, score: Score) {
         // Thanks to generics, this if-statement is free.
         if TSegmentScoreTweaker::is_lazy() {
-            self.segment_collector.topn_computer.push_lazy(doc, score, &mut self.segment_scorer);
+            self.segment_collector
+                .topn_computer
+                .push_lazy(doc, score, &mut self.segment_scorer);
         } else {
             let score = self.segment_scorer.score(doc, score);
             self.segment_collector.collect(doc, score);
         }
     }
 
-    fn harvest(self) -> Vec<(TSegmentScoreTweaker::SegmentScore, DocAddress)> {
-        self.segment_collector.harvest()
+    fn harvest(self) -> Self::Fruit {
+        let segment_hits: Vec<(TSegmentScoreTweaker::SegmentScore, DocAddress)> =
+            self.segment_collector.harvest();
+        segment_hits
+            .into_iter()
+            .map(|(score, doc)| (self.segment_scorer.convert_score(score), doc))
+            .collect()
     }
 }
 
-impl<F, TScore, TSegmentScoreTweaker> ScoreTweaker<TScore> for F
+impl<F, TSegmentScoreTweaker> ScoreTweaker for F
 where
     F: 'static + Send + Sync + Fn(&SegmentReader) -> TSegmentScoreTweaker,
-    TSegmentScoreTweaker: ScoreSegmentTweaker<SegmentScore = TScore>,
+    TSegmentScoreTweaker: ScoreSegmentTweaker,
 {
+
+    type Score = TSegmentScoreTweaker::Score;
     type Child = TSegmentScoreTweaker;
 
     fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
@@ -156,13 +177,180 @@ where
     }
 }
 
+
 impl<F, TScore> ScoreSegmentTweaker for F
 where
     F: 'static + FnMut(DocId, Score) -> TScore,
     TScore: 'static + PartialOrd + Clone + Send + Sync,
 {
+    type Score = TScore;
     type SegmentScore = TScore;
+
     fn score(&mut self, doc: DocId, score: Score) -> TScore {
         (self)(doc, score)
+    }
+
+    /// Convert a segment level score into the global level score.
+    fn convert_score(&self, score: Self::SegmentScore) -> Self::Score {
+        score
+    }
+}
+
+impl<HeadScoreTweaker, TailScoreTweaker> ScoreTweaker for (HeadScoreTweaker, TailScoreTweaker)
+where
+    HeadScoreTweaker: ScoreTweaker,
+    TailScoreTweaker: ScoreTweaker,
+{
+    type Score = (<HeadScoreTweaker::Child as ScoreSegmentTweaker>::Score, <TailScoreTweaker::Child as ScoreSegmentTweaker>::Score);
+    type Child = (HeadScoreTweaker::Child, TailScoreTweaker::Child);
+
+    fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+        Ok((
+            self.0.segment_tweaker(segment_reader)?,
+            self.1.segment_tweaker(segment_reader)?,
+        ))
+    }
+}
+
+impl<HeadScoreSegmentTweaker, TailScoreSegmentTweaker> ScoreSegmentTweaker
+    for (HeadScoreSegmentTweaker, TailScoreSegmentTweaker)
+where
+    HeadScoreSegmentTweaker: ScoreSegmentTweaker,
+    TailScoreSegmentTweaker: ScoreSegmentTweaker,
+{
+    type Score = (
+        HeadScoreSegmentTweaker::Score,
+        TailScoreSegmentTweaker::Score,
+    );
+    type SegmentScore = (
+        HeadScoreSegmentTweaker::SegmentScore,
+        TailScoreSegmentTweaker::SegmentScore,
+    );
+
+    fn score(&mut self, doc: DocId, score: Score) -> Self::SegmentScore {
+        let head_score = self.0.score(doc, score);
+        let tail_score = self.1.score(doc, score);
+        (head_score, tail_score)
+    }
+
+    fn accept_score_lazy<const REVERSE_ORDER: bool>(
+        &mut self,
+        doc_id: DocId,
+        score: Score,
+        threshold: &Self::SegmentScore,
+    ) -> Option<(Ordering, Self::SegmentScore)> {
+        let (head_threshold, tail_threshold) = threshold;
+        let (head_cmp, head_score) =
+            self.0
+                .accept_score_lazy::<REVERSE_ORDER>(doc_id, score, head_threshold)?;
+        if head_cmp == Ordering::Equal {
+            let (tail_cmp, tail_score) =
+                self.1
+                    .accept_score_lazy::<REVERSE_ORDER>(doc_id, score, tail_threshold)?;
+            Some((tail_cmp, (head_score, tail_score)))
+        } else {
+            let tail_score = self.1.score(doc_id, score);
+            Some((head_cmp, (head_score, tail_score)))
+        }
+    }
+
+    fn is_lazy() -> bool {
+        true
+    }
+
+    fn convert_score(&self, score: Self::SegmentScore) -> Self::Score {
+        let (head_score, tail_score) = score;
+        (
+            self.0.convert_score(head_score),
+            self.1.convert_score(tail_score),
+        )
+    }
+}
+
+/// This struct is used as an adapter to take a segment score tweaker and map its score to another new score.
+pub struct MappedSegmentScoreTweaker<T, PreviousScore, NewScore> {
+    tweaker: T,
+    map: fn(PreviousScore) -> NewScore,
+}
+
+impl<T, PreviousScore, NewScore> ScoreSegmentTweaker for MappedSegmentScoreTweaker<T, PreviousScore, NewScore>
+where
+    T: ScoreSegmentTweaker<Score = PreviousScore>,
+    PreviousScore: 'static + Clone + Send + Sync + PartialOrd,
+    NewScore: 'static + Clone + Send + Sync + PartialOrd,
+{
+    type Score = NewScore;
+    type SegmentScore = T::SegmentScore;
+
+    fn score(&mut self, doc: DocId, score: Score) -> Self::SegmentScore {
+        self.tweaker.score(doc, score)
+    }
+
+    fn accept_score_lazy<const REVERSE_ORDER: bool>(
+            &mut self,
+            doc_id: DocId,
+            score: Score,
+            threshold: &Self::SegmentScore,
+        ) -> Option<(std::cmp::Ordering, Self::SegmentScore)> {
+        self.tweaker.accept_score_lazy::<REVERSE_ORDER>(doc_id, score, threshold)
+    }
+
+    fn is_lazy() -> bool {
+        T::is_lazy()
+    }
+
+    fn convert_score(&self, score: Self::SegmentScore) -> Self::Score {
+        (self.map)(self.tweaker.convert_score(score))
+    }
+}
+
+
+// We then re-use our (head, tail) implement and our mapper by seeing mapping any tuple (a, b, c, ...) as the chain (a, (b, (c, ...)))
+
+impl<ScoreTweaker1, ScoreTweaker2, ScoreTweaker3> ScoreTweaker for (ScoreTweaker1, ScoreTweaker2, ScoreTweaker3)
+where
+    ScoreTweaker1: ScoreTweaker,
+    ScoreTweaker2: ScoreTweaker,
+    ScoreTweaker3: ScoreTweaker,
+{
+    type Child = MappedSegmentScoreTweaker<<(ScoreTweaker1, (ScoreTweaker2, ScoreTweaker3)) as  ScoreTweaker>::Child, (ScoreTweaker1::Score, (ScoreTweaker2::Score, ScoreTweaker3::Score)), Self::Score>;
+    type Score = (ScoreTweaker1::Score, ScoreTweaker2::Score, ScoreTweaker3::Score);
+
+    fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+        let score_tweaker1 = self.0.segment_tweaker(segment_reader)?;
+        let score_tweaker2 = self.1.segment_tweaker(segment_reader)?;
+        let score_tweaker3 = self.2.segment_tweaker(segment_reader)?;
+        Ok(
+            MappedSegmentScoreTweaker {
+                tweaker: (score_tweaker1, (score_tweaker2, score_tweaker3)),
+                map: | (score1, (score2, score3))| (score1, score2, score3),
+            }
+        )
+
+    }
+}
+
+impl<ScoreTweaker1, ScoreTweaker2, ScoreTweaker3, ScoreTweaker4> ScoreTweaker for (ScoreTweaker1, ScoreTweaker2, ScoreTweaker3, ScoreTweaker4)
+where
+    ScoreTweaker1: ScoreTweaker,
+    ScoreTweaker2: ScoreTweaker,
+    ScoreTweaker3: ScoreTweaker,
+    ScoreTweaker4: ScoreTweaker,
+{
+    type Child = MappedSegmentScoreTweaker<<(ScoreTweaker1, (ScoreTweaker2, (ScoreTweaker3, ScoreTweaker4))) as  ScoreTweaker>::Child, (ScoreTweaker1::Score, (ScoreTweaker2::Score, (ScoreTweaker3::Score, ScoreTweaker4::Score))), Self::Score>;
+    type Score = (ScoreTweaker1::Score, ScoreTweaker2::Score, ScoreTweaker3::Score, ScoreTweaker4::Score);
+
+    fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+        let score_tweaker1 = self.0.segment_tweaker(segment_reader)?;
+        let score_tweaker2 = self.1.segment_tweaker(segment_reader)?;
+        let score_tweaker3 = self.2.segment_tweaker(segment_reader)?;
+        let score_tweaker4 = self.3.segment_tweaker(segment_reader)?;
+        Ok(
+            MappedSegmentScoreTweaker {
+                tweaker: (score_tweaker1, (score_tweaker2, (score_tweaker3, score_tweaker4))),
+                map: | (score1, (score2, (score3, score4)))| (score1, score2, score3, score4),
+            }
+        )
+
     }
 }
