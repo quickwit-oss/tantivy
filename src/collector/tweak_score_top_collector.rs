@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::collector::top_collector::{TopCollector, TopSegmentCollector};
 use crate::collector::{Collector, SegmentCollector};
 use crate::{DocAddress, DocId, Result, Score, SegmentReader};
@@ -25,9 +27,47 @@ where TScore: Clone + PartialOrd
 /// for a given document belonging to a specific segment.
 ///
 /// It is the segment local version of the [`ScoreTweaker`].
-pub trait ScoreSegmentTweaker<TScore>: 'static {
+pub trait ScoreSegmentTweaker: 'static {
+    /// Score used by at the segment level by the `ScoreSegmentTweaker`.
+    type SegmentScore: 'static + PartialOrd + Clone + Send + Sync;
+
     /// Tweak the given `score` for the document `doc`.
-    fn score(&mut self, doc: DocId, score: Score) -> TScore;
+    fn score(&mut self, doc: DocId, score: Score) -> Self::SegmentScore;
+
+    /// Returns true if the `ScoreSegmentTweaker` is a good candidate for the lazy evaluation optimization.
+    /// See [`ScoreSegmentTweaker::accept_score_lazy`].
+    fn is_lazy() -> bool {
+        false
+    }
+
+    /// Implementing this method makes it possible to avoid computing
+    /// a score entirely if we can assess that it won't pass a threshold
+    /// with a partial computation.
+    ///
+    /// This is currently used for lexicographic sorting.
+    ///
+    /// If REVERSE_ORDER is false (resp. true),
+    /// - we return None if the score is below the threshold (resp. above to the threshold)
+    /// - we return Some(ordering, score) if the score is above or equal to the threshold (resp. below or equal to)
+    fn accept_score_lazy<const REVERSE_ORDER: bool>(
+        &mut self,
+        doc_id: DocId,
+        score: Score,
+        threshold: &Self::SegmentScore,
+    ) -> Option<(std::cmp::Ordering, Self::SegmentScore)> {
+        let excluded_ordering = if REVERSE_ORDER {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        };
+        let score = self.score(doc_id, score);
+        let cmp = score.partial_cmp(threshold).unwrap_or(excluded_ordering);
+        if cmp == excluded_ordering {
+            return None;
+        } else {
+            return Some((cmp, score));
+        }
+    }
 }
 
 /// `ScoreTweaker` makes it possible to tweak the score
@@ -38,7 +78,7 @@ pub trait ScoreSegmentTweaker<TScore>: 'static {
 /// the score at a segment scale.
 pub trait ScoreTweaker<TScore>: Sync {
     /// Type of the associated [`ScoreSegmentTweaker`].
-    type Child: ScoreSegmentTweaker<TScore>;
+    type Child: ScoreSegmentTweaker<SegmentScore = TScore>;
 
     /// Builds a child tweaker for a specific segment. The child scorer is associated with
     /// a specific segment.
@@ -52,7 +92,7 @@ where
 {
     type Fruit = Vec<(TScore, DocAddress)>;
 
-    type Child = TopTweakedScoreSegmentCollector<TScoreTweaker::Child, TScore>;
+    type Child = TopTweakedScoreSegmentCollector<TScoreTweaker::Child>;
 
     fn for_segment(
         &self,
@@ -76,29 +116,30 @@ where
     }
 }
 
-pub struct TopTweakedScoreSegmentCollector<TSegmentScoreTweaker, TScore>
-where
-    TScore: 'static + PartialOrd + Clone + Send + Sync + Sized,
-    TSegmentScoreTweaker: ScoreSegmentTweaker<TScore>,
+pub struct TopTweakedScoreSegmentCollector<TSegmentScoreTweaker>
+where TSegmentScoreTweaker: ScoreSegmentTweaker
 {
-    segment_collector: TopSegmentCollector<TScore>,
+    segment_collector: TopSegmentCollector<TSegmentScoreTweaker::SegmentScore>,
     segment_scorer: TSegmentScoreTweaker,
 }
 
-impl<TSegmentScoreTweaker, TScore> SegmentCollector
-    for TopTweakedScoreSegmentCollector<TSegmentScoreTweaker, TScore>
-where
-    TScore: 'static + PartialOrd + Clone + Send + Sync,
-    TSegmentScoreTweaker: 'static + ScoreSegmentTweaker<TScore>,
+impl<TSegmentScoreTweaker> SegmentCollector
+    for TopTweakedScoreSegmentCollector<TSegmentScoreTweaker>
+where TSegmentScoreTweaker: 'static + ScoreSegmentTweaker
 {
-    type Fruit = Vec<(TScore, DocAddress)>;
+    type Fruit = Vec<(TSegmentScoreTweaker::SegmentScore, DocAddress)>;
 
     fn collect(&mut self, doc: DocId, score: Score) {
-        let score = self.segment_scorer.score(doc, score);
-        self.segment_collector.collect(doc, score);
+        // Thanks to generics, this if-statement is free.
+        if TSegmentScoreTweaker::is_lazy() {
+            self.segment_collector.topn_computer.push_lazy(doc, score, &mut self.segment_scorer);
+        } else {
+            let score = self.segment_scorer.score(doc, score);
+            self.segment_collector.collect(doc, score);
+        }
     }
 
-    fn harvest(self) -> Vec<(TScore, DocAddress)> {
+    fn harvest(self) -> Vec<(TSegmentScoreTweaker::SegmentScore, DocAddress)> {
         self.segment_collector.harvest()
     }
 }
@@ -106,7 +147,7 @@ where
 impl<F, TScore, TSegmentScoreTweaker> ScoreTweaker<TScore> for F
 where
     F: 'static + Send + Sync + Fn(&SegmentReader) -> TSegmentScoreTweaker,
-    TSegmentScoreTweaker: ScoreSegmentTweaker<TScore>,
+    TSegmentScoreTweaker: ScoreSegmentTweaker<SegmentScore = TScore>,
 {
     type Child = TSegmentScoreTweaker;
 
@@ -115,9 +156,12 @@ where
     }
 }
 
-impl<F, TScore> ScoreSegmentTweaker<TScore> for F
-where F: 'static + FnMut(DocId, Score) -> TScore
+impl<F, TScore> ScoreSegmentTweaker for F
+where
+    F: 'static + FnMut(DocId, Score) -> TScore,
+    TScore: 'static + PartialOrd + Clone + Send + Sync,
 {
+    type SegmentScore = TScore;
     fn score(&mut self, doc: DocId, score: Score) -> TScore {
         (self)(doc, score)
     }

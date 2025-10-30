@@ -690,14 +690,13 @@ impl TopDocs {
     ///
     /// # See also
     /// - [custom_score(...)](TopDocs::custom_score)
-    pub fn tweak_score<TScore, TScoreSegmentTweaker, TScoreTweaker>(
+    pub fn tweak_score<TScore, TScoreTweaker>(
         self,
         score_tweaker: TScoreTweaker,
     ) -> impl Collector<Fruit = Vec<(TScore, DocAddress)>>
     where
         TScore: 'static + Send + Sync + Clone + PartialOrd,
-        TScoreSegmentTweaker: ScoreSegmentTweaker<TScore> + 'static,
-        TScoreTweaker: ScoreTweaker<TScore, Child = TScoreSegmentTweaker> + Send + Sync,
+        TScoreTweaker: ScoreTweaker<TScore> + Send + Sync,
     {
         TweakedScoreTopCollector::new(score_tweaker, self.0.into_tscore())
     }
@@ -1003,17 +1002,15 @@ where
             self.threshold = Some(median);
         }
 
-        // This is faster since it avoids the buffer resizing to be inlined from vec.push()
-        // (this is in the hot path)
-        // TODO: Replace with `push_within_capacity` when it's stabilized
-        let uninit = self.buffer.spare_capacity_mut();
         // This cannot panic, because we truncate_median will at least remove one element, since
         // the min capacity is 2.
-        uninit[0].write(ComparableDoc { doc, feature });
-        // This is safe because it would panic in the line above
-        unsafe {
-            self.buffer.set_len(self.buffer.len() + 1);
-        }
+        self.append_within_capacity(ComparableDoc { doc, feature });
+    }
+
+    // ONLY CALL THIS FUNCTION WHEN YOU KNOW THE BUFFER HAS ENOUGH CAPACITY.
+    #[inline(always)]
+    fn append_within_capacity(&mut self, comparable_doc: ComparableDoc<Score, D, REVERSE_ORDER>) {
+        push_within_capacity(comparable_doc, &mut self.buffer);
     }
 
     #[inline(never)]
@@ -1045,6 +1042,46 @@ where
             self.truncate_top_n();
         }
         self.buffer
+    }
+}
+
+impl<TScore, const REVERSE_ORDER: bool> TopNComputer<TScore, DocId, REVERSE_ORDER>
+where TScore: PartialOrd + Clone
+{
+    #[inline(always)]
+    pub(crate) fn push_lazy(
+        &mut self,
+        doc: DocId,
+        score: Score,
+        score_tweaker: &mut impl ScoreSegmentTweaker<SegmentScore = TScore>,
+    ) {
+        if let Some(threshold) = self.threshold.as_ref() {
+            if let Some((_cmp, feature)) =
+                score_tweaker.accept_score_lazy::<REVERSE_ORDER>(doc, score, threshold)
+            {
+                self.append_within_capacity(ComparableDoc { feature, doc });
+            }
+        } else {
+            let feature = score_tweaker.score(doc, score);
+            self.append_within_capacity(ComparableDoc { feature, doc });
+        }
+    }
+}
+
+// Push an element provided there is enough capacity to do so.
+// TODO replace me when push_within_capacity is stabilized.
+#[inline(always)]
+fn push_within_capacity<T>(el: T, buf: &mut Vec<T>) {
+    let prev_len = buf.len();
+    if prev_len == buf.capacity() {
+        return;
+    }
+    // This is mimicking the current (non-stabilized) implementation in std.
+    // SAFETY: we just checked we have enough capacity.
+    unsafe {
+        let end = buf.as_mut_ptr().add(prev_len);
+        std::ptr::write(end, el);
+        buf.set_len(prev_len + 1);
     }
 }
 

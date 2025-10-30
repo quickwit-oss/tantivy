@@ -152,7 +152,7 @@ where T: PartialOrd + Clone
 pub(crate) struct TopSegmentCollector<T> {
     /// We reverse the order of the feature in order to
     /// have top-semantics instead of bottom semantics.
-    topn_computer: TopNComputer<T, DocId>,
+    pub(crate) topn_computer: TopNComputer<T, DocId>,
     segment_ord: u32,
 }
 
