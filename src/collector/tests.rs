@@ -40,7 +40,7 @@ pub fn test_filter_collector() -> crate::Result<()> {
     let filter_some_collector = FilterCollector::new(
         "price".to_string(),
         &|value: u64| value > 20_120u64,
-        TopDocs::with_limit(2),
+        TopDocs::with_limit(2).order_by_score(),
     );
     let top_docs = searcher.search(&query, &filter_some_collector)?;
 
@@ -50,7 +50,7 @@ pub fn test_filter_collector() -> crate::Result<()> {
     let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new(
         "price".to_string(),
         &|value| value < 5u64,
-        TopDocs::with_limit(2),
+        TopDocs::with_limit(2).order_by_score(),
     );
     let filtered_top_docs = searcher.search(&query, &filter_all_collector).unwrap();
 
@@ -62,8 +62,11 @@ pub fn test_filter_collector() -> crate::Result<()> {
             > 0
     }
 
-    let filter_dates_collector =
-        FilterCollector::new("date".to_string(), &date_filter, TopDocs::with_limit(5));
+    let filter_dates_collector = FilterCollector::new(
+        "date".to_string(),
+        &date_filter,
+        TopDocs::with_limit(5).order_by_score(),
+    );
     let filtered_date_docs = searcher.search(&query, &filter_dates_collector)?;
 
     assert_eq!(filtered_date_docs.len(), 2);

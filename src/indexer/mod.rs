@@ -589,7 +589,9 @@ mod tests_mmap {
             };
             let query_str = &format!("{}:{}", indexed_field.field_name, val);
             let query = query_parser.parse_query(query_str).unwrap();
-            let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
+            let count_docs = searcher
+                .search(&*query, &TopDocs::with_limit(2).order_by_score())
+                .unwrap();
             if indexed_field.field_name.contains("empty") || indexed_field.typ == Type::Json {
                 assert_eq!(count_docs.len(), 0);
             } else {
@@ -661,7 +663,9 @@ mod tests_mmap {
         for (indexed_field, val) in fields_and_vals.iter() {
             let query_str = &format!("{indexed_field}:{val}");
             let query = query_parser.parse_query(query_str).unwrap();
-            let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
+            let count_docs = searcher
+                .search(&*query, &TopDocs::with_limit(2).order_by_score())
+                .unwrap();
             assert!(!count_docs.is_empty(), "{indexed_field}:{val}");
         }
         // Test if field name can be used for aggregation

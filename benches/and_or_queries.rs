@@ -20,10 +20,11 @@ use binggan::{black_box, BenchGroup, BenchRunner};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use tantivy::collector::sort_key::SortByStaticFastValue;
 use tantivy::collector::{Collector, Count, TopDocs};
 use tantivy::query::{Query, QueryParser};
 use tantivy::schema::{Schema, FAST, TEXT};
-use tantivy::{doc, Index, Order, ReloadPolicy, Searcher, SegmentReader};
+use tantivy::{doc, Index, Order, ReloadPolicy, Searcher};
 
 #[derive(Clone)]
 struct BenchIndex {
@@ -159,7 +160,7 @@ fn main() {
                     &mut group,
                     &bench_index,
                     query_str,
-                    TopDocs::with_limit(10),
+                    TopDocs::with_limit(10).order_by_score(),
                     "top10",
                 );
                 add_bench_task(
@@ -173,15 +174,9 @@ fn main() {
                     &mut group,
                     &bench_index,
                     query_str,
-                    TopDocs::with_limit(10).custom_score(move |reader: &SegmentReader| {
-                        let score_col = reader.fast_fields().u64("score").unwrap();
-                        let score_col2 = reader.fast_fields().u64("score2").unwrap();
-                        move |doc| {
-                            let score = score_col.first(doc);
-                            let score2 = score_col2.first(doc);
-                            (score, score2)
-                        }
-                    }),
+                    TopDocs::with_limit(10).order_by(
+                        (SortByStaticFastValue::<u64>::for_field("score"), SortByStaticFastValue::<u64>::for_field("score2"))
+                    ),
                     "top10_by_2ff",
                 );
             }
