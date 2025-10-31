@@ -358,7 +358,7 @@ impl FilterAggregation {
         //
         // This limitation exists because:
         // - Query::weight() is called during execution, not during planning
-        // - The fallback decision is made per-segment based on field configuration
+        // - The fallback decision is based on schema configuration
         // - There's no Query trait method to declare potential fast field dependencies
         vec![]
     }
