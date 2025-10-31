@@ -9,10 +9,10 @@ use super::Collector;
 use crate::collector::custom_score_top_collector::{
     CustomScoreTopCollector, CustomScoreTopSegmentCollector,
 };
+use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
-use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
-    CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
+    CustomScorer, CustomSegmentScorer, SegmentCollector, SegmentSortKeyComputer, SortKeyComputer,
 };
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::query::Weight;
@@ -155,7 +155,7 @@ impl Collector for StringConvertCollector {
                 .into_sorted_vec()
                 .into_iter()
                 .skip(self.offset)
-                .map(|cdoc| (cdoc.feature, cdoc.doc))
+                .map(|cdoc| (cdoc.sort_key, cdoc.doc))
                 .collect())
         } else {
             let mut top_collector: TopNComputer<_, _, false> =
@@ -170,7 +170,7 @@ impl Collector for StringConvertCollector {
                 .into_sorted_vec()
                 .into_iter()
                 .skip(self.offset)
-                .map(|cdoc| (cdoc.feature, cdoc.doc))
+                .map(|cdoc| (cdoc.sort_key, cdoc.doc))
                 .collect())
         }
     }
@@ -598,7 +598,7 @@ impl TopDocs {
     ///
     /// This method offers a convenient way to tweak or replace
     /// the documents score. As suggested by the prototype you can
-    /// manually define your own [`ScoreTweaker`]
+    /// manually define your own [`SortKeyComputer`]
     /// and pass it as an argument, but there is a much simpler way to
     /// tweak your score: you can use a closure as in the following
     /// example.
@@ -690,15 +690,15 @@ impl TopDocs {
     ///
     /// # See also
     /// - [custom_score(...)](TopDocs::custom_score)
-    pub fn tweak_score<TScoreTweaker, TScore>(
+    pub fn by_sort_key<TSortKeyComputer, TSortKey>(
         self,
-        score_tweaker: TScoreTweaker,
-    ) -> impl Collector<Fruit = Vec<(TScore, DocAddress)>>
+        sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send + Sync,
+    ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
     where
-        TScore: 'static + Clone + Send + Sync + PartialOrd,
-        TScoreTweaker: ScoreTweaker<Score = TScore> + Send + Sync,
+        TSortKey: 'static + Clone + Send + Sync + PartialOrd,
+        TSortKeyComputer: SortKeyComputer<SortKey = TSortKey> + Send + Sync,
     {
-        TweakedScoreTopCollector::new(score_tweaker, self.0.into_tscore())
+        TopBySortKeyCollector::new(sort_key_computer, self.0.into_tscore())
     }
 
     /// Ranks the documents using a custom score.
@@ -872,7 +872,7 @@ impl Collector for TopDocs {
             .into_iter()
             .map(|cid| {
                 (
-                    cid.feature,
+                    cid.sort_key,
                     DocAddress {
                         segment_ord,
                         doc_id: cid.doc,
@@ -969,9 +969,9 @@ impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNCompu
     }
 }
 
-impl<Score, D, const REVERSE_ORDER: bool> TopNComputer<Score, D, REVERSE_ORDER>
+impl<TSortKey, D, const REVERSE_ORDER: bool> TopNComputer<TSortKey, D, REVERSE_ORDER>
 where
-    Score: PartialOrd + Clone,
+    TSortKey: PartialOrd + Clone,
     D: Ord,
 {
     /// Create a new `TopNComputer`.
@@ -988,12 +988,12 @@ where
     /// Push a new document to the top n.
     /// If the document is below the current threshold, it will be ignored.
     #[inline]
-    pub fn push(&mut self, feature: Score, doc: D) {
+    pub fn push(&mut self, sort_key: TSortKey, doc: D) {
         if let Some(last_median) = self.threshold.clone() {
-            if !REVERSE_ORDER && feature > last_median {
+            if !REVERSE_ORDER && sort_key > last_median {
                 return;
             }
-            if REVERSE_ORDER && feature < last_median {
+            if REVERSE_ORDER && sort_key < last_median {
                 return;
             }
         }
@@ -1004,21 +1004,16 @@ where
 
         // This cannot panic, because we truncate_median will at least remove one element, since
         // the min capacity is 2.
-        self.append_within_capacity(ComparableDoc { doc, feature });
-    }
-
-    // ONLY CALL THIS FUNCTION WHEN YOU KNOW THE BUFFER HAS ENOUGH CAPACITY.
-    #[inline(always)]
-    fn append_within_capacity(&mut self, comparable_doc: ComparableDoc<Score, D, REVERSE_ORDER>) {
-        push_within_capacity(comparable_doc, &mut self.buffer);
+        let comparable_doc = ComparableDoc { doc, sort_key };
+        push_assuming_capacity(comparable_doc, &mut self.buffer);
     }
 
     #[inline(never)]
-    fn truncate_top_n(&mut self) -> Score {
+    fn truncate_top_n(&mut self) -> TSortKey {
         // Use select_nth_unstable to find the top nth score
         let (_, median_el, _) = self.buffer.select_nth_unstable(self.top_n);
 
-        let median_score = median_el.feature.clone();
+        let median_score = median_el.sort_key.clone();
         // Remove all elements below the top_n
         self.buffer.truncate(self.top_n);
 
@@ -1026,7 +1021,7 @@ where
     }
 
     /// Returns the top n elements in sorted order.
-    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<Score, D, REVERSE_ORDER>> {
+    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<TSortKey, D, REVERSE_ORDER>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -1037,7 +1032,7 @@ where
     /// Returns the top n elements in stored order.
     /// Useful if you do not need the elements in sorted order,
     /// for example when merging the results of multiple segments.
-    pub fn into_vec(mut self) -> Vec<ComparableDoc<Score, D, REVERSE_ORDER>> {
+    pub fn into_vec(mut self) -> Vec<ComparableDoc<TSortKey, D, REVERSE_ORDER>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -1049,39 +1044,44 @@ impl<TScore, const REVERSE_ORDER: bool> TopNComputer<TScore, DocId, REVERSE_ORDE
 where TScore: PartialOrd + Clone
 {
     #[inline(always)]
-    pub(crate) fn push_lazy<TScoreSegmentTweaker: ScoreSegmentTweaker<SegmentScore = TScore>>(
+    pub(crate) fn push_lazy<
+        TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TScore>,
+    >(
         &mut self,
         doc: DocId,
         score: Score,
-        score_tweaker: &mut TScoreSegmentTweaker,
+        score_tweaker: &mut TSegmentSortKeyComputer,
     ) {
-        if !TScoreSegmentTweaker::is_lazy() {
-            let feature = score_tweaker.score(doc, score);
-            self.push(feature, doc);
-            return;
-        }
-
-        if let Some(threshold) = self.threshold.as_ref() {
-            if let Some((_cmp, feature)) =
-                score_tweaker.accept_score_lazy::<REVERSE_ORDER>(doc, score, threshold)
-            {
-                self.append_within_capacity(ComparableDoc { feature, doc });
+        if TSegmentSortKeyComputer::is_lazy() {
+            if let Some(threshold) = self.threshold.as_ref() {
+                let Some((_cmp, feature)) =
+                    score_tweaker.accept_sort_key_lazy::<REVERSE_ORDER>(doc, score, threshold)
+                else {
+                    return;
+                };
+                push_assuming_capacity(
+                    ComparableDoc {
+                        sort_key: feature,
+                        doc,
+                    },
+                    &mut self.buffer,
+                );
+                return;
             }
-        } else {
-            let feature = score_tweaker.score(doc, score);
-            self.append_within_capacity(ComparableDoc { feature, doc });
         }
+        let feature = score_tweaker.sort_key(doc, score);
+        self.push(feature, doc);
+        return;
     }
 }
 
 // Push an element provided there is enough capacity to do so.
-// TODO replace me when push_within_capacity is stabilized.
+//
+// Panics if there is not enough capacity to add an element.
 #[inline(always)]
-fn push_within_capacity<T>(el: T, buf: &mut Vec<T>) {
+fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
     let prev_len = buf.len();
-    if prev_len == buf.capacity() {
-        return;
-    }
+    assert!(prev_len < buf.capacity());
     // This is mimicking the current (non-stabilized) implementation in std.
     // SAFETY: we just checked we have enough capacity.
     unsafe {
@@ -1141,7 +1141,7 @@ mod tests {
         assert_eq!(
             computer.into_sorted_vec(),
             &[ComparableDoc {
-                feature: 1u32,
+                sort_key: 1u32,
                 doc: 0u32,
             },]
         );
@@ -1169,11 +1169,11 @@ mod tests {
             computer.into_sorted_vec(),
             &[
                 ComparableDoc {
-                    feature: 3u32,
+                    sort_key: 3u32,
                     doc: 3u32,
                 },
                 ComparableDoc {
-                    feature: 2u32,
+                    sort_key: 2u32,
                     doc: 2u32,
                 }
             ]
@@ -1202,7 +1202,7 @@ mod tests {
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
             }
-            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc }).collect::<Vec<_>>();
+            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
             comparable_docs.sort();
             comparable_docs.truncate(limit);
             prop_assert_eq!(
@@ -1220,7 +1220,7 @@ mod tests {
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
             }
-            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc }).collect::<Vec<_>>();
+            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
             comparable_docs.sort();
             comparable_docs.truncate(limit);
             prop_assert_eq!(
@@ -1835,14 +1835,14 @@ mod tests {
             // offset, and then taking the limit.
             let sorted_docs: Vec<_> = if order.is_desc() {
                 let mut comparable_docs: Vec<ComparableDoc<_, _, true>> =
-                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc}).collect();
+                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { sort_key, doc}).collect();
                 comparable_docs.sort();
-                comparable_docs.into_iter().map(|cd| (cd.feature, cd.doc)).collect()
+                comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             } else {
                 let mut comparable_docs: Vec<ComparableDoc<_, _, false>> =
-                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { feature, doc}).collect();
+                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { sort_key, doc}).collect();
                 comparable_docs.sort();
-                comparable_docs.into_iter().map(|cd| (cd.feature, cd.doc)).collect()
+                comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             };
             let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
             prop_assert_eq!(
@@ -1912,12 +1912,12 @@ mod tests {
     }
 
     #[test]
-    fn test_tweak_score_top_collector_with_offset() -> crate::Result<()> {
+    fn test_sort_key_top_collector_with_offset() -> crate::Result<()> {
         let index = make_index()?;
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax")?;
-        let collector = TopDocs::with_limit(2).and_offset(1).tweak_score(
+        let collector = TopDocs::with_limit(2).and_offset(1).by_sort_key(
             move |_segment_reader: &SegmentReader| move |doc: DocId, _original_score: Score| doc,
         );
         let score_docs: Vec<(u32, DocAddress)> =
@@ -2026,11 +2026,11 @@ mod tests {
             computer.into_sorted_vec(),
             &[
                 ComparableDoc {
-                    feature: 1u32,
+                    sort_key: 1u32,
                     doc: 1u32,
                 },
                 ComparableDoc {
-                    feature: 1u32,
+                    sort_key: 1u32,
                     doc: 6u32,
                 }
             ]

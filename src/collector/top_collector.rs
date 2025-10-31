@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use super::top_score_collector::TopNComputer;
-use crate::collector::ScoreSegmentTweaker;
+use crate::collector::SegmentSortKeyComputer;
 use crate::index::SegmentReader;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 
@@ -20,7 +20,7 @@ use crate::{DocAddress, DocId, SegmentOrdinal};
 pub struct ComparableDoc<T, D, const REVERSE_ORDER: bool = false> {
     /// The feature of the document. In practice, this is
     /// is any type that implements `PartialOrd`.
-    pub feature: T,
+    pub sort_key: T,
     /// The document address. In practice, this is any
     /// type that implements `PartialOrd`, and is guaranteed
     /// to be unique for each document.
@@ -31,7 +31,7 @@ impl<T: std::fmt::Debug, D: std::fmt::Debug, const R: bool> std::fmt::Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(format!("ComparableDoc<_, _ {R}").as_str())
-            .field("feature", &self.feature)
+            .field("feature", &self.sort_key)
             .field("doc", &self.doc)
             .finish()
     }
@@ -47,8 +47,8 @@ impl<T: PartialOrd, D: PartialOrd, const R: bool> Ord for ComparableDoc<T, D, R>
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         let by_feature = self
-            .feature
-            .partial_cmp(&other.feature)
+            .sort_key
+            .partial_cmp(&other.sort_key)
             .map(|ord| if R { ord.reverse() } else { ord })
             .unwrap_or(Ordering::Equal);
 
@@ -118,7 +118,7 @@ where T: PartialOrd + Clone
             .into_sorted_vec()
             .into_iter()
             .skip(self.offset)
-            .map(|cdoc| (cdoc.feature, cdoc.doc))
+            .map(|cdoc| (cdoc.sort_key, cdoc.doc))
             .collect())
     }
 
@@ -174,7 +174,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
             .into_iter()
             .map(|comparable_doc| {
                 (
-                    comparable_doc.feature,
+                    comparable_doc.sort_key,
                     DocAddress {
                         segment_ord,
                         doc_id: comparable_doc.doc,
@@ -198,7 +198,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
         &mut self,
         doc: DocId,
         score: crate::Score,
-        segment_scorer: &mut impl ScoreSegmentTweaker<SegmentScore = T>,
+        segment_scorer: &mut impl SegmentSortKeyComputer<SegmentSortKey = T>,
     ) {
         self.topn_computer.push_lazy(doc, score, segment_scorer);
     }

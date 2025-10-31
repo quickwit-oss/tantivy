@@ -482,7 +482,7 @@ impl TopHitsTopNComputer {
 
     pub(crate) fn merge_fruits(&mut self, other_fruit: Self) -> crate::Result<()> {
         for doc in other_fruit.top_n.into_vec() {
-            self.collect(doc.feature, doc.doc);
+            self.collect(doc.sort_key, doc.doc);
         }
         Ok(())
     }
@@ -494,9 +494,9 @@ impl TopHitsTopNComputer {
             .into_sorted_vec()
             .into_iter()
             .map(|doc| TopHitsVecEntry {
-                sort: doc.feature.sorts.iter().map(|f| f.value).collect(),
+                sort: doc.sort_key.sorts.iter().map(|f| f.value).collect(),
                 doc_value_fields: doc
-                    .feature
+                    .sort_key
                     .doc_value_fields
                     .into_iter()
                     .map(|(k, v)| (k, v.into()))
@@ -544,7 +544,7 @@ impl TopHitsSegmentCollector {
             let doc_value_fields = req.get_document_field_data(value_accessors, res.doc.doc_id);
             top_hits_computer.collect(
                 DocSortValuesAndFields {
-                    sorts: res.feature,
+                    sorts: res.sort_key,
                     doc_value_fields,
                 },
                 res.doc,
@@ -779,7 +779,7 @@ mod tests {
                     segment_ord: 0,
                     doc_id: 0,
                 },
-                feature: DocSortValuesAndFields {
+                sort_key: DocSortValuesAndFields {
                     sorts: vec![DocValueAndOrder {
                         value: Some(1),
                         order: Order::Asc,
@@ -792,7 +792,7 @@ mod tests {
                     segment_ord: 0,
                     doc_id: 2,
                 },
-                feature: DocSortValuesAndFields {
+                sort_key: DocSortValuesAndFields {
                     sorts: vec![DocValueAndOrder {
                         value: Some(3),
                         order: Order::Asc,
@@ -805,7 +805,7 @@ mod tests {
                     segment_ord: 0,
                     doc_id: 1,
                 },
-                feature: DocSortValuesAndFields {
+                sort_key: DocSortValuesAndFields {
                     sorts: vec![DocValueAndOrder {
                         value: Some(5),
                         order: Order::Asc,
@@ -817,7 +817,7 @@ mod tests {
 
         let mut collector = collector_with_capacity(3);
         for doc in docs.clone() {
-            collector.collect(doc.feature, doc.doc);
+            collector.collect(doc.sort_key, doc.doc);
         }
 
         let res = collector.into_final_result();
@@ -827,15 +827,15 @@ mod tests {
             super::TopHitsMetricResult {
                 hits: vec![
                     super::TopHitsVecEntry {
-                        sort: vec![docs[0].feature.sorts[0].value],
+                        sort: vec![docs[0].sort_key.sorts[0].value],
                         doc_value_fields: Default::default(),
                     },
                     super::TopHitsVecEntry {
-                        sort: vec![docs[1].feature.sorts[0].value],
+                        sort: vec![docs[1].sort_key.sorts[0].value],
                         doc_value_fields: Default::default(),
                     },
                     super::TopHitsVecEntry {
-                        sort: vec![docs[2].feature.sorts[0].value],
+                        sort: vec![docs[2].sort_key.sorts[0].value],
                         doc_value_fields: Default::default(),
                     },
                 ]

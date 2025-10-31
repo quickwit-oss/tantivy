@@ -103,8 +103,8 @@ pub use self::top_score_collector::{TopDocs, TopNComputer};
 mod custom_score_top_collector;
 pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};
 
-mod tweak_score_top_collector;
-pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
+mod sort_key_top_collector;
+pub use self::sort_key_top_collector::{SegmentSortKeyComputer, SortKeyComputer};
 mod facet_collector;
 pub use self::facet_collector::{FacetCollector, FacetCounts};
 use crate::query::Weight;
