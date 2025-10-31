@@ -65,7 +65,7 @@ fn main() -> tantivy::Result<()> {
         );
         let top_docs_by_custom_score =
             // Call TopDocs with a custom tweak score
-            TopDocs::with_limit(2).tweak_score(move |segment_reader: &SegmentReader| {
+            TopDocs::with_limit(2).order_by(move |segment_reader: &SegmentReader| {
                 let ingredient_reader = segment_reader.facet_reader("ingredient").unwrap();
                 let facet_dict = ingredient_reader.facet_dict();
 

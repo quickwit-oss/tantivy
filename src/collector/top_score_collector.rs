@@ -594,7 +594,7 @@ impl TopDocs {
         }
     }
 
-    /// Ranks the documents using a custom score.
+    /// Ranks the documents using a sort key.
     ///
     /// This method offers a convenient way to tweak or replace
     /// the documents score. As suggested by the prototype you can
@@ -690,128 +690,14 @@ impl TopDocs {
     ///
     /// # See also
     /// - [custom_score(...)](TopDocs::custom_score)
-    pub fn by_sort_key<TSortKeyComputer, TSortKey>(
+    pub fn order_by<TSortKey>(
         self,
         sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send + Sync,
     ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
     where
         TSortKey: 'static + Clone + Send + Sync + PartialOrd,
-        TSortKeyComputer: SortKeyComputer<SortKey = TSortKey> + Send + Sync,
     {
         TopBySortKeyCollector::new(sort_key_computer, self.0.into_tscore())
-    }
-
-    /// Ranks the documents using a custom score.
-    ///
-    /// This method offers a convenient way to use a different score.
-    ///
-    /// As suggested by the prototype you can manually define your own [`CustomScorer`]
-    /// and pass it as an argument, but there is a much simpler way to
-    /// tweak your score: you can use a closure as in the following
-    /// example.
-    ///
-    /// # Limitation
-    ///
-    /// This method only makes it possible to compute the score from a given
-    /// `DocId`, fastfield values for the doc and any information you could
-    /// have precomputed beforehand. It does not make it possible for instance
-    /// to compute something like TfIdf as it does not have access to the list of query
-    /// terms present in the document, nor the term frequencies for the different terms.
-    ///
-    /// It can be used if your search engine relies on a learning-to-rank model for instance,
-    /// which does not rely on the term frequencies or positions as features.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use tantivy::schema::{Schema, FAST, TEXT};
-    /// # use tantivy::{doc, Index, DocAddress, DocId};
-    /// # use tantivy::query::QueryParser;
-    /// use tantivy::SegmentReader;
-    /// use tantivy::collector::TopDocs;
-    /// use tantivy::schema::Field;
-    ///
-    /// # fn create_schema() -> Schema {
-    /// #    let mut schema_builder = Schema::builder();
-    /// #    schema_builder.add_text_field("product_name", TEXT);
-    /// #    schema_builder.add_u64_field("popularity", FAST);
-    /// #    schema_builder.add_u64_field("boosted", FAST);
-    /// #    schema_builder.build()
-    /// # }
-    /// #
-    /// # fn main() -> tantivy::Result<()> {
-    /// #   let schema = create_schema();
-    /// #   let index = Index::create_in_ram(schema);
-    /// #   let mut index_writer = index.writer_with_num_threads(1, 20_000_000)?;
-    /// #   let product_name = index.schema().get_field("product_name").unwrap();
-    /// #
-    /// let popularity: Field = index.schema().get_field("popularity").unwrap();
-    /// let boosted: Field = index.schema().get_field("boosted").unwrap();
-    /// #   index_writer.add_document(doc!(boosted=>1u64, product_name => "The Diary of Muadib", popularity => 1u64))?;
-    /// #   index_writer.add_document(doc!(boosted=>0u64, product_name => "A Dairy Cow", popularity => 10u64))?;
-    /// #   index_writer.add_document(doc!(boosted=>0u64, product_name => "The Diary of a Young Girl", popularity => 15u64))?;
-    /// #   index_writer.commit()?;
-    /// // ...
-    /// # let user_query = "diary";
-    /// # let query = QueryParser::for_index(&index, vec![product_name]).parse_query(user_query)?;
-    ///
-    /// // This is where we build our collector with our custom score.
-    /// let top_docs_by_custom_score = TopDocs
-    ///         ::with_limit(10)
-    ///          .custom_score(move |segment_reader: &SegmentReader| {
-    ///             // The argument is a function that returns our scoring
-    ///             // function.
-    ///             //
-    ///             // The point of this "mother" function is to gather all
-    ///             // of the segment level information we need for scoring.
-    ///             // Typically, fast_fields.
-    ///             //
-    ///             // In our case, we will get a reader for the popularity
-    ///             // fast field and a boosted field.
-    ///             //
-    ///             // We want to get boosted items score, and when we get
-    ///             // a tie, return the item with the highest popularity.
-    ///             //
-    ///             // Note that this is implemented by using a `(u64, u64)`
-    ///             // as a score.
-    ///             let popularity_reader =
-    ///                 segment_reader.fast_fields().u64("popularity").unwrap().first_or_default_col(0);
-    ///             let boosted_reader =
-    ///                 segment_reader.fast_fields().u64("boosted").unwrap().first_or_default_col(0);
-    ///
-    ///             // We can now define our actual scoring function
-    ///             move |doc: DocId| {
-    ///                 let popularity: u64 = popularity_reader.get_val(doc);
-    ///                 let boosted: u64 = boosted_reader.get_val(doc);
-    ///                 // Score do not have to be `f64` in tantivy.
-    ///                 // Here we return a couple to get lexicographical order
-    ///                 // for free.
-    ///                 (boosted, popularity)
-    ///             }
-    ///           });
-    /// # let reader = index.reader()?;
-    /// # let searcher = reader.searcher();
-    /// // ... and here are our documents. Note this is a simple vec.
-    /// // The `Score` in the pair is our tweaked score.
-    /// let resulting_docs: Vec<((u64, u64), DocAddress)> =
-    ///      searcher.search(&*query, &top_docs_by_custom_score)?;
-    ///
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # See also
-    /// - [tweak_score(...)](TopDocs::tweak_score)
-    pub fn custom_score<TScore, TCustomSegmentScorer, TCustomScorer>(
-        self,
-        custom_score: TCustomScorer,
-    ) -> impl Collector<Fruit = Vec<(TScore, DocAddress)>>
-    where
-        TScore: 'static + Send + Sync + Clone + PartialOrd,
-        TCustomSegmentScorer: CustomSegmentScorer<TScore> + 'static,
-        TCustomScorer: CustomScorer<TScore, Child = TCustomSegmentScorer> + Send + Sync,
-    {
-        CustomScoreTopCollector::new(custom_score, self.0.into_tscore())
     }
 }
 
@@ -1917,7 +1803,7 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax")?;
-        let collector = TopDocs::with_limit(2).and_offset(1).by_sort_key(
+        let collector = TopDocs::with_limit(2).and_offset(1).order_by(
             move |_segment_reader: &SegmentReader| move |doc: DocId, _original_score: Score| doc,
         );
         let score_docs: Vec<(u32, DocAddress)> =
