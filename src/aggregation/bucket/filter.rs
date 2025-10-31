@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 use common::BitSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -16,144 +17,141 @@ use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError};
 
-/// A trait for queries that can be both executed and serialized.
+/// A trait for query builders that can build queries and be serialized.
 ///
-/// This trait extends Tantivy's [`Query`] trait with serialization capabilities,
-/// enabling filter aggregations to work with custom query types that can be
-/// serialized for distributed aggregation scenarios.
+/// This trait enables programmatic query construction for filter aggregations while
+/// maintaining serializability for distributed aggregation scenarios.
 ///
-/// # Why This Trait Exists
+/// # Why This Exists
 ///
-/// Tantivy's [`Query`] trait is not object-safe for serialization because it doesn't
-/// require `Serialize`. However, filter aggregations need to serialize queries when:
-/// - Distributing aggregation requests across multiple nodes
-/// - Caching aggregation configurations
-/// - Storing aggregation definitions
+/// Filter aggregations need to support both:
+/// - Query strings (simple, always serializable)
+/// - Programmatic query construction (flexible, but needs serializability)
 ///
-/// This trait bridges that gap by requiring both query execution and serialization.
+/// This trait bridges the gap by requiring builders to be serializable.
 ///
 /// # Implementation Requirements
 ///
-/// To implement `SerializableQuery`, you must:
-/// 1. Implement [`Query`] for query execution
-/// 2. Implement [`Serialize`](serde::Serialize) for serialization
-/// 3. Implement [`Clone`] (required by `clone_box`)
-/// 4. Implement `clone_box()` to enable trait object cloning
+/// Implementors must:
+/// 1. Implement `build_query()` to construct the query from schema/tokenizers
+/// 2. Implement `box_clone()` to enable cloning (typically just `Box::new(self.clone())`)
+/// 3. Derive `Serialize` and `Deserialize` for distributed aggregation support
+/// 4. Derive `Clone` to support `box_clone()`
+/// 5. Derive `Debug` for debugging
 ///
 /// # Example
 ///
 /// ```rust
-/// use tantivy::aggregation::bucket::SerializableQuery;
-/// use tantivy::query::{Query, EnableScoring, TermQuery, Weight};
-/// use tantivy::schema::{Field, IndexRecordOption};
+/// use tantivy::aggregation::bucket::filter::QueryBuilder;
+/// use tantivy::query::{Query, TermQuery};
+/// use tantivy::schema::{Schema, IndexRecordOption};
+/// use tantivy::tokenizer::TokenizerManager;
 /// use tantivy::Term;
-/// use serde::Serialize;
+/// use serde::{Serialize, Deserialize};
 ///
-/// #[derive(Debug, Clone, Serialize)]
-/// struct MySerializableQuery {
-///     field_id: u32,
-///     term: String,
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct TermQueryBuilder {
+///     field_name: String,
+///     term_text: String,
 /// }
 ///
-/// impl SerializableQuery for MySerializableQuery {
-///     fn clone_box(&self) -> Box<dyn SerializableQuery> {
+/// impl QueryBuilder for TermQueryBuilder {
+///     fn build_query(
+///         &self,
+///         schema: &Schema,
+///         _tokenizers: &TokenizerManager,
+///     ) -> tantivy::Result<Box<dyn Query>> {
+///         let field = schema.get_field(&self.field_name)?;
+///         let term = Term::from_field_text(field, &self.term_text);
+///         Ok(Box::new(TermQuery::new(term, IndexRecordOption::Basic)))
+///     }
+///
+///     fn box_clone(&self) -> Box<dyn QueryBuilder> {
 ///         Box::new(self.clone())
 ///     }
 /// }
-///
-/// impl Query for MySerializableQuery {
-///     fn weight(&self, enable_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
-///         // Construct the actual query from serialized data
-///         let field = Field::from_field_id(self.field_id);
-///         let term = Term::from_field_text(field, &self.term);
-///         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
-///         term_query.weight(enable_scoring)
-///     }
-/// }
 /// ```
-///
-/// # Serialization Format
-///
-/// The serialization format is determined by your `Serialize` implementation.
-/// For distributed aggregations, ensure your format is:
-/// - Stable across versions
-/// - Compact for network efficiency
-/// - Self-describing for debugging
-///
-/// # Performance Considerations
-///
-/// - `clone_box()` is called when cloning filter aggregations
-/// - Serialization occurs when distributing aggregations
-/// - Query execution happens per segment during collection
-///
-/// Keep these operations efficient for best performance.
-pub trait SerializableQuery: Query + erased_serde::Serialize {
-    /// Clone this query into a boxed trait object.
+pub trait QueryBuilder: Debug + Send + Sync + erased_serde::Serialize {
+    /// Build a query from the given schema and tokenizer manager.
     ///
-    /// This method enables cloning of trait objects, which is necessary for
-    /// cloning filter aggregations that contain custom queries.
+    /// This method is called lazily the first time the query is needed,
+    /// and the result is cached for subsequent uses.
     ///
-    /// # Implementation
+    /// # Parameters
+    /// - `schema`: The index schema for field lookups
+    /// - `tokenizers`: The tokenizer manager for text analysis
     ///
+    /// # Returns
+    /// A boxed Query object, or an error if construction fails
+    fn build_query(
+        &self,
+        schema: &Schema,
+        tokenizers: &TokenizerManager,
+    ) -> crate::Result<Box<dyn Query>>;
+
+    /// Clone this builder into a boxed trait object.
+    ///
+    /// Since builders are just data (no state), this simply clones the data.
     /// The typical implementation is:
     /// ```rust,ignore
-    /// fn clone_box(&self) -> Box<dyn SerializableQuery> {
+    /// fn box_clone(&self) -> Box<dyn QueryBuilder> {
     ///     Box::new(self.clone())
     /// }
     /// ```
-    ///
-    /// This requires your type to implement [`Clone`].
-    fn clone_box(&self) -> Box<dyn SerializableQuery>;
+    fn box_clone(&self) -> Box<dyn QueryBuilder>;
 }
 
-// Enable serialization of SerializableQuery trait objects using erased-serde
-erased_serde::serialize_trait_object!(SerializableQuery);
+// Enable serialization of QueryBuilder trait objects
+erased_serde::serialize_trait_object!(QueryBuilder);
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
 ///
 /// # Usage
-/// ```rust
-/// use tantivy::aggregation::bucket::SerializableQuery;
-/// use tantivy::aggregation::bucket::filter::FilterAggregation;
-/// use tantivy::query::{Query, EnableScoring, TermQuery, Weight};
 ///
-/// #[derive(Debug, Clone)]
-/// struct SerializableTermQuery(TermQuery);
-/// impl SerializableQuery for SerializableTermQuery {
-///     fn clone_box(&self) -> Box<dyn SerializableQuery> {
+/// ## Query String (Recommended)
+/// ```rust
+/// use tantivy::aggregation::bucket::filter::FilterAggregation;
+///
+/// // Query strings are parsed using Tantivy's standard QueryParser
+/// let filter_agg = FilterAggregation::new("category:electronics AND price:[100 TO 500]".to_string());
+/// ```
+///
+/// ## Custom Query Builder
+/// ```rust
+/// use tantivy::aggregation::bucket::filter::{FilterAggregation, QueryBuilder};
+/// use tantivy::query::{Query, TermQuery};
+/// use tantivy::schema::{Schema, IndexRecordOption};
+/// use tantivy::tokenizer::TokenizerManager;
+/// use tantivy::Term;
+/// use serde::{Serialize, Deserialize};
+///
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct MyBuilder {
+///     field_name: String,
+///     term_text: String,
+/// }
+///
+/// impl QueryBuilder for MyBuilder {
+///     fn build_query(
+///         &self,
+///         schema: &Schema,
+///         _tokenizers: &TokenizerManager,
+///     ) -> tantivy::Result<Box<dyn Query>> {
+///         let field = schema.get_field(&self.field_name)?;
+///         let term = Term::from_field_text(field, &self.term_text);
+///         Ok(Box::new(TermQuery::new(term, IndexRecordOption::Basic)))
+///     }
+///
+///     fn box_clone(&self) -> Box<dyn QueryBuilder> {
 ///         Box::new(self.clone())
 ///     }
 /// }
 ///
-/// impl Query for SerializableTermQuery {
-///     fn weight(&self, enable_scoring: EnableScoring<'_>) -> tantivy::Result<Box<dyn Weight>> {
-///         self.0.weight(enable_scoring)
-///     }
-/// }
-///
-/// impl SerializableTermQuery {
-///     pub fn new(term_query: TermQuery) -> Self {
-///         Self(term_query)
-///     }
-/// }
-///
-/// impl serde::Serialize for SerializableTermQuery {
-///     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-///     where S: serde::Serializer {
-///         "todo".serialize(serializer)
-///     }
-/// }
-///
-/// // Query strings are parsed using Tantivy's standard QueryParser
-/// let filter_agg = FilterAggregation::new("category:electronics AND price:[100 TO 500]".to_string());
-///
-/// // Direct Query objects can be used for custom query types
-/// let term_query = TermQuery::new(
-///     tantivy::Term::from_field_text(tantivy::schema::Field::from_field_id(0), "electronics"),
-///     tantivy::schema::IndexRecordOption::Basic
-/// );
-///
-/// let filter_agg = FilterAggregation::new_with_query(Box::new(SerializableTermQuery::new(term_query)));
+/// let builder = MyBuilder {
+///     field_name: "category".to_string(),
+///     term_text: "electronics".to_string(),
+/// };
+/// let filter_agg = FilterAggregation::new_with_builder(Box::new(builder));
 /// ```
 ///
 /// # Result
@@ -162,27 +160,46 @@ erased_serde::serialize_trait_object!(SerializableQuery);
 /// - Sub-aggregation results computed on the filtered document set
 #[derive(Debug, Clone)]
 pub struct FilterAggregation {
-    /// The query for filtering - can be either a query string or a direct Query object
+    /// The query for filtering - can be either a query string or a query builder
     query: FilterQuery,
 }
 
 /// Represents different ways to specify a filter query
-#[derive(Debug)]
 pub enum FilterQuery {
     /// Query string that will be parsed using Tantivy's standard parsing facilities
-    /// Accepts query strings that can be parsed by QueryParser::parse_query()
+    ///
+    /// This is the recommended approach as it's serializable and doesn't carry runtime state.
     QueryString(String),
 
-    /// Custom Query object for programmatic query construction
+    /// Custom query builder for programmatic query building
     ///
-    /// This variant allows passing pre-constructed Query objects directly,
-    /// which is useful for:
+    /// This variant stores a builder that builds the query lazily on first use.
+    /// The built query is cached for subsequent uses.
+    ///
+    /// This is useful for:
     /// - Custom query types not expressible as query strings
-    /// - Programmatic query construction
+    /// - Programmatic query construction based on schema
     /// - Extension query types
     ///
-    /// Note: This variant cannot be serialized to JSON (only QueryString can be serialized)
-    CustomQuery(Box<dyn SerializableQuery>),
+    /// **Note**: The builder is serializable, but the cached query is not serialized
+    /// (it's rebuilt on deserialization).
+    CustomBuilder {
+        /// Builder that constructs the query
+        builder: Box<dyn QueryBuilder>,
+        /// Cached query instance (built on first use, not serialized)
+        cached_query: Arc<Mutex<Option<Box<dyn Query>>>>,
+    },
+}
+
+impl Debug for FilterQuery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FilterQuery::QueryString(s) => f.debug_tuple("QueryString").field(s).finish(),
+            FilterQuery::CustomBuilder { .. } => {
+                f.debug_struct("CustomBuilder").finish_non_exhaustive()
+            }
+        }
+    }
 }
 
 impl Clone for FilterQuery {
@@ -191,7 +208,14 @@ impl Clone for FilterQuery {
             FilterQuery::QueryString(query_string) => {
                 FilterQuery::QueryString(query_string.clone())
             }
-            FilterQuery::CustomQuery(query) => FilterQuery::CustomQuery(query.clone_box()),
+            FilterQuery::CustomBuilder { builder, .. } => {
+                // Clone the builder but reset the cache
+                // This ensures each clone builds its own query instance
+                FilterQuery::CustomBuilder {
+                    builder: builder.box_clone(),
+                    cached_query: Arc::new(Mutex::new(None)),
+                }
+            }
         }
     }
 }
@@ -205,18 +229,61 @@ impl FilterAggregation {
         }
     }
 
-    /// Create a new filter aggregation with a direct Query object
-    /// This enables custom query types to be used directly
-    pub fn new_with_query(query: Box<dyn SerializableQuery>) -> Self {
+    /// Create a new filter aggregation with a query builder
+    ///
+    /// The builder will be called lazily the first time the query is needed,
+    /// and the result will be cached for subsequent uses.
+    ///
+    /// # Example
+    /// ```rust
+    /// use tantivy::aggregation::bucket::filter::{FilterAggregation, QueryBuilder};
+    /// use tantivy::query::{Query, TermQuery};
+    /// use tantivy::schema::{Schema, IndexRecordOption};
+    /// use tantivy::tokenizer::TokenizerManager;
+    /// use tantivy::Term;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(Debug, Clone, Serialize, Deserialize)]
+    /// struct MyBuilder {
+    ///     field_name: String,
+    ///     term_text: String,
+    /// }
+    ///
+    /// impl QueryBuilder for MyBuilder {
+    ///     fn build_query(
+    ///         &self,
+    ///         schema: &Schema,
+    ///         _tokenizers: &TokenizerManager,
+    ///     ) -> tantivy::Result<Box<dyn Query>> {
+    ///         let field = schema.get_field(&self.field_name)?;
+    ///         let term = Term::from_field_text(field, &self.term_text);
+    ///         Ok(Box::new(TermQuery::new(term, IndexRecordOption::Basic)))
+    ///     }
+    ///
+    ///     fn box_clone(&self) -> Box<dyn QueryBuilder> {
+    ///         Box::new(self.clone())
+    ///     }
+    /// }
+    ///
+    /// let builder = MyBuilder {
+    ///     field_name: "category".to_string(),
+    ///     term_text: "electronics".to_string(),
+    /// };
+    /// let filter_agg = FilterAggregation::new_with_builder(Box::new(builder));
+    /// ```
+    pub fn new_with_builder(builder: Box<dyn QueryBuilder>) -> Self {
         Self {
-            query: FilterQuery::CustomQuery(query),
+            query: FilterQuery::CustomBuilder {
+                builder,
+                cached_query: Arc::new(Mutex::new(None)),
+            },
         }
     }
 
     /// Parse the query into a Tantivy Query object
     ///
     /// For query strings, this uses the QueryParser::parse_query() method.
-    /// For direct Query objects, returns a clone.
+    /// For custom builders, builds and caches the query on first call.
     fn parse_query(
         &self,
         schema: &Schema,
@@ -231,9 +298,23 @@ impl FilterAggregation {
                     .parse_query(query_str)
                     .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
             }
-            FilterQuery::CustomQuery(query) => {
-                // Return a clone of the direct query
-                Ok(query.clone_box())
+            FilterQuery::CustomBuilder {
+                builder,
+                cached_query,
+            } => {
+                // Check if we have a cached query
+                let mut cache = cached_query.lock().unwrap();
+                if let Some(query) = cache.as_ref() {
+                    return Ok(query.box_clone());
+                }
+
+                // Build the query using the builder
+                let query = builder.build_query(schema, tokenizer_manager)?;
+
+                // Cache it for future use
+                *cache = Some(query.box_clone());
+
+                Ok(query)
             }
         }
     }
@@ -242,7 +323,9 @@ impl FilterAggregation {
     ///
     /// This method allows using a pre-configured QueryParser with custom settings
     /// like field boosts, fuzzy matching, default fields, etc.
-    /// For direct Query objects, the QueryParser is ignored and a clone is returned.
+    ///
+    /// For custom builders, this method is not supported and will return an error.
+    /// Custom builders need schema and tokenizers which are not accessible from QueryParser.
     pub fn parse_query_with_parser(
         &self,
         query_parser: &QueryParser,
@@ -251,10 +334,11 @@ impl FilterAggregation {
             FilterQuery::QueryString(query_str) => query_parser
                 .parse_query(query_str)
                 .map_err(|e| TantivyError::InvalidArgument(e.to_string())),
-            FilterQuery::CustomQuery(query) => {
-                // Return a clone of the direct query, ignoring the parser
-                Ok(query.clone_box())
-            }
+            FilterQuery::CustomBuilder { .. } => Err(TantivyError::InvalidArgument(
+                "parse_query_with_parser is not supported for custom query builders. Use \
+                 parse_query with explicit schema and tokenizers instead."
+                    .to_string(),
+            )),
         }
     }
 
@@ -289,7 +373,11 @@ impl Serialize for FilterAggregation {
                 // Serialize the query string directly
                 query_string.serialize(serializer)
             }
-            FilterQuery::CustomQuery(query) => erased_serde::serialize(query, serializer),
+            FilterQuery::CustomBuilder { builder, .. } => {
+                // Serialize the builder using erased_serde
+                // The cached query is not serialized (it will be rebuilt on deserialization)
+                erased_serde::serialize(builder.as_ref(), serializer)
+            }
         }
     }
 }
@@ -304,12 +392,12 @@ impl<'de> Deserialize<'de> for FilterAggregation {
 }
 
 // PartialEq is required because AggregationVariants derives it
-// We implement it manually to handle Box<dyn Query> which doesn't impl PartialEq
+// We implement it manually to handle custom builders which cannot be compared
 impl PartialEq for FilterAggregation {
     fn eq(&self, other: &Self) -> bool {
         match (&self.query, &other.query) {
             (FilterQuery::QueryString(a), FilterQuery::QueryString(b)) => a == b,
-            // Custom queries cannot be compared for equality
+            // Custom builders cannot be compared for equality
             _ => false,
         }
     }
@@ -1368,54 +1456,60 @@ mod tests {
     // ============================================================================
 
     #[test]
-    fn test_direct_query_object() -> crate::Result<()> {
-        use crate::aggregation::bucket::SerializableQuery;
-        use crate::query::{EnableScoring, Query, Weight};
+    fn test_custom_query_builder() -> crate::Result<()> {
+        use serde::{Deserialize, Serialize};
 
-        #[derive(Debug, Clone)]
-        struct SerializableTermQuery(TermQuery);
-        impl SerializableQuery for SerializableTermQuery {
-            fn clone_box(&self) -> Box<dyn SerializableQuery> {
+        // Define a serializable query builder
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        struct TermQueryBuilder {
+            field_name: String,
+            term_text: String,
+        }
+
+        impl QueryBuilder for TermQueryBuilder {
+            fn build_query(
+                &self,
+                schema: &Schema,
+                _tokenizers: &TokenizerManager,
+            ) -> crate::Result<Box<dyn Query>> {
+                let field = schema.get_field(&self.field_name)?;
+                let term = Term::from_field_text(field, &self.term_text);
+                Ok(Box::new(TermQuery::new(term, IndexRecordOption::Basic)))
+            }
+
+            fn box_clone(&self) -> Box<dyn QueryBuilder> {
                 Box::new(self.clone())
             }
         }
 
-        impl Query for SerializableTermQuery {
-            fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
-                self.0.weight(enable_scoring)
-            }
-        }
-
-        impl SerializableTermQuery {
-            pub fn new(term_query: TermQuery) -> Self {
-                Self(term_query)
-            }
-        }
-
-        impl serde::Serialize for SerializableTermQuery {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where S: serde::Serializer {
-                "todo".serialize(serializer)
-            }
-        }
-
         let index = create_standard_test_index()?;
+
+        // Create a filter aggregation with a custom query builder
+        let builder = TermQueryBuilder {
+            field_name: "category".to_string(),
+            term_text: "electronics".to_string(),
+        };
+        let filter_agg = FilterAggregation::new_with_builder(Box::new(builder));
+
+        // Test that the query can be parsed
         let schema = index.schema();
+        let tokenizers = index.tokenizers();
+        let query = filter_agg.parse_query(&schema, tokenizers)?;
 
-        // Create a custom query directly
-        let category_field = schema.get_field("category").unwrap();
-        let term = Term::from_field_text(category_field, "electronics");
-        let term_query = TermQuery::new(term, IndexRecordOption::Basic);
+        // Verify the query was built correctly (it should be a TermQuery)
+        assert!(format!("{:?}", query).contains("TermQuery"));
 
-        // Use it in FilterAggregation
-        let filter_agg =
-            FilterAggregation::new_with_query(Box::new(SerializableTermQuery::new(term_query)));
+        // Test that it can be cloned (which should reset the cache)
+        let cloned = filter_agg.clone();
+        let query2 = cloned.parse_query(&schema, tokenizers)?;
+        assert!(format!("{:?}", query2).contains("TermQuery"));
 
-        // Verify it can be serialized
+        // Verify it CAN be serialized (builder is serializable)
         let serialization_result = serde_json::to_string(&filter_agg);
         assert!(
             serialization_result.is_ok(),
-            "Direct queries should serialize"
+            "Custom builders should serialize: {:?}",
+            serialization_result.err()
         );
 
         Ok(())
@@ -1449,6 +1543,76 @@ mod tests {
         // Should match 2 electronics
         let result_json = serde_json::to_value(&result)?;
         assert_eq!(result_json["test"]["doc_count"], 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_query_builder_serialization_roundtrip() -> crate::Result<()> {
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        struct TermQueryBuilder {
+            field_name: String,
+            term_text: String,
+        }
+
+        impl QueryBuilder for TermQueryBuilder {
+            fn build_query(
+                &self,
+                schema: &Schema,
+                _tokenizers: &TokenizerManager,
+            ) -> crate::Result<Box<dyn Query>> {
+                let field = schema.get_field(&self.field_name)?;
+                let term = Term::from_field_text(field, &self.term_text);
+                Ok(Box::new(TermQuery::new(term, IndexRecordOption::Basic)))
+            }
+
+            fn box_clone(&self) -> Box<dyn QueryBuilder> {
+                Box::new(self.clone())
+            }
+        }
+
+        let index = create_standard_test_index()?;
+
+        // Create a filter aggregation with a custom query builder
+        let builder = TermQueryBuilder {
+            field_name: "category".to_string(),
+            term_text: "electronics".to_string(),
+        };
+        let filter_agg = FilterAggregation::new_with_builder(Box::new(builder));
+
+        // Serialize the filter aggregation
+        let serialized = serde_json::to_string(&filter_agg)?;
+
+        // Verify the serialized JSON contains the builder data
+        assert!(
+            serialized.contains("category"),
+            "Serialized JSON should contain field_name"
+        );
+        assert!(
+            serialized.contains("electronics"),
+            "Serialized JSON should contain term_text"
+        );
+
+        // Test that cloning preserves serializability
+        let cloned_agg = filter_agg.clone();
+        let cloned_json = serde_json::to_string(&cloned_agg)?;
+        assert!(cloned_json.contains("category"));
+        assert!(cloned_json.contains("electronics"));
+
+        // Verify the aggregation produces correct results
+        let agg = json!({
+            "filtered": {
+                "filter": "category:electronics"
+            }
+        });
+
+        let agg_req: Aggregations = serde_json::from_value(agg)?;
+        let searcher = index.reader()?.searcher();
+        let collector = create_collector(&index, agg_req);
+        let agg_res = searcher.search(&AllQuery, &collector)?;
+
+        let result_json = serde_json::to_value(&agg_res)?;
+        assert_eq!(result_json["filtered"]["doc_count"], 2);
 
         Ok(())
     }
