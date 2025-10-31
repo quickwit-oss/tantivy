@@ -696,7 +696,7 @@ impl TopDocs {
     ) -> impl Collector<Fruit = Vec<(TScore, DocAddress)>>
     where
         TScore: 'static + Clone + Send + Sync + PartialOrd,
-        TScoreTweaker: ScoreTweaker<Score=TScore> + Send + Sync,
+        TScoreTweaker: ScoreTweaker<Score = TScore> + Send + Sync,
     {
         TweakedScoreTopCollector::new(score_tweaker, self.0.into_tscore())
     }

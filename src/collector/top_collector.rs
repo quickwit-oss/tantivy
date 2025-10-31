@@ -194,7 +194,12 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     }
 
     #[inline]
-    pub fn collect_lazy(&mut self, doc: DocId, score: crate::Score, segment_scorer: &mut impl ScoreSegmentTweaker<SegmentScore=T>) {
+    pub fn collect_lazy(
+        &mut self,
+        doc: DocId,
+        score: crate::Score,
+        segment_scorer: &mut impl ScoreSegmentTweaker<SegmentScore = T>,
+    ) {
         self.topn_computer.push_lazy(doc, score, segment_scorer);
     }
 }
