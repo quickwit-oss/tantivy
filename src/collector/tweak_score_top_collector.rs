@@ -142,15 +142,7 @@ where TSegmentScoreTweaker: 'static + ScoreSegmentTweaker
     type Fruit = Vec<(TSegmentScoreTweaker::Score, DocAddress)>;
 
     fn collect(&mut self, doc: DocId, score: Score) {
-        // Thanks to generics, this if-statement is free.
-        if TSegmentScoreTweaker::is_lazy() {
-            self.segment_collector
-                .topn_computer
-                .push_lazy(doc, score, &mut self.segment_scorer);
-        } else {
-            let score = self.segment_scorer.score(doc, score);
-            self.segment_collector.collect(doc, score);
-        }
+        self.segment_collector.collect_lazy(doc, score, &mut self.segment_scorer);
     }
 
     fn harvest(self) -> Self::Fruit {

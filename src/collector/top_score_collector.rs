@@ -1049,12 +1049,18 @@ impl<TScore, const REVERSE_ORDER: bool> TopNComputer<TScore, DocId, REVERSE_ORDE
 where TScore: PartialOrd + Clone
 {
     #[inline(always)]
-    pub(crate) fn push_lazy(
+    pub(crate) fn push_lazy<TScoreSegmentTweaker: ScoreSegmentTweaker<SegmentScore = TScore>>(
         &mut self,
         doc: DocId,
         score: Score,
-        score_tweaker: &mut impl ScoreSegmentTweaker<SegmentScore = TScore>,
+        score_tweaker: &mut TScoreSegmentTweaker,
     ) {
+        if !TScoreSegmentTweaker::is_lazy() {
+            let feature = score_tweaker.score(doc, score);
+            self.push(feature, doc);
+            return;
+        }
+
         if let Some(threshold) = self.threshold.as_ref() {
             if let Some((_cmp, feature)) =
                 score_tweaker.accept_score_lazy::<REVERSE_ORDER>(doc, score, threshold)

@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use super::top_score_collector::TopNComputer;
+use crate::collector::ScoreSegmentTweaker;
 use crate::index::SegmentReader;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 
@@ -152,7 +153,7 @@ where T: PartialOrd + Clone
 pub(crate) struct TopSegmentCollector<T> {
     /// We reverse the order of the feature in order to
     /// have top-semantics instead of bottom semantics.
-    pub(crate) topn_computer: TopNComputer<T, DocId>,
+    topn_computer: TopNComputer<T, DocId>,
     segment_ord: u32,
 }
 
@@ -190,6 +191,11 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     #[inline]
     pub fn collect(&mut self, doc: DocId, feature: T) {
         self.topn_computer.push(feature, doc);
+    }
+
+    #[inline]
+    pub fn collect_lazy(&mut self, doc: DocId, score: crate::Score, segment_scorer: &mut impl ScoreSegmentTweaker<SegmentScore=T>) {
+        self.topn_computer.push_lazy(doc, score, segment_scorer);
     }
 }
 
