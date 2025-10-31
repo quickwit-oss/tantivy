@@ -315,3 +315,52 @@ where
         sort_key
     }
 }
+
+/// Helper struct to make it possible to define a sort key computer that does not use
+/// the similary score from a simple function.
+pub struct NoScoreFn<F>(pub F);
+
+impl<F, TNoScoreSortKeyFn, TSortKey> SortKeyComputer for NoScoreFn<F>
+where
+    F: 'static + Send + Sync + Fn(&SegmentReader) -> TNoScoreSortKeyFn,
+    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+    TSortKey: 'static + PartialOrd + Clone + Send + Sync,
+{
+    type SortKey = TSortKey;
+    type Child = NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>;
+
+    fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+        Ok({
+            NoScoreSegmentSortKeyComputer {
+                sort_key_fn: (self.0)(segment_reader),
+            }
+        })
+    }
+
+    fn requires_scoring(&self) -> bool {
+        false
+    }
+}
+
+pub struct NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn> {
+    sort_key_fn: TNoScoreSortKeyFn,
+}
+
+impl<TNoScoreSortKeyFn, TSortKey> SegmentSortKeyComputer
+    for NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>
+where
+    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+    TSortKey: 'static + PartialOrd + Clone + Send + Sync,
+{
+    type SortKey = TSortKey;
+    type SegmentSortKey = TSortKey;
+
+    fn sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
+        (self.sort_key_fn)(doc)
+    }
+
+    /// Convert a segment level score into the global level score.
+    fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
+        sort_key
+    }
+}

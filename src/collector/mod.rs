@@ -100,7 +100,7 @@ mod top_score_collector;
 pub use self::top_collector::ComparableDoc;
 pub use self::top_score_collector::{TopDocs, TopNComputer};
 
-mod sort_key;
+pub mod sort_key;
 mod sort_key_top_collector;
 pub use self::sort_key::{SegmentSortKeyComputer, SortKeyComputer};
 mod facet_collector;
