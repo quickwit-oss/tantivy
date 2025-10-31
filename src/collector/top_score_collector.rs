@@ -2,21 +2,15 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use columnar::{ColumnValues, StrColumn};
+use columnar::ColumnValues;
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
-use crate::collector::custom_score_top_collector::{
-    CustomScoreTopCollector, CustomScoreTopSegmentCollector,
-};
 use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
-use crate::collector::{
-    CustomScorer, CustomSegmentScorer, SegmentCollector, SegmentSortKeyComputer, SortKeyComputer,
-};
+use crate::collector::{SegmentCollector, SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::query::Weight;
-use crate::termdict::TermOrdinal;
 use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 struct FastFieldConvertCollector<
@@ -86,162 +80,162 @@ where
     }
 }
 
-struct StringConvertCollector {
-    pub collector: CustomScoreTopCollector<ScorerByField, u64>,
-    pub field: String,
-    order: Order,
-    limit: usize,
-    offset: usize,
-}
+// struct StringConvertCollector {
+//     pub collector: CustomScoreTopCollector<ScorerByField, u64>,
+//     pub field: String,
+//     order: Order,
+//     limit: usize,
+//     offset: usize,
+// }
 
-impl Collector for StringConvertCollector {
-    type Fruit = Vec<(String, DocAddress)>;
+// impl Collector for StringConvertCollector {
+//     type Fruit = Vec<(String, DocAddress)>;
 
-    type Child = StringConvertSegmentCollector;
+//     type Child = StringConvertSegmentCollector;
 
-    fn for_segment(
-        &self,
-        segment_local_id: crate::SegmentOrdinal,
-        segment: &SegmentReader,
-    ) -> crate::Result<Self::Child> {
-        let schema = segment.schema();
-        let field = schema.get_field(&self.field)?;
-        let field_entry = schema.get_field_entry(field);
-        if !field_entry.is_fast() {
-            return Err(TantivyError::SchemaError(format!(
-                "Field {:?} is not a fast field.",
-                field_entry.name()
-            )));
-        }
-        let requested_type = crate::schema::Type::Str;
-        let schema_type = field_entry.field_type().value_type();
-        if schema_type != requested_type {
-            return Err(TantivyError::SchemaError(format!(
-                "Field {:?} is of type {schema_type:?}!={requested_type:?}",
-                field_entry.name()
-            )));
-        }
-        let ff = segment
-            .fast_fields()
-            .str(&self.field)?
-            .expect("ff should be a str field");
-        Ok(StringConvertSegmentCollector {
-            collector: self.collector.for_segment(segment_local_id, segment)?,
-            ff,
-            order: self.order.clone(),
-        })
-    }
+//     fn for_segment(
+//         &self,
+//         segment_local_id: crate::SegmentOrdinal,
+//         segment: &SegmentReader,
+//     ) -> crate::Result<Self::Child> {
+//         let schema = segment.schema();
+//         let field = schema.get_field(&self.field)?;
+//         let field_entry = schema.get_field_entry(field);
+//         if !field_entry.is_fast() {
+//             return Err(TantivyError::SchemaError(format!(
+//                 "Field {:?} is not a fast field.",
+//                 field_entry.name()
+//             )));
+//         }
+//         let requested_type = crate::schema::Type::Str;
+//         let schema_type = field_entry.field_type().value_type();
+//         if schema_type != requested_type {
+//             return Err(TantivyError::SchemaError(format!(
+//                 "Field {:?} is of type {schema_type:?}!={requested_type:?}",
+//                 field_entry.name()
+//             )));
+//         }
+//         let ff = segment
+//             .fast_fields()
+//             .str(&self.field)?
+//             .expect("ff should be a str field");
+//         Ok(StringConvertSegmentCollector {
+//             collector: self.collector.for_segment(segment_local_id, segment)?,
+//             ff,
+//             order: self.order.clone(),
+//         })
+//     }
 
-    fn requires_scoring(&self) -> bool {
-        self.collector.requires_scoring()
-    }
+//     fn requires_scoring(&self) -> bool {
+//         self.collector.requires_scoring()
+//     }
 
-    fn merge_fruits(
-        &self,
-        child_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
-    ) -> crate::Result<Self::Fruit> {
-        if self.limit == 0 {
-            return Ok(Vec::new());
-        }
-        if self.order.is_desc() {
-            let mut top_collector: TopNComputer<_, _, true> =
-                TopNComputer::new(self.limit + self.offset);
-            for child_fruit in child_fruits {
-                for (feature, doc) in child_fruit {
-                    top_collector.push(feature, doc);
-                }
-            }
-            Ok(top_collector
-                .into_sorted_vec()
-                .into_iter()
-                .skip(self.offset)
-                .map(|cdoc| (cdoc.sort_key, cdoc.doc))
-                .collect())
-        } else {
-            let mut top_collector: TopNComputer<_, _, false> =
-                TopNComputer::new(self.limit + self.offset);
-            for child_fruit in child_fruits {
-                for (feature, doc) in child_fruit {
-                    top_collector.push(feature, doc);
-                }
-            }
+//     fn merge_fruits(
+//         &self,
+//         child_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+//     ) -> crate::Result<Self::Fruit> {
+//         if self.limit == 0 {
+//             return Ok(Vec::new());
+//         }
+//         if self.order.is_desc() {
+//             let mut top_collector: TopNComputer<_, _, true> =
+//                 TopNComputer::new(self.limit + self.offset);
+//             for child_fruit in child_fruits {
+//                 for (feature, doc) in child_fruit {
+//                     top_collector.push(feature, doc);
+//                 }
+//             }
+//             Ok(top_collector
+//                 .into_sorted_vec()
+//                 .into_iter()
+//                 .skip(self.offset)
+//                 .map(|cdoc| (cdoc.sort_key, cdoc.doc))
+//                 .collect())
+//         } else {
+//             let mut top_collector: TopNComputer<_, _, false> =
+//                 TopNComputer::new(self.limit + self.offset);
+//             for child_fruit in child_fruits {
+//                 for (feature, doc) in child_fruit {
+//                     top_collector.push(feature, doc);
+//                 }
+//             }
 
-            Ok(top_collector
-                .into_sorted_vec()
-                .into_iter()
-                .skip(self.offset)
-                .map(|cdoc| (cdoc.sort_key, cdoc.doc))
-                .collect())
-        }
-    }
-}
+//             Ok(top_collector
+//                 .into_sorted_vec()
+//                 .into_iter()
+//                 .skip(self.offset)
+//                 .map(|cdoc| (cdoc.sort_key, cdoc.doc))
+//                 .collect())
+//         }
+//     }
+// }
 
-struct StringConvertSegmentCollector {
-    pub collector: CustomScoreTopSegmentCollector<ScorerByFastFieldReader, u64>,
-    ff: StrColumn,
-    order: Order,
-}
+// struct StringConvertSegmentCollector {
+//     pub collector: CustomScoreTopSegmentCollector<SortKeyByFastFieldReader, u64>,
+//     ff: StrColumn,
+//     order: Order,
+// }
 
-impl SegmentCollector for StringConvertSegmentCollector {
-    type Fruit = Vec<(String, DocAddress)>;
+// impl SegmentCollector for StringConvertSegmentCollector {
+//     type Fruit = Vec<(String, DocAddress)>;
 
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.collector.collect(doc, score);
-    }
+//     fn collect(&mut self, doc: DocId, score: Score) {
+//         self.collector.collect(doc, score);
+//     }
 
-    fn harvest(self) -> Vec<(String, DocAddress)> {
-        let top_ordinals: Vec<(TermOrdinal, DocAddress)> = self.collector.harvest();
+//     fn harvest(self) -> Vec<(String, DocAddress)> {
+//         let top_ordinals: Vec<(TermOrdinal, DocAddress)> = self.collector.harvest();
 
-        // Collect terms.
-        let mut terms: Vec<String> = Vec::with_capacity(top_ordinals.len());
-        let result = if self.order.is_asc() {
-            self.ff.dictionary().sorted_ords_to_term_cb(
-                top_ordinals.iter().map(|(term_ord, _)| u64::MAX - term_ord),
-                |term| {
-                    terms.push(
-                        std::str::from_utf8(term)
-                            .expect("Failed to decode term as unicode")
-                            .to_owned(),
-                    );
-                    Ok(())
-                },
-            )
-        } else {
-            self.ff.dictionary().sorted_ords_to_term_cb(
-                top_ordinals.iter().rev().map(|(term_ord, _)| *term_ord),
-                |term| {
-                    terms.push(
-                        std::str::from_utf8(term)
-                            .expect("Failed to decode term as unicode")
-                            .to_owned(),
-                    );
-                    Ok(())
-                },
-            )
-        };
+//         // Collect terms.
+//         let mut terms: Vec<String> = Vec::with_capacity(top_ordinals.len());
+//         let result = if self.order.is_asc() {
+//             self.ff.dictionary().sorted_ords_to_term_cb(
+//                 top_ordinals.iter().map(|(term_ord, _)| u64::MAX - term_ord),
+//                 |term| {
+//                     terms.push(
+//                         std::str::from_utf8(term)
+//                             .expect("Failed to decode term as unicode")
+//                             .to_owned(),
+//                     );
+//                     Ok(())
+//                 },
+//             )
+//         } else {
+//             self.ff.dictionary().sorted_ords_to_term_cb(
+//                 top_ordinals.iter().rev().map(|(term_ord, _)| *term_ord),
+//                 |term| {
+//                     terms.push(
+//                         std::str::from_utf8(term)
+//                             .expect("Failed to decode term as unicode")
+//                             .to_owned(),
+//                     );
+//                     Ok(())
+//                 },
+//             )
+//         };
 
-        assert!(
-            result.expect("Failed to read terms from term dictionary"),
-            "Not all terms were matched in segment."
-        );
+//         assert!(
+//             result.expect("Failed to read terms from term dictionary"),
+//             "Not all terms were matched in segment."
+//         );
 
-        // Zip them back with their docs.
-        if self.order.is_asc() {
-            terms
-                .into_iter()
-                .zip(top_ordinals)
-                .map(|(term, (_, doc))| (term, doc))
-                .collect()
-        } else {
-            terms
-                .into_iter()
-                .rev()
-                .zip(top_ordinals)
-                .map(|(term, (_, doc))| (term, doc))
-                .collect()
-        }
-    }
-}
+//         // Zip them back with their docs.
+//         if self.order.is_asc() {
+//             terms
+//                 .into_iter()
+//                 .zip(top_ordinals)
+//                 .map(|(term, (_, doc))| (term, doc))
+//                 .collect()
+//         } else {
+//             terms
+//                 .into_iter()
+//                 .rev()
+//                 .zip(top_ordinals)
+//                 .map(|(term, (_, doc))| (term, doc))
+//                 .collect()
+//         }
+//     }
+// }
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -299,18 +293,30 @@ impl fmt::Debug for TopDocs {
     }
 }
 
-struct ScorerByFastFieldReader {
+struct SortKeyByFastFieldReader {
     sort_column: Arc<dyn ColumnValues<u64>>,
     order: Order,
 }
 
-impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
-    fn score(&mut self, doc: DocId) -> u64 {
-        let value = self.sort_column.get_val(doc);
-        if self.order.is_desc() {
-            value
+impl SegmentSortKeyComputer for SortKeyByFastFieldReader {
+    type SortKey = u64;
+
+    type SegmentSortKey = u64;
+
+    fn sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
+        let val = self.sort_column.get_val(doc);
+        if self.order == Order::Desc {
+            u64::MAX - val
         } else {
-            u64::MAX - value
+            val
+        }
+    }
+
+    fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
+        if self.order == Order::Desc {
+            u64::MAX - sort_key
+        } else {
+            sort_key
         }
     }
 }
@@ -320,10 +326,15 @@ struct ScorerByField {
     order: Order,
 }
 
-impl CustomScorer<u64> for ScorerByField {
-    type Child = ScorerByFastFieldReader;
+impl SortKeyComputer for ScorerByField {
+    type Child = SortKeyByFastFieldReader;
 
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
+    type SortKey = u64;
+
+    fn segment_sort_key_computer(
+        &self,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<Self::Child> {
         // We interpret this field as u64, regardless of its type, that way,
         // we avoid needless conversion. Regardless of the fast field type, the
         // mapping is monotonic, so it is sufficient to compute our top-K docs.
@@ -338,7 +349,7 @@ impl CustomScorer<u64> for ScorerByField {
         if self.order.is_asc() {
             default_value = u64::MAX;
         }
-        Ok(ScorerByFastFieldReader {
+        Ok(SortKeyByFastFieldReader {
             sort_column: sort_column.first_or_default_col(default_value),
             order: self.order.clone(),
         })
@@ -475,12 +486,12 @@ impl TopDocs {
         field: impl ToString,
         order: Order,
     ) -> impl Collector<Fruit = Vec<(u64, DocAddress)>> {
-        CustomScoreTopCollector::new(
+        TopBySortKeyCollector::new(
             ScorerByField {
                 field: field.to_string(),
                 order,
             },
-            self.0.into_tscore(),
+            self.0.into_different_sort_key_type(),
         )
     }
 
@@ -571,28 +582,28 @@ impl TopDocs {
     }
 
     /// Like `order_by_fast_field`, but for a `String` fast field.
-    pub fn order_by_string_fast_field(
-        self,
-        fast_field: impl ToString,
-        order: Order,
-    ) -> impl Collector<Fruit = Vec<(String, DocAddress)>> {
-        let limit = self.0.limit;
-        let offset = self.0.offset;
-        let u64_collector = CustomScoreTopCollector::new(
-            ScorerByField {
-                field: fast_field.to_string(),
-                order: order.clone(),
-            },
-            self.0.into_tscore(),
-        );
-        StringConvertCollector {
-            collector: u64_collector,
-            field: fast_field.to_string(),
-            order,
-            limit,
-            offset,
-        }
-    }
+    // pub fn order_by_string_fast_field(
+    //     self,
+    //     fast_field: impl ToString,
+    //     order: Order,
+    // ) -> impl Collector<Fruit = Vec<(String, DocAddress)>> {
+    //     let limit = self.0.limit;
+    //     let offset = self.0.offset;
+    //     let u64_collector = CustomScoreTopCollector::new(
+    //         ScorerByField {
+    //             field: fast_field.to_string(),
+    //             order: order.clone(),
+    //         },
+    //         self.0.into_different_sort_key_type(),
+    //     );
+    //     StringConvertCollector {
+    //         collector: u64_collector,
+    //         field: fast_field.to_string(),
+    //         order,
+    //         limit,
+    //         offset,
+    //     }
+    // }
 
     /// Ranks the documents using a sort key.
     ///
@@ -697,7 +708,7 @@ impl TopDocs {
     where
         TSortKey: 'static + Clone + Send + Sync + PartialOrd,
     {
-        TopBySortKeyCollector::new(sort_key_computer, self.0.into_tscore())
+        TopBySortKeyCollector::new(sort_key_computer, self.0.into_different_sort_key_type())
     }
 }
 
@@ -1088,7 +1099,7 @@ mod tests {
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
             }
-            let mut comparable_docs = docs.into_iter().map(|(feature, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
+            let mut comparable_docs = docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
             comparable_docs.sort();
             comparable_docs.truncate(limit);
             prop_assert_eq!(
@@ -1721,12 +1732,12 @@ mod tests {
             // offset, and then taking the limit.
             let sorted_docs: Vec<_> = if order.is_desc() {
                 let mut comparable_docs: Vec<ComparableDoc<_, _, true>> =
-                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { sort_key, doc}).collect();
+                    all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
                 comparable_docs.sort();
                 comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             } else {
                 let mut comparable_docs: Vec<ComparableDoc<_, _, false>> =
-                    all_results.into_iter().map(|(feature, doc)| ComparableDoc { sort_key, doc}).collect();
+                    all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
                 comparable_docs.sort();
                 comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             };

@@ -135,7 +135,9 @@ where T: PartialOrd + Clone
     /// Ideally we would use Into but the blanket implementation seems to cause the Scorer traits
     /// to fail.
     #[doc(hidden)]
-    pub(crate) fn into_tscore<TScore: PartialOrd + Clone>(self) -> TopCollector<TScore> {
+    pub(crate) fn into_different_sort_key_type<TSortKey: PartialOrd + Clone>(
+        self,
+    ) -> TopCollector<TSortKey> {
         TopCollector {
             limit: self.limit,
             offset: self.offset,
