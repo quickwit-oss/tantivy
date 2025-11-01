@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use columnar::MonotonicallyMappableToU64;
+use columnar::{MonotonicallyMappableToU64, ValueRange};
 use serde::{Deserialize, Serialize};
 
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
@@ -69,6 +69,10 @@ fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedVal
 pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     /// Return the order between two values.
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
+
+    /// Return a `ValueRange` that matches all values that are greater than the provided threshold.
+    #[allow(dead_code)]
+    fn threshold_to_valuerange(&self, threshold: T) -> ValueRange<T>;
 }
 
 /// Compare values naturally (e.g. 1 < 2).
@@ -86,6 +90,10 @@ impl<T: PartialOrd> Comparator<T> for NaturalComparator {
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
         lhs.partial_cmp(rhs).unwrap_or(Ordering::Equal)
     }
+
+    fn threshold_to_valuerange(&self, threshold: T) -> ValueRange<T> {
+        ValueRange::GreaterThan(threshold, false)
+    }
 }
 
 /// A (partial) implementation of comparison for OwnedValue.
@@ -96,6 +104,10 @@ impl Comparator<OwnedValue> for NaturalComparator {
     #[inline(always)]
     fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
         compare_owned_value::</* NULLS_FIRST= */ true>(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: OwnedValue) -> ValueRange<OwnedValue> {
+        ValueRange::GreaterThan(threshold, false)
     }
 }
 
@@ -120,6 +132,10 @@ where NaturalComparator: Comparator<T>
     #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
         NaturalComparator.compare(rhs, lhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: T) -> ValueRange<T> {
+        ValueRange::LessThan(threshold, true)
     }
 }
 
@@ -147,12 +163,20 @@ where ReverseComparator: Comparator<T>
             (Some(lhs), Some(rhs)) => ReverseComparator.compare(lhs, rhs),
         }
     }
+
+    fn threshold_to_valuerange(&self, threshold: Option<T>) -> ValueRange<Option<T>> {
+        ValueRange::LessThan(threshold, false)
+    }
 }
 
 impl Comparator<u32> for ReverseNoneIsLowerComparator {
     #[inline(always)]
     fn compare(&self, lhs: &u32, rhs: &u32) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: u32) -> ValueRange<u32> {
+        ValueRange::LessThan(threshold, false)
     }
 }
 
@@ -161,12 +185,20 @@ impl Comparator<u64> for ReverseNoneIsLowerComparator {
     fn compare(&self, lhs: &u64, rhs: &u64) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
+
+    fn threshold_to_valuerange(&self, threshold: u64) -> ValueRange<u64> {
+        ValueRange::LessThan(threshold, false)
+    }
 }
 
 impl Comparator<f64> for ReverseNoneIsLowerComparator {
     #[inline(always)]
     fn compare(&self, lhs: &f64, rhs: &f64) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: f64) -> ValueRange<f64> {
+        ValueRange::LessThan(threshold, false)
     }
 }
 
@@ -175,12 +207,20 @@ impl Comparator<f32> for ReverseNoneIsLowerComparator {
     fn compare(&self, lhs: &f32, rhs: &f32) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
+
+    fn threshold_to_valuerange(&self, threshold: f32) -> ValueRange<f32> {
+        ValueRange::LessThan(threshold, false)
+    }
 }
 
 impl Comparator<i64> for ReverseNoneIsLowerComparator {
     #[inline(always)]
     fn compare(&self, lhs: &i64, rhs: &i64) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: i64) -> ValueRange<i64> {
+        ValueRange::LessThan(threshold, false)
     }
 }
 
@@ -189,12 +229,20 @@ impl Comparator<String> for ReverseNoneIsLowerComparator {
     fn compare(&self, lhs: &String, rhs: &String) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
+
+    fn threshold_to_valuerange(&self, threshold: String) -> ValueRange<String> {
+        ValueRange::LessThan(threshold, false)
+    }
 }
 
 impl Comparator<OwnedValue> for ReverseNoneIsLowerComparator {
     #[inline(always)]
     fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
         compare_owned_value::</* NULLS_FIRST= */ false>(rhs, lhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: OwnedValue) -> ValueRange<OwnedValue> {
+        ValueRange::LessThan(threshold, false)
     }
 }
 
@@ -218,12 +266,20 @@ where NaturalComparator: Comparator<T>
             (Some(lhs), Some(rhs)) => NaturalComparator.compare(lhs, rhs),
         }
     }
+
+    fn threshold_to_valuerange(&self, threshold: Option<T>) -> ValueRange<Option<T>> {
+        ValueRange::GreaterThan(threshold, true)
+    }
 }
 
 impl Comparator<u32> for NaturalNoneIsHigherComparator {
     #[inline(always)]
     fn compare(&self, lhs: &u32, rhs: &u32) -> Ordering {
         NaturalComparator.compare(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: u32) -> ValueRange<u32> {
+        ValueRange::GreaterThan(threshold, true)
     }
 }
 
@@ -232,12 +288,20 @@ impl Comparator<u64> for NaturalNoneIsHigherComparator {
     fn compare(&self, lhs: &u64, rhs: &u64) -> Ordering {
         NaturalComparator.compare(lhs, rhs)
     }
+
+    fn threshold_to_valuerange(&self, threshold: u64) -> ValueRange<u64> {
+        ValueRange::GreaterThan(threshold, true)
+    }
 }
 
 impl Comparator<f64> for NaturalNoneIsHigherComparator {
     #[inline(always)]
     fn compare(&self, lhs: &f64, rhs: &f64) -> Ordering {
         NaturalComparator.compare(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: f64) -> ValueRange<f64> {
+        ValueRange::GreaterThan(threshold, true)
     }
 }
 
@@ -246,12 +310,20 @@ impl Comparator<f32> for NaturalNoneIsHigherComparator {
     fn compare(&self, lhs: &f32, rhs: &f32) -> Ordering {
         NaturalComparator.compare(lhs, rhs)
     }
+
+    fn threshold_to_valuerange(&self, threshold: f32) -> ValueRange<f32> {
+        ValueRange::GreaterThan(threshold, true)
+    }
 }
 
 impl Comparator<i64> for NaturalNoneIsHigherComparator {
     #[inline(always)]
     fn compare(&self, lhs: &i64, rhs: &i64) -> Ordering {
         NaturalComparator.compare(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: i64) -> ValueRange<i64> {
+        ValueRange::GreaterThan(threshold, true)
     }
 }
 
@@ -260,12 +332,20 @@ impl Comparator<String> for NaturalNoneIsHigherComparator {
     fn compare(&self, lhs: &String, rhs: &String) -> Ordering {
         NaturalComparator.compare(lhs, rhs)
     }
+
+    fn threshold_to_valuerange(&self, threshold: String) -> ValueRange<String> {
+        ValueRange::GreaterThan(threshold, true)
+    }
 }
 
 impl Comparator<OwnedValue> for NaturalNoneIsHigherComparator {
     #[inline(always)]
     fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
         compare_owned_value::</* NULLS_FIRST= */ false>(lhs, rhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: OwnedValue) -> ValueRange<OwnedValue> {
+        ValueRange::GreaterThan(threshold, true)
     }
 }
 
@@ -308,6 +388,19 @@ where
             ComparatorEnum::NaturalNoneHigher => NaturalNoneIsHigherComparator.compare(lhs, rhs),
         }
     }
+
+    fn threshold_to_valuerange(&self, threshold: T) -> ValueRange<T> {
+        match self {
+            ComparatorEnum::Natural => NaturalComparator.threshold_to_valuerange(threshold),
+            ComparatorEnum::Reverse => ReverseComparator.threshold_to_valuerange(threshold),
+            ComparatorEnum::ReverseNoneLower => {
+                ReverseNoneIsLowerComparator.threshold_to_valuerange(threshold)
+            }
+            ComparatorEnum::NaturalNoneHigher => {
+                NaturalNoneIsHigherComparator.threshold_to_valuerange(threshold)
+            }
+        }
+    }
 }
 
 impl<Head, Tail, LeftComparator, RightComparator> Comparator<(Head, Tail)>
@@ -321,6 +414,10 @@ where
         self.0
             .compare(&lhs.0, &rhs.0)
             .then_with(|| self.1.compare(&lhs.1, &rhs.1))
+    }
+
+    fn threshold_to_valuerange(&self, threshold: (Head, Tail)) -> ValueRange<(Head, Tail)> {
+        ValueRange::GreaterThan(threshold, false)
     }
 }
 
@@ -338,6 +435,13 @@ where
             .then_with(|| self.1.compare(&lhs.1 .0, &rhs.1 .0))
             .then_with(|| self.2.compare(&lhs.1 .1, &rhs.1 .1))
     }
+
+    fn threshold_to_valuerange(
+        &self,
+        threshold: (Type1, (Type2, Type3)),
+    ) -> ValueRange<(Type1, (Type2, Type3))> {
+        ValueRange::GreaterThan(threshold, false)
+    }
 }
 
 impl<Type1, Type2, Type3, Comparator1, Comparator2, Comparator3> Comparator<(Type1, Type2, Type3)>
@@ -353,6 +457,13 @@ where
             .compare(&lhs.0, &rhs.0)
             .then_with(|| self.1.compare(&lhs.1, &rhs.1))
             .then_with(|| self.2.compare(&lhs.2, &rhs.2))
+    }
+
+    fn threshold_to_valuerange(
+        &self,
+        threshold: (Type1, Type2, Type3),
+    ) -> ValueRange<(Type1, Type2, Type3)> {
+        ValueRange::GreaterThan(threshold, false)
     }
 }
 
@@ -377,6 +488,13 @@ where
             .then_with(|| self.2.compare(&lhs.1 .1 .0, &rhs.1 .1 .0))
             .then_with(|| self.3.compare(&lhs.1 .1 .1, &rhs.1 .1 .1))
     }
+
+    fn threshold_to_valuerange(
+        &self,
+        threshold: (Type1, (Type2, (Type3, Type4))),
+    ) -> ValueRange<(Type1, (Type2, (Type3, Type4)))> {
+        ValueRange::GreaterThan(threshold, false)
+    }
 }
 
 impl<Type1, Type2, Type3, Type4, Comparator1, Comparator2, Comparator3, Comparator4>
@@ -399,6 +517,13 @@ where
             .then_with(|| self.1.compare(&lhs.1, &rhs.1))
             .then_with(|| self.2.compare(&lhs.2, &rhs.2))
             .then_with(|| self.3.compare(&lhs.3, &rhs.3))
+    }
+
+    fn threshold_to_valuerange(
+        &self,
+        threshold: (Type1, Type2, Type3, Type4),
+    ) -> ValueRange<(Type1, Type2, Type3, Type4)> {
+        ValueRange::GreaterThan(threshold, false)
     }
 }
 
@@ -489,14 +614,27 @@ impl<TSegmentSortKeyComputer, TSegmentSortKey, TComparator> SegmentSortKeyComput
 where
     TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSegmentSortKey>,
     TSegmentSortKey: Clone + 'static + Sync + Send,
-    TComparator: Comparator<TSegmentSortKey> + 'static + Sync + Send,
+    TComparator: Comparator<TSegmentSortKey> + Clone + 'static + Sync + Send,
 {
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
     type SegmentComparator = TComparator;
 
+    fn segment_comparator(&self) -> Self::SegmentComparator {
+        self.comparator.clone()
+    }
+
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.segment_sort_key_computer.segment_sort_key(doc, score)
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
+        self.segment_sort_key_computer
+            .segment_sort_keys(docs, filter)
     }
 
     #[inline(always)]

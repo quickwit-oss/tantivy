@@ -1,6 +1,6 @@
 use binggan::{InputGroup, black_box};
 use common::*;
-use tantivy_columnar::Column;
+use tantivy_columnar::{Column, ValueRange};
 
 pub mod common;
 
@@ -46,16 +46,16 @@ fn bench_group(mut runner: InputGroup<Column>) {
     runner.register("access_first_vals", |column| {
         let mut sum = 0;
         const BLOCK_SIZE: usize = 32;
-        let mut docs = vec![0; BLOCK_SIZE];
-        let mut buffer = vec![None; BLOCK_SIZE];
+        let mut docs = Vec::with_capacity(BLOCK_SIZE);
+        let mut buffer = Vec::with_capacity(BLOCK_SIZE);
         for i in (0..NUM_DOCS).step_by(BLOCK_SIZE) {
-            // fill docs
-            #[allow(clippy::needless_range_loop)]
+            docs.clear();
             for idx in 0..BLOCK_SIZE {
-                docs[idx] = idx as u32 + i;
+                docs.push(idx as u32 + i);
             }
 
-            column.first_vals(&docs, &mut buffer);
+            buffer.clear();
+            column.first_vals_in_value_range(&mut docs, &mut buffer, ValueRange::All);
             for val in buffer.iter() {
                 let Some(val) = val else { continue };
                 sum += *val;

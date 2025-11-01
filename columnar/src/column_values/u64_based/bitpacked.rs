@@ -6,6 +6,7 @@ use common::{BinarySerializable, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
+use crate::column::ValueRange;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
 
@@ -66,24 +67,173 @@ impl ColumnValues for BitpackedReader {
         self.stats.num_rows
     }
 
+    fn get_vals_in_value_range(
+        &self,
+        indexes: &mut Vec<u32>,
+        output: &mut Vec<Option<u64>>,
+        value_range: ValueRange<u64>,
+    ) {
+        let mut write_head = 0;
+        match value_range {
+            ValueRange::All => {
+                for i in 0..indexes.len() {
+                    let idx = indexes[i];
+                    indexes[write_head] = idx;
+                    output.push(Some(self.get_val(idx)));
+                    write_head += 1;
+                }
+            }
+            ValueRange::Inclusive(range) => {
+                if let Some(transformed_range) =
+                    transform_range_before_linear_transformation(&self.stats, range)
+                {
+                    for i in 0..indexes.len() {
+                        let doc = indexes[i];
+                        let raw_val = self.get_val(doc);
+                        if transformed_range.contains(&raw_val) {
+                            indexes[write_head] = doc;
+                            output
+                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            write_head += 1;
+                        }
+                    }
+                }
+            }
+            ValueRange::GreaterThan(threshold, _) => {
+                if threshold < self.stats.min_value {
+                    for i in 0..indexes.len() {
+                        let idx = indexes[i];
+                        indexes[write_head] = idx;
+                        output.push(Some(self.get_val(idx)));
+                        write_head += 1;
+                    }
+                } else if threshold >= self.stats.max_value {
+                    // All filtered out
+                } else {
+                    let raw_threshold = (threshold - self.stats.min_value) / self.stats.gcd.get();
+                    for i in 0..indexes.len() {
+                        let doc = indexes[i];
+                        let raw_val = self.get_val(doc);
+                        if raw_val > raw_threshold {
+                            indexes[write_head] = doc;
+                            output
+                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            write_head += 1;
+                        }
+                    }
+                }
+            }
+            ValueRange::LessThan(threshold, _) => {
+                if threshold > self.stats.max_value {
+                    for i in 0..indexes.len() {
+                        let idx = indexes[i];
+                        indexes[write_head] = idx;
+                        output.push(Some(self.get_val(idx)));
+                        write_head += 1;
+                    }
+                } else if threshold <= self.stats.min_value {
+                    // All filtered out
+                } else {
+                    let diff = threshold - self.stats.min_value;
+                    let gcd = self.stats.gcd.get();
+                    let raw_threshold = if diff % gcd == 0 {
+                        diff / gcd
+                    } else {
+                        diff / gcd + 1
+                    };
+
+                    for i in 0..indexes.len() {
+                        let doc = indexes[i];
+                        let raw_val = self.get_val(doc);
+                        if raw_val < raw_threshold {
+                            indexes[write_head] = doc;
+                            output
+                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            write_head += 1;
+                        }
+                    }
+                }
+            }
+        }
+        indexes.truncate(write_head);
+    }
     fn get_row_ids_for_value_range(
         &self,
-        range: RangeInclusive<u64>,
+        range: ValueRange<u64>,
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        let Some(transformed_range) =
-            transform_range_before_linear_transformation(&self.stats, range)
-        else {
-            positions.clear();
-            return;
-        };
-        self.bit_unpacker.get_ids_for_value_range(
-            transformed_range,
-            doc_id_range,
-            &self.data,
-            positions,
-        );
+        match range {
+            ValueRange::All => {
+                positions.extend(doc_id_range);
+                return;
+            }
+            ValueRange::Inclusive(range) => {
+                let Some(transformed_range) =
+                    transform_range_before_linear_transformation(&self.stats, range)
+                else {
+                    positions.clear();
+                    return;
+                };
+
+                self.bit_unpacker.get_ids_for_value_range(
+                    transformed_range,
+                    doc_id_range,
+                    &self.data,
+                    positions,
+                );
+            }
+            ValueRange::GreaterThan(threshold, _) => {
+                if threshold < self.stats.min_value {
+                    positions.extend(doc_id_range);
+                    return;
+                }
+                if threshold >= self.stats.max_value {
+                    return;
+                }
+                let raw_threshold = (threshold - self.stats.min_value) / self.stats.gcd.get();
+                let max_raw = (self.stats.max_value - self.stats.min_value) / self.stats.gcd.get();
+                let transformed_range = (raw_threshold + 1)..=max_raw;
+
+                self.bit_unpacker.get_ids_for_value_range(
+                    transformed_range,
+                    doc_id_range,
+                    &self.data,
+                    positions,
+                );
+            }
+            ValueRange::LessThan(threshold, _) => {
+                if threshold > self.stats.max_value {
+                    positions.extend(doc_id_range);
+                    return;
+                }
+                if threshold <= self.stats.min_value {
+                    return;
+                }
+
+                let diff = threshold - self.stats.min_value;
+                let gcd = self.stats.gcd.get();
+                // We want raw < raw_threshold_limit
+                // raw <= raw_threshold_limit - 1
+                let raw_threshold_limit = if diff % gcd == 0 {
+                    diff / gcd
+                } else {
+                    diff / gcd + 1
+                };
+
+                if raw_threshold_limit == 0 {
+                    return;
+                }
+                let transformed_range = 0..=(raw_threshold_limit - 1);
+
+                self.bit_unpacker.get_ids_for_value_range(
+                    transformed_range,
+                    doc_id_range,
+                    &self.data,
+                    positions,
+                );
+            }
+        }
     }
 }
 

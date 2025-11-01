@@ -1,8 +1,9 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::{Range, RangeInclusive};
+use std::ops::Range;
 
 use crate::ColumnValues;
+use crate::column::ValueRange;
 use crate::column_values::monotonic_mapping::StrictlyMonotonicFn;
 
 struct MonotonicMappingColumn<C, T, Input> {
@@ -80,16 +81,35 @@ where
 
     fn get_row_ids_for_value_range(
         &self,
-        range: RangeInclusive<Output>,
+        range: ValueRange<Output>,
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        self.from_column.get_row_ids_for_value_range(
-            self.monotonic_mapping.inverse(range.start().clone())
-                ..=self.monotonic_mapping.inverse(range.end().clone()),
-            doc_id_range,
-            positions,
-        )
+        match range {
+            ValueRange::Inclusive(range) => self.from_column.get_row_ids_for_value_range(
+                ValueRange::Inclusive(
+                    self.monotonic_mapping.inverse(range.start().clone())
+                        ..=self.monotonic_mapping.inverse(range.end().clone()),
+                ),
+                doc_id_range,
+                positions,
+            ),
+            ValueRange::All => self.from_column.get_row_ids_for_value_range(
+                ValueRange::All,
+                doc_id_range,
+                positions,
+            ),
+            ValueRange::GreaterThan(threshold, _) => self.from_column.get_row_ids_for_value_range(
+                ValueRange::GreaterThan(self.monotonic_mapping.inverse(threshold), false),
+                doc_id_range,
+                positions,
+            ),
+            ValueRange::LessThan(threshold, _) => self.from_column.get_row_ids_for_value_range(
+                ValueRange::LessThan(self.monotonic_mapping.inverse(threshold), false),
+                doc_id_range,
+                positions,
+            ),
+        }
     }
 
     // We voluntarily do not implement get_range as it yields a regression,

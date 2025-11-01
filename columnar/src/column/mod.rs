@@ -89,31 +89,6 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.values_for_doc(row_id).next()
     }
 
-    /// Load the first value for each docid in the provided slice.
-    #[inline]
-    pub fn first_vals(&self, docids: &[DocId], output: &mut [Option<T>]) {
-        match &self.index {
-            ColumnIndex::Empty { .. } => {}
-            ColumnIndex::Full => self.values.get_vals_opt(docids, output),
-            ColumnIndex::Optional(optional_index) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    output[i] = optional_index
-                        .rank_if_exists(*docid)
-                        .map(|rowid| self.values.get_val(rowid));
-                }
-            }
-            ColumnIndex::Multivalued(multivalued_index) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    let range = multivalued_index.range(*docid);
-                    let is_empty = range.start == range.end;
-                    if !is_empty {
-                        output[i] = Some(self.values.get_val(range.start));
-                    }
-                }
-            }
-        }
-    }
-
     /// Translates a block of docids to row_ids.
     ///
     /// returns the row_ids and the matching docids on the same index
@@ -143,7 +118,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     #[inline]
     pub fn get_docids_for_value_range(
         &self,
-        value_range: RangeInclusive<T>,
+        value_range: ValueRange<T>,
         selected_docid_range: Range<u32>,
         doc_ids: &mut Vec<u32>,
     ) {
@@ -165,6 +140,182 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
             column: self,
             default_value,
         })
+    }
+}
+
+// Separate impl block for methods requiring `Default` for `T`.
+impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
+    /// Load the first value for each docid in the provided slice.
+    #[inline]
+    pub fn first_vals_in_value_range(
+        &self,
+        docids: &mut Vec<DocId>,
+        values: &mut Vec<Option<T>>,
+        value_range: ValueRange<T>,
+    ) {
+        const BLOCK_LEN: usize = 64; // Corresponds to COLLECT_BLOCK_BUFFER_LEN in tantivy's docset
+        match (&self.index, value_range) {
+            (ColumnIndex::Empty { .. }, value_range) => {
+                let nulls_match = match &value_range {
+                    ValueRange::All => true,
+                    ValueRange::Inclusive(_) => false,
+                    ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                };
+                if nulls_match {
+                    for _ in 0..docids.len() {
+                        values.push(None);
+                    }
+                } else {
+                    docids.clear();
+                }
+            }
+            (ColumnIndex::Full, value_range) => {
+                self.values
+                    .get_vals_in_value_range(docids, values, value_range);
+            }
+            (ColumnIndex::Optional(optional_index), value_range) => {
+                let len = docids.len();
+                // Ensure the input docids length does not exceed BLOCK_LEN for stack allocation
+                // safety. If it does, we might need to handle this with multiple
+                // chunks or fallback to heap. For now, an assert is used to confirm
+                // expected usage within batch processing limits.
+                assert!(
+                    len <= BLOCK_LEN,
+                    "Input docids length ({}) exceeds BLOCK_LEN ({})",
+                    len,
+                    BLOCK_LEN
+                );
+
+                let mut input_docs_buffer = [0u32; BLOCK_LEN];
+                input_docs_buffer[..len].copy_from_slice(docids);
+
+                let mut dense_row_ids_buffer = [0u32; BLOCK_LEN];
+                let mut dense_values_buffer = [T::default(); BLOCK_LEN];
+                let mut presence_mask: u64 = 0; // Bitmask to track which input_docs have a value
+                let mut num_present = 0;
+
+                // Phase 1: Identify existing RowIds and build dense_row_ids_buffer
+                for (i, &doc_id) in input_docs_buffer[..len].iter().enumerate() {
+                    if let Some(row_id) = optional_index.rank_if_exists(doc_id) {
+                        dense_row_ids_buffer[num_present] = row_id;
+                        presence_mask |= 1u64 << i; // Set bit for present docid
+                        num_present += 1;
+                    }
+                }
+
+                // Phase 2: Batch fetch values for present docs
+                if num_present > 0 {
+                    self.values.get_vals(
+                        &dense_row_ids_buffer[..num_present],
+                        &mut dense_values_buffer[..num_present],
+                    );
+                }
+
+                // Determine if nulls match the value range
+                let nulls_match = match &value_range {
+                    ValueRange::All => true,
+                    ValueRange::Inclusive(_) => false,
+                    ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                };
+
+                // Phase 3: Filter and merge results, reconstructing docids and values
+                docids.clear();
+                values.clear();
+
+                let mut dense_values_cursor = 0;
+                for i in 0..len {
+                    let original_doc_id = input_docs_buffer[i];
+                    if (presence_mask & (1u64 << i)) != 0 {
+                        // This doc_id was present in the optional index and has a value
+                        let val = dense_values_buffer[dense_values_cursor];
+                        dense_values_cursor += 1;
+
+                        // Check if the value matches the value range
+                        let value_matches = match &value_range {
+                            ValueRange::All => true,
+                            ValueRange::Inclusive(r) => r.contains(&val),
+                            ValueRange::GreaterThan(t, _) => val > *t,
+                            ValueRange::LessThan(t, _) => val < *t,
+                        };
+
+                        if value_matches {
+                            docids.push(original_doc_id);
+                            values.push(Some(val));
+                        }
+                    } else if nulls_match {
+                        // This doc_id was not present in the optional index (null) and nulls match
+                        docids.push(original_doc_id);
+                        values.push(None);
+                    }
+                }
+            }
+            (ColumnIndex::Multivalued(multivalued_index), value_range) => {
+                let nulls_match = match &value_range {
+                    ValueRange::All => true,
+                    ValueRange::Inclusive(_) => false,
+                    ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                };
+                let mut write_head = 0;
+                for i in 0..docids.len() {
+                    let docid = docids[i];
+                    let row_range = multivalued_index.range(docid);
+                    let is_empty = row_range.start == row_range.end;
+                    if !is_empty {
+                        let val = self.values.get_val(row_range.start);
+                        let matches = match &value_range {
+                            ValueRange::All => true,
+                            ValueRange::Inclusive(r) => r.contains(&val),
+                            ValueRange::GreaterThan(t, _) => val > *t,
+                            ValueRange::LessThan(t, _) => val < *t,
+                        };
+                        if matches {
+                            docids[write_head] = docid;
+                            values.push(Some(val));
+                            write_head += 1;
+                        }
+                    } else if nulls_match {
+                        docids[write_head] = docid;
+                        values.push(None);
+                        write_head += 1;
+                    }
+                }
+                docids.truncate(write_head);
+            }
+        }
+    }
+}
+
+/// A range of values.
+///
+/// This type is intended to be used in batch APIs, where the cost of unpacking the enum
+/// is outweighed by the time spent processing a batch.
+///
+/// Implementers should pattern match on the variants to use optimized loops for each case.
+#[derive(Clone, Debug)]
+pub enum ValueRange<T> {
+    /// A range that includes both start and end.
+    Inclusive(RangeInclusive<T>),
+    /// A range that matches all values.
+    All,
+    /// A range that matches all values greater than the threshold.
+    /// The boolean flag indicates if null values should be included.
+    GreaterThan(T, bool),
+    /// A range that matches all values less than the threshold.
+    /// The boolean flag indicates if null values should be included.
+    LessThan(T, bool),
+}
+
+impl<T: PartialOrd> ValueRange<T> {
+    pub fn intersects(&self, min: T, max: T) -> bool {
+        match self {
+            ValueRange::Inclusive(range) => *range.start() <= max && *range.end() >= min,
+            ValueRange::All => true,
+            ValueRange::GreaterThan(val, _) => max > *val,
+            ValueRange::LessThan(val, _) => min < *val,
+        }
     }
 }
 

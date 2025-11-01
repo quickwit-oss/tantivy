@@ -1,5 +1,6 @@
-use columnar::{ColumnType, MonotonicallyMappableToU64};
+use columnar::{ColumnType, MonotonicallyMappableToU64, ValueRange};
 
+use crate::collector::sort_key::sort_by_score::SortBySimilarityScoreSegmentComputer;
 use crate::collector::sort_key::{
     NaturalComparator, SortBySimilarityScore, SortByStaticFastValue, SortByString,
 };
@@ -36,6 +37,11 @@ impl SortByErasedType {
 
 trait ErasedSegmentSortKeyComputer: Send + Sync {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64>;
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Option<u64>>,
+    ) -> &mut Vec<(DocId, Option<u64>)>;
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue;
 }
 
@@ -53,6 +59,14 @@ where
         self.inner.segment_sort_key(doc, score)
     }
 
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Option<u64>>,
+    ) -> &mut Vec<(DocId, Option<u64>)> {
+        self.inner.segment_sort_keys(docs, filter)
+    }
+
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
         let val = self.inner.convert_segment_sort_key(sort_key);
         (self.converter)(val)
@@ -60,13 +74,21 @@ where
 }
 
 struct ScoreSegmentSortKeyComputer {
-    segment_computer: SortBySimilarityScore,
+    segment_computer: SortBySimilarityScoreSegmentComputer,
 }
 
 impl ErasedSegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
         let score_value: f64 = self.segment_computer.segment_sort_key(doc, score).into();
         Some(score_value.to_u64())
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        _docs: &[DocId],
+        _filter: ValueRange<Option<u64>>,
+    ) -> &mut Vec<(DocId, Option<u64>)> {
+        unimplemented!("Batch computation not supported for score sorting")
     }
 
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
@@ -174,7 +196,8 @@ impl SortKeyComputer for SortByErasedType {
                 }
             }
             Self::Score => Box::new(ScoreSegmentSortKeyComputer {
-                segment_computer: SortBySimilarityScore,
+                segment_computer: SortBySimilarityScore
+                    .segment_sort_key_computer(segment_reader)?,
             }),
         };
         Ok(ErasedColumnSegmentSortKeyComputer { inner })
@@ -193,6 +216,14 @@ impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
         self.inner.segment_sort_key(doc, score)
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
+        self.inner.segment_sort_keys(docs, filter)
     }
 
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> OwnedValue {

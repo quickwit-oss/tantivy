@@ -36,7 +36,7 @@ pub(crate) mod utils;
 mod value;
 
 pub use block_accessor::ColumnBlockAccessor;
-pub use column::{BytesColumn, Column, StrColumn};
+pub use column::{BytesColumn, Column, StrColumn, ValueRange};
 pub use column_index::ColumnIndex;
 pub use column_values::{
     ColumnValues, EmptyColumnValues, MonotonicallyMappableToU64, MonotonicallyMappableToU128,

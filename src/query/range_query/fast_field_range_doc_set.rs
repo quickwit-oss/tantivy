@@ -1,7 +1,6 @@
 use core::fmt::Debug;
-use std::ops::RangeInclusive;
 
-use columnar::Column;
+use columnar::{Column, ValueRange};
 
 use crate::{DocId, DocSet, TERMINATED};
 
@@ -41,7 +40,7 @@ impl VecCursor {
 
 pub(crate) struct RangeDocSet<T> {
     /// The range filter on the values.
-    value_range: RangeInclusive<T>,
+    value_range: ValueRange<T>,
     column: Column<T>,
     /// The next docid start range to fetch (inclusive).
     next_fetch_start: u32,
@@ -61,8 +60,8 @@ pub(crate) struct RangeDocSet<T> {
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
 impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
-    pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
-        if *value_range.start() > column.max_value() || *value_range.end() < column.min_value() {
+    pub(crate) fn new(value_range: ValueRange<T>, column: Column<T>) -> Self {
+        if !value_range.intersects(column.min_value(), column.max_value()) {
             return Self {
                 value_range,
                 column,
