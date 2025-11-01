@@ -713,11 +713,17 @@ where
                 return;
             }
         }
+        self.append_doc(doc, sort_key);
+    }
+
+    // Append a document to the top n.
+    //
+    // At this point, we need to have established that the doc is above the threshold.
+    fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
         if self.buffer.len() == self.buffer.capacity() {
             let median = self.truncate_top_n();
             self.threshold = Some(median);
         }
-
         // This cannot panic, because we truncate_median will at least remove one element, since
         // the min capacity is 2.
         let comparable_doc = ComparableDoc { doc, sort_key };
@@ -756,12 +762,12 @@ where
     }
 }
 
-impl<TScore, const REVERSE_ORDER: bool> TopNComputer<TScore, DocId, REVERSE_ORDER>
-where TScore: PartialOrd + Clone
+impl<TSortKey, const REVERSE_ORDER: bool> TopNComputer<TSortKey, DocId, REVERSE_ORDER>
+where TSortKey: PartialOrd + Clone
 {
     #[inline(always)]
     pub(crate) fn push_lazy<
-        TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TScore>,
+        TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSortKey>,
     >(
         &mut self,
         doc: DocId,
@@ -770,18 +776,14 @@ where TScore: PartialOrd + Clone
     ) {
         if TSegmentSortKeyComputer::is_lazy() {
             if let Some(threshold) = self.threshold.as_ref() {
-                let Some((_cmp, feature)) =
+                let Some((_cmp, sort_key)) =
+                    // TODO do we need to do somethign with order?
                     score_tweaker.accept_sort_key_lazy::<REVERSE_ORDER>(doc, score, threshold)
                 else {
                     return;
                 };
-                push_assuming_capacity(
-                    ComparableDoc {
-                        sort_key: feature,
-                        doc,
-                    },
-                    &mut self.buffer,
-                );
+
+                self.append_doc(doc, sort_key);
                 return;
             }
         }
