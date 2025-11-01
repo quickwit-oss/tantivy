@@ -6,7 +6,7 @@ use columnar::ColumnValues;
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
-use crate::collector::sort_key::ByStringColumn;
+use crate::collector::sort_key::{ByStringColumn, ReverseOrder};
 use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
 use crate::collector::{SegmentCollector, SegmentSortKeyComputer, SortKeyComputer};
@@ -21,7 +21,6 @@ struct FastFieldConvertCollector<
     pub collector: TCollector,
     pub field: String,
     pub fast_value: std::marker::PhantomData<TFastValue>,
-    order: Order,
 }
 
 impl<TCollector, TFastValue> Collector for FastFieldConvertCollector<TCollector, TFastValue>
@@ -70,11 +69,12 @@ where
         let transformed_result = raw_result
             .into_iter()
             .map(|(score, doc_address)| {
-                if self.order.is_desc() {
-                    (TFastValue::from_u64(score), doc_address)
-                } else {
-                    (TFastValue::from_u64(u64::MAX - score), doc_address)
-                }
+                (TFastValue::from_u64(score), doc_address)
+                // if self.order.is_desc() {
+                //     (TFastValue::from_u64(score), doc_address)
+                // } else {
+                //     (TFastValue::from_u64(u64::MAX - score), doc_address)
+                // }
             })
             .collect::<Vec<_>>();
         Ok(transformed_result)
@@ -421,7 +421,6 @@ impl TopDocs {
             collector: u64_collector,
             field: fast_field.to_string(),
             fast_value: PhantomData,
-            order,
         }
     }
 
@@ -536,9 +535,73 @@ impl TopDocs {
         sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send + Sync,
     ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
     where
-        TSortKey: 'static + Clone + Send + Sync + PartialOrd,
+        TSortKey: 'static + Clone + Send + Sync + PartialOrd + ReverseOrder,
     {
         TopBySortKeyCollector::new(sort_key_computer, self.0.into_different_sort_key_type())
+    }
+
+    pub fn order_by_no_score_fn<F, TNoScoreSortKeyFn, TSortKey>(
+        self,
+        sort_key_fn: F,
+    ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
+    where
+        F: 'static + Send + Sync + Fn(&SegmentReader) -> TNoScoreSortKeyFn,
+        TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+        TSortKey: 'static + PartialOrd + Clone + Send + Sync + ReverseOrder,
+    {
+        self.order_by(NoScoreFn(sort_key_fn))
+    }
+}
+
+/// Helper struct to make it possible to define a sort key computer that does not use
+/// the similary score from a simple function.
+struct NoScoreFn<F>(pub F);
+
+impl<F, TNoScoreSortKeyFn, TSortKey> SortKeyComputer for NoScoreFn<F>
+where
+    F: 'static + Send + Sync + Fn(&SegmentReader) -> TNoScoreSortKeyFn,
+    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+    TSortKey: 'static + PartialOrd + Clone + Send + Sync + ReverseOrder,
+{
+    type SortKey = TSortKey;
+    type Child = NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>;
+
+    fn segment_sort_key_computer(
+        &self,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        Ok({
+            NoScoreSegmentSortKeyComputer {
+                sort_key_fn: (self.0)(segment_reader),
+            }
+        })
+    }
+
+    fn requires_scoring(&self) -> bool {
+        false
+    }
+}
+
+struct NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn> {
+    sort_key_fn: TNoScoreSortKeyFn,
+}
+
+impl<TNoScoreSortKeyFn, TSortKey> SegmentSortKeyComputer
+    for NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>
+where
+    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+    TSortKey: 'static + PartialOrd + Clone + Send + Sync,
+{
+    type SortKey = TSortKey;
+    type SegmentSortKey = TSortKey;
+
+    fn sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
+        (self.sort_key_fn)(doc)
+    }
+
+    /// Convert a segment level score into the global level score.
+    fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
+        sort_key
     }
 }
 
@@ -823,7 +886,6 @@ mod tests {
     use proptest::prelude::*;
 
     use super::{TopDocs, TopNComputer};
-    use crate::collector::sort_key::NoScoreFn;
     use crate::collector::top_collector::ComparableDoc;
     use crate::collector::{Collector, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
@@ -1663,9 +1725,9 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let collector = TopDocs::with_limit(2).and_offset(1).order_by(NoScoreFn(
-            move |_segment_reader: &SegmentReader| move |doc: DocId| doc,
-        ));
+        let collector = TopDocs::with_limit(2)
+            .and_offset(1)
+            .order_by_no_score_fn(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
         let score_docs: Vec<(u32, DocAddress)> = index
             .reader()
             .unwrap()

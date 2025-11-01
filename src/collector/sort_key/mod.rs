@@ -1,7 +1,7 @@
 mod sort_key_computer;
 
 use columnar::StrColumn;
-pub use sort_key_computer::{NoScoreFn, SegmentSortKeyComputer, SortKeyComputer};
+pub use sort_key_computer::{SegmentSortKeyComputer, SortKeyComputer};
 
 use crate::termdict::TermOrdinal;
 use crate::{DocId, Order, Score};
@@ -19,6 +19,10 @@ where
         self.0.requires_scoring()
     }
 
+    fn order(&self) -> Order {
+        self.1
+    }
+
     fn segment_sort_key_computer(
         &self,
         segment_reader: &crate::SegmentReader,
@@ -32,51 +36,103 @@ impl<TSegmentSortKeyComputer, TSegmentSortKey> SegmentSortKeyComputer
     for (TSegmentSortKeyComputer, Order)
 where
     TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSegmentSortKey>,
-    TSegmentSortKey: BizarroWorldInvolution + PartialOrd + Clone + 'static + Sync + Send,
+    TSegmentSortKey: ReverseOrder<ReverseOrderType = TSegmentSortKey>
+        + PartialOrd
+        + Clone
+        + 'static
+        + Sync
+        + Send,
 {
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
 
     fn sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         let sort_key = self.0.sort_key(doc, score);
-        sort_key.involution_if_asc(self.1)
+        reverse_if_asc(sort_key, self.1)
     }
 
-    fn convert_segment_sort_key(&self, bizarro_sort_key: Self::SegmentSortKey) -> Self::SortKey {
-        let sort_key = bizarro_sort_key.involution_if_asc(self.1);
+    fn convert_segment_sort_key(&self, reverse_sort_key: Self::SegmentSortKey) -> Self::SortKey {
+        let sort_key = reverse_if_asc(reverse_sort_key, self.1);
         self.0.convert_segment_sort_key(sort_key)
     }
 }
 
-// BizarroWorldInvolution is a transformation that flips the order of a value.
+// ReverseOrder is a trait that flips the order of a value to match the
+// expectation of sorting by "ascending order".
 //
-// It is useful when we want to sort things in a way that is given to use dynamically
-// (unknown at compile time).
+// From some type, it can differ a little from just applying `std::cmp::Reverse`.
+// In particular, for `Option<T>`, the reverse order is not that of `std::cmp::Reverse<Option<T>>`,
+// but rather `Option<std::cmp::Reverse<T>>`:
+// Users typically still expect items without a value to appear at the end of the list.
 //
-// That way the segment score keeps having the same type regardless of the order,
-// and we do not rely on an enum.
-trait BizarroWorldInvolution: Copy {
-    fn involution(&self) -> Self;
-    fn involution_if_asc(&self, order: Order) -> Self {
-        match order {
-            Order::Asc => self.involution(),
-            Order::Desc => *self,
-        }
+// Also, when trying to apply an order dynamically (e.g. the order was passed by an API)
+// we do not necessarily have the luxury to have a specific type for the new key.
+//
+// We then rely on an ReverseOrder implementation with a ReverseOrderType that maps to Self.
+pub trait ReverseOrder: Clone {
+    type ReverseOrderType: PartialOrd + Clone;
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType;
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self;
+}
+
+fn reverse_if_asc<T>(value: T, order: Order) -> T
+where T: ReverseOrder<ReverseOrderType = T> {
+    match order {
+        Order::Asc => value.to_reverse_type(),
+        Order::Desc => value,
     }
 }
 
-impl BizarroWorldInvolution for u64 {
-    fn involution(&self) -> Self {
+impl ReverseOrder for u64 {
+    type ReverseOrderType = u64;
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType {
         u64::MAX - self
+    }
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+        reverse_value.to_reverse_type()
+    }
+}
+
+impl ReverseOrder for u32 {
+    type ReverseOrderType = u32;
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType {
+        u32::MAX - self
+    }
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+        reverse_value.to_reverse_type()
+    }
+}
+
+impl ReverseOrder for f32 {
+    type ReverseOrderType = f32;
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType {
+        f32::MAX - self
+    }
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+        // That's an involution
+        reverse_value.to_reverse_type()
     }
 }
 
 // The point here is that for Option, we do not want None values to come on top
 // when running a Asc query.
-impl BizarroWorldInvolution for Option<u64> {
-    #[inline]
-    fn involution(&self) -> Self {
-        self.map(|val| val.involution())
+impl<T: ReverseOrder> ReverseOrder for Option<T> {
+    type ReverseOrderType = Option<T::ReverseOrderType>;
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType {
+        self.map(|val| val.to_reverse_type())
+    }
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+        reverse_value.map(T::from_reverse_type)
     }
 }
 

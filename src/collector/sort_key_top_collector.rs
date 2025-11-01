@@ -1,7 +1,7 @@
-use crate::collector::sort_key::{SegmentSortKeyComputer, SortKeyComputer};
-use crate::collector::top_collector::{TopCollector, TopSegmentCollector};
+use crate::collector::sort_key::{ReverseOrder, SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::top_collector::{merge_fruits, TopCollector, TopSegmentCollector};
 use crate::collector::{Collector, SegmentCollector};
-use crate::{DocAddress, DocId, Result, Score, SegmentReader};
+use crate::{DocAddress, DocId, Order, Result, Score, SegmentReader};
 
 pub(crate) struct TopBySortKeyCollector<TSortKeyComputer, TSortKey> {
     sort_key_computer: TSortKeyComputer,
@@ -25,7 +25,7 @@ where TSortKey: Clone + PartialOrd
 impl<TSortKeyComputer, TSortKey> Collector for TopBySortKeyCollector<TSortKeyComputer, TSortKey>
 where
     TSortKeyComputer: SortKeyComputer<SortKey = TSortKey> + Send + Sync,
-    TSortKey: 'static + Send + PartialOrd + Sync + Clone,
+    TSortKey: 'static + Send + PartialOrd + Sync + Clone + ReverseOrder,
 {
     type Fruit = Vec<(TSortKeyComputer::SortKey, DocAddress)>;
 
@@ -51,7 +51,36 @@ where
     }
 
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> Result<Self::Fruit> {
-        self.collector.merge_fruits(segment_fruits)
+        let order = self.sort_key_computer.order();
+        match order {
+            Order::Asc => {
+                let reverse_segment_fruits: Vec<
+                    Vec<(
+                        <TSortKeyComputer::SortKey as ReverseOrder>::ReverseOrderType,
+                        DocAddress,
+                    )>,
+                > = segment_fruits
+                    .into_iter()
+                    .map(|vec| {
+                        vec.into_iter()
+                            .map(|(sort_key, doc_addr)| (sort_key.to_reverse_type(), doc_addr))
+                            .collect()
+                    })
+                    .collect();
+                let merged_reverse_fruits = merge_fruits(
+                    reverse_segment_fruits,
+                    self.collector.limit,
+                    self.collector.offset,
+                )?;
+                Ok(merged_reverse_fruits
+                    .into_iter()
+                    .map(|(reverse_sort_key, doc_addr)| {
+                        (TSortKey::from_reverse_type(reverse_sort_key), doc_addr)
+                    })
+                    .collect())
+            }
+            Order::Desc => self.collector.merge_fruits(segment_fruits),
+        }
     }
 }
 

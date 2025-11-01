@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
-use crate::{DocId, Result, Score, SegmentReader};
+use crate::collector::sort_key::ReverseOrder;
+use crate::{DocId, Order, Result, Score, SegmentReader};
 
 /// A `SegmentSortKeyComputer` makes it possible to modify the default score
 /// for a given document belonging to a specific segment.
@@ -77,6 +78,10 @@ pub trait SortKeyComputer: Sync {
         false
     }
 
+    fn order(&self) -> Order {
+        Order::Desc
+    }
+
     /// Builds a child sort key computer for a specific segment.
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
 }
@@ -98,6 +103,45 @@ where
             self.0.segment_sort_key_computer(segment_reader)?,
             self.1.segment_sort_key_computer(segment_reader)?,
         ))
+    }
+}
+
+impl<T: PartialOrd + Clone> ReverseOrder for std::cmp::Reverse<T> {
+    type ReverseOrderType = T;
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType {
+        self.0
+    }
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+        Self(reverse_value)
+    }
+}
+
+impl ReverseOrder for String {
+    type ReverseOrderType = std::cmp::Reverse<String>;
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType {
+        std::cmp::Reverse(self)
+    }
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+        reverse_value.0
+    }
+}
+
+impl<Left: ReverseOrder, Right: ReverseOrder> ReverseOrder for (Left, Right) {
+    type ReverseOrderType = (Left::ReverseOrderType, Right::ReverseOrderType);
+
+    fn to_reverse_type(self) -> Self::ReverseOrderType {
+        (self.0.to_reverse_type(), self.1.to_reverse_type())
+    }
+
+    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+        (
+            Left::from_reverse_type(reverse_value.0),
+            Right::from_reverse_type(reverse_value.1),
+        )
     }
 }
 
@@ -308,55 +352,6 @@ where
 
     fn sort_key(&mut self, doc: DocId, score: Score) -> TSortKey {
         (self)(doc, score)
-    }
-
-    /// Convert a segment level score into the global level score.
-    fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
-        sort_key
-    }
-}
-
-/// Helper struct to make it possible to define a sort key computer that does not use
-/// the similary score from a simple function.
-pub struct NoScoreFn<F>(pub F);
-
-impl<F, TNoScoreSortKeyFn, TSortKey> SortKeyComputer for NoScoreFn<F>
-where
-    F: 'static + Send + Sync + Fn(&SegmentReader) -> TNoScoreSortKeyFn,
-    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
-    TSortKey: 'static + PartialOrd + Clone + Send + Sync,
-{
-    type SortKey = TSortKey;
-    type Child = NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>;
-
-    fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
-        Ok({
-            NoScoreSegmentSortKeyComputer {
-                sort_key_fn: (self.0)(segment_reader),
-            }
-        })
-    }
-
-    fn requires_scoring(&self) -> bool {
-        false
-    }
-}
-
-pub struct NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn> {
-    sort_key_fn: TNoScoreSortKeyFn,
-}
-
-impl<TNoScoreSortKeyFn, TSortKey> SegmentSortKeyComputer
-    for NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>
-where
-    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
-    TSortKey: 'static + PartialOrd + Clone + Send + Sync,
-{
-    type SortKey = TSortKey;
-    type SegmentSortKey = TSortKey;
-
-    fn sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
-        (self.sort_key_fn)(doc)
     }
 
     /// Convert a segment level score into the global level score.

@@ -104,22 +104,7 @@ where T: PartialOrd + Clone
         &self,
         children: Vec<Vec<(T, DocAddress)>>,
     ) -> crate::Result<Vec<(T, DocAddress)>> {
-        if self.limit == 0 {
-            return Ok(Vec::new());
-        }
-        let mut top_collector: TopNComputer<_, _> = TopNComputer::new(self.limit + self.offset);
-        for child_fruit in children {
-            for (feature, doc) in child_fruit {
-                top_collector.push(feature, doc);
-            }
-        }
-
-        Ok(top_collector
-            .into_sorted_vec()
-            .into_iter()
-            .skip(self.offset)
-            .map(|cdoc| (cdoc.sort_key, cdoc.doc))
-            .collect())
+        merge_fruits(children, self.limit, self.offset)
     }
 
     pub(crate) fn for_segment<F: PartialOrd + Clone>(
@@ -144,6 +129,28 @@ where T: PartialOrd + Clone
             _marker: PhantomData,
         }
     }
+}
+
+pub fn merge_fruits<T: PartialOrd + Clone, D: Ord>(
+    children: Vec<Vec<(T, D)>>,
+    limit: usize,
+    offset: usize,
+) -> crate::Result<Vec<(T, D)>> {
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+    let mut top_collector: TopNComputer<T, D> = TopNComputer::new(limit + offset);
+    for child_fruit in children {
+        for (feature, doc) in child_fruit {
+            top_collector.push(feature, doc);
+        }
+    }
+    Ok(top_collector
+        .into_sorted_vec()
+        .into_iter()
+        .skip(offset)
+        .map(|cdoc| (cdoc.sort_key, cdoc.doc))
+        .collect())
 }
 
 /// The Top Collector keeps track of the K documents
