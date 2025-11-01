@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 
+use crate::collector::ComparableDoc;
 use crate::collector::sort_key::ReverseOrder;
+use crate::collector::top_score_collector::push_assuming_capacity;
 use crate::{DocId, Order, Result, Score, SegmentReader};
 
 /// A `SegmentSortKeyComputer` makes it possible to modify the default score
@@ -23,7 +25,8 @@ pub trait SegmentSortKeyComputer: 'static {
     /// Returns true if the `SegmentSortKeyComputer` is a good candidate for the lazy evaluation
     /// optimization. See [`SegmentSortKeyComputer::accept_score_lazy`].
     fn is_lazy() -> bool {
-        false
+        // TODO: Without this, we don't currently have test coverage for laziness.
+        true
     }
 
     /// Implementing this method makes it possible to avoid computing
@@ -43,9 +46,9 @@ pub trait SegmentSortKeyComputer: 'static {
         threshold: &Self::SegmentSortKey,
     ) -> Option<(std::cmp::Ordering, Self::SegmentSortKey)> {
         let excluded_ordering = if REVERSE_ORDER {
-            Ordering::Greater
-        } else {
             Ordering::Less
+        } else {
+            Ordering::Greater
         };
         let sort_key = self.sort_key(doc_id, score);
         let cmp = sort_key.partial_cmp(threshold).unwrap_or(excluded_ordering);
@@ -53,6 +56,36 @@ pub trait SegmentSortKeyComputer: 'static {
             return None;
         } else {
             return Some((cmp, sort_key));
+        }
+    }
+
+    /// Similar to `accept_sort_key_lazy`, but pushes results directly into the given buffer.
+    ///
+    /// The buffer must have at least enough capacity for `docs` matches, or this method will
+    /// panic.
+    fn accept_sort_key_block_lazy<const REVERSE_ORDER: bool>(
+        &mut self,
+        docs: &[DocId],
+        threshold: &Self::SegmentSortKey,
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId, REVERSE_ORDER>>,
+    ) {
+        let excluded_ordering = if REVERSE_ORDER {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
+        for &doc in docs {
+            let sort_key = self.sort_key(doc, 0.0);
+            let cmp = sort_key.partial_cmp(threshold).unwrap_or(excluded_ordering);
+            if cmp != excluded_ordering {
+                push_assuming_capacity(
+                    ComparableDoc {
+                        sort_key,
+                        doc,
+                    },
+                    output,
+                );
+            }
         }
     }
 

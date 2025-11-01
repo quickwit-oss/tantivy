@@ -102,6 +102,11 @@ where TSegmentSortKeyComputer: 'static + SegmentSortKeyComputer
             .collect_lazy(doc, score, &mut self.segment_sort_key_computer);
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.segment_collector
+            .collect_block_lazy(docs, &mut self.segment_sort_key_computer);
+    }
+
     fn harvest(self) -> Self::Fruit {
         let segment_hits: Vec<(TSegmentSortKeyComputer::SegmentSortKey, DocAddress)> =
             self.segment_collector.harvest();
