@@ -592,9 +592,12 @@ where
     C: Comparator<TSortKey>,
 {
     /// Create a new `TopNComputer`.
-    /// Internally it will allocate a buffer of size `2 * top_n`.
+    /// Internally it will allocate a buffer of size `(top_n.max(1) * 2) +
+    /// COLLECT_BLOCK_BUFFER_LEN`.
     pub fn new_with_comparator(top_n: usize, comparator: C) -> Self {
-        let vec_cap = top_n.max(1) * 2;
+        // We ensure that there is always enough space to include an entire block in the buffer if
+        // need be, so that `push_block_lazy` can avoid checking capacity inside its loop.
+        let vec_cap = (top_n.max(1) * 2) + crate::COLLECT_BLOCK_BUFFER_LEN;
         TopNComputer {
             buffer: Vec::with_capacity(vec_cap),
             top_n,
@@ -623,14 +626,29 @@ where
     // At this point, we need to have established that the doc is above the threshold.
     #[inline(always)]
     pub(crate) fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
-        if self.buffer.len() == self.buffer.capacity() {
-            let median = self.truncate_top_n();
-            self.threshold = Some(median);
-        }
-        // This cannot panic, because we truncate_median will at least remove one element, since
-        // the min capacity is 2.
+        self.reserve(1);
+        // This cannot panic, because we've reserved room for one element.
+        self.append_doc_unchecked(doc, sort_key);
+    }
+
+    // Append a document to the top n. `reserve` must already have been called to ensure that there
+    // is capacity, or this method will panic.
+    //
+    // At this point, we need to have established that the doc is above the threshold.
+    #[inline(always)]
+    pub(crate) fn append_doc_unchecked(&mut self, doc: D, sort_key: TSortKey) {
         let comparable_doc = ComparableDoc { doc, sort_key };
         push_assuming_capacity(comparable_doc, &mut self.buffer);
+    }
+
+    // Ensure that there is capacity to push `additional` more elements without resizing.
+    #[inline(always)]
+    pub(crate) fn reserve(&mut self, additional: usize) {
+        if self.buffer.len() + additional > self.buffer.capacity() {
+            let median = self.truncate_top_n();
+            debug_assert!(self.buffer.len() + additional <= self.buffer.capacity());
+            self.threshold = Some(median);
+        }
     }
 
     #[inline(never)]
@@ -672,7 +690,7 @@ where
 //
 // Panics if there is not enough capacity to add an element.
 #[inline(always)]
-fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
+pub fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
     let prev_len = buf.len();
     assert!(prev_len < buf.capacity());
     // This is mimicking the current (non-stabilized) implementation in std.
@@ -1398,11 +1416,11 @@ mod tests {
         #[test]
         fn test_top_field_collect_string_prop(
           order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
-          limit in 1..256_usize,
-          offset in 0..256_usize,
+          limit in 1..32_usize,
+          offset in 0..32_usize,
           segments_terms in
             proptest::collection::vec(
-                proptest::collection::vec(0..32_u8, 1..32_usize),
+                proptest::collection::vec(0..64_u8, 1..256_usize),
                 0..8_usize,
             )
         ) {

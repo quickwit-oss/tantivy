@@ -2,7 +2,10 @@ use std::cmp::Ordering;
 
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
-use crate::collector::{default_collect_segment_impl, SegmentCollector as _, TopNComputer};
+use crate::collector::top_score_collector::push_assuming_capacity;
+use crate::collector::{
+    default_collect_segment_impl, ComparableDoc, SegmentCollector as _, TopNComputer,
+};
 use crate::schema::Schema;
 use crate::{DocAddress, DocId, Result, Score, SegmentReader};
 
@@ -45,6 +48,38 @@ pub trait SegmentSortKeyComputer: 'static {
         top_n_computer.push(sort_key, doc);
     }
 
+    fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        docs: &[DocId],
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        // The capacity of a TopNComputer is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so we
+        // should always be able to `reserve` space for the entire block.
+        top_n_computer.reserve(docs.len());
+
+        if let Some(threshold) = &top_n_computer.threshold {
+            // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
+            // threshold here.
+            let threshold = threshold.clone();
+            // Eagerly push, with a threshold to compare to.
+            for &doc in docs {
+                let sort_key = self.segment_sort_key(doc, 0.0);
+                let cmp = self.compare_segment_sort_key(&sort_key, &threshold);
+                if cmp == Ordering::Greater {
+                    // We validated at the top of the method that we have capacity.
+                    top_n_computer.append_doc_unchecked(doc, sort_key);
+                }
+            }
+        } else {
+            // Eagerly push, without a threshold to compare to.
+            for &doc in docs {
+                let sort_key = self.segment_sort_key(doc, 0.0);
+                // We validated at the top of the method that we have capacity.
+                top_n_computer.append_doc_unchecked(doc, sort_key);
+            }
+        }
+    }
+
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
     /// its ordering.
     ///
@@ -75,6 +110,26 @@ pub trait SegmentSortKeyComputer: 'static {
             None
         } else {
             Some((cmp, sort_key))
+        }
+    }
+
+    /// Similar to `accept_sort_key_lazy`, but pushes results directly into the given buffer. Does
+    /// not support scoring.
+    ///
+    /// The buffer must have at least enough capacity for `docs` matches, or this method will
+    /// panic.
+    fn accept_sort_key_block_lazy(
+        &mut self,
+        docs: &[DocId],
+        threshold: &Self::SegmentSortKey,
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+    ) {
+        for &doc in docs {
+            let sort_key = self.segment_sort_key(doc, 0.0);
+            let cmp = self.compare_segment_sort_key(&sort_key, threshold);
+            if cmp != Ordering::Less {
+                push_assuming_capacity(ComparableDoc { sort_key, doc }, output);
+            }
         }
     }
 
@@ -231,6 +286,14 @@ where
             sort_key = self.segment_sort_key(doc, score);
         };
         top_n_computer.append_doc(doc, sort_key);
+    }
+
+    fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        _docs: &[DocId],
+        _top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        todo!("Override for laziness.");
     }
 
     #[inline(always)]

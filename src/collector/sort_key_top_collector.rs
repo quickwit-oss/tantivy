@@ -120,6 +120,11 @@ where
         );
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.segment_sort_key_computer
+            .compute_sort_keys_and_collect(docs, &mut self.topn_computer);
+    }
+
     fn harvest(self) -> Self::Fruit {
         let segment_ord = self.segment_ord;
         let segment_hits: Vec<(TSegmentSortKeyComputer::SortKey, DocAddress)> = self
