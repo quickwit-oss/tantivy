@@ -56,7 +56,7 @@ where
             Order::Asc => {
                 let reverse_segment_fruits: Vec<
                     Vec<(
-                        <TSortKeyComputer::SortKey as ReverseOrder>::ReverseOrderType,
+                        <TSortKeyComputer::SortKey as ReverseOrder>::ReverseType,
                         DocAddress,
                     )>,
                 > = segment_fruits

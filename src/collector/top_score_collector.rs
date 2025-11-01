@@ -1,8 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
-use std::sync::Arc;
 
-use columnar::ColumnValues;
+use columnar::Column;
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
@@ -12,74 +11,7 @@ use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCol
 use crate::collector::{SegmentCollector, SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::query::Weight;
-use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader, TantivyError};
-
-struct FastFieldConvertCollector<
-    TCollector: Collector<Fruit = Vec<(u64, DocAddress)>>,
-    TFastValue: FastValue,
-> {
-    pub collector: TCollector,
-    pub field: String,
-    pub fast_value: std::marker::PhantomData<TFastValue>,
-}
-
-impl<TCollector, TFastValue> Collector for FastFieldConvertCollector<TCollector, TFastValue>
-where
-    TCollector: Collector<Fruit = Vec<(u64, DocAddress)>>,
-    TFastValue: FastValue,
-{
-    type Fruit = Vec<(TFastValue, DocAddress)>;
-
-    type Child = TCollector::Child;
-
-    fn for_segment(
-        &self,
-        segment_local_id: crate::SegmentOrdinal,
-        segment: &SegmentReader,
-    ) -> crate::Result<Self::Child> {
-        let schema = segment.schema();
-        let field = schema.get_field(&self.field)?;
-        let field_entry = schema.get_field_entry(field);
-        if !field_entry.is_fast() {
-            return Err(TantivyError::SchemaError(format!(
-                "Field {:?} is not a fast field.",
-                field_entry.name()
-            )));
-        }
-        let schema_type = TFastValue::to_type();
-        let requested_type = field_entry.field_type().value_type();
-        if schema_type != requested_type {
-            return Err(TantivyError::SchemaError(format!(
-                "Field {:?} is of type {schema_type:?}!={requested_type:?}",
-                field_entry.name()
-            )));
-        }
-        self.collector.for_segment(segment_local_id, segment)
-    }
-
-    fn requires_scoring(&self) -> bool {
-        self.collector.requires_scoring()
-    }
-
-    fn merge_fruits(
-        &self,
-        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
-    ) -> crate::Result<Self::Fruit> {
-        let raw_result = self.collector.merge_fruits(segment_fruits)?;
-        let transformed_result = raw_result
-            .into_iter()
-            .map(|(score, doc_address)| {
-                (TFastValue::from_u64(score), doc_address)
-                // if self.order.is_desc() {
-                //     (TFastValue::from_u64(score), doc_address)
-                // } else {
-                //     (TFastValue::from_u64(u64::MAX - score), doc_address)
-                // }
-            })
-            .collect::<Vec<_>>();
-        Ok(transformed_result)
-    }
-}
+use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader};
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -137,43 +69,34 @@ impl fmt::Debug for TopDocs {
     }
 }
 
-struct SortKeyByFastFieldReader {
-    sort_column: Arc<dyn ColumnValues<u64>>,
-    order: Order,
+struct SortKeyByFastFieldReader<T> {
+    sort_column: Column<u64>,
+    typ: PhantomData<T>,
 }
 
-impl SegmentSortKeyComputer for SortKeyByFastFieldReader {
-    type SortKey = u64;
+impl<T: FastValue> SegmentSortKeyComputer for SortKeyByFastFieldReader<T> {
+    type SortKey = Option<T>;
 
-    type SegmentSortKey = u64;
+    type SegmentSortKey = Option<u64>;
 
     fn sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
-        let val = self.sort_column.get_val(doc);
-        if self.order == Order::Desc {
-            u64::MAX - val
-        } else {
-            val
-        }
+        self.sort_column.first(doc)
     }
 
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
-        if self.order == Order::Desc {
-            u64::MAX - sort_key
-        } else {
-            sort_key
-        }
+        sort_key.map(T::from_u64)
     }
 }
 
-struct ScorerByField {
+struct ScorerByField<T: FastValue = u64> {
     field: String,
-    order: Order,
+    typ: PhantomData<T>,
 }
 
-impl SortKeyComputer for ScorerByField {
-    type Child = SortKeyByFastFieldReader;
+impl<T: FastValue> SortKeyComputer for ScorerByField<T> {
+    type Child = SortKeyByFastFieldReader<T>;
 
-    type SortKey = u64;
+    type SortKey = Option<T>;
 
     fn segment_sort_key_computer(
         &self,
@@ -189,13 +112,9 @@ impl SortKeyComputer for ScorerByField {
             sort_column_opt.ok_or_else(|| FastFieldNotAvailableError {
                 field_name: self.field.clone(),
             })?;
-        let mut default_value = 0u64;
-        if self.order.is_asc() {
-            default_value = u64::MAX;
-        }
         Ok(SortKeyByFastFieldReader {
-            sort_column: sort_column.first_or_default_col(default_value),
-            order: self.order.clone(),
+            sort_column: sort_column,
+            typ: PhantomData,
         })
     }
 }
@@ -329,12 +248,15 @@ impl TopDocs {
         self,
         field: impl ToString,
         order: Order,
-    ) -> impl Collector<Fruit = Vec<(u64, DocAddress)>> {
+    ) -> impl Collector<Fruit = Vec<(Option<u64>, DocAddress)>> {
         TopBySortKeyCollector::new(
-            ScorerByField {
-                field: field.to_string(),
+            (
+                ScorerByField {
+                    field: field.to_string(),
+                    typ: PhantomData,
+                },
                 order,
-            },
+            ),
             self.0.into_different_sort_key_type(),
         )
     }
@@ -412,16 +334,20 @@ impl TopDocs {
         self,
         fast_field: impl ToString,
         order: Order,
-    ) -> impl Collector<Fruit = Vec<(TFastValue, DocAddress)>>
+    ) -> impl Collector<Fruit = Vec<(Option<TFastValue>, DocAddress)>>
     where
-        TFastValue: FastValue,
+        TFastValue: FastValue + ReverseOrder,
     {
-        let u64_collector = self.order_by_u64_field(fast_field.to_string(), order);
-        FastFieldConvertCollector {
-            collector: u64_collector,
-            field: fast_field.to_string(),
-            fast_value: PhantomData,
-        }
+        TopBySortKeyCollector::new(
+            (
+                ScorerByField {
+                    field: fast_field.to_string(),
+                    typ: PhantomData,
+                },
+                order,
+            ),
+            self.0.into_different_sort_key_type(),
+        )
     }
 
     /// Like `order_by_fast_field`, but for a `String` fast field.
@@ -1378,13 +1304,13 @@ mod tests {
         let searcher = index.reader()?.searcher();
 
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(SIZE, Order::Desc);
-        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector)?;
+        let top_docs: Vec<(Option<u64>, DocAddress)> = searcher.search(&query, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
-                (64, DocAddress::new(0, 1)),
-                (16, DocAddress::new(0, 2)),
-                (12, DocAddress::new(0, 0))
+                (Some(64), DocAddress::new(0, 1)),
+                (Some(16), DocAddress::new(0, 2)),
+                (Some(12), DocAddress::new(0, 0))
             ]
         );
         Ok(())
@@ -1417,12 +1343,13 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field("birthday", Order::Desc);
-        let top_docs: Vec<(DateTime, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
+        let top_docs: Vec<(Option<DateTime>, DocAddress)> =
+            searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
-                (mr_birthday, DocAddress::new(0, 1)),
-                (pr_birthday, DocAddress::new(0, 0)),
+                (Some(mr_birthday), DocAddress::new(0, 1)),
+                (Some(pr_birthday), DocAddress::new(0, 0)),
             ]
         );
         Ok(())
@@ -1447,12 +1374,13 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field("altitude", Order::Desc);
-        let top_docs: Vec<(i64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
+        let top_docs: Vec<(Option<i64>, DocAddress)> =
+            searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
-                (40i64, DocAddress::new(0, 1)),
-                (-1i64, DocAddress::new(0, 0)),
+                (Some(40i64), DocAddress::new(0, 1)),
+                (Some(-1i64), DocAddress::new(0, 0)),
             ]
         );
         Ok(())
@@ -1477,12 +1405,13 @@ mod tests {
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field("altitude", Order::Desc);
-        let top_docs: Vec<(f64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
+        let top_docs: Vec<(Option<f64>, DocAddress)> =
+            searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
-                (40f64, DocAddress::new(0, 1)),
-                (-1.0f64, DocAddress::new(0, 0)),
+                (Some(40f64), DocAddress::new(0, 1)),
+                (Some(-1.0f64), DocAddress::new(0, 0)),
             ]
         );
         Ok(())
@@ -1789,14 +1718,14 @@ mod tests {
         let searcher = index.reader()?.searcher();
 
         let top_collector = TopDocs::with_limit(4).order_by_fast_field(SIZE, Order::Asc);
-        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector)?;
+        let top_docs: Vec<(Option<u64>, DocAddress)> = searcher.search(&query, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
-                (12, DocAddress::new(0, 0)),
-                (16, DocAddress::new(0, 2)),
-                (64, DocAddress::new(0, 1)),
-                (18446744073709551615, DocAddress::new(0, 3)),
+                (Some(12), DocAddress::new(0, 0)),
+                (Some(16), DocAddress::new(0, 2)),
+                (Some(64), DocAddress::new(0, 1)),
+                (None, DocAddress::new(0, 3)),
             ]
         );
         Ok(())

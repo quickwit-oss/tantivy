@@ -3,6 +3,7 @@ mod sort_key_computer;
 use columnar::StrColumn;
 pub use sort_key_computer::{SegmentSortKeyComputer, SortKeyComputer};
 
+use crate::fastfield::FastValue;
 use crate::termdict::TermOrdinal;
 use crate::{DocId, Order, Score};
 
@@ -36,12 +37,8 @@ impl<TSegmentSortKeyComputer, TSegmentSortKey> SegmentSortKeyComputer
     for (TSegmentSortKeyComputer, Order)
 where
     TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSegmentSortKey>,
-    TSegmentSortKey: ReverseOrder<ReverseOrderType = TSegmentSortKey>
-        + PartialOrd
-        + Clone
-        + 'static
-        + Sync
-        + Send,
+    TSegmentSortKey:
+        ReverseOrder<ReverseType = TSegmentSortKey> + PartialOrd + Clone + 'static + Sync + Send,
 {
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
@@ -70,53 +67,55 @@ where
 //
 // We then rely on an ReverseOrder implementation with a ReverseOrderType that maps to Self.
 pub trait ReverseOrder: Clone {
-    type ReverseOrderType: PartialOrd + Clone;
+    type ReverseType: PartialOrd + Clone;
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType;
+    fn to_reverse_type(self) -> Self::ReverseType;
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self;
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self;
 }
 
 fn reverse_if_asc<T>(value: T, order: Order) -> T
-where T: ReverseOrder<ReverseOrderType = T> {
+where T: ReverseOrder<ReverseType = T> {
     match order {
         Order::Asc => value.to_reverse_type(),
         Order::Desc => value,
     }
 }
 
-impl ReverseOrder for u64 {
-    type ReverseOrderType = u64;
+impl<TFastValue: FastValue> ReverseOrder for TFastValue {
+    type ReverseType = TFastValue;
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType {
-        u64::MAX - self
+    fn to_reverse_type(self) -> Self::ReverseType {
+        // TODO check that the compiler is good enough to compile that to i64::MAX - self for i64
+        // for instance.
+        TFastValue::from_u64(u64::MAX - self.to_u64())
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
         reverse_value.to_reverse_type()
     }
 }
 
 impl ReverseOrder for u32 {
-    type ReverseOrderType = u32;
+    type ReverseType = u32;
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType {
+    fn to_reverse_type(self) -> Self::ReverseType {
         u32::MAX - self
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
         reverse_value.to_reverse_type()
     }
 }
 
 impl ReverseOrder for f32 {
-    type ReverseOrderType = f32;
+    type ReverseType = f32;
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType {
+    fn to_reverse_type(self) -> Self::ReverseType {
         f32::MAX - self
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
         // That's an involution
         reverse_value.to_reverse_type()
     }
@@ -125,13 +124,13 @@ impl ReverseOrder for f32 {
 // The point here is that for Option, we do not want None values to come on top
 // when running a Asc query.
 impl<T: ReverseOrder> ReverseOrder for Option<T> {
-    type ReverseOrderType = Option<T::ReverseOrderType>;
+    type ReverseType = Option<T::ReverseType>;
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType {
+    fn to_reverse_type(self) -> Self::ReverseType {
         self.map(|val| val.to_reverse_type())
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
         reverse_value.map(T::from_reverse_type)
     }
 }

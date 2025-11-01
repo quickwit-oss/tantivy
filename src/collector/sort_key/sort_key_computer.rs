@@ -107,37 +107,37 @@ where
 }
 
 impl<T: PartialOrd + Clone> ReverseOrder for std::cmp::Reverse<T> {
-    type ReverseOrderType = T;
+    type ReverseType = T;
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType {
+    fn to_reverse_type(self) -> Self::ReverseType {
         self.0
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
         Self(reverse_value)
     }
 }
 
 impl ReverseOrder for String {
-    type ReverseOrderType = std::cmp::Reverse<String>;
+    type ReverseType = std::cmp::Reverse<String>;
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType {
+    fn to_reverse_type(self) -> Self::ReverseType {
         std::cmp::Reverse(self)
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
         reverse_value.0
     }
 }
 
 impl<Left: ReverseOrder, Right: ReverseOrder> ReverseOrder for (Left, Right) {
-    type ReverseOrderType = (Left::ReverseOrderType, Right::ReverseOrderType);
+    type ReverseType = (Left::ReverseType, Right::ReverseType);
 
-    fn to_reverse_type(self) -> Self::ReverseOrderType {
+    fn to_reverse_type(self) -> Self::ReverseType {
         (self.0.to_reverse_type(), self.1.to_reverse_type())
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseOrderType) -> Self {
+    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
         (
             Left::from_reverse_type(reverse_value.0),
             Right::from_reverse_type(reverse_value.1),
