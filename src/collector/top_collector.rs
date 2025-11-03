@@ -203,6 +203,15 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     }
 
     #[inline]
+    pub fn collect_block_lazy(
+        &mut self,
+        docs: &[DocId],
+        segment_scorer: &mut impl SegmentSortKeyComputer<SegmentSortKey = T>,
+    ) {
+        self.topn_computer.push_block_lazy(docs, segment_scorer);
+    }
+
+    #[inline]
     pub fn collect_lazy(
         &mut self,
         doc: DocId,

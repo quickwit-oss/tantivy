@@ -693,7 +693,9 @@ where
     /// Create a new `TopNComputer`.
     /// Internally it will allocate a buffer of size `2 * top_n`.
     pub fn new(top_n: usize) -> Self {
-        let vec_cap = top_n.max(1) * 2;
+        // We ensure that there is always enough space to include an entire block in the buffer if
+        // need be, so that `push_block_lazy` can avoid checking capacity inside its loop.
+        let vec_cap = (top_n.max(1) * 2) + crate::COLLECT_BLOCK_BUFFER_LEN;
         TopNComputer {
             buffer: Vec::with_capacity(vec_cap),
             top_n,
@@ -775,6 +777,12 @@ where TScore: PartialOrd + Clone
                 else {
                     return;
                 };
+
+                if self.buffer.len() == self.buffer.capacity() {
+                    let median = self.truncate_top_n();
+                    self.threshold = Some(median);
+                }
+
                 push_assuming_capacity(
                     ComparableDoc {
                         sort_key: feature,
@@ -789,13 +797,62 @@ where TScore: PartialOrd + Clone
         self.push(feature, doc);
         return;
     }
+
+    #[inline(always)]
+    pub(crate) fn push_block_lazy<
+        TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TScore>,
+    >(
+        &mut self,
+        docs: &[DocId],
+        score_tweaker: &mut TSegmentSortKeyComputer,
+    ) {
+        // If the addition of this block might push us over capacity, start by truncating: our
+        // capacity is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so this always makes enough room
+        // for the entire block (although some of the block might be eliminated).
+        if self.buffer.len() + docs.len() > self.buffer.capacity() {
+            let median = self.truncate_top_n();
+            self.threshold = Some(median);
+        }
+
+        if let Some(last_median) = self.threshold.clone() {
+            if TSegmentSortKeyComputer::is_lazy() {
+                // We validated at the top of the method that we have capacity.
+                score_tweaker.accept_sort_key_block_lazy::<REVERSE_ORDER>(docs, &last_median, &mut self.buffer);
+                return;
+            }
+
+            // Eagerly push, with a threshold to compare to.
+            for &doc in docs {
+                let sort_key = score_tweaker.sort_key(doc, 0.0);
+
+                if !REVERSE_ORDER && sort_key > last_median {
+                    continue;
+                }
+                if REVERSE_ORDER && sort_key < last_median {
+                    continue;
+                }
+
+                // We validated at the top of the method that we have capacity.
+                let comparable_doc = ComparableDoc { doc, sort_key };
+                push_assuming_capacity(comparable_doc, &mut self.buffer);
+            }
+        } else {
+            // Eagerly push, without a threshold to compare to.
+            for &doc in docs {
+                let sort_key = score_tweaker.sort_key(doc, 0.0);
+                // We validated at the top of the method that we have capacity.
+                let comparable_doc = ComparableDoc { doc, sort_key };
+                push_assuming_capacity(comparable_doc, &mut self.buffer);
+            }
+        }
+    }
 }
 
 // Push an element provided there is enough capacity to do so.
 //
 // Panics if there is not enough capacity to add an element.
 #[inline(always)]
-fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
+pub fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
     let prev_len = buf.len();
     assert!(prev_len < buf.capacity());
     // This is mimicking the current (non-stabilized) implementation in std.
@@ -1509,11 +1566,11 @@ mod tests {
         #[test]
         fn test_top_field_collect_string_prop(
           order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
-          limit in 1..256_usize,
-          offset in 0..256_usize,
+          limit in 1..32_usize,
+          offset in 0..32_usize,
           segments_terms in
             proptest::collection::vec(
-                proptest::collection::vec(0..32_u8, 1..32_usize),
+                proptest::collection::vec(0..64_u8, 1..256_usize),
                 0..8_usize,
             )
         ) {
