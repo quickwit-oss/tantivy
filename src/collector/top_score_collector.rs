@@ -69,12 +69,12 @@ impl fmt::Debug for TopDocs {
     }
 }
 
-struct SortKeyByFastFieldReader<T> {
+pub struct SortByFieldSegmentSortKeyComputer<T> {
     sort_column: Column<u64>,
     typ: PhantomData<T>,
 }
 
-impl<T: FastValue> SegmentSortKeyComputer for SortKeyByFastFieldReader<T> {
+impl<T: FastValue> SegmentSortKeyComputer for SortByFieldSegmentSortKeyComputer<T> {
     type SortKey = Option<T>;
 
     type SegmentSortKey = Option<u64>;
@@ -88,13 +88,22 @@ impl<T: FastValue> SegmentSortKeyComputer for SortKeyByFastFieldReader<T> {
     }
 }
 
-struct ScorerByField<T: FastValue = u64> {
+pub struct SortByField<T: FastValue> {
     field: String,
     typ: PhantomData<T>,
 }
 
-impl<T: FastValue> SortKeyComputer for ScorerByField<T> {
-    type Child = SortKeyByFastFieldReader<T>;
+impl<T: FastValue> SortByField<T> {
+    pub fn for_field(column_name: impl ToString) -> SortByField<T> {
+        Self {
+            field: column_name.to_string(),
+            typ: PhantomData,
+        }
+    }
+}
+
+impl<T: FastValue> SortKeyComputer for SortByField<T> {
+    type Child = SortByFieldSegmentSortKeyComputer<T>;
 
     type SortKey = Option<T>;
 
@@ -112,7 +121,7 @@ impl<T: FastValue> SortKeyComputer for ScorerByField<T> {
             sort_column_opt.ok_or_else(|| FastFieldNotAvailableError {
                 field_name: self.field.clone(),
             })?;
-        Ok(SortKeyByFastFieldReader {
+        Ok(SortByFieldSegmentSortKeyComputer {
             sort_column: sort_column,
             typ: PhantomData,
         })
@@ -251,7 +260,7 @@ impl TopDocs {
     ) -> impl Collector<Fruit = Vec<(Option<u64>, DocAddress)>> {
         TopBySortKeyCollector::new(
             (
-                ScorerByField {
+                SortByField {
                     field: field.to_string(),
                     typ: PhantomData,
                 },
@@ -340,7 +349,7 @@ impl TopDocs {
     {
         TopBySortKeyCollector::new(
             (
-                ScorerByField {
+                SortByField {
                     field: fast_field.to_string(),
                     typ: PhantomData,
                 },
@@ -1756,5 +1765,23 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn test_push_assuming_capacity() {
+        let mut vec = Vec::with_capacity(2);
+        super::push_assuming_capacity(1, &mut vec);
+        assert_eq!(&vec, &[1]);
+        super::push_assuming_capacity(2, &mut vec);
+        assert_eq!(&vec, &[1, 2]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_push_assuming_capacity_panics_when_no_cap() {
+        let mut vec = Vec::with_capacity(1);
+        super::push_assuming_capacity(1, &mut vec);
+        assert_eq!(&vec, &[1]);
+        super::push_assuming_capacity(2, &mut vec);
     }
 }

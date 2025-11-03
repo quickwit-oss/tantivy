@@ -359,3 +359,253 @@ where
         sort_key
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::cmp::Ordering;
+    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+    use std::sync::Arc;
+
+    use crate::collector::sort_key::{self, ReverseOrder};
+    use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+    use crate::schema::Schema;
+    use crate::{DocId, Index, Order, SegmentReader};
+
+    fn build_test_index() -> Index {
+        let schema = Schema::builder().build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(crate::TantivyDocument::default())
+            .unwrap();
+        index_writer.commit().unwrap();
+        index
+    }
+
+    #[test]
+    fn test_lazy_score_computer() {
+        let score_computer_primary =
+            |_segment_reader: &SegmentReader| |_doc: DocId, _score: crate::Score| 200u32;
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let call_count_clone = call_count.clone();
+        let score_computer_secondary = move |_segment_reader: &SegmentReader| {
+            let call_count_new_clone = call_count_clone.clone();
+            move |_doc: DocId, _score: crate::Score| {
+                call_count_new_clone.fetch_add(1, AtomicOrdering::SeqCst);
+                "b"
+            }
+        };
+        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
+        let index = build_test_index();
+        let searcher = index.reader().unwrap().searcher();
+        let mut segment_sort_key_computer = lazy_score_computer
+            .segment_sort_key_computer(searcher.segment_reader(0))
+            .unwrap();
+        let expected_sort_key = (200, "b");
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(100u32, "a"));
+            assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 1);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(100u32, "c"));
+            assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 2);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(200u32, "a"));
+            assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 3);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(200u32, "c"));
+            assert!(sort_key_opt.is_none());
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(300u32, "a"));
+            assert_eq!(sort_key_opt, None);
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(300u32, "c"));
+            assert_eq!(sort_key_opt, None);
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &expected_sort_key,
+            );
+            assert_eq!(sort_key_opt, Some((Ordering::Equal, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 5);
+        }
+    }
+
+    #[test]
+    fn test_lazy_score_computer_reverse() {
+        let score_computer_primary =
+            |_segment_reader: &SegmentReader| |_doc: DocId, _score: crate::Score| 200u32;
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let call_count_clone = call_count.clone();
+        let score_computer_secondary = move |_segment_reader: &SegmentReader| {
+            let call_count_new_clone = call_count_clone.clone();
+            move |_doc: DocId, _score: crate::Score| {
+                call_count_new_clone.fetch_add(1, AtomicOrdering::SeqCst);
+                "b"
+            }
+        };
+        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
+        let index = build_test_index();
+        let searcher = index.reader().unwrap().searcher();
+        let mut segment_sort_key_computer = lazy_score_computer
+            .segment_sort_key_computer(searcher.segment_reader(0))
+            .unwrap();
+        let expected_sort_key = (200, "b");
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(100u32, "a"));
+            assert_eq!(sort_key_opt, None);
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 0);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(100u32, "c"));
+            assert_eq!(sort_key_opt, None);
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 0);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(200u32, "a"));
+            assert!(sort_key_opt.is_none());
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 1);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(200u32, "c"));
+            assert_eq!(sort_key_opt, Some((Ordering::Less, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 2);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(300u32, "a"));
+            assert_eq!(sort_key_opt, Some((Ordering::Less, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 3);
+        }
+        {
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(300u32, "c"));
+            assert_eq!(sort_key_opt, Some((Ordering::Less, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<true>(
+                0u32,
+                1f32,
+                &expected_sort_key,
+            );
+            assert_eq!(sort_key_opt, Some((Ordering::Equal, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 5);
+        }
+    }
+
+    #[test]
+    fn test_lazy_score_computer_dynamic_ordering() {
+        let score_computer_primary =
+            |_segment_reader: &SegmentReader| |_doc: DocId, _score: crate::Score| 200u32;
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let call_count_clone = call_count.clone();
+        let score_computer_secondary = move |_segment_reader: &SegmentReader| {
+            let call_count_new_clone = call_count_clone.clone();
+            move |_doc: DocId, _score: crate::Score| {
+                call_count_new_clone.fetch_add(1, AtomicOrdering::SeqCst);
+                2u32
+            }
+        };
+        let lazy_score_computer = (
+            (score_computer_primary, Order::Desc),
+            (score_computer_secondary, Order::Asc),
+        );
+        let index = build_test_index();
+        let searcher = index.reader().unwrap().searcher();
+        let mut segment_sort_key_computer = lazy_score_computer
+            .segment_sort_key_computer(searcher.segment_reader(0))
+            .unwrap();
+        let expected_sort_key = (200, 2u32.to_reverse_type());
+
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &(100u32, 1u32.to_reverse_type()),
+            );
+            assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 1);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &(100u32, 3u32.to_reverse_type()),
+            );
+            assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 2);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &(200u32, 1u32.to_reverse_type()),
+            );
+            assert!(sort_key_opt.is_none());
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 3);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &(200u32, 3u32.to_reverse_type()),
+            );
+            assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &(300u32, 1u32.to_reverse_type()),
+            );
+            assert_eq!(sort_key_opt, None);
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &(300u32, 3u32.to_reverse_type()),
+            );
+            assert_eq!(sort_key_opt, None);
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
+        }
+        {
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+                0u32,
+                1f32,
+                &expected_sort_key,
+            );
+            assert_eq!(sort_key_opt, Some((Ordering::Equal, expected_sort_key)));
+            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 5);
+        }
+        assert_eq!(
+            segment_sort_key_computer.convert_segment_sort_key(expected_sort_key),
+            (200u32, 2u32)
+        );
+    }
+}
