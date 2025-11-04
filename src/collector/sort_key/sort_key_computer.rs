@@ -50,9 +50,9 @@ pub trait SegmentSortKeyComputer: 'static {
         let sort_key = self.sort_key(doc_id, score);
         let cmp = sort_key.partial_cmp(threshold).unwrap_or(excluded_ordering);
         if cmp == excluded_ordering {
-            return None;
+            None
         } else {
-            return Some((cmp, sort_key));
+            Some((cmp, sort_key))
         }
     }
 

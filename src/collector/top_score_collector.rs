@@ -467,7 +467,7 @@ impl TopDocs {
     /// - [custom_score(...)](TopDocs::custom_score)
     pub fn order_by<TSortKey>(
         self,
-        sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send + Sync,
+        sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send,
     ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
     where
         TSortKey: 'static + Clone + Send + Sync + PartialOrd + ReverseOrder,

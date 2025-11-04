@@ -101,7 +101,7 @@ impl TermQuery {
             EnableScoring::Enabled {
                 statistics_provider,
                 ..
-            } => Bm25Weight::for_terms(statistics_provider, &[self.term.clone()])?,
+            } => Bm25Weight::for_terms(statistics_provider, std::slice::from_ref(&self.term))?,
             EnableScoring::Disabled { .. } => {
                 Bm25Weight::new(Explanation::new("<no score>", 1.0f32), 1.0f32)
             }
