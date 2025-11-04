@@ -214,6 +214,12 @@ impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCo
         }
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        if let Some(segment_collector) = self {
+            segment_collector.collect_block(docs);
+        }
+    }
+
     fn harvest(self) -> Self::Fruit {
         self.map(|segment_collector| segment_collector.harvest())
     }

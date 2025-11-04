@@ -120,6 +120,7 @@ where
             segment_collector,
             predicate: self.predicate.clone(),
             t_predicate_value: PhantomData,
+            filtered_docs: Vec::with_capacity(crate::COLLECT_BLOCK_BUFFER_LEN),
         })
     }
 
@@ -140,6 +141,7 @@ pub struct FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,
+    filtered_docs: Vec<DocId>,
 }
 
 impl<TSegmentCollector, TPredicate, TPredicateValue>
@@ -173,6 +175,20 @@ where
     fn collect(&mut self, doc: u32, score: Score) {
         if self.accept_document(doc) {
             self.segment_collector.collect(doc, score);
+        }
+    }
+
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.filtered_docs.clear();
+        for &doc in docs {
+            // TODO: `accept_document` could be further optimized to do batch lookups of column
+            // values for single-valued columns.
+            if self.accept_document(doc) {
+                self.filtered_docs.push(doc);
+            }
+        }
+        if !self.filtered_docs.is_empty() {
+            self.segment_collector.collect_block(&self.filtered_docs);
         }
     }
 
@@ -274,6 +290,7 @@ where
             segment_collector,
             predicate: self.predicate.clone(),
             buffer: Vec::new(),
+            filtered_docs: Vec::with_capacity(crate::COLLECT_BLOCK_BUFFER_LEN),
         })
     }
 
@@ -296,6 +313,7 @@ where TPredicate: 'static
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     buffer: Vec<u8>,
+    filtered_docs: Vec<DocId>,
 }
 
 impl<TSegmentCollector, TPredicate> BytesFilterSegmentCollector<TSegmentCollector, TPredicate>
@@ -331,6 +349,20 @@ where
     fn collect(&mut self, doc: u32, score: Score) {
         if self.accept_document(doc) {
             self.segment_collector.collect(doc, score);
+        }
+    }
+
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.filtered_docs.clear();
+        for &doc in docs {
+            // TODO: `accept_document` could be further optimized to do batch lookups of column
+            // values for single-valued columns.
+            if self.accept_document(doc) {
+                self.filtered_docs.push(doc);
+            }
+        }
+        if !self.filtered_docs.is_empty() {
+            self.segment_collector.collect_block(&self.filtered_docs);
         }
     }
 
