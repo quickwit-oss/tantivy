@@ -359,7 +359,6 @@ impl<'a> Segment<'a> {
     /// Reads the footer metadata from the last 12 bytes to locate the tree structure and root
     /// node.
     pub fn new(data: &'a [u8]) -> Self {
-        assert_eq!(data.as_ptr() as usize % std::mem::align_of::<u64>(), 0);
         Segment {
             data,
             branch_position: u64::from_le_bytes(data[data.len() - 8..].try_into().unwrap()),
@@ -368,25 +367,47 @@ impl<'a> Segment<'a> {
             ),
         }
     }
-    fn bounding_box(&self, offset: i32) -> &[i32; 4] {
-        unsafe {
-            let byte_offset = (self.branch_position as i64 + offset as i64) as usize;
-            let ptr = self.data.as_ptr().add(byte_offset);
-            &*ptr.cast::<[i32; 4]>()
+    #[inline(always)]
+    fn bounding_box(&self, offset: i32) -> [i32; 4] {
+        let byte_offset = (self.branch_position as i64 + offset as i64) as usize;
+        let bytes = &self.data[byte_offset..byte_offset + 16];
+        [
+            i32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            i32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+            i32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+            i32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        ]
+    }
+    #[inline(always)]
+    fn branch_node(&self, offset: i32) -> BranchNode {
+        let byte_offset = (self.branch_position as i64 + offset as i64) as usize;
+        let bytes = &self.data[byte_offset..byte_offset + 32];
+        BranchNode {
+            bbox: [
+                i32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+                i32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+                i32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+                i32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+            ],
+            left: i32::from_le_bytes(bytes[16..20].try_into().unwrap()),
+            right: i32::from_le_bytes(bytes[20..24].try_into().unwrap()),
+            pad: [0u8; 8],
         }
     }
-    fn branch_node(&self, offset: i32) -> &BranchNode {
-        unsafe {
-            let byte_offset = (self.branch_position as i64 + offset as i64) as usize;
-            let ptr = self.data.as_ptr().add(byte_offset);
-            &*ptr.cast::<BranchNode>()
-        }
-    }
-    fn leaf_node(&self, offset: i32) -> &LeafNode {
-        unsafe {
-            let byte_offset = (self.branch_position as i64 + offset as i64) as usize;
-            let ptr = self.data.as_ptr().add(byte_offset);
-            &*ptr.cast::<LeafNode>()
+    #[inline(always)]
+    fn leaf_node(&self, offset: i32) -> LeafNode {
+        let byte_offset = (self.branch_position as i64 + offset as i64) as usize;
+        let bytes = &self.data[byte_offset..byte_offset + 32];
+        LeafNode {
+            bbox: [
+                i32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+                i32::from_le_bytes(bytes[4..8].try_into().unwrap()),
+                i32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+                i32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+            ],
+            pos: u64::from_le_bytes(bytes[16..24].try_into().unwrap()),
+            len: u16::from_le_bytes(bytes[24..26].try_into().unwrap()),
+            pad: [0u8; 6],
         }
     }
     fn leaf_page(&self, leaf_node: &LeafNode) -> &[u8] {
@@ -397,7 +418,7 @@ impl<'a> Segment<'a> {
 fn collect_all_docs(segment: &Segment, offset: i32, result: &mut BitSet) -> io::Result<()> {
     if offset < 0 {
         let leaf_node = segment.leaf_node(offset);
-        let data = segment.leaf_page(leaf_node);
+        let data = segment.leaf_page(&leaf_node);
         let count = u16::from_le_bytes([data[0], data[1]]) as usize;
         decompress::<u32, _>(&data[2..], count, |_, doc_id| result.insert(doc_id))?;
     } else {
@@ -437,15 +458,15 @@ pub fn search_intersects(
 ) -> io::Result<()> {
     let bbox = segment.bounding_box(offset);
     // bbox doesn't intersect query → skip entire subtree
-    if !bbox_intersects(bbox, query) {
+    if !bbox_intersects(&bbox, query) {
     }
     // bbox entirely within query → all triangles intersect
-    else if bbox_within(bbox, query) {
+    else if bbox_within(&bbox, query) {
         collect_all_docs(segment, offset, result)?;
     } else if offset < 0 {
         // bbox crosses query → test each triangle
         let leaf_node = segment.leaf_node(offset);
-        let triangles = decompress_leaf(segment.leaf_page(leaf_node))?;
+        let triangles = decompress_leaf(segment.leaf_page(&leaf_node))?;
         for triangle in &triangles {
             if triangle_intersects(triangle, query) {
                 result.insert(triangle.doc_id); // BitSet deduplicates
@@ -643,11 +664,11 @@ pub fn search_within(
     excluded: &mut BitSet,
 ) -> io::Result<()> {
     let bbox = segment.bounding_box(offset);
-    if !bbox_intersects(bbox, query) {
+    if !bbox_intersects(&bbox, query) {
     } else if offset < 0 {
         let leaf_node = segment.leaf_node(offset);
         // bbox crosses query → test each triangle
-        let triangles = decompress_leaf(segment.leaf_page(leaf_node))?;
+        let triangles = decompress_leaf(segment.leaf_page(&leaf_node))?;
         for triangle in &triangles {
             if triangle_intersects(triangle, query) {
                 if excluded.contains(triangle.doc_id) {
@@ -738,11 +759,11 @@ pub fn search_contains(
     excluded: &mut BitSet,
 ) -> io::Result<()> {
     let bbox = segment.bounding_box(offset);
-    if !bbox_intersects(bbox, query) {
+    if !bbox_intersects(&bbox, query) {
     } else if offset < 0 {
         let leaf_node = segment.leaf_node(offset);
         // bbox crosses query → test each triangle
-        let triangles = decompress_leaf(segment.leaf_page(leaf_node))?;
+        let triangles = decompress_leaf(segment.leaf_page(&leaf_node))?;
         for triangle in &triangles {
             if triangle_intersects(triangle, query) {
                 let doc_id = triangle.doc_id;
@@ -787,8 +808,8 @@ impl<'a> Iterator for LeafPageIterator<'a> {
         let offset = self.descent_stack.pop()?;
         if offset < 0 {
             let leaf_node = self.segment.leaf_node(offset);
-            let leaf_page = self.segment.leaf_page(leaf_node);
-            match decompress_leaf(leaf_page) {
+            let leaf_page = self.segment.leaf_page(&leaf_node);
+            match decompress_leaf(&leaf_page) {
                 Ok(triangles) => Some(Ok(triangles)),
                 Err(e) => Some(Err(e)),
             }
