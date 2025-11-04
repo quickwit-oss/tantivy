@@ -3,7 +3,6 @@
 pub mod bkd;
 pub mod delta;
 pub mod geometry;
-pub mod radix_select;
 pub mod reader;
 pub mod serializer;
 pub mod triangle;
