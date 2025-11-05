@@ -3,6 +3,7 @@ use std::ops::Deref;
 
 use super::{Collector, SegmentCollector};
 use crate::collector::Fruit;
+use crate::schema::Schema;
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 /// MultiFruit keeps Fruits from every nested Collector
@@ -15,6 +16,10 @@ pub struct CollectorWrapper<TCollector: Collector>(TCollector);
 impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     type Fruit = Box<dyn Fruit>;
     type Child = Box<dyn BoxableSegmentCollector>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)
+    }
 
     fn for_segment(
         &self,
@@ -193,6 +198,13 @@ impl<'a> MultiCollector<'a> {
 impl Collector for MultiCollector<'_> {
     type Fruit = MultiFruit;
     type Child = MultiCollectorChild;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        for collector in &self.collector_wrappers {
+            collector.check_schema(schema)?;
+        }
+        Ok(())
+    }
 
     fn for_segment(
         &self,

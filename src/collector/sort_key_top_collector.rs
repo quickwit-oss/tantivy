@@ -1,6 +1,7 @@
 use crate::collector::sort_key::{ReverseOrder, SegmentSortKeyComputer, SortKeyComputer};
 use crate::collector::top_collector::{merge_fruits, TopCollector, TopSegmentCollector};
 use crate::collector::{Collector, SegmentCollector};
+use crate::schema::Schema;
 use crate::{DocAddress, DocId, Order, Result, Score, SegmentReader};
 
 pub(crate) struct TopBySortKeyCollector<TSortKeyComputer, TSortKey> {
@@ -30,6 +31,10 @@ where
     type Fruit = Vec<(TSortKeyComputer::SortKey, DocAddress)>;
 
     type Child = TopBySortKeySegmentCollector<TSortKeyComputer::Child>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.sort_key_computer.check_schema(schema)
+    }
 
     fn for_segment(
         &self,

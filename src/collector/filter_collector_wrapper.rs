@@ -12,6 +12,7 @@ use std::marker::PhantomData;
 use columnar::{BytesColumn, Column, DynamicColumn, HasAssociatedColumnType};
 
 use crate::collector::{Collector, SegmentCollector};
+use crate::schema::Schema;
 use crate::{DocId, Score, SegmentReader};
 
 /// The `FilterCollector` filters docs using a fast field value and a predicate.
@@ -103,6 +104,11 @@ where
     type Fruit = TCollector::Fruit;
 
     type Child = FilterSegmentCollector<TCollector::Child, TPredicate, TPredicateValue>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.collector.check_schema(schema)?;
+        Ok(())
+    }
 
     fn for_segment(
         &self,
@@ -257,6 +263,10 @@ where
     type Fruit = TCollector::Fruit;
 
     type Child = BytesFilterSegmentCollector<TCollector::Child, TPredicate>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.collector.check_schema(schema)
+    }
 
     fn for_segment(
         &self,

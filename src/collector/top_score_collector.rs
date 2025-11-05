@@ -1,15 +1,13 @@
 use std::fmt;
-use std::marker::PhantomData;
 
-use columnar::Column;
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
-use crate::collector::sort_key::{ByStringColumn, ReverseOrder};
+use crate::collector::sort_key::{ReverseOrder, SortByStaticFastValue, SortByString};
 use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
 use crate::collector::{SegmentCollector, SegmentSortKeyComputer, SortKeyComputer};
-use crate::fastfield::{FastFieldNotAvailableError, FastValue};
+use crate::fastfield::FastValue;
 use crate::query::Weight;
 use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader};
 
@@ -66,65 +64,6 @@ impl fmt::Debug for TopDocs {
             "TopDocs(limit={}, offset={})",
             self.0.limit, self.0.offset
         )
-    }
-}
-
-pub struct SortByFieldSegmentSortKeyComputer<T> {
-    sort_column: Column<u64>,
-    typ: PhantomData<T>,
-}
-
-impl<T: FastValue> SegmentSortKeyComputer for SortByFieldSegmentSortKeyComputer<T> {
-    type SortKey = Option<T>;
-
-    type SegmentSortKey = Option<u64>;
-
-    fn sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
-        self.sort_column.first(doc)
-    }
-
-    fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
-        sort_key.map(T::from_u64)
-    }
-}
-
-pub struct SortByField<T: FastValue> {
-    field: String,
-    typ: PhantomData<T>,
-}
-
-impl<T: FastValue> SortByField<T> {
-    pub fn for_field(column_name: impl ToString) -> SortByField<T> {
-        Self {
-            field: column_name.to_string(),
-            typ: PhantomData,
-        }
-    }
-}
-
-impl<T: FastValue> SortKeyComputer for SortByField<T> {
-    type Child = SortByFieldSegmentSortKeyComputer<T>;
-
-    type SortKey = Option<T>;
-
-    fn segment_sort_key_computer(
-        &self,
-        segment_reader: &SegmentReader,
-    ) -> crate::Result<Self::Child> {
-        // We interpret this field as u64, regardless of its type, that way,
-        // we avoid needless conversion. Regardless of the fast field type, the
-        // mapping is monotonic, so it is sufficient to compute our top-K docs.
-        //
-        // The conversion will then happen only on the top-K docs.
-        let sort_column_opt = segment_reader.fast_fields().u64_lenient(&self.field)?;
-        let (sort_column, _sort_column_type) =
-            sort_column_opt.ok_or_else(|| FastFieldNotAvailableError {
-                field_name: self.field.clone(),
-            })?;
-        Ok(SortByFieldSegmentSortKeyComputer {
-            sort_column: sort_column,
-            typ: PhantomData,
-        })
     }
 }
 
@@ -259,13 +198,7 @@ impl TopDocs {
         order: Order,
     ) -> impl Collector<Fruit = Vec<(Option<u64>, DocAddress)>> {
         TopBySortKeyCollector::new(
-            (
-                SortByField {
-                    field: field.to_string(),
-                    typ: PhantomData,
-                },
-                order,
-            ),
+            (SortByStaticFastValue::for_field(field), order),
             self.0.into_different_sort_key_type(),
         )
     }
@@ -345,16 +278,10 @@ impl TopDocs {
         order: Order,
     ) -> impl Collector<Fruit = Vec<(Option<TFastValue>, DocAddress)>>
     where
-        TFastValue: FastValue + ReverseOrder,
+        TFastValue: FastValue,
     {
         TopBySortKeyCollector::new(
-            (
-                SortByField {
-                    field: fast_field.to_string(),
-                    typ: PhantomData,
-                },
-                order,
-            ),
+            (SortByStaticFastValue::for_field(fast_field), order),
             self.0.into_different_sort_key_type(),
         )
     }
@@ -365,7 +292,7 @@ impl TopDocs {
         fast_field: impl ToString,
         order: Order,
     ) -> impl Collector<Fruit = Vec<(Option<String>, DocAddress)>> {
-        let by_string_sort_key_computer = ByStringColumn::with_column_name(fast_field.to_string());
+        let by_string_sort_key_computer = SortByString::for_field(fast_field.to_string());
         self.order_by((by_string_sort_key_computer, order))
     }
 
@@ -475,63 +402,65 @@ impl TopDocs {
         TopBySortKeyCollector::new(sort_key_computer, self.0.into_different_sort_key_type())
     }
 
-    pub fn order_by_no_score_fn<F, TNoScoreSortKeyFn, TSortKey>(
+    pub fn tweak_score<F, TSortKey>(
         self,
         sort_key_fn: F,
     ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
     where
-        F: 'static + Send + Sync + Fn(&SegmentReader) -> TNoScoreSortKeyFn,
-        TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+        F: 'static + Send + Sync,
         TSortKey: 'static + PartialOrd + Clone + Send + Sync + ReverseOrder,
+        TweakScoreFn<F>: SortKeyComputer<SortKey = TSortKey>,
     {
-        self.order_by(NoScoreFn(sort_key_fn))
+        self.order_by(TweakScoreFn(sort_key_fn))
     }
 }
 
 /// Helper struct to make it possible to define a sort key computer that does not use
 /// the similary score from a simple function.
-struct NoScoreFn<F>(pub F);
+pub struct TweakScoreFn<F>(F);
 
-impl<F, TNoScoreSortKeyFn, TSortKey> SortKeyComputer for NoScoreFn<F>
+impl<F, TTweakScoreSortKeyFn, TSortKey> SortKeyComputer for TweakScoreFn<F>
 where
-    F: 'static + Send + Sync + Fn(&SegmentReader) -> TNoScoreSortKeyFn,
-    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+    F: 'static + Send + Sync + Fn(&SegmentReader) -> TTweakScoreSortKeyFn,
+    TTweakScoreSortKeyFn: 'static + Fn(DocId, Score) -> TSortKey,
+    TweakScoreSegmentSortKeyComputer<TTweakScoreSortKeyFn>:
+        SegmentSortKeyComputer<SortKey = TSortKey>,
     TSortKey: 'static + PartialOrd + Clone + Send + Sync + ReverseOrder,
 {
     type SortKey = TSortKey;
-    type Child = NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>;
+    type Child = TweakScoreSegmentSortKeyComputer<TTweakScoreSortKeyFn>;
+
+    fn requires_scoring(&self) -> bool {
+        true
+    }
 
     fn segment_sort_key_computer(
         &self,
         segment_reader: &SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok({
-            NoScoreSegmentSortKeyComputer {
+            TweakScoreSegmentSortKeyComputer {
                 sort_key_fn: (self.0)(segment_reader),
             }
         })
     }
-
-    fn requires_scoring(&self) -> bool {
-        false
-    }
 }
 
-struct NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn> {
-    sort_key_fn: TNoScoreSortKeyFn,
+pub struct TweakScoreSegmentSortKeyComputer<TTweakScoreSortKeyFn> {
+    sort_key_fn: TTweakScoreSortKeyFn,
 }
 
-impl<TNoScoreSortKeyFn, TSortKey> SegmentSortKeyComputer
-    for NoScoreSegmentSortKeyComputer<TNoScoreSortKeyFn>
+impl<TTweakScoreSortKeyFn, TSortKey> SegmentSortKeyComputer
+    for TweakScoreSegmentSortKeyComputer<TTweakScoreSortKeyFn>
 where
-    TNoScoreSortKeyFn: 'static + Fn(DocId) -> TSortKey,
+    TTweakScoreSortKeyFn: 'static + Fn(DocId, Score) -> TSortKey,
     TSortKey: 'static + PartialOrd + Clone + Send + Sync,
 {
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
 
-    fn sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
-        (self.sort_key_fn)(doc)
+    fn sort_key(&mut self, doc: DocId, score: Score) -> TSortKey {
+        (self.sort_key_fn)(doc, score)
     }
 
     /// Convert a segment level score into the global level score.
@@ -1623,22 +1552,16 @@ mod tests {
     }
 
     #[test]
-    fn test_field_wrong_type() -> crate::Result<()> {
+    fn test_field_wrong_type() {
         let mut schema_builder = Schema::builder();
-        let size = schema_builder.add_u64_field(SIZE, STORED);
+        let _size = schema_builder.add_u64_field(SIZE, STORED);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(size=>1u64))?;
-        index_writer.commit()?;
-        let searcher = index.reader()?.searcher();
-        let segment = searcher.segment_reader(0);
         let top_collector = TopDocs::with_limit(4).order_by_fast_field::<i64>(SIZE, Order::Desc);
-        let err = top_collector.for_segment(0, segment).err().unwrap();
+        let err = top_collector.check_schema(&schema).err().unwrap();
+        dbg!(&err);
         assert!(
-            matches!(err, crate::TantivyError::SchemaError(msg) if msg == "Field \"size\" is not a fast field.")
+            matches!(err, crate::TantivyError::SchemaError(msg) if msg == "Field `size` is not a fast field.")
         );
-        Ok(())
     }
 
     #[test]
@@ -1647,9 +1570,9 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax")?;
-        let collector = TopDocs::with_limit(2).and_offset(1).order_by(
-            move |_segment_reader: &SegmentReader| move |doc: DocId, _original_score: Score| doc,
-        );
+        let collector = TopDocs::with_limit(2)
+            .and_offset(1)
+            .order_by(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
         let score_docs: Vec<(u32, DocAddress)> =
             index.reader()?.searcher().search(&text_query, &collector)?;
         assert_eq!(
@@ -1667,7 +1590,7 @@ mod tests {
         let text_query = query_parser.parse_query("droopy tax").unwrap();
         let collector = TopDocs::with_limit(2)
             .and_offset(1)
-            .order_by_no_score_fn(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
+            .order_by(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
         let score_docs: Vec<(u32, DocAddress)> = index
             .reader()
             .unwrap()

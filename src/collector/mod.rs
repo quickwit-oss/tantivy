@@ -83,10 +83,14 @@
 
 use downcast_rs::impl_downcast;
 
+use crate::schema::Schema;
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 
 mod count_collector;
 pub use self::count_collector::Count;
+
+/// Sort keys
+pub mod sort_key;
 
 mod histogram_collector;
 pub use histogram_collector::HistogramCollector;
@@ -100,7 +104,6 @@ mod top_score_collector;
 pub use self::top_collector::ComparableDoc;
 pub use self::top_score_collector::{TopDocs, TopNComputer};
 
-pub mod sort_key;
 mod sort_key_top_collector;
 pub use self::sort_key::{SegmentSortKeyComputer, SortKeyComputer};
 mod facet_collector;
@@ -142,6 +145,11 @@ pub trait Collector: Sync + Send {
 
     /// Type of the `SegmentCollector` associated with this collector.
     type Child: SegmentCollector;
+
+    /// Returns an error if the schema is not compatible with the collector.
+    fn check_schema(&self, _schema: &Schema) -> crate::Result<()> {
+        Ok(())
+    }
 
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
@@ -222,6 +230,13 @@ impl<TCollector: Collector> Collector for Option<TCollector> {
 
     type Child = Option<<TCollector as Collector>::Child>;
 
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        if let Some(underlying_collector) = self {
+            underlying_collector.check_schema(schema)?;
+        }
+        Ok(())
+    }
+
     fn for_segment(
         &self,
         segment_local_id: SegmentOrdinal,
@@ -297,6 +312,12 @@ where
     type Fruit = (Left::Fruit, Right::Fruit);
     type Child = (Left::Child, Right::Child);
 
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        Ok(())
+    }
+
     fn for_segment(
         &self,
         segment_local_id: u32,
@@ -355,6 +376,13 @@ where
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
     type Child = (One::Child, Two::Child, Three::Child);
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        self.2.check_schema(schema)?;
+        Ok(())
+    }
 
     fn for_segment(
         &self,
@@ -421,6 +449,14 @@ where
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit, Four::Fruit);
     type Child = (One::Child, Two::Child, Three::Child, Four::Child);
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        self.2.check_schema(schema)?;
+        self.3.check_schema(schema)?;
+        Ok(())
+    }
 
     fn for_segment(
         &self,

@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::collector::sort_key::ReverseOrder;
+use crate::schema::Schema;
 use crate::{DocId, Order, Result, Score, SegmentReader};
 
 /// A `SegmentSortKeyComputer` makes it possible to modify the default score
@@ -70,6 +71,11 @@ pub trait SortKeyComputer: Sync {
     type SortKey: 'static + Send + Sync + PartialOrd + Clone;
     /// Type of the associated [`SegmentSortKeyComputer`].
     type Child: SegmentSortKeyComputer<SortKey = Self::SortKey>;
+
+    /// Checks whether the schema is compatible with the sort key computer.
+    fn check_schema(&self, _schema: &Schema) -> crate::Result<()> {
+        Ok(())
+    }
 
     /// Indicates whether the sort key actually uses the similarity score (by default BM25).
     /// If set to false, the similary score might not be computed (as an optimization),
@@ -329,13 +335,14 @@ where
     }
 }
 
-impl<F, TSegmentSortKeyComputer> SortKeyComputer for F
+impl<F, SegmentF, TSortKey> SortKeyComputer for F
 where
-    F: 'static + Send + Sync + Fn(&SegmentReader) -> TSegmentSortKeyComputer,
-    TSegmentSortKeyComputer: SegmentSortKeyComputer,
+    F: 'static + Send + Sync + Fn(&SegmentReader) -> SegmentF,
+    SegmentF: 'static + FnMut(DocId) -> TSortKey,
+    TSortKey: 'static + PartialOrd + Clone + Send + Sync,
 {
-    type SortKey = TSegmentSortKeyComputer::SortKey;
-    type Child = TSegmentSortKeyComputer;
+    type SortKey = TSortKey;
+    type Child = SegmentF;
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         Ok((self)(segment_reader))
@@ -344,14 +351,14 @@ where
 
 impl<F, TSortKey> SegmentSortKeyComputer for F
 where
-    F: 'static + FnMut(DocId, Score) -> TSortKey,
+    F: 'static + FnMut(DocId) -> TSortKey,
     TSortKey: 'static + PartialOrd + Clone + Send + Sync,
 {
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
 
-    fn sort_key(&mut self, doc: DocId, score: Score) -> TSortKey {
-        (self)(doc, score)
+    fn sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
+        (self)(doc)
     }
 
     /// Convert a segment level score into the global level score.
@@ -366,7 +373,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Arc;
 
-    use crate::collector::sort_key::{self, ReverseOrder};
+    use crate::collector::sort_key::ReverseOrder;
     use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
     use crate::schema::Schema;
     use crate::{DocId, Index, Order, SegmentReader};
@@ -384,13 +391,12 @@ mod tests {
 
     #[test]
     fn test_lazy_score_computer() {
-        let score_computer_primary =
-            |_segment_reader: &SegmentReader| |_doc: DocId, _score: crate::Score| 200u32;
+        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
         let call_count = Arc::new(AtomicUsize::new(0));
         let call_count_clone = call_count.clone();
         let score_computer_secondary = move |_segment_reader: &SegmentReader| {
             let call_count_new_clone = call_count_clone.clone();
-            move |_doc: DocId, _score: crate::Score| {
+            move |_doc: DocId| {
                 call_count_new_clone.fetch_add(1, AtomicOrdering::SeqCst);
                 "b"
             }
@@ -451,13 +457,12 @@ mod tests {
 
     #[test]
     fn test_lazy_score_computer_reverse() {
-        let score_computer_primary =
-            |_segment_reader: &SegmentReader| |_doc: DocId, _score: crate::Score| 200u32;
+        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
         let call_count = Arc::new(AtomicUsize::new(0));
         let call_count_clone = call_count.clone();
         let score_computer_secondary = move |_segment_reader: &SegmentReader| {
             let call_count_new_clone = call_count_clone.clone();
-            move |_doc: DocId, _score: crate::Score| {
+            move |_doc: DocId| {
                 call_count_new_clone.fetch_add(1, AtomicOrdering::SeqCst);
                 "b"
             }
@@ -518,13 +523,12 @@ mod tests {
 
     #[test]
     fn test_lazy_score_computer_dynamic_ordering() {
-        let score_computer_primary =
-            |_segment_reader: &SegmentReader| |_doc: DocId, _score: crate::Score| 200u32;
+        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
         let call_count = Arc::new(AtomicUsize::new(0));
         let call_count_clone = call_count.clone();
         let score_computer_secondary = move |_segment_reader: &SegmentReader| {
             let call_count_new_clone = call_count_clone.clone();
-            move |_doc: DocId, _score: crate::Score| {
+            move |_doc: DocId| {
                 call_count_new_clone.fetch_add(1, AtomicOrdering::SeqCst);
                 2u32
             }

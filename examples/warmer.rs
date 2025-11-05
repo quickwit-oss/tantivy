@@ -164,7 +164,7 @@ fn main() -> tantivy::Result<()> {
         move |doc_id: DocId| Reverse(price[doc_id as usize])
     };
 
-    let most_expensive_first = TopDocs::with_limit(10).order_by_no_score_fn(score_by_price);
+    let most_expensive_first = TopDocs::with_limit(10).order_by(score_by_price);
 
     let hits = searcher.search(&query, &most_expensive_first)?;
     assert_eq!(
