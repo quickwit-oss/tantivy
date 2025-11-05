@@ -3,26 +3,26 @@ use crate::{DocId, Score};
 
 /// Sort by similarity score.
 #[derive(Clone, Debug, Copy)]
-pub struct SortByScore;
+pub struct SortBySimilarityScore;
 
-impl SortKeyComputer for SortByScore {
+impl SortKeyComputer for SortBySimilarityScore {
     type SortKey = Score;
 
-    type Child = SortByScore;
+    type Child = SortBySimilarityScore;
 
     fn requires_scoring(&self) -> bool {
-        false
+        true
     }
 
     fn segment_sort_key_computer(
         &self,
         _segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        Ok(SortByScore)
+        Ok(SortBySimilarityScore)
     }
 }
 
-impl SegmentSortKeyComputer for SortByScore {
+impl SegmentSortKeyComputer for SortBySimilarityScore {
     type SortKey = Score;
 
     type SegmentSortKey = Score;

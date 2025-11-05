@@ -1,5 +1,6 @@
+use columnar::MonotonicallyMappableToU64;
+
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
-use crate::fastfield::FastValue;
 use crate::schema::Schema;
 use crate::{DocId, Order, Score};
 
@@ -37,18 +38,62 @@ where T: ReverseOrder<ReverseType = T> {
     }
 }
 
-impl<TFastValue: FastValue> ReverseOrder for TFastValue {
-    type ReverseType = TFastValue;
+impl ReverseOrder for u64 {
+    type ReverseType = u64;
 
     fn to_reverse_type(self) -> Self::ReverseType {
-        // Disclaimer: This might be suboptimal. The compiler might not be always smart enough
-        // to realize that this boils down to `i64::MAX - self` for i64 for instance.
-        //
-        // Whenever possible, rely on u64 for segment-level collection.
-        TFastValue::from_u64(u64::MAX - self.to_u64())
+        u64::MAX - self
     }
 
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
+    fn from_reverse_type(reverse_value: u64) -> Self {
+        reverse_value.to_reverse_type()
+    }
+}
+
+impl ReverseOrder for i64 {
+    type ReverseType = i64;
+
+    fn to_reverse_type(self) -> Self::ReverseType {
+        -self
+    }
+
+    fn from_reverse_type(reverse_value: i64) -> Self {
+        -reverse_value
+    }
+}
+
+impl ReverseOrder for f64 {
+    type ReverseType = f64;
+
+    fn to_reverse_type(self) -> Self::ReverseType {
+        -self
+    }
+
+    fn from_reverse_type(reverse_value: f64) -> Self {
+        -reverse_value
+    }
+}
+
+impl ReverseOrder for bool {
+    type ReverseType = bool;
+
+    fn to_reverse_type(self) -> Self::ReverseType {
+        !self
+    }
+
+    fn from_reverse_type(reverse_value: bool) -> Self {
+        reverse_value.to_reverse_type()
+    }
+}
+
+impl ReverseOrder for crate::DateTime {
+    type ReverseType = crate::DateTime;
+
+    fn to_reverse_type(self) -> crate::DateTime {
+        crate::DateTime::from_u64(u64::MAX - self.to_u64())
+    }
+
+    fn from_reverse_type(reverse_value: crate::DateTime) -> Self {
         reverse_value.to_reverse_type()
     }
 }
@@ -69,7 +114,7 @@ impl ReverseOrder for f32 {
     type ReverseType = f32;
 
     fn to_reverse_type(self) -> Self::ReverseType {
-        f32::MAX - self
+        -self
     }
 
     fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {

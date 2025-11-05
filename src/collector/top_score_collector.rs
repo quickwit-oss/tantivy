@@ -278,7 +278,7 @@ impl TopDocs {
         order: Order,
     ) -> impl Collector<Fruit = Vec<(Option<TFastValue>, DocAddress)>>
     where
-        TFastValue: FastValue,
+        TFastValue: FastValue + ReverseOrder,
     {
         TopBySortKeyCollector::new(
             (SortByStaticFastValue::for_field(fast_field), order),

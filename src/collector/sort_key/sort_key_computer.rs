@@ -110,6 +110,20 @@ where
             self.1.segment_sort_key_computer(segment_reader)?,
         ))
     }
+
+    /// Checks whether the schema is compatible with the sort key computer.
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        Ok(())
+    }
+
+    /// Indicates whether the sort key actually uses the similarity score (by default BM25).
+    /// If set to false, the similary score might not be computed (as an optimization),
+    /// and the score fed in the segment sort key computer could take any value.
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring() || self.1.requires_scoring()
+    }
 }
 
 impl<T: PartialOrd + Clone> ReverseOrder for std::cmp::Reverse<T> {
@@ -259,6 +273,11 @@ where
     SortKeyComputer2: SortKeyComputer,
     SortKeyComputer3: SortKeyComputer,
 {
+    type SortKey = (
+        SortKeyComputer1::SortKey,
+        SortKeyComputer2::SortKey,
+        SortKeyComputer3::SortKey,
+    );
     type Child = MappedSegmentSortKeyComputer<
         <(SortKeyComputer1, (SortKeyComputer2, SortKeyComputer3)) as SortKeyComputer>::Child,
         (
@@ -267,11 +286,6 @@ where
         ),
         Self::SortKey,
     >;
-    type SortKey = (
-        SortKeyComputer1::SortKey,
-        SortKeyComputer2::SortKey,
-        SortKeyComputer3::SortKey,
-    );
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         let sort_key_computer1 = self.0.segment_sort_key_computer(segment_reader)?;
@@ -281,6 +295,17 @@ where
             sort_key_computer: (sort_key_computer1, (sort_key_computer2, sort_key_computer3)),
             map: |(sort_key1, (sort_key2, sort_key3))| (sort_key1, sort_key2, sort_key3),
         })
+    }
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        self.2.check_schema(schema)?;
+        Ok(())
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring() || self.1.requires_scoring() || self.2.requires_scoring()
     }
 }
 
@@ -332,6 +357,21 @@ where
                 (sort_key1, sort_key2, sort_key3, sort_key4)
             },
         })
+    }
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        self.2.check_schema(schema)?;
+        self.3.check_schema(schema)?;
+        Ok(())
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring()
+            || self.1.requires_scoring()
+            || self.2.requires_scoring()
+            || self.3.requires_scoring()
     }
 }
 

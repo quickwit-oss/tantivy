@@ -19,8 +19,10 @@ pub struct SortByString {
 
 impl SortByString {
     /// Creates a new sort by string sort key computer.
-    pub fn for_field(column_name: String) -> Self {
-        SortByString { column_name }
+    pub fn for_field(column_name: impl ToString) -> Self {
+        SortByString {
+            column_name: column_name.to_string(),
+        }
     }
 }
 
