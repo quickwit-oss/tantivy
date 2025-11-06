@@ -176,39 +176,48 @@ pub trait Collector: Sync + Send {
         segment_ord: u32,
         reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
+        let with_scoring = self.requires_scoring();
         let mut segment_collector = self.for_segment(segment_ord, reader)?;
-
-        match (reader.alive_bitset(), self.requires_scoring()) {
-            (Some(alive_bitset), true) => {
-                weight.for_each(reader, &mut |doc, score| {
-                    if alive_bitset.is_alive(doc) {
-                        segment_collector.collect(doc, score);
-                    }
-                })?;
-            }
-            (Some(alive_bitset), false) => {
-                weight.for_each_no_score(reader, &mut |docs| {
-                    for doc in docs.iter().cloned() {
-                        if alive_bitset.is_alive(doc) {
-                            segment_collector.collect(doc, 0.0);
-                        }
-                    }
-                })?;
-            }
-            (None, true) => {
-                weight.for_each(reader, &mut |doc, score| {
-                    segment_collector.collect(doc, score);
-                })?;
-            }
-            (None, false) => {
-                weight.for_each_no_score(reader, &mut |docs| {
-                    segment_collector.collect_block(docs);
-                })?;
-            }
-        }
-
+        default_collect_segment_impl(&mut segment_collector, weight, reader, with_scoring)?;
         Ok(segment_collector.harvest())
     }
+}
+
+pub(crate) fn default_collect_segment_impl<TSegmentCollector: SegmentCollector>(
+    segment_collector: &mut TSegmentCollector,
+    weight: &dyn Weight,
+    reader: &SegmentReader,
+    with_scoring: bool,
+) -> crate::Result<()> {
+    match (reader.alive_bitset(), with_scoring) {
+        (Some(alive_bitset), true) => {
+            weight.for_each(reader, &mut |doc, score| {
+                if alive_bitset.is_alive(doc) {
+                    segment_collector.collect(doc, score);
+                }
+            })?;
+        }
+        (Some(alive_bitset), false) => {
+            weight.for_each_no_score(reader, &mut |docs| {
+                for doc in docs.iter().cloned() {
+                    if alive_bitset.is_alive(doc) {
+                        segment_collector.collect(doc, 0.0);
+                    }
+                }
+            })?;
+        }
+        (None, true) => {
+            weight.for_each(reader, &mut |doc, score| {
+                segment_collector.collect(doc, score);
+            })?;
+        }
+        (None, false) => {
+            weight.for_each_no_score(reader, &mut |docs| {
+                segment_collector.collect_block(docs);
+            })?;
+        }
+    }
+    Ok(())
 }
 
 impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCollector> {

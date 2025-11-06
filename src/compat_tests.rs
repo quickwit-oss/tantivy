@@ -69,7 +69,7 @@ fn assert_date_time_precision(index: &Index, doc_store_precision: DateTimePrecis
         .parse_query("dateformat")
         .expect("Failed to parse query");
     let top_docs = searcher
-        .search(&query, &TopDocs::with_limit(1))
+        .search(&query, &TopDocs::with_limit(1).order_by_score())
         .expect("Search failed");
 
     assert_eq!(top_docs.len(), 1, "Expected 1 search result");

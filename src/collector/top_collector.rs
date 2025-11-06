@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use super::top_score_collector::TopNComputer;
-use crate::collector::SegmentSortKeyComputer;
+use crate::collector::{SegmentSortKeyComputer, TopDocs};
 use crate::index::SegmentReader;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 
@@ -75,31 +75,19 @@ pub(crate) struct TopCollector<T> {
     _marker: PhantomData<T>,
 }
 
-impl<T> TopCollector<T>
-where T: PartialOrd + Clone
-{
-    /// Creates a top collector, with a number of documents equal to "limit".
-    ///
-    /// # Panics
-    /// The method panics if limit is 0
-    pub fn with_limit(limit: usize) -> TopCollector<T> {
-        assert!(limit >= 1, "Limit must be strictly greater than 0.");
-        Self {
-            limit,
-            offset: 0,
+impl<T> From<TopDocs> for TopCollector<T> {
+    fn from(top_docs: TopDocs) -> TopCollector<T> {
+        TopCollector {
+            limit: top_docs.limit,
+            offset: top_docs.offset,
             _marker: PhantomData,
         }
     }
+}
 
-    /// Skip the first "offset" documents when collecting.
-    ///
-    /// This is equivalent to `OFFSET` in MySQL or PostgreSQL and `start` in
-    /// Lucene's TopDocsCollector.
-    pub fn and_offset(mut self, offset: usize) -> TopCollector<T> {
-        self.offset = offset;
-        self
-    }
-
+impl<T> TopCollector<T>
+where T: PartialOrd + Clone
+{
     pub fn merge_fruits(
         &self,
         children: Vec<Vec<(T, DocAddress)>>,
@@ -113,21 +101,6 @@ where T: PartialOrd + Clone
         _: &SegmentReader,
     ) -> TopSegmentCollector<F> {
         TopSegmentCollector::new(segment_id, self.limit + self.offset)
-    }
-
-    /// Create a new TopCollector with the same limit and offset.
-    ///
-    /// Ideally we would use Into but the blanket implementation seems to cause the Scorer traits
-    /// to fail.
-    #[doc(hidden)]
-    pub(crate) fn into_different_sort_key_type<TSortKey: PartialOrd + Clone>(
-        self,
-    ) -> TopCollector<TSortKey> {
-        TopCollector {
-            limit: self.limit,
-            offset: self.offset,
-            _marker: PhantomData,
-        }
     }
 }
 
@@ -167,7 +140,7 @@ pub(crate) struct TopSegmentCollector<T> {
 }
 
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
-    fn new(segment_ord: SegmentOrdinal, limit: usize) -> TopSegmentCollector<T> {
+    pub(crate) fn new(segment_ord: SegmentOrdinal, limit: usize) -> TopSegmentCollector<T> {
         TopSegmentCollector {
             topn_computer: TopNComputer::new(limit),
             segment_ord,
@@ -216,6 +189,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 #[cfg(test)]
 mod tests {
     use super::{TopCollector, TopSegmentCollector};
+    use crate::collector::TopDocs;
     use crate::DocAddress;
 
     #[test]
@@ -279,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_with_limit_and_offset() {
-        let collector = TopCollector::with_limit(2).and_offset(1);
+        let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
 
         let results = collector
             .merge_fruits(vec![vec![
@@ -299,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_with_limit_larger_than_set_and_offset() {
-        let collector = TopCollector::with_limit(2).and_offset(1);
+        let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
 
         let results = collector
             .merge_fruits(vec![vec![
@@ -313,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_with_limit_and_offset_larger_than_set() {
-        let collector = TopCollector::with_limit(2).and_offset(20);
+        let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(20).into();
 
         let results = collector
             .merge_fruits(vec![vec![

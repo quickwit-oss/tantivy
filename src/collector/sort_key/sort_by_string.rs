@@ -13,6 +13,7 @@ use crate::{DocId, Score};
 ///
 /// Document that do not have this value are still considered.
 /// Their sort key will simply be `None`.
+#[derive(Debug, Clone)]
 pub struct SortByString {
     column_name: String,
 }

@@ -1,6 +1,7 @@
 use crate::collector::sort_key::{ReverseOrder, SegmentSortKeyComputer, SortKeyComputer};
 use crate::collector::top_collector::{merge_fruits, TopCollector, TopSegmentCollector};
 use crate::collector::{Collector, SegmentCollector};
+use crate::query::Weight;
 use crate::schema::Schema;
 use crate::{DocAddress, DocId, Order, Result, Score, SegmentReader};
 
@@ -25,8 +26,8 @@ where TSortKey: Clone + PartialOrd
 
 impl<TSortKeyComputer, TSortKey> Collector for TopBySortKeyCollector<TSortKeyComputer, TSortKey>
 where
-    TSortKeyComputer: SortKeyComputer<SortKey = TSortKey> + Send + Sync,
-    TSortKey: 'static + Send + PartialOrd + Sync + Clone + ReverseOrder,
+    TSortKeyComputer: SortKeyComputer<SortKey = TSortKey> + Send + Sync + 'static,
+    TSortKey: 'static + Send + PartialOrd + Sync + Clone + ReverseOrder + std::fmt::Debug,
 {
     type Fruit = Vec<(TSortKeyComputer::SortKey, DocAddress)>;
 
@@ -57,6 +58,8 @@ where
 
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> Result<Self::Fruit> {
         let order = self.sort_key_computer.order();
+        dbg!(order);
+        dbg!(&segment_fruits);
         match order {
             Order::Asc => {
                 let reverse_segment_fruits: Vec<
@@ -87,13 +90,26 @@ where
             Order::Desc => self.collector.merge_fruits(segment_fruits),
         }
     }
+
+    fn collect_segment(
+        &self,
+        weight: &dyn Weight,
+        segment_ord: u32,
+        reader: &SegmentReader,
+    ) -> crate::Result<Vec<(TSortKey, DocAddress)>> {
+        let k = self.collector.limit + self.collector.offset;
+        let docs = self
+            .sort_key_computer
+            .collect_top_k(k, weight, reader, segment_ord)?;
+        Ok(docs)
+    }
 }
 
 pub struct TopBySortKeySegmentCollector<TSegmentSortKeyComputer>
 where TSegmentSortKeyComputer: SegmentSortKeyComputer
 {
-    segment_collector: TopSegmentCollector<TSegmentSortKeyComputer::SegmentSortKey>,
-    segment_sort_key_computer: TSegmentSortKeyComputer,
+    pub(crate) segment_collector: TopSegmentCollector<TSegmentSortKeyComputer::SegmentSortKey>,
+    pub(crate) segment_sort_key_computer: TSegmentSortKeyComputer,
 }
 
 impl<TSegmentSortKeyComputer> SegmentCollector

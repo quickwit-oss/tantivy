@@ -1,15 +1,14 @@
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
-
 use super::Collector;
-use crate::collector::sort_key::{ReverseOrder, SortByStaticFastValue, SortByString};
+use crate::collector::sort_key::{
+    ReverseOrder, SortBySimilarityScore, SortByStaticFastValue, SortByString,
+};
 use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
-use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
-use crate::collector::{SegmentCollector, SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::top_collector::ComparableDoc;
+use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastValue;
-use crate::query::Weight;
-use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader};
+use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -55,15 +54,14 @@ use crate::{DocAddress, DocId, Order, Score, SegmentOrdinal, SegmentReader};
 /// # Ok(())
 /// # }
 /// ```
-pub struct TopDocs(TopCollector<Score>);
+pub struct TopDocs {
+    pub limit: usize,
+    pub offset: usize,
+}
 
 impl fmt::Debug for TopDocs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "TopDocs(limit={}, offset={})",
-            self.0.limit, self.0.offset
-        )
+        write!(f, "TopDocs(limit={}, offset={})", self.limit, self.offset)
     }
 }
 
@@ -73,7 +71,7 @@ impl TopDocs {
     /// # Panics
     /// The method panics if limit is 0
     pub fn with_limit(limit: usize) -> TopDocs {
-        TopDocs(TopCollector::with_limit(limit))
+        TopDocs { limit, offset: 0 }
     }
 
     /// Skip the first "offset" documents when collecting.
@@ -118,7 +116,10 @@ impl TopDocs {
     /// ```
     #[must_use]
     pub fn and_offset(self, offset: usize) -> TopDocs {
-        TopDocs(self.0.and_offset(offset))
+        TopDocs {
+            limit: self.limit,
+            offset,
+        }
     }
 
     /// Set top-K to rank documents by a given fast field.
@@ -199,8 +200,12 @@ impl TopDocs {
     ) -> impl Collector<Fruit = Vec<(Option<u64>, DocAddress)>> {
         TopBySortKeyCollector::new(
             (SortByStaticFastValue::for_field(field), order),
-            self.0.into_different_sort_key_type(),
+            self.into(),
         )
+    }
+
+    pub fn order_by_score(self) -> impl Collector<Fruit = Vec<(Score, DocAddress)>> {
+        TopBySortKeyCollector::new(SortBySimilarityScore, self.into())
     }
 
     /// Set top-K to rank documents by a given fast field.
@@ -282,7 +287,7 @@ impl TopDocs {
     {
         TopBySortKeyCollector::new(
             (SortByStaticFastValue::for_field(fast_field), order),
-            self.0.into_different_sort_key_type(),
+            self.into(),
         )
     }
 
@@ -394,12 +399,12 @@ impl TopDocs {
     /// - [custom_score(...)](TopDocs::custom_score)
     pub fn order_by<TSortKey>(
         self,
-        sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send,
+        sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send + 'static,
     ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
     where
-        TSortKey: 'static + Clone + Send + Sync + PartialOrd + ReverseOrder,
+        TSortKey: 'static + Clone + Send + Sync + PartialOrd + ReverseOrder + std::fmt::Debug,
     {
-        TopBySortKeyCollector::new(sort_key_computer, self.0.into_different_sort_key_type())
+        TopBySortKeyCollector::new(sort_key_computer, self.into())
     }
 
     pub fn tweak_score<F, TSortKey>(
@@ -408,7 +413,7 @@ impl TopDocs {
     ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
     where
         F: 'static + Send + Sync,
-        TSortKey: 'static + PartialOrd + Clone + Send + Sync + ReverseOrder,
+        TSortKey: 'static + PartialOrd + Clone + Send + Sync + ReverseOrder + std::fmt::Debug,
         TweakScoreFn<F>: SortKeyComputer<SortKey = TSortKey>,
     {
         self.order_by(TweakScoreFn(sort_key_fn))
@@ -469,90 +474,6 @@ where
     }
 }
 
-impl Collector for TopDocs {
-    type Fruit = Vec<(Score, DocAddress)>;
-
-    type Child = TopScoreSegmentCollector;
-
-    fn for_segment(
-        &self,
-        segment_local_id: SegmentOrdinal,
-        reader: &SegmentReader,
-    ) -> crate::Result<Self::Child> {
-        let collector = self.0.for_segment(segment_local_id, reader);
-        Ok(TopScoreSegmentCollector(collector))
-    }
-
-    fn requires_scoring(&self) -> bool {
-        true
-    }
-
-    fn merge_fruits(
-        &self,
-        child_fruits: Vec<Vec<(Score, DocAddress)>>,
-    ) -> crate::Result<Self::Fruit> {
-        self.0.merge_fruits(child_fruits)
-    }
-
-    fn collect_segment(
-        &self,
-        weight: &dyn Weight,
-        segment_ord: u32,
-        reader: &SegmentReader,
-    ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
-        let heap_len = self.0.limit + self.0.offset;
-        let mut top_n: TopNComputer<_, _> = TopNComputer::new(heap_len);
-
-        if let Some(alive_bitset) = reader.alive_bitset() {
-            let mut threshold = Score::MIN;
-            top_n.threshold = Some(threshold);
-            weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
-                if alive_bitset.is_deleted(doc) {
-                    return threshold;
-                }
-                top_n.push(score, doc);
-                threshold = top_n.threshold.unwrap_or(Score::MIN);
-                threshold
-            })?;
-        } else {
-            weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
-                top_n.push(score, doc);
-                top_n.threshold.unwrap_or(Score::MIN)
-            })?;
-        }
-
-        let fruit = top_n
-            .into_sorted_vec()
-            .into_iter()
-            .map(|cid| {
-                (
-                    cid.sort_key,
-                    DocAddress {
-                        segment_ord,
-                        doc_id: cid.doc,
-                    },
-                )
-            })
-            .collect();
-        Ok(fruit)
-    }
-}
-
-/// Segment Collector associated with `TopDocs`.
-pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
-
-impl SegmentCollector for TopScoreSegmentCollector {
-    type Fruit = Vec<(Score, DocAddress)>;
-
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.0.collect(doc, score);
-    }
-
-    fn harvest(self) -> Vec<(Score, DocAddress)> {
-        self.0.harvest()
-    }
-}
-
 /// Fast TopN Computation
 ///
 /// Capacity of the vec is 2 * top_n.
@@ -560,19 +481,15 @@ impl SegmentCollector for TopScoreSegmentCollector {
 /// That means capacity has special meaning and should be carried over when cloning or serializing.
 ///
 /// For TopN == 0, it will be relative expensive.
-#[derive(Serialize, Deserialize)]
-#[serde(from = "TopNComputerDeser<Score, D, REVERSE_ORDER>")]
-pub struct TopNComputer<Score, D, const REVERSE_ORDER: bool = true> {
+pub struct TopNComputer<Score, D> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
-    buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
+    buffer: Vec<ComparableDoc<Score, D>>,
     top_n: usize,
     pub(crate) threshold: Option<Score>,
 }
 
-impl<Score: std::fmt::Debug, D, const REVERSE_ORDER: bool> std::fmt::Debug
-    for TopNComputer<Score, D, REVERSE_ORDER>
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
+impl<Score: std::fmt::Debug, D> std::fmt::Debug for TopNComputer<Score, D> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("TopNComputer")
             .field("buffer_len", &self.buffer.len())
             .field("top_n", &self.top_n)
@@ -581,18 +498,8 @@ impl<Score: std::fmt::Debug, D, const REVERSE_ORDER: bool> std::fmt::Debug
     }
 }
 
-// Intermediate struct for TopNComputer for deserialization, to keep vec capacity
-#[derive(Deserialize)]
-struct TopNComputerDeser<Score, D, const REVERSE_ORDER: bool> {
-    buffer: Vec<ComparableDoc<Score, D, REVERSE_ORDER>>,
-    top_n: usize,
-    threshold: Option<Score>,
-}
-
 // Custom clone to keep capacity
-impl<Score: Clone, D: Clone, const REVERSE_ORDER: bool> Clone
-    for TopNComputer<Score, D, REVERSE_ORDER>
-{
+impl<Score: Clone, D: Clone> Clone for TopNComputer<Score, D> {
     fn clone(&self) -> Self {
         let mut buffer_clone = Vec::with_capacity(self.buffer.capacity());
         buffer_clone.extend(self.buffer.iter().cloned());
@@ -605,25 +512,7 @@ impl<Score: Clone, D: Clone, const REVERSE_ORDER: bool> Clone
     }
 }
 
-impl<Score, D, const R: bool> From<TopNComputerDeser<Score, D, R>> for TopNComputer<Score, D, R> {
-    fn from(mut value: TopNComputerDeser<Score, D, R>) -> Self {
-        let expected_cap = value.top_n.max(1) * 2;
-        let current_cap = value.buffer.capacity();
-        if current_cap < expected_cap {
-            value.buffer.reserve_exact(expected_cap - current_cap);
-        } else {
-            value.buffer.shrink_to(expected_cap);
-        }
-
-        TopNComputer {
-            buffer: value.buffer,
-            top_n: value.top_n,
-            threshold: value.threshold,
-        }
-    }
-}
-
-impl<TSortKey, D, const REVERSE_ORDER: bool> TopNComputer<TSortKey, D, REVERSE_ORDER>
+impl<TSortKey, D> TopNComputer<TSortKey, D>
 where
     TSortKey: PartialOrd + Clone,
     D: Ord,
@@ -644,10 +533,8 @@ where
     #[inline]
     pub fn push(&mut self, sort_key: TSortKey, doc: D) {
         if let Some(last_median) = self.threshold.clone() {
-            if !REVERSE_ORDER && sort_key > last_median {
-                return;
-            }
-            if REVERSE_ORDER && sort_key < last_median {
+            // TODO what if we prefer greater DocId?
+            if sort_key <= last_median {
                 return;
             }
         }
@@ -681,18 +568,18 @@ where
     }
 
     /// Returns the top n elements in sorted order.
-    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<TSortKey, D, REVERSE_ORDER>> {
+    pub fn into_sorted_vec(mut self) -> Vec<ComparableDoc<TSortKey, D>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
-        self.buffer.sort_unstable();
+        self.buffer.sort_unstable_by(|left, right| right.cmp(left));
         self.buffer
     }
 
     /// Returns the top n elements in stored order.
     /// Useful if you do not need the elements in sorted order,
     /// for example when merging the results of multiple segments.
-    pub fn into_vec(mut self) -> Vec<ComparableDoc<TSortKey, D, REVERSE_ORDER>> {
+    pub fn into_vec(mut self) -> Vec<ComparableDoc<TSortKey, D>> {
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
@@ -700,7 +587,7 @@ where
     }
 }
 
-impl<TSortKey, const REVERSE_ORDER: bool> TopNComputer<TSortKey, DocId, REVERSE_ORDER>
+impl<TSortKey> TopNComputer<TSortKey, DocId>
 where TSortKey: PartialOrd + Clone
 {
     #[inline(always)]
@@ -716,7 +603,7 @@ where TSortKey: PartialOrd + Clone
             if let Some(threshold) = self.threshold.as_ref() {
                 let Some((_cmp, sort_key)) =
                     // TODO do we need to do somethign with order?
-                    score_tweaker.accept_sort_key_lazy::<REVERSE_ORDER>(doc, score, threshold)
+                    score_tweaker.accept_sort_key_lazy(doc, score, threshold)
                 else {
                     return;
                 };
@@ -783,25 +670,6 @@ mod tests {
             crate::assert_nearly_equals!(result.0, expected.0);
         }
     }
-    #[test]
-    fn test_topn_computer_serde() {
-        let computer: TopNComputer<u32, u32> = TopNComputer::new(1);
-
-        let computer_ser = serde_json::to_string(&computer).unwrap();
-        let mut computer: TopNComputer<u32, u32> = serde_json::from_str(&computer_ser).unwrap();
-
-        computer.push(1u32, 5u32);
-        computer.push(1u32, 0u32);
-        computer.push(1u32, 7u32);
-
-        assert_eq!(
-            computer.into_sorted_vec(),
-            &[ComparableDoc {
-                sort_key: 1u32,
-                doc: 0u32,
-            },]
-        );
-    }
 
     #[test]
     fn test_empty_topn_computer() {
@@ -854,25 +722,7 @@ mod tests {
           limit in 0..10_usize,
           docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
         ) {
-            let mut computer: TopNComputer<_, _, false> = TopNComputer::new(limit);
-            for (feature, doc) in &docs {
-                computer.push(*feature, *doc);
-            }
-            let mut comparable_docs = docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
-            comparable_docs.sort();
-            comparable_docs.truncate(limit);
-            prop_assert_eq!(
-                computer.into_sorted_vec(),
-                comparable_docs,
-            );
-        }
-
-        #[test]
-        fn test_topn_computer_desc_prop(
-          limit in 0..10_usize,
-          docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
-        ) {
-            let mut computer: TopNComputer<_, _, true> = TopNComputer::new(limit);
+            let mut computer: TopNComputer<_, _> = TopNComputer::new(limit);
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
             }
@@ -895,7 +745,7 @@ mod tests {
         let score_docs: Vec<(Score, DocAddress)> = index
             .reader()?
             .searcher()
-            .search(&text_query, &TopDocs::with_limit(4))?;
+            .search(&text_query, &TopDocs::with_limit(4).order_by_score())?;
         assert_results_equals(
             &score_docs,
             &[
@@ -917,7 +767,10 @@ mod tests {
             .reader()
             .unwrap()
             .searcher()
-            .search(&text_query, &TopDocs::with_limit(4).and_offset(2))
+            .search(
+                &text_query,
+                &TopDocs::with_limit(4).and_offset(2).order_by_score(),
+            )
             .unwrap();
         assert_results_equals(&score_docs[..], &[(0.48527452, DocAddress::new(0, 0))]);
     }
@@ -932,7 +785,7 @@ mod tests {
             .reader()
             .unwrap()
             .searcher()
-            .search(&text_query, &TopDocs::with_limit(2))
+            .search(&text_query, &TopDocs::with_limit(2).order_by_score())
             .unwrap();
         assert_results_equals(
             &score_docs,
@@ -953,7 +806,10 @@ mod tests {
             .reader()
             .unwrap()
             .searcher()
-            .search(&text_query, &TopDocs::with_limit(2).and_offset(1))
+            .search(
+                &text_query,
+                &TopDocs::with_limit(2).and_offset(1).order_by_score(),
+            )
             .unwrap();
         assert_results_equals(
             &score_docs[..],
@@ -971,11 +827,17 @@ mod tests {
         // using AllQuery to get a constant score
         let searcher = index.reader().unwrap().searcher();
 
-        let page_0 = searcher.search(&AllQuery, &TopDocs::with_limit(1)).unwrap();
+        let page_0 = searcher
+            .search(&AllQuery, &TopDocs::with_limit(1).order_by_score())
+            .unwrap();
 
-        let page_1 = searcher.search(&AllQuery, &TopDocs::with_limit(2)).unwrap();
+        let page_1 = searcher
+            .search(&AllQuery, &TopDocs::with_limit(2).order_by_score())
+            .unwrap();
 
-        let page_2 = searcher.search(&AllQuery, &TopDocs::with_limit(3)).unwrap();
+        let page_2 = searcher
+            .search(&AllQuery, &TopDocs::with_limit(3).order_by_score())
+            .unwrap();
 
         // precondition for the test to be meaningful: we did get documents
         // with the same score
@@ -1023,7 +885,7 @@ mod tests {
             let total_docs: usize = docs_per_segment.iter().sum();
             // Full result set, first assert all scores are identical.
             let full_with_scores: Vec<(Score, DocAddress)> = searcher
-                .search(&AllQuery, &TopDocs::with_limit(total_docs))
+                .search(&AllQuery, &TopDocs::with_limit(total_docs).order_by_score())
                 .unwrap();
             // Sanity: at least one document was returned.
             prop_assert!(!full_with_scores.is_empty());
@@ -1043,7 +905,7 @@ mod tests {
             // 1) Increasing limit should preserve prefix ordering.
             for k in 1..=total_docs {
                 let page: Vec<DocAddress> = searcher
-                    .search(&AllQuery, &TopDocs::with_limit(k))
+                    .search(&AllQuery, &TopDocs::with_limit(k).order_by_score())
                     .unwrap()
                     .into_iter()
                     .map(|(_score, addr)| addr)
@@ -1061,7 +923,7 @@ mod tests {
 
                 let assert_page_eq = |limit: usize| -> proptest::test_runner::TestCaseResult {
                     let page: Vec<DocAddress> = searcher
-                        .search(&AllQuery, &TopDocs::with_limit(limit).and_offset(offset))
+                        .search(&AllQuery, &TopDocs::with_limit(limit).and_offset(offset).order_by_score())
                         .unwrap()
                         .into_iter()
                         .map(|(_score, addr)| addr)
@@ -1085,7 +947,7 @@ mod tests {
                 while offset < total_docs {
                     let size = page_size.min(total_docs - offset);
                     let page: Vec<DocAddress> = searcher
-                        .search(&AllQuery, &TopDocs::with_limit(size).and_offset(offset))
+                        .search(&AllQuery, &TopDocs::with_limit(size).and_offset(offset).order_by_score())
                         .unwrap()
                         .into_iter()
                         .map(|(_score, addr)| addr)
@@ -1137,7 +999,7 @@ mod tests {
 
             // Full result set, first assert all scores are identical across docs.
             let full_with_scores: Vec<(Score, DocAddress)> = searcher
-                .search(&tq, &TopDocs::with_limit(total_docs))
+                .search(&tq, &TopDocs::with_limit(total_docs).order_by_score())
                 .unwrap();
             // Sanity: at least one document was returned.
             prop_assert!(!full_with_scores.is_empty());
@@ -1157,7 +1019,7 @@ mod tests {
             // 1) Increasing limit should preserve prefix ordering.
             for k in 1..=total_docs {
                 let page: Vec<DocAddress> = searcher
-                    .search(&tq, &TopDocs::with_limit(k))
+                    .search(&tq, &TopDocs::with_limit(k).order_by_score())
                     .unwrap()
                     .into_iter()
                     .map(|(_score, addr)| addr)
@@ -1172,7 +1034,7 @@ mod tests {
 
                 let assert_page_eq = |limit: usize| -> proptest::test_runner::TestCaseResult {
                     let page: Vec<DocAddress> = searcher
-                        .search(&tq, &TopDocs::with_limit(limit).and_offset(offset))
+                        .search(&tq, &TopDocs::with_limit(limit).and_offset(offset).order_by_score())
                         .unwrap()
                         .into_iter()
                         .map(|(_score, addr)| addr)
@@ -1193,7 +1055,7 @@ mod tests {
                 while offset < total_docs {
                     let size = page_size.min(total_docs - offset);
                     let page: Vec<DocAddress> = searcher
-                        .search(&tq, &TopDocs::with_limit(size).and_offset(offset))
+                        .search(&tq, &TopDocs::with_limit(size).and_offset(offset).order_by_score())
                         .unwrap()
                         .into_iter()
                         .map(|(_score, addr)| addr)
@@ -1558,7 +1420,6 @@ mod tests {
         let schema = schema_builder.build();
         let top_collector = TopDocs::with_limit(4).order_by_fast_field::<i64>(SIZE, Order::Desc);
         let err = top_collector.check_schema(&schema).err().unwrap();
-        dbg!(&err);
         assert!(
             matches!(err, crate::TantivyError::SchemaError(msg) if msg == "Field `size` is not a fast field.")
         );
@@ -1667,7 +1528,7 @@ mod tests {
 
     #[test]
     fn test_topn_computer_asc() {
-        let mut computer: TopNComputer<u32, u32, false> = TopNComputer::new(2);
+        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(2);
 
         computer.push(1u32, 1u32);
         computer.push(2u32, 2u32);

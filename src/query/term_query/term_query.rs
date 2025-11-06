@@ -190,7 +190,7 @@ mod tests {
 
         let assert_single_hit = |query| {
             let (_top_docs, count) = searcher
-                .search(&query, &(TopDocs::with_limit(2), Count))
+                .search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))
                 .unwrap();
             assert_eq!(count, 1);
         };

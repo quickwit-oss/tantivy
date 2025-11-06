@@ -15,6 +15,7 @@ use crate::{DocId, Score, SegmentReader};
 ///
 /// Document that do not have this value are still considered.
 /// Their sort key will simply be `None`.
+#[derive(Debug, Clone)]
 pub struct SortByStaticFastValue<T: FastValue> {
     field: String,
     typ: PhantomData<T>,

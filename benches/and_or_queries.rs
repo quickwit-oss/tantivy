@@ -44,7 +44,7 @@ impl BenchIndex {
     fn topk_len(&self, query_str: &str, k: usize) -> usize {
         let query = self.query_parser.parse_query(query_str).unwrap();
         self.searcher
-            .search(&query, &TopDocs::with_limit(k))
+            .search(&query, &TopDocs::with_limit(k).order_by_score())
             .unwrap()
             .len()
     }

@@ -305,7 +305,7 @@ mod tests {
         let query = TermQuery::new(term, IndexRecordOption::Basic);
 
         let mut collectors = MultiCollector::new();
-        let topdocs_handler = collectors.add_collector(TopDocs::with_limit(2));
+        let topdocs_handler = collectors.add_collector(TopDocs::with_limit(2).order_by_score());
         let count_handler = collectors.add_collector(Count);
         let mut multifruits = searcher.search(&query, &collectors).unwrap();
 

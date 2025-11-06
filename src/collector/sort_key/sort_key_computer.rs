@@ -1,8 +1,11 @@
 use std::cmp::Ordering;
 
 use crate::collector::sort_key::ReverseOrder;
+use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
+use crate::collector::top_collector::TopSegmentCollector;
+use crate::collector::{default_collect_segment_impl, SegmentCollector as _};
 use crate::schema::Schema;
-use crate::{DocId, Order, Result, Score, SegmentReader};
+use crate::{DocAddress, DocId, Order, Result, Score, SegmentReader};
 
 /// A `SegmentSortKeyComputer` makes it possible to modify the default score
 /// for a given document belonging to a specific segment.
@@ -37,17 +40,13 @@ pub trait SegmentSortKeyComputer: 'static {
     /// - we return None if the score is below the threshold (resp. above to the threshold)
     /// - we return Some(ordering, score) if the score is above or equal to the threshold (resp.
     ///   below or equal to)
-    fn accept_sort_key_lazy<const REVERSE_ORDER: bool>(
+    fn accept_sort_key_lazy(
         &mut self,
         doc_id: DocId,
         score: Score,
         threshold: &Self::SegmentSortKey,
     ) -> Option<(std::cmp::Ordering, Self::SegmentSortKey)> {
-        let excluded_ordering = if REVERSE_ORDER {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        };
+        let excluded_ordering = Ordering::Less;
         let sort_key = self.sort_key(doc_id, score);
         let cmp = sort_key.partial_cmp(threshold).unwrap_or(excluded_ordering);
         if cmp == excluded_ordering {
@@ -82,6 +81,24 @@ pub trait SortKeyComputer: Sync {
     /// and the score fed in the segment sort key computer could take any value.
     fn requires_scoring(&self) -> bool {
         false
+    }
+
+    // Sorting by score is special in that it allows for the Block-Wand optimization.
+    fn collect_top_k(
+        &self,
+        k: usize,
+        weight: &dyn crate::query::Weight,
+        reader: &crate::SegmentReader,
+        segment_ord: u32,
+    ) -> crate::Result<Vec<(Self::SortKey, DocAddress)>> {
+        let with_scoring = self.requires_scoring();
+        let segment_sort_key_computer = self.segment_sort_key_computer(reader)?;
+        let mut segment_top_key_collector = TopBySortKeySegmentCollector {
+            segment_collector: TopSegmentCollector::new(segment_ord, k),
+            segment_sort_key_computer,
+        };
+        default_collect_segment_impl(&mut segment_top_key_collector, weight, reader, with_scoring)?;
+        Ok(segment_top_key_collector.harvest())
     }
 
     fn order(&self) -> Order {
@@ -186,7 +203,7 @@ where
         (head_sort_key, tail_sort_key)
     }
 
-    fn accept_sort_key_lazy<const REVERSE_ORDER: bool>(
+    fn accept_sort_key_lazy(
         &mut self,
         doc_id: DocId,
         score: Score,
@@ -194,12 +211,10 @@ where
     ) -> Option<(Ordering, Self::SegmentSortKey)> {
         let (head_threshold, tail_threshold) = threshold;
         let (head_cmp, head_sort_key) =
-            self.0
-                .accept_sort_key_lazy::<REVERSE_ORDER>(doc_id, score, head_threshold)?;
+            self.0.accept_sort_key_lazy(doc_id, score, head_threshold)?;
         if head_cmp == Ordering::Equal {
             let (tail_cmp, tail_sort_key) =
-                self.1
-                    .accept_sort_key_lazy::<REVERSE_ORDER>(doc_id, score, tail_threshold)?;
+                self.1.accept_sort_key_lazy(doc_id, score, tail_threshold)?;
             Some((tail_cmp, (head_sort_key, tail_sort_key)))
         } else {
             let tail_sort_key = self.1.sort_key(doc_id, score);
@@ -241,14 +256,14 @@ where
         self.sort_key_computer.sort_key(doc, score)
     }
 
-    fn accept_sort_key_lazy<const REVERSE_ORDER: bool>(
+    fn accept_sort_key_lazy(
         &mut self,
         doc_id: DocId,
         score: Score,
         threshold: &Self::SegmentSortKey,
     ) -> Option<(std::cmp::Ordering, Self::SegmentSortKey)> {
         self.sort_key_computer
-            .accept_sort_key_lazy::<REVERSE_ORDER>(doc_id, score, threshold)
+            .accept_sort_key_lazy(doc_id, score, threshold)
     }
 
     fn is_lazy() -> bool {
@@ -450,112 +465,43 @@ mod tests {
         let expected_sort_key = (200, "b");
         {
             let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(100u32, "a"));
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(100u32, "a"));
             assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 1);
         }
         {
             let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(100u32, "c"));
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(100u32, "c"));
             assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 2);
         }
         {
             let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(200u32, "a"));
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(200u32, "a"));
             assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 3);
         }
         {
             let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(200u32, "c"));
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(200u32, "c"));
             assert!(sort_key_opt.is_none());
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
             let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(300u32, "a"));
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(300u32, "a"));
             assert_eq!(sort_key_opt, None);
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
             let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<false>(0u32, 1f32, &(300u32, "c"));
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(300u32, "c"));
             assert_eq!(sort_key_opt, None);
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
-                0u32,
-                1f32,
-                &expected_sort_key,
-            );
-            assert_eq!(sort_key_opt, Some((Ordering::Equal, expected_sort_key)));
-            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 5);
-        }
-    }
-
-    #[test]
-    fn test_lazy_score_computer_reverse() {
-        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
-        let call_count = Arc::new(AtomicUsize::new(0));
-        let call_count_clone = call_count.clone();
-        let score_computer_secondary = move |_segment_reader: &SegmentReader| {
-            let call_count_new_clone = call_count_clone.clone();
-            move |_doc: DocId| {
-                call_count_new_clone.fetch_add(1, AtomicOrdering::SeqCst);
-                "b"
-            }
-        };
-        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
-        let index = build_test_index();
-        let searcher = index.reader().unwrap().searcher();
-        let mut segment_sort_key_computer = lazy_score_computer
-            .segment_sort_key_computer(searcher.segment_reader(0))
-            .unwrap();
-        let expected_sort_key = (200, "b");
-        {
             let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(100u32, "a"));
-            assert_eq!(sort_key_opt, None);
-            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 0);
-        }
-        {
-            let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(100u32, "c"));
-            assert_eq!(sort_key_opt, None);
-            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 0);
-        }
-        {
-            let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(200u32, "a"));
-            assert!(sort_key_opt.is_none());
-            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 1);
-        }
-        {
-            let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(200u32, "c"));
-            assert_eq!(sort_key_opt, Some((Ordering::Less, expected_sort_key)));
-            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 2);
-        }
-        {
-            let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(300u32, "a"));
-            assert_eq!(sort_key_opt, Some((Ordering::Less, expected_sort_key)));
-            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 3);
-        }
-        {
-            let sort_key_opt =
-                segment_sort_key_computer.accept_sort_key_lazy::<true>(0u32, 1f32, &(300u32, "c"));
-            assert_eq!(sort_key_opt, Some((Ordering::Less, expected_sort_key)));
-            assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
-        }
-        {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<true>(
-                0u32,
-                1f32,
-                &expected_sort_key,
-            );
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &expected_sort_key);
             assert_eq!(sort_key_opt, Some((Ordering::Equal, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 5);
         }
@@ -585,7 +531,7 @@ mod tests {
         let expected_sort_key = (200, 2u32.to_reverse_type());
 
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
                 0u32,
                 1f32,
                 &(100u32, 1u32.to_reverse_type()),
@@ -594,7 +540,7 @@ mod tests {
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 1);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
                 0u32,
                 1f32,
                 &(100u32, 3u32.to_reverse_type()),
@@ -603,7 +549,7 @@ mod tests {
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 2);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
                 0u32,
                 1f32,
                 &(200u32, 1u32.to_reverse_type()),
@@ -612,7 +558,7 @@ mod tests {
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 3);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
                 0u32,
                 1f32,
                 &(200u32, 3u32.to_reverse_type()),
@@ -621,7 +567,7 @@ mod tests {
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
                 0u32,
                 1f32,
                 &(300u32, 1u32.to_reverse_type()),
@@ -630,7 +576,7 @@ mod tests {
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
+            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
                 0u32,
                 1f32,
                 &(300u32, 3u32.to_reverse_type()),
@@ -639,11 +585,8 @@ mod tests {
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy::<false>(
-                0u32,
-                1f32,
-                &expected_sort_key,
-            );
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &expected_sort_key);
             assert_eq!(sort_key_opt, Some((Ordering::Equal, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 5);
         }
