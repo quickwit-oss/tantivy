@@ -1,11 +1,12 @@
 use std::cmp::Ordering;
+use std::ops::Range;
 
-use crate::collector::sort_key::ReverseOrder;
+use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
 use crate::collector::top_collector::TopSegmentCollector;
-use crate::collector::{default_collect_segment_impl, SegmentCollector as _};
+use crate::collector::{default_collect_segment_impl, SegmentCollector as _, TopNComputer};
 use crate::schema::Schema;
-use crate::{DocAddress, DocId, Order, Result, Score, SegmentReader};
+use crate::{DocAddress, DocId, Result, Score, SegmentReader};
 
 /// A `SegmentSortKeyComputer` makes it possible to modify the default score
 /// for a given document belonging to a specific segment.
@@ -30,6 +31,14 @@ pub trait SegmentSortKeyComputer: 'static {
         false
     }
 
+    fn compare_segment_sort_key(
+        &self,
+        left: &Self::SegmentSortKey,
+        right: &Self::SegmentSortKey,
+    ) -> Ordering {
+        NaturalComparator.compare(left, right)
+    }
+
     /// Implementing this method makes it possible to avoid computing
     /// a sort_key entirely if we can assess that it won't pass a threshold
     /// with a partial computation.
@@ -45,10 +54,10 @@ pub trait SegmentSortKeyComputer: 'static {
         doc_id: DocId,
         score: Score,
         threshold: &Self::SegmentSortKey,
-    ) -> Option<(std::cmp::Ordering, Self::SegmentSortKey)> {
+    ) -> Option<(Ordering, Self::SegmentSortKey)> {
         let excluded_ordering = Ordering::Less;
         let sort_key = self.sort_key(doc_id, score);
-        let cmp = sort_key.partial_cmp(threshold).unwrap_or(excluded_ordering);
+        let cmp = self.compare_segment_sort_key(&sort_key, threshold);
         if cmp == excluded_ordering {
             None
         } else {
@@ -67,13 +76,21 @@ pub trait SegmentSortKeyComputer: 'static {
 /// the sort key at a segment scale.
 pub trait SortKeyComputer: Sync {
     /// The sort key type.
-    type SortKey: 'static + Send + Sync + PartialOrd + Clone;
+    type SortKey: 'static + Send + Sync + PartialOrd + Clone + std::fmt::Debug;
     /// Type of the associated [`SegmentSortKeyComputer`].
     type Child: SegmentSortKeyComputer<SortKey = Self::SortKey>;
+
+    type Comparator: Comparator<Self::SortKey>
+        + Comparator<<Self::Child as SegmentSortKeyComputer>::SegmentSortKey>
+        + 'static;
 
     /// Checks whether the schema is compatible with the sort key computer.
     fn check_schema(&self, _schema: &Schema) -> crate::Result<()> {
         Ok(())
+    }
+
+    fn comparator(&self) -> Self::Comparator {
+        Self::Comparator::default()
     }
 
     /// Indicates whether the sort key actually uses the similarity score (by default BM25).
@@ -84,7 +101,7 @@ pub trait SortKeyComputer: Sync {
     }
 
     // Sorting by score is special in that it allows for the Block-Wand optimization.
-    fn collect_top_k(
+    fn collect_segment_top_k(
         &self,
         k: usize,
         weight: &dyn crate::query::Weight,
@@ -94,19 +111,48 @@ pub trait SortKeyComputer: Sync {
         let with_scoring = self.requires_scoring();
         let segment_sort_key_computer = self.segment_sort_key_computer(reader)?;
         let mut segment_top_key_collector = TopBySortKeySegmentCollector {
-            segment_collector: TopSegmentCollector::new(segment_ord, k),
+            segment_collector: TopSegmentCollector::new(segment_ord, k, self.comparator()),
             segment_sort_key_computer,
         };
         default_collect_segment_impl(&mut segment_top_key_collector, weight, reader, with_scoring)?;
         Ok(segment_top_key_collector.harvest())
     }
 
-    fn order(&self) -> Order {
-        Order::Desc
-    }
-
     /// Builds a child sort key computer for a specific segment.
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
+
+    fn merge_top_k<D: Ord + std::fmt::Debug>(
+        &self,
+        segment_top_k_s: impl Iterator<Item = (Self::SortKey, D)>,
+        doc_range: Range<usize>,
+    ) -> Vec<(Self::SortKey, D)> {
+        merge_top_k(segment_top_k_s, doc_range, self.comparator())
+    }
+}
+
+fn merge_top_k<
+    D: Ord + std::fmt::Debug,
+    TSortKey: Clone + std::fmt::Debug,
+    C: Comparator<TSortKey>,
+>(
+    sort_key_docs: impl Iterator<Item = (TSortKey, D)>,
+    doc_range: Range<usize>,
+    comparator: C,
+) -> Vec<(TSortKey, D)> {
+    if doc_range.len() == 0 {
+        return Vec::new();
+    }
+    let mut top_collector: TopNComputer<TSortKey, D, C> =
+        TopNComputer::new_with_comparator(doc_range.end, comparator);
+    for (sort_key, doc) in sort_key_docs {
+        top_collector.push(sort_key, doc);
+    }
+    top_collector
+        .into_sorted_vec()
+        .into_iter()
+        .skip(doc_range.start)
+        .map(|cdoc| (cdoc.sort_key, cdoc.doc))
+        .collect()
 }
 
 impl<HeadSortKeyComputer, TailSortKeyComputer> SortKeyComputer
@@ -120,6 +166,15 @@ where
         <TailSortKeyComputer::Child as SegmentSortKeyComputer>::SortKey,
     );
     type Child = (HeadSortKeyComputer::Child, TailSortKeyComputer::Child);
+
+    type Comparator = (
+        HeadSortKeyComputer::Comparator,
+        TailSortKeyComputer::Comparator,
+    );
+
+    fn comparator(&self) -> Self::Comparator {
+        (self.0.comparator(), self.1.comparator())
+    }
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         Ok((
@@ -140,45 +195,6 @@ where
     /// and the score fed in the segment sort key computer could take any value.
     fn requires_scoring(&self) -> bool {
         self.0.requires_scoring() || self.1.requires_scoring()
-    }
-}
-
-impl<T: PartialOrd + Clone> ReverseOrder for std::cmp::Reverse<T> {
-    type ReverseType = T;
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        self.0
-    }
-
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
-        Self(reverse_value)
-    }
-}
-
-impl ReverseOrder for String {
-    type ReverseType = std::cmp::Reverse<String>;
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        std::cmp::Reverse(self)
-    }
-
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
-        reverse_value.0
-    }
-}
-
-impl<Left: ReverseOrder, Right: ReverseOrder> ReverseOrder for (Left, Right) {
-    type ReverseType = (Left::ReverseType, Right::ReverseType);
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        (self.0.to_reverse_type(), self.1.to_reverse_type())
-    }
-
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
-        (
-            Left::from_reverse_type(reverse_value.0),
-            Right::from_reverse_type(reverse_value.1),
-        )
     }
 }
 
@@ -261,7 +277,7 @@ where
         doc_id: DocId,
         score: Score,
         threshold: &Self::SegmentSortKey,
-    ) -> Option<(std::cmp::Ordering, Self::SegmentSortKey)> {
+    ) -> Option<(Ordering, Self::SegmentSortKey)> {
         self.sort_key_computer
             .accept_sort_key_lazy(doc_id, score, threshold)
     }
@@ -301,6 +317,20 @@ where
         ),
         Self::SortKey,
     >;
+
+    type Comparator = (
+        SortKeyComputer1::Comparator,
+        SortKeyComputer2::Comparator,
+        SortKeyComputer3::Comparator,
+    );
+
+    fn comparator(&self) -> Self::Comparator {
+        (
+            self.0.comparator(),
+            self.1.comparator(),
+            self.2.comparator(),
+        )
+    }
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         let sort_key_computer1 = self.0.segment_sort_key_computer(segment_reader)?;
@@ -357,6 +387,12 @@ where
         SortKeyComputer3::SortKey,
         SortKeyComputer4::SortKey,
     );
+    type Comparator = (
+        SortKeyComputer1::Comparator,
+        SortKeyComputer2::Comparator,
+        SortKeyComputer3::Comparator,
+        SortKeyComputer4::Comparator,
+    );
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         let sort_key_computer1 = self.0.segment_sort_key_computer(segment_reader)?;
@@ -394,10 +430,11 @@ impl<F, SegmentF, TSortKey> SortKeyComputer for F
 where
     F: 'static + Send + Sync + Fn(&SegmentReader) -> SegmentF,
     SegmentF: 'static + FnMut(DocId) -> TSortKey,
-    TSortKey: 'static + PartialOrd + Clone + Send + Sync,
+    TSortKey: 'static + PartialOrd + Clone + Send + Sync + std::fmt::Debug,
 {
     type SortKey = TSortKey;
     type Child = SegmentF;
+    type Comparator = NaturalComparator;
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         Ok((self)(segment_reader))
@@ -428,7 +465,6 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Arc;
 
-    use crate::collector::sort_key::ReverseOrder;
     use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
     use crate::schema::Schema;
     use crate::{DocId, Index, Order, SegmentReader};
@@ -528,59 +564,41 @@ mod tests {
         let mut segment_sort_key_computer = lazy_score_computer
             .segment_sort_key_computer(searcher.segment_reader(0))
             .unwrap();
-        let expected_sort_key = (200, 2u32.to_reverse_type());
+        let expected_sort_key = (200, 2u32);
 
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
-                0u32,
-                1f32,
-                &(100u32, 1u32.to_reverse_type()),
-            );
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(100u32, 1u32));
             assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 1);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
-                0u32,
-                1f32,
-                &(100u32, 3u32.to_reverse_type()),
-            );
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(100u32, 3u32));
             assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 2);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
-                0u32,
-                1f32,
-                &(200u32, 1u32.to_reverse_type()),
-            );
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(200u32, 1u32));
             assert!(sort_key_opt.is_none());
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 3);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
-                0u32,
-                1f32,
-                &(200u32, 3u32.to_reverse_type()),
-            );
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(200u32, 3u32));
             assert_eq!(sort_key_opt, Some((Ordering::Greater, expected_sort_key)));
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
-                0u32,
-                1f32,
-                &(300u32, 1u32.to_reverse_type()),
-            );
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(300u32, 1u32));
             assert_eq!(sort_key_opt, None);
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }
         {
-            let sort_key_opt = segment_sort_key_computer.accept_sort_key_lazy(
-                0u32,
-                1f32,
-                &(300u32, 3u32.to_reverse_type()),
-            );
+            let sort_key_opt =
+                segment_sort_key_computer.accept_sort_key_lazy(0u32, 1f32, &(300u32, 3u32));
             assert_eq!(sort_key_opt, None);
             assert_eq!(call_count.load(AtomicOrdering::SeqCst), 4);
         }

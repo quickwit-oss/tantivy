@@ -1,149 +1,227 @@
-use columnar::MonotonicallyMappableToU64;
+use std::cmp::Ordering;
 
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::Schema;
 use crate::{DocId, Order, Score};
 
-/// ReverseOrder is a trait that offers a bijection to another type that flips the order of a value
-/// to match the expectation of sorting by "ascending order".
-///
-/// From some type, it can differ a little from just applying `std::cmp::Reverse`.
-/// In particular, for `Option<T>`, the reverse order is not that of `std::cmp::Reverse<Option<T>>`,
-/// but rather `Option<std::cmp::Reverse<T>>`:
-/// Users typically still expect items without a value to appear at the end of the list.
-///
-/// Also, when trying to apply an order dynamically (e.g. the order was passed by an API)
-/// we do not necessarily have the luxury to have a specific type for the new key.
-///
-/// We then rely on an ReverseOrder implementation with a ReverseOrderType that maps to Self.
-pub trait ReverseOrder: Clone {
-    /// The type that is used for the reverse order representation.
-    ///
-    /// This type might be Self.
-    type ReverseType: PartialOrd + Clone;
-
-    /// Maps the value to its reverse value.
-    fn to_reverse_type(self) -> Self::ReverseType;
-
-    /// Converts a reverse value back to its orignal value.
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self;
+pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
+    fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
 }
 
-/// Helper function: converts a value to its reverse order if order is Asc.
-fn reverse_if_asc<T>(value: T, order: Order) -> T
-where T: ReverseOrder<ReverseType = T> {
-    match order {
-        Order::Asc => value.to_reverse_type(),
-        Order::Desc => value,
+#[derive(Debug, Copy, Clone, Default)]
+pub struct NaturalComparator;
+
+impl<T: PartialOrd> Comparator<T> for NaturalComparator {
+    #[inline]
+    fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
+        lhs.partial_cmp(rhs).unwrap()
     }
 }
 
-impl ReverseOrder for u64 {
-    type ReverseType = u64;
+#[derive(Debug, Copy, Clone, Default)]
+pub struct ReverseComparator;
 
-    fn to_reverse_type(self) -> Self::ReverseType {
-        u64::MAX - self
-    }
-
-    fn from_reverse_type(reverse_value: u64) -> Self {
-        reverse_value.to_reverse_type()
-    }
-}
-
-impl ReverseOrder for i64 {
-    type ReverseType = i64;
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        -self
-    }
-
-    fn from_reverse_type(reverse_value: i64) -> Self {
-        -reverse_value
+impl<T> Comparator<T> for ReverseComparator
+where NaturalComparator: Comparator<T>
+{
+    #[inline]
+    fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
+        NaturalComparator.compare(rhs, lhs)
     }
 }
 
-impl ReverseOrder for f64 {
-    type ReverseType = f64;
+#[derive(Debug, Copy, Clone, Default)]
+pub struct ReverseNoneIsLowerComparator;
 
-    fn to_reverse_type(self) -> Self::ReverseType {
-        -self
-    }
-
-    fn from_reverse_type(reverse_value: f64) -> Self {
-        -reverse_value
-    }
-}
-
-impl ReverseOrder for bool {
-    type ReverseType = bool;
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        !self
-    }
-
-    fn from_reverse_type(reverse_value: bool) -> Self {
-        reverse_value.to_reverse_type()
+impl<T> Comparator<Option<T>> for ReverseNoneIsLowerComparator
+where ReverseComparator: Comparator<T>
+{
+    #[inline]
+    fn compare(&self, lhs_opt: &Option<T>, rhs_opt: &Option<T>) -> Ordering {
+        match (lhs_opt, rhs_opt) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Less,
+            (Some(_), None) => Ordering::Greater,
+            (Some(lhs), Some(rhs)) => ReverseComparator.compare(lhs, rhs),
+        }
     }
 }
 
-impl ReverseOrder for crate::DateTime {
-    type ReverseType = crate::DateTime;
-
-    fn to_reverse_type(self) -> crate::DateTime {
-        crate::DateTime::from_u64(u64::MAX - self.to_u64())
-    }
-
-    fn from_reverse_type(reverse_value: crate::DateTime) -> Self {
-        reverse_value.to_reverse_type()
+impl Comparator<u32> for ReverseNoneIsLowerComparator {
+    #[inline]
+    fn compare(&self, lhs: &u32, rhs: &u32) -> Ordering {
+        ReverseComparator.compare(lhs, rhs)
     }
 }
 
-impl ReverseOrder for u32 {
-    type ReverseType = u32;
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        u32::MAX - self
-    }
-
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
-        reverse_value.to_reverse_type()
+impl Comparator<u64> for ReverseNoneIsLowerComparator {
+    #[inline]
+    fn compare(&self, lhs: &u64, rhs: &u64) -> Ordering {
+        ReverseComparator.compare(lhs, rhs)
     }
 }
 
-impl ReverseOrder for f32 {
-    type ReverseType = f32;
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        -self
-    }
-
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
-        // That's an involution
-        reverse_value.to_reverse_type()
+impl Comparator<f64> for ReverseNoneIsLowerComparator {
+    #[inline]
+    fn compare(&self, lhs: &f64, rhs: &f64) -> Ordering {
+        ReverseComparator.compare(lhs, rhs)
     }
 }
 
-// The point here is that for Option, we do not want None values to come on top
-// when running a Asc query.
-impl<T: ReverseOrder> ReverseOrder for Option<T> {
-    type ReverseType = Option<T::ReverseType>;
-
-    fn to_reverse_type(self) -> Self::ReverseType {
-        self.map(|val| val.to_reverse_type())
-    }
-
-    fn from_reverse_type(reverse_value: Self::ReverseType) -> Self {
-        reverse_value.map(T::from_reverse_type)
+impl Comparator<f32> for ReverseNoneIsLowerComparator {
+    #[inline]
+    fn compare(&self, lhs: &f32, rhs: &f32) -> Ordering {
+        ReverseComparator.compare(lhs, rhs)
     }
 }
-impl<TSortKeyComputer> SortKeyComputer for (TSortKeyComputer, Order)
+
+impl Comparator<i64> for ReverseNoneIsLowerComparator {
+    #[inline]
+    fn compare(&self, lhs: &i64, rhs: &i64) -> Ordering {
+        ReverseComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<String> for ReverseNoneIsLowerComparator {
+    #[inline]
+    fn compare(&self, lhs: &String, rhs: &String) -> Ordering {
+        ReverseComparator.compare(lhs, rhs)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
+pub enum ComparatorEnum {
+    #[default]
+    Natural,
+    Reverse,
+    ReverseNullLower,
+}
+
+impl From<Order> for ComparatorEnum {
+    fn from(order: Order) -> Self {
+        match order {
+            Order::Asc => ComparatorEnum::ReverseNullLower,
+            Order::Desc => ComparatorEnum::Natural,
+        }
+    }
+}
+
+impl<T> Comparator<T> for ComparatorEnum
+where
+    ReverseNoneIsLowerComparator: Comparator<T>,
+    NaturalComparator: Comparator<T>,
+    ReverseComparator: Comparator<T>,
+{
+    #[inline]
+    fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
+        match self {
+            ComparatorEnum::Natural => NaturalComparator.compare(lhs, rhs),
+            ComparatorEnum::Reverse => ReverseComparator.compare(lhs, rhs),
+            ComparatorEnum::ReverseNullLower => ReverseNoneIsLowerComparator.compare(lhs, rhs),
+        }
+    }
+}
+
+impl<Head, Tail, LeftComparator, RightComparator> Comparator<(Head, Tail)>
+    for (LeftComparator, RightComparator)
+where
+    LeftComparator: Comparator<Head>,
+    RightComparator: Comparator<Tail>,
+{
+    fn compare(&self, lhs: &(Head, Tail), rhs: &(Head, Tail)) -> Ordering {
+        self.0
+            .compare(&lhs.0, &rhs.0)
+            .then_with(|| self.1.compare(&lhs.1, &rhs.1))
+    }
+}
+
+impl<Type1, Type2, Type3, Comparator1, Comparator2, Comparator3> Comparator<(Type1, (Type2, Type3))>
+    for (Comparator1, Comparator2, Comparator3)
+where
+    Comparator1: Comparator<Type1>,
+    Comparator2: Comparator<Type2>,
+    Comparator3: Comparator<Type3>,
+{
+    fn compare(&self, lhs: &(Type1, (Type2, Type3)), rhs: &(Type1, (Type2, Type3))) -> Ordering {
+        self.0
+            .compare(&lhs.0, &rhs.0)
+            .then_with(|| self.1.compare(&lhs.1 .0, &rhs.1 .0))
+            .then_with(|| self.2.compare(&lhs.1 .1, &rhs.1 .1))
+    }
+}
+
+impl<Type1, Type2, Type3, Comparator1, Comparator2, Comparator3> Comparator<(Type1, Type2, Type3)>
+    for (Comparator1, Comparator2, Comparator3)
+where
+    Comparator1: Comparator<Type1>,
+    Comparator2: Comparator<Type2>,
+    Comparator3: Comparator<Type3>,
+{
+    fn compare(&self, lhs: &(Type1, Type2, Type3), rhs: &(Type1, Type2, Type3)) -> Ordering {
+        self.0
+            .compare(&lhs.0, &rhs.0)
+            .then_with(|| self.1.compare(&lhs.1, &rhs.1))
+            .then_with(|| self.2.compare(&lhs.2, &rhs.2))
+    }
+}
+
+impl<Type1, Type2, Type3, Type4, Comparator1, Comparator2, Comparator3, Comparator4>
+    Comparator<(Type1, (Type2, (Type3, Type4)))>
+    for (Comparator1, Comparator2, Comparator3, Comparator4)
+where
+    Comparator1: Comparator<Type1>,
+    Comparator2: Comparator<Type2>,
+    Comparator3: Comparator<Type3>,
+    Comparator4: Comparator<Type4>,
+{
+    fn compare(
+        &self,
+        lhs: &(Type1, (Type2, (Type3, Type4))),
+        rhs: &(Type1, (Type2, (Type3, Type4))),
+    ) -> Ordering {
+        self.0
+            .compare(&lhs.0, &rhs.0)
+            .then_with(|| self.1.compare(&lhs.1 .0, &rhs.1 .0))
+            .then_with(|| self.2.compare(&lhs.1 .1 .0, &rhs.1 .1 .0))
+            .then_with(|| self.3.compare(&lhs.1 .1 .1, &rhs.1 .1 .1))
+    }
+}
+
+impl<Type1, Type2, Type3, Type4, Comparator1, Comparator2, Comparator3, Comparator4>
+    Comparator<(Type1, Type2, Type3, Type4)>
+    for (Comparator1, Comparator2, Comparator3, Comparator4)
+where
+    Comparator1: Comparator<Type1>,
+    Comparator2: Comparator<Type2>,
+    Comparator3: Comparator<Type3>,
+    Comparator4: Comparator<Type4>,
+{
+    fn compare(
+        &self,
+        lhs: &(Type1, Type2, Type3, Type4),
+        rhs: &(Type1, Type2, Type3, Type4),
+    ) -> Ordering {
+        self.0
+            .compare(&lhs.0, &rhs.0)
+            .then_with(|| self.1.compare(&lhs.1, &rhs.1))
+            .then_with(|| self.2.compare(&lhs.2, &rhs.2))
+            .then_with(|| self.3.compare(&lhs.3, &rhs.3))
+    }
+}
+
+impl<TSortKeyComputer> SortKeyComputer for (TSortKeyComputer, ComparatorEnum)
 where
     TSortKeyComputer: SortKeyComputer,
-    (TSortKeyComputer::Child, Order): SegmentSortKeyComputer<SortKey = TSortKeyComputer::SortKey>,
+    ComparatorEnum: Comparator<TSortKeyComputer::SortKey>,
+    ComparatorEnum: Comparator<
+        <<TSortKeyComputer as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    >,
 {
     type SortKey = TSortKeyComputer::SortKey;
 
-    type Child = (TSortKeyComputer::Child, Order);
+    type Child = SegmentSortKeyComputerWithComparator<TSortKeyComputer::Child, Self::Comparator>;
+
+    type Comparator = ComparatorEnum;
 
     fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
         self.0.check_schema(schema)
@@ -153,7 +231,7 @@ where
         self.0.requires_scoring()
     }
 
-    fn order(&self) -> Order {
+    fn comparator(&self) -> Self::Comparator {
         self.1
     }
 
@@ -162,27 +240,135 @@ where
         segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let child = self.0.segment_sort_key_computer(segment_reader)?;
-        Ok((child, self.1))
+        Ok(SegmentSortKeyComputerWithComparator {
+            segment_sort_key_computer: child,
+            comparator: self.comparator(),
+        })
     }
 }
 
-impl<TSegmentSortKeyComputer, TSegmentSortKey> SegmentSortKeyComputer
-    for (TSegmentSortKeyComputer, Order)
+impl<TSortKeyComputer> SortKeyComputer for (TSortKeyComputer, Order)
+where
+    TSortKeyComputer: SortKeyComputer,
+    ComparatorEnum: Comparator<TSortKeyComputer::SortKey>,
+    ComparatorEnum: Comparator<
+        <<TSortKeyComputer as SortKeyComputer>::Child as SegmentSortKeyComputer>::SegmentSortKey,
+    >,
+{
+    type SortKey = TSortKeyComputer::SortKey;
+
+    type Child = SegmentSortKeyComputerWithComparator<TSortKeyComputer::Child, Self::Comparator>;
+
+    type Comparator = ComparatorEnum;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring()
+    }
+
+    fn comparator(&self) -> Self::Comparator {
+        self.1.into()
+    }
+
+    fn segment_sort_key_computer(
+        &self,
+        segment_reader: &crate::SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        let child = self.0.segment_sort_key_computer(segment_reader)?;
+        Ok(SegmentSortKeyComputerWithComparator {
+            segment_sort_key_computer: child,
+            comparator: self.comparator(),
+        })
+    }
+}
+
+pub struct SegmentSortKeyComputerWithComparator<TSegmentSortKeyComputer, TComparator> {
+    segment_sort_key_computer: TSegmentSortKeyComputer,
+    comparator: TComparator,
+}
+
+impl<TSegmentSortKeyComputer, TSegmentSortKey, TComparator> SegmentSortKeyComputer
+    for SegmentSortKeyComputerWithComparator<TSegmentSortKeyComputer, TComparator>
 where
     TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSegmentSortKey>,
-    TSegmentSortKey:
-        ReverseOrder<ReverseType = TSegmentSortKey> + PartialOrd + Clone + 'static + Sync + Send,
+    TSegmentSortKey: PartialOrd + Clone + 'static + Sync + Send,
+    TComparator: Comparator<TSegmentSortKey> + 'static + Sync + Send,
 {
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
 
     fn sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
-        let sort_key = self.0.sort_key(doc, score);
-        reverse_if_asc(sort_key, self.1)
+        self.segment_sort_key_computer.sort_key(doc, score)
     }
 
-    fn convert_segment_sort_key(&self, reverse_sort_key: Self::SegmentSortKey) -> Self::SortKey {
-        let sort_key = reverse_if_asc(reverse_sort_key, self.1);
-        self.0.convert_segment_sort_key(sort_key)
+    fn compare_segment_sort_key(
+        &self,
+        left: &Self::SegmentSortKey,
+        right: &Self::SegmentSortKey,
+    ) -> Ordering {
+        self.comparator.compare(left, right)
+    }
+
+    fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
+        self.segment_sort_key_computer
+            .convert_segment_sort_key(sort_key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Range;
+
+    use rand;
+    use rand::seq::SliceRandom as _;
+
+    use crate::collector::sort_key::SortBySimilarityScore;
+    use crate::collector::SortKeyComputer;
+    use crate::Order;
+
+    fn test_sort_key_computer_with_order_aux(
+        order: Order,
+        doc_range: Range<usize>,
+        expected: &[(crate::Score, usize)],
+    ) {
+        let sort_key_computer = (SortBySimilarityScore, order);
+        let mut vals: Vec<(crate::Score, usize)> = (0..10).map(|val| (val as f32, val)).collect();
+        vals.shuffle(&mut rand::thread_rng());
+        let vals_merged =
+            SortKeyComputer::merge_top_k(&sort_key_computer, vals.into_iter(), doc_range);
+        assert_eq!(&vals_merged, expected);
+    }
+
+    #[test]
+    fn test_sort_key_computer_with_order() {
+        test_sort_key_computer_with_order_aux(Order::Asc, 0..0, &[]);
+        test_sort_key_computer_with_order_aux(Order::Asc, 3..3, &[]);
+        test_sort_key_computer_with_order_aux(
+            Order::Asc,
+            0..3,
+            &[(0.0f32, 0), (1.0f32, 1), (2.0f32, 2)],
+        );
+        test_sort_key_computer_with_order_aux(
+            Order::Asc,
+            0..11,
+            &[
+                (0.0f32, 0),
+                (1.0f32, 1),
+                (2.0f32, 2),
+                (3.0f32, 3),
+                (4.0f32, 4),
+                (5.0f32, 5),
+                (6.0f32, 6),
+                (7.0f32, 7),
+                (8.0f32, 8),
+                (9.0f32, 9),
+            ],
+        );
+        test_sort_key_computer_with_order_aux(Order::Asc, 1..3, &[(1.0f32, 1), (2.0f32, 2)]);
+        test_sort_key_computer_with_order_aux(Order::Desc, 0..2, &[(9.0f32, 9), (8.0f32, 8)]);
+        test_sort_key_computer_with_order_aux(Order::Desc, 2..4, &[(7.0f32, 7), (6.0f32, 6)]);
     }
 }

@@ -1,11 +1,10 @@
 use std::cmp::Ordering;
-use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 
 use super::top_score_collector::TopNComputer;
-use crate::collector::{SegmentSortKeyComputer, TopDocs};
-use crate::index::SegmentReader;
+use crate::collector::sort_key::Comparator;
+use crate::collector::SegmentSortKeyComputer;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
@@ -69,86 +68,35 @@ impl<T: PartialOrd, D: PartialOrd, const R: bool> PartialEq for ComparableDoc<T,
 
 impl<T: PartialOrd, D: PartialOrd, const R: bool> Eq for ComparableDoc<T, D, R> {}
 
-pub(crate) struct TopCollector<T> {
-    pub limit: usize,
-    pub offset: usize,
-    _marker: PhantomData<T>,
-}
-
-impl<T> From<TopDocs> for TopCollector<T> {
-    fn from(top_docs: TopDocs) -> TopCollector<T> {
-        TopCollector {
-            limit: top_docs.limit,
-            offset: top_docs.offset,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<T> TopCollector<T>
-where T: PartialOrd + Clone
-{
-    pub fn merge_fruits(
-        &self,
-        children: Vec<Vec<(T, DocAddress)>>,
-    ) -> crate::Result<Vec<(T, DocAddress)>> {
-        merge_fruits(children, self.limit, self.offset)
-    }
-
-    pub(crate) fn for_segment<F: PartialOrd + Clone>(
-        &self,
-        segment_id: SegmentOrdinal,
-        _: &SegmentReader,
-    ) -> TopSegmentCollector<F> {
-        TopSegmentCollector::new(segment_id, self.limit + self.offset)
-    }
-}
-
-pub fn merge_fruits<T: PartialOrd + Clone, D: Ord>(
-    children: Vec<Vec<(T, D)>>,
-    limit: usize,
-    offset: usize,
-) -> crate::Result<Vec<(T, D)>> {
-    if limit == 0 {
-        return Ok(Vec::new());
-    }
-    let mut top_collector: TopNComputer<T, D> = TopNComputer::new(limit + offset);
-    for child_fruit in children {
-        for (feature, doc) in child_fruit {
-            top_collector.push(feature, doc);
-        }
-    }
-    Ok(top_collector
-        .into_sorted_vec()
-        .into_iter()
-        .skip(offset)
-        .map(|cdoc| (cdoc.sort_key, cdoc.doc))
-        .collect())
-}
-
 /// The Top Collector keeps track of the K documents
 /// sorted by type `T`.
 ///
 /// The implementation is based on a repeatedly truncating on the median after K * 2 documents
 /// The theoretical complexity for collecting the top `K` out of `n` documents
 /// is `O(n + K)`.
-pub(crate) struct TopSegmentCollector<T> {
+pub(crate) struct TopSegmentCollector<T, C> {
     /// We reverse the order of the feature in order to
     /// have top-semantics instead of bottom semantics.
-    topn_computer: TopNComputer<T, DocId>,
+    topn_computer: TopNComputer<T, DocId, C>,
     segment_ord: u32,
 }
 
-impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
-    pub(crate) fn new(segment_ord: SegmentOrdinal, limit: usize) -> TopSegmentCollector<T> {
+impl<T: PartialOrd + Clone, C> TopSegmentCollector<T, C>
+where C: Comparator<T>
+{
+    pub(crate) fn new(
+        segment_ord: SegmentOrdinal,
+        limit: usize,
+        comparator: C,
+    ) -> TopSegmentCollector<T, C> {
         TopSegmentCollector {
-            topn_computer: TopNComputer::new(limit),
+            topn_computer: TopNComputer::new_with_comparator(limit, comparator),
             segment_ord,
         }
     }
 }
 
-impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
+impl<T: PartialOrd + Clone, C: Comparator<T>> TopSegmentCollector<T, C> {
     pub fn harvest(self) -> Vec<(T, DocAddress)> {
         let segment_ord = self.segment_ord;
         self.topn_computer
@@ -188,13 +136,13 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TopCollector, TopSegmentCollector};
-    use crate::collector::TopDocs;
+    use super::TopSegmentCollector;
+    use crate::collector::sort_key::NaturalComparator;
     use crate::DocAddress;
 
     #[test]
     fn test_top_collector_not_at_capacity() {
-        let mut top_collector = TopSegmentCollector::new(0, 4);
+        let mut top_collector = TopSegmentCollector::new(0, 4, NaturalComparator);
         top_collector.collect(1, 0.8);
         top_collector.collect(3, 0.2);
         top_collector.collect(5, 0.3);
@@ -210,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_at_capacity() {
-        let mut top_collector = TopSegmentCollector::new(0, 4);
+        let mut top_collector = TopSegmentCollector::new(0, 4, NaturalComparator);
         top_collector.collect(1, 0.8);
         top_collector.collect(3, 0.2);
         top_collector.collect(5, 0.3);
@@ -235,69 +183,70 @@ mod tests {
         let doc_ids_collection = [4, 5, 6];
         let score = 3.3f32;
 
-        let mut top_collector_limit_2 = TopSegmentCollector::new(0, 2);
+        let mut top_collector_limit_2 = TopSegmentCollector::new(0, 2, NaturalComparator);
         for id in &doc_ids_collection {
             top_collector_limit_2.collect(*id, score);
         }
 
-        let mut top_collector_limit_3 = TopSegmentCollector::new(0, 3);
+        let mut top_collector_limit_3 = TopSegmentCollector::new(0, 3, NaturalComparator);
         for id in &doc_ids_collection {
             top_collector_limit_3.collect(*id, score);
         }
 
-        assert_eq!(
-            top_collector_limit_2.harvest(),
-            top_collector_limit_3.harvest()[..2].to_vec(),
-        );
+        let docs_limit_2 = top_collector_limit_2.harvest();
+        let docs_limit_3 = top_collector_limit_3.harvest();
+        dbg!(&docs_limit_2);
+        dbg!(&docs_limit_3);
+
+        assert_eq!(&docs_limit_2, &docs_limit_3[..2],);
     }
 
-    #[test]
-    fn test_top_collector_with_limit_and_offset() {
-        let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
+    // #[test]
+    // fn test_top_collector_with_limit_and_offset() {
+    //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
 
-        let results = collector
-            .merge_fruits(vec![vec![
-                (0.9, DocAddress::new(0, 1)),
-                (0.8, DocAddress::new(0, 2)),
-                (0.7, DocAddress::new(0, 3)),
-                (0.6, DocAddress::new(0, 4)),
-                (0.5, DocAddress::new(0, 5)),
-            ]])
-            .unwrap();
+    //     let results = collector
+    //         .merge_fruits(vec![vec![
+    //             (0.9, DocAddress::new(0, 1)),
+    //             (0.8, DocAddress::new(0, 2)),
+    //             (0.7, DocAddress::new(0, 3)),
+    //             (0.6, DocAddress::new(0, 4)),
+    //             (0.5, DocAddress::new(0, 5)),
+    //         ]]);
 
-        assert_eq!(
-            results,
-            vec![(0.8, DocAddress::new(0, 2)), (0.7, DocAddress::new(0, 3)),]
-        );
-    }
+    //     assert_eq!(
+    //         results,
+    //         vec![(0.8, DocAddress::new(0, 2)), (0.7, DocAddress::new(0, 3)),]
+    //     );
+    // }
 
-    #[test]
-    fn test_top_collector_with_limit_larger_than_set_and_offset() {
-        let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
+    // #[test]
+    // fn test_top_collector_with_limit_larger_than_set_and_offset() {
+    //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
 
-        let results = collector
-            .merge_fruits(vec![vec![
-                (0.9, DocAddress::new(0, 1)),
-                (0.8, DocAddress::new(0, 2)),
-            ]])
-            .unwrap();
+    //     let results = collector
+    //         .merge_fruits(vec![vec![
+    //             (0.9, DocAddress::new(0, 1)),
+    //             (0.8, DocAddress::new(0, 2)),
+    //         ]])
+    //         .unwrap();
 
-        assert_eq!(results, vec![(0.8, DocAddress::new(0, 2)),]);
-    }
+    //     assert_eq!(results, vec![(0.8, DocAddress::new(0, 2)),]);
+    // }
 
-    #[test]
-    fn test_top_collector_with_limit_and_offset_larger_than_set() {
-        let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(20).into();
+    // #[test]
+    // fn test_top_collector_with_limit_and_offset_larger_than_set() {
+    //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(20).into();
 
-        let results = collector
-            .merge_fruits(vec![vec![
-                (0.9, DocAddress::new(0, 1)),
-                (0.8, DocAddress::new(0, 2)),
-            ]])
-            .unwrap();
+    //     let results = collector
+    //         .merge_fruits(vec![vec![
+    //             (0.9, DocAddress::new(0, 1)),
+    //             (0.8, DocAddress::new(0, 2)),
+    //         ]])
+    //         .unwrap();
 
-        assert_eq!(results, vec![]);
-    }
+    //     assert_eq!(results, vec![]);
+    // }
 }
 
 #[cfg(all(test, feature = "unstable"))]

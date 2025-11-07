@@ -1,3 +1,4 @@
+use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
 use crate::{DocAddress, DocId, Score};
 
@@ -9,6 +10,8 @@ impl SortKeyComputer for SortBySimilarityScore {
     type SortKey = Score;
 
     type Child = SortBySimilarityScore;
+
+    type Comparator = NaturalComparator;
 
     fn requires_scoring(&self) -> bool {
         true
@@ -22,7 +25,7 @@ impl SortKeyComputer for SortBySimilarityScore {
     }
 
     // Sorting by score is special in that it allows for the Block-Wand optimization.
-    fn collect_top_k(
+    fn collect_segment_top_k(
         &self,
         k: usize,
         weight: &dyn crate::query::Weight,

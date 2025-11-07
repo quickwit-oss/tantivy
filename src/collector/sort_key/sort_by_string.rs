@@ -1,5 +1,6 @@
 use columnar::StrColumn;
 
+use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::termdict::TermOrdinal;
 use crate::{DocId, Score};
@@ -31,6 +32,8 @@ impl SortKeyComputer for SortByString {
     type SortKey = Option<String>;
 
     type Child = ByStringColumnSegmentSortKeyComputer;
+
+    type Comparator = NaturalComparator;
 
     fn requires_scoring(&self) -> bool {
         false

@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use columnar::Column;
 
+use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::{DocId, Score, SegmentReader};
@@ -35,6 +36,8 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
     type Child = SortByFastValueSegmentSortKeyComputer<T>;
 
     type SortKey = Option<T>;
+
+    type Comparator = NaturalComparator;
 
     fn check_schema(&self, schema: &crate::schema::Schema) -> crate::Result<()> {
         // At the segment sort key computer level, we rely on the u64 representation.

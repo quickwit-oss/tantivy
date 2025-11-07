@@ -1,4 +1,5 @@
-use std::{cmp::Ordering, fmt};
+use std::cmp::Ordering;
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
@@ -62,7 +63,6 @@ impl<T: PartialOrd, D: PartialOrd, const R: bool> PartialEq for ComparableDoc<T,
 }
 
 impl<T: PartialOrd, D: PartialOrd, const R: bool> Eq for ComparableDoc<T, D, R> {}
-
 
 /// Fast TopN Computation
 ///
