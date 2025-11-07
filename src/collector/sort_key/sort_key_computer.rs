@@ -30,6 +30,11 @@ pub trait SegmentSortKeyComputer: 'static {
         false
     }
 
+    /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
+    /// its ordering.
+    ///
+    /// By default, it uses the natural ordering.
+    #[inline]
     fn compare_segment_sort_key(
         &self,
         left: &Self::SegmentSortKey,
@@ -43,11 +48,6 @@ pub trait SegmentSortKeyComputer: 'static {
     /// with a partial computation.
     ///
     /// This is currently used for lexicographic sorting.
-    ///
-    /// If REVERSE_ORDER is false (resp. true),
-    /// - we return None if the score is below the threshold (resp. above to the threshold)
-    /// - we return Some(ordering, score) if the score is above or equal to the threshold (resp.
-    ///   below or equal to)
     fn accept_sort_key_lazy(
         &mut self,
         doc_id: DocId,
@@ -78,7 +78,7 @@ pub trait SortKeyComputer: Sync {
     type SortKey: 'static + Send + Sync + PartialOrd + Clone + std::fmt::Debug;
     /// Type of the associated [`SegmentSortKeyComputer`].
     type Child: SegmentSortKeyComputer<SortKey = Self::SortKey>;
-
+    /// Comparator type.
     type Comparator: Comparator<Self::SortKey>
         + Comparator<<Self::Child as SegmentSortKeyComputer>::SegmentSortKey>
         + 'static;
@@ -88,6 +88,7 @@ pub trait SortKeyComputer: Sync {
         Ok(())
     }
 
+    /// Returns the sort key comparator.
     fn comparator(&self) -> Self::Comparator {
         Self::Comparator::default()
     }
@@ -99,7 +100,7 @@ pub trait SortKeyComputer: Sync {
         false
     }
 
-    // Sorting by score is special in that it allows for the Block-Wand optimization.
+    /// Sorting by score is special in that it allows for the Block-Wand optimization.
     fn collect_segment_top_k(
         &self,
         k: usize,
