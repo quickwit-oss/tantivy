@@ -513,7 +513,7 @@ impl<D: Document> IndexWriter<D> {
     ///     let searcher = index.reader()?.searcher();
     ///     let query_parser = QueryParser::for_index(&index, vec![title]);
     ///     let query_promo = query_parser.parse_query("Prometheus")?;
-    ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1))?;
+    ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1).order_by_score())?;
     ///
     ///     assert!(top_docs_promo.is_empty());
     ///     Ok(())

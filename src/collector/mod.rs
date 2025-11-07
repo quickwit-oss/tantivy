@@ -57,7 +57,7 @@
 //! #     let query_parser = QueryParser::for_index(&index, vec![title]);
 //! #     let query = query_parser.parse_query("diary")?;
 //! let (doc_count, top_docs): (usize, Vec<(Score, DocAddress)>) =
-//! searcher.search(&query, &(Count, TopDocs::with_limit(2)))?;
+//! searcher.search(&query, &(Count, TopDocs::with_limit(2).order_by_score()))?;
 //! #     Ok(())
 //! # }
 //! ```
@@ -99,6 +99,7 @@ mod multi_collector;
 pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 
 mod top_collector;
+pub use self::top_collector::ComparableDoc;
 
 mod top_score_collector;
 pub use self::top_score_collector::{TopDocs, TopNComputer};

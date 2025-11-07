@@ -1,8 +1,7 @@
 use std::ops::Range;
 
 use crate::collector::sort_key::{Comparator, SegmentSortKeyComputer, SortKeyComputer};
-use crate::collector::top_collector::TopSegmentCollector;
-use crate::collector::{Collector, SegmentCollector};
+use crate::collector::{Collector, SegmentCollector, TopNComputer};
 use crate::query::Weight;
 use crate::schema::Schema;
 use crate::{DocAddress, DocId, Result, Score, SegmentReader};
@@ -33,21 +32,17 @@ where TSortKeyComputer: SortKeyComputer + Send + Sync + 'static
         self.sort_key_computer.check_schema(schema)
     }
 
-    fn for_segment(
-        &self,
-        segment_local_id: u32,
-        segment_reader: &SegmentReader,
-    ) -> Result<Self::Child> {
+    fn for_segment(&self, segment_ord: u32, segment_reader: &SegmentReader) -> Result<Self::Child> {
         let segment_sort_key_computer = self
             .sort_key_computer
             .segment_sort_key_computer(segment_reader)?;
-        let segment_collector = TopSegmentCollector::new(
-            segment_local_id,
+        let topn_computer = TopNComputer::new_with_comparator(
             self.doc_range.end,
             self.sort_key_computer.comparator(),
         );
         Ok(TopBySortKeySegmentCollector {
-            segment_collector,
+            topn_computer,
+            segment_ord,
             segment_sort_key_computer,
         })
     }
@@ -81,7 +76,8 @@ where
     TSegmentSortKeyComputer: SegmentSortKeyComputer,
     C: Comparator<TSegmentSortKeyComputer::SegmentSortKey>,
 {
-    pub(crate) segment_collector: TopSegmentCollector<TSegmentSortKeyComputer::SegmentSortKey, C>,
+    pub(crate) topn_computer: TopNComputer<TSegmentSortKeyComputer::SegmentSortKey, DocId, C>,
+    pub(crate) segment_ord: u32,
     pub(crate) segment_sort_key_computer: TSegmentSortKeyComputer,
 }
 
@@ -94,22 +90,29 @@ where
     type Fruit = Vec<(TSegmentSortKeyComputer::SortKey, DocAddress)>;
 
     fn collect(&mut self, doc: DocId, score: Score) {
-        self.segment_collector
-            .collect_lazy(doc, score, &mut self.segment_sort_key_computer);
+        self.topn_computer
+            .push_lazy(doc, score, &mut self.segment_sort_key_computer);
     }
 
     fn harvest(self) -> Self::Fruit {
-        let segment_hits: Vec<(TSegmentSortKeyComputer::SegmentSortKey, DocAddress)> =
-            self.segment_collector.harvest();
-        segment_hits
+        let segment_ord = self.segment_ord;
+        let segment_hits: Vec<(TSegmentSortKeyComputer::SortKey, DocAddress)> = self
+            .topn_computer
+            .into_sorted_vec()
             .into_iter()
-            .map(|(sort_key, doc)| {
+            .map(|comparable_doc| {
+                let sort_key = self
+                    .segment_sort_key_computer
+                    .convert_segment_sort_key(comparable_doc.sort_key);
                 (
-                    self.segment_sort_key_computer
-                        .convert_segment_sort_key(sort_key),
-                    doc,
+                    sort_key,
+                    DocAddress {
+                        segment_ord,
+                        doc_id: comparable_doc.doc,
+                    },
                 )
             })
-            .collect()
+            .collect();
+        segment_hits
     }
 }

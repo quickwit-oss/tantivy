@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use serde::{Deserialize, Serialize};
+
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::Schema;
 use crate::{DocId, Order, Score};
@@ -8,7 +10,7 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct NaturalComparator;
 
 impl<T: PartialOrd> Comparator<T> for NaturalComparator {
@@ -18,7 +20,14 @@ impl<T: PartialOrd> Comparator<T> for NaturalComparator {
     }
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+/// Sorts document in reverse order.
+///
+/// If the sort key is None, it will considered as the lowest value, and will therefore appear
+/// first.
+///
+/// The ReverseComparator does not necessarily imply that the sort order is reversed compared
+/// to the NaturalComparator. In presence of a tie, both version will retain the higher doc ids.
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReverseComparator;
 
 impl<T> Comparator<T> for ReverseComparator
@@ -30,6 +39,11 @@ where NaturalComparator: Comparator<T>
     }
 }
 
+/// Sorts document in reverse order, but considers None as having the lowest value.
+///
+/// This is usually what is wanted when sorting by a field in an ascending order.
+/// For instance, in a e-commerce website, if I sort by price ascending, I most likely want the
+/// cheapest items first, and the items without a price at last.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct ReverseNoneIsLowerComparator;
 
@@ -89,6 +103,7 @@ impl Comparator<String> for ReverseNoneIsLowerComparator {
     }
 }
 
+/// An enum representing the different sort orders.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub enum ComparatorEnum {
     #[default]

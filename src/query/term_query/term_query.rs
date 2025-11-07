@@ -50,7 +50,7 @@ use crate::Term;
 ///     Term::from_field_text(title, "diary"),
 ///     IndexRecordOption::Basic,
 /// );
-/// let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
+/// let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))?;
 /// assert_eq!(count, 2);
 /// Ok(())
 /// # }

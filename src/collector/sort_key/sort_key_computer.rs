@@ -3,7 +3,6 @@ use std::ops::Range;
 
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
-use crate::collector::top_collector::TopSegmentCollector;
 use crate::collector::{default_collect_segment_impl, SegmentCollector as _, TopNComputer};
 use crate::schema::Schema;
 use crate::{DocAddress, DocId, Result, Score, SegmentReader};
@@ -110,8 +109,10 @@ pub trait SortKeyComputer: Sync {
     ) -> crate::Result<Vec<(Self::SortKey, DocAddress)>> {
         let with_scoring = self.requires_scoring();
         let segment_sort_key_computer = self.segment_sort_key_computer(reader)?;
+        let topn_computer = TopNComputer::new_with_comparator(k, self.comparator());
         let mut segment_top_key_collector = TopBySortKeySegmentCollector {
-            segment_collector: TopSegmentCollector::new(segment_ord, k, self.comparator()),
+            topn_computer,
+            segment_ord,
             segment_sort_key_computer,
         };
         default_collect_segment_impl(&mut segment_top_key_collector, weight, reader, with_scoring)?;

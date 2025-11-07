@@ -67,7 +67,7 @@ impl Automaton for DfaWrapper {
 ///     {
 ///         let term = Term::from_field_text(title, "Diary");
 ///         let query = FuzzyTermQuery::new(term, 1, true);
-///         let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count)).unwrap();
+///         let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2).order_by_score(), Count)).unwrap();
 ///         assert_eq!(count, 2);
 ///         assert_eq!(top_docs.len(), 2);
 ///     }

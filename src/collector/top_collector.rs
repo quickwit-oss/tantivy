@@ -2,11 +2,6 @@ use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
 
-use super::top_score_collector::TopNComputer;
-use crate::collector::sort_key::Comparator;
-use crate::collector::SegmentSortKeyComputer;
-use crate::{DocAddress, DocId, SegmentOrdinal};
-
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
 /// It guarantees stable sorting: in case of a tie on the feature, the document
@@ -68,250 +63,184 @@ impl<T: PartialOrd, D: PartialOrd, const R: bool> PartialEq for ComparableDoc<T,
 
 impl<T: PartialOrd, D: PartialOrd, const R: bool> Eq for ComparableDoc<T, D, R> {}
 
-/// The Top Collector keeps track of the K documents
-/// sorted by type `T`.
-///
-/// The implementation is based on a repeatedly truncating on the median after K * 2 documents
-/// The theoretical complexity for collecting the top `K` out of `n` documents
-/// is `O(n + K)`.
-pub(crate) struct TopSegmentCollector<T, C> {
-    /// We reverse the order of the feature in order to
-    /// have top-semantics instead of bottom semantics.
-    topn_computer: TopNComputer<T, DocId, C>,
-    segment_ord: u32,
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::TopSegmentCollector;
+//     use crate::collector::sort_key::NaturalComparator;
+//     use crate::DocAddress;
 
-impl<T: PartialOrd + Clone, C> TopSegmentCollector<T, C>
-where C: Comparator<T>
-{
-    pub(crate) fn new(
-        segment_ord: SegmentOrdinal,
-        limit: usize,
-        comparator: C,
-    ) -> TopSegmentCollector<T, C> {
-        TopSegmentCollector {
-            topn_computer: TopNComputer::new_with_comparator(limit, comparator),
-            segment_ord,
-        }
-    }
-}
+//     #[test]
+//     fn test_top_collector_not_at_capacity() {
+//         let mut top_collector = TopSegmentCollector::new(0, 4, NaturalComparator);
+//         top_collector.collect(1, 0.8);
+//         top_collector.collect(3, 0.2);
+//         top_collector.collect(5, 0.3);
+//         assert_eq!(
+//             top_collector.harvest(),
+//             vec![
+//                 (0.8, DocAddress::new(0, 1)),
+//                 (0.3, DocAddress::new(0, 5)),
+//                 (0.2, DocAddress::new(0, 3))
+//             ]
+//         );
+//     }
 
-impl<T: PartialOrd + Clone, C: Comparator<T>> TopSegmentCollector<T, C> {
-    pub fn harvest(self) -> Vec<(T, DocAddress)> {
-        let segment_ord = self.segment_ord;
-        self.topn_computer
-            .into_sorted_vec()
-            .into_iter()
-            .map(|comparable_doc| {
-                (
-                    comparable_doc.sort_key,
-                    DocAddress {
-                        segment_ord,
-                        doc_id: comparable_doc.doc,
-                    },
-                )
-            })
-            .collect()
-    }
+//     #[test]
+//     fn test_top_collector_at_capacity() {
+//         let mut top_collector = TopSegmentCollector::new(0, 4, NaturalComparator);
+//         top_collector.collect(1, 0.8);
+//         top_collector.collect(3, 0.2);
+//         top_collector.collect(5, 0.3);
+//         top_collector.collect(7, 0.9);
+//         top_collector.collect(9, -0.2);
+//         assert_eq!(
+//             top_collector.harvest(),
+//             vec![
+//                 (0.9, DocAddress::new(0, 7)),
+//                 (0.8, DocAddress::new(0, 1)),
+//                 (0.3, DocAddress::new(0, 5)),
+//                 (0.2, DocAddress::new(0, 3))
+//             ]
+//         );
+//     }
 
-    /// Collects a document scored by the given feature
-    ///
-    /// It collects documents until it has reached the max capacity. Once it reaches capacity, it
-    /// will compare the lowest scoring item with the given one and keep whichever is greater.
-    #[inline]
-    pub fn collect(&mut self, doc: DocId, feature: T) {
-        self.topn_computer.push(feature, doc);
-    }
+//     #[test]
+//     fn test_top_segment_collector_stable_ordering_for_equal_feature() {
+//         // given that the documents are collected in ascending doc id order,
+//         // when harvesting we have to guarantee stable sorting in case of a tie
+//         // on the score
+//         let doc_ids_collection = [4, 5, 6];
+//         let score = 3.3f32;
 
-    #[inline]
-    pub fn collect_lazy(
-        &mut self,
-        doc: DocId,
-        score: crate::Score,
-        segment_scorer: &mut impl SegmentSortKeyComputer<SegmentSortKey = T>,
-    ) {
-        self.topn_computer.push_lazy(doc, score, segment_scorer);
-    }
-}
+//         let mut top_collector_limit_2 = TopSegmentCollector::new(0, 2, NaturalComparator);
+//         for id in &doc_ids_collection {
+//             top_collector_limit_2.collect(*id, score);
+//         }
 
-#[cfg(test)]
-mod tests {
-    use super::TopSegmentCollector;
-    use crate::collector::sort_key::NaturalComparator;
-    use crate::DocAddress;
+//         let mut top_collector_limit_3 = TopSegmentCollector::new(0, 3, NaturalComparator);
+//         for id in &doc_ids_collection {
+//             top_collector_limit_3.collect(*id, score);
+//         }
 
-    #[test]
-    fn test_top_collector_not_at_capacity() {
-        let mut top_collector = TopSegmentCollector::new(0, 4, NaturalComparator);
-        top_collector.collect(1, 0.8);
-        top_collector.collect(3, 0.2);
-        top_collector.collect(5, 0.3);
-        assert_eq!(
-            top_collector.harvest(),
-            vec![
-                (0.8, DocAddress::new(0, 1)),
-                (0.3, DocAddress::new(0, 5)),
-                (0.2, DocAddress::new(0, 3))
-            ]
-        );
-    }
+//         let docs_limit_2 = top_collector_limit_2.harvest();
+//         let docs_limit_3 = top_collector_limit_3.harvest();
+//         dbg!(&docs_limit_2);
+//         dbg!(&docs_limit_3);
 
-    #[test]
-    fn test_top_collector_at_capacity() {
-        let mut top_collector = TopSegmentCollector::new(0, 4, NaturalComparator);
-        top_collector.collect(1, 0.8);
-        top_collector.collect(3, 0.2);
-        top_collector.collect(5, 0.3);
-        top_collector.collect(7, 0.9);
-        top_collector.collect(9, -0.2);
-        assert_eq!(
-            top_collector.harvest(),
-            vec![
-                (0.9, DocAddress::new(0, 7)),
-                (0.8, DocAddress::new(0, 1)),
-                (0.3, DocAddress::new(0, 5)),
-                (0.2, DocAddress::new(0, 3))
-            ]
-        );
-    }
+//         assert_eq!(&docs_limit_2, &docs_limit_3[..2],);
+//     }
 
-    #[test]
-    fn test_top_segment_collector_stable_ordering_for_equal_feature() {
-        // given that the documents are collected in ascending doc id order,
-        // when harvesting we have to guarantee stable sorting in case of a tie
-        // on the score
-        let doc_ids_collection = [4, 5, 6];
-        let score = 3.3f32;
+//     // #[test]
+//     // fn test_top_collector_with_limit_and_offset() {
+//     //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
 
-        let mut top_collector_limit_2 = TopSegmentCollector::new(0, 2, NaturalComparator);
-        for id in &doc_ids_collection {
-            top_collector_limit_2.collect(*id, score);
-        }
+//     //     let results = collector
+//     //         .merge_fruits(vec![vec![
+//     //             (0.9, DocAddress::new(0, 1)),
+//     //             (0.8, DocAddress::new(0, 2)),
+//     //             (0.7, DocAddress::new(0, 3)),
+//     //             (0.6, DocAddress::new(0, 4)),
+//     //             (0.5, DocAddress::new(0, 5)),
+//     //         ]]);
 
-        let mut top_collector_limit_3 = TopSegmentCollector::new(0, 3, NaturalComparator);
-        for id in &doc_ids_collection {
-            top_collector_limit_3.collect(*id, score);
-        }
+//     //     assert_eq!(
+//     //         results,
+//     //         vec![(0.8, DocAddress::new(0, 2)), (0.7, DocAddress::new(0, 3)),]
+//     //     );
+//     // }
 
-        let docs_limit_2 = top_collector_limit_2.harvest();
-        let docs_limit_3 = top_collector_limit_3.harvest();
-        dbg!(&docs_limit_2);
-        dbg!(&docs_limit_3);
+//     // #[test]
+//     // fn test_top_collector_with_limit_larger_than_set_and_offset() {
+//     //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
 
-        assert_eq!(&docs_limit_2, &docs_limit_3[..2],);
-    }
+//     //     let results = collector
+//     //         .merge_fruits(vec![vec![
+//     //             (0.9, DocAddress::new(0, 1)),
+//     //             (0.8, DocAddress::new(0, 2)),
+//     //         ]])
+//     //         .unwrap();
 
-    // #[test]
-    // fn test_top_collector_with_limit_and_offset() {
-    //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
+//     //     assert_eq!(results, vec![(0.8, DocAddress::new(0, 2)),]);
+//     // }
 
-    //     let results = collector
-    //         .merge_fruits(vec![vec![
-    //             (0.9, DocAddress::new(0, 1)),
-    //             (0.8, DocAddress::new(0, 2)),
-    //             (0.7, DocAddress::new(0, 3)),
-    //             (0.6, DocAddress::new(0, 4)),
-    //             (0.5, DocAddress::new(0, 5)),
-    //         ]]);
+//     // #[test]
+//     // fn test_top_collector_with_limit_and_offset_larger_than_set() {
+//     //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(20).into();
 
-    //     assert_eq!(
-    //         results,
-    //         vec![(0.8, DocAddress::new(0, 2)), (0.7, DocAddress::new(0, 3)),]
-    //     );
-    // }
+//     //     let results = collector
+//     //         .merge_fruits(vec![vec![
+//     //             (0.9, DocAddress::new(0, 1)),
+//     //             (0.8, DocAddress::new(0, 2)),
+//     //         ]])
+//     //         .unwrap();
 
-    // #[test]
-    // fn test_top_collector_with_limit_larger_than_set_and_offset() {
-    //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(1).into();
+//     //     assert_eq!(results, vec![]);
+//     // }
+// }
 
-    //     let results = collector
-    //         .merge_fruits(vec![vec![
-    //             (0.9, DocAddress::new(0, 1)),
-    //             (0.8, DocAddress::new(0, 2)),
-    //         ]])
-    //         .unwrap();
+// #[cfg(all(test, feature = "unstable"))]
+// mod bench {
+//     use test::Bencher;
 
-    //     assert_eq!(results, vec![(0.8, DocAddress::new(0, 2)),]);
-    // }
+//     use super::TopSegmentCollector;
 
-    // #[test]
-    // fn test_top_collector_with_limit_and_offset_larger_than_set() {
-    //     let collector: TopCollector<f64> = TopDocs::with_limit(2).and_offset(20).into();
+//     #[bench]
+//     fn bench_top_segment_collector_collect_not_at_capacity(b: &mut Bencher) {
+//         let mut top_collector = TopSegmentCollector::new(0, 400);
 
-    //     let results = collector
-    //         .merge_fruits(vec![vec![
-    //             (0.9, DocAddress::new(0, 1)),
-    //             (0.8, DocAddress::new(0, 2)),
-    //         ]])
-    //         .unwrap();
+//         b.iter(|| {
+//             for i in 0..100 {
+//                 top_collector.collect(i, 0.8);
+//             }
+//         });
+//     }
 
-    //     assert_eq!(results, vec![]);
-    // }
-}
+//     #[bench]
+//     fn bench_top_segment_collector_collect_at_capacity(b: &mut Bencher) {
+//         let mut top_collector = TopSegmentCollector::new(0, 100);
 
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-    use test::Bencher;
+//         for i in 0..100 {
+//             top_collector.collect(i, 0.8);
+//         }
 
-    use super::TopSegmentCollector;
+//         b.iter(|| {
+//             for i in 0..100 {
+//                 top_collector.collect(i, 0.8);
+//             }
+//         });
+//     }
 
-    #[bench]
-    fn bench_top_segment_collector_collect_not_at_capacity(b: &mut Bencher) {
-        let mut top_collector = TopSegmentCollector::new(0, 400);
+//     #[bench]
+//     fn bench_top_segment_collector_collect_and_harvest_many_ties(b: &mut Bencher) {
+//         b.iter(|| {
+//             let mut top_collector = TopSegmentCollector::new(0, 100);
 
-        b.iter(|| {
-            for i in 0..100 {
-                top_collector.collect(i, 0.8);
-            }
-        });
-    }
+//             for i in 0..100 {
+//                 top_collector.collect(i, 0.8);
+//             }
 
-    #[bench]
-    fn bench_top_segment_collector_collect_at_capacity(b: &mut Bencher) {
-        let mut top_collector = TopSegmentCollector::new(0, 100);
+//             // it would be nice to be able to do the setup N times but still
+//             // measure only harvest(). We can't since harvest() consumes
+//             // the top_collector.
+//             top_collector.harvest()
+//         });
+//     }
 
-        for i in 0..100 {
-            top_collector.collect(i, 0.8);
-        }
+//     #[bench]
+//     fn bench_top_segment_collector_collect_and_harvest_no_tie(b: &mut Bencher) {
+//         b.iter(|| {
+//             let mut top_collector = TopSegmentCollector::new(0, 100);
+//             let mut score = 1.0;
 
-        b.iter(|| {
-            for i in 0..100 {
-                top_collector.collect(i, 0.8);
-            }
-        });
-    }
+//             for i in 0..100 {
+//                 score += 1.0;
+//                 top_collector.collect(i, score);
+//             }
 
-    #[bench]
-    fn bench_top_segment_collector_collect_and_harvest_many_ties(b: &mut Bencher) {
-        b.iter(|| {
-            let mut top_collector = TopSegmentCollector::new(0, 100);
-
-            for i in 0..100 {
-                top_collector.collect(i, 0.8);
-            }
-
-            // it would be nice to be able to do the setup N times but still
-            // measure only harvest(). We can't since harvest() consumes
-            // the top_collector.
-            top_collector.harvest()
-        });
-    }
-
-    #[bench]
-    fn bench_top_segment_collector_collect_and_harvest_no_tie(b: &mut Bencher) {
-        b.iter(|| {
-            let mut top_collector = TopSegmentCollector::new(0, 100);
-            let mut score = 1.0;
-
-            for i in 0..100 {
-                score += 1.0;
-                top_collector.collect(i, score);
-            }
-
-            // it would be nice to be able to do the setup N times but still
-            // measure only harvest(). We can't since harvest() consumes
-            // the top_collector.
-            top_collector.harvest()
-        });
-    }
-}
+//             // it would be nice to be able to do the setup N times but still
+//             // measure only harvest(). We can't since harvest() consumes
+//             // the top_collector.
+//             top_collector.harvest()
+//         });
+//     }
+// }

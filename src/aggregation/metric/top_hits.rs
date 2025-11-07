@@ -15,8 +15,8 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::top_n_computer::TopNComputer;
 use crate::aggregation::AggregationError;
+use crate::collector::TopNComputer;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
 // duplicate import removed; already imported above
@@ -644,8 +644,8 @@ mod tests {
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::bucket::tests::get_test_index_from_docs;
     use crate::aggregation::tests::get_test_index_from_values;
-    use crate::aggregation::top_n_computer::ComparableDoc;
     use crate::aggregation::AggregationCollector;
+    use crate::collector::ComparableDoc;
     use crate::query::AllQuery;
     use crate::schema::OwnedValue;
 
@@ -774,7 +774,7 @@ mod tests {
     #[test]
     fn test_top_hits_collector_single_feature() -> crate::Result<()> {
         let docs = vec![
-            ComparableDoc::<_, _, false> {
+            ComparableDoc::<_, _> {
                 doc: crate::DocAddress {
                     segment_ord: 0,
                     doc_id: 0,

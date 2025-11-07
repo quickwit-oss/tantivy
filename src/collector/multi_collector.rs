@@ -152,7 +152,7 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// let searcher = reader.searcher();
 ///
 /// let mut collectors = MultiCollector::new();
-/// let top_docs_handle = collectors.add_collector(TopDocs::with_limit(2));
+/// let top_docs_handle = collectors.add_collector(TopDocs::with_limit(2).order_by_score());
 /// let count_handle = collectors.add_collector(Count);
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary").unwrap();

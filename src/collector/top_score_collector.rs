@@ -2,10 +2,12 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Range;
 
+use serde::{Deserialize, Serialize};
+
 use super::Collector;
 use crate::collector::sort_key::{
-    Comparator, ComparatorEnum, NaturalComparator, SortBySimilarityScore, SortByStaticFastValue,
-    SortByString,
+    Comparator, ComparatorEnum, NaturalComparator, ReverseComparator, SortBySimilarityScore,
+    SortByStaticFastValue, SortByString,
 };
 use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
 use crate::collector::top_collector::ComparableDoc;
@@ -50,7 +52,7 @@ use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary")?;
-/// let top_docs = searcher.search(&query, &TopDocs::with_limit(2))?;
+/// let top_docs = searcher.search(&query, &TopDocs::with_limit(2).order_by_score())?;
 ///
 /// assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
 /// assert_eq!(top_docs[1].1, DocAddress::new(0, 3));
@@ -58,8 +60,8 @@ use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 /// # }
 /// ```
 pub struct TopDocs {
-    pub limit: usize,
-    pub offset: usize,
+    limit: usize,
+    offset: usize,
 }
 
 impl fmt::Debug for TopDocs {
@@ -121,7 +123,7 @@ impl TopDocs {
     ///
     /// let query_parser = QueryParser::for_index(&index, vec![title]);
     /// let query = query_parser.parse_query("diary")?;
-    /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2).and_offset(1))?;
+    /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2).and_offset(1).order_by_score())?;
     ///
     /// assert_eq!(top_docs.len(), 2);
     /// assert_eq!(top_docs[0].1, DocAddress::new(0, 4));
@@ -172,8 +174,8 @@ impl TopDocs {
     /// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
     /// #   let top_docs = docs_sorted_by_rating(&reader.searcher(), &query)?;
     /// #   assert_eq!(top_docs,
-    /// #            vec![(97u64, DocAddress::new(0u32, 1)),
-    /// #                 (80u64, DocAddress::new(0u32, 3))]);
+    /// #            vec![(Some(97u64), DocAddress::new(0u32, 1)),
+    /// #                 (Some(80u64), DocAddress::new(0u32, 3))]);
     /// #   Ok(())
     /// # }
     /// /// Searches the document matching the given query, and
@@ -181,7 +183,7 @@ impl TopDocs {
     /// /// given in argument.
     /// fn docs_sorted_by_rating(searcher: &Searcher,
     ///                          query: &dyn Query)
-    ///     -> tantivy::Result<Vec<(u64, DocAddress)>> {
+    ///     -> tantivy::Result<Vec<(Option<u64>, DocAddress)>> {
     ///
     ///     // This is where we build our topdocs collector
     ///     //
@@ -197,7 +199,7 @@ impl TopDocs {
     ///     // The vec is sorted decreasingly by `sort_by_field`, and has a
     ///     // length of 10, or less if not enough documents matched the
     ///     // query.
-    ///     let resulting_docs: Vec<(u64, DocAddress)> =
+    ///     let resulting_docs: Vec<(Option<u64>, DocAddress)> =
     ///          searcher.search(query, &top_books_by_rating)?;
     ///
     ///     Ok(resulting_docs)
@@ -256,8 +258,8 @@ impl TopDocs {
     /// #   let reader = index.reader()?;
     /// #   let top_docs = docs_sorted_by_revenue(&reader.searcher(), &AllQuery, "revenue")?;
     /// #   assert_eq!(top_docs,
-    /// #            vec![(119_000_000i64, DocAddress::new(0, 1)),
-    /// #                 (92_000_000i64, DocAddress::new(0, 0))]);
+    /// #            vec![(Some(119_000_000i64), DocAddress::new(0, 1)),
+    /// #                 (Some(92_000_000i64), DocAddress::new(0, 0))]);
     /// #   Ok(())
     /// # }
     /// /// Searches the document matching the given query, and
@@ -266,7 +268,7 @@ impl TopDocs {
     /// fn docs_sorted_by_revenue(searcher: &Searcher,
     ///                          query: &dyn Query,
     ///                          revenue_field: &str)
-    ///     -> tantivy::Result<Vec<(i64, DocAddress)>> {
+    ///     -> tantivy::Result<Vec<(Option<i64>, DocAddress)>> {
     ///
     ///     // This is where we build our topdocs collector
     ///     //
@@ -283,7 +285,7 @@ impl TopDocs {
     ///     // The vec is sorted decreasingly by `sort_by_field`, and has a
     ///     // length of 10, or less if not enough documents matched the
     ///     // query.
-    ///     let resulting_docs: Vec<(i64, DocAddress)> =
+    ///     let resulting_docs: Vec<(Option<i64>, DocAddress)> =
     ///          searcher.search(query, &top_company_by_revenue)?;
     ///
     ///     Ok(resulting_docs)
@@ -492,12 +494,42 @@ where
 /// That means capacity has special meaning and should be carried over when cloning or serializing.
 ///
 /// For TopN == 0, it will be relative expensive.
-pub struct TopNComputer<Score, D, C = NaturalComparator> {
+#[derive(Serialize, Deserialize)]
+#[serde(from = "TopNComputerDeser<Score, D, C>")]
+pub struct TopNComputer<Score, D, C = ReverseComparator> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
     buffer: Vec<ComparableDoc<Score, D>>,
     top_n: usize,
     pub(crate) threshold: Option<Score>,
     comparator: C,
+}
+
+// Intermediate struct for TopNComputer for deserialization, to keep vec capacity
+#[derive(Deserialize)]
+struct TopNComputerDeser<Score, D, C> {
+    buffer: Vec<ComparableDoc<Score, D>>,
+    top_n: usize,
+    threshold: Option<Score>,
+    comparator: C,
+}
+
+impl<Score, D, C> From<TopNComputerDeser<Score, D, C>> for TopNComputer<Score, D, C> {
+    fn from(mut value: TopNComputerDeser<Score, D, C>) -> Self {
+        let expected_cap = value.top_n.max(1) * 2;
+        let current_cap = value.buffer.capacity();
+        if current_cap < expected_cap {
+            value.buffer.reserve_exact(expected_cap - current_cap);
+        } else {
+            value.buffer.shrink_to(expected_cap);
+        }
+
+        TopNComputer {
+            buffer: value.buffer,
+            top_n: value.top_n,
+            threshold: value.threshold,
+            comparator: value.comparator,
+        }
+    }
 }
 
 impl<Score: std::fmt::Debug, D, C> std::fmt::Debug for TopNComputer<Score, D, C>
@@ -514,7 +546,7 @@ where C: Comparator<Score>
 }
 
 // Custom clone to keep capacity
-impl<Score: Clone, D: Clone> Clone for TopNComputer<Score, D> {
+impl<Score: Clone, D: Clone, C: Clone> Clone for TopNComputer<Score, D, C> {
     fn clone(&self) -> Self {
         let mut buffer_clone = Vec::with_capacity(self.buffer.capacity());
         buffer_clone.extend(self.buffer.iter().cloned());
@@ -527,7 +559,7 @@ impl<Score: Clone, D: Clone> Clone for TopNComputer<Score, D> {
     }
 }
 
-impl<TSortKey, D> TopNComputer<TSortKey, D>
+impl<TSortKey, D> TopNComputer<TSortKey, D, ReverseComparator>
 where
     D: Ord,
     TSortKey: Clone,
@@ -536,7 +568,7 @@ where
     /// Create a new `TopNComputer`.
     /// Internally it will allocate a buffer of size `2 * top_n`.
     pub fn new(top_n: usize) -> Self {
-        TopNComputer::new_with_comparator(top_n, NaturalComparator)
+        TopNComputer::new_with_comparator(top_n, ReverseComparator)
     }
 }
 
@@ -712,7 +744,8 @@ mod tests {
 
     #[test]
     fn test_empty_topn_computer() {
-        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(0);
+        let mut computer: TopNComputer<u32, u32, NaturalComparator> =
+            TopNComputer::new_with_comparator(0, NaturalComparator);
 
         computer.push(1u32, 1u32);
         computer.push(1u32, 2u32);
@@ -721,7 +754,8 @@ mod tests {
     }
     #[test]
     fn test_topn_computer() {
-        let mut computer: TopNComputer<u32, u32> = TopNComputer::new(2);
+        let mut computer: TopNComputer<u32, u32, NaturalComparator> =
+            TopNComputer::new_with_comparator(2, NaturalComparator);
 
         computer.push(1u32, 1u32);
         computer.push(2u32, 2u32);
@@ -746,7 +780,8 @@ mod tests {
     #[test]
     fn test_topn_computer_no_panic() {
         for top_n in 0..10 {
-            let mut computer: TopNComputer<u32, u32> = TopNComputer::new(top_n);
+            let mut computer: TopNComputer<u32, u32, NaturalComparator> =
+                TopNComputer::new_with_comparator(top_n, NaturalComparator);
 
             for _ in 0..1 + top_n * 2 {
                 computer.push(1u32, 1u32);

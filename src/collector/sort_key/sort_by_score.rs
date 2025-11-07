@@ -32,7 +32,8 @@ impl SortKeyComputer for SortBySimilarityScore {
         reader: &crate::SegmentReader,
         segment_ord: u32,
     ) -> crate::Result<Vec<(Self::SortKey, DocAddress)>> {
-        let mut top_n: TopNComputer<Score, DocId> = TopNComputer::new(k);
+        let mut top_n: TopNComputer<Score, DocId, Self::Comparator> =
+            TopNComputer::new_with_comparator(k, self.comparator());
 
         if let Some(alive_bitset) = reader.alive_bitset() {
             let mut threshold = Score::MIN;

@@ -139,7 +139,6 @@ mod date;
 mod error;
 pub mod intermediate_agg_result;
 pub mod metric;
-mod top_n_computer;
 
 mod segment_agg_result;
 use std::fmt::Display;
