@@ -35,10 +35,6 @@ impl SortKeyComputer for SortByString {
 
     type Comparator = NaturalComparator;
 
-    fn requires_scoring(&self) -> bool {
-        false
-    }
-
     fn segment_sort_key_computer(
         &self,
         segment_reader: &crate::SegmentReader,
@@ -57,7 +53,8 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
 
     type SegmentSortKey = Option<TermOrdinal>;
 
-    fn sort_key(&mut self, doc: DocId, _score: Score) -> Option<TermOrdinal> {
+    #[inline(always)]
+    fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Option<TermOrdinal> {
         let str_column = self.str_column_opt.as_ref()?;
         str_column.ords().first(doc)
     }

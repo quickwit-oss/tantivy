@@ -66,7 +66,8 @@ impl SegmentSortKeyComputer for SortBySimilarityScore {
 
     type SegmentSortKey = Score;
 
-    fn sort_key(&mut self, _doc: DocId, score: Score) -> Score {
+    #[inline(always)]
+    fn segment_sort_key(&mut self, _doc: DocId, score: Score) -> Score {
         score
     }
 

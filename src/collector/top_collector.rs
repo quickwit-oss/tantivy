@@ -23,7 +23,7 @@ pub struct ComparableDoc<T, D, const REVERSE_ORDER: bool = false> {
 impl<T: std::fmt::Debug, D: std::fmt::Debug, const R: bool> std::fmt::Debug
     for ComparableDoc<T, D, R>
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct(format!("ComparableDoc<_, _ {R}").as_str())
             .field("feature", &self.sort_key)
             .field("doc", &self.doc)

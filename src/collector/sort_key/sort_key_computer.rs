@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::ops::Range;
 
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
@@ -22,19 +21,27 @@ pub trait SegmentSortKeyComputer: 'static {
     type SegmentSortKey: 'static + PartialOrd + Clone + Send + Sync + Clone;
 
     /// Computes the sort key for the given document and score.
-    fn sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey;
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey;
 
-    /// Returns true if the `SegmentSortKeyComputer` is a good candidate for the lazy evaluation
-    /// optimization. See [`SegmentSortKeyComputer::accept_score_lazy`].
-    fn is_lazy() -> bool {
-        false
+    /// Computes the sort key and pushes the document in a TopN Computer.
+    ///
+    /// When using a tuple as the sorting key, the sort key is evaluated in a lazy manner.
+    #[inline(always)]
+    fn compute_sort_key_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        doc: DocId,
+        score: Score,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        let sort_key = self.segment_sort_key(doc, score);
+        top_n_computer.push(sort_key, doc);
     }
 
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
     /// its ordering.
     ///
-    /// By default, it uses the natural ordering.
-    #[inline]
+    /// This method must be consistent with the `SortKey` ordering.
+    #[inline(always)]
     fn compare_segment_sort_key(
         &self,
         left: &Self::SegmentSortKey,
@@ -54,10 +61,9 @@ pub trait SegmentSortKeyComputer: 'static {
         score: Score,
         threshold: &Self::SegmentSortKey,
     ) -> Option<(Ordering, Self::SegmentSortKey)> {
-        let excluded_ordering = Ordering::Less;
-        let sort_key = self.sort_key(doc_id, score);
+        let sort_key = self.segment_sort_key(doc_id, score);
         let cmp = self.compare_segment_sort_key(&sort_key, threshold);
-        if cmp == excluded_ordering {
+        if cmp == Ordering::Less {
             None
         } else {
             Some((cmp, sort_key))
@@ -122,39 +128,6 @@ pub trait SortKeyComputer: Sync {
 
     /// Builds a child sort key computer for a specific segment.
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
-
-    fn merge_top_k<D: Ord + std::fmt::Debug>(
-        &self,
-        segment_top_k_s: impl Iterator<Item = (Self::SortKey, D)>,
-        doc_range: Range<usize>,
-    ) -> Vec<(Self::SortKey, D)> {
-        merge_top_k(segment_top_k_s, doc_range, self.comparator())
-    }
-}
-
-fn merge_top_k<
-    D: Ord + std::fmt::Debug,
-    TSortKey: Clone + std::fmt::Debug,
-    C: Comparator<TSortKey>,
->(
-    sort_key_docs: impl Iterator<Item = (TSortKey, D)>,
-    doc_range: Range<usize>,
-    comparator: C,
-) -> Vec<(TSortKey, D)> {
-    if doc_range.len() == 0 {
-        return Vec::new();
-    }
-    let mut top_collector: TopNComputer<TSortKey, D, C> =
-        TopNComputer::new_with_comparator(doc_range.end, comparator);
-    for (sort_key, doc) in sort_key_docs {
-        top_collector.push(sort_key, doc);
-    }
-    top_collector
-        .into_sorted_vec()
-        .into_iter()
-        .skip(doc_range.start)
-        .map(|cdoc| (cdoc.sort_key, cdoc.doc))
-        .collect()
 }
 
 impl<HeadSortKeyComputer, TailSortKeyComputer> SortKeyComputer
@@ -215,9 +188,45 @@ where
         TailSegmentSortKeyComputer::SegmentSortKey,
     );
 
-    fn sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
-        let head_sort_key = self.0.sort_key(doc, score);
-        let tail_sort_key = self.1.sort_key(doc, score);
+    /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
+    /// its ordering.
+    ///
+    /// By default, it uses the natural ordering.
+    #[inline]
+    fn compare_segment_sort_key(
+        &self,
+        left: &Self::SegmentSortKey,
+        right: &Self::SegmentSortKey,
+    ) -> Ordering {
+        self.0
+            .compare_segment_sort_key(&left.0, &right.0)
+            .then_with(|| self.1.compare_segment_sort_key(&left.1, &right.1))
+    }
+
+    #[inline(always)]
+    fn compute_sort_key_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        doc: DocId,
+        score: Score,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        let sort_key: Self::SegmentSortKey;
+        if let Some(threshold) = &top_n_computer.threshold {
+            if let Some((_cmp, lazy_sort_key)) = self.accept_sort_key_lazy(doc, score, threshold) {
+                sort_key = lazy_sort_key;
+            } else {
+                return;
+            }
+        } else {
+            sort_key = self.segment_sort_key(doc, score);
+        };
+        top_n_computer.append_doc(doc, sort_key);
+    }
+
+    #[inline(always)]
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
+        let head_sort_key = self.0.segment_sort_key(doc, score);
+        let tail_sort_key = self.1.segment_sort_key(doc, score);
         (head_sort_key, tail_sort_key)
     }
 
@@ -235,13 +244,9 @@ where
                 self.1.accept_sort_key_lazy(doc_id, score, tail_threshold)?;
             Some((tail_cmp, (head_sort_key, tail_sort_key)))
         } else {
-            let tail_sort_key = self.1.sort_key(doc_id, score);
+            let tail_sort_key = self.1.segment_sort_key(doc_id, score);
             Some((head_cmp, (head_sort_key, tail_sort_key)))
         }
-    }
-
-    fn is_lazy() -> bool {
-        true
     }
 
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
@@ -270,8 +275,8 @@ where
     type SortKey = NewScore;
     type SegmentSortKey = T::SegmentSortKey;
 
-    fn sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
-        self.sort_key_computer.sort_key(doc, score)
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
+        self.sort_key_computer.segment_sort_key(doc, score)
     }
 
     fn accept_sort_key_lazy(
@@ -284,8 +289,15 @@ where
             .accept_sort_key_lazy(doc_id, score, threshold)
     }
 
-    fn is_lazy() -> bool {
-        T::is_lazy()
+    #[inline(always)]
+    fn compute_sort_key_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        doc: DocId,
+        score: Score,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        self.sort_key_computer
+            .compute_sort_key_and_collect(doc, score, top_n_computer);
     }
 
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> Self::SortKey {
@@ -338,9 +350,10 @@ where
         let sort_key_computer1 = self.0.segment_sort_key_computer(segment_reader)?;
         let sort_key_computer2 = self.1.segment_sort_key_computer(segment_reader)?;
         let sort_key_computer3 = self.2.segment_sort_key_computer(segment_reader)?;
+        let map = |(sort_key1, (sort_key2, sort_key3))| (sort_key1, sort_key2, sort_key3);
         Ok(MappedSegmentSortKeyComputer {
             sort_key_computer: (sort_key_computer1, (sort_key_computer2, sort_key_computer3)),
-            map: |(sort_key1, (sort_key2, sort_key3))| (sort_key1, sort_key2, sort_key3),
+            map,
         })
     }
 
@@ -451,7 +464,7 @@ where
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
 
-    fn sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
+    fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
         (self)(doc)
     }
 

@@ -216,10 +216,8 @@ mod tests {
             let ids = id_mapping(&searcher);
 
             // Try as primitive.
-            let top_collector = TopDocs::with_limit(3).order_by((
-                SortByStaticFastValue::<f64>::for_field("altitude"),
-                order.clone(),
-            ));
+            let top_collector = TopDocs::with_limit(3)
+                .order_by((SortByStaticFastValue::<f64>::for_field("altitude"), order));
             let actual = searcher
                 .search(&AllQuery, &top_collector)?
                 .into_iter()
@@ -255,7 +253,7 @@ mod tests {
 
             let top_collector = TopDocs::with_limit(4).order_by((SortBySimilarityScore, order));
             let field = index.schema().get_field("catchphrase").unwrap();
-            let query_parser = QueryParser::for_index(&index, vec![field]);
+            let query_parser = QueryParser::for_index(index, vec![field]);
             let text_query = query_parser.parse_query("glow")?;
 
             Ok(searcher
@@ -282,11 +280,13 @@ mod tests {
     fn test_order_by_score_then_string() -> crate::Result<()> {
         let index = make_index()?;
 
+        type SortKey = (Score, Option<String>);
+
         fn query(
             index: &Index,
             score_order: Order,
             city_order: Order,
-        ) -> crate::Result<Vec<((Score, Option<String>), u64)>> {
+        ) -> crate::Result<Vec<(SortKey, u64)>> {
             let searcher = index.reader()?.searcher();
             let ids = id_mapping(&searcher);
 

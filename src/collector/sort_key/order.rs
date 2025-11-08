@@ -6,15 +6,19 @@ use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::Schema;
 use crate::{DocId, Order, Score};
 
+/// Comparator trait defining the order in which documents should be ordered.
 pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
+    /// Return the order between two values.
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
 }
 
+/// With the natural comparator, the top k collector will return
+/// the top documents in decreasing order.
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct NaturalComparator;
 
 impl<T: PartialOrd> Comparator<T> for NaturalComparator {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
         lhs.partial_cmp(rhs).unwrap()
     }
@@ -33,7 +37,7 @@ pub struct ReverseComparator;
 impl<T> Comparator<T> for ReverseComparator
 where NaturalComparator: Comparator<T>
 {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
         NaturalComparator.compare(rhs, lhs)
     }
@@ -50,7 +54,7 @@ pub struct ReverseNoneIsLowerComparator;
 impl<T> Comparator<Option<T>> for ReverseNoneIsLowerComparator
 where ReverseComparator: Comparator<T>
 {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs_opt: &Option<T>, rhs_opt: &Option<T>) -> Ordering {
         match (lhs_opt, rhs_opt) {
             (None, None) => Ordering::Equal,
@@ -62,42 +66,42 @@ where ReverseComparator: Comparator<T>
 }
 
 impl Comparator<u32> for ReverseNoneIsLowerComparator {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &u32, rhs: &u32) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
 }
 
 impl Comparator<u64> for ReverseNoneIsLowerComparator {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &u64, rhs: &u64) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
 }
 
 impl Comparator<f64> for ReverseNoneIsLowerComparator {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &f64, rhs: &f64) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
 }
 
 impl Comparator<f32> for ReverseNoneIsLowerComparator {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &f32, rhs: &f32) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
 }
 
 impl Comparator<i64> for ReverseNoneIsLowerComparator {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &i64, rhs: &i64) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
 }
 
 impl Comparator<String> for ReverseNoneIsLowerComparator {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &String, rhs: &String) -> Ordering {
         ReverseComparator.compare(lhs, rhs)
     }
@@ -106,16 +110,19 @@ impl Comparator<String> for ReverseNoneIsLowerComparator {
 /// An enum representing the different sort orders.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub enum ComparatorEnum {
+    /// Natural order (See [NaturalComparator])
     #[default]
     Natural,
+    /// Reverse order (See [ReverseComparator])
     Reverse,
-    ReverseNullLower,
+    /// Reverse order by treating None as the lowest value.(See [ReverseNoneLowerComparator])
+    ReverseNoneLower,
 }
 
 impl From<Order> for ComparatorEnum {
     fn from(order: Order) -> Self {
         match order {
-            Order::Asc => ComparatorEnum::ReverseNullLower,
+            Order::Asc => ComparatorEnum::ReverseNoneLower,
             Order::Desc => ComparatorEnum::Natural,
         }
     }
@@ -127,12 +134,12 @@ where
     NaturalComparator: Comparator<T>,
     ReverseComparator: Comparator<T>,
 {
-    #[inline]
+    #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
         match self {
             ComparatorEnum::Natural => NaturalComparator.compare(lhs, rhs),
             ComparatorEnum::Reverse => ReverseComparator.compare(lhs, rhs),
-            ComparatorEnum::ReverseNullLower => ReverseNoneIsLowerComparator.compare(lhs, rhs),
+            ComparatorEnum::ReverseNoneLower => ReverseNoneIsLowerComparator.compare(lhs, rhs),
         }
     }
 }
@@ -143,6 +150,7 @@ where
     LeftComparator: Comparator<Head>,
     RightComparator: Comparator<Tail>,
 {
+    #[inline(always)]
     fn compare(&self, lhs: &(Head, Tail), rhs: &(Head, Tail)) -> Ordering {
         self.0
             .compare(&lhs.0, &rhs.0)
@@ -157,6 +165,7 @@ where
     Comparator2: Comparator<Type2>,
     Comparator3: Comparator<Type3>,
 {
+    #[inline(always)]
     fn compare(&self, lhs: &(Type1, (Type2, Type3)), rhs: &(Type1, (Type2, Type3))) -> Ordering {
         self.0
             .compare(&lhs.0, &rhs.0)
@@ -172,6 +181,7 @@ where
     Comparator2: Comparator<Type2>,
     Comparator3: Comparator<Type3>,
 {
+    #[inline(always)]
     fn compare(&self, lhs: &(Type1, Type2, Type3), rhs: &(Type1, Type2, Type3)) -> Ordering {
         self.0
             .compare(&lhs.0, &rhs.0)
@@ -189,6 +199,7 @@ where
     Comparator3: Comparator<Type3>,
     Comparator4: Comparator<Type4>,
 {
+    #[inline(always)]
     fn compare(
         &self,
         lhs: &(Type1, (Type2, (Type3, Type4))),
@@ -211,6 +222,7 @@ where
     Comparator3: Comparator<Type3>,
     Comparator4: Comparator<Type4>,
 {
+    #[inline(always)]
     fn compare(
         &self,
         lhs: &(Type1, Type2, Type3, Type4),
@@ -300,6 +312,7 @@ where
     }
 }
 
+/// A segment sort key computer with a custom ordering.
 pub struct SegmentSortKeyComputerWithComparator<TSegmentSortKeyComputer, TComparator> {
     segment_sort_key_computer: TSegmentSortKeyComputer,
     comparator: TComparator,
@@ -315,10 +328,11 @@ where
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
 
-    fn sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
-        self.segment_sort_key_computer.sort_key(doc, score)
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
+        self.segment_sort_key_computer.segment_sort_key(doc, score)
     }
 
+    #[inline(always)]
     fn compare_segment_sort_key(
         &self,
         left: &Self::SegmentSortKey,
@@ -330,60 +344,5 @@ where
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         self.segment_sort_key_computer
             .convert_segment_sort_key(sort_key)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ops::Range;
-
-    use rand;
-    use rand::seq::SliceRandom as _;
-
-    use crate::collector::sort_key::SortBySimilarityScore;
-    use crate::collector::SortKeyComputer;
-    use crate::Order;
-
-    fn test_sort_key_computer_with_order_aux(
-        order: Order,
-        doc_range: Range<usize>,
-        expected: &[(crate::Score, usize)],
-    ) {
-        let sort_key_computer = (SortBySimilarityScore, order);
-        let mut vals: Vec<(crate::Score, usize)> = (0..10).map(|val| (val as f32, val)).collect();
-        vals.shuffle(&mut rand::thread_rng());
-        let vals_merged =
-            SortKeyComputer::merge_top_k(&sort_key_computer, vals.into_iter(), doc_range);
-        assert_eq!(&vals_merged, expected);
-    }
-
-    #[test]
-    fn test_sort_key_computer_with_order() {
-        test_sort_key_computer_with_order_aux(Order::Asc, 0..0, &[]);
-        test_sort_key_computer_with_order_aux(Order::Asc, 3..3, &[]);
-        test_sort_key_computer_with_order_aux(
-            Order::Asc,
-            0..3,
-            &[(0.0f32, 0), (1.0f32, 1), (2.0f32, 2)],
-        );
-        test_sort_key_computer_with_order_aux(
-            Order::Asc,
-            0..11,
-            &[
-                (0.0f32, 0),
-                (1.0f32, 1),
-                (2.0f32, 2),
-                (3.0f32, 3),
-                (4.0f32, 4),
-                (5.0f32, 5),
-                (6.0f32, 6),
-                (7.0f32, 7),
-                (8.0f32, 8),
-                (9.0f32, 9),
-            ],
-        );
-        test_sort_key_computer_with_order_aux(Order::Asc, 1..3, &[(1.0f32, 1), (2.0f32, 2)]);
-        test_sort_key_computer_with_order_aux(Order::Desc, 0..2, &[(9.0f32, 9), (8.0f32, 8)]);
-        test_sort_key_computer_with_order_aux(Order::Desc, 2..4, &[(7.0f32, 7), (6.0f32, 6)]);
     }
 }

@@ -52,9 +52,11 @@ where TSortKeyComputer: SortKeyComputer + Send + Sync + 'static
     }
 
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> Result<Self::Fruit> {
-        Ok(self
-            .sort_key_computer
-            .merge_top_k(segment_fruits.into_iter().flatten(), self.doc_range.clone()))
+        Ok(merge_top_k(
+            segment_fruits.into_iter().flatten(),
+            self.doc_range.clone(),
+            self.sort_key_computer.comparator(),
+        ))
     }
 
     fn collect_segment(
@@ -69,6 +71,27 @@ where TSortKeyComputer: SortKeyComputer + Send + Sync + 'static
             .collect_segment_top_k(k, weight, reader, segment_ord)?;
         Ok(docs)
     }
+}
+
+fn merge_top_k<D: Ord, TSortKey: Clone + std::fmt::Debug, C: Comparator<TSortKey>>(
+    sort_key_docs: impl Iterator<Item = (TSortKey, D)>,
+    doc_range: Range<usize>,
+    comparator: C,
+) -> Vec<(TSortKey, D)> {
+    if doc_range.is_empty() {
+        return Vec::new();
+    }
+    let mut top_collector: TopNComputer<TSortKey, D, C> =
+        TopNComputer::new_with_comparator(doc_range.end, comparator);
+    for (sort_key, doc) in sort_key_docs {
+        top_collector.push(sort_key, doc);
+    }
+    top_collector
+        .into_sorted_vec()
+        .into_iter()
+        .skip(doc_range.start)
+        .map(|cdoc| (cdoc.sort_key, cdoc.doc))
+        .collect()
 }
 
 pub struct TopBySortKeySegmentCollector<TSegmentSortKeyComputer, C>
@@ -90,8 +113,11 @@ where
     type Fruit = Vec<(TSegmentSortKeyComputer::SortKey, DocAddress)>;
 
     fn collect(&mut self, doc: DocId, score: Score) {
-        self.topn_computer
-            .push_lazy(doc, score, &mut self.segment_sort_key_computer);
+        self.segment_sort_key_computer.compute_sort_key_and_collect(
+            doc,
+            score,
+            &mut self.topn_computer,
+        );
     }
 
     fn harvest(self) -> Self::Fruit {
@@ -114,5 +140,54 @@ where
             })
             .collect();
         segment_hits
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Range;
+
+    use rand;
+    use rand::seq::SliceRandom as _;
+
+    use super::merge_top_k;
+    use crate::collector::sort_key::ComparatorEnum;
+    use crate::Order;
+
+    fn test_merge_top_k_aux(
+        order: Order,
+        doc_range: Range<usize>,
+        expected: &[(crate::Score, usize)],
+    ) {
+        let mut vals: Vec<(crate::Score, usize)> = (0..10).map(|val| (val as f32, val)).collect();
+        vals.shuffle(&mut rand::thread_rng());
+        let vals_merged = merge_top_k(vals.into_iter(), doc_range, ComparatorEnum::from(order));
+        assert_eq!(&vals_merged, expected);
+    }
+
+    #[test]
+    fn test_merge_top_k() {
+        test_merge_top_k_aux(Order::Asc, 0..0, &[]);
+        test_merge_top_k_aux(Order::Asc, 3..3, &[]);
+        test_merge_top_k_aux(Order::Asc, 0..3, &[(0.0f32, 0), (1.0f32, 1), (2.0f32, 2)]);
+        test_merge_top_k_aux(
+            Order::Asc,
+            0..11,
+            &[
+                (0.0f32, 0),
+                (1.0f32, 1),
+                (2.0f32, 2),
+                (3.0f32, 3),
+                (4.0f32, 4),
+                (5.0f32, 5),
+                (6.0f32, 6),
+                (7.0f32, 7),
+                (8.0f32, 8),
+                (9.0f32, 9),
+            ],
+        );
+        test_merge_top_k_aux(Order::Asc, 1..3, &[(1.0f32, 1), (2.0f32, 2)]);
+        test_merge_top_k_aux(Order::Desc, 0..2, &[(9.0f32, 9), (8.0f32, 8)]);
+        test_merge_top_k_aux(Order::Desc, 2..4, &[(7.0f32, 7), (6.0f32, 6)]);
     }
 }

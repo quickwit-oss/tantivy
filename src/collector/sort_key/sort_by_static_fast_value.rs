@@ -71,7 +71,7 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
                 field_name: self.field.clone(),
             })?;
         Ok(SortByFastValueSegmentSortKeyComputer {
-            sort_column: sort_column,
+            sort_column,
             typ: PhantomData,
         })
     }
@@ -87,7 +87,8 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
 
     type SegmentSortKey = Option<u64>;
 
-    fn sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
+    #[inline(always)]
+    fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
         self.sort_column.first(doc)
     }
 

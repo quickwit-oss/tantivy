@@ -71,13 +71,18 @@ impl fmt::Debug for TopDocs {
 }
 
 impl TopDocs {
+    /// Builds a `TopDocs` capturing a given document range.
+    ///
+    /// The range start..end translates in a limit of `end - start`
+    /// and an offset of start.
     pub fn for_doc_range(doc_range: Range<usize>) -> Self {
         TopDocs {
-            limit: doc_range.end.checked_sub(doc_range.start).unwrap_or(0),
+            limit: doc_range.end.saturating_sub(doc_range.start),
             offset: doc_range.start,
         }
     }
 
+    /// Returns the doc range we are trying to capture.
     pub fn doc_range(&self) -> Range<usize> {
         self.offset..self.offset + self.limit
     }
@@ -218,6 +223,7 @@ impl TopDocs {
         self.order_by((SortByStaticFastValue::for_field(field), order))
     }
 
+    /// Order docs by decreasing BM25 similarity score.
     pub fn order_by_score(self) -> impl Collector<Fruit = Vec<(Score, DocAddress)>> {
         TopBySortKeyCollector::new(SortBySimilarityScore, self.doc_range())
     }
@@ -314,6 +320,18 @@ impl TopDocs {
     }
 
     /// Ranks the documents using a sort key.
+    pub fn order_by<TSortKey>(
+        self,
+        sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send + 'static,
+    ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
+    where
+        TSortKey: 'static + Clone + Send + Sync + PartialOrd + std::fmt::Debug,
+    {
+        TopBySortKeyCollector::new(sort_key_computer, self.doc_range())
+    }
+
+    /// Helper function to tweak the similarity score of documents using a function.
+    /// (usually a closure).
     ///
     /// This method offers a convenient way to tweak or replace
     /// the documents score. As suggested by the prototype you can
@@ -405,20 +423,7 @@ impl TopDocs {
     /// // The `Score` in the pair is our tweaked score.
     /// let resulting_docs: Vec<(Score, DocAddress)> =
     ///      searcher.search(&query, &top_docs_by_custom_score).unwrap();
-    /// ```
-    ///
-    /// # See also
-    /// - [custom_score(...)](TopDocs::custom_score)
-    pub fn order_by<TSortKey>(
-        self,
-        sort_key_computer: impl SortKeyComputer<SortKey = TSortKey> + Send + 'static,
-    ) -> impl Collector<Fruit = Vec<(TSortKey, DocAddress)>>
-    where
-        TSortKey: 'static + Clone + Send + Sync + PartialOrd + std::fmt::Debug,
-    {
-        TopBySortKeyCollector::new(sort_key_computer, self.doc_range())
-    }
-
+    /// ``
     pub fn tweak_score<F, TSortKey>(
         self,
         sort_key_fn: F,
@@ -477,7 +482,7 @@ where
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
 
-    fn sort_key(&mut self, doc: DocId, score: Score) -> TSortKey {
+    fn segment_sort_key(&mut self, doc: DocId, score: Score) -> TSortKey {
         (self.sort_key_fn)(doc, score)
     }
 
@@ -605,7 +610,8 @@ where
     // Append a document to the top n.
     //
     // At this point, we need to have established that the doc is above the threshold.
-    fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
+    #[inline(always)]
+    pub(crate) fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
         if self.buffer.len() == self.buffer.capacity() {
             let median = self.truncate_top_n();
             self.threshold = Some(median);
@@ -653,38 +659,6 @@ where
             self.truncate_top_n();
         }
         self.buffer
-    }
-}
-
-impl<TSortKey, C> TopNComputer<TSortKey, DocId, C>
-where
-    TSortKey: PartialOrd + Clone,
-    C: Comparator<TSortKey>,
-{
-    #[inline(always)]
-    pub(crate) fn push_lazy<
-        TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSortKey>,
-    >(
-        &mut self,
-        doc: DocId,
-        score: Score,
-        score_tweaker: &mut TSegmentSortKeyComputer,
-    ) {
-        if TSegmentSortKeyComputer::is_lazy() {
-            if let Some(threshold) = self.threshold.as_ref() {
-                let Some((_cmp, sort_key)) =
-                    // TODO do we need to do somethign with order?
-                    score_tweaker.accept_sort_key_lazy(doc, score, threshold)
-                else {
-                    return;
-                };
-                self.append_doc(doc, sort_key);
-                return;
-            }
-        }
-        let feature = score_tweaker.sort_key(doc, score);
-        self.push(feature, doc);
-        return;
     }
 }
 
@@ -1414,7 +1388,7 @@ mod tests {
             let searcher = index.reader()?.searcher();
             let top_n_results = searcher.search(&AllQuery, &TopDocs::with_limit(limit)
                 .and_offset(offset)
-                .order_by_string_fast_field("city", order.clone()))?;
+                .order_by_string_fast_field("city", order))?;
             let all_results = searcher.search(&AllQuery, &DocSetCollector)?.into_iter().map(|doc_address| {
                 // Get the term for this address.
                 // NOTE: We can't determine the SegmentIds that will be generated for Segments
@@ -1654,7 +1628,7 @@ mod tests {
     #[test]
     fn test_topn_computer_option_asc_null_at_the_end() {
         let mut computer: TopNComputer<Option<u32>, u32, _> =
-            TopNComputer::new_with_comparator(2, ComparatorEnum::ReverseNullLower);
+            TopNComputer::new_with_comparator(2, ComparatorEnum::ReverseNoneLower);
         computer.push(Some(1u32), 1u32);
         computer.push(Some(2u32), 2u32);
         computer.push(None, 3u32);
