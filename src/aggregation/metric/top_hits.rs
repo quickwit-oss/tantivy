@@ -16,6 +16,7 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::AggregationError;
+use crate::collector::sort_key::ReverseComparator;
 use crate::collector::TopNComputer;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
@@ -458,7 +459,7 @@ impl Eq for DocSortValuesAndFields {}
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TopHitsTopNComputer {
     req: TopHitsAggregationReq,
-    top_n: TopNComputer<DocSortValuesAndFields, DocAddress>,
+    top_n: TopNComputer<DocSortValuesAndFields, DocAddress, ReverseComparator>,
 }
 
 impl std::cmp::PartialEq for TopHitsTopNComputer {
@@ -517,7 +518,7 @@ impl TopHitsTopNComputer {
 pub(crate) struct TopHitsSegmentCollector {
     segment_ordinal: SegmentOrdinal,
     accessor_idx: usize,
-    top_n: TopNComputer<Vec<DocValueAndOrder>, DocAddress>,
+    top_n: TopNComputer<Vec<DocValueAndOrder>, DocAddress, ReverseComparator>,
 }
 
 impl TopHitsSegmentCollector {
@@ -645,6 +646,7 @@ mod tests {
     use crate::aggregation::bucket::tests::get_test_index_from_docs;
     use crate::aggregation::tests::get_test_index_from_values;
     use crate::aggregation::AggregationCollector;
+    use crate::collector::sort_key::ReverseComparator;
     use crate::collector::ComparableDoc;
     use crate::query::AllQuery;
     use crate::schema::OwnedValue;
@@ -660,7 +662,7 @@ mod tests {
 
     fn collector_with_capacity(capacity: usize) -> super::TopHitsTopNComputer {
         super::TopHitsTopNComputer {
-            top_n: super::TopNComputer::new(capacity),
+            top_n: super::TopNComputer::new_with_comparator(capacity, ReverseComparator),
             req: Default::default(),
         }
     }

@@ -124,7 +124,7 @@ where
         let segment_ord = self.segment_ord;
         let segment_hits: Vec<(TSegmentSortKeyComputer::SortKey, DocAddress)> = self
             .topn_computer
-            .into_sorted_vec()
+            .into_vec()
             .into_iter()
             .map(|comparable_doc| {
                 let sort_key = self

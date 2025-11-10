@@ -499,9 +499,12 @@ where
 /// That means capacity has special meaning and should be carried over when cloning or serializing.
 ///
 /// For TopN == 0, it will be relative expensive.
+///
+/// When using the natural comparator, the top N computer returns the top N elements in
+/// descending order, as expected for a top N.
 #[derive(Serialize, Deserialize)]
 #[serde(from = "TopNComputerDeser<Score, D, C>")]
-pub struct TopNComputer<Score, D, C = ReverseComparator> {
+pub struct TopNComputer<Score, D, C> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
     buffer: Vec<ComparableDoc<Score, D>>,
     top_n: usize,
@@ -724,8 +727,9 @@ mod tests {
         computer.push(1u32, 1u32);
         computer.push(1u32, 2u32);
         computer.push(1u32, 3u32);
-        assert!(computer.into_sorted_vec().is_empty());
+        assert!(computer.into_vec().is_empty());
     }
+
     #[test]
     fn test_topn_computer() {
         let mut computer: TopNComputer<u32, u32, NaturalComparator> =
@@ -1307,50 +1311,50 @@ mod tests {
             ]
         );
 
-        // assert_eq!(
-        //     &query(&index, Order::Desc, 2, 0)?,
-        //     &[
-        //         (Some("tokyo".to_owned()), DocAddress::new(0, 2)),
-        //         (Some("greenville".to_owned()), DocAddress::new(0, 1)),
-        //     ]
-        // );
+        assert_eq!(
+            &query(&index, Order::Desc, 2, 0)?,
+            &[
+                (Some("tokyo".to_owned()), DocAddress::new(0, 2)),
+                (Some("greenville".to_owned()), DocAddress::new(0, 1)),
+            ]
+        );
 
-        // assert_eq!(&query(&index, Order::Desc, 3, 3)?, &[]);
+        assert_eq!(&query(&index, Order::Desc, 3, 3)?, &[]);
 
-        // assert_eq!(
-        //     &query(&index, Order::Desc, 2, 1)?,
-        //     &[
-        //         (Some("greenville".to_owned()), DocAddress::new(0, 1)),
-        //         (Some("austin".to_owned()), DocAddress::new(0, 0)),
-        //     ]
-        // );
+        assert_eq!(
+            &query(&index, Order::Desc, 2, 1)?,
+            &[
+                (Some("greenville".to_owned()), DocAddress::new(0, 1)),
+                (Some("austin".to_owned()), DocAddress::new(0, 0)),
+            ]
+        );
 
-        // assert_eq!(
-        //     &query(&index, Order::Asc, 3, 0)?,
-        //     &[
-        //         (Some("austin".to_owned()), DocAddress::new(0, 0)),
-        //         (Some("greenville".to_owned()), DocAddress::new(0, 1)),
-        //         (Some("tokyo".to_owned()), DocAddress::new(0, 2)),
-        //     ]
-        // );
+        assert_eq!(
+            &query(&index, Order::Asc, 3, 0)?,
+            &[
+                (Some("austin".to_owned()), DocAddress::new(0, 0)),
+                (Some("greenville".to_owned()), DocAddress::new(0, 1)),
+                (Some("tokyo".to_owned()), DocAddress::new(0, 2)),
+            ]
+        );
 
-        // assert_eq!(
-        //     &query(&index, Order::Asc, 2, 1)?,
-        //     &[
-        //         (Some("greenville".to_owned()), DocAddress::new(0, 1)),
-        //         (Some("tokyo".to_owned()), DocAddress::new(0, 2)),
-        //     ]
-        // );
+        assert_eq!(
+            &query(&index, Order::Asc, 2, 1)?,
+            &[
+                (Some("greenville".to_owned()), DocAddress::new(0, 1)),
+                (Some("tokyo".to_owned()), DocAddress::new(0, 2)),
+            ]
+        );
 
-        // assert_eq!(
-        //     &query(&index, Order::Asc, 2, 0)?,
-        //     &[
-        //         (Some("austin".to_owned()), DocAddress::new(0, 0)),
-        //         (Some("greenville".to_owned()), DocAddress::new(0, 1)),
-        //     ]
-        // );
+        assert_eq!(
+            &query(&index, Order::Asc, 2, 0)?,
+            &[
+                (Some("austin".to_owned()), DocAddress::new(0, 0)),
+                (Some("greenville".to_owned()), DocAddress::new(0, 1)),
+            ]
+        );
 
-        // assert_eq!(&query(&index, Order::Asc, 3, 3)?, &[]);
+        assert_eq!(&query(&index, Order::Asc, 3, 3)?, &[]);
 
         Ok(())
     }
@@ -1685,5 +1689,108 @@ mod tests {
         super::push_assuming_capacity(1, &mut vec);
         assert_eq!(&vec, &[1]);
         super::push_assuming_capacity(2, &mut vec);
+    }
+
+    #[test]
+    fn test_top_n_computer_not_at_capacity() {
+        let mut top_n_computer = TopNComputer::new_with_comparator(4, NaturalComparator);
+        top_n_computer.append_doc(1, 0.8);
+        top_n_computer.append_doc(3, 0.2);
+        top_n_computer.append_doc(5, 0.3);
+        assert_eq!(
+            &top_n_computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    sort_key: 0.8,
+                    doc: 1
+                },
+                ComparableDoc {
+                    sort_key: 0.3,
+                    doc: 5
+                },
+                ComparableDoc {
+                    sort_key: 0.2,
+                    doc: 3
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_top_n_computer_at_capacity() {
+        let mut top_collector = TopNComputer::new_with_comparator(4, NaturalComparator);
+        top_collector.append_doc(1, 0.8);
+        top_collector.append_doc(3, 0.2);
+        top_collector.append_doc(5, 0.3);
+        top_collector.append_doc(7, 0.9);
+        top_collector.append_doc(9, -0.2);
+        assert_eq!(
+            &top_collector.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    sort_key: 0.9,
+                    doc: 7
+                },
+                ComparableDoc {
+                    sort_key: 0.8,
+                    doc: 1
+                },
+                ComparableDoc {
+                    sort_key: 0.3,
+                    doc: 5
+                },
+                ComparableDoc {
+                    sort_key: 0.2,
+                    doc: 3
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_top_segment_collector_stable_ordering_for_equal_feature() {
+        // given that the documents are collected in ascending doc id order,
+        // when harvesting we have to guarantee stable sorting in case of a tie
+        // on the score
+        let doc_ids_collection = [4, 5, 6];
+        let score = 3.3f32;
+
+        let mut top_collector_limit_2 = TopNComputer::new_with_comparator(2, NaturalComparator);
+        for id in &doc_ids_collection {
+            top_collector_limit_2.append_doc(*id, score);
+        }
+
+        let mut top_collector_limit_3 = TopNComputer::new_with_comparator(3, NaturalComparator);
+        for id in &doc_ids_collection {
+            top_collector_limit_3.append_doc(*id, score);
+        }
+
+        let docs_limit_2 = top_collector_limit_2.into_sorted_vec();
+        let docs_limit_3 = top_collector_limit_3.into_sorted_vec();
+
+        assert_eq!(&docs_limit_2, &docs_limit_3[..2],);
+    }
+}
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use test::Bencher;
+
+    use super::TopNComputer;
+    use crate::collector::sort_key::NaturalComparator;
+
+    #[bench]
+    fn bench_top_segment_collector_collect_at_capacity(b: &mut Bencher) {
+        let mut top_collector = TopNComputer::new_with_comparator(100, NaturalComparator);
+
+        for i in 0..100 {
+            top_collector.append_doc(i, 0.8);
+        }
+
+        b.iter(|| {
+            for i in 0..100 {
+                top_collector.append_doc(i, 0.8);
+            }
+        });
     }
 }

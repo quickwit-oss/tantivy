@@ -54,7 +54,7 @@ impl SortKeyComputer for SortBySimilarityScore {
         }
 
         Ok(top_n
-            .into_sorted_vec()
+            .into_vec()
             .into_iter()
             .map(|cid| (cid.sort_key, DocAddress::new(segment_ord, cid.doc)))
             .collect())
