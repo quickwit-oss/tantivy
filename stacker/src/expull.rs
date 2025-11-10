@@ -151,13 +151,15 @@ impl ExpUnrolledLinkedList {
         // This should never happen with correct usage, so panic to catch bugs early
         assert!(
             self.remaining_cap as usize <= block_size,
-            "ExpUnrolledLinkedList metadata corruption detected: remaining_cap ({}) > block_size ({}). \
-             This indicates a serious bug, possibly from: \
-             1. Copying ExpUnrolledLinkedList and using stale metadata \
-             2. Race condition in parallel processing \
-             3. Memory corruption. \
-             block_num={}, head={:?}, tail={:?}",
-            self.remaining_cap, block_size, self.block_num, self.head, self.tail
+            "ExpUnrolledLinkedList metadata corruption detected: remaining_cap ({}) > block_size \
+             ({}). This indicates a serious bug, possibly from: 1. Copying ExpUnrolledLinkedList \
+             and using stale metadata 2. Race condition in parallel processing 3. Memory \
+             corruption. block_num={}, head={:?}, tail={:?}",
+            self.remaining_cap,
+            block_size,
+            self.block_num,
+            self.head,
+            self.tail
         );
 
         // Full Blocks (iterate through all blocks except the last one)
