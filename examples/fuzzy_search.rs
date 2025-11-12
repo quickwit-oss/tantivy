@@ -85,7 +85,6 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc!(
         title => "The Diary of a Young Girl",
     ))?;
-    index_writer.commit()?;
 
     // ### Committing
     //
