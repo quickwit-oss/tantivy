@@ -63,7 +63,7 @@ fn main() -> Result<()> {
     // but not "in the Gulf Stream".
     let query = query_parser.parse_query("\"in the su\"*")?;
 
-    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
     let mut titles = top_docs
         .into_iter()
         .map(|(_score, doc_address)| {

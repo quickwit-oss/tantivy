@@ -107,7 +107,8 @@ fn main() -> tantivy::Result<()> {
         IndexRecordOption::Basic,
     );
 
-    let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
+    let (top_docs, count) =
+        searcher.search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))?;
 
     assert_eq!(count, 2);
 
@@ -128,7 +129,8 @@ fn main() -> tantivy::Result<()> {
         IndexRecordOption::Basic,
     );
 
-    let (_top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
+    let (_top_docs, count) =
+        searcher.search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))?;
 
     assert_eq!(count, 0);
 

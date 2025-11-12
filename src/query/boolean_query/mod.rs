@@ -182,7 +182,7 @@ mod tests {
         let matching_topdocs = |query: &dyn Query| {
             reader
                 .searcher()
-                .search(query, &TopDocs::with_limit(3))
+                .search(query, &TopDocs::with_limit(3).order_by_score())
                 .unwrap()
         };
 

@@ -50,7 +50,7 @@ use crate::Term;
 ///     Term::from_field_text(title, "diary"),
 ///     IndexRecordOption::Basic,
 /// );
-/// let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
+/// let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))?;
 /// assert_eq!(count, 2);
 /// Ok(())
 /// # }
@@ -101,7 +101,7 @@ impl TermQuery {
             EnableScoring::Enabled {
                 statistics_provider,
                 ..
-            } => Bm25Weight::for_terms(statistics_provider, &[self.term.clone()])?,
+            } => Bm25Weight::for_terms(statistics_provider, std::slice::from_ref(&self.term))?,
             EnableScoring::Disabled { .. } => {
                 Bm25Weight::new(Explanation::new("<no score>", 1.0f32), 1.0f32)
             }
@@ -190,7 +190,7 @@ mod tests {
 
         let assert_single_hit = |query| {
             let (_top_docs, count) = searcher
-                .search(&query, &(TopDocs::with_limit(2), Count))
+                .search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))
                 .unwrap();
             assert_eq!(count, 1);
         };
