@@ -250,6 +250,12 @@ impl SegmentCollector for MultiCollectorChild {
         }
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        for child in &mut self.children {
+            child.collect_block(docs);
+        }
+    }
+
     fn harvest(self) -> MultiFruit {
         MultiFruit {
             sub_fruits: self
