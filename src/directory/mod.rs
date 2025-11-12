@@ -9,6 +9,7 @@ mod file_watcher;
 pub mod footer;
 mod managed_directory;
 mod ram_directory;
+mod nrt_directory;
 mod watch_event_router;
 
 /// Errors specific to the directory module.
@@ -48,6 +49,7 @@ pub use memmap2::Advice;
 pub use self::managed_directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
+pub use self::nrt_directory::NrtDirectory;
 
 /// Write object for Directory.
 ///
