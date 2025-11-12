@@ -21,5 +21,5 @@ serde = { version = "1.0.136", features = ["derive"] }
 [dev-dependencies]
 binggan = "0.14.0"
 proptest = "1.0.0"
-rand = "0.8.4"
+rand = "0.9.1"
 
