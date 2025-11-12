@@ -8,7 +8,7 @@ use nom::bytes::complete::tag;
 use nom::character::complete::{
     anychar, char, digit1, multispace0, multispace1, none_of, one_of, satisfy, u32,
 };
-use nom::combinator::{eof, map, map_res, opt, peek, recognize, value, verify};
+use nom::combinator::{eof, map, map_res, not, opt, peek, recognize, value, verify};
 use nom::error::{Error, ErrorKind};
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
@@ -21,7 +21,7 @@ use crate::user_input_ast::Delimiter;
 // Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
 // special characters.
 const SPECIAL_CHARS: &[char] = &[
-    '+', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '!', '\\', '*', ' ',
+    '+', '^', '`', ':', '{', '}', '"', '\'', '[', ']', '(', ')', '!', '\\', ' ',
 ];
 
 /// consume a field name followed by colon. Return the field name with escape sequence
@@ -758,7 +758,10 @@ fn negate(expr: UserInputAst) -> UserInputAst {
 fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
     alt((
         delimited(char('('), ast, char(')')),
-        map(char('*'), |_| UserInputAst::from(UserInputLeaf::All)),
+        preceded(
+            peek(not(tag("*:"))),
+            map(char('*'), |_| UserInputAst::from(UserInputLeaf::All)),
+        ),
         map(preceded(tuple((tag("NOT"), multispace1)), leaf), negate),
         literal,
     ))(inp)
@@ -779,7 +782,13 @@ fn leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
                 ),
             ),
             (
-                value((), char('*')),
+                value(
+                    (),
+                    preceded(
+                        peek(not(tag("*:"))), // Fail if `*:` is detected
+                        char('*'),            // Match standalone `*`
+                    ),
+                ),
                 map(nothing, |_| {
                     (Some(UserInputAst::from(UserInputLeaf::All)), Vec::new())
                 }),
@@ -1314,6 +1323,7 @@ mod test {
 
     #[test]
     fn test_field_name() {
+        assert_eq!(super::field_name("*:a"), Ok(("a", "*".to_string())));
         assert_eq!(
             super::field_name(".my.field.name:a"),
             Ok(("a", ".my.field.name".to_string()))
@@ -1621,6 +1631,11 @@ mod test {
     #[test]
     fn test_single_term_with_field() {
         test_parse_query_to_ast_helper("abc:toto", "\"abc\":toto");
+    }
+
+    #[test]
+    fn all_field_star() {
+        test_parse_query_to_ast_helper("*:toto", "\"*\":toto");
     }
 
     #[test]
