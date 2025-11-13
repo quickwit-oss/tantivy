@@ -359,7 +359,8 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::Spatial(_) => todo!(),
+            FieldType::Spatial(_) => None, /* Geometry types cannot be indexed in the inverted
+                                            * index. */
         }
     }
 

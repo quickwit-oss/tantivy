@@ -481,6 +481,7 @@ pub fn search_intersects(
     Ok(())
 }
 
+#[expect(clippy::too_many_arguments)]
 fn line_intersects_line(
     x1: i32,
     y1: i32,
@@ -572,6 +573,7 @@ fn triangle_within(triangle: &Triangle, query: &[i32; 4]) -> bool {
     true
 }
 
+#[expect(clippy::too_many_arguments)]
 fn point_in_triangle(
     px: i32,
     py: i32,

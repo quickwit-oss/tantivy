@@ -470,6 +470,7 @@ impl SegmentReader {
             self.positions_composite.space_usage(),
             self.fast_fields_readers.space_usage(self.schema())?,
             self.fieldnorm_readers.space_usage(),
+            self.spatial_readers.space_usage(),
             self.get_store_reader(0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()

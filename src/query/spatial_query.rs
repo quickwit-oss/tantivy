@@ -2,7 +2,8 @@
 
 use common::BitSet;
 
-use crate::query::{BitSetDocSet, Query, Scorer, Weight};
+use crate::query::explanation::does_not_match;
+use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
 use crate::schema::Field;
 use crate::spatial::bkd::{search_intersects, Segment};
 use crate::spatial::writer::as_point_i32;
@@ -96,10 +97,24 @@ impl Weight for SpatialWeight {
     }
     fn explain(
         &self,
-        _reader: &crate::SegmentReader,
-        _doc: DocId,
+        reader: &crate::SegmentReader,
+        doc: DocId,
     ) -> crate::Result<super::Explanation> {
-        todo!();
+        let mut scorer = self.scorer(reader, 1.0)?;
+        if scorer.seek(doc) != doc {
+            return Err(does_not_match(doc));
+        }
+        let query_type_desc = match self.query_type {
+            SpatialQueryType::Intersects => "SpatialQuery::Intersects",
+        };
+        let score = scorer.score();
+        let mut explanation = Explanation::new(query_type_desc, score);
+        explanation.add_context(format!(
+            "bounds: [({}, {}), ({}, {})]",
+            self.bounds[0].0, self.bounds[0].1, self.bounds[1].0, self.bounds[1].1,
+        ));
+        explanation.add_context(format!("field: {:?}", self.field));
+        Ok(explanation)
     }
 }
 
