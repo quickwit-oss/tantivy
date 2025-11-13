@@ -22,6 +22,7 @@ use super::se::BinaryObjectSerializer;
 use super::{OwnedValue, Value};
 use crate::schema::document::type_codes;
 use crate::schema::{Facet, Field};
+use crate::spatial::geometry::Geometry;
 use crate::store::DocStoreVersion;
 use crate::tokenizer::PreTokenizedString;
 
@@ -129,6 +130,9 @@ pub trait ValueDeserializer<'de> {
     /// Attempts to deserialize a pre-tokenized string value from the deserializer.
     fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError>;
 
+    /// HUSH
+    fn deserialize_geometry(self) -> Result<Geometry, DeserializeError>;
+
     /// Attempts to deserialize the value using a given visitor.
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
     where V: ValueVisitor;
@@ -166,6 +170,8 @@ pub enum ValueType {
     /// A JSON object value. Deprecated.
     #[deprecated(note = "We keep this for backwards compatibility, use Object instead")]
     JSONObject,
+    /// HUSH
+    Geometry,
 }
 
 /// A value visitor for deserializing a document value.
@@ -244,6 +250,12 @@ pub trait ValueVisitor {
         _val: PreTokenizedString,
     ) -> Result<Self::Value, DeserializeError> {
         Err(DeserializeError::UnsupportedType(ValueType::PreTokStr))
+    }
+
+    #[inline]
+    /// Called when the deserializer visits a geometry value.
+    fn visit_geometry(&self, _val: Geometry) -> Result<Self::Value, DeserializeError> {
+        Err(DeserializeError::UnsupportedType(ValueType::Geometry))
     }
 
     #[inline]
@@ -380,6 +392,7 @@ where R: Read
 
                 match ext_type_code {
                     type_codes::TOK_STR_EXT_CODE => ValueType::PreTokStr,
+                    type_codes::GEO_EXT_CODE => ValueType::Geometry,
                     _ => {
                         return Err(DeserializeError::from(io::Error::new(
                             io::ErrorKind::InvalidData,
@@ -495,6 +508,11 @@ where R: Read
             .map_err(DeserializeError::from)
     }
 
+    fn deserialize_geometry(self) -> Result<Geometry, DeserializeError> {
+        self.validate_type(ValueType::Geometry)?;
+        <Geometry as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+    }
+
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
     where V: ValueVisitor {
         match self.value_type {
@@ -538,6 +556,10 @@ where R: Read
             ValueType::PreTokStr => {
                 let val = self.deserialize_pre_tokenized_string()?;
                 visitor.visit_pre_tokenized_string(val)
+            }
+            ValueType::Geometry => {
+                let val = self.deserialize_geometry()?;
+                visitor.visit_geometry(val)
             }
             ValueType::Array => {
                 let access =
