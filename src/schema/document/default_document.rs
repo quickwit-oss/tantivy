@@ -466,7 +466,6 @@ impl<'a> CompactDocValue<'a> {
                 .map(Into::into)
                 .map(ReferenceValueLeaf::PreTokStr)
                 .map(Into::into),
-            // ValueType::Geometry => todo!(),
             ValueType::Geometry => self
                 .container
                 .read_from::<Geometry>(addr)

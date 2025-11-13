@@ -353,8 +353,9 @@ impl BinarySerializable for Geometry {
                     let ring_count = VInt::deserialize(reader)?.0 as usize;
                     let mut rings = Vec::new();
                     for _ in 0..ring_count {
-                        rings.push(VInt::deserialize(reader)?.0 as usize);
-                        count += 1;
+                        let point_count = VInt::deserialize(reader)?.0 as usize;
+                        rings.push(point_count);
+                        count += point_count;
                     }
                     polygons.push(rings);
                 }

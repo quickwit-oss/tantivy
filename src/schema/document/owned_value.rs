@@ -208,7 +208,7 @@ impl serde::Serialize for OwnedValue {
                 }
             }
             OwnedValue::Array(ref array) => array.serialize(serializer),
-            OwnedValue::Geometry(_) => todo!(),
+            OwnedValue::Geometry(ref geometry) => geometry.to_geojson().serialize(serializer),
         }
     }
 }
@@ -296,7 +296,7 @@ impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
                 ReferenceValueLeaf::IpAddr(val) => OwnedValue::IpAddr(val),
                 ReferenceValueLeaf::Bool(val) => OwnedValue::Bool(val),
                 ReferenceValueLeaf::PreTokStr(val) => OwnedValue::PreTokStr(*val.clone()),
-                ReferenceValueLeaf::Geometry(_) => todo!(),
+                ReferenceValueLeaf::Geometry(val) => OwnedValue::Geometry(*val.clone()),
             },
             ReferenceValue::Array(val) => {
                 OwnedValue::Array(val.map(|v| v.as_value().into()).collect())
