@@ -78,9 +78,25 @@ impl TryFrom<AggregationForDeserialization> for Aggregation {
 
     fn try_from(value: AggregationForDeserialization) -> serde_json::Result<Self> {
         let AggregationForDeserialization {
-            aggs_remaining_json,
-            sub_aggregation,
+            mut aggs_remaining_json,
+            mut sub_aggregation,
         } = value;
+        
+        // Extract nested "aggs" from inside the aggregation variant
+        // E.g., {"terms": {"field": "x", "aggs": {...}}} -> extract "aggs" from inside "terms"
+        if let Some(obj) = aggs_remaining_json.as_object_mut() {
+            for (_, agg_config) in obj.iter_mut() {
+                if let Some(config_obj) = agg_config.as_object_mut() {
+                    if let Some(nested_aggs) = config_obj.remove("aggs") {
+                        // Parse nested aggs as Aggregations
+                        if let Ok(nested) = serde_json::from_value::<Aggregations>(nested_aggs) {
+                            sub_aggregation = nested;
+                        }
+                    }
+                }
+            }
+        }
+        
         let agg: AggregationVariants = serde_json::from_value(aggs_remaining_json)?;
         Ok(Aggregation {
             agg,
