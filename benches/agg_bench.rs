@@ -74,6 +74,12 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, histogram_with_term_agg_few);
     register!(group, avg_and_range_with_avg_sub_agg);
 
+    // Filter aggregation benchmarks
+    register!(group, filter_agg_all_query_count_agg);
+    register!(group, filter_agg_term_query_count_agg);
+    register!(group, filter_agg_all_query_with_sub_aggs);
+    register!(group, filter_agg_term_query_with_sub_aggs);
+
     group.run();
 }
 
@@ -471,4 +477,62 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     }
 
     Ok(index)
+}
+
+// Filter aggregation benchmarks
+
+fn filter_agg_all_query_count_agg(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "*",
+            "aggs": {
+                "count": { "value_count": { "field": "score" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn filter_agg_term_query_count_agg(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "text:cool",
+            "aggs": {
+                "count": { "value_count": { "field": "score" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn filter_agg_all_query_with_sub_aggs(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "*",
+            "aggs": {
+                "avg_score": { "avg": { "field": "score" } },
+                "stats_score": { "stats": { "field": "score_f64" } },
+                "terms_text": {
+                    "terms": { "field": "text_few_terms" }
+                }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn filter_agg_term_query_with_sub_aggs(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "text:cool",
+            "aggs": {
+                "avg_score": { "avg": { "field": "score" } },
+                "stats_score": { "stats": { "field": "score_f64" } },
+                "terms_text": {
+                    "terms": { "field": "text_few_terms" }
+                }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
 }

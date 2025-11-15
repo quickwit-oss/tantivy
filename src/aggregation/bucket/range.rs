@@ -339,7 +339,7 @@ impl SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
-        req_data.limits.add_memory_consumed(
+        req_data.context.limits.add_memory_consumed(
             buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
         )?;
 
