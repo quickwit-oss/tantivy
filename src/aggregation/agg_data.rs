@@ -731,10 +731,27 @@ fn build_nodes(
             }])
         }
         AggregationVariants::Filter(filter_req) => {
+            // Build the query and evaluator upfront
+            let schema = reader.schema();
+            let tokenizers = &data.context.tokenizers;
+            let query = filter_req.parse_query(&schema, tokenizers)?;
+            let evaluator = crate::aggregation::bucket::DocumentQueryEvaluator::new(
+                query,
+                schema.clone(),
+                reader,
+            )?;
+
+            // Pre-allocate buffer for batch filtering
+            let max_doc = reader.max_doc();
+            let buffer_capacity = crate::docset::COLLECT_BLOCK_BUFFER_LEN.min(max_doc as usize);
+            let matching_docs_buffer = Vec::with_capacity(buffer_capacity);
+
             let idx_in_req_data = data.push_filter_req_data(FilterAggReqData {
                 name: agg_name.to_string(),
                 req: filter_req.clone(),
                 segment_reader: reader.clone(),
+                evaluator,
+                matching_docs_buffer,
             });
             let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
             Ok(vec![AggRefNode {

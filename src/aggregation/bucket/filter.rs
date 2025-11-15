@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
 
 use common::BitSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -11,7 +10,7 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
 use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
-use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
+use crate::docset::DocSet;
 use crate::query::{AllQuery, EnableScoring, Query, QueryParser};
 use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
@@ -173,29 +172,22 @@ pub enum FilterQuery {
 
     /// Custom query builder for programmatic query building
     ///
-    /// This variant stores a builder that builds the query lazily on first use.
-    /// The built query is cached for subsequent uses.
+    /// This variant stores a builder that builds the query once when creating FilterAggReqData.
     ///
     /// This is useful for:
     /// - Custom query types not expressible as query strings
     /// - Programmatic query construction based on schema
     /// - Extension query types
     ///
-    /// **Note**: The builder is serializable, but the cached query is not serialized
-    /// (it's rebuilt on deserialization).
-    CustomBuilder {
-        /// Builder that constructs the query
-        builder: Box<dyn QueryBuilder>,
-        /// Cached query instance (built on first use, not serialized)
-        cached_query: Arc<Mutex<Option<Box<dyn Query>>>>,
-    },
+    /// **Note**: The builder is serializable and can be deserialized.
+    CustomBuilder(Box<dyn QueryBuilder>),
 }
 
 impl Debug for FilterQuery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FilterQuery::QueryString(s) => f.debug_tuple("QueryString").field(s).finish(),
-            FilterQuery::CustomBuilder { .. } => {
+            FilterQuery::CustomBuilder(_) => {
                 f.debug_struct("CustomBuilder").finish_non_exhaustive()
             }
         }
@@ -208,14 +200,7 @@ impl Clone for FilterQuery {
             FilterQuery::QueryString(query_string) => {
                 FilterQuery::QueryString(query_string.clone())
             }
-            FilterQuery::CustomBuilder { builder, .. } => {
-                // Clone the builder but reset the cache
-                // This ensures each clone builds its own query instance
-                FilterQuery::CustomBuilder {
-                    builder: builder.box_clone(),
-                    cached_query: Arc::new(Mutex::new(None)),
-                }
-            }
+            FilterQuery::CustomBuilder(builder) => FilterQuery::CustomBuilder(builder.box_clone()),
         }
     }
 }
@@ -273,18 +258,15 @@ impl FilterAggregation {
     /// ```
     pub fn new_with_builder(builder: Box<dyn QueryBuilder>) -> Self {
         Self {
-            query: FilterQuery::CustomBuilder {
-                builder,
-                cached_query: Arc::new(Mutex::new(None)),
-            },
+            query: FilterQuery::CustomBuilder(builder),
         }
     }
 
     /// Parse the query into a Tantivy Query object
     ///
     /// For query strings, this uses the QueryParser::parse_query() method.
-    /// For custom builders, builds and caches the query on first call.
-    fn parse_query(
+    /// For custom builders, builds the query using the builder.
+    pub(crate) fn parse_query(
         &self,
         schema: &Schema,
         tokenizer_manager: &TokenizerManager,
@@ -298,23 +280,9 @@ impl FilterAggregation {
                     .parse_query(query_str)
                     .map_err(|e| TantivyError::InvalidArgument(e.to_string()))
             }
-            FilterQuery::CustomBuilder {
-                builder,
-                cached_query,
-            } => {
-                // Check if we have a cached query
-                let mut cache = cached_query.lock().unwrap();
-                if let Some(query) = cache.as_ref() {
-                    return Ok(query.box_clone());
-                }
-
+            FilterQuery::CustomBuilder(builder) => {
                 // Build the query using the builder
-                let query = builder.build_query(schema, tokenizer_manager)?;
-
-                // Cache it for future use
-                *cache = Some(query.box_clone());
-
-                Ok(query)
+                builder.build_query(schema, tokenizer_manager)
             }
         }
     }
@@ -334,7 +302,7 @@ impl FilterAggregation {
             FilterQuery::QueryString(query_str) => query_parser
                 .parse_query(query_str)
                 .map_err(|e| TantivyError::InvalidArgument(e.to_string())),
-            FilterQuery::CustomBuilder { .. } => Err(TantivyError::InvalidArgument(
+            FilterQuery::CustomBuilder(_) => Err(TantivyError::InvalidArgument(
                 "parse_query_with_parser is not supported for custom query builders. Use \
                  parse_query with explicit schema and tokenizers instead."
                     .to_string(),
@@ -373,9 +341,8 @@ impl Serialize for FilterAggregation {
                 // Serialize the query string directly
                 query_string.serialize(serializer)
             }
-            FilterQuery::CustomBuilder { builder, .. } => {
+            FilterQuery::CustomBuilder(builder) => {
                 // Serialize the builder using erased_serde
-                // The cached query is not serialized (it will be rebuilt on deserialization)
                 erased_serde::serialize(builder.as_ref(), serializer)
             }
         }
@@ -385,7 +352,10 @@ impl Serialize for FilterAggregation {
 impl<'de> Deserialize<'de> for FilterAggregation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
-        // Deserialize as query string
+        // Currently only query strings can be deserialized from JSON.
+        // Custom query builders require a type registry for deserialization,
+        // which would need to be implemented separately if needed for distributed aggregations.
+        // For now, custom builders are created programmatically and not deserialized.
         let query_string = String::deserialize(deserializer)?;
         Ok(FilterAggregation::new(query_string))
     }
@@ -412,28 +382,36 @@ pub struct FilterAggReqData {
     pub req: FilterAggregation,
     /// The segment reader
     pub segment_reader: SegmentReader,
+    /// Document evaluator for the filter query (precomputed BitSet)
+    /// This is built once when the request data is created
+    pub evaluator: DocumentQueryEvaluator,
+    /// Reusable buffer for matching documents to minimize allocations during collection
+    pub matching_docs_buffer: Vec<DocId>,
 }
 
 impl FilterAggReqData {
     pub(crate) fn get_memory_consumption(&self) -> usize {
-        // Rough estimate: name + segment reader reference
-        self.name.len() + std::mem::size_of::<SegmentReader>()
+        // Estimate: name + segment reader reference + bitset + buffer capacity
+        self.name.len()
+            + std::mem::size_of::<SegmentReader>()
+            + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
+            + self.matching_docs_buffer.capacity() * std::mem::size_of::<DocId>()
     }
 }
 
 /// Document evaluator for filter queries using BitSet
-struct DocumentQueryEvaluator {
+pub struct DocumentQueryEvaluator {
     /// BitSet containing all matching documents for this segment.
     /// For AllQuery, this is a full BitSet (all bits set).
     /// For other queries, only matching document bits are set.
-    bitset: BitSet,
+    pub(crate) bitset: BitSet,
 }
 
 impl DocumentQueryEvaluator {
     /// Create and initialize a document query evaluator for a segment
     /// This executes the query upfront and collects results into a BitSet,
     /// unless the query is AllQuery in which case we skip BitSet creation.
-    fn new(
+    pub(crate) fn new(
         query: Box<dyn Query>,
         schema: Schema,
         segment_reader: &SegmentReader,
@@ -496,17 +474,12 @@ impl Debug for DocumentQueryEvaluator {
 
 /// Segment collector for filter aggregation
 pub struct SegmentFilterCollector {
-    /// Document evaluator for the filter query
-    /// The evaluator internally stores a SegmentReader
-    evaluator: DocumentQueryEvaluator,
     /// Document count in this bucket
     doc_count: u64,
     /// Sub-aggregation collectors
     sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
-    /// Accessor index for this filter aggregation
+    /// Accessor index for this filter aggregation (to access FilterAggReqData)
     accessor_idx: usize,
-    /// Reusable buffer for matching documents to minimize allocations
-    matching_docs_buffer: Vec<DocId>,
 }
 
 impl SegmentFilterCollector {
@@ -515,20 +488,6 @@ impl SegmentFilterCollector {
         req: &mut AggregationsSegmentCtx,
         node: &AggRefNode,
     ) -> crate::Result<Self> {
-        // Clone necessary data before mutable borrow
-        let req_data = req.get_filter_req_data(node.idx_in_req_data);
-        let segment_reader = req_data.segment_reader.clone();
-        let filter_req = req_data.req.clone();
-        let max_doc = segment_reader.max_doc();
-
-        let schema = segment_reader.schema();
-        let tokenizers = &req.context.tokenizers;
-
-        // Parse the query
-        let query = filter_req.parse_query(schema, tokenizers)?;
-
-        let evaluator = DocumentQueryEvaluator::new(query, schema.clone(), &segment_reader)?;
-
         // Build sub-aggregation collectors if any
         let sub_agg_collector = if !node.children.is_empty() {
             Some(build_segment_agg_collectors(req, &node.children)?)
@@ -536,15 +495,10 @@ impl SegmentFilterCollector {
             None
         };
 
-        // Pre-allocate buffer to avoid repeated allocations during collection
-        let buffer_capacity = COLLECT_BLOCK_BUFFER_LEN.min(max_doc as usize);
-
         Ok(SegmentFilterCollector {
-            evaluator,
             doc_count: 0,
             sub_aggregations: sub_agg_collector,
             accessor_idx: node.idx_in_req_data,
-            matching_docs_buffer: Vec::with_capacity(buffer_capacity),
         })
     }
 }
@@ -554,7 +508,7 @@ impl Debug for SegmentFilterCollector {
         f.debug_struct("SegmentFilterCollector")
             .field("doc_count", &self.doc_count)
             .field("has_sub_aggs", &self.sub_aggregations.is_some())
-            .field("evaluator", &self.evaluator)
+            .field("accessor_idx", &self.accessor_idx)
             .finish()
     }
 }
@@ -600,8 +554,11 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
     }
 
     fn collect(&mut self, doc: DocId, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
+        // Access the evaluator from FilterAggReqData
+        let req_data = agg_data.get_filter_req_data(self.accessor_idx);
+
         // O(1) BitSet lookup to check if document matches filter
-        if self.evaluator.matches_document(doc) {
+        if req_data.evaluator.matches_document(doc) {
             self.doc_count += 1;
 
             // If we have sub-aggregations, collect on them for this filtered document
@@ -623,20 +580,20 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
         }
 
         // Take the request data to avoid borrow checker issues with sub-aggregations
-        let req = agg_data.take_filter_req_data(self.accessor_idx);
+        let mut req = agg_data.take_filter_req_data(self.accessor_idx);
 
         // Use batch filtering with O(1) BitSet lookups
-        self.matching_docs_buffer.clear();
-        self.evaluator
-            .filter_batch(docs, &mut self.matching_docs_buffer);
+        req.matching_docs_buffer.clear();
+        req.evaluator
+            .filter_batch(docs, &mut req.matching_docs_buffer);
 
-        self.doc_count += self.matching_docs_buffer.len() as u64;
+        self.doc_count += req.matching_docs_buffer.len() as u64;
 
         // Batch process sub-aggregations if we have matches
-        if !self.matching_docs_buffer.is_empty() {
+        if !req.matching_docs_buffer.is_empty() {
             if let Some(sub_aggs) = &mut self.sub_aggregations {
                 // Use collect_block for better sub-aggregation performance
-                sub_aggs.collect_block(&self.matching_docs_buffer, agg_data)?;
+                sub_aggs.collect_block(&req.matching_docs_buffer, agg_data)?;
             }
         }
 
@@ -778,12 +735,21 @@ mod tests {
         Ok(index)
     }
 
-    /// Helper to create aggregation collector with proper tokenizers from index
-    fn create_collector(index: &Index, aggregations: Aggregations) -> AggregationCollector {
-        AggregationCollector::from_aggs(
-            aggregations,
+    /// Helper to create aggregation collector with serialization roundtrip
+    /// This ensures all aggregations can be serialized and deserialized correctly
+    fn create_collector(
+        index: &Index,
+        aggregations: Aggregations,
+    ) -> crate::Result<AggregationCollector> {
+        // Serialize and deserialize the aggregations
+        let serialized = serde_json::to_string(&aggregations)?;
+        let deserialized: Aggregations = serde_json::from_str(&serialized)?;
+
+        // Create collector with deserialized aggregations
+        Ok(AggregationCollector::from_aggs(
+            deserialized,
             AggContextParams::new(Default::default(), index.tokenizers().clone()),
-        )
+        ))
     }
 
     #[test]
@@ -802,7 +768,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -832,7 +798,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -868,7 +834,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -908,7 +874,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -936,7 +902,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -964,7 +930,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -996,7 +962,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -1044,7 +1010,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -1095,7 +1061,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -1145,7 +1111,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -1219,7 +1185,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -1279,7 +1245,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         // Verify the structure exists and has expected doc_count
@@ -1327,7 +1293,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -1375,7 +1341,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         let expected = json!({
@@ -1406,7 +1372,7 @@ mod tests {
         let result = serde_json::from_value::<Aggregations>(agg)
             .map_err(|e| crate::TantivyError::InvalidArgument(e.to_string()))
             .and_then(|aggregations| {
-                let collector = create_collector(&index, aggregations);
+                let collector = create_collector(&index, aggregations)?;
                 searcher.search(&AllQuery, &collector)
             });
 
@@ -1437,7 +1403,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&base_query, &collector)?;
 
         let expected = json!({
@@ -1537,7 +1503,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let result = searcher.search(&AllQuery, &collector)?;
 
         // Should match 2 electronics
@@ -1608,7 +1574,7 @@ mod tests {
 
         let agg_req: Aggregations = serde_json::from_value(agg)?;
         let searcher = index.reader()?.searcher();
-        let collector = create_collector(&index, agg_req);
+        let collector = create_collector(&index, agg_req)?;
         let agg_res = searcher.search(&AllQuery, &collector)?;
 
         let result_json = serde_json::to_value(&agg_res)?;
@@ -1637,7 +1603,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(filter_agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let filter_result = searcher.search(&AllQuery, &collector)?;
 
         // Method 2: Separate query
@@ -1728,7 +1694,7 @@ mod tests {
 
         let start = Instant::now();
         let aggregations: Aggregations = serde_json::from_value(direct_agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let direct_result = searcher.search(&query, &collector)?;
         let direct_time = start.elapsed();
 
@@ -1754,7 +1720,7 @@ mod tests {
 
         let start = Instant::now();
         let aggregations: Aggregations = serde_json::from_value(filter_agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let filter_result = searcher.search(&AllQuery, &collector)?;
         let filter_time = start.elapsed();
 
@@ -1780,7 +1746,7 @@ mod tests {
 
         let start = Instant::now();
         let aggregations: Aggregations = serde_json::from_value(match_all_filter_agg)?;
-        let collector = create_collector(&index, aggregations);
+        let collector = create_collector(&index, aggregations)?;
         let match_all_filter_result = searcher.search(&query, &collector)?;
         let match_all_filter_time = start.elapsed();
 
@@ -1886,7 +1852,7 @@ mod tests {
         });
 
         let aggregations: Aggregations = serde_json::from_value(agg)?;
-        let collector_with_tokenizer = create_collector(&index, aggregations.clone());
+        let collector_with_tokenizer = create_collector(&index, aggregations.clone())?;
         let result_with_tokenizer = searcher.search(&AllQuery, &collector_with_tokenizer)?;
 
         // Should match only the UPPERCASE "HELLO" (1 document)
