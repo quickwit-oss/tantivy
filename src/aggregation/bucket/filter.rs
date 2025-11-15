@@ -41,7 +41,7 @@ use crate::{DocId, SegmentReader, TantivyError};
 /// # Example
 ///
 /// ```rust
-/// use tantivy::aggregation::bucket::filter::QueryBuilder;
+/// use tantivy::aggregation::bucket::QueryBuilder;
 /// use tantivy::query::{Query, TermQuery};
 /// use tantivy::schema::{Schema, IndexRecordOption};
 /// use tantivy::tokenizer::TokenizerManager;
@@ -69,6 +69,12 @@ use crate::{DocId, SegmentReader, TantivyError};
 ///         Box::new(self.clone())
 ///     }
 /// }
+///
+/// // Create an instance
+/// let builder = TermQueryBuilder {
+///     field_name: "category".to_string(),
+///     term_text: "electronics".to_string(),
+/// };
 /// ```
 pub trait QueryBuilder: Debug + Send + Sync + erased_serde::Serialize {
     /// Build a query from the given schema and tokenizer manager.
@@ -109,7 +115,7 @@ erased_serde::serialize_trait_object!(QueryBuilder);
 ///
 /// ## Query String (Recommended)
 /// ```rust
-/// use tantivy::aggregation::bucket::filter::FilterAggregation;
+/// use tantivy::aggregation::bucket::FilterAggregation;
 ///
 /// // Query strings are parsed using Tantivy's standard QueryParser
 /// let filter_agg = FilterAggregation::new("category:electronics AND price:[100 TO 500]".to_string());
@@ -117,7 +123,7 @@ erased_serde::serialize_trait_object!(QueryBuilder);
 ///
 /// ## Custom Query Builder
 /// ```rust
-/// use tantivy::aggregation::bucket::filter::{FilterAggregation, QueryBuilder};
+/// use tantivy::aggregation::bucket::{FilterAggregation, QueryBuilder};
 /// use tantivy::query::{Query, TermQuery};
 /// use tantivy::schema::{Schema, IndexRecordOption};
 /// use tantivy::tokenizer::TokenizerManager;
@@ -221,7 +227,7 @@ impl FilterAggregation {
     ///
     /// # Example
     /// ```rust
-    /// use tantivy::aggregation::bucket::filter::{FilterAggregation, QueryBuilder};
+    /// use tantivy::aggregation::bucket::{FilterAggregation, QueryBuilder};
     /// use tantivy::query::{Query, TermQuery};
     /// use tantivy::schema::{Schema, IndexRecordOption};
     /// use tantivy::tokenizer::TokenizerManager;
