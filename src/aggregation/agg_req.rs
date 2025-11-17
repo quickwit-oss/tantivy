@@ -30,6 +30,7 @@ use std::collections::HashSet;
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::bucket::{
     DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
@@ -85,15 +86,16 @@ impl TryFrom<AggregationForDeserialization> for Aggregation {
         // Extract nested "aggs" from inside the aggregation variant
         // E.g., {"terms": {"field": "x", "aggs": {...}}} -> extract "aggs" from inside "terms"
         if let Some(obj) = aggs_remaining_json.as_object_mut() {
-            for (_, agg_config) in obj.iter_mut() {
-                if let Some(config_obj) = agg_config.as_object_mut() {
-                    if let Some(nested_aggs) = config_obj.remove("aggs") {
-                        // Parse nested aggs as Aggregations
-                        if let Ok(nested) = serde_json::from_value::<Aggregations>(nested_aggs) {
-                            sub_aggregation = nested;
-                        }
-                    }
-                }
+            if let Some(nested) =
+                obj.values_mut()
+                    .filter_map(Value::as_object_mut)
+                    .find_map(|config| {
+                        config
+                            .remove("aggs")
+                            .and_then(|nested| serde_json::from_value::<Aggregations>(nested).ok())
+                    })
+            {
+                sub_aggregation = nested;
             }
         }
 
