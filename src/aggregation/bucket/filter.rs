@@ -16,27 +16,27 @@ use crate::schema::Schema;
 use crate::tokenizer::TokenizerManager;
 use crate::{DocId, SegmentReader, TantivyError};
 
-/// A trait for query builders that can build queries and be serialized.
+/// A trait for query builders that can build queries programmatically.
 ///
-/// This trait enables programmatic query construction for filter aggregations while
-/// maintaining serializability for distributed aggregation scenarios.
+/// This trait enables programmatic query construction for filter aggregations with
+/// full serialization/deserialization support for distributed aggregation scenarios.
 ///
 /// # Why This Exists
 ///
 /// Filter aggregations need to support both:
 /// - Query strings (simple, always serializable)
-/// - Programmatic query construction (flexible, but needs serializability)
+/// - Programmatic query construction (flexible, with serialization support)
 ///
-/// This trait bridges the gap by requiring builders to be serializable.
+/// This trait provides the programmatic query construction capability with full
+/// serialization support via the `typetag` crate.
 ///
 /// # Implementation Requirements
 ///
 /// Implementors must:
-/// 1. Implement `build_query()` to construct the query from schema/tokenizers
-/// 2. Implement `box_clone()` to enable cloning (typically just `Box::new(self.clone())`)
-/// 3. Derive `Serialize` and `Deserialize` for distributed aggregation support
-/// 4. Derive `Clone` to support `box_clone()`
-/// 5. Derive `Debug` for debugging
+/// 1. Derive `Debug`, `Clone`, `Serialize`, and `Deserialize`
+/// 2. Use `#[typetag::serde]` attribute on the impl block
+/// 3. Implement `build_query()` to construct the query from schema/tokenizers
+/// 4. Implement `box_clone()` to enable cloning (typically just `Box::new(self.clone())`)
 ///
 /// # Example
 ///
@@ -54,6 +54,7 @@ use crate::{DocId, SegmentReader, TantivyError};
 ///     term_text: String,
 /// }
 ///
+/// #[typetag::serde]
 /// impl QueryBuilder for TermQueryBuilder {
 ///     fn build_query(
 ///         &self,
@@ -76,11 +77,11 @@ use crate::{DocId, SegmentReader, TantivyError};
 ///     term_text: "electronics".to_string(),
 /// };
 /// ```
-pub trait QueryBuilder: Debug + Send + Sync + erased_serde::Serialize {
+#[typetag::serde(tag = "type")]
+pub trait QueryBuilder: Debug + Send + Sync {
     /// Build a query from the given schema and tokenizer manager.
     ///
-    /// This method is called lazily the first time the query is needed,
-    /// and the result is cached for subsequent uses.
+    /// This method is called once when creating the FilterAggReqData for a segment.
     ///
     /// # Parameters
     /// - `schema`: The index schema for field lookups
@@ -105,9 +106,6 @@ pub trait QueryBuilder: Debug + Send + Sync + erased_serde::Serialize {
     /// ```
     fn box_clone(&self) -> Box<dyn QueryBuilder>;
 }
-
-// Enable serialization of QueryBuilder trait objects
-erased_serde::serialize_trait_object!(QueryBuilder);
 
 /// Filter aggregation creates a single bucket containing documents that match a query.
 ///
@@ -136,6 +134,7 @@ erased_serde::serialize_trait_object!(QueryBuilder);
 ///     term_text: String,
 /// }
 ///
+/// #[typetag::serde]
 /// impl QueryBuilder for MyBuilder {
 ///     fn build_query(
 ///         &self,
@@ -222,8 +221,7 @@ impl FilterAggregation {
 
     /// Create a new filter aggregation with a query builder
     ///
-    /// The builder will be called lazily the first time the query is needed,
-    /// and the result will be cached for subsequent uses.
+    /// The builder will be called once when creating the FilterAggReqData for each segment.
     ///
     /// # Example
     /// ```rust
@@ -240,6 +238,7 @@ impl FilterAggregation {
     ///     term_text: String,
     /// }
     ///
+    /// #[typetag::serde]
     /// impl QueryBuilder for MyBuilder {
     ///     fn build_query(
     ///         &self,
@@ -344,12 +343,12 @@ impl Serialize for FilterAggregation {
     where S: Serializer {
         match &self.query {
             FilterQuery::QueryString(query_string) => {
-                // Serialize the query string directly
+                // Serialize query strings as plain strings
                 query_string.serialize(serializer)
             }
             FilterQuery::CustomBuilder(builder) => {
-                // Serialize the builder using erased_serde
-                erased_serde::serialize(builder.as_ref(), serializer)
+                // Serialize custom builders using typetag (includes type information)
+                builder.serialize(serializer)
             }
         }
     }
@@ -358,12 +357,24 @@ impl Serialize for FilterAggregation {
 impl<'de> Deserialize<'de> for FilterAggregation {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: Deserializer<'de> {
-        // Currently only query strings can be deserialized from JSON.
-        // Custom query builders require a type registry for deserialization,
-        // which would need to be implemented separately if needed for distributed aggregations.
-        // For now, custom builders are created programmatically and not deserialized.
-        let query_string = String::deserialize(deserializer)?;
-        Ok(FilterAggregation::new(query_string))
+        // We need to peek at the value to determine if it's a string or an object
+        use serde::de::Error;
+        use serde_json::Value;
+
+        let value = Value::deserialize(deserializer)?;
+
+        let query = if let Some(query_string) = value.as_str() {
+            // It's a plain string - query string
+            FilterQuery::QueryString(query_string.to_string())
+        } else {
+            // It's an object - custom builder with typetag
+            let builder: Box<dyn QueryBuilder> = serde_json::from_value(value).map_err(|e| {
+                D::Error::custom(format!("Failed to deserialize QueryBuilder: {}", e))
+            })?;
+            FilterQuery::CustomBuilder(builder)
+        };
+
+        Ok(FilterAggregation { query })
     }
 }
 
@@ -1429,16 +1440,15 @@ mod tests {
 
     #[test]
     fn test_custom_query_builder() -> crate::Result<()> {
-        use serde::{Deserialize, Serialize};
-
-        // Define a serializable query builder
+        // Define a query builder with full serde support
         #[derive(Debug, Clone, Serialize, Deserialize)]
-        struct TermQueryBuilder {
+        struct TestTermQueryBuilder {
             field_name: String,
             term_text: String,
         }
 
-        impl QueryBuilder for TermQueryBuilder {
+        #[typetag::serde(name = "TestTermQueryBuilder")]
+        impl QueryBuilder for TestTermQueryBuilder {
             fn build_query(
                 &self,
                 schema: &Schema,
@@ -1457,7 +1467,7 @@ mod tests {
         let index = create_standard_test_index()?;
 
         // Create a filter aggregation with a custom query builder
-        let builder = TermQueryBuilder {
+        let builder = TestTermQueryBuilder {
             field_name: "category".to_string(),
             term_text: "electronics".to_string(),
         };
@@ -1471,18 +1481,26 @@ mod tests {
         // Verify the query was built correctly (it should be a TermQuery)
         assert!(format!("{:?}", query).contains("TermQuery"));
 
-        // Test that it can be cloned (which should reset the cache)
+        // Test that it can be cloned
         let cloned = filter_agg.clone();
         let query2 = cloned.parse_query(&schema, tokenizers)?;
         assert!(format!("{:?}", query2).contains("TermQuery"));
 
-        // Verify it CAN be serialized (builder is serializable)
-        let serialization_result = serde_json::to_string(&filter_agg);
+        // Verify that custom builders CAN be serialized with typetag
+        let serialized = serde_json::to_string(&filter_agg)?;
         assert!(
-            serialization_result.is_ok(),
-            "Custom builders should serialize: {:?}",
-            serialization_result.err()
+            serialized.contains("TestTermQueryBuilder"),
+            "Serialized JSON should contain the type tag"
         );
+        assert!(
+            serialized.contains("electronics"),
+            "Serialized JSON should contain the field data"
+        );
+
+        // Verify that it can be deserialized
+        let deserialized: FilterAggregation = serde_json::from_str(&serialized)?;
+        let query3 = deserialized.parse_query(&schema, tokenizers)?;
+        assert!(format!("{:?}", query3).contains("TermQuery"));
 
         Ok(())
     }
@@ -1521,13 +1539,15 @@ mod tests {
 
     #[test]
     fn test_query_builder_serialization_roundtrip() -> crate::Result<()> {
+        // Define a serializable query builder
         #[derive(Debug, Clone, Serialize, Deserialize)]
-        struct TermQueryBuilder {
+        struct RoundtripTermQueryBuilder {
             field_name: String,
             term_text: String,
         }
 
-        impl QueryBuilder for TermQueryBuilder {
+        #[typetag::serde(name = "RoundtripTermQueryBuilder")]
+        impl QueryBuilder for RoundtripTermQueryBuilder {
             fn build_query(
                 &self,
                 schema: &Schema,
@@ -1546,7 +1566,7 @@ mod tests {
         let index = create_standard_test_index()?;
 
         // Create a filter aggregation with a custom query builder
-        let builder = TermQueryBuilder {
+        let builder = RoundtripTermQueryBuilder {
             field_name: "category".to_string(),
             term_text: "electronics".to_string(),
         };
@@ -1555,7 +1575,11 @@ mod tests {
         // Serialize the filter aggregation
         let serialized = serde_json::to_string(&filter_agg)?;
 
-        // Verify the serialized JSON contains the builder data
+        // Verify the serialized JSON contains the builder data and type tag
+        assert!(
+            serialized.contains("RoundtripTermQueryBuilder"),
+            "Serialized JSON should contain type tag"
+        );
         assert!(
             serialized.contains("category"),
             "Serialized JSON should contain field_name"
@@ -1565,16 +1589,13 @@ mod tests {
             "Serialized JSON should contain term_text"
         );
 
-        // Test that cloning preserves serializability
-        let cloned_agg = filter_agg.clone();
-        let cloned_json = serde_json::to_string(&cloned_agg)?;
-        assert!(cloned_json.contains("category"));
-        assert!(cloned_json.contains("electronics"));
+        // Deserialize back
+        let deserialized: FilterAggregation = serde_json::from_str(&serialized)?;
 
         // Verify the aggregation produces correct results
         let agg = json!({
             "filtered": {
-                "filter": "category:electronics"
+                "filter": deserialized
             }
         });
 
