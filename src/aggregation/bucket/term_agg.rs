@@ -443,7 +443,10 @@ impl SegmentAggregationCollector for SegmentTermCollector {
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
         if mem_delta > 0 {
-            agg_data.limits.add_memory_consumed(mem_delta as u64)?;
+            agg_data
+                .context
+                .limits
+                .add_memory_consumed(mem_delta as u64)?;
         }
         agg_data.put_back_term_req_data(self.accessor_idx, req_data);
 
@@ -2341,10 +2344,8 @@ mod tests {
         let search = |idx: &Index,
                       agg_req: &Aggregations|
          -> crate::Result<IntermediateAggregationResults> {
-            let collector = DistributedAggregationCollector::from_aggs(
-                agg_req.clone(),
-                AggregationLimitsGuard::default(),
-            );
+            let collector =
+                DistributedAggregationCollector::from_aggs(agg_req.clone(), Default::default());
             let reader = idx.reader()?;
             let searcher = reader.searcher();
             let agg_res = searcher.search(&AllQuery, &collector)?;
@@ -2388,9 +2389,8 @@ mod tests {
         let agg_res2 = search(&index2, &agg_req2)?;
 
         agg_res.merge_fruits(agg_res2).unwrap();
-        let agg_json = serde_json::to_value(
-            &agg_res.into_final_result(agg_req2, AggregationLimitsGuard::default())?,
-        )?;
+        let agg_json =
+            serde_json::to_value(&agg_res.into_final_result(agg_req2, Default::default())?)?;
 
         // hosts:
         let hosts = &agg_json["hosts"]["buckets"];

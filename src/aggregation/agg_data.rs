@@ -10,9 +10,10 @@ use crate::aggregation::accessor_helpers::{
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
-    HistogramAggReqData, HistogramBounds, IncludeExcludeParam, MissingTermAggReqData,
-    RangeAggReqData, SegmentHistogramCollector, SegmentRangeCollector, SegmentTermCollector,
-    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
+    FilterAggReqData, HistogramAggReqData, HistogramBounds, IncludeExcludeParam,
+    MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector, SegmentHistogramCollector,
+    SegmentRangeCollector, SegmentTermCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
+    TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     AverageAggregation, CardinalityAggReqData, CardinalityAggregationReq, CountAggregation,
@@ -24,7 +25,7 @@ use crate::aggregation::metric::{
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
 };
-use crate::aggregation::{f64_to_fastfield_u64, AggregationLimitsGuard, Key};
+use crate::aggregation::{f64_to_fastfield_u64, AggContextParams, Key};
 use crate::{SegmentOrdinal, SegmentReader};
 
 #[derive(Default)]
@@ -33,7 +34,7 @@ use crate::{SegmentOrdinal, SegmentReader};
 pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
     pub per_request: PerRequestAggSegCtx,
-    pub limits: AggregationLimitsGuard,
+    pub context: AggContextParams,
 }
 
 impl AggregationsSegmentCtx {
@@ -66,6 +67,10 @@ impl AggregationsSegmentCtx {
     pub(crate) fn push_range_req_data(&mut self, data: RangeAggReqData) -> usize {
         self.per_request.range_req_data.push(Some(Box::new(data)));
         self.per_request.range_req_data.len() - 1
+    }
+    pub(crate) fn push_filter_req_data(&mut self, data: FilterAggReqData) -> usize {
+        self.per_request.filter_req_data.push(Some(Box::new(data)));
+        self.per_request.filter_req_data.len() - 1
     }
 
     #[inline]
@@ -101,6 +106,12 @@ impl AggregationsSegmentCtx {
         self.per_request.range_req_data[idx]
             .as_deref()
             .expect("range_req_data slot is empty (taken)")
+    }
+    #[inline]
+    pub(crate) fn get_filter_req_data(&self, idx: usize) -> &FilterAggReqData {
+        self.per_request.filter_req_data[idx]
+            .as_deref()
+            .expect("filter_req_data slot is empty (taken)")
     }
 
     // ---------- mutable getters ----------
@@ -179,6 +190,21 @@ impl AggregationsSegmentCtx {
         debug_assert!(self.per_request.range_req_data[idx].is_none());
         self.per_request.range_req_data[idx] = Some(value);
     }
+
+    /// Move out the boxed Filter request at `idx`, leaving `None`.
+    #[inline]
+    pub(crate) fn take_filter_req_data(&mut self, idx: usize) -> Box<FilterAggReqData> {
+        self.per_request.filter_req_data[idx]
+            .take()
+            .expect("filter_req_data slot is empty (taken)")
+    }
+
+    /// Put back a Filter request into an empty slot at `idx`.
+    #[inline]
+    pub(crate) fn put_back_filter_req_data(&mut self, idx: usize, value: Box<FilterAggReqData>) {
+        debug_assert!(self.per_request.filter_req_data[idx].is_none());
+        self.per_request.filter_req_data[idx] = Some(value);
+    }
 }
 
 /// Each type of aggregation has its own request data struct. This struct holds
@@ -196,6 +222,8 @@ pub struct PerRequestAggSegCtx {
     pub histogram_req_data: Vec<Option<Box<HistogramAggReqData>>>,
     /// RangeAggReqData contains the request data for a range aggregation.
     pub range_req_data: Vec<Option<Box<RangeAggReqData>>>,
+    /// FilterAggReqData contains the request data for a filter aggregation.
+    pub filter_req_data: Vec<Option<Box<FilterAggReqData>>>,
     /// Shared by avg, min, max, sum, stats, extended_stats, count
     pub stats_metric_req_data: Vec<MetricAggReqData>,
     /// CardinalityAggReqData contains the request data for a cardinality aggregation.
@@ -223,6 +251,11 @@ impl PerRequestAggSegCtx {
                 .sum::<usize>()
             + self
                 .range_req_data
+                .iter()
+                .map(|b| b.as_ref().unwrap().get_memory_consumption())
+                .sum::<usize>()
+            + self
+                .filter_req_data
                 .iter()
                 .map(|b| b.as_ref().unwrap().get_memory_consumption())
                 .sum::<usize>()
@@ -277,6 +310,11 @@ impl PerRequestAggSegCtx {
                 .expect("range_req_data slot is empty (taken)")
                 .name
                 .as_str(),
+            AggKind::Filter => self.filter_req_data[idx]
+                .as_deref()
+                .expect("filter_req_data slot is empty (taken)")
+                .name
+                .as_str(),
         }
     }
 
@@ -319,7 +357,8 @@ pub(crate) fn build_segment_agg_collectors(
         collectors.push(build_segment_agg_collector(req, node)?);
     }
 
-    req.limits
+    req.context
+        .limits
         .add_memory_consumed(req.per_request.get_memory_consumption() as u64)?;
     // Single collector special case
     if collectors.len() == 1 {
@@ -394,6 +433,9 @@ pub(crate) fn build_segment_agg_collector(
         AggKind::Range => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
             req, node,
         )?)),
+        AggKind::Filter => Ok(Box::new(SegmentFilterCollector::from_req_and_validate(
+            req, node,
+        )?)),
     }
 }
 
@@ -423,6 +465,7 @@ pub enum AggKind {
     Histogram,
     DateHistogram,
     Range,
+    Filter,
 }
 
 impl AggKind {
@@ -437,6 +480,7 @@ impl AggKind {
             AggKind::Histogram => "Histogram",
             AggKind::DateHistogram => "DateHistogram",
             AggKind::Range => "Range",
+            AggKind::Filter => "Filter",
         }
     }
 }
@@ -446,11 +490,11 @@ pub(crate) fn build_aggregations_data_from_req(
     aggs: &Aggregations,
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
-    limits: AggregationLimitsGuard,
+    context: AggContextParams,
 ) -> crate::Result<AggregationsSegmentCtx> {
     let mut data = AggregationsSegmentCtx {
         per_request: Default::default(),
-        limits,
+        context,
     };
 
     for (name, agg) in aggs.iter() {
@@ -682,6 +726,36 @@ fn build_nodes(
             let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
             Ok(vec![AggRefNode {
                 kind: AggKind::TopHits,
+                idx_in_req_data,
+                children,
+            }])
+        }
+        AggregationVariants::Filter(filter_req) => {
+            // Build the query and evaluator upfront
+            let schema = reader.schema();
+            let tokenizers = &data.context.tokenizers;
+            let query = filter_req.parse_query(&schema, tokenizers)?;
+            let evaluator = crate::aggregation::bucket::DocumentQueryEvaluator::new(
+                query,
+                schema.clone(),
+                reader,
+            )?;
+
+            // Pre-allocate buffer for batch filtering
+            let max_doc = reader.max_doc();
+            let buffer_capacity = crate::docset::COLLECT_BLOCK_BUFFER_LEN.min(max_doc as usize);
+            let matching_docs_buffer = Vec::with_capacity(buffer_capacity);
+
+            let idx_in_req_data = data.push_filter_req_data(FilterAggReqData {
+                name: agg_name.to_string(),
+                req: filter_req.clone(),
+                segment_reader: reader.clone(),
+                evaluator,
+                matching_docs_buffer,
+            });
+            let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
+            Ok(vec![AggRefNode {
+                kind: AggKind::Filter,
                 idx_in_req_data,
                 children,
             }])

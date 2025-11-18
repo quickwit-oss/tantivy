@@ -160,6 +160,28 @@ use itertools::Itertools;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::tokenizer::TokenizerManager;
+
+/// Context parameters for aggregation execution
+///
+/// This struct holds shared resources needed during aggregation execution:
+/// - `limits`: Memory and bucket limits for the aggregation
+/// - `tokenizers`: TokenizerManager for parsing query strings in filter aggregations
+#[derive(Clone, Default)]
+pub struct AggContextParams {
+    /// Aggregation limits (memory and bucket count)
+    pub limits: AggregationLimitsGuard,
+    /// Tokenizer manager for query string parsing
+    pub tokenizers: TokenizerManager,
+}
+
+impl AggContextParams {
+    /// Create new aggregation context parameters
+    pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
+        Self { limits, tokenizers }
+    }
+}
+
 fn parse_str_into_f64<E: de::Error>(value: &str) -> Result<f64, E> {
     let parsed = value
         .parse::<f64>()
@@ -390,7 +412,10 @@ mod tests {
         query: Option<(&str, &str)>,
         limits: AggregationLimitsGuard,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req, limits);
+        let collector = AggregationCollector::from_aggs(
+            agg_req,
+            AggContextParams::new(limits, index.tokenizers().clone()),
+        );
 
         let reader = index.reader()?;
         let searcher = reader.searcher();
