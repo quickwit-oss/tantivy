@@ -139,6 +139,7 @@ fn write_leaf_pages(
     triangles: &mut [Triangle],
     write: &mut CountingWriter<WritePtr>,
 ) -> io::Result<BuildNode> {
+    // If less than 512 triangles we are at a leaf, otherwise we still in the inner nodes.
     if triangles.len() <= 512 {
         let pos = write.written_bytes();
         let mut spreads = [SpreadSurvey::default(); 4];
@@ -197,6 +198,7 @@ fn write_leaf_pages(
                 max_spread = current_spread;
             }
         }
+        // Partition the triangles.
         let mid = triangles.len() / 2;
         triangles.select_nth_unstable_by_key(mid, |t| t.words[dimension]);
         let partition = triangles[mid].words[dimension];
@@ -205,12 +207,37 @@ fn write_leaf_pages(
         {
             split_point += 1;
         }
+        // If we reached the end of triangles then all of the triangles share the partition value
+        // for the dimension. We handle this degeneracy by splitting at the midpoint so that we
+        // won't have a leaf with zero triangles.
         if split_point == triangles.len() {
             split_point = mid; // Force split at midpoint index
+        } else {
+            // Our partition does not sort the triangles, it only partitions. We have scan our right
+            // partition to find all the midpoint values and move them to the left partition.
+            let mut reverse = triangles.len() - 1;
+            loop {
+                // Scan backwards looking for the partition value.
+                while triangles[reverse].words[dimension] != partition {
+                    reverse -= 1;
+                }
+                // If we have reached the split point then we are done.
+                if reverse <= split_point {
+                    break;
+                }
+                // Swap the midpoint value with our current split point.
+                triangles.swap(split_point, reverse);
+                // Move the split point up one.
+                split_point += 1;
+                // We know that what was at the split point was not the midpoint value.
+                reverse -= 1;
+            }
         }
+        // Split into left and write partitions and create child nodes.
         let (left, right) = triangles.split_at_mut(split_point);
         let left_node = write_leaf_pages(left, write)?;
         let right_node = write_leaf_pages(right, write)?;
+        // Return an inner node.
         Ok(BuildNode::Branch {
             bbox: bounding_box.bbox(),
             left: Box::new(left_node),
