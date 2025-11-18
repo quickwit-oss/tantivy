@@ -1672,7 +1672,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn test_custom_tokenizer_required() -> crate::Result<()> {
         use crate::schema::{TextFieldIndexing, TextOptions};
