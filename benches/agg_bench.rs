@@ -59,6 +59,8 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_many_order_by_term);
     register!(group, terms_many_with_top_hits);
     register!(group, terms_many_with_avg_sub_agg);
+    register!(group, terms_few_with_avg_sub_agg);
+
     register!(group, terms_many_json_mixed_type_with_avg_sub_agg);
 
     register!(group, cardinality_agg);
@@ -220,6 +222,19 @@ fn terms_many_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+
+fn terms_few_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms" },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
 fn terms_many_json_mixed_type_with_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
