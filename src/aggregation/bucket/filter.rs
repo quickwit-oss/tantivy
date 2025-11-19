@@ -639,16 +639,14 @@ pub struct IntermediateFilterBucketResult {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use serde_json::{json, Value};
 
     use super::*;
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::agg_result::AggregationResults;
     use crate::aggregation::{AggContextParams, AggregationCollector};
-    use crate::query::{AllQuery, QueryParser, TermQuery};
-    use crate::schema::{IndexRecordOption, Schema, Term, FAST, INDEXED, STORED, TEXT};
+    use crate::query::{AllQuery, TermQuery};
+    use crate::schema::{IndexRecordOption, Schema, Term, FAST, INDEXED, TEXT};
     use crate::{doc, Index, IndexWriter};
 
     // Test helper functions
