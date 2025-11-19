@@ -69,25 +69,25 @@ fn main() -> tantivy::Result<()> {
     {
         // Inclusive range queries
         let query = query_parser.parse_query("ip:[192.168.0.80 TO 192.168.0.100]")?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(5))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(5).order_by_score())?;
         assert_eq!(count_docs.len(), 1);
     }
     {
         // Exclusive range queries
         let query = query_parser.parse_query("ip:{192.168.0.80 TO 192.168.1.100]")?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(count_docs.len(), 0);
     }
     {
         // Find docs with IP addresses smaller equal 192.168.1.100
         let query = query_parser.parse_query("ip:[* TO 192.168.1.100]")?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(count_docs.len(), 2);
     }
     {
         // Find docs with IP addresses smaller than 192.168.1.100
         let query = query_parser.parse_query("ip:[* TO 192.168.1.100}")?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(count_docs.len(), 2);
     }
 

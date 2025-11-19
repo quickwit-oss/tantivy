@@ -519,7 +519,7 @@ mod tests {
             .reader()
             .unwrap()
             .searcher()
-            .search(&text_query, &TopDocs::with_limit(4))
+            .search(&text_query, &TopDocs::with_limit(4).order_by_score())
             .unwrap();
         assert_eq!(score_docs.len(), 1);
 
@@ -528,7 +528,7 @@ mod tests {
             .reader()
             .unwrap()
             .searcher()
-            .search(&text_query, &TopDocs::with_limit(4))
+            .search(&text_query, &TopDocs::with_limit(4).order_by_score())
             .unwrap();
         assert_eq!(score_docs.len(), 2);
     }
@@ -561,7 +561,7 @@ mod tests {
                 .reader()
                 .unwrap()
                 .searcher()
-                .search(&text_query, &TopDocs::with_limit(4))
+                .search(&text_query, &TopDocs::with_limit(4).order_by_score())
                 .unwrap();
             assert_eq!(score_docs.len(), 1);
         };

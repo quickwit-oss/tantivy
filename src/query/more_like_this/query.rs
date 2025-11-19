@@ -267,7 +267,7 @@ mod tests {
             .with_boost_factor(1.0)
             .with_stop_words(vec!["old".to_string()])
             .with_document(DocAddress::new(0, 0));
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(5))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(5).order_by_score())?;
         let mut doc_ids: Vec<_> = top_docs.iter().map(|item| item.1.doc_id).collect();
         doc_ids.sort_unstable();
 
@@ -283,7 +283,7 @@ mod tests {
             .with_max_word_length(5)
             .with_boost_factor(1.0)
             .with_document(DocAddress::new(0, 4));
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(5))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(5).order_by_score())?;
         let mut doc_ids: Vec<_> = top_docs.iter().map(|item| item.1.doc_id).collect();
         doc_ids.sort_unstable();
 

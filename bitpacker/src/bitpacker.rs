@@ -258,7 +258,7 @@ mod test {
             bitpacker.write(val, num_bits, &mut data).unwrap();
         }
         bitpacker.close(&mut data).unwrap();
-        assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8);
+        assert_eq!(data.len(), ((num_bits as usize) * len).div_ceil(8));
         let bitunpacker = BitUnpacker::new(num_bits);
         (bitunpacker, vals, data)
     }
@@ -304,7 +304,7 @@ mod test {
             bitpacker.write(val, num_bits, &mut buffer).unwrap();
         }
         bitpacker.flush(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), (vals.len() * num_bits as usize + 7) / 8);
+        assert_eq!(buffer.len(), (vals.len() * num_bits as usize).div_ceil(8));
         let bitunpacker = BitUnpacker::new(num_bits);
         let max_val = if num_bits == 64 {
             u64::MAX

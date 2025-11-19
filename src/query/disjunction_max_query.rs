@@ -53,7 +53,7 @@ use crate::{Score, Term};
 ///    // TermQuery "diary" and "girl" should be present and only one should be accounted in score
 ///    let queries1 = vec![diary_term_query.box_clone(), girl_term_query.box_clone()];
 ///    let diary_and_girl = DisjunctionMaxQuery::new(queries1);
-///    let documents = searcher.search(&diary_and_girl, &TopDocs::with_limit(3))?;
+///    let documents = searcher.search(&diary_and_girl, &TopDocs::with_limit(3).order_by_score())?;
 ///    assert_eq!(documents[0].0, documents[1].0);
 ///    assert_eq!(documents[1].0, documents[2].0);
 ///
@@ -62,7 +62,7 @@ use crate::{Score, Term};
 ///    let queries2 = vec![diary_term_query.box_clone(), girl_term_query.box_clone()];
 ///    let tie_breaker = 0.7;
 ///    let diary_and_girl_with_tie_breaker = DisjunctionMaxQuery::with_tie_breaker(queries2, tie_breaker);
-///    let documents = searcher.search(&diary_and_girl_with_tie_breaker, &TopDocs::with_limit(3))?;
+///    let documents = searcher.search(&diary_and_girl_with_tie_breaker, &TopDocs::with_limit(3).order_by_score())?;
 ///    assert_eq!(documents[1].0, documents[2].0);
 ///    // For this test all terms brings the same score. So we can do easy math and assume that
 ///    // `DisjunctionMaxQuery` with tie breakers score should be equal

@@ -85,7 +85,7 @@
 //! // Perform search.
 //! // `topdocs` contains the 10 most relevant doc ids, sorted by decreasing scores...
 //! let top_docs: Vec<(Score, DocAddress)> =
-//!     searcher.search(&query, &TopDocs::with_limit(10))?;
+//!     searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
 //!
 //! for (_score, doc_address) in top_docs {
 //!     // Retrieve the actual content of documents given its `doc_address`.
