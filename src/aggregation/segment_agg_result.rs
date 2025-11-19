@@ -17,11 +17,14 @@ pub trait SegmentAggregationCollector: CollectorClone + Debug {
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()>;
 
+    #[inline]
     fn collect(
         &mut self,
         doc: crate::DocId,
         agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()>;
+    ) -> crate::Result<()> {
+        self.collect_block(&[doc], agg_data)
+    }
 
     fn collect_block(
         &mut self,

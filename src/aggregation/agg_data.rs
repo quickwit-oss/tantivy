@@ -10,10 +10,10 @@ use crate::aggregation::accessor_helpers::{
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
-    FilterAggReqData, HistogramAggReqData, HistogramBounds, IncludeExcludeParam,
-    MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector, SegmentHistogramCollector,
-    SegmentRangeCollector, SegmentTermCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
-    TermsAggregationInternal,
+    build_segment_aggregation_collector, FilterAggReqData, HistogramAggReqData, HistogramBounds,
+    IncludeExcludeParam, MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector,
+    SegmentHistogramCollector, SegmentRangeCollector, TermMissingAgg, TermsAggReqData,
+    TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     AverageAggregation, CardinalityAggReqData, CardinalityAggregationReq, CountAggregation,
@@ -373,9 +373,7 @@ pub(crate) fn build_segment_agg_collector(
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     match node.kind {
-        AggKind::Terms => Ok(Box::new(SegmentTermCollector::from_req_and_validate(
-            req, node,
-        )?)),
+        AggKind::Terms => build_segment_aggregation_collector(req, node),
         AggKind::MissingTerm => {
             let req_data = &mut req.per_request.missing_term_req_data[node.idx_in_req_data];
             if req_data.accessors.is_empty() {
