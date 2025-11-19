@@ -15,6 +15,7 @@ use crate::postings::{
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
+use crate::spatial::writer::SpatialWriter;
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -51,6 +52,7 @@ pub struct SegmentWriter {
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
+    pub(crate) spatial_writer: SpatialWriter,
     pub(crate) json_path_writer: JsonPathWriter,
     pub(crate) json_positions_per_path: IndexingPositionsPerPath,
     pub(crate) doc_opstamps: Vec<Opstamp>,
@@ -103,6 +105,7 @@ impl SegmentWriter {
             ctx: IndexingContext::new(table_size),
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
+            spatial_writer: SpatialWriter::default(),
             json_path_writer: JsonPathWriter::default(),
             json_positions_per_path: IndexingPositionsPerPath::default(),
             segment_serializer,
@@ -129,6 +132,7 @@ impl SegmentWriter {
             self.ctx,
             self.fast_field_writers,
             &self.fieldnorms_writer,
+            &mut self.spatial_writer,
             self.segment_serializer,
         )?;
         Ok(self.doc_opstamps)
@@ -141,6 +145,7 @@ impl SegmentWriter {
             + self.fieldnorms_writer.mem_usage()
             + self.fast_field_writers.mem_usage()
             + self.segment_serializer.mem_usage()
+            + self.spatial_writer.mem_usage()
     }
 
     fn index_document<D: Document>(&mut self, doc: &D) -> crate::Result<()> {
@@ -337,6 +342,13 @@ impl SegmentWriter {
                         self.fieldnorms_writer.record(doc_id, field, num_vals);
                     }
                 }
+                FieldType::Spatial(_) => {
+                    for value in values {
+                        if let Some(geometry) = value.as_geometry() {
+                            self.spatial_writer.add_geometry(doc_id, field, *geometry);
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -391,11 +403,15 @@ fn remap_and_write(
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
+    spatial_writer: &mut SpatialWriter,
     mut serializer: SegmentSerializer,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer)?;
+    }
+    if let Some(spatial_serializer) = serializer.extract_spatial_serializer() {
+        spatial_writer.serialize(spatial_serializer)?;
     }
     let fieldnorm_data = serializer
         .segment()
