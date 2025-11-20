@@ -17,6 +17,7 @@ pub struct SegmentPostings {
     pub(crate) block_cursor: BlockSegmentPostings,
     cur: usize,
     position_reader: Option<PositionReader>,
+    alive_bitset: Option<AliveBitSet>,
 }
 
 impl SegmentPostings {
@@ -26,6 +27,7 @@ impl SegmentPostings {
             block_cursor: BlockSegmentPostings::empty(),
             cur: 0,
             position_reader: None,
+            alive_bitset: None,
         }
     }
 
@@ -150,6 +152,36 @@ impl SegmentPostings {
             block_cursor: segment_block_postings,
             cur: 0, // cursor within the block
             position_reader,
+            alive_bitset: None,
+        }
+    }
+
+    /// Creates a SegmentPostings with filtering based on an alive bitset.
+    ///
+    /// This efficiently skips deleted or filtered documents during iteration.
+    /// When seeking to an excluded document, the seek is automatically redirected
+    /// to the next valid document. If this causes a seek past entire blocks,
+    /// those blocks are never decompressed, providing significant performance benefits.
+    pub(crate) fn with_alive_bitset(mut self, alive_bitset: Option<AliveBitSet>) -> Self {
+        self.alive_bitset = alive_bitset;
+        self
+    }
+
+    /// Adjusts a target document ID to the next valid (non-excluded) document.
+    ///
+    /// If no alive bitset is provided, returns the target unchanged.
+    /// Otherwise, finds and returns the next valid document, or `TERMINATED`
+    /// if no valid documents remain.
+    #[inline]
+    fn adjust_target(&self, target: DocId) -> DocId {
+        if target == TERMINATED {
+            return TERMINATED;
+        }
+
+        if let Some(bitset) = &self.alive_bitset {
+            bitset.next_alive_doc(target).unwrap_or(TERMINATED)
+        } else {
+            target
         }
     }
 }
@@ -159,27 +191,46 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> DocId {
-        debug_assert!(self.block_cursor.block_is_loaded());
-        if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
-            self.cur = 0;
-            self.block_cursor.advance();
-        } else {
-            self.cur += 1;
+        loop {
+            debug_assert!(self.block_cursor.block_is_loaded());
+            if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
+                self.cur = 0;
+                self.block_cursor.advance();
+            } else {
+                self.cur += 1;
+            }
+            let doc = self.doc();
+
+            // Check if document is alive/valid
+            if doc == TERMINATED {
+                return TERMINATED;
+            }
+
+            if let Some(bitset) = &self.alive_bitset {
+                if bitset.is_alive(doc) {
+                    return doc;
+                }
+                // Document is excluded, continue to next
+            } else {
+                return doc;
+            }
         }
-        self.doc()
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
-        debug_assert!(self.doc() <= target);
-        if self.doc() >= target {
+        // Adjust target to next valid document if filtering is enabled
+        let adjusted_target = self.adjust_target(target);
+
+        debug_assert!(self.doc() <= adjusted_target);
+        if self.doc() >= adjusted_target {
             return self.doc();
         }
 
         // Delegate block-local search to BlockSegmentPostings::seek, which returns
         // the in-block index of the first doc >= target.
-        self.cur = self.block_cursor.seek(target);
+        self.cur = self.block_cursor.seek(adjusted_target);
         let doc = self.doc();
-        debug_assert!(doc >= target);
+        debug_assert!(doc >= adjusted_target);
         doc
     }
 

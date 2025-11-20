@@ -86,7 +86,13 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let scorer = self.specialized_scorer(reader, 1.0)?;
-        crate::query::boolean_query::block_wand_single_scorer(scorer, threshold, callback);
+        let alive_bitset = reader.alive_bitset();
+        crate::query::boolean_query::block_wand_single_scorer(
+            scorer,
+            alive_bitset,
+            threshold,
+            callback,
+        );
         Ok(())
     }
 }
@@ -127,18 +133,18 @@ impl TermWeight {
         let similarity_weight = self.similarity_weight.boost_by(boost);
         let postings_opt: Option<SegmentPostings> =
             inverted_index.read_postings(&self.term, self.index_record_option)?;
-        if let Some(segment_postings) = postings_opt {
-            Ok(TermScorer::new(
-                segment_postings,
-                fieldnorm_reader,
-                similarity_weight,
-            ))
+
+        let alive_bitset = reader.alive_bitset().cloned();
+        let postings = if let Some(segment_postings) = postings_opt {
+            segment_postings.with_alive_bitset(alive_bitset)
         } else {
-            Ok(TermScorer::new(
-                SegmentPostings::empty(),
-                fieldnorm_reader,
-                similarity_weight,
-            ))
-        }
+            SegmentPostings::empty().with_alive_bitset(alive_bitset)
+        };
+
+        Ok(TermScorer::new(
+            postings,
+            fieldnorm_reader,
+            similarity_weight,
+        ))
     }
 }

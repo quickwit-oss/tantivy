@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+use crate::fastfield::AliveBitSet;
 use crate::query::term_query::TermScorer;
 use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};
@@ -147,6 +148,7 @@ fn advance_all_scorers_on_pivot(term_scorers: &mut Vec<TermScorerWithMaxScore>, 
 /// Link: <http://engineering.nyu.edu/~suel/papers/bmw.pdf>
 pub fn block_wand(
     mut scorers: Vec<TermScorer>,
+    alive_bitset: Option<&AliveBitSet>,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
@@ -157,17 +159,40 @@ pub fn block_wand(
     scorers.sort_by_key(|scorer| scorer.doc());
     // At this point we need to ensure that the scorers are sorted!
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
-    while let Some((before_pivot_len, pivot_len, pivot_doc)) =
+    while let Some((before_pivot_len, pivot_len, mut pivot_doc)) =
         find_pivot_doc(&scorers[..], threshold)
     {
         debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
         debug_assert_ne!(pivot_doc, TERMINATED);
         debug_assert!(before_pivot_len < pivot_len);
 
+        // Ensure pivot is an alive document
+        if let Some(alive_bitset) = alive_bitset {
+            match alive_bitset.next_alive_doc(pivot_doc) {
+                Some(next_alive) => {
+                    pivot_doc = next_alive;
+                }
+                None => {
+                    // No more alive documents
+                    break;
+                }
+            }
+        }
+
         let block_max_score_upperbound: Score = scorers[..pivot_len]
             .iter_mut()
             .map(|scorer| {
                 scorer.seek_block(pivot_doc);
+
+                // Check if the block is entirely deleted before computing block_max_score
+                if let Some(alive_bitset) = alive_bitset {
+                    let (block_start, block_end) = scorer.current_block_range();
+                    if !alive_bitset.has_alive_in_range(block_start, block_end) {
+                        // Block is entirely deleted, contribute 0 to max score
+                        return 0.0;
+                    }
+                }
+
                 scorer.block_max_score()
             })
             .sum();
@@ -221,19 +246,63 @@ pub fn block_wand(
 ///     equal to the `threshold`.
 pub fn block_wand_single_scorer(
     mut scorer: TermScorer,
+    alive_bitset: Option<&AliveBitSet>,
     mut threshold: Score,
-    callback: &mut dyn FnMut(u32, Score) -> Score,
+    callback: &mut dyn FnMut(DocId, Score) -> Score,
 ) {
     let mut doc = scorer.doc();
+
+    // If we have an alive bitset, start at the next alive doc
+    if let Some(alive_bitset) = alive_bitset {
+        if let Some(next_alive) = alive_bitset.next_alive_doc(doc) {
+            doc = next_alive;
+        } else {
+            return;
+        }
+    }
+
     loop {
         // We position the scorer on a block that can reach
         // the threshold.
-        while scorer.block_max_score() < threshold {
+        loop {
+            if let Some(alive_bitset) = alive_bitset {
+                let (block_start, block_end) = scorer.current_block_range();
+                if !alive_bitset.has_alive_in_range(block_start, block_end) {
+                    let last_doc_in_block = scorer.last_doc_in_block();
+                    if last_doc_in_block == TERMINATED {
+                        return;
+                    }
+                    doc = last_doc_in_block + 1;
+
+                    // Skip to next alive doc
+                    match alive_bitset.next_alive_doc(doc) {
+                        Some(next_alive) => doc = next_alive,
+                        None => return,
+                    }
+
+                    scorer.seek_block(doc);
+                    continue;
+                }
+            }
+
+            // Block has alive docs, check if block_max_score meets threshold
+            if scorer.block_max_score() >= threshold {
+                break;
+            }
             let last_doc_in_block = scorer.last_doc_in_block();
             if last_doc_in_block == TERMINATED {
                 return;
             }
             doc = last_doc_in_block + 1;
+
+            // Skip to next alive doc if we have an alive bitset
+            if let Some(alive_bitset) = alive_bitset {
+                match alive_bitset.next_alive_doc(doc) {
+                    Some(next_alive) => doc = next_alive,
+                    None => return,
+                }
+            }
+
             scorer.seek_block(doc);
         }
         // Seek will effectively load that block.
@@ -241,6 +310,23 @@ pub fn block_wand_single_scorer(
         if doc == TERMINATED {
             break;
         }
+
+        // Ensure we're on an alive document
+        if let Some(alive_bitset) = alive_bitset {
+            if alive_bitset.is_deleted(doc) {
+                // Skip to next alive document
+                match alive_bitset.next_alive_doc(doc) {
+                    Some(next_alive) => {
+                        doc = scorer.seek(next_alive);
+                        if doc == TERMINATED {
+                            return;
+                        }
+                    }
+                    None => return,
+                }
+            }
+        }
+
         loop {
             let score = scorer.score();
             if score > threshold {
@@ -360,9 +446,9 @@ mod tests {
 
         if term_scorers.len() == 1 {
             let scorer = term_scorers.pop().unwrap();
-            super::block_wand_single_scorer(scorer, Score::MIN, callback);
+            super::block_wand_single_scorer(scorer, None, Score::MIN, callback);
         } else {
-            super::block_wand(term_scorers, Score::MIN, callback);
+            super::block_wand(term_scorers, None, Score::MIN, callback);
         }
         checkpoints
     }

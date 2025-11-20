@@ -78,6 +78,25 @@ impl AliveBitSet {
         &self.bitset
     }
 
+    /// Returns the next alive doc ID >= start_doc, or None if no such doc exists.
+    pub fn next_alive_doc(&self, start_doc: DocId) -> Option<DocId> {
+        if start_doc < self.bitset.max_value() && self.is_alive(start_doc) {
+            return Some(start_doc);
+        }
+
+        // Use the iterator to find the next alive doc
+        self.iter_alive().skip_while(|&doc| doc <= start_doc).next()
+    }
+
+    /// Returns true if there is at least one alive document in the range (start_doc, end_doc].
+    pub fn has_alive_in_range(&self, start_doc: DocId, end_doc: DocId) -> bool {
+        self.iter_alive()
+            .skip_while(|&doc| doc <= start_doc)
+            .take_while(|&doc| doc <= end_doc)
+            .next()
+            .is_some()
+    }
+
     /// The number of alive documents.
     pub fn num_alive_docs(&self) -> usize {
         self.num_alive_docs

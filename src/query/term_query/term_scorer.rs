@@ -95,6 +95,15 @@ impl TermScorer {
     pub fn last_doc_in_block(&self) -> DocId {
         self.postings.block_cursor.skip_reader().last_doc_in_block()
     }
+
+    /// Returns the document range (start, end] of the current block.
+    pub(crate) fn current_block_range(&self) -> (DocId, DocId) {
+        let skip_reader = self.postings.block_cursor.skip_reader();
+        (
+            skip_reader.last_doc_in_previous_block,
+            skip_reader.last_doc_in_block(),
+        )
+    }
 }
 
 impl DocSet for TermScorer {
