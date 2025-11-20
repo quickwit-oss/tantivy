@@ -15,7 +15,7 @@ pub(crate) struct BufAggregationCollector {
 }
 
 impl std::fmt::Debug for BufAggregationCollector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("SegmentAggregationResultsCollector")
             .field("staged_docs", &&self.staged_docs[..self.num_staged_docs])
             .field("num_staged_docs", &self.num_staged_docs)
