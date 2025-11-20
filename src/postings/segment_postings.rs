@@ -157,21 +157,12 @@ impl SegmentPostings {
     }
 
     /// Creates a SegmentPostings with filtering based on an alive bitset.
-    ///
-    /// This efficiently skips deleted or filtered documents during iteration.
-    /// When seeking to an excluded document, the seek is automatically redirected
-    /// to the next valid document. If this causes a seek past entire blocks,
-    /// those blocks are never decompressed, providing significant performance benefits.
     pub(crate) fn with_alive_bitset(mut self, alive_bitset: Option<AliveBitSet>) -> Self {
         self.alive_bitset = alive_bitset;
         self
     }
 
     /// Adjusts a target document ID to the next valid (non-excluded) document.
-    ///
-    /// If no alive bitset is provided, returns the target unchanged.
-    /// Otherwise, finds and returns the next valid document, or `TERMINATED`
-    /// if no valid documents remain.
     #[inline]
     fn adjust_target(&self, target: DocId) -> DocId {
         if target == TERMINATED {
