@@ -683,7 +683,7 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
             term_id,
             self.buckets.len()
         );
-        &mut self.buckets[term_id_usize as usize]
+        unsafe { self.buckets.get_unchecked_mut(term_id_usize) }
     }
 
     #[inline(always)]

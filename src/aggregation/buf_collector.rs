@@ -3,7 +3,12 @@ use super::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::DocId;
 
+#[cfg(test)]
 pub(crate) const DOC_BLOCK_SIZE: usize = 64;
+
+#[cfg(not(test))]
+pub(crate) const DOC_BLOCK_SIZE: usize = 256;
+
 pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
 
 /// BufAggregationCollector buffers documents before calling collect_block().
