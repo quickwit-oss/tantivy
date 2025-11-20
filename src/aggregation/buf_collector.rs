@@ -66,7 +66,6 @@ impl SegmentAggregationCollector for BufAggregationCollector {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         self.collector.collect_block(docs, agg_data)?;
-
         Ok(())
     }
 

@@ -181,6 +181,7 @@ mod tests_mmap {
         let field_name_out = ".";
         test_json_field_name(field_name_in, field_name_out);
     }
+
     #[test]
     fn test_json_field_dot() {
         // Test when field name contains a '.'

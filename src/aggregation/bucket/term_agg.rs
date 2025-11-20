@@ -335,6 +335,7 @@ impl TermsAggregationInternal {
 }
 
 impl<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>> for BufAggregationCollector {
+    #[inline(always)]
     fn from(sub_agg_blueprint_opt: &'a Option<Box<dyn SegmentAggregationCollector>>) -> Self {
         let sub_agg = sub_agg_blueprint_opt.as_ref().unwrap().clone_box();
         BufAggregationCollector::new(sub_agg)
@@ -463,24 +464,39 @@ pub(crate) fn build_segment_term_collector(
 
     // Decide whether to use a Vec-backed or HashMap-backed bucket storage.
     let terms_req_data = req_data.get_term_req_data(accessor_idx);
-    // TODO: has_missing_sentinel is not a real problem for terms if we choose it to be
-    // num_terms + 1 instead of u64::MAX
-    let has_missing_sentinel =
-        matches!(terms_req_data.missing_value_for_accessor, Some(val) if val == u64::MAX);
+
     // TODO: A better metric instead of is_top_level would be the number of buckets expected.
     // E.g. If term agg is not top level, but the parent is a bucket agg with less than 10 buckets,
     // we can still use Vec.
-    let can_use_vec =
-        terms_req_data.is_top_level && column_type == ColumnType::Str && !has_missing_sentinel;
-    // TODO: Benchmark to validate the threshold
-    const MAX_NUM_TERMS_FOR_VEC: usize = 1_024;
-    let num_terms = terms_req_data
-        .str_dict_column
-        .as_ref()
-        .map(|col| col.num_terms())
-        .unwrap_or(u64::MAX as usize);
+    let can_use_vec = terms_req_data.is_top_level;
 
-    if can_use_vec && num_terms < MAX_NUM_TERMS_FOR_VEC {
+    // TODO: Benchmark to validate the threshold
+    const MAX_NUM_TERMS_FOR_VEC: usize = 100;
+
+    // Let's see if we can use a vec to aggregate our data
+    // instead of a hashmap.
+    //
+    // To do so, we make sure all of the term id  we will
+    // meet will be in a small [0..range)
+    //
+    // There is a twist however. Missing values are represented by u64::MAX.
+    // For this reason, we will add and wrap 1 to all of our values.
+    //
+    // It will create an extra bucket if we don't have such a missing value,
+    // but will enable the optimization on more use cases.
+    let col_max_value = terms_req_data.accessor.max_value();
+    let max_term: usize = col_max_value
+        .saturating_add(1u64) // we want saturating here to deal with col max = u64::MAX
+        .max(
+            terms_req_data
+                .missing_value_for_accessor
+                .map(|v| v.wrapping_add(1))
+                .unwrap_or(0u64),
+        ) as usize;
+
+    // - use a Vec instead of a hashmap for our aggregation.
+    // - buffer aggregation of our child aggregations (in any)
+    if can_use_vec && max_term < MAX_NUM_TERMS_FOR_VEC {
         if has_sub_aggregations {
             let sub_agg_blueprint = &req_data
                 .get_term_req_data_mut(accessor_idx)
@@ -491,7 +507,7 @@ pub(crate) fn build_segment_term_collector(
                     // For example, return an error message or a default value
                     TantivyError::InternalError("Sub-aggregation blueprint not found".to_string())
                 })?;
-            let term_buckets = VecTermBuckets::new(num_terms, || {
+            let term_buckets = VecTermBuckets::new(max_term + 1, || {
                 let collector_clone = sub_agg_blueprint.clone_box();
                 BufAggregationCollector::new(collector_clone)
             });
@@ -501,7 +517,7 @@ pub(crate) fn build_segment_term_collector(
             };
             Ok(Box::new(collector))
         } else {
-            let term_buckets = VecTermBuckets::new(num_terms, || NoSubAgg);
+            let term_buckets = VecTermBuckets::new(max_term + 1, || NoSubAgg);
             let collector = SegmentTermCollector {
                 term_buckets,
                 accessor_idx,
@@ -536,6 +552,7 @@ struct Bucket<SubAgg> {
 }
 
 impl<SubAgg> Bucket<SubAgg> {
+    #[inline(always)]
     fn new(sub_agg: SubAgg) -> Self {
         Self { count: 0, sub_agg }
     }
@@ -554,22 +571,25 @@ where SubAgg: From<&'a Option<Box<dyn SegmentAggregationCollector>>>
 }
 
 /// Abstraction over the storage used for term buckets (counts only).
-pub trait AggMap: Clone + Debug + 'static {
-    type SubAgg: SegmentAggregationCollector + Debug + Clone + 'static;
+trait TermAggregationMap: Clone + Debug + 'static {
+    type SubAggregation: SegmentAggregationCollector + Debug + Clone + 'static;
 
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize;
 
-    /// Add an occurrence of the given term id.
+    /// Returns the bucket assocaited to a given term_id.
     fn term_entry(
         &mut self,
         term_id: u64,
-        _new_bucket_fn: impl FnOnce() -> Self::SubAgg,
-    ) -> &mut Bucket<Self::SubAgg>;
+        blue_print: &Option<Box<dyn SegmentAggregationCollector>>,
+    ) -> &mut Bucket<Self::SubAggregation>;
 
+    /// If the tree of aggregations contains buffered aggregations, flush them.
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()>;
 
-    fn into_vec(self) -> Vec<(u64, Bucket<Self::SubAgg>)>;
+    /// Returns the term aggregation as a vector of (term_id, bucket) pairs,
+    /// in any order.
+    fn into_vec(self) -> Vec<(u64, Bucket<Self::SubAggregation>)>;
 }
 
 #[derive(Clone, Debug)]
@@ -578,6 +598,7 @@ struct HashMapTermBuckets<SubAgg> {
 }
 
 impl<SubAgg> Default for HashMapTermBuckets<SubAgg> {
+    #[inline(always)]
     fn default() -> Self {
         Self {
             bucket_map: FxHashMap::default(),
@@ -585,10 +606,15 @@ impl<SubAgg> Default for HashMapTermBuckets<SubAgg> {
     }
 }
 
-impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> AggMap
-    for HashMapTermBuckets<SubAgg>
+impl<
+        SubAgg: Debug
+            + Clone
+            + SegmentAggregationCollector
+            + for<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>>
+            + 'static,
+    > TermAggregationMap for HashMapTermBuckets<SubAgg>
 {
-    type SubAgg = SubAgg;
+    type SubAggregation = SubAgg;
 
     #[inline]
     fn get_memory_consumption(&self) -> usize {
@@ -599,13 +625,14 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> AggMap
     fn term_entry(
         &mut self,
         term_id: u64,
-        new_bucket_fn: impl FnOnce() -> SubAgg,
+        sub_agg_blueprint: &Option<Box<dyn SegmentAggregationCollector>>,
     ) -> &mut Bucket<SubAgg> {
         self.bucket_map
             .entry(term_id)
-            .or_insert_with(|| Bucket::new(new_bucket_fn()))
+            .or_insert_with(|| Bucket::new(SubAgg::from(sub_agg_blueprint)))
     }
 
+    #[inline(always)]
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for bucket in self.bucket_map.values_mut() {
             bucket.sub_agg.flush(agg_data)?;
@@ -634,14 +661,18 @@ impl<SubAgg> VecTermBuckets<SubAgg> {
     }
 }
 
-impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> AggMap
+impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregationMap
     for VecTermBuckets<SubAgg>
 {
-    type SubAgg = SubAgg;
+    type SubAggregation = SubAgg;
 
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
-        1
+        // We do not include `std::mem::size_of::<Self>()`
+        // It is already measure by the parent aggregation.
+        //
+        // The root aggregation mem size is not measure but we do not care.
+        self.buckets.capacity() * std::mem::size_of::<Bucket<SubAgg>>()
     }
 
     /// Add an occurrence of the given term id.
@@ -649,18 +680,19 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> AggMap
     fn term_entry(
         &mut self,
         term_id: u64,
-        _new_bucket_fn: impl FnOnce() -> SubAgg,
+        _sub_agg_blueprint: &Option<Box<dyn SegmentAggregationCollector>>,
     ) -> &mut Bucket<SubAgg> {
-        let term_id_usize = term_id as usize;
+        let term_id_usize = (term_id as usize).wrapping_add(1);
         debug_assert!(
             term_id_usize < self.buckets.len(),
             "term_id {} out of bounds for VecTermBuckets (len={})",
             term_id,
             self.buckets.len()
         );
-        &mut self.buckets[term_id as usize]
+        &mut self.buckets[term_id_usize]
     }
 
+    #[inline(always)]
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for bucket in &mut self.buckets {
             if bucket.count > 0 {
@@ -674,8 +706,8 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> AggMap
         self.buckets
             .into_iter()
             .enumerate()
-            .map(|(term_id, bucket)| (term_id as u64, bucket))
             .filter(|(_, bucket)| bucket.count > 0)
+            .map(|(term_id, bucket)| ((term_id as u64).wrapping_sub(1), bucket))
             .collect()
     }
 }
@@ -690,7 +722,7 @@ impl<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>> for NoSubAgg {
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
 #[derive(Clone, Debug)]
-pub struct SegmentTermCollector<TermMap> {
+struct SegmentTermCollector<TermMap> {
     /// The buckets containing the aggregation data.
     term_buckets: TermMap,
     accessor_idx: usize,
@@ -703,8 +735,8 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
 
 impl<TermMap> SegmentAggregationCollector for SegmentTermCollector<TermMap>
 where
-    TermMap: AggMap,
-    TermMap::SubAgg: for<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>>,
+    TermMap: TermAggregationMap,
+    TermMap::SubAggregation: for<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>>,
 {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
@@ -750,16 +782,16 @@ where
                 .fetch_block(docs, &req_data.accessor);
         }
 
-        if std::any::TypeId::of::<NoSubAgg>() == std::any::TypeId::of::<TermMap::SubAgg>() {
+        if std::any::TypeId::of::<NoSubAgg>() == std::any::TypeId::of::<TermMap::SubAggregation>() {
             for term_id in req_data.column_block_accessor.iter_vals() {
                 if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
                     if !allowed_bs.contains(term_id as u32) {
                         continue;
                     }
                 }
-                let bucket = self.term_buckets.term_entry(term_id, || {
-                    TermMap::SubAgg::from(&req_data.sub_aggregation_blueprint)
-                });
+                let bucket = self
+                    .term_buckets
+                    .term_entry(term_id, &req_data.sub_aggregation_blueprint);
                 bucket.count += 1;
             }
         } else {
@@ -772,9 +804,9 @@ where
                         continue;
                     }
                 }
-                let bucket = self.term_buckets.term_entry(term_id, || {
-                    TermMap::SubAgg::from(&req_data.sub_aggregation_blueprint)
-                });
+                let bucket = self
+                    .term_buckets
+                    .term_entry(term_id, &req_data.sub_aggregation_blueprint);
 
                 bucket.count += 1;
                 bucket.sub_agg.collect(doc, agg_data)?;
@@ -793,6 +825,7 @@ where
         Ok(())
     }
 
+    #[inline(always)]
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         self.term_buckets.flush(agg_data)?;
         Ok(())
@@ -800,12 +833,10 @@ where
 }
 
 impl<TermMap> SegmentTermCollector<TermMap>
-where TermMap: AggMap
+where TermMap: TermAggregationMap
 {
     fn get_memory_consumption(&self) -> usize {
-        let self_mem = std::mem::size_of::<Self>();
-        let term_buckets_mem = self.term_buckets.get_memory_consumption();
-        self_mem + term_buckets_mem
+        self.term_buckets.get_memory_consumption()
     }
 
     #[inline]
@@ -814,7 +845,7 @@ where TermMap: AggMap
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
         let term_req = agg_data.get_term_req_data(self.accessor_idx);
-        let mut entries: Vec<(u64, Bucket<TermMap::SubAgg>)> = self.term_buckets.into_vec();
+        let mut entries: Vec<(u64, Bucket<TermMap::SubAggregation>)> = self.term_buckets.into_vec();
 
         let order_by_sub_aggregation =
             matches!(term_req.req.order.target, OrderTarget::SubAggregation(_));
@@ -854,7 +885,7 @@ where TermMap: AggMap
         dict.reserve(entries.len());
 
         let into_intermediate_bucket_entry =
-            |bucket: Bucket<TermMap::SubAgg>| -> crate::Result<IntermediateTermBucketEntry> {
+            |bucket: Bucket<TermMap::SubAggregation>| -> crate::Result<IntermediateTermBucketEntry> {
                 let intermediate_entry = if term_req.sub_aggregation_blueprint.as_ref().is_some() {
                     let mut sub_aggregation_res = IntermediateAggregationResults::default();
                     // TODO remove box new
@@ -919,7 +950,7 @@ where TermMap: AggMap
             // Sort by term ord
             entries.sort_unstable_by_key(|bucket| bucket.0);
 
-            let (term_ids, buckets): (Vec<u64>, Vec<Bucket<TermMap::SubAgg>>) =
+            let (term_ids, buckets): (Vec<u64>, Vec<Bucket<TermMap::SubAggregation>>) =
                 entries.into_iter().unzip();
             let mut buckets_it = buckets.into_iter();
 
@@ -1040,11 +1071,7 @@ where TermMap: AggMap
 pub(crate) trait GetDocCount {
     fn doc_count(&self) -> u64;
 }
-impl GetDocCount for (u64, u32) {
-    fn doc_count(&self) -> u64 {
-        self.1 as u64
-    }
-}
+
 impl GetDocCount for (String, IntermediateTermBucketEntry) {
     fn doc_count(&self) -> u64 {
         self.1.doc_count as u64
