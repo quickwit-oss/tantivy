@@ -334,26 +334,25 @@ impl TermsAggregationInternal {
     }
 }
 
-impl<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>> for BufAggregationCollector {
+impl<'a> From<&'a dyn SegmentAggregationCollector> for BufAggregationCollector {
     #[inline(always)]
-    fn from(sub_agg_blueprint_opt: &'a Option<Box<dyn SegmentAggregationCollector>>) -> Self {
-        let sub_agg = sub_agg_blueprint_opt.as_ref().unwrap().clone_box();
+    fn from(sub_agg_blueprint_opt: &'a dyn SegmentAggregationCollector) -> Self {
+        let sub_agg = sub_agg_blueprint_opt.clone_box();
         BufAggregationCollector::new(sub_agg)
     }
 }
 
 #[derive(Debug, Clone)]
-struct BoxedSubAgg(Box<dyn SegmentAggregationCollector>);
+struct BoxedAggregation(Box<dyn SegmentAggregationCollector>);
 
-impl<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>> for BoxedSubAgg {
+impl<'a> From<&'a dyn SegmentAggregationCollector> for BoxedAggregation {
     #[inline(always)]
-    fn from(sub_agg_blueprint: &'a Option<Box<dyn SegmentAggregationCollector>>) -> Self {
-        let sub_agg = sub_agg_blueprint.as_ref().unwrap().clone_box();
-        Self(sub_agg)
+    fn from(sub_agg_blueprint: &'a dyn SegmentAggregationCollector) -> Self {
+        BoxedAggregation(sub_agg_blueprint.clone_box())
     }
 }
 
-impl SegmentAggregationCollector for BoxedSubAgg {
+impl SegmentAggregationCollector for BoxedAggregation {
     #[inline(always)]
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
@@ -526,8 +525,8 @@ pub(crate) fn build_segment_term_collector(
         }
     } else {
         if has_sub_aggregations {
-            let term_buckets: HashMapTermBuckets<BoxedSubAgg> = HashMapTermBuckets::default();
-            let collector: SegmentTermCollector<HashMapTermBuckets<BoxedSubAgg>> =
+            let term_buckets: HashMapTermBuckets<BoxedAggregation> = HashMapTermBuckets::default();
+            let collector: SegmentTermCollector<HashMapTermBuckets<BoxedAggregation>> =
                 SegmentTermCollector {
                     term_buckets,
                     accessor_idx,
@@ -558,18 +557,6 @@ impl<SubAgg> Bucket<SubAgg> {
     }
 }
 
-impl<'a, SubAgg> From<&'a Option<Box<dyn SegmentAggregationCollector>>> for Bucket<SubAgg>
-where SubAgg: From<&'a Option<Box<dyn SegmentAggregationCollector>>>
-{
-    #[inline(always)]
-    fn from(sub_agg_blueprint: &'a Option<Box<dyn SegmentAggregationCollector>>) -> Self {
-        Self {
-            count: 0,
-            sub_agg: sub_agg_blueprint.into(),
-        }
-    }
-}
-
 /// Abstraction over the storage used for term buckets (counts only).
 trait TermAggregationMap: Clone + Debug + 'static {
     type SubAggregation: SegmentAggregationCollector + Debug + Clone + 'static;
@@ -581,7 +568,7 @@ trait TermAggregationMap: Clone + Debug + 'static {
     fn term_entry(
         &mut self,
         term_id: u64,
-        blue_print: &Option<Box<dyn SegmentAggregationCollector>>,
+        blue_print: &dyn SegmentAggregationCollector,
     ) -> &mut Bucket<Self::SubAggregation>;
 
     /// If the tree of aggregations contains buffered aggregations, flush them.
@@ -610,7 +597,7 @@ impl<
         SubAgg: Debug
             + Clone
             + SegmentAggregationCollector
-            + for<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>>
+            + for<'a> From<&'a dyn SegmentAggregationCollector>
             + 'static,
     > TermAggregationMap for HashMapTermBuckets<SubAgg>
 {
@@ -625,7 +612,7 @@ impl<
     fn term_entry(
         &mut self,
         term_id: u64,
-        sub_agg_blueprint: &Option<Box<dyn SegmentAggregationCollector>>,
+        sub_agg_blueprint: &dyn SegmentAggregationCollector,
     ) -> &mut Bucket<SubAgg> {
         self.bucket_map
             .entry(term_id)
@@ -680,7 +667,7 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
     fn term_entry(
         &mut self,
         term_id: u64,
-        _sub_agg_blueprint: &Option<Box<dyn SegmentAggregationCollector>>,
+        _sub_agg_blueprint: &dyn SegmentAggregationCollector,
     ) -> &mut Bucket<SubAgg> {
         let term_id_usize = (term_id as usize).wrapping_add(1);
         debug_assert!(
@@ -689,7 +676,7 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
             term_id,
             self.buckets.len()
         );
-        &mut self.buckets[term_id_usize]
+        &mut self.buckets[term_id_usize as usize]
     }
 
     #[inline(always)]
@@ -712,9 +699,9 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
     }
 }
 
-impl<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>> for NoSubAgg {
+impl<'a> From<&'a dyn SegmentAggregationCollector> for NoSubAgg {
     #[inline(always)]
-    fn from(_: &'a Option<Box<dyn SegmentAggregationCollector>>) -> Self {
+    fn from(_: &'a dyn SegmentAggregationCollector) -> Self {
         Self
     }
 }
@@ -736,7 +723,7 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
 impl<TermMap> SegmentAggregationCollector for SegmentTermCollector<TermMap>
 where
     TermMap: TermAggregationMap,
-    TermMap::SubAggregation: for<'a> From<&'a Option<Box<dyn SegmentAggregationCollector>>>,
+    TermMap::SubAggregation: for<'a> From<&'a dyn SegmentAggregationCollector>,
 {
     fn add_intermediate_aggregation_result(
         self: Box<Self>,
@@ -789,12 +776,19 @@ where
                         continue;
                     }
                 }
-                let bucket = self
-                    .term_buckets
-                    .term_entry(term_id, &req_data.sub_aggregation_blueprint);
+                let bucket = self.term_buckets.term_entry(term_id, &NoSubAgg);
                 bucket.count += 1;
             }
         } else {
+            let Some(sub_aggregation_blueprint) = req_data
+                .sub_aggregation_blueprint
+                .as_ref()
+                .map(|sub_agg| &**sub_agg)
+            else {
+                return Err(TantivyError::InternalError(
+                    "Could not find sub-aggregation blueprint".to_string(),
+                ));
+            };
             for (doc, term_id) in req_data
                 .column_block_accessor
                 .iter_docid_vals(docs, &req_data.accessor)
@@ -806,8 +800,7 @@ where
                 }
                 let bucket = self
                     .term_buckets
-                    .term_entry(term_id, &req_data.sub_aggregation_blueprint);
-
+                    .term_entry(term_id, sub_aggregation_blueprint);
                 bucket.count += 1;
                 bucket.sub_agg.collect(doc, agg_data)?;
             }
