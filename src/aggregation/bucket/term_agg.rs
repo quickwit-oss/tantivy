@@ -632,6 +632,13 @@ impl<
     }
 }
 
+/// An optimized term map implementation for a compact set of term ordinals.
+///
+/// When built for `num_terms`, this implementation will accept term ordinals
+/// between `0..num_terms - 2` and u64::MAX.
+///
+/// This is because we shift the term ordinal by wrapping_sub in order to deal
+/// with u64::MAX as it is used as a placeholder for missing terms.
 #[derive(Clone, Debug)]
 struct VecTermBuckets<SubAgg> {
     buckets: Vec<Bucket<SubAgg>>,
