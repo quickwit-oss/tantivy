@@ -474,25 +474,9 @@ pub(crate) fn build_segment_term_collector(
 
     // Let's see if we can use a vec to aggregate our data
     // instead of a hashmap.
-    //
-    // To do so, we make sure all of the term id  we will
-    // meet will be in a small [0..range)
-    //
-    // There is a twist however. Missing values are represented by u64::MAX.
-    // For this reason, we will add and wrap 1 to all of our values.
-    //
-    // It will create an extra bucket if we don't have such a missing value,
-    // but will enable the optimization on more use cases.
-    // TODO: Assign the next free value instead of `u64::MAX` for missing term
     let col_max_value = terms_req_data.accessor.max_value();
-    let max_term: usize = col_max_value
-        .saturating_add(1u64) // we want saturating here to deal with col max = u64::MAX
-        .max(
-            terms_req_data
-                .missing_value_for_accessor
-                .map(|v| v.wrapping_add(1))
-                .unwrap_or(0u64),
-        ) as usize;
+    let max_term: usize =
+        col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64)) as usize;
 
     // - use a Vec instead of a hashmap for our aggregation.
     // - buffer aggregation of our child aggregations (in any)
@@ -634,12 +618,6 @@ impl<
 }
 
 /// An optimized term map implementation for a compact set of term ordinals.
-///
-/// When built for `num_terms`, this implementation will accept term ordinals
-/// between `0..num_terms - 2` and u64::MAX.
-///
-/// This is because we shift the term ordinal by wrapping_sub in order to deal
-/// with u64::MAX as it is used as a placeholder for missing terms.
 #[derive(Clone, Debug)]
 struct VecTermBuckets<SubAgg> {
     buckets: Vec<Bucket<SubAgg>>,
@@ -677,7 +655,7 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
         term_id: u64,
         _sub_agg_blueprint: &dyn SegmentAggregationCollector,
     ) -> &mut Bucket<SubAgg> {
-        let term_id_usize = (term_id as usize).wrapping_add(1);
+        let term_id_usize = term_id as usize;
         debug_assert!(
             term_id_usize < self.buckets.len(),
             "term_id {} out of bounds for VecTermBuckets (len={})",
@@ -702,7 +680,7 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
             .into_iter()
             .enumerate()
             .filter(|(_, bucket)| bucket.count > 0)
-            .map(|(term_id, bucket)| ((term_id as u64).wrapping_sub(1), bucket))
+            .map(|(term_id, bucket)| (term_id as u64, bucket))
             .collect()
     }
 }
@@ -739,10 +717,8 @@ where
         results: &mut IntermediateAggregationResults,
     ) -> crate::Result<()> {
         let name = agg_data.get_term_req_data(self.accessor_idx).name.clone();
-
         let bucket = self.into_intermediate_bucket_result(agg_data)?;
         results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
-
         Ok(())
     }
 
@@ -830,6 +806,30 @@ where
     }
 }
 
+/// Missing value are represented as a sentinel value in the column.
+///
+/// This function extracts the missing value from the entries vector,
+/// computes the intermediate key, and returns it the key and the bucket
+/// in an Option.
+fn extract_missing_value<T>(
+    entries: &mut Vec<(u64, T)>,
+    term_req: &TermsAggReqData,
+) -> Option<(IntermediateKey, T)> {
+    let missing_sentinel = term_req.missing_value_for_accessor?;
+    let missing_value_entry_pos = entries
+        .iter()
+        .position(|(term_id, _)| *term_id == missing_sentinel)?;
+    let (_term_id, bucket) = entries.swap_remove(missing_value_entry_pos);
+    let missing_key = term_req.req.missing.as_ref()?;
+    let key = match missing_key {
+        Key::Str(missing) => IntermediateKey::Str(missing.clone()),
+        Key::F64(val) => IntermediateKey::F64(*val),
+        Key::U64(val) => IntermediateKey::U64(*val),
+        Key::I64(val) => IntermediateKey::I64(*val),
+    };
+    Some((key, bucket))
+}
+
 impl<TermMap> SegmentTermCollector<TermMap>
 where TermMap: TermAggregationMap
 {
@@ -910,39 +910,10 @@ where TermMap: TermAggregationMap
                 .map(|el| el.dictionary())
                 .unwrap_or_else(|| &fallback_dict);
 
-            // special case for missing key
-            // TODO fix me
-            let mut buffer = Vec::new();
-            if let Some(index) = entries.iter().position(|value| value.0 == u64::MAX) {
-                let (_, bucket) = entries.swap_remove(index);
+            if let Some((intermediate_key, bucket)) = extract_missing_value(&mut entries, term_req)
+            {
                 let intermediate_entry = into_intermediate_bucket_entry(bucket)?;
-                let missing_key = term_req
-                    .req
-                    .missing
-                    .as_ref()
-                    .expect("Found placeholder term_id but `missing` is None");
-                match missing_key {
-                    Key::Str(missing) => {
-                        buffer.clear();
-                        buffer.extend_from_slice(missing.as_bytes());
-                        dict.insert(
-                            IntermediateKey::Str(
-                                String::from_utf8(buffer.to_vec())
-                                    .expect("could not convert to String"),
-                            ),
-                            intermediate_entry,
-                        );
-                    }
-                    Key::F64(val) => {
-                        dict.insert(IntermediateKey::F64(*val), intermediate_entry);
-                    }
-                    Key::U64(val) => {
-                        dict.insert(IntermediateKey::U64(*val), intermediate_entry);
-                    }
-                    Key::I64(val) => {
-                        dict.insert(IntermediateKey::I64(*val), intermediate_entry);
-                    }
-                }
+                dict.insert(intermediate_key, intermediate_entry);
             }
 
             // Sort by term ord
@@ -952,7 +923,6 @@ where TermMap: TermAggregationMap
                 entries.into_iter().unzip();
             let mut buckets_it = buckets.into_iter();
 
-            // let mut idx = 0;
             term_dict.sorted_ords_to_term_cb(term_ids.into_iter(), |term| {
                 let bucket = buckets_it.next().unwrap();
                 let intermediate_entry =
