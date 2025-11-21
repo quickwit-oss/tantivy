@@ -12,7 +12,7 @@ use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations
 use crate::aggregation::bucket::{
     FilterAggReqData, HistogramAggReqData, HistogramBounds, IncludeExcludeParam,
     MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector, SegmentHistogramCollector,
-    SegmentRangeCollector, SegmentTermCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
+    SegmentRangeCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
     TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
@@ -373,9 +373,7 @@ pub(crate) fn build_segment_agg_collector(
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
     match node.kind {
-        AggKind::Terms => Ok(Box::new(SegmentTermCollector::from_req_and_validate(
-            req, node,
-        )?)),
+        AggKind::Terms => crate::aggregation::bucket::build_segment_term_collector(req, node),
         AggKind::MissingTerm => {
             let req_data = &mut req.per_request.missing_term_req_data[node.idx_in_req_data];
             if req_data.accessors.is_empty() {
@@ -498,7 +496,7 @@ pub(crate) fn build_aggregations_data_from_req(
     };
 
     for (name, agg) in aggs.iter() {
-        let nodes = build_nodes(name, agg, reader, segment_ordinal, &mut data)?;
+        let nodes = build_nodes(name, agg, reader, segment_ordinal, &mut data, true)?;
         data.per_request.agg_tree.extend(nodes);
     }
     Ok(data)
@@ -510,6 +508,7 @@ fn build_nodes(
     reader: &SegmentReader,
     segment_ordinal: SegmentOrdinal,
     data: &mut AggregationsSegmentCtx,
+    is_top_level: bool,
 ) -> crate::Result<Vec<AggRefNode>> {
     use AggregationVariants::*;
     match &req.agg {
@@ -596,6 +595,7 @@ fn build_nodes(
             data,
             &req.sub_aggregation,
             TermsOrCardinalityRequest::Terms(terms_req.clone()),
+            is_top_level,
         ),
         Cardinality(card_req) => build_terms_or_cardinality_nodes(
             agg_name,
@@ -606,6 +606,7 @@ fn build_nodes(
             data,
             &req.sub_aggregation,
             TermsOrCardinalityRequest::Cardinality(card_req.clone()),
+            is_top_level,
         ),
         Average(AverageAggregation { field, missing, .. })
         | Max(MaxAggregation { field, missing, .. })
@@ -734,7 +735,7 @@ fn build_nodes(
             // Build the query and evaluator upfront
             let schema = reader.schema();
             let tokenizers = &data.context.tokenizers;
-            let query = filter_req.parse_query(&schema, tokenizers)?;
+            let query = filter_req.parse_query(schema, tokenizers)?;
             let evaluator = crate::aggregation::bucket::DocumentQueryEvaluator::new(
                 query,
                 schema.clone(),
@@ -771,7 +772,14 @@ fn build_children(
 ) -> crate::Result<Vec<AggRefNode>> {
     let mut children = Vec::new();
     for (name, agg) in aggs.iter() {
-        children.extend(build_nodes(name, agg, reader, segment_ordinal, data)?);
+        children.extend(build_nodes(
+            name,
+            agg,
+            reader,
+            segment_ordinal,
+            data,
+            false,
+        )?);
     }
     Ok(children)
 }
@@ -835,6 +843,7 @@ fn build_terms_or_cardinality_nodes(
     data: &mut AggregationsSegmentCtx,
     sub_aggs: &Aggregations,
     req: TermsOrCardinalityRequest,
+    is_top_level: bool,
 ) -> crate::Result<Vec<AggRefNode>> {
     let mut nodes = Vec::new();
 
@@ -891,7 +900,7 @@ fn build_terms_or_cardinality_nodes(
         let missing_value_for_accessor = if use_special_missing_agg {
             None
         } else if let Some(m) = missing.as_ref() {
-            get_missing_val_as_u64_lenient(column_type, m, field_name)?
+            get_missing_val_as_u64_lenient(column_type, accessor.max_value(), m, field_name)?
         } else {
             None
         };
@@ -924,6 +933,7 @@ fn build_terms_or_cardinality_nodes(
                     sub_aggregation_blueprint: None,
                     sug_aggregations: sub_aggs.clone(),
                     allowed_term_ids,
+                    is_top_level,
                 });
                 (idx_in_req_data, AggKind::Terms)
             }

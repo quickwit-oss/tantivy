@@ -3,7 +3,12 @@ use super::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::DocId;
 
+#[cfg(test)]
 pub(crate) const DOC_BLOCK_SIZE: usize = 64;
+
+#[cfg(not(test))]
+pub(crate) const DOC_BLOCK_SIZE: usize = 256;
+
 pub(crate) type DocBlock = [DocId; DOC_BLOCK_SIZE];
 
 /// BufAggregationCollector buffers documents before calling collect_block().
@@ -15,7 +20,7 @@ pub(crate) struct BufAggregationCollector {
 }
 
 impl std::fmt::Debug for BufAggregationCollector {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("SegmentAggregationResultsCollector")
             .field("staged_docs", &&self.staged_docs[..self.num_staged_docs])
             .field("num_staged_docs", &self.num_staged_docs)
@@ -66,7 +71,6 @@ impl SegmentAggregationCollector for BufAggregationCollector {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         self.collector.collect_block(docs, agg_data)?;
-
         Ok(())
     }
 
