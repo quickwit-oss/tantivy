@@ -43,26 +43,5 @@ fn bench_group(mut runner: InputGroup<Column>) {
         }
         black_box(sum);
     });
-    runner.register("access_first_vals", |column| {
-        let mut sum = 0;
-        const BLOCK_SIZE: usize = 32;
-        let mut docs = vec![0; BLOCK_SIZE];
-        let mut buffer = vec![None; BLOCK_SIZE];
-        for i in (0..NUM_DOCS).step_by(BLOCK_SIZE) {
-            // fill docs
-            #[allow(clippy::needless_range_loop)]
-            for idx in 0..BLOCK_SIZE {
-                docs[idx] = idx as u32 + i;
-            }
-
-            column.first_vals(&docs, &mut buffer);
-            for val in buffer.iter() {
-                let Some(val) = val else { continue };
-                sum += *val;
-            }
-        }
-
-        black_box(sum);
-    });
     runner.run();
 }
