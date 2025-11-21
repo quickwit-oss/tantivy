@@ -480,6 +480,7 @@ pub(crate) fn build_segment_term_collector(
 
     // - use a Vec instead of a hashmap for our aggregation.
     // - buffer aggregation of our child aggregations (in any)
+    #[allow(clippy::collapsible_else_if)]
     if can_use_vec && max_term < MAX_NUM_TERMS_FOR_VEC {
         if has_sub_aggregations {
             let sub_agg_blueprint = &req_data

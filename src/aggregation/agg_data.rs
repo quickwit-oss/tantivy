@@ -735,7 +735,7 @@ fn build_nodes(
             // Build the query and evaluator upfront
             let schema = reader.schema();
             let tokenizers = &data.context.tokenizers;
-            let query = filter_req.parse_query(&schema, tokenizers)?;
+            let query = filter_req.parse_query(schema, tokenizers)?;
             let evaluator = crate::aggregation::bucket::DocumentQueryEvaluator::new(
                 query,
                 schema.clone(),
