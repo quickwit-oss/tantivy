@@ -787,10 +787,7 @@ where
                 bucket.count += 1;
             }
         } else {
-            let Some(sub_aggregation_blueprint) = req_data
-                .sub_aggregation_blueprint
-                .as_ref()
-                .map(|sub_agg| &**sub_agg)
+            let Some(sub_aggregation_blueprint) = req_data.sub_aggregation_blueprint.as_deref()
             else {
                 return Err(TantivyError::InternalError(
                     "Could not find sub-aggregation blueprint".to_string(),
