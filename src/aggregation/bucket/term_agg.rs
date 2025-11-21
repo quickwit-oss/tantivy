@@ -483,6 +483,7 @@ pub(crate) fn build_segment_term_collector(
     //
     // It will create an extra bucket if we don't have such a missing value,
     // but will enable the optimization on more use cases.
+    // TODO: Assign the next free value instead of `u64::MAX` for missing term
     let col_max_value = terms_req_data.accessor.max_value();
     let max_term: usize = col_max_value
         .saturating_add(1u64) // we want saturating here to deal with col max = u64::MAX
