@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::mem;
 
 use serde::{Deserialize, Serialize};
-use crate::tokenizer::Language::Polish;
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 #[derive(Clone)]
