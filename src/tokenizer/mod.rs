@@ -255,8 +255,6 @@ pub(crate) mod tests {
         assert_token(&tokens[2], 2, "podatnik", 22, 31);
     }
 
-
-
     #[test]
     fn test_non_en_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();

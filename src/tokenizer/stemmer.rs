@@ -2,10 +2,11 @@ use std::borrow::Cow;
 use std::mem;
 
 use serde::{Deserialize, Serialize};
+
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 #[derive(Clone)]
-enum StemmerAlgorithm{
+enum StemmerAlgorithm {
     Rust(rust_stemmers::Algorithm),
     Tantivy(fn(&str) -> Cow<str>),
 }
@@ -112,13 +113,9 @@ impl<T: Tokenizer> Tokenizer for StemmerFilter<T> {
     type TokenStream<'a> = StemmerTokenStream<T::TokenStream<'a>>;
 
     fn token_stream<'a>(&'a mut self, text: &'a str) -> Self::TokenStream<'a> {
-        let stemmer= match self.stemmer_algorithm{
-            StemmerAlgorithm::Rust(alg) => {
-                StemmerImpl::Rust(rust_stemmers::Stemmer::create(alg))
-            }
-            StemmerAlgorithm::Tantivy(f) => {
-                StemmerImpl::Tantivy(f)
-            }
+        let stemmer = match self.stemmer_algorithm {
+            StemmerAlgorithm::Rust(alg) => StemmerImpl::Rust(rust_stemmers::Stemmer::create(alg)),
+            StemmerAlgorithm::Tantivy(f) => StemmerImpl::Tantivy(f),
         };
         StemmerTokenStream {
             tail: self.inner.token_stream(text),
@@ -140,13 +137,9 @@ impl<T: TokenStream> TokenStream for StemmerTokenStream<T> {
             return false;
         }
         let token = self.tail.token_mut();
-        let stemmed_str = match self.stemmer{
-            StemmerImpl::Rust(ref s) => {
-                s.stem(&token.text)
-            }
-            StemmerImpl::Tantivy(f) => {
-                f(&token.text)
-            }
+        let stemmed_str = match self.stemmer {
+            StemmerImpl::Rust(ref s) => s.stem(&token.text),
+            StemmerImpl::Tantivy(f) => f(&token.text),
         };
         match stemmed_str {
             Cow::Owned(stemmed_str) => token.text = stemmed_str,
