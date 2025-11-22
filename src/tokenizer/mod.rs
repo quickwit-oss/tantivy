@@ -227,6 +227,37 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_pl_tokenizer() {
+        let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register(
+            "pl_stem",
+            TextAnalyzer::builder(SimpleTokenizer::default())
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser)
+                .filter(Stemmer::new(Language::Polish))
+                .build(),
+        );
+
+        let mut pl_tokenizer = tokenizer_manager.get("pl_stem").unwrap();
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            pl_tokenizer
+                .token_stream("Cześć, szczęśliwy podatniku!")
+                .process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 3);
+        assert_token(&tokens[0], 0, "cze", 0, 7);
+        assert_token(&tokens[1], 1, "szczęśliw", 9, 21);
+        assert_token(&tokens[2], 2, "podatnik", 22, 31);
+    }
+
+
+
+    #[test]
     fn test_non_en_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
