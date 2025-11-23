@@ -128,12 +128,15 @@ impl Weight for FastFieldRangeWeight {
                         BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
                     )
                 }
-                Type::Bool | Type::Facet | Type::Bytes | Type::Json | Type::IpAddr => {
-                    Err(crate::TantivyError::InvalidArgument(format!(
-                        "unsupported value bytes type in json term value_bytes {:?}",
-                        term_value.typ()
-                    )))
-                }
+                Type::Bool
+                | Type::Facet
+                | Type::Bytes
+                | Type::Json
+                | Type::IpAddr
+                | Type::Spatial => Err(crate::TantivyError::InvalidArgument(format!(
+                    "unsupported value bytes type in json term value_bytes {:?}",
+                    term_value.typ()
+                ))),
             }
         } else if field_type.is_ip_addr() {
             let parse_ip_from_bytes = |term: &Term| {
@@ -417,7 +420,7 @@ pub(crate) fn maps_to_u64_fastfield(typ: Type) -> bool {
     match typ {
         Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date => true,
         Type::IpAddr => false,
-        Type::Str | Type::Facet | Type::Bytes | Type::Json => false,
+        Type::Str | Type::Facet | Type::Bytes | Type::Json | Type::Spatial => false,
     }
 }
 

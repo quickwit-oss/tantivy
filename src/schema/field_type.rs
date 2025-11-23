@@ -9,6 +9,7 @@ use serde_json::Value as JsonValue;
 use thiserror::Error;
 
 use super::ip_options::IpAddrOptions;
+use super::spatial_options::SpatialOptions;
 use super::IntoIpv6Addr;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
@@ -16,6 +17,7 @@ use crate::schema::{
     DateOptions, Facet, IndexRecordOption, JsonObjectOptions, NumericOptions, OwnedValue,
     TextFieldIndexing, TextOptions,
 };
+use crate::spatial::geometry::Geometry;
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::PreTokenizedString;
@@ -71,6 +73,8 @@ pub enum Type {
     Json = b'j',
     /// IpAddr
     IpAddr = b'p',
+    /// Spatial
+    Spatial = b't',
 }
 
 impl From<ColumnType> for Type {
@@ -139,6 +143,7 @@ impl Type {
             Type::Bytes => "Bytes",
             Type::Json => "Json",
             Type::IpAddr => "IpAddr",
+            Type::Spatial => "Spatial",
         }
     }
 
@@ -189,6 +194,8 @@ pub enum FieldType {
     JsonObject(JsonObjectOptions),
     /// IpAddr field
     IpAddr(IpAddrOptions),
+    /// Spatial field
+    Spatial(SpatialOptions),
 }
 
 impl FieldType {
@@ -205,6 +212,7 @@ impl FieldType {
             FieldType::Bytes(_) => Type::Bytes,
             FieldType::JsonObject(_) => Type::Json,
             FieldType::IpAddr(_) => Type::IpAddr,
+            FieldType::Spatial(_) => Type::Spatial,
         }
     }
 
@@ -241,6 +249,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
+            FieldType::Spatial(ref _spatial_options) => true,
         }
     }
 
@@ -278,6 +287,7 @@ impl FieldType {
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_fast(),
             FieldType::Facet(_) => true,
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_fast(),
+            FieldType::Spatial(_) => false,
         }
     }
 
@@ -297,6 +307,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
             FieldType::JsonObject(ref _json_object_options) => false,
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.fieldnorms(),
+            FieldType::Spatial(_) => false,
         }
     }
 
@@ -348,6 +359,8 @@ impl FieldType {
                     None
                 }
             }
+            FieldType::Spatial(_) => None, /* Geometry types cannot be indexed in the inverted
+                                            * index. */
         }
     }
 
@@ -449,6 +462,10 @@ impl FieldType {
 
                         Ok(OwnedValue::IpAddr(ip_addr.into_ipv6_addr()))
                     }
+                    FieldType::Spatial(_) => Err(ValueParsingError::TypeError {
+                        expected: "spatial field parsing not implemented",
+                        json: JsonValue::String(field_text),
+                    }),
                 }
             }
             JsonValue::Number(field_val_num) => match self {
@@ -508,6 +525,10 @@ impl FieldType {
                     expected: "a string with an ip addr",
                     json: JsonValue::Number(field_val_num),
                 }),
+                FieldType::Spatial(_) => Err(ValueParsingError::TypeError {
+                    expected: "spatial field parsing not implemented",
+                    json: JsonValue::Number(field_val_num),
+                }),
             },
             JsonValue::Object(json_map) => match self {
                 FieldType::Str(_) => {
@@ -523,6 +544,14 @@ impl FieldType {
                     }
                 }
                 FieldType::JsonObject(_) => Ok(OwnedValue::from(json_map)),
+                FieldType::Spatial(_) => Ok(OwnedValue::Geometry(
+                    Geometry::from_geojson(&json_map).map_err(|e| {
+                        ValueParsingError::ParseError {
+                            error: format!("{:?}", e),
+                            json: JsonValue::Object(json_map),
+                        }
+                    })?,
+                )),
                 _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
                     json: JsonValue::Object(json_map),
