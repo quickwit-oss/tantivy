@@ -14,8 +14,8 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::query::term_query::TermScorer;
     use crate::query::{
-        EnableScoring, Intersection, Occur, Query, QueryParser, RequiredOptionalScorer, Scorer,
-        SumCombiner, TermQuery,
+        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser,
+        RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
@@ -309,6 +309,69 @@ mod tests {
         let query = BooleanQuery::from(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
         let explanation = query.explain(&searcher, DocAddress::new(0, 0u32))?;
         assert_nearly_equals!(explanation.value(), std::f32::consts::LN_2);
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_boolean_weight_optimization() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text_field=>"hello"))?;
+        index_writer.add_document(doc!(text_field=>"hello happy"))?;
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let term_a: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "hello"),
+            IndexRecordOption::Basic,
+        ));
+        let term_b: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "happy"),
+            IndexRecordOption::Basic,
+        ));
+        let term_c: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "tax"),
+            IndexRecordOption::Basic,
+        ));
+        {
+            let query = BooleanQuery::from(vec![
+                (Occur::Must, term_a.box_clone()),
+                (Occur::Must, term_b.box_clone()),
+            ]);
+            let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            assert!(scorer.is::<TermScorer>());
+        }
+        {
+            let query = BooleanQuery::from(vec![
+                (Occur::Must, term_a.box_clone()),
+                (Occur::Must, term_b.box_clone()),
+                (Occur::Must, term_c.box_clone()),
+            ]);
+            let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            assert!(scorer.is::<EmptyScorer>());
+        }
+        {
+            let query = BooleanQuery::from(vec![
+                (Occur::Should, term_a.box_clone()),
+                (Occur::Should, term_c.box_clone()),
+            ]);
+            let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            assert!(scorer.is::<AllScorer>());
+        }
+        {
+            let query = BooleanQuery::from(vec![
+                (Occur::Should, term_b.box_clone()),
+                (Occur::Should, term_c.box_clone()),
+            ]);
+            let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            assert!(scorer.is::<TermScorer>());
+        }
         Ok(())
     }
 }

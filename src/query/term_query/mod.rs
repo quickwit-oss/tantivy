@@ -10,7 +10,10 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::docset::DocSet;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-    use crate::query::{EnableScoring, Query, QueryParser, Scorer, TermQuery};
+    use crate::query::term_query::TermScorer;
+    use crate::query::{
+        AllScorer, EmptyScorer, EnableScoring, Query, QueryParser, Scorer, TermQuery,
+    };
     use crate::schema::{Field, IndexRecordOption, Schema, FAST, STRING, TEXT};
     use crate::{assert_nearly_equals, DocAddress, Index, IndexWriter, Term, TERMINATED};
 
@@ -439,5 +442,83 @@ mod tests {
         assert!(matches!(res, Err(crate::TantivyError::SchemaError(_))));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_term_weight_all_query_optimization() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", crate::schema::TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello"))
+            .unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello happy"))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let get_scorer_for_term = |term: &str| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, term),
+                IndexRecordOption::Basic,
+            );
+            let term_weight = term_query
+                .weight(EnableScoring::disabled_from_schema(&schema))
+                .unwrap();
+            term_weight
+                .scorer(searcher.segment_reader(0u32), 1.0f32)
+                .unwrap()
+        };
+        // Should be an allscorer
+        let hello_scorer = get_scorer_for_term("hello");
+        // Should be a term scorer
+        let happy_scorer = get_scorer_for_term("happy");
+        // Should be an empty scorer
+        let tax_scorer = get_scorer_for_term("tax");
+        assert!(hello_scorer.is::<AllScorer>());
+        assert!(happy_scorer.is::<TermScorer>());
+        assert!(tax_scorer.is::<EmptyScorer>());
+    }
+
+    #[test]
+    fn test_term_weight_all_query_optimization_disable_when_scoring_enabled() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", crate::schema::TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello"))
+            .unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello happy"))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let get_scorer_for_term = |term: &str| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, term),
+                IndexRecordOption::Basic,
+            );
+            let term_weight = term_query
+                .weight(EnableScoring::enabled_from_searcher(&searcher))
+                .unwrap();
+            term_weight
+                .scorer(searcher.segment_reader(0u32), 1.0f32)
+                .unwrap()
+        };
+        // Should be an allscorer
+        let hello_scorer = get_scorer_for_term("hello");
+        // Should be a term scorer
+        let happy_scorer = get_scorer_for_term("happy");
+        // Should be an empty scorer
+        let tax_scorer = get_scorer_for_term("tax");
+        assert!(hello_scorer.is::<TermScorer>());
+        assert!(happy_scorer.is::<TermScorer>());
+        assert!(tax_scorer.is::<EmptyScorer>());
     }
 }

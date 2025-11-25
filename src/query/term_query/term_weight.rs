@@ -6,9 +6,9 @@ use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
-use crate::query::{Explanation, Scorer, Weight};
+use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
-use crate::{DocId, Score, Term};
+use crate::{DocId, Score, TantivyError, Term};
 
 pub struct TermWeight {
     term: Term,
@@ -17,20 +17,50 @@ pub struct TermWeight {
     scoring_enabled: bool,
 }
 
+pub(crate) enum SpecializedScorer {
+    TermScorer(TermScorer),
+    Empty,
+    AllMatch(AllScorer),
+}
+
+impl SpecializedScorer {
+    pub fn into_boxed_scorer(self) -> Box<dyn Scorer> {
+        match self {
+            SpecializedScorer::TermScorer(scorer) => Box::new(scorer),
+            SpecializedScorer::Empty => Box::new(EmptyScorer),
+            SpecializedScorer::AllMatch(scorer) => Box::new(scorer),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn into_term_scorer(self) -> Option<TermScorer> {
+        match self {
+            SpecializedScorer::TermScorer(scorer) => Some(scorer),
+            _ => None,
+        }
+    }
+}
+
 impl Weight for TermWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let term_scorer = self.specialized_scorer(reader, boost)?;
-        Ok(Box::new(term_scorer))
+        Ok(self.specialized_scorer(reader, boost)?.into_boxed_scorer())
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.specialized_scorer(reader, 1.0)?;
-        if scorer.doc() > doc || scorer.seek(doc) != doc {
-            return Err(does_not_match(doc));
+        match self.specialized_scorer(reader, 1.0)? {
+            SpecializedScorer::TermScorer(mut term_scorer) => {
+                if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
+                    return Err(does_not_match(doc));
+                }
+                let mut explanation = term_scorer.explain();
+                explanation.add_context(format!("Term={:?}", self.term,));
+                Ok(explanation)
+            }
+            SpecializedScorer::Empty => {
+                return Err(does_not_match(doc));
+            }
+            SpecializedScorer::AllMatch(_) => AllWeight.explain(reader, doc),
         }
-        let mut explanation = scorer.explain();
-        explanation.add_context(format!("Term={:?}", self.term,));
-        Ok(explanation)
     }
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
@@ -51,8 +81,15 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        let mut scorer = self.specialized_scorer(reader, 1.0)?;
-        for_each_scorer(&mut scorer, callback);
+        match self.specialized_scorer(reader, 1.0)? {
+            SpecializedScorer::TermScorer(mut term_scorer) => {
+                for_each_scorer(&mut term_scorer, callback);
+            }
+            SpecializedScorer::Empty => {}
+            SpecializedScorer::AllMatch(mut all_scorer) => {
+                for_each_scorer(&mut all_scorer, callback);
+            }
+        }
         Ok(())
     }
 
@@ -63,9 +100,18 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
-        let mut scorer = self.specialized_scorer(reader, 1.0)?;
-        let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
-        for_each_docset_buffered(&mut scorer, &mut buffer, callback);
+        match self.specialized_scorer(reader, 1.0)? {
+            SpecializedScorer::TermScorer(mut term_scorer) => {
+                let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
+                for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
+            }
+            SpecializedScorer::Empty => {}
+            SpecializedScorer::AllMatch(mut all_scorer) => {
+                let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
+                for_each_docset_buffered(&mut all_scorer, &mut buffer, callback);
+            }
+        };
+
         Ok(())
     }
 
@@ -85,8 +131,22 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let scorer = self.specialized_scorer(reader, 1.0)?;
-        crate::query::boolean_query::block_wand_single_scorer(scorer, threshold, callback);
+        let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
+        match specialized_scorer {
+            SpecializedScorer::TermScorer(term_scorer) => {
+                crate::query::boolean_query::block_wand_single_scorer(
+                    term_scorer,
+                    threshold,
+                    callback,
+                );
+            }
+            SpecializedScorer::Empty => {}
+            SpecializedScorer::AllMatch(_) => {
+                return Err(TantivyError::InvalidArgument(
+                    "for each pruning should only be called if scoring is enabled".to_string(),
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -110,35 +170,51 @@ impl TermWeight {
         &self.term
     }
 
+    /// Returns None if the term does not exist.
     pub(crate) fn specialized_scorer(
         &self,
         reader: &SegmentReader,
-        boost: Score,
-    ) -> crate::Result<TermScorer> {
+        mut boost: Score,
+    ) -> crate::Result<SpecializedScorer> {
+        if !self.scoring_enabled {
+            boost = 1.0f32;
+        }
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field)?;
-        let fieldnorm_reader_opt = if self.scoring_enabled {
-            reader.fieldnorms_readers().get_field(field)?
-        } else {
-            None
+        let Some(term_info) = inverted_index.get_term_info(&self.term)? else {
+            // The term was not found.
+            return Ok(SpecializedScorer::Empty);
         };
-        let fieldnorm_reader =
-            fieldnorm_reader_opt.unwrap_or_else(|| FieldNormReader::constant(reader.max_doc(), 1));
-        let similarity_weight = self.similarity_weight.boost_by(boost);
-        let postings_opt: Option<SegmentPostings> =
-            inverted_index.read_postings(&self.term, self.index_record_option)?;
-        if let Some(segment_postings) = postings_opt {
-            Ok(TermScorer::new(
-                segment_postings,
-                fieldnorm_reader,
-                similarity_weight,
-            ))
-        } else {
-            Ok(TermScorer::new(
-                SegmentPostings::empty(),
-                fieldnorm_reader,
-                similarity_weight,
-            ))
+
+        // If we don't care about scores, and our posting lists matches all doc, we can return the
+        // AllMatch scorer.
+        if !self.scoring_enabled && term_info.doc_freq == reader.max_doc() {
+            return Ok(SpecializedScorer::AllMatch(AllScorer::new(
+                reader.max_doc(),
+            )));
         }
+
+        let segment_postings: SegmentPostings =
+            inverted_index.read_postings_from_terminfo(&term_info, self.index_record_option)?;
+
+        let fieldnorm_reader = self.fieldnorm_reader(reader)?;
+        let similarity_weight = self.similarity_weight.boost_by(boost);
+        Ok(SpecializedScorer::TermScorer(TermScorer::new(
+            segment_postings,
+            fieldnorm_reader,
+            similarity_weight,
+        )))
+    }
+
+    fn fieldnorm_reader(&self, segment_reader: &SegmentReader) -> crate::Result<FieldNormReader> {
+        if self.scoring_enabled {
+            if let Some(field_norm_reader) = segment_reader
+                .fieldnorms_readers()
+                .get_field(self.term.field())?
+            {
+                return Ok(field_norm_reader);
+            }
+        }
+        Ok(FieldNormReader::constant(segment_reader.max_doc(), 1))
     }
 }

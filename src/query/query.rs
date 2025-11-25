@@ -69,14 +69,6 @@ impl<'a> EnableScoring<'a> {
         }
     }
 
-    /// Returns the searcher if available.
-    pub fn searcher(&self) -> Option<&Searcher> {
-        match self {
-            EnableScoring::Enabled { searcher, .. } => Some(*searcher),
-            EnableScoring::Disabled { searcher_opt, .. } => searcher_opt.to_owned(),
-        }
-    }
-
     /// Returns the schema.
     pub fn schema(&self) -> &Schema {
         match self {
