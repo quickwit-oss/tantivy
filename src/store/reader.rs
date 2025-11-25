@@ -200,6 +200,29 @@ impl StoreReader {
         })
     }
 
+    /// Returns the byte range of the compressed block containing the given document.
+    ///
+    /// This is useful for batch optimization - callers can consolidate nearby byte ranges
+    /// and prefetch them in fewer storage requests.
+    ///
+    /// The returned range represents the compressed block's location in the store file.
+    /// Multiple documents may share the same block byte range.
+    pub fn get_block_byte_range(&self, doc_id: DocId) -> crate::Result<std::ops::Range<usize>> {
+        Ok(self.block_checkpoint(doc_id)?.byte_range)
+    }
+
+    /// Returns the byte range and doc_id range for all blocks in the store.
+    ///
+    /// This is useful for batch optimization - callers can determine which blocks
+    /// need to be fetched and consolidate them into larger range requests.
+    ///
+    /// Returns tuples of (doc_id_range, byte_range) for each compressed block.
+    pub fn get_all_block_byte_ranges(&self) -> Vec<(std::ops::Range<DocId>, std::ops::Range<usize>)> {
+        self.block_checkpoints()
+            .map(|checkpoint| (checkpoint.doc_range, checkpoint.byte_range))
+            .collect()
+    }
+
     pub(crate) fn block_data(&self) -> io::Result<OwnedBytes> {
         self.data.read_bytes()
     }
