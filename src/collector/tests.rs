@@ -106,7 +106,7 @@ impl Collector for TestCollector {
     fn for_segment(
         &self,
         segment_id: SegmentOrdinal,
-        _reader: &SegmentReader,
+        _reader: &dyn SegmentReader,
     ) -> crate::Result<TestSegmentCollector> {
         Ok(TestSegmentCollector {
             segment_id,
@@ -177,7 +177,7 @@ impl Collector for FastFieldTestCollector {
     fn for_segment(
         &self,
         _: SegmentOrdinal,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<FastFieldSegmentCollector> {
         let reader = segment_reader
             .fast_fields()
@@ -240,7 +240,7 @@ impl Collector for BytesFastFieldTestCollector {
     fn for_segment(
         &self,
         _segment_local_id: u32,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<BytesFastFieldSegmentCollector> {
         let column_opt = segment_reader.fast_fields().bytes(&self.field)?;
         Ok(BytesFastFieldSegmentCollector {

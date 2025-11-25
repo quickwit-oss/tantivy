@@ -110,7 +110,7 @@ impl Collector for HistogramCollector {
     fn for_segment(
         &self,
         _segment_local_id: crate::SegmentOrdinal,
-        segment: &crate::SegmentReader,
+        segment: &dyn crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let column_opt = segment.fast_fields().u64_lenient(&self.field)?;
         let (column, _column_type) = column_opt.ok_or_else(|| FastFieldNotAvailableError {

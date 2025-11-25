@@ -66,7 +66,7 @@ impl Collector for DistributedAggregationCollector {
     fn for_segment(
         &self,
         segment_local_id: crate::SegmentOrdinal,
-        reader: &crate::SegmentReader,
+        reader: &dyn crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         AggregationSegmentCollector::from_agg_req_and_reader(
             &self.agg,
@@ -96,7 +96,7 @@ impl Collector for AggregationCollector {
     fn for_segment(
         &self,
         segment_local_id: crate::SegmentOrdinal,
-        reader: &crate::SegmentReader,
+        reader: &dyn crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         AggregationSegmentCollector::from_agg_req_and_reader(
             &self.agg,
@@ -145,7 +145,7 @@ impl AggregationSegmentCollector {
     /// reader. Also includes validation, e.g. checking field types and existence.
     pub fn from_agg_req_and_reader(
         agg: &Aggregations,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         segment_ordinal: SegmentOrdinal,
         context: &AggContextParams,
     ) -> crate::Result<Self> {

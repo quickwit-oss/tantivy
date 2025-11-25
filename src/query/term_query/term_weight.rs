@@ -18,12 +18,12 @@ pub struct TermWeight {
 }
 
 impl Weight for TermWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let term_scorer = self.specialized_scorer(reader, boost)?;
         Ok(Box::new(term_scorer))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
         if scorer.doc() > doc || scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
@@ -33,7 +33,7 @@ impl Weight for TermWeight {
         Ok(explanation)
     }
 
-    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+    fn count(&self, reader: &dyn SegmentReader) -> crate::Result<u32> {
         if let Some(alive_bitset) = reader.alive_bitset() {
             Ok(self.scorer(reader, 1.0)?.count(alive_bitset))
         } else {
@@ -48,7 +48,7 @@ impl Weight for TermWeight {
     /// `DocSet` and push the scored documents to the collector.
     fn for_each(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
@@ -60,7 +60,7 @@ impl Weight for TermWeight {
     /// `DocSet` and push the scored documents to the collector.
     fn for_each_no_score(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
@@ -82,7 +82,7 @@ impl Weight for TermWeight {
     fn for_each_pruning(
         &self,
         threshold: Score,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let scorer = self.specialized_scorer(reader, 1.0)?;
@@ -112,7 +112,7 @@ impl TermWeight {
 
     pub(crate) fn specialized_scorer(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
     ) -> crate::Result<TermScorer> {
         let field = self.term.field();

@@ -710,7 +710,7 @@ mod tests {
     use crate::indexer::segment_updater::merge_filtered_segments;
     use crate::query::QueryParser;
     use crate::schema::*;
-    use crate::{Directory, DocAddress, Index, Segment};
+    use crate::{Directory, DocAddress, Index, Segment, SegmentReader};
 
     #[test]
     fn test_delete_during_merge() -> crate::Result<()> {

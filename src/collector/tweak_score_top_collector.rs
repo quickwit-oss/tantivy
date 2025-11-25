@@ -42,7 +42,7 @@ pub trait ScoreTweaker<TScore>: Sync {
 
     /// Builds a child tweaker for a specific segment. The child scorer is associated with
     /// a specific segment.
-    fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
+    fn segment_tweaker(&self, segment_reader: &dyn SegmentReader) -> Result<Self::Child>;
 }
 
 impl<TScoreTweaker, TScore> Collector for TweakedScoreTopCollector<TScoreTweaker, TScore>
@@ -57,7 +57,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> Result<Self::Child> {
         let segment_scorer = self.score_tweaker.segment_tweaker(segment_reader)?;
         let segment_collector = self.collector.for_segment(segment_local_id, segment_reader);
@@ -105,12 +105,12 @@ where
 
 impl<F, TScore, TSegmentScoreTweaker> ScoreTweaker<TScore> for F
 where
-    F: 'static + Send + Sync + Fn(&SegmentReader) -> TSegmentScoreTweaker,
+    F: 'static + Send + Sync + Fn(&dyn SegmentReader) -> TSegmentScoreTweaker,
     TSegmentScoreTweaker: ScoreSegmentTweaker<TScore>,
 {
     type Child = TSegmentScoreTweaker;
 
-    fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+    fn segment_tweaker(&self, segment_reader: &dyn SegmentReader) -> Result<Self::Child> {
         Ok((self)(segment_reader))
     }
 }

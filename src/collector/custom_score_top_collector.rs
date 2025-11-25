@@ -40,7 +40,7 @@ pub trait CustomScorer<TScore>: Sync {
     type Child: CustomSegmentScorer<TScore>;
     /// Builds a child scorer for a specific segment. The child scorer is associated with
     /// a specific segment.
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child>;
+    fn segment_scorer(&self, segment_reader: &dyn SegmentReader) -> crate::Result<Self::Child>;
 }
 
 impl<TCustomScorer, TScore> Collector for CustomScoreTopCollector<TCustomScorer, TScore>
@@ -55,7 +55,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let segment_collector = self.collector.for_segment(segment_local_id, segment_reader);
         let segment_scorer = self.custom_scorer.segment_scorer(segment_reader)?;
@@ -102,12 +102,12 @@ where
 
 impl<F, TScore, T> CustomScorer<TScore> for F
 where
-    F: 'static + Send + Sync + Fn(&SegmentReader) -> T,
+    F: 'static + Send + Sync + Fn(&dyn SegmentReader) -> T,
     T: CustomSegmentScorer<TScore>,
 {
     type Child = T;
 
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
+    fn segment_scorer(&self, segment_reader: &dyn SegmentReader) -> crate::Result<Self::Child> {
         Ok((self)(segment_reader))
     }
 }

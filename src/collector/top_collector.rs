@@ -124,7 +124,7 @@ where T: PartialOrd + Clone
     pub(crate) fn for_segment<F: PartialOrd + Clone>(
         &self,
         segment_id: SegmentOrdinal,
-        _: &SegmentReader,
+        _: &dyn SegmentReader,
     ) -> TopSegmentCollector<F> {
         TopSegmentCollector::new(segment_id, self.limit + self.offset)
     }

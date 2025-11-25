@@ -45,7 +45,7 @@ impl RegexPhraseWeight {
         }
     }
 
-    fn fieldnorm_reader(&self, reader: &SegmentReader) -> crate::Result<FieldNormReader> {
+    fn fieldnorm_reader(&self, reader: &dyn SegmentReader) -> crate::Result<FieldNormReader> {
         if self.similarity_weight_opt.is_some() {
             if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(self.field)? {
                 return Ok(fieldnorm_reader);
@@ -56,7 +56,7 @@ impl RegexPhraseWeight {
 
     pub(crate) fn phrase_scorer(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
     ) -> crate::Result<Option<PhraseScorer<UnionType>>> {
         let similarity_weight_opt = self
@@ -174,7 +174,7 @@ impl RegexPhraseWeight {
     /// Use Roaring Bitmaps for sparse terms. The full bitvec is main memory consumer currently.
     pub(crate) fn get_union_from_term_infos(
         term_infos: &[TermInfo],
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         inverted_index: &InvertedIndexReader,
     ) -> crate::Result<UnionType> {
         let max_doc = reader.max_doc();
@@ -269,7 +269,7 @@ impl RegexPhraseWeight {
 }
 
 impl Weight for RegexPhraseWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
         } else {
@@ -277,7 +277,7 @@ impl Weight for RegexPhraseWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let scorer_opt = self.phrase_scorer(reader, 1.0)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));

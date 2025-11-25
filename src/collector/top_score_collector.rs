@@ -41,7 +41,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: crate::SegmentOrdinal,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let schema = segment.schema();
         let field = schema.get_field(&self.field)?;
@@ -102,7 +102,7 @@ impl Collector for StringConvertCollector {
     fn for_segment(
         &self,
         segment_local_id: crate::SegmentOrdinal,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let schema = segment.schema();
         let field = schema.get_field(&self.field)?;
@@ -323,7 +323,7 @@ struct ScorerByField {
 impl CustomScorer<u64> for ScorerByField {
     type Child = ScorerByFastFieldReader;
 
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
+    fn segment_scorer(&self, segment_reader: &dyn SegmentReader) -> crate::Result<Self::Child> {
         // We interpret this field as u64, regardless of its type, that way,
         // we avoid needless conversion. Regardless of the fast field type, the
         // mapping is monotonic, so it is sufficient to compute our top-K docs.
@@ -657,7 +657,7 @@ impl TopDocs {
     /// // This is where we build our collector with our custom score.
     /// let top_docs_by_custom_score = TopDocs
     ///         ::with_limit(10)
-    ///          .tweak_score(move |segment_reader: &SegmentReader| {
+    ///          .tweak_score(move |segment_reader: &dyn SegmentReader| {
     ///             // The argument is a function that returns our scoring
     ///             // function.
     ///             //
@@ -759,7 +759,7 @@ impl TopDocs {
     /// // This is where we build our collector with our custom score.
     /// let top_docs_by_custom_score = TopDocs
     ///         ::with_limit(10)
-    ///          .custom_score(move |segment_reader: &SegmentReader| {
+    ///          .custom_score(move |segment_reader: &dyn SegmentReader| {
     ///             // The argument is a function that returns our scoring
     ///             // function.
     ///             //
@@ -824,7 +824,7 @@ impl Collector for TopDocs {
     fn for_segment(
         &self,
         segment_local_id: SegmentOrdinal,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let collector = self.0.for_segment(segment_local_id, reader);
         Ok(TopScoreSegmentCollector(collector))
@@ -845,7 +845,7 @@ impl Collector for TopDocs {
         &self,
         weight: &dyn Weight,
         segment_ord: u32,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let heap_len = self.0.limit + self.0.offset;
         let mut top_n: TopNComputer<_, _> = TopNComputer::new(heap_len);
@@ -1875,7 +1875,9 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax")?;
         let collector = TopDocs::with_limit(2).and_offset(1).tweak_score(
-            move |_segment_reader: &SegmentReader| move |doc: DocId, _original_score: Score| doc,
+            move |_segment_reader: &dyn SegmentReader| {
+                move |doc: DocId, _original_score: Score| doc
+            },
         );
         let score_docs: Vec<(u32, DocAddress)> =
             index.reader()?.searcher().search(&text_query, &collector)?;
@@ -1894,7 +1896,7 @@ mod tests {
         let text_query = query_parser.parse_query("droopy tax").unwrap();
         let collector = TopDocs::with_limit(2)
             .and_offset(1)
-            .custom_score(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
+            .custom_score(move |_segment_reader: &dyn SegmentReader| move |doc: DocId| doc);
         let score_docs: Vec<(u32, DocAddress)> = index
             .reader()
             .unwrap()
