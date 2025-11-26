@@ -727,12 +727,13 @@ mod tests {
 
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer: IndexWriter = index.writer(50_000_000)?;
+        let mut writer: IndexWriter = index.writer_for_tests()?;
 
         writer.add_document(doc!(
             category => "electronics", brand => "apple",
             price => 999u64, rating => 4.5f64, in_stock => true
         ))?;
+        writer.commit()?;
         writer.add_document(doc!(
             category => "electronics", brand => "samsung",
             price => 799u64, rating => 4.2f64, in_stock => true
@@ -936,7 +937,7 @@ mod tests {
         let index = create_standard_test_index()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-
+        assert_eq!(searcher.segment_readers().len(), 2);
         let agg = json!({
             "premium_electronics": {
                 "filter": "category:electronics AND price:[800 TO *]",

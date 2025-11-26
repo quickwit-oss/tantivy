@@ -127,7 +127,11 @@ impl Weight for ExistsWeight {
             .any(|col| matches!(col.column_index(), ColumnIndex::Full))
         {
             let all_scorer = AllScorer::new(max_doc);
-            return Ok(Box::new(BoostScorer::new(all_scorer, boost)));
+            if boost != 1.0f32 {
+                return Ok(Box::new(BoostScorer::new(all_scorer, boost)));
+            } else {
+                return Ok(Box::new(all_scorer));
+            }
         }
 
         // If we have a single dynamic column, use ExistsDocSet
