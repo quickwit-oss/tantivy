@@ -1518,8 +1518,7 @@ mod tests {
         let searcher = reader.searcher();
         let mut term_scorer = term_query
             .specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?
-            .specialized_scorer(searcher.segment_reader(0u32), 1.0)?
-            .into_term_scorer()
+            .term_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
         assert_eq!(term_scorer.doc(), 0);
         assert_nearly_equals!(term_scorer.block_max_score(), 0.0079681855);
@@ -1535,8 +1534,7 @@ mod tests {
         for segment_reader in searcher.segment_readers() {
             let mut term_scorer = term_query
                 .specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?
-                .specialized_scorer(segment_reader, 1.0)?
-                .into_term_scorer()
+                .term_scorer(segment_reader, 1.0)?
                 .unwrap();
             // the difference compared to before is intrinsic to the bm25 formula. no worries
             // there.
@@ -1562,8 +1560,7 @@ mod tests {
         let segment_reader = searcher.segment_reader(0u32);
         let mut term_scorer = term_query
             .specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?
-            .specialized_scorer(segment_reader, 1.0)?
-            .into_term_scorer()
+            .term_scorer(segment_reader, 1.0)?
             .unwrap();
         // the difference compared to before is intrinsic to the bm25 formula. no worries there.
         for doc in segment_reader.doc_ids_alive() {

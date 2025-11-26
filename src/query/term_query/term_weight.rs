@@ -17,26 +17,18 @@ pub struct TermWeight {
     scoring_enabled: bool,
 }
 
-pub(crate) enum SpecializedScorer {
+enum TermOrEmptyOrAllScorer {
     TermScorer(TermScorer),
     Empty,
     AllMatch(AllScorer),
 }
 
-impl SpecializedScorer {
+impl TermOrEmptyOrAllScorer {
     pub fn into_boxed_scorer(self) -> Box<dyn Scorer> {
         match self {
-            SpecializedScorer::TermScorer(scorer) => Box::new(scorer),
-            SpecializedScorer::Empty => Box::new(EmptyScorer),
-            SpecializedScorer::AllMatch(scorer) => Box::new(scorer),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn into_term_scorer(self) -> Option<TermScorer> {
-        match self {
-            SpecializedScorer::TermScorer(scorer) => Some(scorer),
-            _ => None,
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => Box::new(scorer),
+            TermOrEmptyOrAllScorer::Empty => Box::new(EmptyScorer),
+            TermOrEmptyOrAllScorer::AllMatch(scorer) => Box::new(scorer),
         }
     }
 }
@@ -48,7 +40,7 @@ impl Weight for TermWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         match self.specialized_scorer(reader, 1.0)? {
-            SpecializedScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
                 if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
                     return Err(does_not_match(doc));
                 }
@@ -56,10 +48,10 @@ impl Weight for TermWeight {
                 explanation.add_context(format!("Term={:?}", self.term,));
                 Ok(explanation)
             }
-            SpecializedScorer::Empty => {
+            TermOrEmptyOrAllScorer::Empty => {
                 return Err(does_not_match(doc));
             }
-            SpecializedScorer::AllMatch(_) => AllWeight.explain(reader, doc),
+            TermOrEmptyOrAllScorer::AllMatch(_) => AllWeight.explain(reader, doc),
         }
     }
 
@@ -82,11 +74,11 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
-            SpecializedScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
                 for_each_scorer(&mut term_scorer, callback);
             }
-            SpecializedScorer::Empty => {}
-            SpecializedScorer::AllMatch(mut all_scorer) => {
+            TermOrEmptyOrAllScorer::Empty => {}
+            TermOrEmptyOrAllScorer::AllMatch(mut all_scorer) => {
                 for_each_scorer(&mut all_scorer, callback);
             }
         }
@@ -101,12 +93,12 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
-            SpecializedScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
                 let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
                 for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
             }
-            SpecializedScorer::Empty => {}
-            SpecializedScorer::AllMatch(mut all_scorer) => {
+            TermOrEmptyOrAllScorer::Empty => {}
+            TermOrEmptyOrAllScorer::AllMatch(mut all_scorer) => {
                 let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
                 for_each_docset_buffered(&mut all_scorer, &mut buffer, callback);
             }
@@ -133,15 +125,15 @@ impl Weight for TermWeight {
     ) -> crate::Result<()> {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
-            SpecializedScorer::TermScorer(term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
                 crate::query::boolean_query::block_wand_single_scorer(
                     term_scorer,
                     threshold,
                     callback,
                 );
             }
-            SpecializedScorer::Empty => {}
-            SpecializedScorer::AllMatch(_) => {
+            TermOrEmptyOrAllScorer::Empty => {}
+            TermOrEmptyOrAllScorer::AllMatch(_) => {
                 return Err(TantivyError::InvalidArgument(
                     "for each pruning should only be called if scoring is enabled".to_string(),
                 ));
@@ -170,12 +162,27 @@ impl TermWeight {
         &self.term
     }
 
-    /// Returns None if the term does not exist.
-    pub(crate) fn specialized_scorer(
+    /// We need a method to access the actual `TermScorer` implementation
+    /// for `white box` test, checking in particular that the block max
+    /// is correct.
+    #[cfg(test)]
+    pub(crate) fn term_scorer_for_test(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+    ) -> crate::Result<Option<TermScorer>> {
+        let scorer = self.specialized_scorer(reader, boost)?;
+        Ok(match scorer {
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(scorer),
+            _ => None,
+        })
+    }
+
+    fn specialized_scorer(
         &self,
         reader: &SegmentReader,
         mut boost: Score,
-    ) -> crate::Result<SpecializedScorer> {
+    ) -> crate::Result<TermOrEmptyOrAllScorer> {
         if !self.scoring_enabled {
             boost = 1.0f32;
         }
@@ -183,13 +190,13 @@ impl TermWeight {
         let inverted_index = reader.inverted_index(field)?;
         let Some(term_info) = inverted_index.get_term_info(&self.term)? else {
             // The term was not found.
-            return Ok(SpecializedScorer::Empty);
+            return Ok(TermOrEmptyOrAllScorer::Empty);
         };
 
         // If we don't care about scores, and our posting lists matches all doc, we can return the
         // AllMatch scorer.
         if !self.scoring_enabled && term_info.doc_freq == reader.max_doc() {
-            return Ok(SpecializedScorer::AllMatch(AllScorer::new(
+            return Ok(TermOrEmptyOrAllScorer::AllMatch(AllScorer::new(
                 reader.max_doc(),
             )));
         }
@@ -199,7 +206,7 @@ impl TermWeight {
 
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);
-        Ok(SpecializedScorer::TermScorer(TermScorer::new(
+        Ok(TermOrEmptyOrAllScorer::TermScorer(TermScorer::new(
             segment_postings,
             fieldnorm_reader,
             similarity_weight,

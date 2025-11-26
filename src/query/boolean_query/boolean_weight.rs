@@ -250,11 +250,12 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     // We do not have any should scorers, nor all scorers.
                     // There are still two cases here.
                     //
-                    // If this follows the removal of some AllScorers in the should/must clauses, then
-                    // we match all documents.
+                    // If this follows the removal of some AllScorers in the should/must clauses,
+                    // then we match all documents.
                     //
                     // Otherwise, it is really just an EmptyScorer.
-                    if must_special_scorer_counts.num_all_scorers + should_special_scorer_counts.num_all_scorers
+                    if must_special_scorer_counts.num_all_scorers
+                        + should_special_scorer_counts.num_all_scorers
                         > 0
                     {
                         Box::new(AllScorer::new(reader.max_doc()))
