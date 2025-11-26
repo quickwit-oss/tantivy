@@ -72,8 +72,7 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
         for (_field, path_id, term, addr) in ordered_term_addrs {
             if prev_term_id != path_id.path_id() {
                 term_buffer.clear();
-                term_buffer.append_path(ordered_id_to_path[path_id.path_id() as usize].as_bytes());
-                term_buffer.append_bytes(&[JSON_END_OF_PATH]);
+                term_buffer.append_json_path(ordered_id_to_path[path_id.path_id() as usize]);
                 term_path_len = term_buffer.len();
                 prev_term_id = path_id.path_id();
             }
@@ -110,14 +109,22 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
 
 struct JsonTermSerializer(Vec<u8>);
 impl JsonTermSerializer {
+    /// Appends a JSON path to the Term.
+    /// The path is terminated by a special end-of-path 0 byte.
     #[inline]
-    pub fn append_path(&mut self, bytes: &[u8]) {
-        if bytes.contains(&0u8) {
-            self.0
-                .extend(bytes.iter().map(|&b| if b == 0 { b'0' } else { b }));
+    pub fn append_json_path(&mut self, path: &str) {
+        let bytes = path.as_bytes();
+        // Replace any occurrence of the end-of-path byte with Ascii '0' byte.
+        if bytes.contains(&JSON_END_OF_PATH) {
+            self.0.extend(
+                bytes
+                    .iter()
+                    .map(|&b| if b == JSON_END_OF_PATH { b'0' } else { b }),
+            );
         } else {
             self.0.extend_from_slice(bytes);
         }
+        self.0.push(JSON_END_OF_PATH);
     }
 
     /// Appends value bytes to the Term.
