@@ -14,7 +14,7 @@ pub use serialize::{
     serialize_column_mappable_to_u128,
 };
 
-use crate::column_index::ColumnIndex;
+use crate::column_index::{ColumnIndex, Set};
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
 use crate::column_values::{ColumnValues, monotonic_map_column};
 use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, RowId};
@@ -89,6 +89,31 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.values_for_doc(row_id).next()
     }
 
+    /// Load the first value for each docid in the provided slice.
+    #[inline]
+    pub fn first_vals(&self, docids: &[DocId], output: &mut [Option<T>]) {
+        match &self.index {
+            ColumnIndex::Empty { .. } => {}
+            ColumnIndex::Full => self.values.get_vals_opt(docids, output),
+            ColumnIndex::Optional(optional_index) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    output[i] = optional_index
+                        .rank_if_exists(*docid)
+                        .map(|rowid| self.values.get_val(rowid));
+                }
+            }
+            ColumnIndex::Multivalued(multivalued_index) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    let range = multivalued_index.range(*docid);
+                    let is_empty = range.start == range.end;
+                    if !is_empty {
+                        output[i] = Some(self.values.get_val(range.start));
+                    }
+                }
+            }
+        }
+    }
+
     /// Translates a block of docids to row_ids.
     ///
     /// returns the row_ids and the matching docids on the same index
@@ -106,8 +131,6 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.index.docids_to_rowids(doc_ids, doc_ids_out, row_ids)
     }
 
-    /// Get an iterator over the values for the provided docid.
-    #[inline]
     pub fn values_for_doc(&self, doc_id: DocId) -> impl Iterator<Item = T> + '_ {
         self.index
             .value_row_ids(doc_id)
@@ -133,6 +156,15 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         // Convert rows to docids
         self.index
             .select_batch_in_place(selected_docid_range.start, doc_ids);
+    }
+
+    /// Fills the output vector with the (possibly multiple values that are associated_with
+    /// `row_id`.
+    ///
+    /// This method clears the `output` vector.
+    pub fn fill_vals(&self, row_id: RowId, output: &mut Vec<T>) {
+        output.clear();
+        output.extend(self.values_for_doc(row_id));
     }
 
     pub fn first_or_default_col(self, default_value: T) -> Arc<dyn ColumnValues<T>> {
