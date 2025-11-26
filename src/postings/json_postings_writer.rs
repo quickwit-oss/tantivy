@@ -79,8 +79,7 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
             term_buffer.truncate(term_path_len);
             term_buffer.append_bytes(term);
 
-            let json_value = ValueBytes::wrap(term);
-            let typ = json_value.typ();
+            let typ = Type::from_code(term[0]).expect("Invalid type code in JSON term");
             if typ == Type::Str {
                 SpecializedPostingsWriter::<Rec>::serialize_one_term(
                     term_buffer.as_bytes(),
@@ -107,6 +106,8 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
     }
 }
 
+/// Helper to build the JSON term bytes that land in the term dictionary.
+/// Format: `[json path utf8][JSON_END_OF_PATH][type tag][payload]`
 struct JsonTermSerializer(Vec<u8>);
 impl JsonTermSerializer {
     /// Appends a JSON path to the Term.

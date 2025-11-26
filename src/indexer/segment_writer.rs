@@ -171,7 +171,7 @@ impl SegmentWriter {
             let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
             let postings_writer: &mut dyn PostingsWriter =
                 self.per_field_postings_writers.get_for_field_mut(field);
-            term_buffer.clear_with_field_and_type(field_entry.field_type().value_type(), field);
+            term_buffer.clear_with_field(field);
 
             match field_entry.field_type() {
                 FieldType::Facet(_) => {
