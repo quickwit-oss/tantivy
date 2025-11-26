@@ -7,6 +7,7 @@ use super::operation::AddOperation;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::index::{Segment, SegmentComponent};
+use crate::indexer::indexing_term::IndexingTerm;
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::postings::{
@@ -14,7 +15,7 @@ use crate::postings::{
     PerFieldPostingsWriter, PostingsWriter,
 };
 use crate::schema::document::{Document, Value};
-use crate::schema::{FieldEntry, FieldType, Schema, Term, DATE_TIME_PRECISION_INDEXED};
+use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -55,7 +56,7 @@ pub struct SegmentWriter {
     pub(crate) json_positions_per_path: IndexingPositionsPerPath,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     per_field_text_analyzers: Vec<TextAnalyzer>,
-    term_buffer: Term,
+    term_buffer: IndexingTerm,
     schema: Schema,
 }
 
@@ -112,7 +113,7 @@ impl SegmentWriter {
             )?,
             doc_opstamps: Vec::with_capacity(1_000),
             per_field_text_analyzers,
-            term_buffer: Term::with_capacity(16),
+            term_buffer: IndexingTerm::with_capacity(16),
             schema,
         })
     }

@@ -12,6 +12,7 @@ mod doc_opstamp_mapping;
 mod flat_map_with_buffer;
 pub(crate) mod index_writer;
 pub(crate) mod index_writer_status;
+pub(crate) mod indexing_term;
 mod log_merge_policy;
 mod merge_index_test;
 mod merge_operation;

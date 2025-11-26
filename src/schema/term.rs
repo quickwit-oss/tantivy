@@ -95,7 +95,7 @@ impl Term {
 
     pub(crate) fn from_fast_value<T: FastValue>(field: Field, val: &T) -> Term {
         let mut term = Self::with_type_and_field(T::to_type(), field);
-        term.set_u64(val.to_u64());
+        term.set_bytes(val.to_u64().to_be_bytes().as_ref());
         term
     }
 
@@ -117,7 +117,7 @@ impl Term {
     /// Builds a term given a field, and a `Ipv6Addr`-value
     pub fn from_field_ip_addr(field: Field, ip_addr: Ipv6Addr) -> Term {
         let mut term = Self::with_type_and_field(Type::IpAddr, field);
-        term.set_ip_addr(ip_addr);
+        term.set_bytes(ip_addr.to_u128().to_be_bytes().as_ref());
         term
     }
 
@@ -174,50 +174,10 @@ impl Term {
         Term::with_bytes_and_field_and_payload(Type::Bytes, field, bytes)
     }
 
-    /// Removes the value_bytes and set the field and type code.
-    pub(crate) fn clear_with_field_and_type(&mut self, typ: Type, field: Field) {
-        self.truncate_value_bytes(0);
-        self.set_field_and_type(field, typ);
-    }
-
     /// Removes the value_bytes and set the type code.
     pub fn clear_with_type(&mut self, typ: Type) {
         self.truncate_value_bytes(0);
         self.0[4] = typ.to_code();
-    }
-
-    /// Sets a u64 value in the term.
-    ///
-    /// U64 are serialized using (8-byte) BigEndian
-    /// representation.
-    /// The use of BigEndian has the benefit of preserving
-    /// the natural order of the values.
-    pub fn set_u64(&mut self, val: u64) {
-        self.set_fast_value(val);
-    }
-
-    /// Sets a `i64` value in the term.
-    pub fn set_i64(&mut self, val: i64) {
-        self.set_fast_value(val);
-    }
-
-    /// Sets a `DateTime` value in the term.
-    pub fn set_date(&mut self, date: DateTime) {
-        self.set_fast_value(date);
-    }
-
-    /// Sets a `f64` value in the term.
-    pub fn set_f64(&mut self, val: f64) {
-        self.set_fast_value(val);
-    }
-
-    /// Sets a `bool` value in the term.
-    pub fn set_bool(&mut self, val: bool) {
-        self.set_fast_value(val);
-    }
-
-    fn set_fast_value<T: FastValue>(&mut self, val: T) {
-        self.set_bytes(val.to_u64().to_be_bytes().as_ref());
     }
 
     /// Append a type marker + fast value to a term.
@@ -237,11 +197,6 @@ impl Term {
     pub fn append_type_and_str(&mut self, val: &str) {
         self.0.push(Type::Str.to_code());
         self.0.extend(val.as_bytes().as_ref());
-    }
-
-    /// Sets a `Ipv6Addr` value in the term.
-    pub fn set_ip_addr(&mut self, val: Ipv6Addr) {
-        self.set_bytes(val.to_u128().to_be_bytes().as_ref());
     }
 
     /// Sets the value of a `Bytes` field.
@@ -266,19 +221,6 @@ impl Term {
     #[inline]
     pub fn append_bytes(&mut self, bytes: &[u8]) -> &mut [u8] {
         let len_before = self.0.len();
-        self.0.extend_from_slice(bytes);
-        &mut self.0[len_before..]
-    }
-
-    /// Appends json path bytes to the Term.
-    /// If the path contains 0 bytes, they are replaced by a "0" string.
-    /// The 0 byte is used to mark the end of the path.
-    ///
-    /// This function returns the segment that has just been added.
-    #[inline]
-    pub fn append_path(&mut self, bytes: &[u8]) -> &mut [u8] {
-        let len_before = self.0.len();
-        assert!(!bytes.contains(&JSON_END_OF_PATH));
         self.0.extend_from_slice(bytes);
         &mut self.0[len_before..]
     }

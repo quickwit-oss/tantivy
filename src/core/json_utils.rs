@@ -3,6 +3,7 @@ use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
 use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
+use crate::indexer::indexing_term::IndexingTerm;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{Type, DATE_TIME_PRECISION_INDEXED};
@@ -77,7 +78,7 @@ fn index_json_object<'a, V: Value<'a>>(
     doc: DocId,
     json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
@@ -107,17 +108,17 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    let set_path_id = |term_buffer: &mut Term, unordered_id: u32| {
+    let set_path_id = |term_buffer: &mut IndexingTerm, unordered_id: u32| {
         term_buffer.truncate_value_bytes(0);
         term_buffer.append_bytes(&unordered_id.to_be_bytes());
     };
-    let set_type = |term_buffer: &mut Term, typ: Type| {
+    let set_type = |term_buffer: &mut IndexingTerm, typ: Type| {
         term_buffer.append_bytes(&[typ.to_code()]);
     };
 

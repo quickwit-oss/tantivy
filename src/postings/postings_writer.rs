@@ -5,6 +5,7 @@ use std::ops::Range;
 use stacker::Addr;
 
 use crate::fieldnorm::FieldNormReaders;
+use crate::indexer::indexing_term::IndexingTerm;
 use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::recorder::{BufferLender, Recorder};
 use crate::postings::{
@@ -111,7 +112,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
     /// * term - the term
     /// * ctx - Contains a term hashmap and a memory arena to store all necessary posting list
     ///   information.
-    fn subscribe(&mut self, doc: DocId, pos: u32, term: &Term, ctx: &mut IndexingContext);
+    fn subscribe(&mut self, doc: DocId, pos: u32, term: &IndexingTerm, ctx: &mut IndexingContext);
 
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
@@ -128,7 +129,7 @@ pub(crate) trait PostingsWriter: Send + Sync {
         &mut self,
         doc_id: DocId,
         token_stream: &mut dyn TokenStream,
-        term_buffer: &mut Term,
+        term_buffer: &mut IndexingTerm,
         ctx: &mut IndexingContext,
         indexing_position: &mut IndexingPosition,
     ) {
@@ -198,7 +199,13 @@ impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
 
 impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
     #[inline]
-    fn subscribe(&mut self, doc: DocId, position: u32, term: &Term, ctx: &mut IndexingContext) {
+    fn subscribe(
+        &mut self,
+        doc: DocId,
+        position: u32,
+        term: &IndexingTerm,
+        ctx: &mut IndexingContext,
+    ) {
         debug_assert!(term.serialized_term().len() >= 4);
         self.total_num_tokens += 1;
         let (term_index, arena) = (&mut ctx.term_index, &mut ctx.arena);
