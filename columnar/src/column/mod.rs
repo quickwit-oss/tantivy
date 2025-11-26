@@ -14,7 +14,7 @@ pub use serialize::{
     serialize_column_mappable_to_u128,
 };
 
-use crate::column_index::ColumnIndex;
+use crate::column_index::{ColumnIndex, Set};
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
 use crate::column_values::{ColumnValues, monotonic_map_column};
 use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, RowId};
@@ -87,6 +87,31 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     #[inline]
     pub fn first(&self, row_id: RowId) -> Option<T> {
         self.values_for_doc(row_id).next()
+    }
+
+    /// Load the first value for each docid in the provided slice.
+    #[inline]
+    pub fn first_vals(&self, docids: &[DocId], output: &mut [Option<T>]) {
+        match &self.index {
+            ColumnIndex::Empty { .. } => {}
+            ColumnIndex::Full => self.values.get_vals_opt(docids, output),
+            ColumnIndex::Optional(optional_index) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    output[i] = optional_index
+                        .rank_if_exists(*docid)
+                        .map(|rowid| self.values.get_val(rowid));
+                }
+            }
+            ColumnIndex::Multivalued(multivalued_index) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    let range = multivalued_index.range(*docid);
+                    let is_empty = range.start == range.end;
+                    if !is_empty {
+                        output[i] = Some(self.values.get_val(range.start));
+                    }
+                }
+            }
+        }
     }
 
     /// Translates a block of docids to row_ids.
