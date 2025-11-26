@@ -174,7 +174,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             per_occur_scorers.remove(&Occur::Must).unwrap_or_default();
         let must_special_scorer_counts = remove_and_count_all_and_empty_scorers(&mut must_scorers);
 
-        if must_special_scorer_counts.empty_count > 0 {
+        if must_special_scorer_counts.num_empty_scorers > 0 {
             return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
         }
 
@@ -188,14 +188,14 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         let exclude_special_scorer_counts =
             remove_and_count_all_and_empty_scorers(&mut exclude_scorers);
 
-        if exclude_special_scorer_counts.all_count > 0 {
+        if exclude_special_scorer_counts.num_all_scorers > 0 {
             // We exclude all documents at one point.
             return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
         }
 
         let minimum_number_should_match = self
             .minimum_number_should_match
-            .saturating_sub(should_special_scorer_counts.all_count);
+            .saturating_sub(should_special_scorer_counts.num_all_scorers);
 
         let should_scorers: ShouldScorersCombinationMethod = {
             let num_of_should_scorers = should_scorers.len();
@@ -244,10 +244,17 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             ))
         };
 
-        let positive_scorer = match (should_scorers, must_scorers) {
+        let include_scorer = match (should_scorers, must_scorers) {
             (ShouldScorersCombinationMethod::Ignored, must_scorers) => {
                 let boxed_scorer: Box<dyn Scorer> = if must_scorers.is_empty() {
-                    if must_special_scorer_counts.all_count + should_special_scorer_counts.all_count
+                    // We do not have any should scorers, nor all scorers.
+                    // There are still two cases here.
+                    //
+                    // If this follows the removal of some AllScorers in the should/must clauses, then
+                    // we match all documents.
+                    //
+                    // Otherwise, it is really just an EmptyScorer.
+                    if must_special_scorer_counts.num_all_scorers + should_special_scorer_counts.num_all_scorers
                         > 0
                     {
                         Box::new(AllScorer::new(reader.max_doc()))
@@ -260,7 +267,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 SpecializedScorer::Other(boxed_scorer)
             }
             (ShouldScorersCombinationMethod::Optional(should_scorer), must_scorers) => {
-                if must_scorers.is_empty() && must_special_scorer_counts.all_count == 0 {
+                if must_scorers.is_empty() && must_special_scorer_counts.num_all_scorers == 0 {
                     // Optional options are promoted to required if no must scorers exists.
                     should_scorer
                 } else {
@@ -289,22 +296,22 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             }
         };
         if let Some(exclude_scorer) = exclude_scorer_opt {
-            let positive_scorer_boxed =
-                into_box_scorer(positive_scorer, &score_combiner_fn, num_docs);
+            let include_scorer_boxed =
+                into_box_scorer(include_scorer, &score_combiner_fn, num_docs);
             Ok(SpecializedScorer::Other(Box::new(Exclude::new(
-                positive_scorer_boxed,
+                include_scorer_boxed,
                 exclude_scorer,
             ))))
         } else {
-            Ok(positive_scorer)
+            Ok(include_scorer)
         }
     }
 }
 
 #[derive(Default, Copy, Clone, Debug)]
 struct AllAndEmptyScorerCounts {
-    all_count: usize,
-    empty_count: usize,
+    num_all_scorers: usize,
+    num_empty_scorers: usize,
 }
 
 fn remove_and_count_all_and_empty_scorers(
@@ -313,10 +320,10 @@ fn remove_and_count_all_and_empty_scorers(
     let mut counts = AllAndEmptyScorerCounts::default();
     scorers.retain(|scorer| {
         if scorer.is::<AllScorer>() {
-            counts.all_count += 1;
+            counts.num_all_scorers += 1;
             false
         } else if scorer.is::<EmptyScorer>() {
-            counts.empty_count += 1;
+            counts.num_empty_scorers += 1;
             false
         } else {
             true
@@ -361,7 +368,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
 
         let mut explanation = Explanation::new("BooleanClause. sum of ...", scorer.score());
         for (occur, subweight) in &self.weights {
-            if is_positive_occur(*occur) {
+            if is_include_occur(*occur) {
                 if let Ok(child_explanation) = subweight.explain(reader, doc) {
                     explanation.add_detail(child_explanation);
                 }
@@ -445,7 +452,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     }
 }
 
-fn is_positive_occur(occur: Occur) -> bool {
+fn is_include_occur(occur: Occur) -> bool {
     match occur {
         Occur::Must | Occur::Should => true,
         Occur::MustNot => false,

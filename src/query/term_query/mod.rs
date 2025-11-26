@@ -473,14 +473,14 @@ mod tests {
                 .unwrap()
         };
         // Should be an allscorer
-        let hello_scorer = get_scorer_for_term("hello");
+        let match_all_scorer = get_scorer_for_term("hello");
         // Should be a term scorer
-        let happy_scorer = get_scorer_for_term("happy");
+        let match_some_scorer = get_scorer_for_term("happy");
         // Should be an empty scorer
-        let tax_scorer = get_scorer_for_term("tax");
-        assert!(hello_scorer.is::<AllScorer>());
-        assert!(happy_scorer.is::<TermScorer>());
-        assert!(tax_scorer.is::<EmptyScorer>());
+        let empty_scorer = get_scorer_for_term("tax");
+        assert!(match_all_scorer.is::<AllScorer>());
+        assert!(match_some_scorer.is::<TermScorer>());
+        assert!(empty_scorer.is::<EmptyScorer>());
     }
 
     #[test]
@@ -512,13 +512,13 @@ mod tests {
                 .unwrap()
         };
         // Should be an allscorer
-        let hello_scorer = get_scorer_for_term("hello");
+        let match_all_scorer = get_scorer_for_term("hello");
         // Should be a term scorer
-        let happy_scorer = get_scorer_for_term("happy");
+        let one_scorer = get_scorer_for_term("happy");
         // Should be an empty scorer
-        let tax_scorer = get_scorer_for_term("tax");
-        assert!(hello_scorer.is::<TermScorer>());
-        assert!(happy_scorer.is::<TermScorer>());
-        assert!(tax_scorer.is::<EmptyScorer>());
+        let empty_scorer = get_scorer_for_term("tax");
+        assert!(match_all_scorer.is::<TermScorer>());
+        assert!(one_scorer.is::<TermScorer>());
+        assert!(empty_scorer.is::<EmptyScorer>());
     }
 }

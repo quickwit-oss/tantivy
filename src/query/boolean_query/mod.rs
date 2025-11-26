@@ -323,22 +323,22 @@ mod tests {
         index_writer.add_document(doc!(text_field=>"hello happy"))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let term_a: Box<dyn Query> = Box::new(TermQuery::new(
+        let term_match_all: Box<dyn Query> = Box::new(TermQuery::new(
             Term::from_field_text(text_field, "hello"),
             IndexRecordOption::Basic,
         ));
-        let term_b: Box<dyn Query> = Box::new(TermQuery::new(
+        let term_match_some: Box<dyn Query> = Box::new(TermQuery::new(
             Term::from_field_text(text_field, "happy"),
             IndexRecordOption::Basic,
         ));
-        let term_c: Box<dyn Query> = Box::new(TermQuery::new(
+        let term_match_none: Box<dyn Query> = Box::new(TermQuery::new(
             Term::from_field_text(text_field, "tax"),
             IndexRecordOption::Basic,
         ));
         {
             let query = BooleanQuery::from(vec![
-                (Occur::Must, term_a.box_clone()),
-                (Occur::Must, term_b.box_clone()),
+                (Occur::Must, term_match_all.box_clone()),
+                (Occur::Must, term_match_some.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
@@ -346,9 +346,9 @@ mod tests {
         }
         {
             let query = BooleanQuery::from(vec![
-                (Occur::Must, term_a.box_clone()),
-                (Occur::Must, term_b.box_clone()),
-                (Occur::Must, term_c.box_clone()),
+                (Occur::Must, term_match_all.box_clone()),
+                (Occur::Must, term_match_some.box_clone()),
+                (Occur::Must, term_match_none.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
@@ -356,8 +356,8 @@ mod tests {
         }
         {
             let query = BooleanQuery::from(vec![
-                (Occur::Should, term_a.box_clone()),
-                (Occur::Should, term_c.box_clone()),
+                (Occur::Should, term_match_all.box_clone()),
+                (Occur::Should, term_match_none.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
@@ -365,8 +365,8 @@ mod tests {
         }
         {
             let query = BooleanQuery::from(vec![
-                (Occur::Should, term_b.box_clone()),
-                (Occur::Should, term_c.box_clone()),
+                (Occur::Should, term_match_some.box_clone()),
+                (Occur::Should, term_match_none.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
