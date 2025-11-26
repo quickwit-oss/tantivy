@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use crate::collector::Collector;
 use crate::core::Executor;
-use crate::index::{SegmentId, SegmentReader};
+use crate::index::{ArcSegmentReader, SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
 use crate::schema::document::DocumentDeserialize;
 use crate::schema::{Schema, Term};
@@ -36,7 +36,7 @@ pub struct SearcherGeneration {
 
 impl SearcherGeneration {
     pub(crate) fn from_segment_readers(
-        segment_readers: &[SegmentReader],
+        segment_readers: &[ArcSegmentReader],
         generation_id: u64,
     ) -> Self {
         let mut segment_id_to_del_opstamp = BTreeMap::new();
@@ -133,7 +133,7 @@ impl Searcher {
     pub fn doc_freq(&self, term: &Term) -> crate::Result<u64> {
         let mut total_doc_freq = 0;
         for segment_reader in &self.inner.segment_readers {
-            let inverted_index = segment_reader.inverted_index(term.field())?;
+            let inverted_index = segment_reader.as_ref().inverted_index(term.field())?;
             let doc_freq = inverted_index.doc_freq(term)?;
             total_doc_freq += u64::from(doc_freq);
         }
@@ -146,7 +146,7 @@ impl Searcher {
     pub async fn doc_freq_async(&self, term: &Term) -> crate::Result<u64> {
         let mut total_doc_freq = 0;
         for segment_reader in &self.inner.segment_readers {
-            let inverted_index = segment_reader.inverted_index(term.field())?;
+            let inverted_index = segment_reader.as_ref().inverted_index(term.field())?;
             let doc_freq = inverted_index.doc_freq_async(term).await?;
             total_doc_freq += u64::from(doc_freq);
         }
@@ -154,13 +154,13 @@ impl Searcher {
     }
 
     /// Return the list of segment readers
-    pub fn segment_readers(&self) -> &[SegmentReader] {
+    pub fn segment_readers(&self) -> &[ArcSegmentReader] {
         &self.inner.segment_readers
     }
 
     /// Returns the segment_reader associated with the given segment_ord
-    pub fn segment_reader(&self, segment_ord: u32) -> &SegmentReader {
-        &self.inner.segment_readers[segment_ord as usize]
+    pub fn segment_reader(&self, segment_ord: u32) -> &dyn SegmentReader {
+        self.inner.segment_readers[segment_ord as usize].as_ref()
     }
 
     /// Runs a query on the segment readers wrapped by the searcher.
@@ -228,7 +228,11 @@ impl Searcher {
         let segment_readers = self.segment_readers();
         let fruits = executor.map(
             |(segment_ord, segment_reader)| {
-                collector.collect_segment(weight.as_ref(), segment_ord as u32, segment_reader)
+                collector.collect_segment(
+                    weight.as_ref(),
+                    segment_ord as u32,
+                    segment_reader.as_ref(),
+                )
             },
             segment_readers.iter().enumerate(),
         )?;
@@ -258,7 +262,7 @@ impl From<Arc<SearcherInner>> for Searcher {
 pub(crate) struct SearcherInner {
     schema: Schema,
     index: Index,
-    segment_readers: Vec<SegmentReader>,
+    segment_readers: Vec<ArcSegmentReader>,
     store_readers: Vec<StoreReader>,
     generation: TrackedObject<SearcherGeneration>,
 }
@@ -268,7 +272,7 @@ impl SearcherInner {
     pub(crate) fn new(
         schema: Schema,
         index: Index,
-        segment_readers: Vec<SegmentReader>,
+        segment_readers: Vec<ArcSegmentReader>,
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_num_blocks: usize,
     ) -> io::Result<SearcherInner> {
@@ -300,7 +304,7 @@ impl fmt::Debug for Searcher {
         let segment_ids = self
             .segment_readers()
             .iter()
-            .map(SegmentReader::segment_id)
+            .map(|segment_reader| segment_reader.segment_id())
             .collect::<Vec<_>>();
         write!(f, "Searcher({segment_ids:?})")
     }

@@ -107,7 +107,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let column_opt = segment_reader.fast_fields().column_opt(&self.field)?;
 
@@ -261,7 +261,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let column_opt = segment_reader.fast_fields().bytes(&self.field)?;
 

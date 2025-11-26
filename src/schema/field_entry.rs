@@ -210,8 +210,11 @@ mod tests {
         index_writer.add_document(doc!(text=>"abc"))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let err = searcher.segment_reader(0u32).get_fieldnorms_reader(text);
-        assert!(matches!(err, Err(crate::TantivyError::SchemaError(_))));
+        let field_norm_opt = searcher
+            .segment_reader(0u32)
+            .fieldnorms_readers()
+            .get_field(text)?;
+        assert!(field_norm_opt.is_none());
         Ok(())
     }
 }

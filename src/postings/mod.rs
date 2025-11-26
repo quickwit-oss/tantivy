@@ -46,7 +46,7 @@ pub(crate) mod tests {
     use super::{InvertedIndexSerializer, Postings};
     use crate::docset::{DocSet, TERMINATED};
     use crate::fieldnorm::FieldNormReader;
-    use crate::index::{Index, SegmentComponent, SegmentReader};
+    use crate::index::{Index, SegmentComponent, TantivySegmentReader};
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
     use crate::query::Scorer;
@@ -54,7 +54,7 @@ pub(crate) mod tests {
         Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, INDEXED, TEXT,
     };
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
-    use crate::{DocId, HasLen, IndexWriter, Score};
+    use crate::{DocId, HasLen, IndexWriter, Score, SegmentReader};
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
@@ -258,9 +258,12 @@ pub(crate) mod tests {
             segment_writer.finalize()?;
         }
         {
-            let segment_reader = SegmentReader::open(&segment)?;
+            let segment_reader = TantivySegmentReader::open(&segment)?;
             {
-                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
+                let fieldnorm_reader = segment_reader
+                    .fieldnorms_readers()
+                    .get_field(text_field)?
+                    .unwrap();
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.fieldnorm(1), 2);
                 for i in 2..1000 {

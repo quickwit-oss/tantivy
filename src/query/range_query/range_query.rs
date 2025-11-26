@@ -212,7 +212,7 @@ impl InvertedIndexRangeWeight {
 }
 
 impl Weight for InvertedIndexRangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
@@ -245,7 +245,7 @@ impl Weight for InvertedIndexRangeWeight {
         Ok(Box::new(ConstScorer::new(doc_bitset, boost)))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));

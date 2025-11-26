@@ -15,7 +15,7 @@ impl Collector for DocSetCollector {
     fn for_segment(
         &self,
         segment_local_id: crate::SegmentOrdinal,
-        _segment: &crate::SegmentReader,
+        _segment: &dyn crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok(DocSetChildCollector {
             segment_local_id,

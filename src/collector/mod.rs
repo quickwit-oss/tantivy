@@ -150,7 +150,7 @@ pub trait Collector: Sync + Send {
     fn for_segment(
         &self,
         segment_local_id: SegmentOrdinal,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child>;
 
     /// Returns true iff the collector requires to compute scores for documents.
@@ -168,7 +168,7 @@ pub trait Collector: Sync + Send {
         &self,
         weight: &dyn Weight,
         segment_ord: u32,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let mut segment_collector = self.for_segment(segment_ord, reader)?;
 
@@ -227,7 +227,7 @@ impl<TCollector: Collector> Collector for Option<TCollector> {
     fn for_segment(
         &self,
         segment_local_id: SegmentOrdinal,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok(if let Some(inner) = self {
             let inner_segment_collector = inner.for_segment(segment_local_id, segment)?;
@@ -302,7 +302,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let left = self.0.for_segment(segment_local_id, segment)?;
         let right = self.1.for_segment(segment_local_id, segment)?;
@@ -361,7 +361,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let one = self.0.for_segment(segment_local_id, segment)?;
         let two = self.1.for_segment(segment_local_id, segment)?;
@@ -427,7 +427,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let one = self.0.for_segment(segment_local_id, segment)?;
         let two = self.1.for_segment(segment_local_id, segment)?;

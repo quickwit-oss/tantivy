@@ -265,7 +265,7 @@ impl Collector for FacetCollector {
     fn for_segment(
         &self,
         _: SegmentOrdinal,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
     ) -> crate::Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(&self.field_name)?;
         let facet_dict = facet_reader.facet_dict();

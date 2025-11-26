@@ -397,8 +397,6 @@ pub struct FilterAggReqData {
     pub name: String,
     /// The filter aggregation
     pub req: FilterAggregation,
-    /// The segment reader
-    pub segment_reader: SegmentReader,
     /// Document evaluator for the filter query (precomputed BitSet)
     /// This is built once when the request data is created
     pub evaluator: DocumentQueryEvaluator,
@@ -408,9 +406,8 @@ pub struct FilterAggReqData {
 
 impl FilterAggReqData {
     pub(crate) fn get_memory_consumption(&self) -> usize {
-        // Estimate: name + segment reader reference + bitset + buffer capacity
+        // Estimate: name + bitset + buffer capacity
         self.name.len()
-            + std::mem::size_of::<SegmentReader>()
             + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
             + self.matching_docs_buffer.capacity() * std::mem::size_of::<DocId>()
     }
@@ -431,7 +428,7 @@ impl DocumentQueryEvaluator {
     pub(crate) fn new(
         query: Box<dyn Query>,
         schema: Schema,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self> {
         let max_doc = segment_reader.max_doc();
 

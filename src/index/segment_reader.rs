@@ -9,7 +9,7 @@ use itertools::Itertools;
 use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
-use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
+use crate::fieldnorm::FieldNormReaders;
 use crate::index::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
 use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
@@ -17,6 +17,93 @@ use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::{DocId, Opstamp};
+
+/// Abstraction over a segment reader for accessing all data structures of a segment.
+///
+/// This trait exists to decouple the query layer from the concrete on-disk layout. Alternative
+/// codecs can implement it to expose their own segment representation.
+pub trait SegmentReader: Send + Sync {
+    /// Highest document id ever attributed in this segment + 1.
+    fn max_doc(&self) -> DocId;
+
+    /// Number of alive documents. Deleted documents are not counted.
+    fn num_docs(&self) -> DocId;
+
+    /// Returns the schema of the index this segment belongs to.
+    fn schema(&self) -> &Schema;
+
+    /// Return the number of documents that have been deleted in the segment.
+    fn num_deleted_docs(&self) -> DocId {
+        self.max_doc() - self.num_docs()
+    }
+
+    /// Returns true if some of the documents of the segment have been deleted.
+    fn has_deletes(&self) -> bool {
+        self.num_deleted_docs() > 0
+    }
+
+    /// Accessor to a segment's fast field reader.
+    fn fast_fields(&self) -> &FastFieldReaders;
+
+    /// Accessor to the `FacetReader` associated with a given `Field`.
+    fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
+        let schema = self.schema();
+        let field = schema.get_field(field_name)?;
+        let field_entry = schema.get_field_entry(field);
+        if field_entry.field_type().value_type() != Type::Facet {
+            return Err(crate::TantivyError::SchemaError(format!(
+                "`{field_name}` is not a facet field.`"
+            )));
+        }
+        let Some(facet_column) = self.fast_fields().str(field_name)? else {
+            panic!("Facet Field `{field_name}` is missing. This should not happen");
+        };
+        Ok(FacetReader::new(facet_column))
+    }
+
+    /// Accessor to the segment's field norms readers container.
+    fn fieldnorms_readers(&self) -> &FieldNormReaders;
+
+    /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
+    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader>;
+
+    /// Returns a field reader associated with the field given in argument.
+    fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>>;
+
+    /// Returns the list of fields that have been indexed in the segment.
+    fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>>;
+
+    /// Returns the segment id
+    fn segment_id(&self) -> SegmentId;
+
+    /// Returns the delete opstamp
+    fn delete_opstamp(&self) -> Option<Opstamp>;
+
+    /// Returns the bitset representing the alive `DocId`s.
+    fn alive_bitset(&self) -> Option<&AliveBitSet>;
+
+    /// Returns true if the `doc` is marked as deleted.
+    fn is_deleted(&self, doc: DocId) -> bool {
+        self.alive_bitset()
+            .map(|alive_bitset| alive_bitset.is_deleted(doc))
+            .unwrap_or(false)
+    }
+
+    /// Returns an iterator that will iterate over the alive document ids
+    fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_> {
+        if let Some(alive_bitset) = &self.alive_bitset() {
+            Box::new(alive_bitset.iter_alive())
+        } else {
+            Box::new(0u32..self.max_doc())
+        }
+    }
+
+    /// Summarize total space usage of this segment.
+    fn space_usage(&self) -> io::Result<SegmentSpaceUsage>;
+}
+
+/// Convenient alias for an atomically reference counted segment reader handle.
+pub type ArcSegmentReader = Arc<dyn SegmentReader>;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -29,7 +116,7 @@ use crate::{DocId, Opstamp};
 /// The segment reader has a very low memory footprint,
 /// as close to all of the memory data is mmapped.
 #[derive(Clone)]
-pub struct SegmentReader {
+pub struct TantivySegmentReader {
     inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
 
     segment_id: SegmentId,
@@ -49,98 +136,9 @@ pub struct SegmentReader {
     schema: Schema,
 }
 
-impl SegmentReader {
-    /// Returns the highest document id ever attributed in
-    /// this segment + 1.
-    pub fn max_doc(&self) -> DocId {
-        self.max_doc
-    }
-
-    /// Returns the number of alive documents.
-    /// Deleted documents are not counted.
-    pub fn num_docs(&self) -> DocId {
-        self.num_docs
-    }
-
-    /// Returns the schema of the index this segment belongs to.
-    pub fn schema(&self) -> &Schema {
-        &self.schema
-    }
-
-    /// Return the number of documents that have been
-    /// deleted in the segment.
-    pub fn num_deleted_docs(&self) -> DocId {
-        self.max_doc - self.num_docs
-    }
-
-    /// Returns true if some of the documents of the segment have been deleted.
-    pub fn has_deletes(&self) -> bool {
-        self.num_deleted_docs() > 0
-    }
-
-    /// Accessor to a segment's fast field reader given a field.
-    ///
-    /// Returns the u64 fast value reader if the field
-    /// is a u64 field indexed as "fast".
-    ///
-    /// Return a FastFieldNotAvailableError if the field is not
-    /// declared as a fast field in the schema.
-    ///
-    /// # Panics
-    /// May panic if the index is corrupted.
-    pub fn fast_fields(&self) -> &FastFieldReaders {
-        &self.fast_fields_readers
-    }
-
-    /// Accessor to the `FacetReader` associated with a given `Field`.
-    pub fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
-        let schema = self.schema();
-        let field = schema.get_field(field_name)?;
-        let field_entry = schema.get_field_entry(field);
-        if field_entry.field_type().value_type() != Type::Facet {
-            return Err(crate::TantivyError::SchemaError(format!(
-                "`{field_name}` is not a facet field.`"
-            )));
-        }
-        let Some(facet_column) = self.fast_fields().str(field_name)? else {
-            panic!("Facet Field `{field_name}` is missing. This should not happen");
-        };
-        Ok(FacetReader::new(facet_column))
-    }
-
-    /// Accessor to the segment's `Field norms`'s reader.
-    ///
-    /// Field norms are the length (in tokens) of the fields.
-    /// It is used in the computation of the [TfIdf](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).
-    ///
-    /// They are simply stored as a fast field, serialized in
-    /// the `.fieldnorm` file of the segment.
-    pub fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader> {
-        self.fieldnorm_readers.get_field(field)?.ok_or_else(|| {
-            let field_name = self.schema.get_field_name(field);
-            let err_msg = format!(
-                "Field norm not found for field {field_name:?}. Was the field set to record norm \
-                 during indexing?"
-            );
-            crate::TantivyError::SchemaError(err_msg)
-        })
-    }
-
-    #[doc(hidden)]
-    pub fn fieldnorms_readers(&self) -> &FieldNormReaders {
-        &self.fieldnorm_readers
-    }
-
-    /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
-    ///
-    /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
-    /// The size of blocks is configurable, this should be reflexted in the
-    pub fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone(), cache_num_blocks)
-    }
-
+impl TantivySegmentReader {
     /// Open a new segment for reading.
-    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
+    pub fn open(segment: &Segment) -> crate::Result<TantivySegmentReader> {
         Self::open_with_custom_alive_set(segment, None)
     }
 
@@ -148,7 +146,7 @@ impl SegmentReader {
     pub fn open_with_custom_alive_set(
         segment: &Segment,
         custom_bitset: Option<AliveBitSet>,
-    ) -> crate::Result<SegmentReader> {
+    ) -> crate::Result<TantivySegmentReader> {
         let termdict_file = segment.open_read(SegmentComponent::Terms)?;
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
@@ -190,7 +188,7 @@ impl SegmentReader {
             .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
             .unwrap_or(max_doc);
 
-        Ok(SegmentReader {
+        Ok(TantivySegmentReader {
             inv_idx_reader_cache: Default::default(),
             num_docs,
             max_doc,
@@ -206,6 +204,52 @@ impl SegmentReader {
             schema,
         })
     }
+}
+
+impl SegmentReader for TantivySegmentReader {
+    /// Returns the highest document id ever attributed in
+    /// this segment + 1.
+    fn max_doc(&self) -> DocId {
+        self.max_doc
+    }
+
+    /// Returns the number of alive documents.
+    /// Deleted documents are not counted.
+    fn num_docs(&self) -> DocId {
+        self.num_docs
+    }
+
+    /// Returns the schema of the index this segment belongs to.
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    /// Accessor to a segment's fast field reader given a field.
+    ///
+    /// Returns the u64 fast value reader if the field
+    /// is a u64 field indexed as "fast".
+    ///
+    /// Return a FastFieldNotAvailableError if the field is not
+    /// declared as a fast field in the schema.
+    ///
+    /// # Panics
+    /// May panic if the index is corrupted.
+    fn fast_fields(&self) -> &FastFieldReaders {
+        &self.fast_fields_readers
+    }
+
+    #[doc(hidden)]
+    fn fieldnorms_readers(&self) -> &FieldNormReaders {
+        &self.fieldnorm_readers
+    }
+
+    /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
+    ///
+    /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
+    /// The size of blocks is configurable, this should be reflexted in the
+    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {
+        StoreReader::open(self.store_file.clone(), cache_num_blocks)
+    }
 
     /// Returns a field reader associated with the field given in argument.
     /// If the field was not present in the index during indexing time,
@@ -219,7 +263,7 @@ impl SegmentReader {
     /// is returned.
     /// Similarly, if the field is marked as indexed but no term has been indexed for the given
     /// index, an empty `InvertedIndexReader` is returned (but no warning is logged).
-    pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
+    fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
             .read()
@@ -298,7 +342,7 @@ impl SegmentReader {
     /// Disclaimer: Some fields may not be listed here. For instance, if the schema contains a json
     /// field that is not indexed nor a fast field but is stored, it is possible for the field
     /// to not be listed.
-    pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
+    fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
         let mut indexed_fields: Vec<FieldMetadata> = Vec::new();
         let mut map_to_canonical = FnvHashMap::default();
         for (field, field_entry) in self.schema().fields() {
@@ -420,39 +464,22 @@ impl SegmentReader {
     }
 
     /// Returns the segment id
-    pub fn segment_id(&self) -> SegmentId {
+    fn segment_id(&self) -> SegmentId {
         self.segment_id
     }
 
     /// Returns the delete opstamp
-    pub fn delete_opstamp(&self) -> Option<Opstamp> {
+    fn delete_opstamp(&self) -> Option<Opstamp> {
         self.delete_opstamp
     }
 
     /// Returns the bitset representing the alive `DocId`s.
-    pub fn alive_bitset(&self) -> Option<&AliveBitSet> {
+    fn alive_bitset(&self) -> Option<&AliveBitSet> {
         self.alive_bitset_opt.as_ref()
     }
 
-    /// Returns true if the `doc` is marked
-    /// as deleted.
-    pub fn is_deleted(&self, doc: DocId) -> bool {
-        self.alive_bitset()
-            .map(|alive_bitset| alive_bitset.is_deleted(doc))
-            .unwrap_or(false)
-    }
-
-    /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_> {
-        if let Some(alive_bitset) = &self.alive_bitset_opt {
-            Box::new(alive_bitset.iter_alive())
-        } else {
-            Box::new(0u32..self.max_doc)
-        }
-    }
-
     /// Summarize total space usage of this segment.
-    pub fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
+    fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
         Ok(SegmentSpaceUsage::new(
             self.num_docs(),
             self.termdict_composite.space_usage(),
@@ -576,7 +603,7 @@ fn intersect_alive_bitset(
     }
 }
 
-impl fmt::Debug for SegmentReader {
+impl fmt::Debug for TantivySegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "SegmentReader({:?})", self.segment_id)
     }

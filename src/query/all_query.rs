@@ -21,12 +21,12 @@ impl Query for AllQuery {
 pub struct AllWeight;
 
 impl Weight for AllWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let all_scorer = AllScorer::new(reader.max_doc());
         Ok(Box::new(BoostScorer::new(all_scorer, boost)))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         if doc >= reader.max_doc() {
             return Err(does_not_match(doc));
         }
