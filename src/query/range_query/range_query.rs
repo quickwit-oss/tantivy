@@ -268,9 +268,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::range_query::fast_field_range_doc_set::RangeDocSet;
     use crate::query::range_query::range_query::InvertedIndexRangeQuery;
-    use crate::query::{
-        AllScorer, BitSetDocSet, ConstScorer, EmptyScorer, EnableScoring, Query, QueryParser,
-    };
+    use crate::query::{AllScorer, ConstScorer, EmptyScorer, EnableScoring, Query, QueryParser};
     use crate::schema::{
         Field, IntoIpv6Addr, Schema, TantivyDocument, FAST, INDEXED, STORED, TEXT,
     };

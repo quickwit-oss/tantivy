@@ -18,7 +18,7 @@ pub struct TermWeight {
 }
 
 enum TermOrEmptyOrAllScorer {
-    TermScorer(TermScorer),
+    TermScorer(Box<TermScorer>),
     Empty,
     AllMatch(AllScorer),
 }
@@ -26,7 +26,7 @@ enum TermOrEmptyOrAllScorer {
 impl TermOrEmptyOrAllScorer {
     pub fn into_boxed_scorer(self) -> Box<dyn Scorer> {
         match self {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => Box::new(scorer),
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => scorer,
             TermOrEmptyOrAllScorer::Empty => Box::new(EmptyScorer),
             TermOrEmptyOrAllScorer::AllMatch(scorer) => Box::new(scorer),
         }
@@ -48,9 +48,7 @@ impl Weight for TermWeight {
                 explanation.add_context(format!("Term={:?}", self.term,));
                 Ok(explanation)
             }
-            TermOrEmptyOrAllScorer::Empty => {
-                return Err(does_not_match(doc));
-            }
+            TermOrEmptyOrAllScorer::Empty => Err(does_not_match(doc)),
             TermOrEmptyOrAllScorer::AllMatch(_) => AllWeight.explain(reader, doc),
         }
     }
@@ -75,7 +73,7 @@ impl Weight for TermWeight {
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
             TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
-                for_each_scorer(&mut term_scorer, callback);
+                for_each_scorer(&mut *term_scorer, callback);
             }
             TermOrEmptyOrAllScorer::Empty => {}
             TermOrEmptyOrAllScorer::AllMatch(mut all_scorer) => {
@@ -127,7 +125,7 @@ impl Weight for TermWeight {
         match specialized_scorer {
             TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
                 crate::query::boolean_query::block_wand_single_scorer(
-                    term_scorer,
+                    *term_scorer,
                     threshold,
                     callback,
                 );
@@ -173,7 +171,7 @@ impl TermWeight {
     ) -> crate::Result<Option<TermScorer>> {
         let scorer = self.specialized_scorer(reader, boost)?;
         Ok(match scorer {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(scorer),
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(*scorer),
             _ => None,
         })
     }
@@ -203,10 +201,8 @@ impl TermWeight {
 
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);
-        Ok(TermOrEmptyOrAllScorer::TermScorer(TermScorer::new(
-            segment_postings,
-            fieldnorm_reader,
-            similarity_weight,
+        Ok(TermOrEmptyOrAllScorer::TermScorer(Box::new(
+            TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight),
         )))
     }
 
