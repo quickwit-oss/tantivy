@@ -181,11 +181,8 @@ impl TermWeight {
     fn specialized_scorer(
         &self,
         reader: &SegmentReader,
-        mut boost: Score,
+        boost: Score,
     ) -> crate::Result<TermOrEmptyOrAllScorer> {
-        if !self.scoring_enabled {
-            boost = 1.0f32;
-        }
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field)?;
         let Some(term_info) = inverted_index.get_term_info(&self.term)? else {

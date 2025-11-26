@@ -413,10 +413,14 @@ fn search_on_u64_ff(
     if col_min_value >= *value_range.start() && col_max_value <= *value_range.end() {
         // all values in the column are within the range.
         if column.index.get_cardinality() == Cardinality::Full {
-            return Ok(Box::new(ConstScorer::new(
-                AllScorer::new(column.num_docs()),
-                boost,
-            )));
+            if boost != 1.0f32 {
+                return Ok(Box::new(ConstScorer::new(
+                    AllScorer::new(column.num_docs()),
+                    boost,
+                )));
+            } else {
+                return Ok(Box::new(AllScorer::new(column.num_docs())));
+            }
         } else {
             // TODO Make it a field presence request for that specific column
         }
