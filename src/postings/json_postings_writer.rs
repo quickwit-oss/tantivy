@@ -8,7 +8,7 @@ use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{BufferLender, DocIdRecorder, Recorder};
 use crate::postings::{FieldSerializer, IndexingContext, IndexingPosition, PostingsWriter};
-use crate::schema::{Field, Type, ValueBytes};
+use crate::schema::{Field, Type};
 use crate::tokenizer::TokenStream;
 use crate::DocId;
 

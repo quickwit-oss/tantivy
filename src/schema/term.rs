@@ -5,6 +5,7 @@ use std::{fmt, str};
 use columnar::MonotonicallyMappableToU128;
 use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP_STR};
 use common::JsonPathWriter;
+use serde::{Deserialize, Serialize};
 
 use super::date_time_options::DATE_TIME_PRECISION_INDEXED;
 use super::{Field, Schema};
@@ -18,7 +19,7 @@ use crate::DateTime;
 ///
 /// A term is composed of Field and the serialized value bytes.
 /// The serialized value bytes themselves start with a one byte type tag followed by the payload.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct Term {
     field: Field,
     serialized_value_bytes: Vec<u8>,
@@ -28,6 +29,34 @@ pub struct Term {
 const TERM_TYPE_TAG_LEN: usize = 1;
 
 impl Term {
+    /// Takes a serialized term and wraps it as a Term.
+    /// First 4 bytes are the field id
+    #[deprecated(
+        note = "we want to avoid working on the serialized representation directly, replace with \
+                typed API calls (add more if needed) or use serde to serialize/deserialize"
+    )]
+    pub fn wrap(serialized: &[u8]) -> Term {
+        let field_id_bytes: [u8; 4] = serialized[0..4].try_into().unwrap();
+        let field_id = u32::from_be_bytes(field_id_bytes);
+        Term {
+            field: Field::from_field_id(field_id),
+            serialized_value_bytes: serialized[4..].to_vec(),
+        }
+    }
+
+    /// Returns the serialized representation of the term.
+    /// First 4 bytes are the field id
+    #[deprecated(
+        note = "we want to avoid working on the serialized representation directly, replace with \
+                typed API calls (add more if needed) or use serde to serialize/deserialize"
+    )]
+    pub fn serialized_term(&self) -> Vec<u8> {
+        let mut serialized = Vec::with_capacity(4 + self.serialized_value_bytes.len());
+        serialized.extend(self.field.field_id().to_be_bytes().as_ref());
+        serialized.extend_from_slice(&self.serialized_value_bytes);
+        serialized
+    }
+
     /// Create a new Term with a buffer with a given capacity.
     pub fn with_capacity(capacity: usize) -> Term {
         let mut data = Vec::with_capacity(TERM_TYPE_TAG_LEN + capacity);
