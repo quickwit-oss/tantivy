@@ -276,13 +276,14 @@ impl Default for IndexSettings {
 }
 
 /// The order to sort by
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Order {
     /// Ascending Order
     Asc,
     /// Descending Order
     Desc,
 }
+
 impl Order {
     /// return if the Order is ascending
     pub fn is_asc(&self) -> bool {

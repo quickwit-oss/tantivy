@@ -145,7 +145,7 @@ fn main() -> tantivy::Result<()> {
         let query = FuzzyTermQuery::new(term, 2, true);
 
         let (top_docs, count) = searcher
-            .search(&query, &(TopDocs::with_limit(5), Count))
+            .search(&query, &(TopDocs::with_limit(5).order_by_score(), Count))
             .unwrap();
         assert_eq!(count, 3);
         assert_eq!(top_docs.len(), 3);

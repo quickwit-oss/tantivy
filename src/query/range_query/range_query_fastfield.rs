@@ -527,7 +527,9 @@ mod tests {
 
         let test_query = |query, num_hits| {
             let query = query_parser.parse_query(query).unwrap();
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10).order_by_score())
+                .unwrap();
             assert_eq!(top_docs.len(), num_hits);
         };
 
@@ -613,7 +615,9 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![date_field]);
         let test_query = |query, num_hits| {
             let query = query_parser.parse_query(query).unwrap();
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10).order_by_score())
+                .unwrap();
             assert_eq!(top_docs.len(), num_hits);
         };
 
@@ -993,7 +997,9 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![json_field]);
         let test_query = |query, num_hits| {
             let query = query_parser.parse_query(query).unwrap();
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10).order_by_score())
+                .unwrap();
             assert_eq!(top_docs.len(), num_hits);
         };
 

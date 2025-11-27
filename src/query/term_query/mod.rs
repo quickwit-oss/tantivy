@@ -100,7 +100,7 @@ mod tests {
         {
             let term = Term::from_field_text(left_field, "left2");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            let topdocs = searcher.search(&term_query, &TopDocs::with_limit(2))?;
+            let topdocs = searcher.search(&term_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(topdocs.len(), 1);
             let (score, _) = topdocs[0];
             assert_nearly_equals!(0.77802235, score);
@@ -108,7 +108,8 @@ mod tests {
         {
             let term = Term::from_field_text(left_field, "left1");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            let top_docs = searcher.search(&term_query, &TopDocs::with_limit(2))?;
+            let top_docs =
+                searcher.search(&term_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 2);
             let (score1, _) = top_docs[0];
             assert_nearly_equals!(0.27101856, score1);
@@ -118,7 +119,7 @@ mod tests {
         {
             let query_parser = QueryParser::for_index(&index, Vec::new());
             let query = query_parser.parse_query("left:left2 left:left1")?;
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(2))?;
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 2);
             let (score1, _) = top_docs[0];
             assert_nearly_equals!(0.9153879, score1);
@@ -438,7 +439,7 @@ mod tests {
 
         // Using TopDocs requires scoring; since the field is not indexed,
         // TermQuery cannot score and should return a SchemaError.
-        let res = searcher.search(&tq, &TopDocs::with_limit(1));
+        let res = searcher.search(&tq, &TopDocs::with_limit(1).order_by_score());
         assert!(matches!(res, Err(crate::TantivyError::SchemaError(_))));
 
         Ok(())
