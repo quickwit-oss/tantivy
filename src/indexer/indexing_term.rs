@@ -3,21 +3,21 @@ use std::net::Ipv6Addr;
 use columnar::MonotonicallyMappableToU128;
 
 use crate::fastfield::FastValue;
-use crate::schema::{Field, Type};
+use crate::schema::Field;
 
-/// Term represents the value that the token can take.
-/// It's a serialized representation over different types.
+/// IndexingTerm is used to represent a term during indexing.
+/// It's a serialized representation over field and value.
 ///
-/// It actually wraps a `Vec<u8>`. The first 5 bytes are metadata.
-/// 4 bytes are the field id, and the last byte is the type.
+/// It actually wraps a `Vec<u8>`. The first 4 bytes are the field.
 ///
-/// The serialized value `ValueBytes` is considered everything after the 4 first bytes (term id).
+/// We serialize the field, because we index everything in a single
+/// global term dictionary during indexing.
 #[derive(Clone)]
 pub(crate) struct IndexingTerm<B = Vec<u8>>(B)
 where B: AsRef<[u8]>;
 
 /// The number of bytes used as metadata by `Term`.
-const TERM_METADATA_LENGTH: usize = 5;
+const TERM_METADATA_LENGTH: usize = 4;
 
 impl IndexingTerm {
     /// Create a new Term with a buffer with a given capacity.
@@ -31,10 +31,9 @@ impl IndexingTerm {
     /// Use `clear_with_field_and_type` in that case.
     ///
     /// Sets field and the type.
-    pub(crate) fn set_field_and_type(&mut self, field: Field, typ: Type) {
+    pub(crate) fn set_field(&mut self, field: Field) {
         assert!(self.is_empty());
         self.0[0..4].clone_from_slice(field.field_id().to_be_bytes().as_ref());
-        self.0[4] = typ.to_code();
     }
 
     /// Is empty if there are no value bytes.
@@ -42,10 +41,10 @@ impl IndexingTerm {
         self.0.len() == TERM_METADATA_LENGTH
     }
 
-    /// Removes the value_bytes and set the field and type code.
-    pub(crate) fn clear_with_field_and_type(&mut self, typ: Type, field: Field) {
+    /// Removes the value_bytes and set the field
+    pub(crate) fn clear_with_field(&mut self, field: Field) {
         self.truncate_value_bytes(0);
-        self.set_field_and_type(field, typ);
+        self.set_field(field);
     }
 
     /// Sets a u64 value in the term.
@@ -122,6 +121,23 @@ impl IndexingTerm {
 impl<B> IndexingTerm<B>
 where B: AsRef<[u8]>
 {
+    /// Wraps serialized term bytes.
+    ///
+    /// The input buffer is expected to be the concatenation of the big endian encoded field id
+    /// followed by the serialized value bytes (type tag + payload).
+    #[inline]
+    pub fn wrap(serialized_term: B) -> IndexingTerm<B> {
+        debug_assert!(serialized_term.as_ref().len() >= TERM_METADATA_LENGTH);
+        IndexingTerm(serialized_term)
+    }
+
+    /// Returns the field this term belongs to.
+    #[inline]
+    pub fn field(&self) -> Field {
+        let field_id_bytes: [u8; 4] = self.0.as_ref()[..4].try_into().unwrap();
+        Field::from_field_id(u32::from_be_bytes(field_id_bytes))
+    }
+
     /// Returns the serialized representation of Term.
     /// This includes field_id, value type and value.
     ///
@@ -136,6 +152,7 @@ where B: AsRef<[u8]>
 #[cfg(test)]
 mod tests {
 
+    use super::IndexingTerm;
     use crate::schema::*;
 
     #[test]
@@ -143,42 +160,55 @@ mod tests {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("text", STRING);
         let title_field = schema_builder.add_text_field("title", STRING);
-        let term = Term::from_field_text(title_field, "test");
+        let mut term = IndexingTerm::with_capacity(0);
+        term.set_field(title_field);
+        term.set_bytes(b"test");
         assert_eq!(term.field(), title_field);
-        assert_eq!(term.typ(), Type::Str);
-        assert_eq!(term.value().as_str(), Some("test"))
+        assert_eq!(term.serialized_term(), b"\x00\x00\x00\x01test".to_vec())
     }
 
     /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
     /// <field> + <type byte> + <value len>
     ///
     /// - <field> is a big endian encoded u32 field id
-    /// - <type_byte>'s most significant bit expresses whether the term is a json term or not The
-    ///   remaining 7 bits are used to encode the type of the value. If this is a JSON term, the
-    ///   type is the type of the leaf of the json.
     /// - <value> is,  if this is not the json term, a binary representation specific to the type.
     ///   If it is a JSON Term, then it is prepended with the path that leads to this leaf value.
-    const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
+    const FAST_VALUE_TERM_LEN: usize = 4 + 8;
 
     #[test]
     pub fn test_term_u64() {
         let mut schema_builder = Schema::builder();
         let count_field = schema_builder.add_u64_field("count", INDEXED);
-        let term = Term::from_field_u64(count_field, 983u64);
+        let mut term = IndexingTerm::with_capacity(0);
+        term.set_field(count_field);
+        term.set_u64(983u64);
         assert_eq!(term.field(), count_field);
-        assert_eq!(term.typ(), Type::U64);
         assert_eq!(term.serialized_term().len(), FAST_VALUE_TERM_LEN);
-        assert_eq!(term.value().as_u64(), Some(983u64))
     }
 
     #[test]
     pub fn test_term_bool() {
         let mut schema_builder = Schema::builder();
         let bool_field = schema_builder.add_bool_field("bool", INDEXED);
-        let term = Term::from_field_bool(bool_field, true);
+        let term = {
+            let mut term = IndexingTerm::with_capacity(0);
+            term.set_field(bool_field);
+            term.set_bool(true);
+            term
+        };
         assert_eq!(term.field(), bool_field);
-        assert_eq!(term.typ(), Type::Bool);
         assert_eq!(term.serialized_term().len(), FAST_VALUE_TERM_LEN);
-        assert_eq!(term.value().as_bool(), Some(true))
+    }
+
+    #[test]
+    pub fn indexing_term_wrap_extracts_field() {
+        let field = Field::from_field_id(7u32);
+        let mut term = IndexingTerm::with_capacity(0);
+        term.set_field(field);
+        term.append_bytes(b"abc");
+
+        let wrapped = IndexingTerm::wrap(term.serialized_term());
+        assert_eq!(wrapped.field(), field);
+        assert_eq!(wrapped.serialized_term(), term.serialized_term());
     }
 }

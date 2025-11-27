@@ -406,7 +406,7 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_str("red");
 
-        assert_eq!(term.serialized_term(), b"\x00\x00\x00\x01jcolor\x00sred")
+        assert_eq!(term.serialized_value_bytes(), b"color\x00sred".to_vec())
     }
 
     #[test]
@@ -416,8 +416,8 @@ mod tests {
         term.append_type_and_fast_value(-4i64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc"
+            term.serialized_value_bytes(),
+            b"color\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc".to_vec()
         )
     }
 
@@ -428,8 +428,8 @@ mod tests {
         term.append_type_and_fast_value(4u64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00u\x00\x00\x00\x00\x00\x00\x00\x04"
+            term.serialized_value_bytes(),
+            b"color\x00u\x00\x00\x00\x00\x00\x00\x00\x04".to_vec()
         )
     }
 
@@ -439,8 +439,8 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(4.0f64);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00f\xc0\x10\x00\x00\x00\x00\x00\x00"
+            term.serialized_value_bytes(),
+            b"color\x00f\xc0\x10\x00\x00\x00\x00\x00\x00".to_vec()
         )
     }
 
@@ -450,8 +450,8 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(true);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
+            term.serialized_value_bytes(),
+            b"color\x00o\x00\x00\x00\x00\x00\x00\x00\x01".to_vec()
         )
     }
 
