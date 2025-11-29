@@ -11,6 +11,7 @@ categories = ["database-implementations", "data-structures", "compression"]
 [dependencies]
 itertools = "0.14.0"
 fastdivide = "0.4.0"
+pgm-extra = { version = "1.2.0", default-features = false }
 
 stacker = { version= "0.6", path = "../stacker", package="tantivy-stacker"}
 sstable = { version= "0.6", path = "../sstable", package = "tantivy-sstable" }
@@ -55,6 +56,10 @@ harness = false
 
 [[bench]]
 name = "bench_optional_index"
+harness = false
+
+[[bench]]
+name = "bench_multivalued_pgm"
 harness = false
 
 [features]
