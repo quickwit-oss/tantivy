@@ -318,6 +318,21 @@ where B: AsRef<[u8]>
         self.get_fast_type::<u64>()
     }
 
+    /// Returns the `u64` representation of a FastValue stored in a term.
+    ///
+    /// Returns `None` if the term is not of a FastValue type, or if the term byte representation
+    /// is invalid.
+    pub fn as_u64_lenient(&self) -> Option<u64> {
+        if !matches!(
+            self.typ(),
+            Type::U64 | Type::I64 | Type::F64 | Type::Bool | Type::Date
+        ) {
+            return None;
+        }
+        let value_bytes = self.raw_value_bytes_payload();
+        Some(u64::from_be_bytes(value_bytes.try_into().ok()?))
+    }
+
     fn get_fast_type<T: FastValue>(&self) -> Option<T> {
         if self.typ() != T::to_type() {
             return None;
