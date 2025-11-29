@@ -62,7 +62,7 @@ impl ExtendedStatsAggregation {
 
 /// Extended stats contains a collection of statistics
 /// they extends stats adding variance, standard deviation
-/// and bound informations
+/// and bound information
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExtendedStats {
     /// The number of documents.

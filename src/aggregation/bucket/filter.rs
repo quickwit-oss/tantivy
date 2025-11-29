@@ -32,7 +32,7 @@ use crate::{DocId, SegmentReader, TantivyError};
 ///
 /// # Implementation Requirements
 ///
-/// Implementors must:
+/// Implementers must:
 /// 1. Derive `Debug`, `Clone`, `Serialize`, and `Deserialize`
 /// 2. Use `#[typetag::serde]` attribute on the impl block
 /// 3. Implement `build_query()` to construct the query from schema/tokenizers
