@@ -550,7 +550,7 @@ trait TermAggregationMap: Clone + Debug + 'static {
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize;
 
-    /// Returns the bucket assocaited to a given term_id.
+    /// Returns the bucket associated to a given term_id.
     fn term_entry(
         &mut self,
         term_id: u64,

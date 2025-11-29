@@ -141,7 +141,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             Ok(TSSTable::delta_reader(data))
         } else {
             // if operations are sync, we assume latency is almost null, and there is no point in
-            // merging accross holes
+            // merging across holes
             let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
             let data = blocks
                 .map(|block_addr| self.sstable_slice.read_bytes_slice(block_addr.byte_range))

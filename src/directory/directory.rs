@@ -108,7 +108,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a file and returns a boxed `FileHandle`.
     ///
     /// Users of `Directory` should typically call `Directory::open_read(...)`,
-    /// while `Directory` implementor should implement `get_file_handle()`.
+    /// while `Directory` implementer should implement `get_file_handle()`.
     fn get_file_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>, OpenReadError>;
 
     /// Once a virtual file is open, its data may not

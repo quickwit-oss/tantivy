@@ -181,7 +181,7 @@ impl SSTableIndexV3 {
 // cannot match. this isn't as bad as it sounds given the fst is a lot smaller than the rest of the
 // sstable.
 // To do that, we can't use tantivy_fst's Stream with an automaton, as we need to know 2 consecutive
-// fst keys to form a proper opinion on whether this is a match, which we wan't translate into a
+// fst keys to form a proper opinion on whether this is a match, which we want translate into a
 // single automaton
 struct GetBlockForAutomaton<'a, A: Automaton> {
     streamer: tantivy_fst::map::Stream<'a>,

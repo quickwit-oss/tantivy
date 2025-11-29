@@ -16,7 +16,7 @@ use super::{AggregationError, Key};
 use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-/// The final aggegation result.
+/// The final aggregation result.
 pub struct AggregationResults(pub FxHashMap<String, AggregationResult>);
 
 impl AggregationResults {
