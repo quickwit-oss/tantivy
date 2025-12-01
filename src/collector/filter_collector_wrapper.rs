@@ -12,6 +12,7 @@ use std::marker::PhantomData;
 use columnar::{BytesColumn, Column, DynamicColumn, HasAssociatedColumnType};
 
 use crate::collector::{Collector, SegmentCollector};
+use crate::schema::Schema;
 use crate::{DocId, Score, SegmentReader};
 
 /// The `FilterCollector` filters docs using a fast field value and a predicate.
@@ -49,13 +50,13 @@ use crate::{DocId, Score, SegmentReader};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary")?;
-/// let no_filter_collector = FilterCollector::new("price".to_string(), |value: u64| value > 20_120u64, TopDocs::with_limit(2));
+/// let no_filter_collector = FilterCollector::new("price".to_string(), |value: u64| value > 20_120u64, TopDocs::with_limit(2).order_by_score());
 /// let top_docs = searcher.search(&query, &no_filter_collector)?;
 ///
 /// assert_eq!(top_docs.len(), 1);
 /// assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
 ///
-/// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new("price".to_string(), |value| value < 5u64, TopDocs::with_limit(2));
+/// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new("price".to_string(), |value| value < 5u64, TopDocs::with_limit(2).order_by_score());
 /// let filtered_top_docs = searcher.search(&query, &filter_all_collector)?;
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
@@ -103,6 +104,11 @@ where
     type Fruit = TCollector::Fruit;
 
     type Child = FilterSegmentCollector<TCollector::Child, TPredicate, TPredicateValue>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.collector.check_schema(schema)?;
+        Ok(())
+    }
 
     fn for_segment(
         &self,
@@ -234,7 +240,7 @@ where
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary")?;
-/// let filter_collector = BytesFilterCollector::new("barcode".to_string(), |bytes: &[u8]| bytes.starts_with(b"01"), TopDocs::with_limit(2));
+/// let filter_collector = BytesFilterCollector::new("barcode".to_string(), |bytes: &[u8]| bytes.starts_with(b"01"), TopDocs::with_limit(2).order_by_score());
 /// let top_docs = searcher.search(&query, &filter_collector)?;
 ///
 /// assert_eq!(top_docs.len(), 1);
@@ -273,6 +279,10 @@ where
     type Fruit = TCollector::Fruit;
 
     type Child = BytesFilterSegmentCollector<TCollector::Child, TPredicate>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.collector.check_schema(schema)
+    }
 
     fn for_segment(
         &self,

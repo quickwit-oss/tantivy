@@ -153,7 +153,8 @@ mod tests {
             let terms = vec![Term::from_field_text(field1, "doc1")];
 
             let term_set_query = TermSetQuery::new(terms);
-            let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(2))?;
+            let top_docs =
+                searcher.search(&term_set_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 1, "Expected 1 document");
             let (score, _) = top_docs[0];
             assert_nearly_equals!(1.0, score);
@@ -164,7 +165,8 @@ mod tests {
             let terms = vec![Term::from_field_text(field1, "doc4")];
 
             let term_set_query = TermSetQuery::new(terms);
-            let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(1))?;
+            let top_docs =
+                searcher.search(&term_set_query, &TopDocs::with_limit(1).order_by_score())?;
             assert!(top_docs.is_empty(), "Expected 0 document");
         }
 
@@ -176,7 +178,8 @@ mod tests {
             ];
 
             let term_set_query = TermSetQuery::new(terms);
-            let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(2))?;
+            let top_docs =
+                searcher.search(&term_set_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 2, "Expected 2 documents");
             for (score, _) in top_docs {
                 assert_nearly_equals!(1.0, score);
@@ -192,7 +195,8 @@ mod tests {
             ];
 
             let term_set_query = TermSetQuery::new(terms);
-            let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(3))?;
+            let top_docs =
+                searcher.search(&term_set_query, &TopDocs::with_limit(3).order_by_score())?;
 
             assert_eq!(top_docs.len(), 2, "Expected 2 document");
             for (score, _) in top_docs {
@@ -205,13 +209,15 @@ mod tests {
             let terms = vec![Term::from_field_text(field1, "doc3")];
 
             let term_set_query = TermSetQuery::new(terms);
-            let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(3))?;
+            let top_docs =
+                searcher.search(&term_set_query, &TopDocs::with_limit(3).order_by_score())?;
             assert_eq!(top_docs.len(), 1, "Expected 1 document");
 
             let terms = vec![Term::from_field_text(field2, "doc3")];
 
             let term_set_query = TermSetQuery::new(terms);
-            let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(3))?;
+            let top_docs =
+                searcher.search(&term_set_query, &TopDocs::with_limit(3).order_by_score())?;
             assert_eq!(top_docs.len(), 1, "Expected 1 document");
 
             let terms = vec![
@@ -220,7 +226,8 @@ mod tests {
             ];
 
             let term_set_query = TermSetQuery::new(terms);
-            let top_docs = searcher.search(&term_set_query, &TopDocs::with_limit(3))?;
+            let top_docs =
+                searcher.search(&term_set_query, &TopDocs::with_limit(3).order_by_score())?;
             assert_eq!(top_docs.len(), 2, "Expected 2 document");
         }
 
@@ -249,7 +256,7 @@ mod tests {
         let searcher = reader.searcher();
         let query_parser = QueryParser::for_index(&index, vec![]);
         let query = query_parser.parse_query("field: IN [val1 val2]")?;
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(3))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(3).order_by_score())?;
         assert_eq!(top_docs.len(), 2);
         Ok(())
     }

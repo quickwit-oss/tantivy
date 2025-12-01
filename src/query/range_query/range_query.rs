@@ -496,7 +496,7 @@ mod tests {
         let searcher = reader.searcher();
         let query_parser = QueryParser::for_index(&index, vec![title]);
         let query = query_parser.parse_query("hemoglobin AND year:[1970 TO 1990]")?;
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
         assert_eq!(top_docs.len(), 1);
         Ok(())
     }
@@ -550,7 +550,7 @@ mod tests {
 
         let get_num_hits = |query| {
             let (_top_docs, count) = searcher
-                .search(&query, &(TopDocs::with_limit(10), Count))
+                .search(&query, &(TopDocs::with_limit(10).order_by_score(), Count))
                 .unwrap();
             count
         };

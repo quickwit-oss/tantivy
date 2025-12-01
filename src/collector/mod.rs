@@ -57,7 +57,7 @@
 //! #     let query_parser = QueryParser::for_index(&index, vec![title]);
 //! #     let query = query_parser.parse_query("diary")?;
 //! let (doc_count, top_docs): (usize, Vec<(Score, DocAddress)>) =
-//! searcher.search(&query, &(Count, TopDocs::with_limit(2)))?;
+//! searcher.search(&query, &(Count, TopDocs::with_limit(2).order_by_score()))?;
 //! #     Ok(())
 //! # }
 //! ```
@@ -83,10 +83,14 @@
 
 use downcast_rs::impl_downcast;
 
+use crate::schema::Schema;
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 
 mod count_collector;
 pub use self::count_collector::Count;
+
+/// Sort keys
+pub mod sort_key;
 
 mod histogram_collector;
 pub use histogram_collector::HistogramCollector;
@@ -95,16 +99,13 @@ mod multi_collector;
 pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 
 mod top_collector;
+pub use self::top_collector::ComparableDoc;
 
 mod top_score_collector;
-pub use self::top_collector::ComparableDoc;
 pub use self::top_score_collector::{TopDocs, TopNComputer};
 
-mod custom_score_top_collector;
-pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};
-
-mod tweak_score_top_collector;
-pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
+mod sort_key_top_collector;
+pub use self::sort_key::{SegmentSortKeyComputer, SortKeyComputer};
 mod facet_collector;
 pub use self::facet_collector::{FacetCollector, FacetCounts};
 use crate::query::Weight;
@@ -145,6 +146,11 @@ pub trait Collector: Sync + Send {
     /// Type of the `SegmentCollector` associated with this collector.
     type Child: SegmentCollector;
 
+    /// Returns an error if the schema is not compatible with the collector.
+    fn check_schema(&self, _schema: &Schema) -> crate::Result<()> {
+        Ok(())
+    }
+
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
     fn for_segment(
@@ -170,39 +176,48 @@ pub trait Collector: Sync + Send {
         segment_ord: u32,
         reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
+        let with_scoring = self.requires_scoring();
         let mut segment_collector = self.for_segment(segment_ord, reader)?;
-
-        match (reader.alive_bitset(), self.requires_scoring()) {
-            (Some(alive_bitset), true) => {
-                weight.for_each(reader, &mut |doc, score| {
-                    if alive_bitset.is_alive(doc) {
-                        segment_collector.collect(doc, score);
-                    }
-                })?;
-            }
-            (Some(alive_bitset), false) => {
-                weight.for_each_no_score(reader, &mut |docs| {
-                    for doc in docs.iter().cloned() {
-                        if alive_bitset.is_alive(doc) {
-                            segment_collector.collect(doc, 0.0);
-                        }
-                    }
-                })?;
-            }
-            (None, true) => {
-                weight.for_each(reader, &mut |doc, score| {
-                    segment_collector.collect(doc, score);
-                })?;
-            }
-            (None, false) => {
-                weight.for_each_no_score(reader, &mut |docs| {
-                    segment_collector.collect_block(docs);
-                })?;
-            }
-        }
-
+        default_collect_segment_impl(&mut segment_collector, weight, reader, with_scoring)?;
         Ok(segment_collector.harvest())
     }
+}
+
+pub(crate) fn default_collect_segment_impl<TSegmentCollector: SegmentCollector>(
+    segment_collector: &mut TSegmentCollector,
+    weight: &dyn Weight,
+    reader: &SegmentReader,
+    with_scoring: bool,
+) -> crate::Result<()> {
+    match (reader.alive_bitset(), with_scoring) {
+        (Some(alive_bitset), true) => {
+            weight.for_each(reader, &mut |doc, score| {
+                if alive_bitset.is_alive(doc) {
+                    segment_collector.collect(doc, score);
+                }
+            })?;
+        }
+        (Some(alive_bitset), false) => {
+            weight.for_each_no_score(reader, &mut |docs| {
+                for doc in docs.iter().cloned() {
+                    if alive_bitset.is_alive(doc) {
+                        segment_collector.collect(doc, 0.0);
+                    }
+                }
+            })?;
+        }
+        (None, true) => {
+            weight.for_each(reader, &mut |doc, score| {
+                segment_collector.collect(doc, score);
+            })?;
+        }
+        (None, false) => {
+            weight.for_each_no_score(reader, &mut |docs| {
+                segment_collector.collect_block(docs);
+            })?;
+        }
+    }
+    Ok(())
 }
 
 impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCollector> {
@@ -229,6 +244,13 @@ impl<TCollector: Collector> Collector for Option<TCollector> {
     type Fruit = Option<TCollector::Fruit>;
 
     type Child = Option<<TCollector as Collector>::Child>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        if let Some(underlying_collector) = self {
+            underlying_collector.check_schema(schema)?;
+        }
+        Ok(())
+    }
 
     fn for_segment(
         &self,
@@ -305,6 +327,12 @@ where
     type Fruit = (Left::Fruit, Right::Fruit);
     type Child = (Left::Child, Right::Child);
 
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        Ok(())
+    }
+
     fn for_segment(
         &self,
         segment_local_id: u32,
@@ -368,6 +396,13 @@ where
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
     type Child = (One::Child, Two::Child, Three::Child);
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        self.2.check_schema(schema)?;
+        Ok(())
+    }
 
     fn for_segment(
         &self,
@@ -440,6 +475,14 @@ where
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit, Four::Fruit);
     type Child = (One::Child, Two::Child, Three::Child, Four::Child);
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        self.2.check_schema(schema)?;
+        self.3.check_schema(schema)?;
+        Ok(())
+    }
 
     fn for_segment(
         &self,

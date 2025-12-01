@@ -100,7 +100,7 @@ fn main() -> tantivy::Result<()> {
     // here we want to get a hit on the 'ken' in Frankenstein
     let query = query_parser.parse_query("ken")?;
 
-    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
 
     for (_, doc_address) in top_docs {
         let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
