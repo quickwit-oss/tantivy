@@ -73,7 +73,7 @@ The crate introduces the following concepts.
 `Columnar` is an equivalent of a dataframe.
 It maps `column_key` to `Column`.
 
-A `Column<T>` asssociates a `RowId` (u32) to any
+A `Column<T>` associates a `RowId` (u32) to any
 number of values.
 
 This is made possible by wrapping a `ColumnIndex` and a `ColumnValue` object.

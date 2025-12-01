@@ -26,7 +26,7 @@
 //! significant amount of time when indexing by avoiding the additional allocations.
 //!
 //! ### Important Note
-//! The implementor of the `Document` trait must be `'static` and safe to send across
+//! The implementer of the `Document` trait must be `'static` and safe to send across
 //! thread boundaries.
 //!
 //! ## Reusing existing types
@@ -107,7 +107,7 @@
 //!
 //! Values can just as easily be customised as documents by implementing the `Value` trait.
 //!
-//! The implementor of this type should not own the data it's returning, instead it should just
+//! The implementer of this type should not own the data it's returning, instead it should just
 //! hold references of the data held by the parent [Document] which can then be passed
 //! on to the [ReferenceValue].
 //!
@@ -117,7 +117,7 @@
 //!
 //! ### A note about returning values
 //! The custom value type does not have to be the type stored by the document, instead the
-//! implementor of a `Value` can just be used as a way to convert between the owned type
+//! implementer of a `Value` can just be used as a way to convert between the owned type
 //! kept in the parent document, and the value passed into Tantivy.
 //!
 //! ```

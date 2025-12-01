@@ -142,7 +142,7 @@ where
     }
 
     /// Same as `into_stream_async`, but tries to issue a single io operation when requesting
-    /// blocks that are not consecutive, but also less than `merge_holes_under_bytes` bytes appart.
+    /// blocks that are not consecutive, but also less than `merge_holes_under_bytes` bytes apart.
     pub async fn into_stream_async_merging_holes(
         self,
         merge_holes_under_bytes: usize,
