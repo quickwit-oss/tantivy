@@ -41,7 +41,7 @@ fn main() -> tantivy::Result<()> {
         [(-99.49, 45.56), (-99.45, 45.59)],
         tantivy::query::SpatialQueryType::Intersects,
     );
-    let hits = searcher.search(&query, &TopDocs::with_limit(10))?;
+    let hits = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
     for (_score, doc_address) in &hits {
         let retrieved_doc: TantivyDocument = searcher.doc(*doc_address)?;
         if let Some(field_value) = retrieved_doc.get_first(field) {

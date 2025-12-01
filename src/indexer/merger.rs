@@ -586,6 +586,7 @@ impl IndexMerger {
                 // Get spatial writer and rebuild block kd-tree.
                 spatial_serializer.serialize_field(field, triangles)?;
             }
+            spatial_serializer.close()?;
         }
         Ok(())
     }
