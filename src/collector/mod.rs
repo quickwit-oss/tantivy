@@ -214,6 +214,12 @@ impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCo
         }
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        if let Some(segment_collector) = self {
+            segment_collector.collect_block(docs);
+        }
+    }
+
     fn harvest(self) -> Self::Fruit {
         self.map(|segment_collector| segment_collector.harvest())
     }
@@ -342,6 +348,11 @@ where
         self.1.collect(doc, score);
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.0.collect_block(docs);
+        self.1.collect_block(docs);
+    }
+
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
         (self.0.harvest(), self.1.harvest())
     }
@@ -405,6 +416,12 @@ where
         self.0.collect(doc, score);
         self.1.collect(doc, score);
         self.2.collect(doc, score);
+    }
+
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.0.collect_block(docs);
+        self.1.collect_block(docs);
+        self.2.collect_block(docs);
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
@@ -480,6 +497,13 @@ where
         self.1.collect(doc, score);
         self.2.collect(doc, score);
         self.3.collect(doc, score);
+    }
+
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.0.collect_block(docs);
+        self.1.collect_block(docs);
+        self.2.collect_block(docs);
+        self.3.collect_block(docs);
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
