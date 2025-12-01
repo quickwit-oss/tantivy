@@ -758,7 +758,17 @@ fn negate(expr: UserInputAst) -> UserInputAst {
 fn leaf(inp: &str) -> IResult<&str, UserInputAst> {
     alt((
         delimited(char('('), ast, char(')')),
-        map(char('*'), |_| UserInputAst::from(UserInputLeaf::All)),
+        map(
+            terminated(
+                char('*'),
+                peek(alt((
+                    value((), multispace1),
+                    value((), char(')')),
+                    value((), eof),
+                ))),
+            ),
+            |_| UserInputAst::from(UserInputLeaf::All),
+        ),
         map(preceded(tuple((tag("NOT"), multispace1)), leaf), negate),
         literal,
     ))(inp)
@@ -779,7 +789,17 @@ fn leaf_infallible(inp: &str) -> JResult<&str, Option<UserInputAst>> {
                 ),
             ),
             (
-                value((), char('*')),
+                value(
+                    (),
+                    terminated(
+                        char('*'),
+                        peek(alt((
+                            value((), multispace1),
+                            value((), char(')')),
+                            value((), eof),
+                        ))),
+                    ),
+                ),
                 map(nothing, |_| {
                     (Some(UserInputAst::from(UserInputLeaf::All)), Vec::new())
                 }),
@@ -1671,6 +1691,21 @@ mod test {
         test_parse_query_to_ast_helper("abc:a b", "(*\"abc\":a *b)");
         test_parse_query_to_ast_helper("abc:\"a b\"", "\"abc\":\"a b\"");
         test_parse_query_to_ast_helper("foo:[1 TO 5]", "\"foo\":[\"1\" TO \"5\"]");
+
+        // Phrase prefixed with *
+        test_parse_query_to_ast_helper("foo:(*A)", "\"foo\":*A");
+        test_parse_query_to_ast_helper("*A", "*A");
+        test_parse_query_to_ast_helper("(*A)", "*A");
+        test_parse_query_to_ast_helper("foo:(A OR B)", "(?\"foo\":A ?\"foo\":B)");
+        test_parse_query_to_ast_helper("foo:(A* OR B*)", "(?\"foo\":A* ?\"foo\":B*)");
+        test_parse_query_to_ast_helper("foo:(*A OR *B)", "(?\"foo\":*A ?\"foo\":*B)");
+    }
+
+    #[test]
+    fn test_parse_query_all() {
+        test_parse_query_to_ast_helper("*", "*");
+        test_parse_query_to_ast_helper("(*)", "*");
+        test_parse_query_to_ast_helper("(* )", "*");
     }
 
     #[test]
