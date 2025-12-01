@@ -174,9 +174,10 @@ fn main() {
                     &mut group,
                     &bench_index,
                     query_str,
-                    TopDocs::with_limit(10).order_by(
-                        (SortByStaticFastValue::<u64>::for_field("score"), SortByStaticFastValue::<u64>::for_field("score2"))
-                    ),
+                    TopDocs::with_limit(10).order_by((
+                        SortByStaticFastValue::<u64>::for_field("score"),
+                        SortByStaticFastValue::<u64>::for_field("score2"),
+                    )),
                     "top10_by_2ff",
                 );
             }
