@@ -150,13 +150,10 @@ impl ExpUnrolledLinkedList {
         let last_block_len = block_size.saturating_sub(self.remaining_cap as usize);
 
         // Safety check: if remaining_cap > block_size, the metadata is corrupted
-        // This should never happen with correct usage, so panic to catch bugs early
         assert!(
             self.remaining_cap as usize <= block_size,
             "ExpUnrolledLinkedList metadata corruption detected: remaining_cap ({}) > block_size \
-             ({}). This indicates a serious bug, possibly from: 1. Copying ExpUnrolledLinkedList \
-             and using stale metadata 2. Race condition in parallel processing 3. Memory \
-             corruption. block_num={}, head={:?}, tail={:?}",
+             ({}). This should never happen, please report. block_num={}, head={:?}, tail={:?}",
             self.remaining_cap,
             block_size,
             self.block_num,
