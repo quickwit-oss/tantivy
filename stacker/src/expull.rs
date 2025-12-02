@@ -40,6 +40,7 @@ pub struct ExpUnrolledLinkedList {
 }
 
 impl Default for ExpUnrolledLinkedList {
+    #[inline(always)]
     fn default() -> Self {
         Self {
             // 0 to trigger an initial allocation. Init with MemoryArena would be better.
@@ -57,9 +58,9 @@ pub struct ExpUnrolledLinkedListWriter<'a> {
 }
 
 #[inline]
-fn ensure_capacity<'a>(
-    eull: &'a mut ExpUnrolledLinkedList,
-    arena: &'a mut MemoryArena,
+fn ensure_capacity(
+    eull: &mut ExpUnrolledLinkedList,
+    arena: &mut MemoryArena,
     allocate: u32,
 ) {
     let new_block_addr: Addr = arena.allocate_space(allocate as usize + mem::size_of::<Addr>());
@@ -122,6 +123,7 @@ fn get_block_size(block_num: u32) -> u16 {
 }
 
 impl ExpUnrolledLinkedList {
+    #[inline(always)]
     pub fn increment_num_blocks(&mut self) {
         // Add overflow check as a safety measure
         // With u32, we can handle up to ~4 billion blocks before overflow
