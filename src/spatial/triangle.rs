@@ -6,7 +6,8 @@
 //! recovery when needed.
 
 use i_triangle::advanced::delaunay::IntDelaunay;
-use robust::{orient2d, Coord};
+
+use crate::DocId;
 
 const MINY_MINX_MAXY_MAXX_Y_X: i32 = 0;
 const MINY_MINX_Y_X_MAXY_MAXX: i32 = 1;
@@ -58,7 +59,7 @@ pub struct Triangle {
     /// and a reconstruction code.
     pub words: [i32; 7],
     /// The id of the document associated with this triangle.
-    pub doc_id: u32,
+    pub doc_id: DocId,
 }
 
 impl Triangle {
@@ -69,6 +70,9 @@ impl Triangle {
     /// indicating which edges are polygon boundaries. Returns a triangle struct with the bounding
     /// box in the first four words as `[min_y, min_x, max_y, max_x]`. When decoded, the vertex
     /// order may differ from the original input to `new()` due to normalized rotation.
+    ///
+    /// The edge boundary flags are here to express whether an edge is part of the boundaries
+    /// in the tesselation of the larger polygon it belongs to.
     pub fn new(doc_id: u32, triangle: [i32; 6], boundaries: [bool; 3]) -> Self {
         let mut ay = triangle[0];
         let mut ax = triangle[1];
@@ -135,18 +139,19 @@ impl Triangle {
                 }
             }
         }
-        // change orientation if CW
-        if orient2d(
+        // change orientation if clockwise (CW)
+        if !is_counter_clockwise(
             Coord { y: ay, x: ax },
             Coord { y: by, x: bx },
             Coord { y: cy, x: cx },
-        ) < 0.0
+        )
         {
+            // To change the orientation, we simply swap B and C.
             let temp_x = bx;
             let temp_y = by;
             let temp_boundary = ab;
             // ax and ay do not change, ab becomes bc
-            ab = bc;
+            ab = ca;
             bx = cx;
             by = cy;
             // bc does not change, ca becomes ab
@@ -328,6 +333,28 @@ pub fn delaunay_to_triangles(doc_id: u32, delaunay: &IntDelaunay, triangles: &mu
     }
 }
 
+struct Coord {
+    x: i32,
+    y: i32,
+}
+
+/// Returns true if the path A -> B -> C is Counter-Clockwise (CCW) or collinear.
+/// Returns false if it is Clockwise (CW).
+#[inline(always)]
+fn is_counter_clockwise(a: Coord, b: Coord, c: Coord) -> bool {
+    // We calculate the 2D cross product (determinant) of vectors AB and AC.
+    // Formula: (bx - ax)(cy - ay) - (by - ay)(cx - ax)
+
+    // We cast to i64 to prevent overflow, as multiplying two i32s can exceed i32::MAX.
+    let val = (b.x as i64 - a.x as i64) * (c.y as i64 - a.y as i64)
+            - (b.y as i64 - a.y as i64) * (c.x as i64 - a.x as i64);
+
+    // If the result is positive, the triangle is CCW.
+    // If negative, it is CW.
+    // If zero, the points are collinear (we return true in that case).
+    val >= 0
+}
+
 #[cfg(test)]
 mod tests {
     use i_triangle::i_overlay::i_float::int::point::IntPoint;
@@ -353,6 +380,56 @@ mod tests {
             assert_eq!(decoded_coords, ccw_coords);
             assert_eq!(decoded_bounds, ccw_bounds);
         }
+    }
+
+    #[test]
+    fn test_cw_triangle_boundary_and_coord_flip() {
+        // 1. Define distinct coordinates for a Clockwise triangle
+        // Visual layout:
+        // A(50,40): Top Center-ish
+        // B(10,60): Bottom Right
+        // C(20,10): Bottom Left (Has the Minimum X=10)
+        // Path A->B->C is Clockwise.
+        let input_coords = [
+            50, 40, // A (y, x)
+            10, 60, // B
+            20, 10  // C
+        ];
+
+        // 2. Define Boundaries [ab, bc, ca]
+        // We set BC=true and CA=false.
+        // The bug (ab=bc) would erroneously put 'true' into the first slot.
+        // The fix (ab=ca) should put 'false' into the first slot.
+        let input_bounds = [false, true, false];
+
+        // 3. Encode
+        let triangle = Triangle::new(1, input_coords, input_bounds);
+        let (decoded_coords, decoded_bounds) = triangle.decode();
+
+        // 4. Expected Coordinates
+        // The internal logic detects CW, swaps B/C to make it CCW:
+        //    A(50,40) -> C(20,10) -> B(10,60)
+        // Then it rotates to put Min-X first.
+        // Min X is 10 (Vertex C).
+        // Final Sequence: C -> B -> A
+        let expected_coords = [
+            20, 10, // C
+            10, 60, // B
+            50, 40  // A
+        ];
+
+        // 5. Expected Boundaries
+        // After Flip (A->C->B):
+        //    Edge AC (was CA) = false
+        //    Edge CB (was BC) = true
+        //    Edge BA (was AB) = false
+        //    Unrotated: [false, true, false]
+        // After Rotation (shifting to start at C):
+        //    Shift left by 1: [true, false, false]
+        let expected_bounds = [true, false, false];
+
+        assert_eq!(decoded_coords, expected_coords, "Coordinates did not decode as expected");
+        assert_eq!(decoded_bounds, expected_bounds, "Boundary flags were incorrect (likely swap bug)");
     }
 
     #[test]
