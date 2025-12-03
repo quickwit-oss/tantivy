@@ -70,7 +70,7 @@ impl SegmentSerializer {
         &mut self.fast_field_write
     }
 
-    /// HUSH
+    /// Accessor to the `SpatialSerializer`
     pub fn extract_spatial_serializer(&mut self) -> Option<SpatialSerializer> {
         self.spatial_serializer.take()
     }

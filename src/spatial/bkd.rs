@@ -296,6 +296,8 @@ fn write_branch_nodes(
     }
 }
 
+const VERSION: u16 = 1u16;
+
 /// Builds and serializes a block kd-tree for spatial indexing of triangles.
 ///
 /// Takes a collection of triangles and constructs a complete block kd-tree, writing both the
@@ -314,16 +316,14 @@ pub fn write_block_kd_tree(
     triangles: &mut [Triangle],
     write: &mut CountingWriter<WritePtr>,
 ) -> io::Result<()> {
-    assert_eq!(
-        triangles.as_ptr() as usize % std::mem::align_of::<Triangle>(),
-        0
-    );
-    write.write_all(&1u16.to_le_bytes())?;
+    write.write_all(&VERSION.to_le_bytes())?;
+
     let tree = write_leaf_pages(triangles, write)?;
     let current = write.written_bytes();
-    let aligned = (current + 31) & !31;
+    let aligned = current.next_multiple_of(32);
     let padding = aligned - current;
     write.write_all(&vec![0u8; padding as usize])?;
+
     write_leaf_nodes(&tree, write)?;
     let branch_position = write.written_bytes();
     let mut branch_offset: i32 = 0;
@@ -336,15 +336,16 @@ pub fn write_block_kd_tree(
     Ok(())
 }
 
-fn decompress_leaf(data: &[u8]) -> io::Result<Vec<Triangle>> {
-    let count = u16::from_le_bytes([data[0], data[1]]) as usize;
-    let mut offset = 2;
-    let mut triangles = Vec::with_capacity(count);
-    offset += decompress::<u32, _>(&data[offset..], count, |_, doc_id| {
+fn decompress_leaf(mut data: &[u8]) -> io::Result<Vec<Triangle>> {
+    use common::BinarySerializable;
+    let triangle_count: usize = u16::deserialize(&mut data)? as usize;
+    let mut offset: usize = 0;
+    let mut triangles: Vec<Triangle> = Vec::with_capacity(triangle_count);
+    offset += decompress::<u32, _>(&data[offset..], triangle_count, |_, doc_id| {
         triangles.push(Triangle::skeleton(doc_id))
     })?;
     for i in 0..7 {
-        offset += decompress::<i32, _>(&data[offset..], count, |j, word| {
+        offset += decompress::<i32, _>(&data[offset..], triangle_count, |j, word| {
             triangles[j].words[i] = word
         })?;
     }
