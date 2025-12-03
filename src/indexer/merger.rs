@@ -533,9 +533,9 @@ impl IndexMerger {
         /// Unfortunately, there are no special trick to merge segments.
         /// We need to rebuild a BKD-tree based off the list of triangles.
         ///
-        /// Because the data can be large, we do this by writing the sequence of triangles to disk,
-        /// and mmapping it as mutable slice, and calling the same code as what is done for the
-        /// segment serialization.
+        /// Because the data can be large, we do this by writing the sequence of triangles to
+        /// disk, and mmapping it as mutable slice, and calling the same code as what
+        /// is done for the segment serialization.
         ///
         /// The OS is in charge of deciding how to handle its page cache.
         /// This is the same as what would have happened with swapping,
