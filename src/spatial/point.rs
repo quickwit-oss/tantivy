@@ -1,4 +1,3 @@
-
 /// A point in the geographical coordinate system.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GeoPoint {

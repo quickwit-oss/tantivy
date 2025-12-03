@@ -699,18 +699,24 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        index_writer.add_document(doc!(
-            date_field => DateTime::from_u64(1i64.to_u64()),
-            multi_date_field => DateTime::from_u64(2i64.to_u64()),
-            multi_date_field => DateTime::from_u64(3i64.to_u64())
-        )).unwrap();
-        index_writer.add_document(doc!(
-            date_field => DateTime::from_u64(4i64.to_u64())
-        )).unwrap();
-        index_writer.add_document(doc!(
-            multi_date_field => DateTime::from_u64(5i64.to_u64()),
-            multi_date_field => DateTime::from_u64(6i64.to_u64())
-        )).unwrap();
+        index_writer
+            .add_document(doc!(
+                date_field => DateTime::from_u64(1i64.to_u64()),
+                multi_date_field => DateTime::from_u64(2i64.to_u64()),
+                multi_date_field => DateTime::from_u64(3i64.to_u64())
+            ))
+            .unwrap();
+        index_writer
+            .add_document(doc!(
+                date_field => DateTime::from_u64(4i64.to_u64())
+            ))
+            .unwrap();
+        index_writer
+            .add_document(doc!(
+                multi_date_field => DateTime::from_u64(5i64.to_u64()),
+                multi_date_field => DateTime::from_u64(6i64.to_u64())
+            ))
+            .unwrap();
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();

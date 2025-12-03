@@ -95,11 +95,7 @@ fn append_point(triangles: &mut Vec<Triangle>, doc_id: DocId, point: GeoPoint) {
     triangles.push(Triangle::from_point(doc_id, point.0, point.1));
 }
 
-fn append_line_string(
-    triangles: &mut Vec<Triangle>,
-    doc_id: DocId,
-    line_string: Vec<GeoPoint>,
-) {
+fn append_line_string(triangles: &mut Vec<Triangle>, doc_id: DocId, line_string: Vec<GeoPoint>) {
     let mut previous = as_point_i32(line_string[0]);
     for point in line_string.into_iter().skip(1) {
         let point = as_point_i32(point);
