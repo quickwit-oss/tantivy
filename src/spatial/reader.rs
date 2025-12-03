@@ -10,12 +10,17 @@ use crate::schema::Field;
 use crate::space_usage::PerFieldSpaceUsage;
 
 #[derive(Clone)]
-/// HUSH
 pub struct SpatialReaders {
     data: Arc<CompositeFile>,
 }
 
 impl SpatialReaders {
+    pub fn empty() -> SpatialReaders {
+        SpatialReaders {
+            data: Arc::new(CompositeFile::empty()),
+        }
+    }
+
     /// Creates a field norm reader.
     pub fn open(file: FileSlice) -> crate::Result<SpatialReaders> {
         let data = CompositeFile::open(&file)?;

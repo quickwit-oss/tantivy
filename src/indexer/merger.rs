@@ -175,6 +175,7 @@ impl IndexMerger {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
+                dbg!("segment");
                 let reader =
                     SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;
                 readers.push(reader);
@@ -530,7 +531,6 @@ impl IndexMerger {
         serializer: &mut SegmentSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        /// Unfortunately, there are no special trick to merge segments.
         /// We need to rebuild a BKD-tree based off the list of triangles.
         ///
         /// Because the data can be large, we do this by writing the sequence of triangles to
@@ -543,6 +543,12 @@ impl IndexMerger {
         /// swap, the memory will not be accounted as anonymous memory,
         /// swap space is reserved etc.
         use crate::spatial::bkd::Segment;
+
+        let Some(mut spatial_serializer) = serializer.extract_spatial_serializer() else {
+            // The schema does not contain any spatial field.
+            return Ok(())
+        };
+
         let mut segment_mappings: Vec<Vec<Option<DocId>>> = Vec::new();
         for reader in &self.readers {
             let max_doc = reader.max_doc();
@@ -586,7 +592,6 @@ impl IndexMerger {
                 // No need to fsync here. This file is not here for persistency.
             }
         }
-        if let Some(mut spatial_serializer) = serializer.extract_spatial_serializer() {
             for (field, temp_file) in temp_files {
                 // Memory map the triangle file.
                 use memmap2::MmapOptions;
@@ -600,7 +605,7 @@ impl IndexMerger {
                 spatial_serializer.serialize_field(field, triangles)?;
             }
             spatial_serializer.close()?;
-        }
+
         Ok(())
     }
 

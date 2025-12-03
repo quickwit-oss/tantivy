@@ -1,6 +1,8 @@
+use geo_types::Point;
 use tantivy::collector::TopDocs;
 use tantivy::query::SpatialQuery;
 use tantivy::schema::{Schema, Value, SPATIAL, STORED, TEXT};
+use tantivy::spatial::point::GeoPoint;
 use tantivy::{Index, IndexWriter, TantivyDocument};
 fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
@@ -38,7 +40,7 @@ fn main() -> tantivy::Result<()> {
     let field = schema.get_field("geometry").unwrap();
     let query = SpatialQuery::new(
         field,
-        [(-99.49, 45.56), (-99.45, 45.59)],
+        [GeoPoint { lon:-99.49, lat: 45.56}, GeoPoint {lon:-99.45, lat: 45.59}],
         tantivy::query::SpatialQueryType::Intersects,
     );
     let hits = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
