@@ -19,7 +19,7 @@ fn u32_to_i32(val: u32) -> i32 {
 #[inline]
 unsafe fn u32_to_i32_avx2(vals_u32x8s: DataType) -> DataType {
     const HIGHEST_BIT_MASK: DataType = from_u32x8([HIGHEST_BIT; NUM_LANES]);
-    op_xor(vals_u32x8s, HIGHEST_BIT_MASK)
+    unsafe { op_xor(vals_u32x8s, HIGHEST_BIT_MASK) }
 }
 
 pub fn filter_vec_in_place(range: RangeInclusive<u32>, offset: u32, output: &mut Vec<u32>) {
@@ -66,17 +66,19 @@ unsafe fn filter_vec_avx2_aux(
     ]);
     const SHIFT: __m256i = from_u32x8([NUM_LANES as u32; NUM_LANES]);
     for _ in 0..num_words {
-        let word = load_unaligned(input);
-        let word = u32_to_i32_avx2(word);
-        let keeper_bitset = compute_filter_bitset(word, range_simd.clone());
-        let added_len = keeper_bitset.count_ones();
-        let filtered_doc_ids = compact(ids, keeper_bitset);
-        store_unaligned(output_tail as *mut __m256i, filtered_doc_ids);
-        output_tail = output_tail.offset(added_len as isize);
-        ids = op_add(ids, SHIFT);
-        input = input.offset(1);
+        unsafe {
+            let word = load_unaligned(input);
+            let word = u32_to_i32_avx2(word);
+            let keeper_bitset = compute_filter_bitset(word, range_simd.clone());
+            let added_len = keeper_bitset.count_ones();
+            let filtered_doc_ids = compact(ids, keeper_bitset);
+            store_unaligned(output_tail as *mut __m256i, filtered_doc_ids);
+            output_tail = output_tail.offset(added_len as isize);
+            ids = op_add(ids, SHIFT);
+            input = input.offset(1);
+        }
     }
-    output_tail.offset_from(output) as usize
+    unsafe { output_tail.offset_from(output) as usize }
 }
 
 #[inline]
@@ -92,8 +94,7 @@ unsafe fn compute_filter_bitset(val: __m256i, range: std::ops::RangeInclusive<__
     let too_low = op_greater(*range.start(), val);
     let too_high = op_greater(val, *range.end());
     let inside = op_or(too_low, too_high);
-    255 - std::arch::x86_64::_mm256_movemask_ps(std::mem::transmute::<DataType, __m256>(inside))
-        as u8
+    255 - std::arch::x86_64::_mm256_movemask_ps(_mm256_castsi256_ps(inside)) as u8
 }
 
 union U8x32 {
