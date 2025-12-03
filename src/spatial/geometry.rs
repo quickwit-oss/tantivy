@@ -5,6 +5,7 @@ use std::io::{self, Read, Write};
 use common::{BinarySerializable, VInt};
 use serde_json::{json, Map, Value};
 
+use crate::spatial::point::GeoPoint;
 use crate::spatial::xor::{compress_f64, decompress_f64};
 
 /// HUSH
@@ -26,17 +27,17 @@ pub enum GeometryError {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Geometry {
     /// HUSH
-    Point((f64, f64)),
+    Point(GeoPoint),
     /// HUSH
-    MultiPoint(Vec<(f64, f64)>),
+    MultiPoint(Vec<GeoPoint>),
     /// HUSH
-    LineString(Vec<(f64, f64)>),
+    LineString(Vec<GeoPoint>),
     /// HUSH
-    MultiLineString(Vec<Vec<(f64, f64)>>),
+    MultiLineString(Vec<Vec<GeoPoint>>),
     /// HUSH
-    Polygon(Vec<Vec<(f64, f64)>>),
+    Polygon(Vec<Vec<GeoPoint>>),
     /// HUSH
-    MultiPolygon(Vec<Vec<Vec<(f64, f64)>>>),
+    MultiPolygon(Vec<Vec<Vec<GeoPoint>>>),
     /// HUSH
     GeometryCollection(Vec<Self>),
 }
@@ -137,23 +138,24 @@ impl Geometry {
         }
     }
 
-    /// HUSH
+    /// Serialize the geometry to GeoJSON format.
+    /// https://fr.wikipedia.org/wiki/GeoJSON
     pub fn to_geojson(&self) -> Map<String, Value> {
         let mut map = Map::new();
         match self {
             Geometry::Point(point) => {
                 map.insert("type".to_string(), Value::String("Point".to_string()));
-                let coords = json!([point.0, point.1]);
+                let coords = json!([point.lon, point.lat]);
                 map.insert("coordinates".to_string(), coords);
             }
             Geometry::MultiPoint(points) => {
                 map.insert("type".to_string(), Value::String("MultiPoint".to_string()));
-                let coords: Vec<Value> = points.iter().map(|p| json!([p.0, p.1])).collect();
+                let coords: Vec<Value> = points.iter().map(|p| json!([p.lon, p.lat])).collect();
                 map.insert("coordinates".to_string(), Value::Array(coords));
             }
             Geometry::LineString(line) => {
                 map.insert("type".to_string(), Value::String("LineString".to_string()));
-                let coords: Vec<Value> = line.iter().map(|p| json!([p.0, p.1])).collect();
+                let coords: Vec<Value> = line.iter().map(|p| json!([p.lon, p.lat])).collect();
                 map.insert("coordinates".to_string(), Value::Array(coords));
             }
             Geometry::MultiLineString(lines) => {
@@ -163,7 +165,7 @@ impl Geometry {
                 );
                 let coords: Vec<Value> = lines
                     .iter()
-                    .map(|line| Value::Array(line.iter().map(|p| json!([p.0, p.1])).collect()))
+                    .map(|line| Value::Array(line.iter().map(|p| json!([p.lon, p.lat])).collect()))
                     .collect();
                 map.insert("coordinates".to_string(), Value::Array(coords));
             }
@@ -171,7 +173,7 @@ impl Geometry {
                 map.insert("type".to_string(), Value::String("Polygon".to_string()));
                 let coords: Vec<Value> = rings
                     .iter()
-                    .map(|ring| Value::Array(ring.iter().map(|p| json!([p.0, p.1])).collect()))
+                    .map(|ring| Value::Array(ring.iter().map(|p| json!([p.lon, p.lat])).collect()))
                     .collect();
                 map.insert("coordinates".to_string(), Value::Array(coords));
             }
@@ -187,7 +189,7 @@ impl Geometry {
                             polygon
                                 .iter()
                                 .map(|ring| {
-                                    Value::Array(ring.iter().map(|p| json!([p.0, p.1])).collect())
+                                    Value::Array(ring.iter().map(|p| json!([p.lon, p.lat])).collect())
                                 })
                                 .collect(),
                         )
@@ -218,7 +220,7 @@ fn get_coordinates(object: &Map<String, Value>) -> Result<&Value, GeometryError>
     Ok(coordinates)
 }
 
-fn to_point(value: &Value) -> Result<(f64, f64), GeometryError> {
+fn to_point(value: &Value) -> Result<GeoPoint, GeometryError> {
     let lonlat = value.as_array().ok_or(GeometryError::InvalidStructure(
         "expected 2 element array pair of lon/lat".to_string(),
     ))?;
@@ -245,10 +247,10 @@ fn to_point(value: &Value) -> Result<(f64, f64), GeometryError> {
             lat
         )));
     }
-    Ok((lon, lat))
+    Ok(GeoPoint { lon, lat })
 }
 
-fn to_line_string(value: &Value) -> Result<Vec<(f64, f64)>, GeometryError> {
+fn to_line_string(value: &Value) -> Result<Vec<GeoPoint>, GeometryError> {
     let mut result = Vec::new();
     let coordinates = value.as_array().ok_or(GeometryError::InvalidStructure(
         "expected an array of lon/lat arrays".to_string(),
@@ -259,7 +261,7 @@ fn to_line_string(value: &Value) -> Result<Vec<(f64, f64)>, GeometryError> {
     Ok(result)
 }
 
-fn to_multi_line_string(value: &Value) -> Result<Vec<Vec<(f64, f64)>>, GeometryError> {
+fn to_multi_line_string(value: &Value) -> Result<Vec<Vec<GeoPoint>>, GeometryError> {
     let mut result = Vec::new();
     let coordinates = value.as_array().ok_or(GeometryError::InvalidStructure(
         "expected an array of an array of lon/lat arrays".to_string(),
@@ -275,8 +277,8 @@ impl BinarySerializable for Geometry {
         match self {
             Geometry::Point(point) => {
                 0u8.serialize(writer)?;
-                point.0.serialize(writer)?;
-                point.1.serialize(writer)?;
+                point.lon.serialize(writer)?;
+                point.lat.serialize(writer)?;
                 Ok(())
             }
             Geometry::MultiPoint(points) => {
@@ -289,7 +291,7 @@ impl BinarySerializable for Geometry {
             }
             Geometry::MultiLineString(multi_line_string) => {
                 3u8.serialize(writer)?;
-                serialize_polygon(multi_line_string, writer)
+                serialize_polygon(&multi_line_string[..], writer)
             }
             Geometry::Polygon(polygon) => {
                 4u8.serialize(writer)?;
@@ -309,8 +311,8 @@ impl BinarySerializable for Geometry {
                 for polygon in multi_polygon {
                     for ring in polygon {
                         for point in ring {
-                            lon.push(point.0);
-                            lat.push(point.1);
+                            lon.push(point.lon);
+                            lat.push(point.lat);
                         }
                     }
                 }
@@ -339,7 +341,7 @@ impl BinarySerializable for Geometry {
             0 => {
                 let lon = BinarySerializable::deserialize(reader)?;
                 let lat = BinarySerializable::deserialize(reader)?;
-                Ok(Geometry::Point((lon, lat)))
+                Ok(Geometry::Point(GeoPoint { lon, lat }))
             }
             1 => Ok(Geometry::MultiPoint(deserialize_line_string(reader)?)),
             2 => Ok(Geometry::LineString(deserialize_line_string(reader)?)),
@@ -370,7 +372,10 @@ impl BinarySerializable for Geometry {
                     for point_count in rings {
                         let mut ring = Vec::new();
                         for _ in 0..point_count {
-                            ring.push((lon[offset], lat[offset]));
+                            ring.push(GeoPoint {
+                                lon: lon[offset],
+                                lat: lat[offset],
+                            });
                             offset += 1;
                         }
                         polygon.push(ring);
@@ -396,15 +401,15 @@ impl BinarySerializable for Geometry {
 }
 
 fn serialize_line_string<W: Write + ?Sized>(
-    line: &Vec<(f64, f64)>,
+    line: &[GeoPoint],
     writer: &mut W,
 ) -> io::Result<()> {
     BinarySerializable::serialize(&VInt(line.len() as u64), writer)?;
     let mut lon = Vec::new();
     let mut lat = Vec::new();
     for point in line {
-        lon.push(point.0);
-        lat.push(point.1);
+        lon.push(point.lon);
+        lat.push(point.lat);
     }
     let lon = compress_f64(&lon);
     let lat = compress_f64(&lat);
@@ -416,23 +421,23 @@ fn serialize_line_string<W: Write + ?Sized>(
 }
 
 fn serialize_polygon<W: Write + ?Sized>(
-    line_string: &Vec<Vec<(f64, f64)>>,
+    line_string: &[Vec<GeoPoint>],
     writer: &mut W,
 ) -> io::Result<()> {
     BinarySerializable::serialize(&VInt(line_string.len() as u64), writer)?;
     for ring in line_string {
         BinarySerializable::serialize(&VInt(ring.len() as u64), writer)?;
     }
-    let mut lon = Vec::new();
-    let mut lat = Vec::new();
+    let mut lon: Vec<f64> = Vec::new();
+    let mut lat: Vec<f64> = Vec::new();
     for ring in line_string {
         for point in ring {
-            lon.push(point.0);
-            lat.push(point.1);
+            lon.push(point.lon);
+            lat.push(point.lat);
         }
     }
-    let lon = compress_f64(&lon);
-    let lat = compress_f64(&lat);
+    let lon: Vec<u8> = compress_f64(&lon);
+    let lat: Vec<u8> = compress_f64(&lat);
     VInt(lon.len() as u64).serialize(writer)?;
     writer.write_all(&lon)?;
     VInt(lat.len() as u64).serialize(writer)?;
@@ -440,20 +445,20 @@ fn serialize_polygon<W: Write + ?Sized>(
     Ok(())
 }
 
-fn deserialize_line_string<R: Read>(reader: &mut R) -> io::Result<Vec<(f64, f64)>> {
+fn deserialize_line_string<R: Read>(reader: &mut R) -> io::Result<Vec<GeoPoint>> {
     let point_count = VInt::deserialize(reader)?.0 as usize;
     let lon_bytes: Vec<u8> = BinarySerializable::deserialize(reader)?;
     let lat_bytes: Vec<u8> = BinarySerializable::deserialize(reader)?;
-    let lon = decompress_f64(&lon_bytes, point_count);
-    let lat = decompress_f64(&lat_bytes, point_count);
-    let mut line_string = Vec::new();
+    let lon: Vec<f64> = decompress_f64(&lon_bytes, point_count);
+    let lat: Vec<f64> = decompress_f64(&lat_bytes, point_count);
+    let mut line_string: Vec<GeoPoint> = Vec::new();
     for offset in 0..point_count {
-        line_string.push((lon[offset], lat[offset]));
+        line_string.push(GeoPoint { lon: lon[offset], lat: lat[offset] });
     }
     Ok(line_string)
 }
 
-fn deserialize_polygon<R: Read>(reader: &mut R) -> io::Result<Vec<Vec<(f64, f64)>>> {
+fn deserialize_polygon<R: Read>(reader: &mut R) -> io::Result<Vec<Vec<GeoPoint>>> {
     let ring_count = VInt::deserialize(reader)?.0 as usize;
     let mut rings = Vec::new();
     let mut count = 0;
@@ -464,14 +469,14 @@ fn deserialize_polygon<R: Read>(reader: &mut R) -> io::Result<Vec<Vec<(f64, f64)
     }
     let lon_bytes: Vec<u8> = BinarySerializable::deserialize(reader)?;
     let lat_bytes: Vec<u8> = BinarySerializable::deserialize(reader)?;
-    let lon = decompress_f64(&lon_bytes, count);
-    let lat = decompress_f64(&lat_bytes, count);
-    let mut polygon = Vec::new();
+    let lon: Vec<f64> = decompress_f64(&lon_bytes, count);
+    let lat: Vec<f64> = decompress_f64(&lat_bytes, count);
+    let mut polygon: Vec<Vec<GeoPoint>> = Vec::new();
     let mut offset = 0;
     for point_count in rings {
         let mut ring = Vec::new();
         for _ in 0..point_count {
-            ring.push((lon[offset], lat[offset]));
+            ring.push(GeoPoint { lon: lon[offset], lat: lat[offset] });
             offset += 1;
         }
         polygon.push(ring);

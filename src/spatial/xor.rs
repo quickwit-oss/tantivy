@@ -18,7 +18,7 @@
 //! Unlike delta.rs which uses arithmetic deltas for i32 spatial coordinates in the block kd-tree,
 //! this module operates on f64 bit patterns directly to preserve exact floating-point values for
 //! returning to users.
-use std::io::{Cursor, Read};
+use std::io::Read;
 
 use common::VInt;
 
@@ -34,8 +34,8 @@ pub fn compress_f64(values: &[f64]) -> Vec<u8> {
     if values.is_empty() {
         return Vec::new();
     }
-    let mut output = Vec::new();
-    let mut previous = values[0].to_bits();
+    let mut output: Vec<u8> = Vec::new();
+    let mut previous: u64 = f64_to_le(values[0]);
     output.extend_from_slice(&previous.to_le_bytes());
     for &value in &values[1..] {
         let bits = value.to_bits();
@@ -46,11 +46,19 @@ pub fn compress_f64(values: &[f64]) -> Vec<u8> {
     if output.len() >= values.len() * 8 {
         let mut output = Vec::with_capacity(values.len() * 8);
         for &value in values {
-            output.extend_from_slice(&value.to_bits().to_le_bytes());
+            output.extend_from_slice(&f64_to_le(value).to_le_bytes());
         }
         return output;
     }
     output
+}
+
+fn f64_to_le(value: f64) -> u64 {
+    u64::from_le_bytes(value.to_le_bytes())
+}
+
+fn f64_from_le(value: u64) -> f64 {
+    f64::from_le_bytes(value.to_le_bytes())
 }
 
 /// Decompresses f64 coordinates from XOR delta or raw encoding.
@@ -60,16 +68,16 @@ pub fn compress_f64(values: &[f64]) -> Vec<u8> {
 /// reconstructing the original sequence.
 ///
 /// Returns exact f64 values that were passed to `compress_f64()`.
-pub fn decompress_f64(bytes: &[u8], count: usize) -> Vec<f64> {
+pub fn decompress_f64(mut bytes: &[u8], count: usize) -> Vec<f64> {
     let mut values = Vec::with_capacity(count);
     if bytes.len() == count * 8 {
         for i in 0..count {
             let bits = u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap());
-            values.push(f64::from_bits(bits));
+            values.push(f64_from_le(bits));
         }
         return values;
     }
-    let mut cursor = Cursor::new(bytes);
+    let mut cursor: &mut &[u8] = &mut bytes;
 
     // Read first value (raw 8 bytes)
     let mut first_bytes = [0u8; 8];

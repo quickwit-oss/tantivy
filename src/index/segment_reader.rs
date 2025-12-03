@@ -180,8 +180,13 @@ impl SegmentReader {
         let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-        let spatial_data = segment.open_read(SegmentComponent::Spatial)?;
-        let spatial_readers = SpatialReaders::open(spatial_data)?;
+        let spatial_readers = if schema.contains_spatial_field() {
+
+            let spatial_data = segment.open_read(SegmentComponent::Spatial)?;
+                SpatialReaders::open(spatial_data)?
+            } else {
+                SpatialReaders::empty()
+            };
 
         let original_bitset = if segment.meta().has_deletes() {
             let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
