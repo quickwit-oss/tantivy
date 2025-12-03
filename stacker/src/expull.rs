@@ -152,7 +152,8 @@ impl ExpUnrolledLinkedList {
         assert!(
             self.remaining_cap as usize <= block_size,
             "ExpUnrolledLinkedList metadata corruption detected: remaining_cap ({}) > block_size \
-             ({}). This indicates a serious bug, please report! (block_num={}, head={:?}, tail={:?})",
+             ({}). This indicates a serious bug, please report! (block_num={}, head={:?}, \
+             tail={:?})",
             self.remaining_cap,
             block_size,
             self.block_num,
