@@ -23,27 +23,27 @@ impl SpatialWriter {
         let triangles = &mut self.triangles_by_field.entry(field).or_default();
         match geometry {
             Geometry::Point(point) => {
-                into_point(triangles, doc_id, point);
+                append_point(triangles, doc_id, point);
             }
             Geometry::MultiPoint(multi_point) => {
                 for point in multi_point {
-                    into_point(triangles, doc_id, point);
+                    append_point(triangles, doc_id, point);
                 }
             }
             Geometry::LineString(line_string) => {
-                into_line_string(triangles, doc_id, line_string);
+                append_line_string(triangles, doc_id, line_string);
             }
             Geometry::MultiLineString(multi_line_string) => {
                 for line_string in multi_line_string {
-                    into_line_string(triangles, doc_id, line_string);
+                    append_line_string(triangles, doc_id, line_string);
                 }
             }
             Geometry::Polygon(polygon) => {
-                into_polygon(triangles, doc_id, polygon);
+                append_polygon(triangles, doc_id, &polygon);
             }
             Geometry::MultiPolygon(multi_polygon) => {
                 for polygon in multi_polygon {
-                    into_polygon(triangles, doc_id, polygon);
+                    append_polygon(triangles, doc_id, &polygon);
                 }
             }
             Geometry::GeometryCollection(geometries) => {
@@ -62,7 +62,7 @@ impl SpatialWriter {
             .sum()
     }
 
-    /// HUSH
+    /// Serializing our field.
     pub fn serialize(&mut self, mut serializer: SpatialSerializer) -> io::Result<()> {
         for (field, triangles) in &mut self.triangles_by_field {
             serializer.serialize_field(*field, triangles)?;
@@ -81,7 +81,7 @@ impl Default for SpatialWriter {
     }
 }
 
-/// HUSH
+/// Convert a point of (longitude, latitude) to a integer point.
 pub fn as_point_i32(point: (f64, f64)) -> (i32, i32) {
     (
         (point.0 / (360.0 / (1i64 << 32) as f64)).floor() as i32,
@@ -89,43 +89,39 @@ pub fn as_point_i32(point: (f64, f64)) -> (i32, i32) {
     )
 }
 
-fn into_point(triangles: &mut Vec<Triangle>, doc_id: DocId, point: (f64, f64)) {
+fn append_point(triangles: &mut Vec<Triangle>, doc_id: DocId, point: (f64, f64)) {
     let point = as_point_i32(point);
-    triangles.push(Triangle::new(
-        doc_id,
-        [point.1, point.0, point.1, point.0, point.1, point.0],
-        [true, true, true],
-    ));
+    triangles.push(Triangle::from_point(doc_id, point.0, point.1));
 }
 
-fn into_line_string(triangles: &mut Vec<Triangle>, doc_id: DocId, line_string: Vec<(f64, f64)>) {
+fn append_line_string(
+    triangles: &mut Vec<Triangle>,
+    doc_id: DocId,
+    line_string: Vec<(f64, f64)>,
+) {
     let mut previous = as_point_i32(line_string[0]);
     for point in line_string.into_iter().skip(1) {
         let point = as_point_i32(point);
-        triangles.push(Triangle::new(
-            doc_id,
-            [
-                previous.1, previous.0, point.1, point.0, previous.1, previous.0,
-            ],
-            [true, true, true],
+        triangles.push(Triangle::from_line_segment(
+            doc_id, previous.0, previous.1, point.0, point.1,
         ));
         previous = point
     }
 }
 
-fn into_ring(i_polygon: &mut Vec<Vec<IntPoint>>, ring: Vec<(f64, f64)>) {
-    let mut i_ring = Vec::new();
-    for point in ring {
+fn append_ring(i_polygon: &mut Vec<Vec<IntPoint>>, ring: &[(f64, f64)]) {
+    let mut i_ring = Vec::with_capacity(ring.len() + 1);
+    for &point in ring {
         let point = as_point_i32(point);
         i_ring.push(IntPoint::new(point.0, point.1));
     }
     i_polygon.push(i_ring);
 }
 
-fn into_polygon(triangles: &mut Vec<Triangle>, doc_id: DocId, polygon: Vec<Vec<(f64, f64)>>) {
-    let mut i_polygon = Vec::new();
+fn append_polygon(triangles: &mut Vec<Triangle>, doc_id: DocId, polygon: &[Vec<(f64, f64)>]) {
+    let mut i_polygon: Vec<Vec<IntPoint>> = Vec::new();
     for ring in polygon {
-        into_ring(&mut i_polygon, ring);
+        append_ring(&mut i_polygon, ring);
     }
     let delaunay = i_polygon.triangulate().into_delaunay();
     delaunay_to_triangles(doc_id, &delaunay, triangles);
