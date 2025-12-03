@@ -37,15 +37,20 @@ impl SegmentSerializer {
         let fieldnorms_write = segment.open_write(SegmentComponent::FieldNorms)?;
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
 
-        let spatial_write = segment.open_write(SegmentComponent::Spatial)?;
-        let spatial_serializer = SpatialSerializer::from_write(spatial_write)?;
+        let spatial_serializer: Option<SpatialSerializer> =
+            if segment.schema().contains_spatial_field() {
+                let spatial_write = segment.open_write(SegmentComponent::Spatial)?;
+                Some(SpatialSerializer::from_write(spatial_write)?)
+            } else {
+                None
+            };
 
         let postings_serializer = InvertedIndexSerializer::open(&mut segment)?;
         Ok(SegmentSerializer {
             segment,
             store_writer,
             fast_field_write,
-            spatial_serializer: Some(spatial_serializer),
+            spatial_serializer,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,
         })

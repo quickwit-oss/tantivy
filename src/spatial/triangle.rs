@@ -6,6 +6,7 @@
 //! recovery when needed.
 
 use i_triangle::advanced::delaunay::IntDelaunay;
+use i_triangle::i_overlay::i_float::int::point::IntPoint;
 
 use crate::DocId;
 
@@ -141,11 +142,10 @@ impl Triangle {
         }
         // change orientation if clockwise (CW)
         if !is_counter_clockwise(
-            Coord { y: ay, x: ax },
-            Coord { y: by, x: bx },
-            Coord { y: cy, x: cx },
-        )
-        {
+            IntPoint { y: ay, x: ax },
+            IntPoint { y: by, x: bx },
+            IntPoint { y: cy, x: cx },
+        ) {
             // To change the orientation, we simply swap B and C.
             let temp_x = bx;
             let temp_y = by;
@@ -192,6 +192,22 @@ impl Triangle {
             words: [min_y, min_x, max_y, max_x, y, x, packed],
             doc_id: doc_id,
         }
+    }
+
+    /// Builds a degenerated triangle degenerating for a single point.
+    /// All vertices are that point, and all vertices are boundaries.
+    pub fn from_point(doc_id: DocId, point_x: i32, point_y: i32) -> Triangle {
+        Triangle::new(
+            doc_id,
+            [point_y, point_x, point_y, point_x, point_y, point_x],
+            [true, true, true],
+        )
+    }
+
+    /// Builds a degenerated triangle for a segment.
+    /// Line segment AB is represented as the triangle ABA.
+    pub fn from_line_segment(doc_id: DocId, a_x: i32, a_y: i32, b_x: i32, b_y: i32) -> Triangle {
+        Triangle::new(doc_id, [a_y, a_x, b_y, b_x, a_y, a_x], [true, true, true])
     }
 
     /// Create a triangle with only the doc_id and the words initialized to zero.
@@ -333,21 +349,16 @@ pub fn delaunay_to_triangles(doc_id: u32, delaunay: &IntDelaunay, triangles: &mu
     }
 }
 
-struct Coord {
-    x: i32,
-    y: i32,
-}
-
 /// Returns true if the path A -> B -> C is Counter-Clockwise (CCW) or collinear.
 /// Returns false if it is Clockwise (CW).
 #[inline(always)]
-fn is_counter_clockwise(a: Coord, b: Coord, c: Coord) -> bool {
+fn is_counter_clockwise(a: IntPoint, b: IntPoint, c: IntPoint) -> bool {
     // We calculate the 2D cross product (determinant) of vectors AB and AC.
     // Formula: (bx - ax)(cy - ay) - (by - ay)(cx - ax)
 
     // We cast to i64 to prevent overflow, as multiplying two i32s can exceed i32::MAX.
     let val = (b.x as i64 - a.x as i64) * (c.y as i64 - a.y as i64)
-            - (b.y as i64 - a.y as i64) * (c.x as i64 - a.x as i64);
+        - (b.y as i64 - a.y as i64) * (c.x as i64 - a.x as i64);
 
     // If the result is positive, the triangle is CCW.
     // If negative, it is CW.
@@ -393,7 +404,7 @@ mod tests {
         let input_coords = [
             50, 40, // A (y, x)
             10, 60, // B
-            20, 10  // C
+            20, 10, // C
         ];
 
         // 2. Define Boundaries [ab, bc, ca]
@@ -415,7 +426,7 @@ mod tests {
         let expected_coords = [
             20, 10, // C
             10, 60, // B
-            50, 40  // A
+            50, 40, // A
         ];
 
         // 5. Expected Boundaries
@@ -428,8 +439,14 @@ mod tests {
         //    Shift left by 1: [true, false, false]
         let expected_bounds = [true, false, false];
 
-        assert_eq!(decoded_coords, expected_coords, "Coordinates did not decode as expected");
-        assert_eq!(decoded_bounds, expected_bounds, "Boundary flags were incorrect (likely swap bug)");
+        assert_eq!(
+            decoded_coords, expected_coords,
+            "Coordinates did not decode as expected"
+        );
+        assert_eq!(
+            decoded_bounds, expected_bounds,
+            "Boundary flags were incorrect (likely swap bug)"
+        );
     }
 
     #[test]

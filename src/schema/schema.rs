@@ -218,9 +218,14 @@ impl SchemaBuilder {
     /// Finalize the creation of a `Schema`
     /// This will consume your `SchemaBuilder`
     pub fn build(self) -> Schema {
+        let contains_spatial_field = self
+            .fields
+            .iter()
+            .any(|field_entry| field_entry.field_type().value_type() == Type::Spatial);
         Schema(Arc::new(InnerSchema {
             fields: self.fields,
             fields_map: self.fields_map,
+            contains_spatial_field,
         }))
     }
 }
@@ -228,6 +233,7 @@ impl SchemaBuilder {
 struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
+    contains_spatial_field: bool,
 }
 
 impl PartialEq for InnerSchema {
@@ -378,6 +384,11 @@ impl Schema {
         }
         Some((field, json_path))
     }
+
+    /// Returns true if the schema contains a spatial field.
+    pub(crate) fn contains_spatial_field(&self) -> bool {
+        self.0.contains_spatial_field
+    }
 }
 
 impl Serialize for Schema {
@@ -405,16 +416,16 @@ impl<'de> Deserialize<'de> for Schema {
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
             where A: SeqAccess<'de> {
-                let mut schema = SchemaBuilder {
+                let mut schema_builder = SchemaBuilder {
                     fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
                     fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),
                 };
 
                 while let Some(value) = seq.next_element()? {
-                    schema.add_field(value);
+                    schema_builder.add_field(value);
                 }
 
-                Ok(schema.build())
+                Ok(schema_builder.build())
             }
         }
 
@@ -1029,5 +1040,34 @@ mod tests {
             schema.find_field_with_default("foobar", Some(default)),
             Some((default, "foobar"))
         );
+    }
+
+    #[test]
+    fn test_contains_spatial_field() {
+        // No spatial field
+        {
+            let mut schema_builder = Schema::builder();
+            schema_builder.add_text_field("title", TEXT);
+            let schema = schema_builder.build();
+            assert!(!schema.contains_spatial_field());
+
+            // Serialization check
+            let schema_json = serde_json::to_string(&schema).unwrap();
+            let schema_deserialized: Schema = serde_json::from_str(&schema_json).unwrap();
+            assert!(!schema_deserialized.contains_spatial_field());
+        }
+        // With spatial field
+        {
+            let mut schema_builder = Schema::builder();
+            schema_builder.add_text_field("title", TEXT);
+            schema_builder.add_spatial_field("location", SPATIAL);
+            let schema = schema_builder.build();
+            assert!(schema.contains_spatial_field());
+
+            // Serialization check
+            let schema_json = serde_json::to_string(&schema).unwrap();
+            let schema_deserialized: Schema = serde_json::from_str(&schema_json).unwrap();
+            assert!(schema_deserialized.contains_spatial_field());
+        }
     }
 }
