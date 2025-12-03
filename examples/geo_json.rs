@@ -40,7 +40,16 @@ fn main() -> tantivy::Result<()> {
     let field = schema.get_field("geometry").unwrap();
     let query = SpatialQuery::new(
         field,
-        [GeoPoint { lon:-99.49, lat: 45.56}, GeoPoint {lon:-99.45, lat: 45.59}],
+        [
+            GeoPoint {
+                lon: -99.49,
+                lat: 45.56,
+            },
+            GeoPoint {
+                lon: -99.45,
+                lat: 45.59,
+            },
+        ],
         tantivy::query::SpatialQueryType::Intersects,
     );
     let hits = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;

@@ -546,7 +546,7 @@ impl IndexMerger {
 
         let Some(mut spatial_serializer) = serializer.extract_spatial_serializer() else {
             // The schema does not contain any spatial field.
-            return Ok(())
+            return Ok(());
         };
 
         let mut segment_mappings: Vec<Vec<Option<DocId>>> = Vec::new();
@@ -592,19 +592,19 @@ impl IndexMerger {
                 // No need to fsync here. This file is not here for persistency.
             }
         }
-            for (field, temp_file) in temp_files {
-                // Memory map the triangle file.
-                use memmap2::MmapOptions;
-                let mmap = unsafe { MmapOptions::new().map_mut(temp_file.as_file())? };
-                // Cast to &[Triangle] slice
-                let triangle_count = mmap.len() / std::mem::size_of::<Triangle>();
-                let triangles = unsafe {
-                    std::slice::from_raw_parts_mut(mmap.as_ptr() as *mut Triangle, triangle_count)
-                };
-                // Get spatial writer and rebuild block kd-tree.
-                spatial_serializer.serialize_field(field, triangles)?;
-            }
-            spatial_serializer.close()?;
+        for (field, temp_file) in temp_files {
+            // Memory map the triangle file.
+            use memmap2::MmapOptions;
+            let mmap = unsafe { MmapOptions::new().map_mut(temp_file.as_file())? };
+            // Cast to &[Triangle] slice
+            let triangle_count = mmap.len() / std::mem::size_of::<Triangle>();
+            let triangles = unsafe {
+                std::slice::from_raw_parts_mut(mmap.as_ptr() as *mut Triangle, triangle_count)
+            };
+            // Get spatial writer and rebuild block kd-tree.
+            spatial_serializer.serialize_field(field, triangles)?;
+        }
+        spatial_serializer.close()?;
 
         Ok(())
     }

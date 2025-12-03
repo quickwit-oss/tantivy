@@ -189,7 +189,9 @@ impl Geometry {
                             polygon
                                 .iter()
                                 .map(|ring| {
-                                    Value::Array(ring.iter().map(|p| json!([p.lon, p.lat])).collect())
+                                    Value::Array(
+                                        ring.iter().map(|p| json!([p.lon, p.lat])).collect(),
+                                    )
                                 })
                                 .collect(),
                         )
@@ -400,10 +402,7 @@ impl BinarySerializable for Geometry {
     }
 }
 
-fn serialize_line_string<W: Write + ?Sized>(
-    line: &[GeoPoint],
-    writer: &mut W,
-) -> io::Result<()> {
+fn serialize_line_string<W: Write + ?Sized>(line: &[GeoPoint], writer: &mut W) -> io::Result<()> {
     BinarySerializable::serialize(&VInt(line.len() as u64), writer)?;
     let mut lon = Vec::new();
     let mut lat = Vec::new();
@@ -453,7 +452,10 @@ fn deserialize_line_string<R: Read>(reader: &mut R) -> io::Result<Vec<GeoPoint>>
     let lat: Vec<f64> = decompress_f64(&lat_bytes, point_count);
     let mut line_string: Vec<GeoPoint> = Vec::new();
     for offset in 0..point_count {
-        line_string.push(GeoPoint { lon: lon[offset], lat: lat[offset] });
+        line_string.push(GeoPoint {
+            lon: lon[offset],
+            lat: lat[offset],
+        });
     }
     Ok(line_string)
 }
@@ -476,7 +478,10 @@ fn deserialize_polygon<R: Read>(reader: &mut R) -> io::Result<Vec<Vec<GeoPoint>>
     for point_count in rings {
         let mut ring = Vec::new();
         for _ in 0..point_count {
-            ring.push(GeoPoint { lon: lon[offset], lat: lat[offset] });
+            ring.push(GeoPoint {
+                lon: lon[offset],
+                lat: lat[offset],
+            });
             offset += 1;
         }
         polygon.push(ring);
