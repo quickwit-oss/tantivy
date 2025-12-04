@@ -270,7 +270,23 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             (ShouldScorersCombinationMethod::Optional(should_scorer), must_scorers) => {
                 if must_scorers.is_empty() && must_special_scorer_counts.num_all_scorers == 0 {
                     // Optional options are promoted to required if no must scorers exists.
-                    should_scorer
+                    // But if there were AllScorers removed from SHOULD, we need to union
+                    // the should_scorer with those matching all docs.
+                    if should_special_scorer_counts.num_all_scorers > 0 {
+                        // There was at least one AllScorer in SHOULD, so all docs match.
+                        // We still need to union with the remaining scorers for correct scoring.
+                        let all_scorers: Vec<Box<dyn Scorer>> = vec![
+                            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
+                            Box::new(AllScorer::new(reader.max_doc())),
+                        ];
+                        SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
+                            all_scorers,
+                            &score_combiner_fn,
+                            num_docs,
+                        )))
+                    } else {
+                        should_scorer
+                    }
                 } else {
                     let must_scorer = intersect_scorers(must_scorers, num_docs);
                     if self.scoring_enabled {
