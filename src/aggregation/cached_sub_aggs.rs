@@ -81,19 +81,6 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
         self.num_docs += 1;
     }
 
-    #[inline]
-    pub fn extend_with_bucket_zero(&mut self, docs: &[DocId]) {
-        debug_assert!(
-            LOWCARD,
-            "extend_with_bucket_zero only valid for single bucket"
-        );
-        if self.per_bucket_docs.is_empty() {
-            self.per_bucket_docs.resize_with(1, Vec::new);
-        }
-        self.per_bucket_docs[0].extend_from_slice(docs);
-        self.num_docs += docs.len();
-    }
-
     /// Check if we need to flush based on the number of documents cached.
     /// If so, flushes the cache to the provided aggregation collector.
     pub fn check_flush_local(
@@ -155,6 +142,18 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
         }
         self.sub_agg_collector.flush(agg_data)?;
         Ok(())
+    }
+}
+
+impl CachedSubAggs<true> {
+    /// Implemented Only for low cardinality cached sub-aggregations.
+    #[inline]
+    pub fn extend_with_bucket_zero(&mut self, docs: &[DocId]) {
+        if self.per_bucket_docs.is_empty() {
+            self.per_bucket_docs.resize_with(1, Vec::new);
+        }
+        self.per_bucket_docs[0].extend_from_slice(docs);
+        self.num_docs += docs.len();
     }
 }
 
