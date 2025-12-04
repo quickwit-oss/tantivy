@@ -97,6 +97,55 @@ fn into_box_scorer<TScoreCombiner: ScoreCombiner>(
     }
 }
 
+/// Returns the effective MUST scorer, accounting for removed AllScorers.
+///
+/// When AllScorer instances are removed from must_scorers as an optimization,
+/// we must restore the "match all" semantics if the list becomes empty.
+fn effective_must_scorer(
+    must_scorers: Vec<Box<dyn Scorer>>,
+    removed_all_scorer_count: usize,
+    max_doc: DocId,
+    num_docs: u32,
+) -> Option<Box<dyn Scorer>> {
+    if must_scorers.is_empty() {
+        if removed_all_scorer_count > 0 {
+            // Had AllScorer(s) only - all docs match
+            Some(Box::new(AllScorer::new(max_doc)))
+        } else {
+            // No MUST constraint at all
+            None
+        }
+    } else {
+        Some(intersect_scorers(must_scorers, num_docs))
+    }
+}
+
+/// Returns a SHOULD scorer with AllScorer union if any were removed.
+///
+/// For union semantics (OR): if any SHOULD clause was an AllScorer, the result
+/// should include all documents. We restore this by unioning with AllScorer.
+fn effective_should_scorer_for_union<TScoreCombiner: ScoreCombiner>(
+    should_scorer: SpecializedScorer,
+    removed_all_scorer_count: usize,
+    max_doc: DocId,
+    num_docs: u32,
+    score_combiner_fn: impl Fn() -> TScoreCombiner,
+) -> SpecializedScorer {
+    if removed_all_scorer_count > 0 {
+        let all_scorers: Vec<Box<dyn Scorer>> = vec![
+            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
+            Box::new(AllScorer::new(max_doc)),
+        ];
+        SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
+            all_scorers,
+            score_combiner_fn,
+            num_docs,
+        )))
+    } else {
+        should_scorer
+    }
+}
+
 enum ShouldScorersCombinationMethod {
     // Should scorers are irrelevant.
     Ignored,
@@ -246,101 +295,73 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 
         let include_scorer = match (should_scorers, must_scorers) {
             (ShouldScorersCombinationMethod::Ignored, must_scorers) => {
-                let boxed_scorer: Box<dyn Scorer> = if must_scorers.is_empty() {
-                    // We do not have any should scorers, nor all scorers.
-                    // There are still two cases here.
-                    //
-                    // If this follows the removal of some AllScorers in the should/must clauses,
-                    // then we match all documents.
-                    //
-                    // Otherwise, it is really just an EmptyScorer.
-                    if must_special_scorer_counts.num_all_scorers
-                        + should_special_scorer_counts.num_all_scorers
-                        > 0
-                    {
-                        Box::new(AllScorer::new(reader.max_doc()))
-                    } else {
-                        Box::new(EmptyScorer)
-                    }
-                } else {
-                    intersect_scorers(must_scorers, num_docs)
-                };
+                // No SHOULD clauses (or they were absorbed into MUST).
+                // Result depends entirely on MUST + any removed AllScorers.
+                let combined_all_scorer_count = must_special_scorer_counts.num_all_scorers
+                    + should_special_scorer_counts.num_all_scorers;
+                let boxed_scorer: Box<dyn Scorer> =
+                    effective_must_scorer(must_scorers, combined_all_scorer_count, reader.max_doc(), num_docs)
+                        .unwrap_or_else(|| Box::new(EmptyScorer));
                 SpecializedScorer::Other(boxed_scorer)
             }
             (ShouldScorersCombinationMethod::Optional(should_scorer), must_scorers) => {
                 // Optional SHOULD: contributes to scoring but not required for matching.
-                //
-                // Case 1: No MUST clauses at all (empty list + no removed AllScorers)
-                //   => Promote SHOULD to required (at least one must match).
-                //
-                // Case 2: MUST had AllScorer(s) that were removed
-                //   => All docs match via MUST; SHOULD only affects scoring.
-                //
-                // When SHOULD contains AllScorer(s) that were removed, we must
-                // preserve the "all docs match" semantics by unioning with AllScorer.
-                if must_scorers.is_empty() && must_special_scorer_counts.num_all_scorers == 0 {
-                    // No MUST clauses: promote SHOULD to required.
-                    if should_special_scorer_counts.num_all_scorers > 0 {
-                        // Some SHOULD clauses were AllScorers (e.g., range queries matching
-                        // all docs). Restore the "match all" semantics via union.
-                        let all_scorers: Vec<Box<dyn Scorer>> = vec![
-                            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
-                            Box::new(AllScorer::new(reader.max_doc())),
-                        ];
-                        SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
-                            all_scorers,
-                            &score_combiner_fn,
+                match effective_must_scorer(
+                    must_scorers,
+                    must_special_scorer_counts.num_all_scorers,
+                    reader.max_doc(),
+                    num_docs,
+                ) {
+                    None => {
+                        // No MUST constraint: promote SHOULD to required.
+                        // Must preserve any removed AllScorers from SHOULD via union.
+                        effective_should_scorer_for_union(
+                            should_scorer,
+                            should_special_scorer_counts.num_all_scorers,
+                            reader.max_doc(),
                             num_docs,
-                        )))
-                    } else {
-                        should_scorer
+                            &score_combiner_fn,
+                        )
                     }
-                } else {
-                    // Has MUST clauses (possibly via removed AllScorers).
-                    // When must_scorers is empty but AllScorers were removed,
-                    // we must use AllScorer (not EmptyScorer from intersect_scorers([])).
-                    let must_scorer: Box<dyn Scorer> = if must_scorers.is_empty() {
-                        // must_special_scorer_counts.num_all_scorers > 0 guaranteed here
-                        Box::new(AllScorer::new(reader.max_doc()))
-                    } else {
-                        intersect_scorers(must_scorers, num_docs)
-                    };
-                    if self.scoring_enabled {
-                        SpecializedScorer::Other(Box::new(RequiredOptionalScorer::<
-                            _,
-                            _,
-                            TScoreCombiner,
-                        >::new(
-                            must_scorer,
-                            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
-                        )))
-                    } else {
-                        SpecializedScorer::Other(must_scorer)
+                    Some(must_scorer) => {
+                        // Has MUST constraint: SHOULD only affects scoring.
+                        if self.scoring_enabled {
+                            SpecializedScorer::Other(Box::new(RequiredOptionalScorer::<
+                                _,
+                                _,
+                                TScoreCombiner,
+                            >::new(
+                                must_scorer,
+                                into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
+                            )))
+                        } else {
+                            SpecializedScorer::Other(must_scorer)
+                        }
                     }
                 }
             }
-            (ShouldScorersCombinationMethod::Required(should_scorer), mut must_scorers) => {
+            (ShouldScorersCombinationMethod::Required(should_scorer), must_scorers) => {
                 // Required SHOULD: at least `minimum_number_should_match` must match.
-                if must_scorers.is_empty() {
-                    // When MUST had AllScorer(s) that were removed, we must
-                    // union the SHOULD scorer with AllScorer to preserve intersection
-                    // semantics (all MUST docs intersected with required SHOULD).
-                    if must_special_scorer_counts.num_all_scorers > 0 {
-                        let all_scorers: Vec<Box<dyn Scorer>> = vec![
-                            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
-                            Box::new(AllScorer::new(reader.max_doc())),
-                        ];
-                        SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
-                            all_scorers,
-                            &score_combiner_fn,
-                            num_docs,
-                        )))
-                    } else {
+                // Semantics: (MUST constraint) AND (SHOULD constraint)
+                match effective_must_scorer(
+                    must_scorers,
+                    must_special_scorer_counts.num_all_scorers,
+                    reader.max_doc(),
+                    num_docs,
+                ) {
+                    None => {
+                        // No MUST constraint: SHOULD alone determines matching.
                         should_scorer
                     }
-                } else {
-                    must_scorers.push(into_box_scorer(should_scorer, &score_combiner_fn, num_docs));
-                    SpecializedScorer::Other(intersect_scorers(must_scorers, num_docs))
+                    Some(must_scorer) => {
+                        // Has MUST constraint: intersect MUST with SHOULD.
+                        let should_boxed =
+                            into_box_scorer(should_scorer, &score_combiner_fn, num_docs);
+                        SpecializedScorer::Other(intersect_scorers(
+                            vec![must_scorer, should_boxed],
+                            num_docs,
+                        ))
+                    }
                 }
             }
         };
