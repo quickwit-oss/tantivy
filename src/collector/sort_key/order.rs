@@ -404,11 +404,12 @@ impl<TSegmentSortKeyComputer, TSegmentSortKey, TComparator> SegmentSortKeyComput
     for SegmentSortKeyComputerWithComparator<TSegmentSortKeyComputer, TComparator>
 where
     TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSegmentSortKey>,
-    TSegmentSortKey: PartialOrd + Clone + 'static + Sync + Send,
+    TSegmentSortKey: Clone + 'static + Sync + Send,
     TComparator: Comparator<TSegmentSortKey> + 'static + Sync + Send,
 {
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
+    type SegmentComparator = TComparator;
 
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.segment_sort_key_computer.segment_sort_key(doc, score)
