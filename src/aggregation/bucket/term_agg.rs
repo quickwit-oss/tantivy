@@ -17,13 +17,13 @@ use crate::aggregation::agg_data::{
 };
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req::Aggregations;
-use crate::aggregation::buf_collector::BufAggregationCollector;
+use crate::aggregation::cached_sub_aggs::CachedSubAggs;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::{format_date, Key};
+use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
+use crate::aggregation::{format_date, BucketId, Key};
 use crate::error::DataCorruption;
 use crate::TantivyError;
 
@@ -40,8 +40,6 @@ pub struct TermsAggReqData {
     pub missing_value_for_accessor: Option<u64>,
     /// The column block accessor to access the fast field values.
     pub column_block_accessor: ColumnBlockAccessor<u64>,
-    /// Note: sub_aggregation_blueprint is filled later when building collectors
-    pub sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
     /// Used to build the correct nested result when we have an empty result.
     pub sug_aggregations: Aggregations,
     /// The name of the aggregation.
@@ -257,9 +255,9 @@ pub struct TermsAggregation {
     /// Internally, `missing` requires some specialized handling in some scenarios.
     ///
     /// Simple Case:
-    /// In the simplest case, we can just put the missing value in the termmap use that. In case of
-    /// text we put a special u64::MAX and replace it at the end with the actual missing value,
-    /// when loading the text.
+    /// In the simplest case, we can just put the missing value in the termmap and use that. In
+    /// case of text we put a special u64::MAX and replace it at the end with the actual
+    /// missing value, when loading the text.
     /// Special Case 1:
     /// If we have multiple columns on one field, we need to have a union on the indices on both
     /// columns, to find docids without a value. That requires a special missing aggregation.
@@ -334,86 +332,6 @@ impl TermsAggregationInternal {
     }
 }
 
-impl<'a> From<&'a dyn SegmentAggregationCollector> for BufAggregationCollector {
-    #[inline(always)]
-    fn from(sub_agg_blueprint_opt: &'a dyn SegmentAggregationCollector) -> Self {
-        let sub_agg = sub_agg_blueprint_opt.clone_box();
-        BufAggregationCollector::new(sub_agg)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct BoxedAggregation(Box<dyn SegmentAggregationCollector>);
-
-impl<'a> From<&'a dyn SegmentAggregationCollector> for BoxedAggregation {
-    #[inline(always)]
-    fn from(sub_agg_blueprint: &'a dyn SegmentAggregationCollector) -> Self {
-        BoxedAggregation(sub_agg_blueprint.clone_box())
-    }
-}
-
-impl SegmentAggregationCollector for BoxedAggregation {
-    #[inline(always)]
-    fn add_intermediate_aggregation_result(
-        self: Box<Self>,
-        agg_data: &AggregationsSegmentCtx,
-        results: &mut IntermediateAggregationResults,
-    ) -> crate::Result<()> {
-        self.0
-            .add_intermediate_aggregation_result(agg_data, results)
-    }
-
-    #[inline(always)]
-    fn collect(
-        &mut self,
-        doc: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        self.0.collect(doc, agg_data)
-    }
-
-    #[inline(always)]
-    fn collect_block(
-        &mut self,
-        docs: &[crate::DocId],
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        self.0.collect_block(docs, agg_data)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct NoSubAgg;
-
-impl SegmentAggregationCollector for NoSubAgg {
-    #[inline(always)]
-    fn add_intermediate_aggregation_result(
-        self: Box<Self>,
-        _agg_data: &AggregationsSegmentCtx,
-        _results: &mut IntermediateAggregationResults,
-    ) -> crate::Result<()> {
-        Ok(())
-    }
-
-    #[inline(always)]
-    fn collect(
-        &mut self,
-        _doc: crate::DocId,
-        _agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        Ok(())
-    }
-
-    #[inline(always)]
-    fn collect_block(
-        &mut self,
-        _docs: &[crate::DocId],
-        _agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        Ok(())
-    }
-}
-
 /// Build a concrete `SegmentTermCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.
 pub(crate) fn build_segment_term_collector(
@@ -450,16 +368,6 @@ pub(crate) fn build_segment_term_collector(
 
     // Build sub-aggregation blueprint if there are children.
     let has_sub_aggregations = !node.children.is_empty();
-    let blueprint = if has_sub_aggregations {
-        let sub_aggregation = build_segment_agg_collectors(req_data, &node.children)?;
-        Some(sub_aggregation)
-    } else {
-        None
-    };
-    {
-        let terms_req_data_mut = req_data.get_term_req_data_mut(accessor_idx);
-        terms_req_data_mut.sub_aggregation_blueprint = blueprint;
-    }
 
     // Decide whether to use a Vec-backed or HashMap-backed bucket storage.
     let terms_req_data = req_data.get_term_req_data(accessor_idx);
@@ -478,75 +386,56 @@ pub(crate) fn build_segment_term_collector(
     let max_term: usize =
         col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64)) as usize;
 
-    // - use a Vec instead of a hashmap for our aggregation.
-    // - buffer aggregation of our child aggregations (in any)
-    #[allow(clippy::collapsible_else_if)]
-    if can_use_vec && max_term < MAX_NUM_TERMS_FOR_VEC {
-        if has_sub_aggregations {
-            let sub_agg_blueprint = &req_data
-                .get_term_req_data_mut(accessor_idx)
-                .sub_aggregation_blueprint
-                .as_ref()
-                .ok_or_else(|| {
-                    // Handle the error case here
-                    // For example, return an error message or a default value
-                    TantivyError::InternalError("Sub-aggregation blueprint not found".to_string())
-                })?;
-            let term_buckets = VecTermBuckets::new(max_term + 1, || {
-                let collector_clone = sub_agg_blueprint.clone_box();
-                BufAggregationCollector::new(collector_clone)
-            });
-            let collector = SegmentTermCollector {
-                term_buckets,
-                accessor_idx,
-            };
-            Ok(Box::new(collector))
-        } else {
-            let term_buckets = VecTermBuckets::new(max_term + 1, || NoSubAgg);
-            let collector = SegmentTermCollector {
-                term_buckets,
-                accessor_idx,
-            };
-            Ok(Box::new(collector))
-        }
+    let sub_agg_collector = if has_sub_aggregations {
+        Some(build_segment_agg_collectors(req_data, &node.children)?)
     } else {
-        if has_sub_aggregations {
-            let term_buckets: HashMapTermBuckets<BoxedAggregation> = HashMapTermBuckets::default();
-            let collector: SegmentTermCollector<HashMapTermBuckets<BoxedAggregation>> =
-                SegmentTermCollector {
-                    term_buckets,
-                    accessor_idx,
-                };
-            Ok(Box::new(collector))
-        } else {
-            let term_buckets: HashMapTermBuckets<NoSubAgg> = HashMapTermBuckets::default();
-            let collector: SegmentTermCollector<HashMapTermBuckets<NoSubAgg>> =
-                SegmentTermCollector {
-                    term_buckets,
-                    accessor_idx,
-                };
-            Ok(Box::new(collector))
-        }
+        None
+    };
+
+    let mut bucket_id_provider = BucketIdProvider::default();
+    // - use a Vec instead of a hashmap for our aggregation.
+    if can_use_vec && max_term < MAX_NUM_TERMS_FOR_VEC {
+        let term_buckets = VecTermBuckets::new(max_term + 1, &mut bucket_id_provider);
+        let sub_agg = sub_agg_collector.map(CachedSubAggs::<true>::new);
+        let collector: SegmentTermCollector<_, true> = SegmentTermCollector {
+            buckets: vec![term_buckets],
+            accessor_idx,
+            sub_agg,
+            bucket_id_provider,
+        };
+        Ok(Box::new(collector))
+    } else {
+        let term_buckets: HashMapTermBuckets = HashMapTermBuckets::default();
+        // Build sub-aggregation blueprint (flat pairs)
+        let sub_agg = sub_agg_collector.map(CachedSubAggs::<false>::new);
+        let collector: SegmentTermCollector<HashMapTermBuckets, false> = SegmentTermCollector {
+            buckets: vec![term_buckets],
+            accessor_idx,
+            sub_agg,
+            bucket_id_provider,
+        };
+        Ok(Box::new(collector))
     }
 }
 
 #[derive(Debug, Clone)]
-struct Bucket<SubAgg> {
+struct Bucket {
     pub count: u32,
-    pub sub_agg: SubAgg,
+    pub bucket_id: BucketId,
 }
 
-impl<SubAgg> Bucket<SubAgg> {
+impl Bucket {
     #[inline(always)]
-    fn new(sub_agg: SubAgg) -> Self {
-        Self { count: 0, sub_agg }
+    fn new(bucket_id: BucketId) -> Self {
+        Self {
+            count: 0,
+            bucket_id,
+        }
     }
 }
 
 /// Abstraction over the storage used for term buckets (counts only).
-trait TermAggregationMap: Clone + Debug + 'static {
-    type SubAggregation: SegmentAggregationCollector + Debug + Clone + 'static;
-
+trait TermAggregationMap: Clone + Debug + Default + 'static {
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize;
 
@@ -554,23 +443,20 @@ trait TermAggregationMap: Clone + Debug + 'static {
     fn term_entry(
         &mut self,
         term_id: u64,
-        blue_print: &dyn SegmentAggregationCollector,
-    ) -> &mut Bucket<Self::SubAggregation>;
-
-    /// If the tree of aggregations contains buffered aggregations, flush them.
-    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()>;
+        bucket_id_provider: &mut BucketIdProvider,
+    ) -> &mut Bucket;
 
     /// Returns the term aggregation as a vector of (term_id, bucket) pairs,
     /// in any order.
-    fn into_vec(self) -> Vec<(u64, Bucket<Self::SubAggregation>)>;
+    fn into_vec(self) -> Vec<(u64, Bucket)>;
 }
 
 #[derive(Clone, Debug)]
-struct HashMapTermBuckets<SubAgg> {
-    bucket_map: FxHashMap<u64, Bucket<SubAgg>>,
+struct HashMapTermBuckets {
+    bucket_map: FxHashMap<u64, Bucket>,
 }
 
-impl<SubAgg> Default for HashMapTermBuckets<SubAgg> {
+impl Default for HashMapTermBuckets {
     #[inline(always)]
     fn default() -> Self {
         Self {
@@ -579,16 +465,7 @@ impl<SubAgg> Default for HashMapTermBuckets<SubAgg> {
     }
 }
 
-impl<
-        SubAgg: Debug
-            + Clone
-            + SegmentAggregationCollector
-            + for<'a> From<&'a dyn SegmentAggregationCollector>
-            + 'static,
-    > TermAggregationMap for HashMapTermBuckets<SubAgg>
-{
-    type SubAggregation = SubAgg;
-
+impl TermAggregationMap for HashMapTermBuckets {
     #[inline]
     fn get_memory_consumption(&self) -> usize {
         self.bucket_map.memory_consumption()
@@ -598,55 +475,42 @@ impl<
     fn term_entry(
         &mut self,
         term_id: u64,
-        sub_agg_blueprint: &dyn SegmentAggregationCollector,
-    ) -> &mut Bucket<SubAgg> {
+        bucket_id_provider: &mut BucketIdProvider,
+    ) -> &mut Bucket {
         self.bucket_map
             .entry(term_id)
-            .or_insert_with(|| Bucket::new(SubAgg::from(sub_agg_blueprint)))
+            .or_insert_with(|| Bucket::new(bucket_id_provider.next_bucket_id()))
     }
 
-    #[inline(always)]
-    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
-        for bucket in self.bucket_map.values_mut() {
-            bucket.sub_agg.flush(agg_data)?;
-        }
-        Ok(())
-    }
-
-    fn into_vec(self) -> Vec<(u64, Bucket<SubAgg>)> {
+    fn into_vec(self) -> Vec<(u64, Bucket)> {
         self.bucket_map.into_iter().collect()
     }
 }
 
 /// An optimized term map implementation for a compact set of term ordinals.
-#[derive(Clone, Debug)]
-struct VecTermBuckets<SubAgg> {
-    buckets: Vec<Bucket<SubAgg>>,
+#[derive(Clone, Debug, Default)]
+struct VecTermBuckets {
+    buckets: Vec<Bucket>,
 }
 
-impl<SubAgg> VecTermBuckets<SubAgg> {
-    fn new(num_terms: usize, item_factory_fn: impl Fn() -> SubAgg) -> Self {
+impl VecTermBuckets {
+    fn new(num_terms: usize, bucket_id_provider: &mut BucketIdProvider) -> Self {
         VecTermBuckets {
-            buckets: std::iter::repeat_with(item_factory_fn)
-                .map(Bucket::new)
+            buckets: std::iter::repeat_with(|| Bucket::new(bucket_id_provider.next_bucket_id()))
                 .take(num_terms)
                 .collect(),
         }
     }
 }
 
-impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregationMap
-    for VecTermBuckets<SubAgg>
-{
-    type SubAggregation = SubAgg;
-
+impl TermAggregationMap for VecTermBuckets {
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize {
         // We do not include `std::mem::size_of::<Self>()`
         // It is already measure by the parent aggregation.
         //
         // The root aggregation mem size is not measure but we do not care.
-        self.buckets.capacity() * std::mem::size_of::<Bucket<SubAgg>>()
+        self.buckets.capacity() * std::mem::size_of::<Bucket>()
     }
 
     /// Add an occurrence of the given term id.
@@ -654,8 +518,8 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
     fn term_entry(
         &mut self,
         term_id: u64,
-        _sub_agg_blueprint: &dyn SegmentAggregationCollector,
-    ) -> &mut Bucket<SubAgg> {
+        _bucket_id_provider: &mut BucketIdProvider,
+    ) -> &mut Bucket {
         let term_id_usize = term_id as usize;
         debug_assert!(
             term_id_usize < self.buckets.len(),
@@ -666,17 +530,7 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
         unsafe { self.buckets.get_unchecked_mut(term_id_usize) }
     }
 
-    #[inline(always)]
-    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
-        for bucket in &mut self.buckets {
-            if bucket.count > 0 {
-                bucket.sub_agg.flush(agg_data)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn into_vec(self) -> Vec<(u64, Bucket<SubAgg>)> {
+    fn into_vec(self) -> Vec<(u64, Bucket)> {
         self.buckets
             .into_iter()
             .enumerate()
@@ -686,20 +540,15 @@ impl<SubAgg: Debug + Clone + SegmentAggregationCollector + 'static> TermAggregat
     }
 }
 
-impl<'a> From<&'a dyn SegmentAggregationCollector> for NoSubAgg {
-    #[inline(always)]
-    fn from(_: &'a dyn SegmentAggregationCollector) -> Self {
-        Self
-    }
-}
-
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
 #[derive(Clone, Debug)]
-struct SegmentTermCollector<TermMap> {
+struct SegmentTermCollector<TermMap: TermAggregationMap, const LOWCARD: bool = false> {
     /// The buckets containing the aggregation data.
-    term_buckets: TermMap,
+    buckets: Vec<TermMap>,
+    sub_agg: Option<CachedSubAggs<LOWCARD>>,
     accessor_idx: usize,
+    bucket_id_provider: BucketIdProvider,
 }
 
 pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
@@ -707,18 +556,22 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
     (agg_name, agg_property)
 }
 
-impl<TermMap> SegmentAggregationCollector for SegmentTermCollector<TermMap>
-where
-    TermMap: TermAggregationMap,
-    TermMap::SubAggregation: for<'a> From<&'a dyn SegmentAggregationCollector>,
+impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollector
+    for SegmentTermCollector<TermMap, LOWCARD>
 {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        bucket: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_data.get_term_req_data(self.accessor_idx).name.clone();
-        let bucket = self.into_intermediate_bucket_result(agg_data)?;
+        self.prepare_max_bucket(bucket, agg_data)?;
+        let bucket = std::mem::take(&mut self.buckets[bucket as usize]);
+        let term_req = agg_data.get_term_req_data(self.accessor_idx);
+        let name = term_req.name.clone();
+
+        let bucket =
+            Self::into_intermediate_bucket_result(term_req, &mut self.sub_agg, bucket, agg_data)?;
         results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
         Ok(())
     }
@@ -726,21 +579,13 @@ where
     #[inline]
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_data)
-    }
-
-    #[inline]
-    fn collect_block(
-        &mut self,
+        parent_bucket_id: BucketId,
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mut req_data = agg_data.take_term_req_data(self.accessor_idx);
-
         let mem_pre = self.get_memory_consumption();
+
+        let mut req_data = agg_data.take_term_req_data(self.accessor_idx);
 
         if let Some(missing) = req_data.missing_value_for_accessor {
             req_data.column_block_accessor.fetch_block_with_missing(
@@ -754,37 +599,36 @@ where
                 .fetch_block(docs, &req_data.accessor);
         }
 
-        if std::any::TypeId::of::<NoSubAgg>() == std::any::TypeId::of::<TermMap::SubAggregation>() {
-            for term_id in req_data.column_block_accessor.iter_vals() {
-                if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
-                    if !allowed_bs.contains(term_id as u32) {
-                        continue;
-                    }
-                }
-                let bucket = self.term_buckets.term_entry(term_id, &NoSubAgg);
-                bucket.count += 1;
+        // Build iterators first to avoid overlapping borrows with self's fields.
+        if let Some(sub_agg) = &mut self.sub_agg {
+            let term_buckets = &mut self.buckets[parent_bucket_id as usize];
+            let it = req_data
+                .column_block_accessor
+                .iter_docid_vals(docs, &req_data.accessor);
+            if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
+                let it = it.filter(move |&(_doc, term_id)| allowed_bs.contains(term_id as u32));
+                Self::collect_terms_with_docs(
+                    it,
+                    term_buckets,
+                    &mut self.bucket_id_provider,
+                    sub_agg,
+                );
+            } else {
+                Self::collect_terms_with_docs(
+                    it,
+                    term_buckets,
+                    &mut self.bucket_id_provider,
+                    sub_agg,
+                );
             }
         } else {
-            let Some(sub_aggregation_blueprint) = req_data.sub_aggregation_blueprint.as_deref()
-            else {
-                return Err(TantivyError::InternalError(
-                    "Could not find sub-aggregation blueprint".to_string(),
-                ));
-            };
-            for (doc, term_id) in req_data
-                .column_block_accessor
-                .iter_docid_vals(docs, &req_data.accessor)
-            {
-                if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
-                    if !allowed_bs.contains(term_id as u32) {
-                        continue;
-                    }
-                }
-                let bucket = self
-                    .term_buckets
-                    .term_entry(term_id, sub_aggregation_blueprint);
-                bucket.count += 1;
-                bucket.sub_agg.collect(doc, agg_data)?;
+            let term_buckets = &mut self.buckets[parent_bucket_id as usize];
+            let it = req_data.column_block_accessor.iter_vals();
+            if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
+                let it = it.filter(move |&term_id| allowed_bs.contains(term_id as u32));
+                Self::collect_terms(it, term_buckets, &mut self.bucket_id_provider);
+            } else {
+                Self::collect_terms(it, term_buckets, &mut self.bucket_id_provider);
             }
         }
 
@@ -796,13 +640,30 @@ where
                 .add_memory_consumed(mem_delta as u64)?;
         }
         agg_data.put_back_term_req_data(self.accessor_idx, req_data);
+        if let Some(sub_agg) = &mut self.sub_agg {
+            sub_agg.check_flush_local(agg_data)?;
+        }
 
         Ok(())
     }
 
     #[inline(always)]
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
-        self.term_buckets.flush(agg_data)?;
+        if let Some(sub_agg) = &mut self.sub_agg {
+            sub_agg.flush(agg_data)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        while self.buckets.len() <= max_bucket as usize {
+            let term_buckets: TermMap = TermMap::default();
+            self.buckets.push(term_buckets);
+        }
         Ok(())
     }
 }
@@ -831,20 +692,24 @@ fn extract_missing_value<T>(
     Some((key, bucket))
 }
 
-impl<TermMap> SegmentTermCollector<TermMap>
+impl<TermMap, const LOWCARD: bool> SegmentTermCollector<TermMap, LOWCARD>
 where TermMap: TermAggregationMap
 {
     fn get_memory_consumption(&self) -> usize {
-        self.term_buckets.get_memory_consumption()
+        self.buckets
+            .iter()
+            .map(|b| b.get_memory_consumption())
+            .sum()
     }
 
     #[inline]
     pub(crate) fn into_intermediate_bucket_result(
-        self,
+        term_req: &TermsAggReqData,
+        sub_agg: &mut Option<CachedSubAggs<LOWCARD>>,
+        term_buckets: TermMap,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
-        let term_req = agg_data.get_term_req_data(self.accessor_idx);
-        let mut entries: Vec<(u64, Bucket<TermMap::SubAggregation>)> = self.term_buckets.into_vec();
+        let mut entries: Vec<(u64, Bucket)> = term_buckets.into_vec();
 
         let order_by_sub_aggregation =
             matches!(term_req.req.order.target, OrderTarget::SubAggregation(_));
@@ -884,23 +749,28 @@ where TermMap: TermAggregationMap
         dict.reserve(entries.len());
 
         let into_intermediate_bucket_entry =
-            |bucket: Bucket<TermMap::SubAggregation>| -> crate::Result<IntermediateTermBucketEntry> {
-                let intermediate_entry = if term_req.sub_aggregation_blueprint.as_ref().is_some() {
+            |bucket: Bucket,
+             sub_agg: &mut Option<CachedSubAggs<LOWCARD>>|
+             -> crate::Result<IntermediateTermBucketEntry> {
+                if let Some(sub_agg) = sub_agg {
                     let mut sub_aggregation_res = IntermediateAggregationResults::default();
-                    // TODO remove box new
-                    Box::new(bucket.sub_agg)
-                        .add_intermediate_aggregation_result(agg_data, &mut sub_aggregation_res)?;
-                    IntermediateTermBucketEntry {
+                    sub_agg
+                        .get_sub_agg_collector()
+                        .add_intermediate_aggregation_result(
+                            agg_data,
+                            &mut sub_aggregation_res,
+                            bucket.bucket_id,
+                        )?;
+                    Ok(IntermediateTermBucketEntry {
                         doc_count: bucket.count,
                         sub_aggregation: sub_aggregation_res,
-                    }
+                    })
                 } else {
-                    IntermediateTermBucketEntry {
+                    Ok(IntermediateTermBucketEntry {
                         doc_count: bucket.count,
                         sub_aggregation: Default::default(),
-                    }
-                };
-                Ok(intermediate_entry)
+                    })
+                }
             };
 
         if term_req.column_type == ColumnType::Str {
@@ -913,21 +783,20 @@ where TermMap: TermAggregationMap
 
             if let Some((intermediate_key, bucket)) = extract_missing_value(&mut entries, term_req)
             {
-                let intermediate_entry = into_intermediate_bucket_entry(bucket)?;
+                let intermediate_entry = into_intermediate_bucket_entry(bucket, sub_agg)?;
                 dict.insert(intermediate_key, intermediate_entry);
             }
 
             // Sort by term ord
             entries.sort_unstable_by_key(|bucket| bucket.0);
 
-            let (term_ids, buckets): (Vec<u64>, Vec<Bucket<TermMap::SubAggregation>>) =
-                entries.into_iter().unzip();
+            let (term_ids, buckets): (Vec<u64>, Vec<Bucket>) = entries.into_iter().unzip();
             let mut buckets_it = buckets.into_iter();
 
             term_dict.sorted_ords_to_term_cb(term_ids.into_iter(), |term| {
                 let bucket = buckets_it.next().unwrap();
                 let intermediate_entry =
-                    into_intermediate_bucket_entry(bucket).map_err(io::Error::other)?;
+                    into_intermediate_bucket_entry(bucket, sub_agg).map_err(io::Error::other)?;
                 dict.insert(
                     IntermediateKey::Str(
                         String::from_utf8(term.to_vec()).expect("could not convert to String"),
@@ -969,14 +838,14 @@ where TermMap: TermAggregationMap
             }
         } else if term_req.column_type == ColumnType::DateTime {
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count)?;
+                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
                 let val = i64::from_u64(val);
                 let date = format_date(val)?;
                 dict.insert(IntermediateKey::Str(date), intermediate_entry);
             }
         } else if term_req.column_type == ColumnType::Bool {
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count)?;
+                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
                 let val = bool::from_u64(val);
                 dict.insert(IntermediateKey::Bool(val), intermediate_entry);
             }
@@ -996,14 +865,14 @@ where TermMap: TermAggregationMap
                 })?;
 
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count)?;
+                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
                 let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
                 let val = Ipv6Addr::from_u128(val);
                 dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
             }
         } else {
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count)?;
+                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
                 if term_req.column_type == ColumnType::U64 {
                     dict.insert(IntermediateKey::U64(val), intermediate_entry);
                 } else if term_req.column_type == ColumnType::I64 {
@@ -1037,6 +906,38 @@ where TermMap: TermAggregationMap
     }
 }
 
+impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentTermCollector<TermMap, LOWCARD> {
+    #[inline]
+    fn collect_terms_with_docs<I>(
+        it: I,
+        term_buckets: &mut TermMap,
+        bucket_id_provider: &mut BucketIdProvider,
+        sub_agg: &mut CachedSubAggs<LOWCARD>,
+    ) where
+        I: Iterator<Item = (crate::DocId, u64)>,
+    {
+        for (doc, term_id) in it {
+            let bucket = term_buckets.term_entry(term_id, bucket_id_provider);
+            bucket.count += 1;
+            sub_agg.push(bucket.bucket_id, doc);
+        }
+    }
+
+    #[inline]
+    fn collect_terms<I>(
+        it: I,
+        term_buckets: &mut TermMap,
+        bucket_id_provider: &mut BucketIdProvider,
+    ) where
+        I: Iterator<Item = u64>,
+    {
+        for term_id in it {
+            let bucket = term_buckets.term_entry(term_id, bucket_id_provider);
+            bucket.count += 1;
+        }
+    }
+}
+
 pub(crate) trait GetDocCount {
     fn doc_count(&self) -> u64;
 }
@@ -1047,7 +948,7 @@ impl GetDocCount for (String, IntermediateTermBucketEntry) {
     }
 }
 
-impl<SubAgg> GetDocCount for (u64, Bucket<SubAgg>) {
+impl GetDocCount for (u64, Bucket) {
     fn doc_count(&self) -> u64 {
         self.1.count as u64
     }

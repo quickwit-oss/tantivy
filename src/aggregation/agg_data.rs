@@ -10,9 +10,9 @@ use crate::aggregation::accessor_helpers::{
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
-    FilterAggReqData, HistogramAggReqData, HistogramBounds, IncludeExcludeParam,
-    MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector, SegmentHistogramCollector,
-    SegmentRangeCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
+    build_segment_range_collector, FilterAggReqData, HistogramAggReqData, HistogramBounds,
+    IncludeExcludeParam, MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector,
+    SegmentHistogramCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
     TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
@@ -107,21 +107,14 @@ impl AggregationsSegmentCtx {
             .as_deref()
             .expect("range_req_data slot is empty (taken)")
     }
-    #[inline]
-    pub(crate) fn get_filter_req_data(&self, idx: usize) -> &FilterAggReqData {
-        self.per_request.filter_req_data[idx]
-            .as_deref()
-            .expect("filter_req_data slot is empty (taken)")
-    }
 
     // ---------- mutable getters ----------
 
     #[inline]
-    pub(crate) fn get_term_req_data_mut(&mut self, idx: usize) -> &mut TermsAggReqData {
-        self.per_request.term_req_data[idx]
-            .as_deref_mut()
-            .expect("term_req_data slot is empty (taken)")
+    pub(crate) fn get_metric_req_data_mut(&mut self, idx: usize) -> &mut MetricAggReqData {
+        &mut self.per_request.stats_metric_req_data[idx]
     }
+
     #[inline]
     pub(crate) fn get_cardinality_req_data_mut(
         &mut self,
@@ -129,10 +122,7 @@ impl AggregationsSegmentCtx {
     ) -> &mut CardinalityAggReqData {
         &mut self.per_request.cardinality_req_data[idx]
     }
-    #[inline]
-    pub(crate) fn get_metric_req_data_mut(&mut self, idx: usize) -> &mut MetricAggReqData {
-        &mut self.per_request.stats_metric_req_data[idx]
-    }
+
     #[inline]
     pub(crate) fn get_histogram_req_data_mut(&mut self, idx: usize) -> &mut HistogramAggReqData {
         self.per_request.histogram_req_data[idx]
@@ -345,10 +335,17 @@ impl PerRequestAggSegCtx {
 pub(crate) fn build_segment_agg_collectors_root(
     req: &mut AggregationsSegmentCtx,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    build_segment_agg_collectors(req, &req.per_request.agg_tree.clone())
+    build_segment_agg_collectors_generic(req, &req.per_request.agg_tree.clone())
 }
 
 pub(crate) fn build_segment_agg_collectors(
+    req: &mut AggregationsSegmentCtx,
+    nodes: &[AggRefNode],
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    build_segment_agg_collectors_generic(req, nodes)
+}
+
+fn build_segment_agg_collectors_generic(
     req: &mut AggregationsSegmentCtx,
     nodes: &[AggRefNode],
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
@@ -398,17 +395,10 @@ pub(crate) fn build_segment_agg_collector(
                 | StatsType::Count
                 | StatsType::Max
                 | StatsType::Min
-                | StatsType::Stats => Ok(Box::new(SegmentStatsCollector::from_req(
-                    node.idx_in_req_data,
-                ))),
-                StatsType::ExtendedStats(sigma) => {
-                    Ok(Box::new(SegmentExtendedStatsCollector::from_req(
-                        req_data.field_type,
-                        sigma,
-                        node.idx_in_req_data,
-                        req_data.missing,
-                    )))
-                }
+                | StatsType::Stats => Ok(Box::new(SegmentStatsCollector::from_req(req_data))),
+                StatsType::ExtendedStats(sigma) => Ok(Box::new(
+                    SegmentExtendedStatsCollector::from_req(req_data, sigma),
+                )),
                 StatsType::Percentiles => Ok(Box::new(
                     SegmentPercentilesCollector::from_req_and_validate(node.idx_in_req_data)?,
                 )),
@@ -428,9 +418,7 @@ pub(crate) fn build_segment_agg_collector(
         AggKind::DateHistogram => Ok(Box::new(SegmentHistogramCollector::from_req_and_validate(
             req, node,
         )?)),
-        AggKind::Range => Ok(Box::new(SegmentRangeCollector::from_req_and_validate(
-            req, node,
-        )?)),
+        AggKind::Range => Ok(build_segment_range_collector(req, node)?),
         AggKind::Filter => Ok(Box::new(SegmentFilterCollector::from_req_and_validate(
             req, node,
         )?)),
@@ -524,6 +512,7 @@ fn build_nodes(
                 column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
                 req: range_req.clone(),
+                is_top_level,
             });
             let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
             Ok(vec![AggRefNode {
@@ -543,7 +532,6 @@ fn build_nodes(
                 field_type,
                 column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
-                sub_aggregation_blueprint: None,
                 req: histo_req.clone(),
                 is_date_histogram: false,
                 bounds: HistogramBounds {
@@ -570,7 +558,6 @@ fn build_nodes(
                 field_type,
                 column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
-                sub_aggregation_blueprint: None,
                 req: histo_req,
                 is_date_histogram: true,
                 bounds: HistogramBounds {
@@ -929,8 +916,6 @@ fn build_terms_or_cardinality_nodes(
                     column_block_accessor: Default::default(),
                     name: agg_name.to_string(),
                     req: TermsAggregationInternal::from_req(req),
-                    // Will be filled later when building collectors
-                    sub_aggregation_blueprint: None,
                     sug_aggregations: sub_aggs.clone(),
                     allowed_term_ids,
                     is_top_level,

@@ -133,7 +133,7 @@ mod agg_limits;
 pub mod agg_req;
 pub mod agg_result;
 pub mod bucket;
-mod buf_collector;
+pub(crate) mod cached_sub_aggs;
 mod collector;
 mod date;
 mod error;
@@ -161,6 +161,19 @@ use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::tokenizer::TokenizerManager;
+
+/// A bucket id is a dense identifier for a bucket within an aggregation.
+/// It is used to index into a Vec that hold per-bucket data.
+///
+/// For example, in a terms aggregation, each unique term will be assigned a incremental BucketId.
+/// This BucketId will be forwarded to sub-aggregations to identify the parent bucket.
+///
+/// This allows to have a single AggregationCollector instance per aggregation,
+/// that can handle multiple buckets efficiently.
+///
+/// The API to call sub-aggregations is therefore a &[(BucketId, &[DocId])].
+/// For that we'll need a buffer. One Vec per bucket aggregation is needed.
+pub type BucketId = u32;
 
 /// Context parameters for aggregation execution
 ///

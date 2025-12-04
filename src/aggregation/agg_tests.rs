@@ -2,11 +2,11 @@ use serde_json::Value;
 
 use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
-use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
+use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::query::{AllQuery, TermQuery};
 use crate::schema::{IndexRecordOption, Schema, FAST};
 use crate::{Index, IndexWriter, Term};
@@ -467,8 +467,9 @@ fn test_aggregation_flushing(
 
     let reader = index.reader()?;
 
-    assert_eq!(DOC_BLOCK_SIZE, 64);
-    // In the tree we cache Documents of DOC_BLOCK_SIZE, before passing them down as one block.
+    assert_eq!(COLLECT_BLOCK_BUFFER_LEN, 64);
+    // In the tree we cache documents of COLLECT_BLOCK_BUFFER_LEN before passing them down as one
+    // block.
     //
     // Build a request so that on the first level we have one full cache, which is then flushed.
     // The same cache should have some residue docs at the end, which are flushed (Range 0-70)

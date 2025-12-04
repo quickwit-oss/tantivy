@@ -1,9 +1,9 @@
 use super::agg_req::Aggregations;
 use super::agg_result::AggregationResults;
-use super::buf_collector::BufAggregationCollector;
+use super::cached_sub_aggs::CachedSubAggs;
 use super::intermediate_agg_result::IntermediateAggregationResults;
-use super::segment_agg_result::SegmentAggregationCollector;
 use super::AggContextParams;
+// group buffering strategy is chosen explicitly by callers; no need to hash-group on the fly.
 use crate::aggregation::agg_data::{
     build_aggregations_data_from_req, build_segment_agg_collectors_root, AggregationsSegmentCtx,
 };
@@ -136,7 +136,7 @@ fn merge_fruits(
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsSegmentCtx,
-    agg_collector: BufAggregationCollector,
+    agg_collector: CachedSubAggs<true>,
     error: Option<TantivyError>,
 }
 
@@ -151,8 +151,7 @@ impl AggregationSegmentCollector {
     ) -> crate::Result<Self> {
         let mut agg_data =
             build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
-        let result =
-            BufAggregationCollector::new(build_segment_agg_collectors_root(&mut agg_data)?);
+        let result = CachedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
 
         Ok(AggregationSegmentCollector {
             aggs_with_accessor: agg_data,
@@ -170,26 +169,30 @@ impl SegmentCollector for AggregationSegmentCollector {
         if self.error.is_some() {
             return;
         }
-        if let Err(err) = self
+        self.agg_collector.push(0, doc);
+        match self
             .agg_collector
-            .collect(doc, &mut self.aggs_with_accessor)
+            .check_flush_local(&mut self.aggs_with_accessor)
         {
-            self.error = Some(err);
+            Ok(_) => {}
+            Err(e) => {
+                self.error = Some(e);
+            }
         }
     }
-
-    /// The query pushes the documents to the collector via this method.
-    ///
-    /// Only valid for Collectors that ignore docs
     fn collect_block(&mut self, docs: &[DocId]) {
         if self.error.is_some() {
             return;
         }
-        if let Err(err) = self
+        self.agg_collector.extend_with_bucket_zero(docs);
+        match self
             .agg_collector
-            .collect_block(docs, &mut self.aggs_with_accessor)
+            .check_flush_local(&mut self.aggs_with_accessor)
         {
-            self.error = Some(err);
+            Ok(_) => {}
+            Err(e) => {
+                self.error = Some(e);
+            }
         }
     }
 
@@ -200,10 +203,13 @@ impl SegmentCollector for AggregationSegmentCollector {
         self.agg_collector.flush(&mut self.aggs_with_accessor)?;
 
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
-        Box::new(self.agg_collector).add_intermediate_aggregation_result(
-            &self.aggs_with_accessor,
-            &mut sub_aggregation_res,
-        )?;
+        self.agg_collector
+            .get_sub_agg_collector()
+            .add_intermediate_aggregation_result(
+                &self.aggs_with_accessor,
+                &mut sub_aggregation_res,
+                0,
+            )?;
 
         Ok(sub_aggregation_res)
     }

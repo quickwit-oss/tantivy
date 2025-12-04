@@ -8,25 +8,42 @@ use std::fmt::Debug;
 pub(crate) use super::agg_limits::AggregationLimitsGuard;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
+use crate::aggregation::BucketId;
+
+/// Monotonically increasing provider of BucketIds.
+#[derive(Debug, Clone, Default)]
+pub struct BucketIdProvider(u32);
+impl BucketIdProvider {
+    /// Get the next BucketId.
+    pub fn next_bucket_id(&mut self) -> BucketId {
+        let bucket_id = self.0;
+        self.0 += 1;
+        bucket_id
+    }
+}
 
 /// A SegmentAggregationCollector is used to collect aggregation results.
 pub trait SegmentAggregationCollector: CollectorClone + Debug {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()>;
 
     fn collect(
         &mut self,
-        doc: crate::DocId,
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()>;
 
-    fn collect_block(
+    /// Prepare the collector for collecting up to ParentBucketId `max_bucket`.
+    /// This is useful so we can split allocation ahead of time of collecting.
+    fn prepare_max_bucket(
         &mut self,
-        docs: &[crate::DocId],
-        agg_data: &mut AggregationsSegmentCtx,
+        max_bucket: BucketId,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()>;
 
     /// Finalize method. Some Aggregator collect blocks of docs before calling `collect_block`.
@@ -73,12 +90,13 @@ impl Debug for GenericSegmentAggregationResultsCollector {
 
 impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        for agg in self.aggs {
-            agg.add_intermediate_aggregation_result(agg_data, results)?;
+        for agg in &mut self.aggs {
+            agg.add_intermediate_aggregation_result(agg_data, results, parent_bucket_id)?;
         }
 
         Ok(())
@@ -86,29 +104,30 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
 
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_data)?;
-
-        Ok(())
-    }
-
-    fn collect_block(
-        &mut self,
+        parent_bucket_id: BucketId,
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         for collector in &mut self.aggs {
-            collector.collect_block(docs, agg_data)?;
+            collector.collect(parent_bucket_id, docs, agg_data)?;
         }
-
         Ok(())
     }
 
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         for collector in &mut self.aggs {
             collector.flush(agg_data)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        for collector in &mut self.aggs {
+            collector.prepare_max_bucket(max_bucket, agg_data)?;
         }
         Ok(())
     }
