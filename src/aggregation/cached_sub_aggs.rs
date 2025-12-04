@@ -134,10 +134,13 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
                 .prepare_max_bucket(max_bucket, agg_data)?;
 
             for slot in &self.partitions {
-                for (bucket_id, docs) in slot.groups() {
-                    // TODO: this may be a lot of calls to a boxed trait object.
-                    // Consider passing the struct directly to avoid dynamic dispatch.
-                    self.sub_agg_collector.collect(bucket_id, docs, agg_data)?;
+                if !slot.bucket_ids.is_empty() {
+                    // Reduce dynamic dispatch overhead by collecting a full partition in one call.
+                    self.sub_agg_collector.collect_multiple(
+                        &slot.bucket_ids,
+                        &slot.docs,
+                        agg_data,
+                    )?;
                 }
             }
         }
@@ -174,39 +177,5 @@ impl PartitionEntry {
     fn clear(&mut self) {
         self.bucket_ids.clear();
         self.docs.clear();
-    }
-
-    #[inline]
-    fn groups(&self) -> PartitionGroups<'_> {
-        PartitionGroups {
-            bucket_ids: &self.bucket_ids,
-            docs: &self.docs,
-            idx: 0,
-        }
-    }
-}
-
-struct PartitionGroups<'a> {
-    bucket_ids: &'a [BucketId],
-    docs: &'a [DocId],
-    idx: usize,
-}
-
-impl<'a> Iterator for PartitionGroups<'a> {
-    type Item = (BucketId, &'a [DocId]);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.idx >= self.bucket_ids.len() {
-            return None;
-        }
-
-        let bucket_id = self.bucket_ids[self.idx];
-        let start = self.idx;
-        let mut end = start + 1;
-        while end < self.bucket_ids.len() && self.bucket_ids[end] == bucket_id {
-            end += 1;
-        }
-        self.idx = end;
-        Some((bucket_id, &self.docs[start..end]))
     }
 }

@@ -31,6 +31,7 @@ pub trait SegmentAggregationCollector: CollectorClone + Debug {
         parent_bucket_id: BucketId,
     ) -> crate::Result<()>;
 
+    /// Note: The caller needs to call `prepare_max_bucket` before calling `collect`.
     fn collect(
         &mut self,
         parent_bucket_id: BucketId,
@@ -38,7 +39,31 @@ pub trait SegmentAggregationCollector: CollectorClone + Debug {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()>;
 
-    /// Prepare the collector for collecting up to ParentBucketId `max_bucket`.
+    /// Collect docs for multiple buckets in one call.
+    /// Minimizes dynamic dispatch overhead when collecting many buckets.
+    ///
+    /// Note: The caller needs to call `prepare_max_bucket` before calling `collect`.
+    fn collect_multiple(
+        &mut self,
+        bucket_ids: &[BucketId],
+        docs: &[crate::DocId],
+        agg_data: &mut AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        debug_assert_eq!(bucket_ids.len(), docs.len());
+        let mut start = 0;
+        while start < bucket_ids.len() {
+            let bucket_id = bucket_ids[start];
+            let mut end = start + 1;
+            while end < bucket_ids.len() && bucket_ids[end] == bucket_id {
+                end += 1;
+            }
+            self.collect(bucket_id, &docs[start..end], agg_data)?;
+            start = end;
+        }
+        Ok(())
+    }
+
+    /// Prepare the collector for collecting up to BucketId `max_bucket`.
     /// This is useful so we can split allocation ahead of time of collecting.
     fn prepare_max_bucket(
         &mut self,
