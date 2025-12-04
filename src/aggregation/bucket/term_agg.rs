@@ -439,12 +439,8 @@ trait TermAggregationMap: Clone + Debug + Default + 'static {
     /// Estimate the memory consumption of this struct in bytes.
     fn get_memory_consumption(&self) -> usize;
 
-    /// Returns the bucket associated to a given term_id.
-    fn term_entry(
-        &mut self,
-        term_id: u64,
-        bucket_id_provider: &mut BucketIdProvider,
-    ) -> &mut Bucket;
+    /// Increments the count and returns the bucket_id associated to a given term_id.
+    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> BucketId;
 
     /// Returns the term aggregation as a vector of (term_id, bucket) pairs,
     /// in any order.
@@ -472,14 +468,13 @@ impl TermAggregationMap for HashMapTermBuckets {
     }
 
     #[inline(always)]
-    fn term_entry(
-        &mut self,
-        term_id: u64,
-        bucket_id_provider: &mut BucketIdProvider,
-    ) -> &mut Bucket {
-        self.bucket_map
+    fn term_entry(&mut self, term_id: u64, bucket_id_provider: &mut BucketIdProvider) -> BucketId {
+        let bucket = self
+            .bucket_map
             .entry(term_id)
-            .or_insert_with(|| Bucket::new(bucket_id_provider.next_bucket_id()))
+            .or_insert_with(|| Bucket::new(bucket_id_provider.next_bucket_id()));
+        bucket.count += 1;
+        bucket.bucket_id
     }
 
     fn into_vec(self) -> Vec<(u64, Bucket)> {
@@ -515,11 +510,7 @@ impl TermAggregationMap for VecTermBuckets {
 
     /// Add an occurrence of the given term id.
     #[inline(always)]
-    fn term_entry(
-        &mut self,
-        term_id: u64,
-        _bucket_id_provider: &mut BucketIdProvider,
-    ) -> &mut Bucket {
+    fn term_entry(&mut self, term_id: u64, _bucket_id_provider: &mut BucketIdProvider) -> BucketId {
         let term_id_usize = term_id as usize;
         debug_assert!(
             term_id_usize < self.buckets.len(),
@@ -527,7 +518,9 @@ impl TermAggregationMap for VecTermBuckets {
             term_id,
             self.buckets.len()
         );
-        unsafe { self.buckets.get_unchecked_mut(term_id_usize) }
+        let bucket = unsafe { self.buckets.get_unchecked_mut(term_id_usize) };
+        bucket.count += 1;
+        bucket.bucket_id
     }
 
     fn into_vec(self) -> Vec<(u64, Bucket)> {
@@ -565,6 +558,7 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
         results: &mut IntermediateAggregationResults,
         bucket: BucketId,
     ) -> crate::Result<()> {
+        // TODO: avoid prepare_max_bucket here and handle empty buckets.
         self.prepare_max_bucket(bucket, agg_data)?;
         let bucket = std::mem::take(&mut self.buckets[bucket as usize]);
         let term_req = agg_data.get_term_req_data(self.accessor_idx);
@@ -908,32 +902,26 @@ where TermMap: TermAggregationMap
 
 impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentTermCollector<TermMap, LOWCARD> {
     #[inline]
-    fn collect_terms_with_docs<I>(
-        it: I,
+    fn collect_terms_with_docs(
+        iter: impl Iterator<Item = (crate::DocId, u64)>,
         term_buckets: &mut TermMap,
         bucket_id_provider: &mut BucketIdProvider,
         sub_agg: &mut CachedSubAggs<LOWCARD>,
-    ) where
-        I: Iterator<Item = (crate::DocId, u64)>,
-    {
-        for (doc, term_id) in it {
-            let bucket = term_buckets.term_entry(term_id, bucket_id_provider);
-            bucket.count += 1;
-            sub_agg.push(bucket.bucket_id, doc);
+    ) {
+        for (doc, term_id) in iter {
+            let bucket_id = term_buckets.term_entry(term_id, bucket_id_provider);
+            sub_agg.push(bucket_id, doc);
         }
     }
 
     #[inline]
-    fn collect_terms<I>(
-        it: I,
+    fn collect_terms(
+        iter: impl Iterator<Item = u64>,
         term_buckets: &mut TermMap,
         bucket_id_provider: &mut BucketIdProvider,
-    ) where
-        I: Iterator<Item = u64>,
-    {
-        for term_id in it {
-            let bucket = term_buckets.term_entry(term_id, bucket_id_provider);
-            bucket.count += 1;
+    ) {
+        for term_id in iter {
+            term_buckets.term_entry(term_id, bucket_id_provider);
         }
     }
 }

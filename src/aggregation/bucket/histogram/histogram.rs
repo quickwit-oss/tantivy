@@ -309,6 +309,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
             .get_histogram_req_data(self.accessor_idx)
             .name
             .clone();
+        // TODO: avoid prepare_max_bucket here and handle empty buckets.
         self.prepare_max_bucket(parent_bucket_id, agg_data)?;
         let histogram = std::mem::take(&mut self.buckets[parent_bucket_id as usize]);
         let bucket = self.add_intermediate_bucket_result(agg_data, histogram)?;
