@@ -268,13 +268,21 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 SpecializedScorer::Other(boxed_scorer)
             }
             (ShouldScorersCombinationMethod::Optional(should_scorer), must_scorers) => {
+                // Optional SHOULD: contributes to scoring but not required for matching.
+                //
+                // Case 1: No MUST clauses at all (empty list + no removed AllScorers)
+                //   => Promote SHOULD to required (at least one must match).
+                //
+                // Case 2: MUST had AllScorer(s) that were removed
+                //   => All docs match via MUST; SHOULD only affects scoring.
+                //
+                // When SHOULD contains AllScorer(s) that were removed, we must
+                // preserve the "all docs match" semantics by unioning with AllScorer.
                 if must_scorers.is_empty() && must_special_scorer_counts.num_all_scorers == 0 {
-                    // Optional options are promoted to required if no must scorers exists.
-                    // But if there were AllScorers removed from SHOULD, we need to union
-                    // the should_scorer with those matching all docs.
+                    // No MUST clauses: promote SHOULD to required.
                     if should_special_scorer_counts.num_all_scorers > 0 {
-                        // There was at least one AllScorer in SHOULD, so all docs match.
-                        // We still need to union with the remaining scorers for correct scoring.
+                        // Some SHOULD clauses were AllScorers (e.g., range queries matching
+                        // all docs). Restore the "match all" semantics via union.
                         let all_scorers: Vec<Box<dyn Scorer>> = vec![
                             into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
                             Box::new(AllScorer::new(reader.max_doc())),
@@ -288,11 +296,11 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                         should_scorer
                     }
                 } else {
-                    // When must_scorers is empty but there were AllScorers removed,
-                    // we need to use AllScorer instead of EmptyScorer
+                    // Has MUST clauses (possibly via removed AllScorers).
+                    // When must_scorers is empty but AllScorers were removed,
+                    // we must use AllScorer (not EmptyScorer from intersect_scorers([])).
                     let must_scorer: Box<dyn Scorer> = if must_scorers.is_empty() {
-                        // must_special_scorer_counts.num_all_scorers > 0 here
-                        // (otherwise we'd be in the first branch above)
+                        // must_special_scorer_counts.num_all_scorers > 0 guaranteed here
                         Box::new(AllScorer::new(reader.max_doc()))
                     } else {
                         intersect_scorers(must_scorers, num_docs)
@@ -312,9 +320,11 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 }
             }
             (ShouldScorersCombinationMethod::Required(should_scorer), mut must_scorers) => {
+                // Required SHOULD: at least `minimum_number_should_match` must match.
                 if must_scorers.is_empty() {
-                    // When must_scorers is empty but there were AllScorers removed,
-                    // we need to union the should_scorer with AllScorer
+                    // When MUST had AllScorer(s) that were removed, we must
+                    // union the SHOULD scorer with AllScorer to preserve intersection
+                    // semantics (all MUST docs intersected with required SHOULD).
                     if must_special_scorer_counts.num_all_scorers > 0 {
                         let all_scorers: Vec<Box<dyn Scorer>> = vec![
                             into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
