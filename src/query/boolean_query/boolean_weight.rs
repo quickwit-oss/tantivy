@@ -299,9 +299,13 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 // Result depends entirely on MUST + any removed AllScorers.
                 let combined_all_scorer_count = must_special_scorer_counts.num_all_scorers
                     + should_special_scorer_counts.num_all_scorers;
-                let boxed_scorer: Box<dyn Scorer> =
-                    effective_must_scorer(must_scorers, combined_all_scorer_count, reader.max_doc(), num_docs)
-                        .unwrap_or_else(|| Box::new(EmptyScorer));
+                let boxed_scorer: Box<dyn Scorer> = effective_must_scorer(
+                    must_scorers,
+                    combined_all_scorer_count,
+                    reader.max_doc(),
+                    num_docs,
+                )
+                .unwrap_or_else(|| Box::new(EmptyScorer));
                 SpecializedScorer::Other(boxed_scorer)
             }
             (ShouldScorersCombinationMethod::Optional(should_scorer), must_scorers) => {

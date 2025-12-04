@@ -436,7 +436,10 @@ mod tests {
             (Occur::Should, all_query.box_clone()),
         ]);
         let count_reversed = searcher.search(&bool_query_reversed, &Count)?;
-        assert_eq!(count_reversed, 6, "Order of SHOULD clauses should not matter");
+        assert_eq!(
+            count_reversed, 6,
+            "Order of SHOULD clauses should not matter"
+        );
 
         Ok(())
     }
@@ -494,17 +497,16 @@ mod tests {
     /// when all documents have age > 50.
     #[test]
     pub fn test_range_query_all_match_in_boolean() -> crate::Result<()> {
+        use std::ops::Bound;
+
         use crate::collector::Count;
         use crate::query::RangeQuery;
         use crate::schema::NumericOptions;
-        use std::ops::Bound;
 
         let mut schema_builder = Schema::builder();
         let name_field = schema_builder.add_text_field("name", TEXT);
-        let age_field = schema_builder.add_i64_field(
-            "age",
-            NumericOptions::default().set_fast().set_indexed(),
-        );
+        let age_field =
+            schema_builder.add_i64_field("age", NumericOptions::default().set_fast().set_indexed());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests()?;
