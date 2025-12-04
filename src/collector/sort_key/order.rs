@@ -1,10 +1,42 @@
 use std::cmp::Ordering;
 
+use columnar::MonotonicallyMappableToU64;
 use serde::{Deserialize, Serialize};
 
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
-use crate::schema::Schema;
+use crate::schema::{OwnedValue, Schema};
 use crate::{DocId, Order, Score};
+
+fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+    match (lhs, rhs) {
+        (OwnedValue::Null, OwnedValue::Null) => Ordering::Equal,
+        (OwnedValue::Null, _) => {
+            if NULLS_FIRST {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        }
+        (_, OwnedValue::Null) => {
+            if NULLS_FIRST {
+                Ordering::Greater
+            } else {
+                Ordering::Less
+            }
+        }
+        (OwnedValue::Str(a), OwnedValue::Str(b)) => a.cmp(b),
+        (OwnedValue::PreTokStr(a), OwnedValue::PreTokStr(b)) => a.cmp(b),
+        (OwnedValue::U64(a), OwnedValue::U64(b)) => a.cmp(b),
+        (OwnedValue::I64(a), OwnedValue::I64(b)) => a.cmp(b),
+        (OwnedValue::F64(a), OwnedValue::F64(b)) => a.to_u64().cmp(&b.to_u64()),
+        (OwnedValue::Bool(a), OwnedValue::Bool(b)) => a.cmp(b),
+        (OwnedValue::Date(a), OwnedValue::Date(b)) => a.cmp(b),
+        (OwnedValue::Facet(a), OwnedValue::Facet(b)) => a.cmp(b),
+        (OwnedValue::Bytes(a), OwnedValue::Bytes(b)) => a.cmp(b),
+        (OwnedValue::IpAddr(a), OwnedValue::IpAddr(b)) => a.cmp(b),
+        x => panic!("Unsupported comparison: {x:?}"),
+    }
+}
 
 /// Comparator trait defining the order in which documents should be ordered.
 pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
@@ -26,6 +58,17 @@ impl<T: PartialOrd> Comparator<T> for NaturalComparator {
     #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
         lhs.partial_cmp(rhs).unwrap()
+    }
+}
+
+/// A (partial) implementation of comparison for OwnedValue.
+///
+/// Intended for use within columns of homogenous types, and so will panic for OwnedValues with
+/// mismatched types. The one exception is Null, for which we do define all comparisons.
+impl Comparator<OwnedValue> for NaturalComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+        compare_owned_value::</* NULLS_FIRST= */ true>(lhs, rhs)
     }
 }
 
@@ -121,6 +164,13 @@ impl Comparator<String> for ReverseNoneIsLowerComparator {
     }
 }
 
+impl Comparator<OwnedValue> for ReverseNoneIsLowerComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+        compare_owned_value::</* NULLS_FIRST= */ false>(rhs, lhs)
+    }
+}
+
 /// Compare values naturally, but treating `None` as higher than `Some`.
 ///
 /// When used with `TopDocs`, which reverses the order, this results in a
@@ -182,6 +232,13 @@ impl Comparator<String> for NaturalNoneIsHigherComparator {
     #[inline(always)]
     fn compare(&self, lhs: &String, rhs: &String) -> Ordering {
         NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<OwnedValue> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+        compare_owned_value::</* NULLS_FIRST= */ false>(lhs, rhs)
     }
 }
 

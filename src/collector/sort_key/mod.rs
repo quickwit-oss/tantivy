@@ -1,10 +1,12 @@
 mod order;
+mod sort_by_owned;
 mod sort_by_score;
 mod sort_by_static_fast_value;
 mod sort_by_string;
 mod sort_key_computer;
 
 pub use order::*;
+pub use sort_by_owned::SortByOwnedValue;
 pub use sort_by_score::SortBySimilarityScore;
 pub use sort_by_static_fast_value::SortByStaticFastValue;
 pub use sort_by_string::SortByString;
@@ -34,11 +36,13 @@ pub(crate) mod tests {
     use std::collections::HashMap;
     use std::ops::Range;
 
-    use crate::collector::sort_key::{SortBySimilarityScore, SortByStaticFastValue, SortByString};
+    use crate::collector::sort_key::{
+        SortByOwnedValue, SortBySimilarityScore, SortByStaticFastValue, SortByString,
+    };
     use crate::collector::{ComparableDoc, DocSetCollector, TopDocs};
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, QueryParser};
-    use crate::schema::{Schema, FAST, TEXT};
+    use crate::schema::{OwnedValue, Schema, FAST, TEXT};
     use crate::{DocAddress, Document, Index, Order, Score, Searcher};
 
     fn make_index() -> crate::Result<Index> {
@@ -313,11 +317,9 @@ pub(crate) mod tests {
                 (SortBySimilarityScore, score_order),
                 (SortByString::for_field("city"), city_order),
             ));
-            Ok(searcher
-                .search(&AllQuery, &top_collector)?
-                .into_iter()
-                .map(|(f, doc)| (f, ids[&doc]))
-                .collect())
+            let results: Vec<((Score, Option<String>), DocAddress)> =
+                searcher.search(&AllQuery, &top_collector)?;
+            Ok(results.into_iter().map(|(f, doc)| (f, ids[&doc])).collect())
         }
 
         assert_eq!(
@@ -337,6 +339,51 @@ pub(crate) mod tests {
                 ((1.0, Some("greenville".to_owned())), 1),
                 ((1.0, Some("austin".to_owned())), 0),
                 ((1.0, None), 3),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_order_by_score_then_owned_value() -> crate::Result<()> {
+        let index = make_index()?;
+
+        type SortKey = (Score, OwnedValue);
+
+        fn query(
+            index: &Index,
+            score_order: Order,
+            city_order: Order,
+        ) -> crate::Result<Vec<(SortKey, u64)>> {
+            let searcher = index.reader()?.searcher();
+            let ids = id_mapping(&searcher);
+
+            let top_collector = TopDocs::with_limit(4).order_by::<(Score, OwnedValue)>((
+                (SortBySimilarityScore, score_order),
+                (SortByOwnedValue::for_field("city"), city_order),
+            ));
+            let results: Vec<((Score, OwnedValue), DocAddress)> =
+                searcher.search(&AllQuery, &top_collector)?;
+            Ok(results.into_iter().map(|(f, doc)| (f, ids[&doc])).collect())
+        }
+
+        assert_eq!(
+            &query(&index, Order::Asc, Order::Asc)?,
+            &[
+                ((1.0, OwnedValue::Str("austin".to_owned())), 0),
+                ((1.0, OwnedValue::Str("greenville".to_owned())), 1),
+                ((1.0, OwnedValue::Str("tokyo".to_owned())), 2),
+                ((1.0, OwnedValue::Null), 3),
+            ]
+        );
+
+        assert_eq!(
+            &query(&index, Order::Asc, Order::Desc)?,
+            &[
+                ((1.0, OwnedValue::Str("tokyo".to_owned())), 2),
+                ((1.0, OwnedValue::Str("greenville".to_owned())), 1),
+                ((1.0, OwnedValue::Str("austin".to_owned())), 0),
+                ((1.0, OwnedValue::Null), 3),
             ]
         );
         Ok(())
