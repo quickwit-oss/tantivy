@@ -288,7 +288,15 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                         should_scorer
                     }
                 } else {
-                    let must_scorer = intersect_scorers(must_scorers, num_docs);
+                    // When must_scorers is empty but there were AllScorers removed,
+                    // we need to use AllScorer instead of EmptyScorer
+                    let must_scorer: Box<dyn Scorer> = if must_scorers.is_empty() {
+                        // must_special_scorer_counts.num_all_scorers > 0 here
+                        // (otherwise we'd be in the first branch above)
+                        Box::new(AllScorer::new(reader.max_doc()))
+                    } else {
+                        intersect_scorers(must_scorers, num_docs)
+                    };
                     if self.scoring_enabled {
                         SpecializedScorer::Other(Box::new(RequiredOptionalScorer::<
                             _,
@@ -305,7 +313,21 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             }
             (ShouldScorersCombinationMethod::Required(should_scorer), mut must_scorers) => {
                 if must_scorers.is_empty() {
-                    should_scorer
+                    // When must_scorers is empty but there were AllScorers removed,
+                    // we need to union the should_scorer with AllScorer
+                    if must_special_scorer_counts.num_all_scorers > 0 {
+                        let all_scorers: Vec<Box<dyn Scorer>> = vec![
+                            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
+                            Box::new(AllScorer::new(reader.max_doc())),
+                        ];
+                        SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
+                            all_scorers,
+                            &score_combiner_fn,
+                            num_docs,
+                        )))
+                    } else {
+                        should_scorer
+                    }
                 } else {
                     must_scorers.push(into_box_scorer(should_scorer, &score_combiner_fn, num_docs));
                     SpecializedScorer::Other(intersect_scorers(must_scorers, num_docs))
