@@ -8,11 +8,13 @@ use serde::{Deserialize, Serialize};
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
+use crate::aggregation::agg_limits::AggregationLimitsGuard;
+use crate::aggregation::cached_sub_aggs::CachedSubAggs;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateRangeBucketEntry, IntermediateRangeBucketResult,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
 use crate::aggregation::*;
 use crate::TantivyError;
 
@@ -29,6 +31,8 @@ pub struct RangeAggReqData {
     pub req: RangeAggregation,
     /// The name of the aggregation.
     pub name: String,
+    /// Whether this is a top-level aggregation.
+    pub is_top_level: bool,
 }
 
 impl RangeAggReqData {
@@ -151,19 +155,48 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone, Debug)]
-pub struct SegmentRangeCollector {
+#[derive(Clone)]
+pub struct SegmentRangeCollector<const LOWCARD: bool = false> {
     /// The buckets containing the aggregation data.
-    buckets: Vec<SegmentRangeAndBucketEntry>,
+    /// One for each ParentBucketId
+    parent_buckets: Vec<Vec<SegmentRangeAndBucketEntry>>,
     column_type: ColumnType,
     pub(crate) accessor_idx: usize,
+    sub_agg: Option<CachedSubAggs<LOWCARD>>,
+    /// Here things get a bit weird. We need to assign unique bucket ids across all
+    /// parent buckets. So we keep track of the next available bucket id here.
+    /// This allows a kind of flattening of the bucket ids across all parent buckets.
+    /// E.g. in nested aggregations:
+    /// Term Agg -> Range aggregation -> Stats aggregation
+    /// E.g. the Term Agg creates 3 buckets ["INFO", "ERROR", "WARN"], each of these has a Range
+    /// aggregation with 4 buckets. The Range aggregation will create buckets with ids:
+    /// - INFO: 0,1,2,3
+    /// - ERROR: 4,5,6,7
+    /// - WARN: 8,9,10,11
+    ///
+    /// This allows the Stats aggregation to have unique bucket ids to refer to.
+    bucket_id_provider: BucketIdProvider,
+    limits: AggregationLimitsGuard,
 }
 
+impl<const LOWCARD: bool> Debug for SegmentRangeCollector<LOWCARD> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SegmentRangeCollector")
+            .field("parent_buckets_len", &self.parent_buckets.len())
+            .field("column_type", &self.column_type)
+            .field("accessor_idx", &self.accessor_idx)
+            .field("has_sub_agg", &self.sub_agg.is_some())
+            .finish()
+    }
+}
+
+/// TODO: Bad naming, there's also SegmentRangeAndBucketEntry
 #[derive(Clone)]
 pub(crate) struct SegmentRangeBucketEntry {
     pub key: Key,
     pub doc_count: u64,
-    pub sub_aggregation: Option<Box<dyn SegmentAggregationCollector>>,
+    // pub sub_aggregation: Option<Box<dyn SegmentAggregationCollector>>,
+    pub bucket_id: BucketId,
     /// The from range of the bucket. Equals `f64::MIN` when `None`.
     pub from: Option<f64>,
     /// The to range of the bucket. Equals `f64::MAX` when `None`. Open interval, `to` is not
@@ -184,48 +217,50 @@ impl Debug for SegmentRangeBucketEntry {
 impl SegmentRangeBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateRangeBucketEntry> {
-        let mut sub_aggregation_res = IntermediateAggregationResults::default();
-        if let Some(sub_aggregation) = self.sub_aggregation {
-            sub_aggregation
-                .add_intermediate_aggregation_result(agg_data, &mut sub_aggregation_res)?
-        } else {
-            Default::default()
-        };
+        let sub_aggregation = IntermediateAggregationResults::default();
 
         Ok(IntermediateRangeBucketEntry {
             key: self.key.into(),
             doc_count: self.doc_count,
-            sub_aggregation: sub_aggregation_res,
+            sub_aggregation_res: sub_aggregation,
             from: self.from,
             to: self.to,
         })
     }
 }
 
-impl SegmentAggregationCollector for SegmentRangeCollector {
+impl<const LOWCARD: bool> SegmentAggregationCollector for SegmentRangeCollector<LOWCARD> {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
+        self.prepare_max_bucket(parent_bucket_id, agg_data)?;
         let field_type = self.column_type;
         let name = agg_data
             .get_range_req_data(self.accessor_idx)
             .name
             .to_string();
 
-        let buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry> = self
-            .buckets
+        let buckets = std::mem::take(&mut self.parent_buckets[parent_bucket_id as usize]);
+
+        let buckets: FxHashMap<SerializedKey, IntermediateRangeBucketEntry> = buckets
             .into_iter()
-            .map(move |range_bucket| {
-                Ok((
-                    range_to_string(&range_bucket.range, &field_type)?,
-                    range_bucket
-                        .bucket
-                        .into_intermediate_bucket_entry(agg_data)?,
-                ))
+            .map(|range_bucket| {
+                let bucket_id = range_bucket.bucket.bucket_id;
+                let mut agg = range_bucket.bucket.into_intermediate_bucket_entry()?;
+                if let Some(sub_aggregation) = &mut self.sub_agg {
+                    sub_aggregation
+                        .get_sub_agg_collector()
+                        .add_intermediate_aggregation_result(
+                            agg_data,
+                            &mut agg.sub_aggregation_res,
+                            bucket_id,
+                        )?;
+                }
+                Ok((range_to_string(&range_bucket.range, &field_type)?, agg))
             })
             .collect::<crate::Result<_>>()?;
 
@@ -242,73 +277,112 @@ impl SegmentAggregationCollector for SegmentRangeCollector {
     #[inline]
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_data)
-    }
-
-    #[inline]
-    fn collect_block(
-        &mut self,
+        parent_bucket_id: BucketId,
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        // Take request data to avoid borrow conflicts during sub-aggregation
         let mut req = agg_data.take_range_req_data(self.accessor_idx);
 
         req.column_block_accessor.fetch_block(docs, &req.accessor);
+
+        let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
         for (doc, val) in req
             .column_block_accessor
             .iter_docid_vals(docs, &req.accessor)
         {
-            let bucket_pos = self.get_bucket_pos(val);
-            let bucket = &mut self.buckets[bucket_pos];
+            let bucket_pos = get_bucket_pos(val, buckets);
+            let bucket = &mut buckets[bucket_pos];
             bucket.bucket.doc_count += 1;
-            if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {
-                sub_agg.collect(doc, agg_data)?;
+            if let Some(sub_agg) = self.sub_agg.as_mut() {
+                sub_agg.push(bucket.bucket.bucket_id, doc);
             }
         }
 
         agg_data.put_back_range_req_data(self.accessor_idx, req);
+        if let Some(sub_agg) = self.sub_agg.as_mut() {
+            sub_agg.check_flush_local(agg_data)?;
+        }
 
         Ok(())
     }
 
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
-        for bucket in self.buckets.iter_mut() {
-            if let Some(sub_agg) = bucket.bucket.sub_aggregation.as_mut() {
-                sub_agg.flush(agg_data)?;
-            }
+        if let Some(sub_agg) = self.sub_agg.as_mut() {
+            sub_agg.flush(agg_data)?;
         }
         Ok(())
     }
+
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        while self.parent_buckets.len() <= max_bucket as usize {
+            let new_buckets = self.create_new_buckets(agg_data)?;
+            self.parent_buckets.push(new_buckets);
+        }
+
+        Ok(())
+    }
+}
+/// Build a concrete `SegmentRangeCollector` with either a Vec- or HashMap-backed
+/// bucket storage, depending on the column type and aggregation level.
+pub(crate) fn build_segment_range_collector(
+    agg_data: &mut AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    let accessor_idx = node.idx_in_req_data;
+    let req_data = agg_data.get_range_req_data(node.idx_in_req_data);
+    let field_type = req_data.field_type;
+
+    // TODO: A better metric instead of is_top_level would be the number of buckets expected.
+    // E.g. If range agg is not top level, but the parent is a bucket agg with less than 10 buckets,
+    // we can are still in low cardinality territory.
+    let is_low_card = req_data.is_top_level && req_data.req.ranges.len() <= 64;
+
+    let sub_agg = if !node.children.is_empty() {
+        Some(build_segment_agg_collectors(agg_data, &node.children)?)
+    } else {
+        None
+    };
+
+    if is_low_card {
+        Ok(Box::new(SegmentRangeCollector {
+            sub_agg: sub_agg.map(CachedSubAggs::<true>::new),
+            column_type: field_type,
+            accessor_idx,
+            parent_buckets: Vec::new(),
+            bucket_id_provider: BucketIdProvider::default(),
+            limits: agg_data.context.limits.clone(),
+        }))
+    } else {
+        Ok(Box::new(SegmentRangeCollector {
+            sub_agg: sub_agg.map(CachedSubAggs::<false>::new),
+            column_type: field_type,
+            accessor_idx,
+            parent_buckets: Vec::new(),
+            bucket_id_provider: BucketIdProvider::default(),
+            limits: agg_data.context.limits.clone(),
+        }))
+    }
 }
 
-impl SegmentRangeCollector {
-    pub(crate) fn from_req_and_validate(
-        req_data: &mut AggregationsSegmentCtx,
-        node: &AggRefNode,
-    ) -> crate::Result<Self> {
-        let accessor_idx = node.idx_in_req_data;
-        let (field_type, ranges) = {
-            let req_view = req_data.get_range_req_data(node.idx_in_req_data);
-            (req_view.field_type, req_view.req.ranges.clone())
-        };
-
+impl<const LOWCARD: bool> SegmentRangeCollector<LOWCARD> {
+    pub(crate) fn create_new_buckets(
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<Vec<SegmentRangeAndBucketEntry>> {
+        let field_type = self.column_type;
+        let req_data = agg_data.get_range_req_data(self.accessor_idx);
         // The range input on the request is f64.
         // We need to convert to u64 ranges, because we read the values as u64.
         // The mapping from the conversion is monotonic so ordering is preserved.
-        let sub_agg_prototype = if !node.children.is_empty() {
-            Some(build_segment_agg_collectors(req_data, &node.children)?)
-        } else {
-            None
-        };
-
-        let buckets: Vec<_> = extend_validate_ranges(&ranges, &field_type)?
+        let buckets: Vec<_> = extend_validate_ranges(&req_data.req.ranges, &field_type)?
             .iter()
             .map(|range| {
+                let bucket_id = self.bucket_id_provider.next_bucket_id();
                 let key = range
                     .key
                     .clone()
@@ -324,13 +398,13 @@ impl SegmentRangeCollector {
                 } else {
                     Some(f64_from_fastfield_u64(range.range.start, &field_type))
                 };
-                let sub_aggregation = sub_agg_prototype.clone();
+                // let sub_aggregation = sub_agg_prototype.clone();
 
                 Ok(SegmentRangeAndBucketEntry {
                     range: range.range.clone(),
                     bucket: SegmentRangeBucketEntry {
                         doc_count: 0,
-                        sub_aggregation,
+                        bucket_id,
                         key,
                         from,
                         to,
@@ -339,26 +413,19 @@ impl SegmentRangeCollector {
             })
             .collect::<crate::Result<_>>()?;
 
-        req_data.context.limits.add_memory_consumed(
+        self.limits.add_memory_consumed(
             buckets.len() as u64 * std::mem::size_of::<SegmentRangeAndBucketEntry>() as u64,
         )?;
-
-        Ok(SegmentRangeCollector {
-            buckets,
-            column_type: field_type,
-            accessor_idx,
-        })
+        Ok(buckets)
     }
-
-    #[inline]
-    fn get_bucket_pos(&self, val: u64) -> usize {
-        let pos = self
-            .buckets
-            .binary_search_by_key(&val, |probe| probe.range.start)
-            .unwrap_or_else(|pos| pos - 1);
-        debug_assert!(self.buckets[pos].range.contains(&val));
-        pos
-    }
+}
+#[inline]
+fn get_bucket_pos(val: u64, buckets: &[SegmentRangeAndBucketEntry]) -> usize {
+    let pos = buckets
+        .binary_search_by_key(&val, |probe| probe.range.start)
+        .unwrap_or_else(|pos| pos - 1);
+    debug_assert!(buckets[pos].range.contains(&val));
+    pos
 }
 
 /// Converts the user provided f64 range value to fast field value space.
@@ -517,19 +584,22 @@ mod tests {
                     range: range.range.clone(),
                     bucket: SegmentRangeBucketEntry {
                         doc_count: 0,
-                        sub_aggregation: None,
                         key,
                         from,
                         to,
+                        bucket_id: 0,
                     },
                 }
             })
             .collect();
 
         SegmentRangeCollector {
-            buckets,
+            parent_buckets: vec![buckets],
             column_type: field_type,
             accessor_idx: 0,
+            sub_agg: None,
+            bucket_id_provider: Default::default(),
+            limits: AggregationLimitsGuard::default(),
         }
     }
 
@@ -776,7 +846,7 @@ mod tests {
         let buckets = vec![(10f64..20f64).into(), (30f64..40f64).into()];
         let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
-        let buckets = collector.buckets;
+        let buckets = collector.parent_buckets[0].clone();
         assert_eq!(buckets[0].range.start, u64::MIN);
         assert_eq!(buckets[0].range.end, 10f64.to_u64());
         assert_eq!(buckets[1].range.start, 10f64.to_u64());
@@ -799,7 +869,7 @@ mod tests {
         ];
         let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
-        let buckets = collector.buckets;
+        let buckets = collector.parent_buckets[0].clone();
         assert_eq!(buckets[0].range.start, u64::MIN);
         assert_eq!(buckets[0].range.end, 10f64.to_u64());
         assert_eq!(buckets[1].range.start, 10f64.to_u64());
@@ -814,7 +884,7 @@ mod tests {
         let buckets = vec![(-10f64..-1f64).into()];
         let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
-        let buckets = collector.buckets;
+        let buckets = collector.parent_buckets[0].clone();
         assert_eq!(&buckets[0].bucket.key.to_string(), "*--10");
         assert_eq!(&buckets[buckets.len() - 1].bucket.key.to_string(), "-1-*");
     }
@@ -823,7 +893,7 @@ mod tests {
         let buckets = vec![(0f64..10f64).into()];
         let collector = get_collector_from_ranges(buckets, ColumnType::F64);
 
-        let buckets = collector.buckets;
+        let buckets = collector.parent_buckets[0].clone();
         assert_eq!(&buckets[0].bucket.key.to_string(), "*-0");
         assert_eq!(&buckets[buckets.len() - 1].bucket.key.to_string(), "10-*");
     }
@@ -832,7 +902,7 @@ mod tests {
     fn range_binary_search_test_u64() {
         let check_ranges = |ranges: Vec<RangeAggregationRange>| {
             let collector = get_collector_from_ranges(ranges, ColumnType::U64);
-            let search = |val: u64| collector.get_bucket_pos(val);
+            let search = |val: u64| get_bucket_pos(val, &collector.parent_buckets[0]);
 
             assert_eq!(search(u64::MIN), 0);
             assert_eq!(search(9), 0);
@@ -878,7 +948,7 @@ mod tests {
         let ranges = vec![(10.0..100.0).into()];
 
         let collector = get_collector_from_ranges(ranges, ColumnType::F64);
-        let search = |val: u64| collector.get_bucket_pos(val);
+        let search = |val: u64| get_bucket_pos(val, &collector.parent_buckets[0]);
 
         assert_eq!(search(u64::MIN), 0);
         assert_eq!(search(9f64.to_u64()), 0);
@@ -888,65 +958,5 @@ mod tests {
         assert_eq!(search(100f64.to_u64()), 2);
         assert_eq!(search(u64::MAX - 1), 2); // Since the end range is never included,
                                              // the max value
-    }
-}
-
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-
-    use itertools::Itertools;
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
-
-    use super::*;
-    use crate::aggregation::bucket::range::tests::get_collector_from_ranges;
-
-    const TOTAL_DOCS: u64 = 1_000_000u64;
-    const NUM_DOCS: u64 = 50_000u64;
-
-    fn get_collector_with_buckets(num_buckets: u64, num_docs: u64) -> SegmentRangeCollector {
-        let bucket_size = num_docs / num_buckets;
-        let mut buckets: Vec<RangeAggregationRange> = vec![];
-        for i in 0..num_buckets {
-            let bucket_start = (i * bucket_size) as f64;
-            buckets.push((bucket_start..bucket_start + bucket_size as f64).into())
-        }
-
-        get_collector_from_ranges(buckets, ColumnType::U64)
-    }
-
-    fn get_rand_docs(total_docs: u64, num_docs_returned: u64) -> Vec<u64> {
-        let mut rng = thread_rng();
-
-        let all_docs = (0..total_docs - 1).collect_vec();
-        let mut vals = all_docs
-            .as_slice()
-            .choose_multiple(&mut rng, num_docs_returned as usize)
-            .cloned()
-            .collect_vec();
-        vals.sort();
-        vals
-    }
-
-    fn bench_range_binary_search(b: &mut test::Bencher, num_buckets: u64) {
-        let collector = get_collector_with_buckets(num_buckets, TOTAL_DOCS);
-        let vals = get_rand_docs(TOTAL_DOCS, NUM_DOCS);
-        b.iter(|| {
-            let mut bucket_pos = 0;
-            for val in &vals {
-                bucket_pos = collector.get_bucket_pos(*val);
-            }
-            bucket_pos
-        })
-    }
-
-    #[bench]
-    fn bench_range_100_buckets(b: &mut test::Bencher) {
-        bench_range_binary_search(b, 100)
-    }
-
-    #[bench]
-    fn bench_range_10_buckets(b: &mut test::Bencher) {
-        bench_range_binary_search(b, 10)
     }
 }
