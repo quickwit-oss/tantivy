@@ -540,6 +540,8 @@ mod tests {
     /// when all documents have age > 50.
     #[test]
     pub fn test_range_query_all_match_in_boolean() -> crate::Result<()> {
+        use std::ops::Bound;
+
         use crate::collector::Count;
         use crate::query::RangeQuery;
         use crate::schema::NumericOptions;
