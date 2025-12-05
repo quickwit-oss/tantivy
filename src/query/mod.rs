@@ -24,6 +24,7 @@ mod reqopt_scorer;
 mod scorer;
 mod set_query;
 mod size_hint;
+mod spatial_query;
 mod term_query;
 mod union;
 mod weight;
@@ -62,6 +63,7 @@ pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::score_combiner::{DisjunctionMaxCombiner, ScoreCombiner, SumCombiner};
 pub use self::scorer::Scorer;
 pub use self::set_query::TermSetQuery;
+pub use self::spatial_query::{SpatialQuery, SpatialQueryType};
 pub use self::term_query::TermQuery;
 pub use self::union::BufferedUnionScorer;
 #[cfg(test)]

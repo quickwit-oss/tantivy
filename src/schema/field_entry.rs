@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::ip_options::IpAddrOptions;
+use super::spatial_options::SpatialOptions;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::{
     is_valid_field_name, DateOptions, FacetOptions, FieldType, JsonObjectOptions, NumericOptions,
@@ -80,6 +81,11 @@ impl FieldEntry {
         Self::new(field_name, FieldType::JsonObject(json_object_options))
     }
 
+    /// Creates a field entry for a spatial field
+    pub fn new_spatial(field_name: String, spatial_options: SpatialOptions) -> FieldEntry {
+        Self::new(field_name, FieldType::Spatial(spatial_options))
+    }
+
     /// Returns the name of the field
     pub fn name(&self) -> &str {
         &self.name
@@ -129,6 +135,7 @@ impl FieldEntry {
             FieldType::Bytes(ref options) => options.is_stored(),
             FieldType::JsonObject(ref options) => options.is_stored(),
             FieldType::IpAddr(ref options) => options.is_stored(),
+            FieldType::Spatial(ref options) => options.is_stored(),
         }
     }
 }

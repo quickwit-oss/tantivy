@@ -133,6 +133,10 @@ where W: Write
                     self.write_type_code(type_codes::EXT_CODE)?;
                     self.serialize_with_type_code(type_codes::TOK_STR_EXT_CODE, &*val)
                 }
+                ReferenceValueLeaf::Geometry(val) => {
+                    self.write_type_code(type_codes::EXT_CODE)?;
+                    self.serialize_with_type_code(type_codes::GEO_EXT_CODE, &*val)
+                }
             },
             ReferenceValue::Array(elements) => {
                 self.write_type_code(type_codes::ARRAY_CODE)?;

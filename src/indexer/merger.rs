@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::io::{BufWriter, Write};
 use std::sync::Arc;
 
 use columnar::{
@@ -6,6 +8,7 @@ use columnar::{
 use common::ReadOnlyBitSet;
 use itertools::Itertools;
 use measure_time::debug_time;
+use tempfile::NamedTempFile;
 
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
@@ -17,6 +20,8 @@ use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
+use crate::spatial::bkd::LeafPageIterator;
+use crate::spatial::triangle::Triangle;
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{DocAddress, DocId, InvertedIndexReader};
@@ -170,6 +175,7 @@ impl IndexMerger {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
+                dbg!("segment");
                 let reader =
                     SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;
                 readers.push(reader);
@@ -520,6 +526,89 @@ impl IndexMerger {
         Ok(())
     }
 
+    fn write_spatial_fields(
+        &self,
+        serializer: &mut SegmentSerializer,
+        doc_id_mapping: &SegmentDocIdMapping,
+    ) -> crate::Result<()> {
+        /// We need to rebuild a BKD-tree based off the list of triangles.
+        ///
+        /// Because the data can be large, we do this by writing the sequence of triangles to
+        /// disk, and mmapping it as mutable slice, and calling the same code as what
+        /// is done for the segment serialization.
+        ///
+        /// The OS is in charge of deciding how to handle its page cache.
+        /// This is the same as what would have happened with swapping,
+        /// except by explicitly mapping the file, the OS is more likely to
+        /// swap, the memory will not be accounted as anonymous memory,
+        /// swap space is reserved etc.
+        use crate::spatial::bkd::Segment;
+
+        let Some(mut spatial_serializer) = serializer.extract_spatial_serializer() else {
+            // The schema does not contain any spatial field.
+            return Ok(());
+        };
+
+        let mut segment_mappings: Vec<Vec<Option<DocId>>> = Vec::new();
+        for reader in &self.readers {
+            let max_doc = reader.max_doc();
+            segment_mappings.push(vec![None; max_doc as usize]);
+        }
+        for (new_doc_id, old_doc_addr) in doc_id_mapping.iter_old_doc_addrs().enumerate() {
+            segment_mappings[old_doc_addr.segment_ord as usize][old_doc_addr.doc_id as usize] =
+                Some(new_doc_id as DocId);
+        }
+        let mut temp_files: HashMap<Field, NamedTempFile> = HashMap::new();
+
+        for (field, field_entry) in self.schema.fields() {
+            if matches!(field_entry.field_type(), FieldType::Spatial(_)) {
+                temp_files.insert(field, NamedTempFile::new()?);
+            }
+        }
+        for (segment_ord, reader) in self.readers.iter().enumerate() {
+            for (field, temp_file) in &mut temp_files {
+                let mut buf_temp_file = BufWriter::new(temp_file);
+                let spatial_readers = reader.spatial_fields();
+                let Some(spatial_reader) = spatial_readers.get_field(*field)? else {
+                    continue;
+                };
+                let segment = Segment::new(spatial_reader.get_bytes());
+                for triangle_result in LeafPageIterator::new(&segment) {
+                    let triangles = triangle_result?;
+                    for triangle in triangles {
+                        if let Some(new_doc_id) =
+                            segment_mappings[segment_ord][triangle.doc_id as usize]
+                        {
+                            // This is really just a temporary file, not meant to be portable, so we
+                            // use native endianness here.
+                            for &word in &triangle.words {
+                                buf_temp_file.write_all(&word.to_ne_bytes())?;
+                            }
+                            buf_temp_file.write_all(&new_doc_id.to_ne_bytes())?;
+                        }
+                    }
+                }
+                buf_temp_file.flush()?;
+                // No need to fsync here. This file is not here for persistency.
+            }
+        }
+        for (field, temp_file) in temp_files {
+            // Memory map the triangle file.
+            use memmap2::MmapOptions;
+            let mmap = unsafe { MmapOptions::new().map_mut(temp_file.as_file())? };
+            // Cast to &[Triangle] slice
+            let triangle_count = mmap.len() / std::mem::size_of::<Triangle>();
+            let triangles = unsafe {
+                std::slice::from_raw_parts_mut(mmap.as_ptr() as *mut Triangle, triangle_count)
+            };
+            // Get spatial writer and rebuild block kd-tree.
+            spatial_serializer.serialize_field(field, triangles)?;
+        }
+        spatial_serializer.close()?;
+
+        Ok(())
+    }
+
     /// Writes the merged segment by pushing information
     /// to the `SegmentSerializer`.
     ///
@@ -544,9 +633,10 @@ impl IndexMerger {
 
         debug!("write-storagefields");
         self.write_storable_fields(serializer.get_store_writer())?;
+        debug!("write-spatialfields");
+        self.write_spatial_fields(&mut serializer, &doc_id_mapping)?;
         debug!("write-fastfields");
         self.write_fast_fields(serializer.get_fast_field_write(), doc_id_mapping)?;
-
         debug!("close-serializer");
         serializer.close()?;
         Ok(self.max_doc)

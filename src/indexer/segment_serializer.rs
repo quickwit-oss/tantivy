@@ -4,6 +4,7 @@ use crate::directory::WritePtr;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::index::{Segment, SegmentComponent};
 use crate::postings::InvertedIndexSerializer;
+use crate::spatial::serializer::SpatialSerializer;
 use crate::store::StoreWriter;
 
 /// Segment serializer is in charge of laying out on disk
@@ -12,6 +13,7 @@ pub struct SegmentSerializer {
     segment: Segment,
     pub(crate) store_writer: StoreWriter,
     fast_field_write: WritePtr,
+    spatial_serializer: Option<SpatialSerializer>,
     fieldnorms_serializer: Option<FieldNormsSerializer>,
     postings_serializer: InvertedIndexSerializer,
 }
@@ -35,11 +37,20 @@ impl SegmentSerializer {
         let fieldnorms_write = segment.open_write(SegmentComponent::FieldNorms)?;
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
 
+        let spatial_serializer: Option<SpatialSerializer> =
+            if segment.schema().contains_spatial_field() {
+                let spatial_write = segment.open_write(SegmentComponent::Spatial)?;
+                Some(SpatialSerializer::from_write(spatial_write)?)
+            } else {
+                None
+            };
+
         let postings_serializer = InvertedIndexSerializer::open(&mut segment)?;
         Ok(SegmentSerializer {
             segment,
             store_writer,
             fast_field_write,
+            spatial_serializer,
             fieldnorms_serializer: Some(fieldnorms_serializer),
             postings_serializer,
         })
@@ -64,6 +75,11 @@ impl SegmentSerializer {
         &mut self.fast_field_write
     }
 
+    /// Accessor to the `SpatialSerializer`
+    pub fn extract_spatial_serializer(&mut self) -> Option<SpatialSerializer> {
+        self.spatial_serializer.take()
+    }
+
     /// Extract the field norm serializer.
     ///
     /// Note the fieldnorms serializer can only be extracted once.
@@ -80,6 +96,9 @@ impl SegmentSerializer {
     pub fn close(mut self) -> crate::Result<()> {
         if let Some(fieldnorms_serializer) = self.extract_fieldnorms_serializer() {
             fieldnorms_serializer.close()?;
+        }
+        if let Some(spatial_serializer) = self.extract_spatial_serializer() {
+            spatial_serializer.close()?;
         }
         self.fast_field_write.terminate()?;
         self.postings_serializer.close()?;
