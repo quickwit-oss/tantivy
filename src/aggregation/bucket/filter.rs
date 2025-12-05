@@ -6,10 +6,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
+use crate::aggregation::cached_sub_aggs::CachedSubAggs;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
-use crate::aggregation::segment_agg_result::{CollectorClone, SegmentAggregationCollector};
+use crate::aggregation::segment_agg_result::{
+    BucketIdProvider, CollectorClone, SegmentAggregationCollector,
+};
+use crate::aggregation::BucketId;
 use crate::docset::DocSet;
 use crate::query::{AllQuery, EnableScoring, Query, QueryParser};
 use crate::schema::Schema;
@@ -410,9 +414,9 @@ impl FilterAggReqData {
     pub(crate) fn get_memory_consumption(&self) -> usize {
         // Estimate: name + segment reader reference + bitset + buffer capacity
         self.name.len()
-            + std::mem::size_of::<SegmentReader>()
-            + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
-            + self.matching_docs_buffer.capacity() * std::mem::size_of::<DocId>()
+        + std::mem::size_of::<SegmentReader>()
+        + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
+        + self.matching_docs_buffer.capacity() * std::mem::size_of::<DocId>()
     }
 }
 
@@ -489,12 +493,19 @@ impl Debug for DocumentQueryEvaluator {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Copy)]
+struct DocCount {
+    doc_count: u64,
+    bucket_id: BucketId,
+}
+
 /// Segment collector for filter aggregation
 pub struct SegmentFilterCollector {
-    /// Document count in this bucket
-    doc_count: u64,
+    /// Document counts per bucket
+    buckets: Vec<DocCount>,
     /// Sub-aggregation collectors
-    sub_aggregations: Option<Box<dyn SegmentAggregationCollector>>,
+    sub_aggregations: Option<CachedSubAggs<true>>,
+    bucket_id_provider: BucketIdProvider,
     /// Accessor index for this filter aggregation (to access FilterAggReqData)
     accessor_idx: usize,
 }
@@ -511,11 +522,13 @@ impl SegmentFilterCollector {
         } else {
             None
         };
+        let sub_agg_collector = sub_agg_collector.map(CachedSubAggs::new);
 
         Ok(SegmentFilterCollector {
-            doc_count: 0,
+            buckets: Vec::new(),
             sub_aggregations: sub_agg_collector,
             accessor_idx: node.idx_in_req_data,
+            bucket_id_provider: BucketIdProvider::default(),
         })
     }
 }
@@ -523,7 +536,7 @@ impl SegmentFilterCollector {
 impl Debug for SegmentFilterCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentFilterCollector")
-            .field("doc_count", &self.doc_count)
+            .field("buckets", &self.buckets)
             .field("has_sub_aggs", &self.sub_aggregations.is_some())
             .field("accessor_idx", &self.accessor_idx)
             .finish()
@@ -539,19 +552,32 @@ impl CollectorClone for SegmentFilterCollector {
 
 impl SegmentAggregationCollector for SegmentFilterCollector {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
         let mut sub_results = IntermediateAggregationResults::default();
+        let bucket_opt = self.buckets.get(parent_bucket_id as usize);
 
-        if let Some(sub_aggs) = self.sub_aggregations {
-            sub_aggs.add_intermediate_aggregation_result(agg_data, &mut sub_results)?;
+        if let Some(sub_aggs) = &mut self.sub_aggregations {
+            sub_aggs
+                .get_sub_agg_collector()
+                .add_intermediate_aggregation_result(
+                    agg_data,
+                    &mut sub_results,
+                    // Here we create a new bucket ID for sub-aggregations if the bucket doesn't
+                    // exist, so that sub-aggregations can still produce results (e.g., zero doc
+                    // count)
+                    bucket_opt
+                        .map(|bucket| bucket.bucket_id)
+                        .unwrap_or(self.bucket_id_provider.next_bucket_id()),
+                )?;
         }
 
         // Create the filter bucket result
         let filter_bucket_result = IntermediateBucketResult::Filter {
-            doc_count: self.doc_count,
+            doc_count: bucket_opt.map(|b| b.doc_count).unwrap_or(0),
             sub_aggregations: sub_results,
         };
 
@@ -570,32 +596,17 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
         Ok(())
     }
 
-    fn collect(&mut self, doc: DocId, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
-        // Access the evaluator from FilterAggReqData
-        let req_data = agg_data.get_filter_req_data(self.accessor_idx);
-
-        // O(1) BitSet lookup to check if document matches filter
-        if req_data.evaluator.matches_document(doc) {
-            self.doc_count += 1;
-
-            // If we have sub-aggregations, collect on them for this filtered document
-            if let Some(sub_aggs) = &mut self.sub_aggregations {
-                sub_aggs.collect(doc, agg_data)?;
-            }
-        }
-        Ok(())
-    }
-
-    #[inline]
-    fn collect_block(
+    fn collect(
         &mut self,
-        docs: &[DocId],
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         if docs.is_empty() {
             return Ok(());
         }
 
+        let mut bucket = self.buckets[parent_bucket_id as usize];
         // Take the request data to avoid borrow checker issues with sub-aggregations
         let mut req = agg_data.take_filter_req_data(self.accessor_idx);
 
@@ -604,18 +615,24 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
         req.evaluator
             .filter_batch(docs, &mut req.matching_docs_buffer);
 
-        self.doc_count += req.matching_docs_buffer.len() as u64;
+        bucket.doc_count += req.matching_docs_buffer.len() as u64;
 
         // Batch process sub-aggregations if we have matches
         if !req.matching_docs_buffer.is_empty() {
             if let Some(sub_aggs) = &mut self.sub_aggregations {
-                // Use collect_block for better sub-aggregation performance
-                sub_aggs.collect_block(&req.matching_docs_buffer, agg_data)?;
+                for &doc_id in &req.matching_docs_buffer {
+                    sub_aggs.push(bucket.bucket_id, doc_id);
+                }
             }
         }
 
         // Put the request data back
         agg_data.put_back_filter_req_data(self.accessor_idx, req);
+        if let Some(sub_aggs) = &mut self.sub_aggregations {
+            sub_aggs.check_flush_local(agg_data)?;
+        }
+        // put back bucket
+        self.buckets[parent_bucket_id as usize] = bucket;
 
         Ok(())
     }
@@ -623,6 +640,21 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         if let Some(ref mut sub_aggs) = self.sub_aggregations {
             sub_aggs.flush(agg_data)?;
+        }
+        Ok(())
+    }
+
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        while self.buckets.len() <= max_bucket as usize {
+            let bucket_id = self.bucket_id_provider.next_bucket_id();
+            self.buckets.push(DocCount {
+                doc_count: 0,
+                bucket_id,
+            });
         }
         Ok(())
     }
@@ -1519,9 +1551,9 @@ mod tests {
         let searcher = reader.searcher();
 
         let agg = json!({
-            "test": {
-                "filter": deserialized,
-                "aggs": { "count": { "value_count": { "field": "brand" } } }
+                "test": {
+                    "filter": deserialized,
+                    "aggs": { "count": { "value_count": { "field": "brand" } } }
             }
         });
 

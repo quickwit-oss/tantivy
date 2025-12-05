@@ -52,10 +52,8 @@ pub struct IntermediateMin {
 
 impl IntermediateMin {
     /// Creates a new [`IntermediateMin`] instance from a [`SegmentStatsCollector`].
-    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
-        Self {
-            stats: collector.stats,
-        }
+    pub(crate) fn from_stats(stats: IntermediateStats) -> Self {
+        Self { stats }
     }
     /// Merges the other intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateMin) {

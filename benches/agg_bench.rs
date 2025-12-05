@@ -486,7 +486,6 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     let text_field_all_unique_terms =
         schema_builder.add_text_field("text_all_unique_terms", STRING | FAST);
     let text_field_many_terms = schema_builder.add_text_field("text_many_terms", STRING | FAST);
-    let text_field_many_terms = schema_builder.add_text_field("text_many_terms", STRING | FAST);
     let text_field_few_terms = schema_builder.add_text_field("text_few_terms", STRING | FAST);
     let text_field_few_terms_status =
         schema_builder.add_text_field("text_few_terms_status", STRING | FAST);
