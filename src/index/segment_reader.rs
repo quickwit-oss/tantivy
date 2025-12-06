@@ -455,11 +455,11 @@ impl SegmentReader {
     pub fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
         Ok(SegmentSpaceUsage::new(
             self.num_docs(),
-            self.termdict_composite.space_usage(),
-            self.postings_composite.space_usage(),
-            self.positions_composite.space_usage(),
-            self.fast_fields_readers.space_usage(self.schema())?,
-            self.fieldnorm_readers.space_usage(),
+            self.termdict_composite.space_usage(self.schema()),
+            self.postings_composite.space_usage(self.schema()),
+            self.positions_composite.space_usage(self.schema()),
+            self.fast_fields_readers.space_usage()?,
+            self.fieldnorm_readers.space_usage(self.schema()),
             self.get_store_reader(0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
