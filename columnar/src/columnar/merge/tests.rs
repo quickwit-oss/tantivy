@@ -571,6 +571,7 @@ proptest! {
             &[],
             MergeRowOrder::Stack(stack_merge_order),
             &mut out,
+            || false,
         ).unwrap();
 
         let merged_reader = ColumnarReader::open(out).unwrap();
@@ -588,6 +589,7 @@ proptest! {
             &[],
             MergeRowOrder::Stack(stack_merge_order),
             &mut out,
+            || false,
         ).unwrap();
 
     }

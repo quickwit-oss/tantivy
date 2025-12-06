@@ -90,7 +90,11 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
         }
     }
 
-    pub fn with_two_sets(left: TDocSet, right: TDocSet) -> Intersection<TDocSet, TDocSet> {
+    pub fn with_two_sets(
+        left: TDocSet,
+        right: TDocSet,
+        num_docs: u32,
+    ) -> Intersection<TDocSet, TDocSet> {
         let mut docsets = vec![left, right];
         go_to_first_doc(&mut docsets);
         let left = docsets.remove(0);
@@ -99,6 +103,7 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
             left,
             right,
             others: docsets,
+            num_docs,
         }
     }
 }

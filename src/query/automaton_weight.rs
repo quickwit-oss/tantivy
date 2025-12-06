@@ -101,7 +101,7 @@ where
             scorers.push(scorer);
         }
 
-        let scorer = BufferedUnionScorer::build(scorers, SumCombiner::default);
+        let scorer = BufferedUnionScorer::build(scorers, SumCombiner::default, reader.max_doc());
         Ok(Box::new(scorer))
     }
 

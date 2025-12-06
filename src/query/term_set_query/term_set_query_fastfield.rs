@@ -1,6 +1,6 @@
 use std::net::Ipv6Addr;
 
-use columnar::{Column, ColumnType, MonotonicallyMappableToU64};
+use columnar::{Column, ColumnType};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::query::score_combiner::DoNothingCombiner;

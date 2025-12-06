@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::BitOrAssign;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::{fmt, io};
@@ -377,7 +376,8 @@ impl SegmentReader {
                 if is_json {
                     let term_dictionary_json_field_num_bytes: u64 = self
                         .termdict_composite
-                        .open_read(field)
+                        .get()
+                        .and_then(|composite| composite.open_read(field))
                         .map(|file_slice| file_slice.len() as u64)
                         .unwrap_or(0u64);
                     let inv_index = self.inverted_index(field)?;
@@ -429,19 +429,22 @@ impl SegmentReader {
                 } else {
                     let postings_size: ByteCount = self
                         .postings_composite
-                        .open_read(field)
+                        .get()
+                        .and_then(|composite| composite.open_read(field))
                         .map(|posting_fileslice| posting_fileslice.len())
                         .unwrap_or(0)
                         .into();
                     let positions_size: ByteCount = self
                         .positions_composite
-                        .open_read(field)
+                        .get()
+                        .and_then(|composite| composite.open_read(field))
                         .map(|positions_fileslice| positions_fileslice.len())
                         .unwrap_or(0)
                         .into();
                     let term_dictionary_size: ByteCount = self
                         .termdict_composite
-                        .open_read(field)
+                        .get()
+                        .and_then(|composite| composite.open_read(field))
                         .map(|term_dictionary_fileslice| term_dictionary_fileslice.len())
                         .unwrap_or(0)
                         .into();

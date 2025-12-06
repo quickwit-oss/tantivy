@@ -1,8 +1,10 @@
 use std::fmt;
+use std::ops::Bound;
 
 use super::term_weight::TermWeight;
 use crate::query::bm25::Bm25Weight;
-use crate::query::{EnableScoring, Explanation, Query, Weight};
+use crate::query::range_query::is_type_valid_for_fastfield_range_query;
+use crate::query::{EnableScoring, Explanation, Query, RangeQuery, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::{SegmentReader, Term};
 
@@ -122,6 +124,24 @@ impl TermQuery {
 
 impl Query for TermQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        // If the field is not indexed but is a suitable fast field, fall back to a range query
+        // on the fast field matching exactly this term.
+        //
+        // Note: This is considerable slower since it requires to scan the entire fast field.
+        // TODO: The range query would gain from having a single-value optimization
+        let schema = enable_scoring.schema();
+        let field_entry = schema.get_field_entry(self.term.field());
+        if !field_entry.is_indexed()
+            && field_entry.is_fast()
+            && is_type_valid_for_fastfield_range_query(self.term.typ())
+            && !enable_scoring.is_scoring_enabled()
+        {
+            let range_query = RangeQuery::new(
+                Bound::Included(self.term.clone()),
+                Bound::Included(self.term.clone()),
+            );
+            return range_query.weight(enable_scoring);
+        }
         Ok(Box::new(self.specialized_weight(enable_scoring)?))
     }
     fn query_terms(

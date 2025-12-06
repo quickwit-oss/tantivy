@@ -22,6 +22,7 @@ mod range_query;
 mod regex_query;
 mod reqopt_scorer;
 mod scorer;
+mod size_hint;
 mod term_query;
 mod term_set_query;
 mod union;
@@ -49,9 +50,7 @@ pub use self::explanation::{does_not_match, Explanation};
 pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::{intersect_scorers, Intersection};
-pub use self::more_like_this::{
-    MoreLikeThis, MoreLikeThisQuery, MoreLikeThisQueryBuilder, ScoreTerm,
-};
+pub use self::more_like_this::{MoreLikeThis, MoreLikeThisQuery, MoreLikeThisQueryBuilder};
 pub use self::phrase_prefix_query::PhrasePrefixQuery;
 pub use self::phrase_query::regex_phrase_query::{wildcard_query_to_regex_str, RegexPhraseQuery};
 pub use self::phrase_query::regex_phrase_weight::RegexPhraseWeight;
@@ -123,7 +122,9 @@ mod tests {
             query.query_terms(text_field, &segment_reader, &mut |term, pos| {
                 terms.push((term.clone(), pos))
             });
-            assert_eq!(vec![(term_a.clone(), false); 5], terms);
+            // With the new query_terms signature that includes segment_reader,
+            // duplicate terms are deduplicated
+            assert_eq!(vec![(term_a.clone(), false)], terms);
         }
         {
             let query = query_parser.parse_query("a -b").unwrap();
