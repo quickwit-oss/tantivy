@@ -124,23 +124,33 @@ fn effective_must_scorer(
 ///
 /// For union semantics (OR): if any SHOULD clause was an AllScorer, the result
 /// should include all documents. We restore this by unioning with AllScorer.
+///
+/// When `scoring_enabled` is false, we can just return AllScorer alone since
+/// we don't need score contributions from the should_scorer.
 fn effective_should_scorer_for_union<TScoreCombiner: ScoreCombiner>(
     should_scorer: SpecializedScorer,
     removed_all_scorer_count: usize,
     max_doc: DocId,
     num_docs: u32,
     score_combiner_fn: impl Fn() -> TScoreCombiner,
+    scoring_enabled: bool,
 ) -> SpecializedScorer {
     if removed_all_scorer_count > 0 {
-        let all_scorers: Vec<Box<dyn Scorer>> = vec![
-            into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
-            Box::new(AllScorer::new(max_doc)),
-        ];
-        SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
-            all_scorers,
-            score_combiner_fn,
-            num_docs,
-        )))
+        if scoring_enabled {
+            // Need to union to get score contributions from both
+            let all_scorers: Vec<Box<dyn Scorer>> = vec![
+                into_box_scorer(should_scorer, &score_combiner_fn, num_docs),
+                Box::new(AllScorer::new(max_doc)),
+            ];
+            SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
+                all_scorers,
+                score_combiner_fn,
+                num_docs,
+            )))
+        } else {
+            // Scoring disabled - AllScorer alone is sufficient
+            SpecializedScorer::Other(Box::new(AllScorer::new(max_doc)))
+        }
     } else {
         should_scorer
     }
@@ -325,6 +335,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                             reader.max_doc(),
                             num_docs,
                             &score_combiner_fn,
+                            self.scoring_enabled,
                         )
                     }
                     Some(must_scorer) => {

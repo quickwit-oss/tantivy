@@ -15,12 +15,14 @@ mod tests {
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::collector::{Count, TopDocs};
     use crate::query::term_query::TermScorer;
+    use crate::query::RangeQuery;
     use crate::query::{
         AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser, RangeQuery,
         RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
+    use std::ops::Bound;
 
     fn aux_test_helper() -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();
@@ -434,49 +436,57 @@ mod tests {
 
     /// Regression test: SHOULD clause with AllScorer combined with other SHOULD clauses.
     ///
-    /// When a SHOULD clause produces an AllScorer (e.g., from AllQuery or a range query
-    /// matching all documents), the Boolean query should still match all documents.
+    /// When a SHOULD clause produces an AllScorer (e.g., from a range query matching
+    /// all documents), the Boolean query should still match all documents.
     ///
     /// Bug before fix: AllScorer was removed during optimization, leaving only the
     /// other SHOULD clauses, which incorrectly excluded documents.
     #[test]
     pub fn test_should_with_all_scorer_regression() -> crate::Result<()> {
-        use crate::collector::Count;
-        use crate::query::AllQuery;
-
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
+        let num_field =
+            schema_builder.add_i64_field("num", NumericOptions::default().set_fast().set_indexed());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests()?;
 
-        index_writer.add_document(doc!(text_field => "hello"))?;
-        index_writer.add_document(doc!(text_field => "world"))?;
-        index_writer.add_document(doc!(text_field => "hello world"))?;
-        index_writer.add_document(doc!(text_field => "foo"))?;
-        index_writer.add_document(doc!(text_field => "bar"))?;
-        index_writer.add_document(doc!(text_field => "baz"))?;
+        // All docs have num > 0, so range query will return AllScorer
+        index_writer.add_document(doc!(text_field => "hello", num_field => 10i64))?;
+        index_writer.add_document(doc!(text_field => "world", num_field => 20i64))?;
+        index_writer.add_document(doc!(text_field => "hello world", num_field => 30i64))?;
+        index_writer.add_document(doc!(text_field => "foo", num_field => 40i64))?;
+        index_writer.add_document(doc!(text_field => "bar", num_field => 50i64))?;
+        index_writer.add_document(doc!(text_field => "baz", num_field => 60i64))?;
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
-        let all_query: Box<dyn Query> = Box::new(AllQuery);
+
+        // Range query matching all docs (returns AllScorer)
+        let all_match_query: Box<dyn Query> = Box::new(RangeQuery::new(
+            Bound::Excluded(Term::from_field_i64(num_field, 0)),
+            Bound::Unbounded,
+        ));
         let term_query: Box<dyn Query> = Box::new(TermQuery::new(
             Term::from_field_text(text_field, "hello"),
             IndexRecordOption::Basic,
         ));
 
-        // AllQuery OR TermQuery should match all 6 docs
+        // Verify range matches all 6 docs
+        assert_eq!(searcher.search(all_match_query.as_ref(), &Count)?, 6);
+
+        // RangeQuery(all) OR TermQuery should match all 6 docs
         let bool_query = BooleanQuery::new(vec![
-            (Occur::Should, all_query.box_clone()),
+            (Occur::Should, all_match_query.box_clone()),
             (Occur::Should, term_query.box_clone()),
         ]);
         let count = searcher.search(&bool_query, &Count)?;
-        assert_eq!(count, 6, "SHOULD with AllQuery should match all docs");
+        assert_eq!(count, 6, "SHOULD with AllScorer should match all docs");
 
         // Order should not matter
         let bool_query_reversed = BooleanQuery::new(vec![
             (Occur::Should, term_query.box_clone()),
-            (Occur::Should, all_query.box_clone()),
+            (Occur::Should, all_match_query.box_clone()),
         ]);
         let count_reversed = searcher.search(&bool_query_reversed, &Count)?;
         assert_eq!(
@@ -496,35 +506,43 @@ mod tests {
     /// intersect_scorers([]) incorrectly returned EmptyScorer, matching 0 documents.
     #[test]
     pub fn test_must_all_with_should_regression() -> crate::Result<()> {
-        use crate::collector::Count;
-        use crate::query::AllQuery;
-
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
+        let num_field =
+            schema_builder.add_i64_field("num", NumericOptions::default().set_fast().set_indexed());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests()?;
 
-        index_writer.add_document(doc!(text_field => "apple"))?;
-        index_writer.add_document(doc!(text_field => "banana"))?;
-        index_writer.add_document(doc!(text_field => "cherry"))?;
-        index_writer.add_document(doc!(text_field => "date"))?;
+        // All docs have num > 0, so range query will return AllScorer
+        index_writer.add_document(doc!(text_field => "apple", num_field => 10i64))?;
+        index_writer.add_document(doc!(text_field => "banana", num_field => 20i64))?;
+        index_writer.add_document(doc!(text_field => "cherry", num_field => 30i64))?;
+        index_writer.add_document(doc!(text_field => "date", num_field => 40i64))?;
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
-        let all_query: Box<dyn Query> = Box::new(AllQuery);
+
+        // Range query matching all docs (returns AllScorer)
+        let all_match_query: Box<dyn Query> = Box::new(RangeQuery::new(
+            Bound::Excluded(Term::from_field_i64(num_field, 0)),
+            Bound::Unbounded,
+        ));
         let term_query: Box<dyn Query> = Box::new(TermQuery::new(
             Term::from_field_text(text_field, "apple"),
             IndexRecordOption::Basic,
         ));
 
-        // MUST(all) AND SHOULD(term) should match all 4 docs
+        // Verify range matches all 4 docs
+        assert_eq!(searcher.search(all_match_query.as_ref(), &Count)?, 4);
+
+        // MUST(range matching all) AND SHOULD(term) should match all 4 docs
         let bool_query = BooleanQuery::new(vec![
-            (Occur::Must, all_query.box_clone()),
+            (Occur::Must, all_match_query.box_clone()),
             (Occur::Should, term_query.box_clone()),
         ]);
         let count = searcher.search(&bool_query, &Count)?;
-        assert_eq!(count, 4, "MUST AllQuery + SHOULD should match all docs");
+        assert_eq!(count, 4, "MUST AllScorer + SHOULD should match all docs");
 
         Ok(())
     }
@@ -540,12 +558,6 @@ mod tests {
     /// when all documents have age > 50.
     #[test]
     pub fn test_range_query_all_match_in_boolean() -> crate::Result<()> {
-        use std::ops::Bound;
-
-        use crate::collector::Count;
-        use crate::query::RangeQuery;
-        use crate::schema::NumericOptions;
-
         let mut schema_builder = Schema::builder();
         let name_field = schema_builder.add_text_field("name", TEXT);
         let age_field =
@@ -606,29 +618,37 @@ mod tests {
     /// Verifies correct behavior when AllScorers appear in multiple positions.
     #[test]
     pub fn test_multiple_all_scorers() -> crate::Result<()> {
-        use crate::collector::Count;
-        use crate::query::AllQuery;
-
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
+        let num_field =
+            schema_builder.add_i64_field("num", NumericOptions::default().set_fast().set_indexed());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests()?;
 
-        index_writer.add_document(doc!(text_field => "doc1"))?;
-        index_writer.add_document(doc!(text_field => "doc2"))?;
-        index_writer.add_document(doc!(text_field => "doc3"))?;
+        // All docs have num > 0, so range queries will return AllScorer
+        index_writer.add_document(doc!(text_field => "doc1", num_field => 10i64))?;
+        index_writer.add_document(doc!(text_field => "doc2", num_field => 20i64))?;
+        index_writer.add_document(doc!(text_field => "doc3", num_field => 30i64))?;
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
-        let all_query1: Box<dyn Query> = Box::new(AllQuery);
-        let all_query2: Box<dyn Query> = Box::new(AllQuery);
+
+        // Two different range queries that both match all docs (return AllScorer)
+        let all_query1: Box<dyn Query> = Box::new(RangeQuery::new(
+            Bound::Excluded(Term::from_field_i64(num_field, 0)),
+            Bound::Unbounded,
+        ));
+        let all_query2: Box<dyn Query> = Box::new(RangeQuery::new(
+            Bound::Excluded(Term::from_field_i64(num_field, 5)),
+            Bound::Unbounded,
+        ));
         let term_query: Box<dyn Query> = Box::new(TermQuery::new(
             Term::from_field_text(text_field, "doc1"),
             IndexRecordOption::Basic,
         ));
 
-        // Multiple AllQueries in SHOULD
+        // Multiple AllScorers in SHOULD
         let multi_all_should = BooleanQuery::new(vec![
             (Occur::Should, all_query1.box_clone()),
             (Occur::Should, all_query2.box_clone()),
@@ -637,10 +657,10 @@ mod tests {
         assert_eq!(
             searcher.search(&multi_all_should, &Count)?,
             3,
-            "Multiple AllQueries in SHOULD"
+            "Multiple AllScorers in SHOULD"
         );
 
-        // AllQuery in both MUST and SHOULD
+        // AllScorer in both MUST and SHOULD
         let all_must_and_should = BooleanQuery::new(vec![
             (Occur::Must, all_query1.box_clone()),
             (Occur::Should, all_query2.box_clone()),
@@ -648,7 +668,7 @@ mod tests {
         assert_eq!(
             searcher.search(&all_must_and_should, &Count)?,
             3,
-            "AllQuery in both MUST and SHOULD"
+            "AllScorer in both MUST and SHOULD"
         );
 
         Ok(())
