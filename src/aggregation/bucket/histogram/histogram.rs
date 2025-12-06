@@ -339,7 +339,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
             .column_block_accessor
             .iter_docid_vals(docs, &req.accessor)
         {
-            let val = f64_from_fastfield_u64(val, &req.field_type);
+            let val = f64_from_fastfield_u64(val, req.field_type);
             let bucket_pos = get_bucket_pos(val);
             if bounds.contains(val) {
                 let bucket = buckets.entry(bucket_pos).or_insert_with(|| {

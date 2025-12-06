@@ -391,12 +391,12 @@ impl<const LOWCARD: bool> SegmentRangeCollector<LOWCARD> {
                 let to = if range.range.end == u64::MAX {
                     None
                 } else {
-                    Some(f64_from_fastfield_u64(range.range.end, &field_type))
+                    Some(f64_from_fastfield_u64(range.range.end, field_type))
                 };
                 let from = if range.range.start == u64::MIN {
                     None
                 } else {
-                    Some(f64_from_fastfield_u64(range.range.start, &field_type))
+                    Some(f64_from_fastfield_u64(range.range.start, field_type))
                 };
                 // let sub_aggregation = sub_agg_prototype.clone();
 
@@ -523,7 +523,7 @@ pub(crate) fn range_to_string(
             let val = i64::from_u64(val);
             format_date(val)
         } else {
-            Ok(f64_from_fastfield_u64(val, field_type).to_string())
+            Ok(f64_from_fastfield_u64(val, *field_type).to_string())
         }
     };
 
@@ -573,12 +573,12 @@ mod tests {
                 let to = if range.range.end == u64::MAX {
                     None
                 } else {
-                    Some(f64_from_fastfield_u64(range.range.end, &field_type))
+                    Some(f64_from_fastfield_u64(range.range.end, field_type))
                 };
                 let from = if range.range.start == u64::MIN {
                     None
                 } else {
-                    Some(f64_from_fastfield_u64(range.range.start, &field_type))
+                    Some(f64_from_fastfield_u64(range.range.start, field_type))
                 };
                 SegmentRangeAndBucketEntry {
                     range: range.range.clone(),

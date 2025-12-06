@@ -348,19 +348,37 @@ impl Display for Key {
     }
 }
 
+pub(crate) fn convert_to_f64<const COLUMN_TYPE_ID: u8>(val: u64) -> f64 {
+    if COLUMN_TYPE_ID == ColumnType::U64 as u8 {
+        val as f64
+    } else if COLUMN_TYPE_ID == ColumnType::I64 as u8
+        || COLUMN_TYPE_ID == ColumnType::DateTime as u8
+    {
+        i64::from_u64(val) as f64
+    } else if COLUMN_TYPE_ID == ColumnType::F64 as u8 {
+        f64::from_u64(val)
+    } else if COLUMN_TYPE_ID == ColumnType::Bool as u8 {
+        val as f64
+    } else {
+        panic!(
+            "ColumnType ID {} cannot be converted to f64 metric",
+            COLUMN_TYPE_ID
+        )
+    }
+}
+
 /// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
 /// # Panics
 /// Only `u64`, `f64`, `date`, and `i64` are supported.
-pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
+pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: ColumnType) -> f64 {
     match field_type {
-        ColumnType::U64 => val as f64,
-        ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
-        ColumnType::F64 => f64::from_u64(val),
-        ColumnType::Bool => val as f64,
-        _ => {
-            panic!("unexpected type {field_type:?}. This should not happen")
-        }
+        ColumnType::U64 => convert_to_f64::<{ ColumnType::U64 as u8 }>(val),
+        ColumnType::I64 => convert_to_f64::<{ ColumnType::I64 as u8 }>(val),
+        ColumnType::F64 => convert_to_f64::<{ ColumnType::F64 as u8 }>(val),
+        ColumnType::Bool => convert_to_f64::<{ ColumnType::Bool as u8 }>(val),
+        ColumnType::DateTime => convert_to_f64::<{ ColumnType::DateTime as u8 }>(val),
+        _ => panic!("unexpected type {field_type:?}. This should not happen"),
     }
 }
 

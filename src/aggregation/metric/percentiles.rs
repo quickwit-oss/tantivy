@@ -283,7 +283,7 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
         }
 
         for val in req_data.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, &req_data.field_type);
+            let val1 = f64_from_fastfield_u64(val, req_data.field_type);
             percentiles.collect(val1);
         }
 

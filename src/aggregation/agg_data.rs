@@ -16,10 +16,10 @@ use crate::aggregation::bucket::{
     TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
-    AverageAggregation, CardinalityAggReqData, CardinalityAggregationReq, CountAggregation,
-    ExtendedStatsAggregation, MaxAggregation, MetricAggReqData, MinAggregation,
-    SegmentCardinalityCollector, SegmentExtendedStatsCollector, SegmentPercentilesCollector,
-    SegmentStatsCollector, StatsAggregation, StatsType, SumAggregation, TopHitsAggReqData,
+    build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
+    CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation, MaxAggregation,
+    MetricAggReqData, MinAggregation, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
+    SegmentPercentilesCollector, StatsAggregation, StatsType, SumAggregation, TopHitsAggReqData,
     TopHitsSegmentCollector,
 };
 use crate::aggregation::segment_agg_result::{
@@ -395,7 +395,7 @@ pub(crate) fn build_segment_agg_collector(
                 | StatsType::Count
                 | StatsType::Max
                 | StatsType::Min
-                | StatsType::Stats => Ok(Box::new(SegmentStatsCollector::from_req(req_data))),
+                | StatsType::Stats => build_segment_stats_collector(req_data),
                 StatsType::ExtendedStats(sigma) => Ok(Box::new(
                     SegmentExtendedStatsCollector::from_req(req_data, sigma),
                 )),

@@ -187,35 +187,51 @@ pub enum StatsType {
     Percentiles,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct SegmentStatsCollector {
-    pub(crate) name: String,
-    pub(crate) collecting_for: StatsType,
-    pub(crate) is_number_or_date_type: bool,
-    pub(crate) field_type: ColumnType,
-    pub(crate) missing_u64: Option<u64>,
-    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
-    pub(crate) accessor: Column<u64>,
-    pub(crate) buckets: Vec<IntermediateStats>,
+fn create_collector<const TYPE_ID: u8>(
+    req: &MetricAggReqData,
+) -> Box<dyn SegmentAggregationCollector> {
+    Box::new(SegmentStatsCollector::<TYPE_ID> {
+        name: req.name.clone(),
+        collecting_for: req.collecting_for,
+        is_number_or_date_type: req.is_number_or_date_type,
+        missing_u64: req.missing_u64,
+        column_block_accessor: req.column_block_accessor.clone(),
+        accessor: req.accessor.clone(),
+        buckets: vec![IntermediateStats::default()],
+    })
 }
 
-impl SegmentStatsCollector {
-    pub fn from_req(req: &MetricAggReqData) -> Self {
-        let buckets = vec![IntermediateStats::default()];
-        Self {
-            name: req.name.clone(),
-            collecting_for: req.collecting_for,
-            is_number_or_date_type: req.is_number_or_date_type,
-            field_type: req.field_type,
-            missing_u64: req.missing_u64,
-            column_block_accessor: req.column_block_accessor.clone(),
-            accessor: req.accessor.clone(),
-            buckets,
-        }
+/// Build a concrete `SegmentStatsCollector` depending on the column type.
+pub(crate) fn build_segment_stats_collector(
+    req: &MetricAggReqData,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    match req.field_type {
+        ColumnType::I64 => Ok(create_collector::<{ ColumnType::I64 as u8 }>(req)),
+        ColumnType::U64 => Ok(create_collector::<{ ColumnType::U64 as u8 }>(req)),
+        ColumnType::F64 => Ok(create_collector::<{ ColumnType::F64 as u8 }>(req)),
+        ColumnType::Bool => Ok(create_collector::<{ ColumnType::Bool as u8 }>(req)),
+        ColumnType::DateTime => Ok(create_collector::<{ ColumnType::DateTime as u8 }>(req)),
+        ColumnType::Bytes => Ok(create_collector::<{ ColumnType::Bytes as u8 }>(req)),
+        ColumnType::Str => Ok(create_collector::<{ ColumnType::Str as u8 }>(req)),
+        ColumnType::IpAddr => Ok(create_collector::<{ ColumnType::IpAddr as u8 }>(req)),
     }
 }
 
-impl SegmentAggregationCollector for SegmentStatsCollector {
+#[repr(C)]
+#[derive(Clone, Debug)]
+pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
+    pub(crate) missing_u64: Option<u64>,
+    pub(crate) accessor: Column<u64>,
+    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
+    pub(crate) is_number_or_date_type: bool,
+    pub(crate) buckets: Vec<IntermediateStats>,
+    pub(crate) name: String,
+    pub(crate) collecting_for: StatsType,
+}
+
+impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
+    for SegmentStatsCollector<COLUMN_TYPE_ID>
+{
     #[inline]
     fn add_intermediate_aggregation_result(
         &mut self,
@@ -271,7 +287,7 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
         }
         if self.is_number_or_date_type {
             for val in self.column_block_accessor.iter_vals() {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
+                let val1 = convert_to_f64::<COLUMN_TYPE_ID>(val);
                 stats.collect(val1);
             }
         } else {

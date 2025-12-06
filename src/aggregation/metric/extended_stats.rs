@@ -382,7 +382,7 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
             self.column_block_accessor.fetch_block(docs, &self.accessor);
         }
         for val in self.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, &self.field_type);
+            let val1 = f64_from_fastfield_u64(val, self.field_type);
             extended_stats.collect(val1);
         }
 
