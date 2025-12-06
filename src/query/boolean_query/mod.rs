@@ -9,18 +9,18 @@ pub use self::boolean_weight::BooleanWeight;
 #[cfg(test)]
 mod tests {
 
+    use std::ops::Bound;
+
     use super::*;
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::collector::{Count, TopDocs};
     use crate::query::term_query::TermScorer;
-    use crate::query::RangeQuery;
     use crate::query::{
-        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser,
+        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser, RangeQuery,
         RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
-    use std::ops::Bound;
 
     fn aux_test_helper() -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();
