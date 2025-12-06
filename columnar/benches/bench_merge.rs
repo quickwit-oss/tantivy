@@ -40,7 +40,14 @@ fn main() {
                 let columnar_readers = columnar_readers.iter().collect::<Vec<_>>();
                 let merge_row_order = StackMergeOrder::stack(&columnar_readers[..]);
 
-                merge_columnar(&columnar_readers, &[], merge_row_order.into(), &mut out).unwrap();
+                merge_columnar(
+                    &columnar_readers,
+                    &[],
+                    merge_row_order.into(),
+                    &mut out,
+                    || false,
+                )
+                .unwrap();
                 Some(out.len() as u64)
             },
         );
