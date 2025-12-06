@@ -12,7 +12,8 @@ fn test_create_and_search_sstable() {
 
     // Open the sstable.
     let sstable =
-        Dictionary::<MonotonicU64SSTable>::from_bytes(OwnedBytes::new(sstable_bytes)).unwrap();
+        Dictionary::<MonotonicU64SSTable>::from_bytes_for_tests(OwnedBytes::new(sstable_bytes))
+            .unwrap();
 
     // Search for a key.
     let value = sstable.get(b"banana").unwrap();
@@ -34,7 +35,8 @@ fn test_custom_value_sstable() {
 
     // Open the sstable.
     let sstable =
-        Dictionary::<VecU32ValueSSTable>::from_bytes(OwnedBytes::new(sstable_bytes)).unwrap();
+        Dictionary::<VecU32ValueSSTable>::from_bytes_for_tests(OwnedBytes::new(sstable_bytes))
+            .unwrap();
 
     let mut stream = sstable.stream().unwrap();
     assert!(stream.advance());
