@@ -678,31 +678,42 @@ mod tests {
 #[cfg(test)]
 mod proptest_boolean_query {
     use std::collections::{BTreeMap, HashSet};
+    use std::ops::Bound;
 
     use proptest::collection::vec;
     use proptest::prelude::*;
 
     use crate::collector::DocSetCollector;
-    use crate::query::{BooleanQuery, Occur, Query, TermQuery};
-    use crate::schema::{Field, OwnedValue, Schema, TEXT};
+    use crate::query::{AllQuery, BooleanQuery, Occur, Query, RangeQuery, TermQuery};
+    use crate::schema::{Field, NumericOptions, OwnedValue, Schema, TEXT};
     use crate::{DocId, Index, Term};
 
     #[derive(Debug, Clone)]
     enum BooleanQueryAST {
-        Leaf { field_idx: usize },
+        /// Matches all documents via AllQuery (wraps AllScorer in BoostScorer)
+        All,
+        /// Matches all documents via RangeQuery (returns bare AllScorer)
+        /// This is the actual trigger for the AllScorer preservation bug
+        RangeAll,
+        /// Matches documents where the field has value "true"
+        Leaf {
+            field_idx: usize,
+        },
         Union(Vec<BooleanQueryAST>),
         Intersection(Vec<BooleanQueryAST>),
     }
 
     impl BooleanQueryAST {
-        fn matches(&self, doc_id: DocId) -> bool {
+        fn matches(&self, doc_id: DocId, num_docs: usize) -> bool {
             match self {
+                BooleanQueryAST::All => true,
+                BooleanQueryAST::RangeAll => true,
                 BooleanQueryAST::Leaf { field_idx } => Self::matches_field(doc_id, *field_idx),
                 BooleanQueryAST::Union(children) => {
-                    children.iter().any(|child| child.matches(doc_id))
+                    children.iter().any(|child| child.matches(doc_id, num_docs))
                 }
                 BooleanQueryAST::Intersection(children) => {
-                    children.iter().all(|child| child.matches(doc_id))
+                    children.iter().all(|child| child.matches(doc_id, num_docs))
                 }
             }
         }
@@ -711,8 +722,17 @@ mod proptest_boolean_query {
             ((doc_id as usize) >> field_idx) & 1 == 1
         }
 
-        fn to_query(&self, fields: &[Field]) -> Box<dyn Query> {
+        fn to_query(&self, fields: &[Field], range_field: Field) -> Box<dyn Query> {
             match self {
+                BooleanQueryAST::All => Box::new(AllQuery),
+                BooleanQueryAST::RangeAll => {
+                    // Range query that matches all docs (all have value >= 0)
+                    // This returns bare AllScorer, triggering the bug we fixed
+                    Box::new(RangeQuery::new(
+                        Bound::Included(Term::from_field_i64(range_field, 0)),
+                        Bound::Unbounded,
+                    ))
+                }
                 BooleanQueryAST::Leaf { field_idx } => Box::new(TermQuery::new(
                     Term::from_field_text(fields[*field_idx], "true"),
                     crate::schema::IndexRecordOption::Basic,
@@ -720,14 +740,14 @@ mod proptest_boolean_query {
                 BooleanQueryAST::Union(children) => {
                     let sub_queries = children
                         .iter()
-                        .map(|child| (Occur::Should, child.to_query(fields)))
+                        .map(|child| (Occur::Should, child.to_query(fields, range_field)))
                         .collect();
                     Box::new(BooleanQuery::new(sub_queries))
                 }
                 BooleanQueryAST::Intersection(children) => {
                     let sub_queries = children
                         .iter()
-                        .map(|child| (Occur::Must, child.to_query(fields)))
+                        .map(|child| (Occur::Must, child.to_query(fields, range_field)))
                         .collect();
                     Box::new(BooleanQuery::new(sub_queries))
                 }
@@ -735,11 +755,16 @@ mod proptest_boolean_query {
         }
     }
 
-    fn create_index_with_boolean_permutations(num_fields: usize) -> (Index, Vec<Field>) {
+    fn create_index_with_boolean_permutations(num_fields: usize) -> (Index, Vec<Field>, Field) {
         let mut schema_builder = Schema::builder();
         let fields: Vec<Field> = (0..num_fields)
             .map(|i| schema_builder.add_text_field(&format!("field_{}", i), TEXT))
             .collect();
+        // Add a numeric field for RangeQuery tests - all docs have value = doc_id
+        let range_field = schema_builder.add_i64_field(
+            "range_field",
+            NumericOptions::default().set_fast().set_indexed(),
+        );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
@@ -751,14 +776,21 @@ mod proptest_boolean_query {
                     doc.insert(field, "true".into());
                 }
             }
+            // All docs have non-negative values, so RangeQuery(>=0) matches all
+            doc.insert(range_field, (doc_id as i64).into());
             writer.add_document(doc).unwrap();
         }
         writer.commit().unwrap();
-        (index, fields)
+        (index, fields, range_field)
     }
 
     fn arb_boolean_query_ast(num_fields: usize) -> impl Strategy<Value = BooleanQueryAST> {
-        let leaf = (0..num_fields).prop_map(|field_idx| BooleanQueryAST::Leaf { field_idx });
+        // Leaf strategies: term queries, AllQuery, and RangeQuery matching all docs
+        let leaf = prop_oneof![
+            (0..num_fields).prop_map(|field_idx| BooleanQueryAST::Leaf { field_idx }),
+            Just(BooleanQueryAST::All),
+            Just(BooleanQueryAST::RangeAll),
+        ];
         leaf.prop_recursive(
             8,   // 8 levels of recursion
             256, // 256 nodes max
@@ -775,14 +807,15 @@ mod proptest_boolean_query {
     #[test]
     fn proptest_boolean_query() {
         let num_fields = 8;
-        let (index, fields) = create_index_with_boolean_permutations(num_fields);
+        let num_docs = 1 << num_fields;
+        let (index, fields, range_field) = create_index_with_boolean_permutations(num_fields);
         let searcher = index.reader().unwrap().searcher();
         proptest!(|(ast in arb_boolean_query_ast(num_fields))| {
-            let query = ast.to_query(&fields);
+            let query = ast.to_query(&fields, range_field);
 
             let mut matching_docs = HashSet::new();
-            for doc_id in 0..(1 << num_fields) {
-                if ast.matches(doc_id as DocId) {
+            for doc_id in 0..num_docs {
+                if ast.matches(doc_id as DocId, num_docs) {
                     matching_docs.insert(doc_id as DocId);
                 }
             }
