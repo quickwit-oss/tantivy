@@ -155,7 +155,6 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone)]
 pub struct SegmentRangeCollector<const LOWCARD: bool = false> {
     /// The buckets containing the aggregation data.
     /// One for each ParentBucketId

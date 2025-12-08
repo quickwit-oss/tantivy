@@ -44,11 +44,11 @@ struct MissingCount {
 }
 
 /// The specialized missing term aggregation.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct TermMissingAgg {
     accessor_idx: usize,
     sub_agg: Option<CachedSubAggs>,
-    /// Idx = bucket id, Value = missing count for that bucket
+    /// Idx = parent bucket id, Value = missing count for that bucket
     missing_count_per_bucket: Vec<MissingCount>,
     bucket_id_provider: BucketIdProvider,
 }

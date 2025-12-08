@@ -478,6 +478,13 @@ fn get_collector(agg_req: Aggregations) -> AggregationCollector {
 }
 
 fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
+    // Flag to use existing index
+    let reuse_index = std::env::var("REUSE_AGG_BENCH_INDEX").is_ok();
+    if reuse_index && std::path::Path::new("agg_bench").exists() {
+        return Index::open_in_dir("agg_bench");
+    }
+    // crreate dir
+    std::fs::create_dir_all("agg_bench")?;
     let mut schema_builder = Schema::builder();
     let text_fieldtype = tantivy::schema::TextOptions::default()
         .set_indexing_options(
@@ -497,7 +504,12 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
     let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
     let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
-    let index = Index::create_from_tempdir(schema_builder.build())?;
+    // use tmp dir
+    let index = if reuse_index {
+        Index::create_in_dir("agg_bench", schema_builder.build())?
+    } else {
+        Index::create_from_tempdir(schema_builder.build())?
+    };
     // Approximate log proportions
     let status_field_data = [
         ("INFO", 8000),

@@ -3,7 +3,7 @@ use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::BucketId;
 use crate::DocId;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 /// A cache for sub-aggregations, storing doc ids per bucket id.
 /// Depending on the cardinality of the parent aggregation, we use different
 /// storage strategies.
@@ -49,7 +49,7 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
             per_bucket_docs: Vec::new(),
             num_docs: 0,
             sub_agg_collector: sub_agg,
-            partitions: core::array::from_fn(|_| PartitionEntry::new()),
+            partitions: core::array::from_fn(|_| PartitionEntry::default()),
         }
     }
 
@@ -107,8 +107,11 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
                 .prepare_max_bucket(max_bucket, agg_data)?;
             // The threshold above which we flush buckets individually.
             // Note: We need to make sure that we don't lock ourselves into a situation where we hit
-            // the FLUSH_THRESHOLD, but never flush any buckets.
+            // the FLUSH_THRESHOLD, but never flush any buckets. (except the final flush)
             let mut bucket_treshold = FLUSH_THRESHOLD / (self.per_bucket_docs.len().max(1) * 2);
+            const _: () = {
+                assert!(std::mem::size_of::<u64>() == 8, "expected 64-bit u64");
+            };
             if force {
                 bucket_treshold = 0;
             }
@@ -157,21 +160,13 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct PartitionEntry {
     bucket_ids: Vec<BucketId>,
     docs: Vec<DocId>,
 }
 
 impl PartitionEntry {
-    #[inline]
-    fn new() -> Self {
-        Self {
-            bucket_ids: Vec::with_capacity(FLUSH_THRESHOLD / NUM_PARTITIONS),
-            docs: Vec::with_capacity(FLUSH_THRESHOLD / NUM_PARTITIONS),
-        }
-    }
-
     #[inline]
     fn clear(&mut self) {
         self.bucket_ids.clear();

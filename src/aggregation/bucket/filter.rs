@@ -10,9 +10,7 @@ use crate::aggregation::cached_sub_aggs::CachedSubAggs;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
-use crate::aggregation::segment_agg_result::{
-    BucketIdProvider, CollectorClone, SegmentAggregationCollector,
-};
+use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
 use crate::aggregation::BucketId;
 use crate::docset::DocSet;
 use crate::query::{AllQuery, EnableScoring, Query, QueryParser};
@@ -501,8 +499,8 @@ struct DocCount {
 
 /// Segment collector for filter aggregation
 pub struct SegmentFilterCollector {
-    /// Document counts per bucket
-    buckets: Vec<DocCount>,
+    /// Document counts per parent bucket
+    parent_buckets: Vec<DocCount>,
     /// Sub-aggregation collectors
     sub_aggregations: Option<CachedSubAggs<true>>,
     bucket_id_provider: BucketIdProvider,
@@ -525,7 +523,7 @@ impl SegmentFilterCollector {
         let sub_agg_collector = sub_agg_collector.map(CachedSubAggs::new);
 
         Ok(SegmentFilterCollector {
-            buckets: Vec::new(),
+            parent_buckets: Vec::new(),
             sub_aggregations: sub_agg_collector,
             accessor_idx: node.idx_in_req_data,
             bucket_id_provider: BucketIdProvider::default(),
@@ -536,17 +534,10 @@ impl SegmentFilterCollector {
 impl Debug for SegmentFilterCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentFilterCollector")
-            .field("buckets", &self.buckets)
+            .field("buckets", &self.parent_buckets)
             .field("has_sub_aggs", &self.sub_aggregations.is_some())
             .field("accessor_idx", &self.accessor_idx)
             .finish()
-    }
-}
-
-impl CollectorClone for SegmentFilterCollector {
-    fn clone_box(&self) -> Box<dyn SegmentAggregationCollector> {
-        // For now, panic - this needs proper implementation with weight recreation
-        panic!("SegmentFilterCollector cloning not yet implemented - requires weight recreation")
     }
 }
 
@@ -558,7 +549,7 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
         let mut sub_results = IntermediateAggregationResults::default();
-        let bucket_opt = self.buckets.get(parent_bucket_id as usize);
+        let bucket_opt = self.parent_buckets.get(parent_bucket_id as usize);
 
         if let Some(sub_aggs) = &mut self.sub_aggregations {
             sub_aggs
@@ -606,7 +597,7 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
             return Ok(());
         }
 
-        let mut bucket = self.buckets[parent_bucket_id as usize];
+        let mut bucket = self.parent_buckets[parent_bucket_id as usize];
         // Take the request data to avoid borrow checker issues with sub-aggregations
         let mut req = agg_data.take_filter_req_data(self.accessor_idx);
 
@@ -632,7 +623,7 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
             sub_aggs.check_flush_local(agg_data)?;
         }
         // put back bucket
-        self.buckets[parent_bucket_id as usize] = bucket;
+        self.parent_buckets[parent_bucket_id as usize] = bucket;
 
         Ok(())
     }
@@ -649,9 +640,9 @@ impl SegmentAggregationCollector for SegmentFilterCollector {
         max_bucket: BucketId,
         _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        while self.buckets.len() <= max_bucket as usize {
+        while self.parent_buckets.len() <= max_bucket as usize {
             let bucket_id = self.bucket_id_provider.next_bucket_id();
-            self.buckets.push(DocCount {
+            self.parent_buckets.push(DocCount {
                 doc_count: 0,
                 bucket_id,
             });

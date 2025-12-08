@@ -7,7 +7,7 @@ use columnar::{
     Column, ColumnBlockAccessor, ColumnType, Dictionary, MonotonicallyMappableToU128,
     MonotonicallyMappableToU64, NumericalValue, StrColumn,
 };
-use common::BitSet;
+use common::{BitSet, TinySet};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +29,7 @@ use crate::TantivyError;
 
 /// Contains all information required by the SegmentTermCollector to perform the
 /// terms aggregation on a segment.
+#[derive(Debug, Clone)]
 pub struct TermsAggReqData {
     /// The column accessor to access the fast field values.
     pub accessor: Column<u64>,
@@ -338,11 +339,8 @@ pub(crate) fn build_segment_term_collector(
     req_data: &mut AggregationsSegmentCtx,
     node: &AggRefNode,
 ) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
-    let accessor_idx = node.idx_in_req_data;
-    let column_type = {
-        let terms_req_data = req_data.get_term_req_data(accessor_idx);
-        terms_req_data.column_type
-    };
+    let terms_req_data = req_data.get_term_req_data(node.idx_in_req_data).clone();
+    let column_type = terms_req_data.column_type;
 
     if column_type == ColumnType::Bytes {
         return Err(TantivyError::InvalidArgument(format!(
@@ -352,7 +350,6 @@ pub(crate) fn build_segment_term_collector(
 
     // Validate sub aggregation exists when ordering by sub-aggregation.
     {
-        let terms_req_data = req_data.get_term_req_data(accessor_idx);
         if let OrderTarget::SubAggregation(sub_agg_name) = &terms_req_data.req.order.target {
             let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
 
@@ -370,7 +367,6 @@ pub(crate) fn build_segment_term_collector(
     let has_sub_aggregations = !node.children.is_empty();
 
     // Decide whether to use a Vec-backed or HashMap-backed bucket storage.
-    let terms_req_data = req_data.get_term_req_data(accessor_idx);
 
     // TODO: A better metric instead of is_top_level would be the number of buckets expected.
     // E.g. If term agg is not top level, but the parent is a bucket agg with less than 10 buckets,
@@ -398,22 +394,22 @@ pub(crate) fn build_segment_term_collector(
     if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
         let term_buckets = VecTermBucketsNoAgg::new(max_term_id + 1, &mut bucket_id_provider);
         let collector: SegmentTermCollector<_, true> = SegmentTermCollector {
-            buckets: vec![term_buckets],
-            accessor_idx,
+            parent_buckets: vec![term_buckets],
             sub_agg: None,
             bucket_id_provider,
             max_term_id,
+            terms_req_data,
         };
         Ok(Box::new(collector))
     } else if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC {
         let term_buckets = VecTermBuckets::new(max_term_id + 1, &mut bucket_id_provider);
-        let sub_agg = sub_agg_collector.map(CachedSubAggs::<true>::new);
-        let collector: SegmentTermCollector<_, true> = SegmentTermCollector {
-            buckets: vec![term_buckets],
-            accessor_idx,
+        let sub_agg = sub_agg_collector.map(CachedSubAggs::<false>::new);
+        let collector: SegmentTermCollector<_, false> = SegmentTermCollector {
+            parent_buckets: vec![term_buckets],
             sub_agg,
             bucket_id_provider,
             max_term_id,
+            terms_req_data,
         };
         Ok(Box::new(collector))
     } else if max_term_id < 8_000_000 && is_top_level {
@@ -422,11 +418,11 @@ pub(crate) fn build_segment_term_collector(
         // Build sub-aggregation blueprint (flat pairs)
         let sub_agg = sub_agg_collector.map(CachedSubAggs::<false>::new);
         let collector: SegmentTermCollector<PagedTermMap, false> = SegmentTermCollector {
-            buckets: vec![term_buckets],
-            accessor_idx,
+            parent_buckets: vec![term_buckets],
             sub_agg,
             bucket_id_provider,
             max_term_id,
+            terms_req_data,
         };
         Ok(Box::new(collector))
     } else {
@@ -434,11 +430,11 @@ pub(crate) fn build_segment_term_collector(
         // Build sub-aggregation blueprint (flat pairs)
         let sub_agg = sub_agg_collector.map(CachedSubAggs::<false>::new);
         let collector: SegmentTermCollector<HashMapTermBuckets, false> = SegmentTermCollector {
-            buckets: vec![term_buckets],
-            accessor_idx,
+            parent_buckets: vec![term_buckets],
             sub_agg,
             bucket_id_provider,
             max_term_id,
+            terms_req_data,
         };
         Ok(Box::new(collector))
     }
@@ -497,47 +493,42 @@ const BITMASK_LEN: usize = PAGE_SIZE / 64;
 
 #[derive(Clone, Debug)]
 struct Page {
-    presence: [u64; BITMASK_LEN],
+    /// Bitmask indicating which offsets are present.
+    /// It is chunked into TinySet words.
+    presence: [TinySet; BITMASK_LEN],
     data: [Bucket; PAGE_SIZE],
 }
 
 impl Page {
     fn new() -> Self {
         Self {
-            presence: [0; BITMASK_LEN],
+            presence: [TinySet::empty(); BITMASK_LEN],
             data: [Bucket::default(); PAGE_SIZE],
         }
     }
 
     #[inline]
     fn is_set(&self, offset: usize) -> bool {
-        let word_idx = offset / 64;
+        let bucket_idx = offset / 64;
         let bit_idx = offset % 64;
-        (self.presence[word_idx] & (1 << bit_idx)) != 0
+        self.presence[bucket_idx].contains(bit_idx as u32)
     }
 
     #[inline]
     fn set_present(&mut self, offset: usize) {
-        let word_idx = offset / 64;
+        let bucket_idx = offset / 64;
         let bit_idx = offset % 64;
-        self.presence[word_idx] |= 1 << bit_idx;
+        self.presence[bucket_idx].insert_mut(bit_idx as u32);
     }
 
     // Flattened iteration logic
     fn collect_items(&self, base_term_id: u64, result: &mut Vec<(u64, Bucket)>) {
-        for (word_idx, &word) in self.presence.iter().enumerate() {
-            if word == 0 {
-                continue;
-            }
+        for (bucket_pos, &tiny_set) in self.presence.iter().enumerate() {
+            let base_offset = bucket_pos * 64;
 
-            let mut temp_word = word;
-            let base_offset = word_idx * 64;
-
-            while temp_word != 0 {
-                let bit = temp_word.trailing_zeros() as usize;
-                let offset = base_offset + bit;
+            for bit in tiny_set.into_iter() {
+                let offset = base_offset + bit as usize;
                 result.push((base_term_id + offset as u64, self.data[offset]));
-                temp_word &= !(1 << bit);
             }
         }
     }
@@ -547,7 +538,7 @@ impl Page {
 /// Uses a fixed size vector of pages, each page containing a fixed size array of buckets.
 ///
 /// Each page covers a range of term ids. Pages are allocated on demand.
-/// This implementation is more memory efficient than a full Vec for sparse term id sets,
+/// This implementation is more memory efficient than a full Vec for high cardinality term id sets,
 ///
 /// It has a fixed cost of `num_pages * 8 bytes` for the page directory.
 /// For 1 million terms, this is 8 * 1024 = 8KB.
@@ -604,8 +595,8 @@ impl TermAggregationMap for PagedTermMap {
     }
 
     fn into_vec(self) -> Vec<(u64, Bucket)> {
-        // Heuristic: Estimate active count.
-        let estimated_count = (self.mem_usage / std::mem::size_of::<Page>()) * (PAGE_SIZE / 2);
+        // estimate 16 entries per non-empty page
+        let estimated_count = self.pages.iter().filter(|p| p.is_some()).count() * 16;
         let mut result = Vec::with_capacity(estimated_count);
 
         for (i, page_opt) in self.pages.into_iter().enumerate() {
@@ -766,14 +757,14 @@ impl TermAggregationMap for VecTermBuckets {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct SegmentTermCollector<TermMap: TermAggregationMap, const LOWCARD: bool = false> {
     /// The buckets containing the aggregation data.
-    buckets: Vec<TermMap>,
+    parent_buckets: Vec<TermMap>,
     sub_agg: Option<CachedSubAggs<LOWCARD>>,
-    accessor_idx: usize,
     bucket_id_provider: BucketIdProvider,
     max_term_id: u64,
+    terms_req_data: TermsAggReqData,
 }
 
 pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
@@ -793,10 +784,10 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
         // TODO: avoid prepare_max_bucket here and handle empty buckets.
         self.prepare_max_bucket(bucket, agg_data)?;
         let bucket = std::mem::replace(
-            &mut self.buckets[bucket as usize],
+            &mut self.parent_buckets[bucket as usize],
             TermMap::new(0, &mut self.bucket_id_provider),
         );
-        let term_req = agg_data.get_term_req_data(self.accessor_idx);
+        let term_req = &self.terms_req_data;
         let name = term_req.name.clone();
 
         let bucket =
@@ -814,7 +805,7 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
     ) -> crate::Result<()> {
         let mem_pre = self.get_memory_consumption();
 
-        let mut req_data = agg_data.take_term_req_data(self.accessor_idx);
+        let req_data = &mut self.terms_req_data;
 
         if let Some(missing) = req_data.missing_value_for_accessor {
             req_data.column_block_accessor.fetch_block_with_missing(
@@ -829,7 +820,7 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
         }
 
         if let Some(sub_agg) = &mut self.sub_agg {
-            let term_buckets = &mut self.buckets[parent_bucket_id as usize];
+            let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
             let it = req_data
                 .column_block_accessor
                 .iter_docid_vals(docs, &req_data.accessor);
@@ -850,7 +841,7 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
                 );
             }
         } else {
-            let term_buckets = &mut self.buckets[parent_bucket_id as usize];
+            let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
             let it = req_data.column_block_accessor.iter_vals();
             if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
                 let it = it.filter(move |&term_id| allowed_bs.contains(term_id as u32));
@@ -867,7 +858,6 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
                 .limits
                 .add_memory_consumed(mem_delta as u64)?;
         }
-        agg_data.put_back_term_req_data(self.accessor_idx, req_data);
         if let Some(sub_agg) = &mut self.sub_agg {
             sub_agg.check_flush_local(agg_data)?;
         }
@@ -875,7 +865,7 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
         Ok(())
     }
 
-    #[inline(always)]
+    #[inline]
     fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         if let Some(sub_agg) = &mut self.sub_agg {
             sub_agg.flush(agg_data)?;
@@ -888,10 +878,10 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
         max_bucket: BucketId,
         _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        while self.buckets.len() <= max_bucket as usize {
+        while self.parent_buckets.len() <= max_bucket as usize {
             let term_buckets: TermMap =
                 TermMap::new(self.max_term_id, &mut self.bucket_id_provider);
-            self.buckets.push(term_buckets);
+            self.parent_buckets.push(term_buckets);
         }
         Ok(())
     }
@@ -925,7 +915,7 @@ impl<TermMap, const LOWCARD: bool> SegmentTermCollector<TermMap, LOWCARD>
 where TermMap: TermAggregationMap
 {
     fn get_memory_consumption(&self) -> usize {
-        self.buckets
+        self.parent_buckets
             .iter()
             .map(|b| b.get_memory_consumption())
             .sum()
@@ -1203,8 +1193,10 @@ mod tests {
     use common::DateTime;
     use time::{Date, Month};
 
+    use super::{PagedTermMap, TermAggregationMap, PAGE_SIZE};
     use crate::aggregation::agg_req::Aggregations;
     use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
+    use crate::aggregation::segment_agg_result::BucketIdProvider;
     use crate::aggregation::tests::{
         exec_request, exec_request_with_query, exec_request_with_query_and_memory_limit,
         get_test_index_from_terms, get_test_index_from_values_and_terms,
@@ -1214,6 +1206,43 @@ mod tests {
     use crate::query::AllQuery;
     use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
     use crate::{Index, IndexWriter};
+
+    #[test]
+    fn paged_term_map_reuses_buckets_and_counts() {
+        let mut bucket_id_provider = BucketIdProvider::default();
+        let mut map = PagedTermMap::new((PAGE_SIZE * 2) as u64, &mut bucket_id_provider);
+
+        let bucket_first = map.term_entry(5, &mut bucket_id_provider);
+        let bucket_second_page = map.term_entry((PAGE_SIZE + 7) as u64, &mut bucket_id_provider);
+
+        // Reinsertions should increment counts and reuse bucket ids
+        assert_eq!(map.term_entry(5, &mut bucket_id_provider), bucket_first);
+        assert_eq!(
+            map.term_entry((PAGE_SIZE + 7) as u64, &mut bucket_id_provider),
+            bucket_second_page
+        );
+
+        // High offset exercises the TinySet presence word boundaries.
+        let bucket_high_bit = map.term_entry(63, &mut bucket_id_provider);
+
+        let mut entries = map.into_vec();
+        entries.sort_by_key(|(term_id, _)| *term_id);
+
+        let expected = vec![
+            (5u64, bucket_first, 2u32),
+            (63u64, bucket_high_bit, 1u32),
+            ((PAGE_SIZE + 7) as u64, bucket_second_page, 2u32),
+        ];
+
+        assert_eq!(entries.len(), expected.len());
+        for ((term_id, bucket), (expected_term, expected_bucket_id, expected_count)) in
+            entries.into_iter().zip(expected)
+        {
+            assert_eq!(term_id, expected_term);
+            assert_eq!(bucket.bucket_id, expected_bucket_id);
+            assert_eq!(bucket.count, expected_count);
+        }
+    }
 
     #[test]
     fn terms_aggregation_test_single_segment() -> crate::Result<()> {

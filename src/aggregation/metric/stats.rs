@@ -277,6 +277,16 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         docs: &[crate::DocId],
         _agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
+        // TODO: remove once we fetch all values for all bucket ids in one go
+        if docs.len() == 1 && self.missing_u64.is_none() {
+            collect_stats::<COLUMN_TYPE_ID>(
+                &mut self.buckets[parent_bucket_id as usize],
+                self.accessor.values_for_doc(docs[0]),
+                self.is_number_or_date_type,
+            )?;
+
+            return Ok(());
+        }
         if let Some(missing) = self.missing_u64.as_ref() {
             self.column_block_accessor
                 .fetch_block_with_missing(docs, &self.accessor, *missing);
@@ -285,7 +295,7 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         }
         collect_stats::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
-            &mut self.column_block_accessor,
+            self.column_block_accessor.iter_vals(),
             self.is_number_or_date_type,
         )?;
 
@@ -309,16 +319,16 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
 #[inline]
 fn collect_stats<const COLUMN_TYPE_ID: u8>(
     stats: &mut IntermediateStats,
-    column_block_accessor: &mut ColumnBlockAccessor<u64>,
+    vals: impl Iterator<Item = u64>,
     is_number_or_date_type: bool,
 ) -> crate::Result<()> {
     if is_number_or_date_type {
-        for val in column_block_accessor.iter_vals() {
+        for val in vals {
             let val1 = convert_to_f64::<COLUMN_TYPE_ID>(val);
             stats.collect(val1);
         }
     } else {
-        for _val in column_block_accessor.iter_vals() {
+        for _val in vals {
             // we ignore the value and simply record that we got something
             stats.collect(0.0);
         }

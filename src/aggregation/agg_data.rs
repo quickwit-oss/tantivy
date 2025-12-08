@@ -132,21 +132,6 @@ impl AggregationsSegmentCtx {
 
     // ---------- take / put (terms, histogram, range) ----------
 
-    /// Move out the boxed Terms request at `idx`, leaving `None`.
-    #[inline]
-    pub(crate) fn take_term_req_data(&mut self, idx: usize) -> Box<TermsAggReqData> {
-        self.per_request.term_req_data[idx]
-            .take()
-            .expect("term_req_data slot is empty (taken)")
-    }
-
-    /// Put back a Terms request into an empty slot at `idx`.
-    #[inline]
-    pub(crate) fn put_back_term_req_data(&mut self, idx: usize, value: Box<TermsAggReqData>) {
-        debug_assert!(self.per_request.term_req_data[idx].is_none());
-        self.per_request.term_req_data[idx] = Some(value);
-    }
-
     /// Move out the boxed Histogram request at `idx`, leaving `None`.
     #[inline]
     pub(crate) fn take_histogram_req_data(&mut self, idx: usize) -> Box<HistogramAggReqData> {
@@ -310,6 +295,7 @@ impl PerRequestAggSegCtx {
 
     /// Convert the aggregation tree into a serializable struct representation.
     /// Each node contains: { name, kind, children }.
+    #[allow(dead_code)]
     pub fn get_view_tree(&self) -> Vec<AggTreeViewNode> {
         fn node_to_view(node: &AggRefNode, pr: &PerRequestAggSegCtx) -> AggTreeViewNode {
             let mut children: Vec<AggTreeViewNode> =

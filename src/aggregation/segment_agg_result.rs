@@ -23,7 +23,7 @@ impl BucketIdProvider {
 }
 
 /// A SegmentAggregationCollector is used to collect aggregation results.
-pub trait SegmentAggregationCollector: CollectorClone + Debug {
+pub trait SegmentAggregationCollector: Debug {
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
@@ -78,26 +78,7 @@ pub trait SegmentAggregationCollector: CollectorClone + Debug {
     }
 }
 
-/// A helper trait to enable cloning of Box<dyn SegmentAggregationCollector>
-pub trait CollectorClone {
-    fn clone_box(&self) -> Box<dyn SegmentAggregationCollector>;
-}
-
-impl<T> CollectorClone for T
-where T: 'static + SegmentAggregationCollector + Clone
-{
-    fn clone_box(&self) -> Box<dyn SegmentAggregationCollector> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn SegmentAggregationCollector> {
-    fn clone(&self) -> Box<dyn SegmentAggregationCollector> {
-        self.clone_box()
-    }
-}
-
-#[derive(Clone, Default)]
+#[derive(Default)]
 /// The GenericSegmentAggregationResultsCollector is the generic version of the collector, which
 /// can handle arbitrary complexity of  sub-aggregations. Ideally we never have to pick this one
 /// and can provide specialized versions instead, that remove some of its overhead.
