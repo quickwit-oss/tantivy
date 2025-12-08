@@ -277,26 +277,17 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         docs: &[crate::DocId],
         _agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        // Copying the stats to avoid aliasing optimization issues
-        let mut stats = self.buckets[parent_bucket_id as usize];
         if let Some(missing) = self.missing_u64.as_ref() {
             self.column_block_accessor
                 .fetch_block_with_missing(docs, &self.accessor, *missing);
         } else {
             self.column_block_accessor.fetch_block(docs, &self.accessor);
         }
-        if self.is_number_or_date_type {
-            for val in self.column_block_accessor.iter_vals() {
-                let val1 = convert_to_f64::<COLUMN_TYPE_ID>(val);
-                stats.collect(val1);
-            }
-        } else {
-            for _val in self.column_block_accessor.iter_vals() {
-                // we ignore the value and simply record that we got something
-                stats.collect(0.0);
-            }
-        }
-        self.buckets[parent_bucket_id as usize] = stats;
+        collect_stats::<COLUMN_TYPE_ID>(
+            &mut self.buckets[parent_bucket_id as usize],
+            &mut self.column_block_accessor,
+            self.is_number_or_date_type,
+        )?;
 
         Ok(())
     }
@@ -313,6 +304,27 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         }
         Ok(())
     }
+}
+
+#[inline]
+fn collect_stats<const COLUMN_TYPE_ID: u8>(
+    stats: &mut IntermediateStats,
+    column_block_accessor: &mut ColumnBlockAccessor<u64>,
+    is_number_or_date_type: bool,
+) -> crate::Result<()> {
+    if is_number_or_date_type {
+        for val in column_block_accessor.iter_vals() {
+            let val1 = convert_to_f64::<COLUMN_TYPE_ID>(val);
+            stats.collect(val1);
+        }
+    } else {
+        for _val in column_block_accessor.iter_vals() {
+            // we ignore the value and simply record that we got something
+            stats.collect(0.0);
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

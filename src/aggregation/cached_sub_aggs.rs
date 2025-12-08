@@ -36,7 +36,7 @@ pub(crate) struct CachedSubAggs<const LOWCARD: bool = false> {
     num_docs: usize,
 }
 
-const FLUSH_THRESHOLD: usize = 1024;
+const FLUSH_THRESHOLD: usize = 2048;
 const NUM_PARTITIONS: usize = 16;
 
 impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
@@ -67,6 +67,7 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
     #[inline]
     pub fn push(&mut self, bucket_id: BucketId, doc_id: DocId) {
         if LOWCARD {
+            // TODO: We could flush single buckets here
             let idx = bucket_id as usize;
             if self.per_bucket_docs.len() <= idx {
                 self.per_bucket_docs.resize_with(idx + 1, Vec::new);
@@ -88,23 +89,34 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         if self.num_docs >= FLUSH_THRESHOLD {
-            self.flush_local(agg_data)?;
+            self.flush_local(agg_data, false)?;
         }
         Ok(())
     }
 
     /// Note: this does _not_ flush the sub aggregations
-    fn flush_local(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
+    fn flush_local(
+        &mut self,
+        agg_data: &mut AggregationsSegmentCtx,
+        force: bool,
+    ) -> crate::Result<()> {
         if LOWCARD {
             // Pre-aggregated: call collect per bucket.
             let max_bucket = (self.per_bucket_docs.len() as BucketId).saturating_sub(1);
             self.sub_agg_collector
                 .prepare_max_bucket(max_bucket, agg_data)?;
+            // The threshold above which we flush buckets individually.
+            // Note: We need to make sure that we don't lock ourselves into a situation where we hit
+            // the FLUSH_THRESHOLD, but never flush any buckets.
+            let mut bucket_treshold = FLUSH_THRESHOLD / (self.per_bucket_docs.len().max(1) * 2);
+            if force {
+                bucket_treshold = 0;
+            }
             for (bucket_id, docs) in self
                 .per_bucket_docs
                 .iter()
                 .enumerate()
-                .filter(|(_, docs)| !docs.is_empty())
+                .filter(|(_, docs)| docs.len() > bucket_treshold)
             {
                 self.sub_agg_collector
                     .collect(bucket_id as BucketId, docs, agg_data)?;
@@ -138,22 +150,10 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
     /// Note: this _does_ flush the sub aggregations
     pub fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         if self.num_docs != 0 {
-            self.flush_local(agg_data)?;
+            self.flush_local(agg_data, true)?;
         }
         self.sub_agg_collector.flush(agg_data)?;
         Ok(())
-    }
-}
-
-impl CachedSubAggs<true> {
-    /// Implemented Only for low cardinality cached sub-aggregations.
-    #[inline]
-    pub fn extend_with_bucket_zero(&mut self, docs: &[DocId]) {
-        if self.per_bucket_docs.is_empty() {
-            self.per_bucket_docs.resize_with(1, Vec::new);
-        }
-        self.per_bucket_docs[0].extend_from_slice(docs);
-        self.num_docs += docs.len();
     }
 }
 

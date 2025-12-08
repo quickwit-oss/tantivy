@@ -378,13 +378,13 @@ pub(crate) fn build_segment_term_collector(
     let is_top_level = terms_req_data.is_top_level;
 
     // TODO: Benchmark to validate the threshold
-    const MAX_NUM_TERMS_FOR_VEC: usize = 100;
+    const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
 
     // Let's see if we can use a vec to aggregate our data
     // instead of a hashmap.
     let col_max_value = terms_req_data.accessor.max_value();
-    let max_term: usize =
-        col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64)) as usize;
+    let max_term_id: u64 =
+        col_max_value.max(terms_req_data.missing_value_for_accessor.unwrap_or(0u64));
 
     let sub_agg_collector = if has_sub_aggregations {
         Some(build_segment_agg_collectors(req_data, &node.children)?)
@@ -395,30 +395,30 @@ pub(crate) fn build_segment_term_collector(
     let mut bucket_id_provider = BucketIdProvider::default();
     // - use a Vec instead of a hashmap for our aggregation.
 
-    if is_top_level && max_term < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
-        let term_buckets = VecTermBucketsNoAgg::new(max_term as u64 + 1, &mut bucket_id_provider);
+    if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
+        let term_buckets = VecTermBucketsNoAgg::new(max_term_id + 1, &mut bucket_id_provider);
         let collector: SegmentTermCollector<_, true> = SegmentTermCollector {
             buckets: vec![term_buckets],
             accessor_idx,
             sub_agg: None,
             bucket_id_provider,
-            max_term_id: max_term as u64,
+            max_term_id,
         };
         Ok(Box::new(collector))
-    } else if is_top_level && max_term < MAX_NUM_TERMS_FOR_VEC {
-        let term_buckets = VecTermBuckets::new(max_term as u64 + 1, &mut bucket_id_provider);
+    } else if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC {
+        let term_buckets = VecTermBuckets::new(max_term_id + 1, &mut bucket_id_provider);
         let sub_agg = sub_agg_collector.map(CachedSubAggs::<true>::new);
         let collector: SegmentTermCollector<_, true> = SegmentTermCollector {
             buckets: vec![term_buckets],
             accessor_idx,
             sub_agg,
             bucket_id_provider,
-            max_term_id: max_term as u64,
+            max_term_id,
         };
         Ok(Box::new(collector))
-    } else if max_term < 8_000_000 && is_top_level {
+    } else if max_term_id < 8_000_000 && is_top_level {
         let term_buckets: PagedTermMap =
-            PagedTermMap::new(max_term as u64 + 1, &mut bucket_id_provider);
+            PagedTermMap::new(max_term_id + 1, &mut bucket_id_provider);
         // Build sub-aggregation blueprint (flat pairs)
         let sub_agg = sub_agg_collector.map(CachedSubAggs::<false>::new);
         let collector: SegmentTermCollector<PagedTermMap, false> = SegmentTermCollector {
@@ -426,7 +426,7 @@ pub(crate) fn build_segment_term_collector(
             accessor_idx,
             sub_agg,
             bucket_id_provider,
-            max_term_id: max_term as u64,
+            max_term_id,
         };
         Ok(Box::new(collector))
     } else {
@@ -438,7 +438,7 @@ pub(crate) fn build_segment_term_collector(
             accessor_idx,
             sub_agg,
             bucket_id_provider,
-            max_term_id: max_term as u64,
+            max_term_id,
         };
         Ok(Box::new(collector))
     }
@@ -828,7 +828,6 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
                 .fetch_block(docs, &req_data.accessor);
         }
 
-        // Build iterators first to avoid overlapping borrows with self's fields.
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.buckets[parent_bucket_id as usize];
             let it = req_data

@@ -151,7 +151,10 @@ impl AggregationSegmentCollector {
     ) -> crate::Result<Self> {
         let mut agg_data =
             build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
-        let result = CachedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
+        let mut result = CachedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
+        result
+            .get_sub_agg_collector()
+            .prepare_max_bucket(0, &agg_data)?; // prepare for bucket zero
 
         Ok(AggregationSegmentCollector {
             aggs_with_accessor: agg_data,
@@ -184,11 +187,12 @@ impl SegmentCollector for AggregationSegmentCollector {
         if self.error.is_some() {
             return;
         }
-        self.agg_collector.extend_with_bucket_zero(docs);
-        match self
-            .agg_collector
-            .check_flush_local(&mut self.aggs_with_accessor)
-        {
+
+        match self.agg_collector.get_sub_agg_collector().collect(
+            0,
+            docs,
+            &mut self.aggs_with_accessor,
+        ) {
             Ok(_) => {}
             Err(e) => {
                 self.error = Some(e);
