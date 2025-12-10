@@ -144,10 +144,7 @@ where
     HeadSortKeyComputer: SortKeyComputer,
     TailSortKeyComputer: SortKeyComputer,
 {
-    type SortKey = (
-        <HeadSortKeyComputer::Child as SegmentSortKeyComputer>::SortKey,
-        <TailSortKeyComputer::Child as SegmentSortKeyComputer>::SortKey,
-    );
+    type SortKey = (HeadSortKeyComputer::SortKey, TailSortKeyComputer::SortKey);
     type Child = (HeadSortKeyComputer::Child, TailSortKeyComputer::Child);
 
     type Comparator = (
