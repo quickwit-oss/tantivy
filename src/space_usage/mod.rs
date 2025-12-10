@@ -7,13 +7,14 @@
 //! storage-level details into consideration. For example, if your file system block size is 4096
 //! bytes, we can under-count actual resultant space usage by up to 4095 bytes per file.
 
-use std::collections::HashMap;
+use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
 
+use columnar::ColumnSpaceUsage;
 use common::ByteCount;
 use serde::{Deserialize, Serialize};
 
 use crate::index::SegmentComponent;
-use crate::schema::Field;
 
 /// Enum containing any of the possible space usage results for segment components.
 pub enum ComponentSpaceUsage {
@@ -212,17 +213,26 @@ impl StoreSpaceUsage {
 /// Multiple indexes are used to handle variable length things, where
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PerFieldSpaceUsage {
-    fields: HashMap<Field, FieldUsage>,
+    fields: BTreeMap<String, FieldUsage>,
     total: ByteCount,
 }
 
 impl PerFieldSpaceUsage {
     pub(crate) fn new(fields: Vec<FieldUsage>) -> PerFieldSpaceUsage {
-        let total = fields.iter().map(FieldUsage::total).sum();
-        let field_usage_map: HashMap<Field, FieldUsage> = fields
-            .into_iter()
-            .map(|field_usage| (field_usage.field(), field_usage))
-            .collect();
+        let mut total = ByteCount::default();
+        let mut field_usage_map: BTreeMap<String, FieldUsage> = BTreeMap::new();
+        for field_usage in fields {
+            total += field_usage.total();
+            let field_name = field_usage.field_name().to_string();
+            match field_usage_map.entry(field_name) {
+                Entry::Vacant(entry) => {
+                    entry.insert(field_usage);
+                }
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().merge(field_usage);
+                }
+            }
+        }
         PerFieldSpaceUsage {
             fields: field_usage_map,
             total,
@@ -230,8 +240,8 @@ impl PerFieldSpaceUsage {
     }
 
     /// Per field space usage
-    pub fn fields(&self) -> impl Iterator<Item = (&Field, &FieldUsage)> {
-        self.fields.iter()
+    pub fn fields(&self) -> impl Iterator<Item = &FieldUsage> {
+        self.fields.values()
     }
 
     /// Bytes used by the represented file
@@ -246,20 +256,23 @@ impl PerFieldSpaceUsage {
 /// See documentation for [`PerFieldSpaceUsage`] for slightly more information.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FieldUsage {
-    field: Field,
+    field_name: String,
     num_bytes: ByteCount,
     /// A field can be composed of more than one piece.
     /// These pieces are indexed by arbitrary numbers starting at zero.
     /// `self.num_bytes` includes all of `self.sub_num_bytes`.
     sub_num_bytes: Vec<Option<ByteCount>>,
+    /// Space usage of the column for fast fields, if relevant.
+    column_space_usage: Option<ColumnSpaceUsage>,
 }
 
 impl FieldUsage {
-    pub(crate) fn empty(field: Field) -> FieldUsage {
+    pub(crate) fn empty(field_name: impl Into<String>) -> FieldUsage {
         FieldUsage {
-            field,
+            field_name: field_name.into(),
             num_bytes: Default::default(),
             sub_num_bytes: Vec::new(),
+            column_space_usage: None,
         }
     }
 
@@ -272,9 +285,14 @@ impl FieldUsage {
         self.num_bytes += size
     }
 
+    pub(crate) fn set_column_usage(&mut self, column_space_usage: ColumnSpaceUsage) {
+        self.num_bytes += column_space_usage.total_num_bytes();
+        self.column_space_usage = Some(column_space_usage);
+    }
+
     /// Field
-    pub fn field(&self) -> Field {
-        self.field
+    pub fn field_name(&self) -> &str {
+        &self.field_name
     }
 
     /// Space usage for each index
@@ -282,16 +300,64 @@ impl FieldUsage {
         &self.sub_num_bytes[..]
     }
 
+    /// Returns the number of bytes used by the column payload, if the field is columnar.
+    pub fn column_num_bytes(&self) -> Option<ByteCount> {
+        self.column_space_usage
+            .as_ref()
+            .map(ColumnSpaceUsage::column_num_bytes)
+    }
+
+    /// Returns the number of bytes used by the dictionary for dictionary-encoded columns.
+    pub fn dictionary_num_bytes(&self) -> Option<ByteCount> {
+        self.column_space_usage
+            .as_ref()
+            .and_then(ColumnSpaceUsage::dictionary_num_bytes)
+    }
+
+    /// Returns the space usage of the column, if any.
+    pub fn column_space_usage(&self) -> Option<&ColumnSpaceUsage> {
+        self.column_space_usage.as_ref()
+    }
+
     /// Total bytes used for this field in this context
     pub fn total(&self) -> ByteCount {
         self.num_bytes
+    }
+
+    fn merge(&mut self, other: FieldUsage) {
+        assert_eq!(self.field_name, other.field_name);
+        self.num_bytes += other.num_bytes;
+        if other.sub_num_bytes.len() > self.sub_num_bytes.len() {
+            self.sub_num_bytes.resize(other.sub_num_bytes.len(), None);
+        }
+        for (idx, num_bytes_opt) in other.sub_num_bytes.into_iter().enumerate() {
+            if let Some(num_bytes) = num_bytes_opt {
+                match self.sub_num_bytes[idx] {
+                    Some(existing) => self.sub_num_bytes[idx] = Some(existing + num_bytes),
+                    None => self.sub_num_bytes[idx] = Some(num_bytes),
+                }
+            }
+        }
+        self.column_space_usage =
+            merge_column_space_usage(self.column_space_usage.take(), other.column_space_usage);
+    }
+}
+
+fn merge_column_space_usage(
+    left: Option<ColumnSpaceUsage>,
+    right: Option<ColumnSpaceUsage>,
+) -> Option<ColumnSpaceUsage> {
+    match (left, right) {
+        (Some(lhs), Some(rhs)) => Some(lhs.merge(&rhs)),
+        (Some(space), None) | (None, Some(space)) => Some(space),
+        (None, None) => None,
     }
 }
 
 #[cfg(test)]
 mod test {
     use crate::index::Index;
-    use crate::schema::{Field, Schema, FAST, INDEXED, STORED, TEXT};
+    use crate::schema::{Schema, FAST, INDEXED, STORED, TEXT};
     use crate::space_usage::PerFieldSpaceUsage;
     use crate::{IndexWriter, Term};
 
@@ -307,17 +373,17 @@ mod test {
 
     fn expect_single_field(
         field_space: &PerFieldSpaceUsage,
-        field: &Field,
+        field: &str,
         min_size: u64,
         max_size: u64,
     ) {
         assert!(field_space.total() >= min_size);
         assert!(field_space.total() <= max_size);
         assert_eq!(
-            vec![(field, field_space.total())],
+            vec![(field.to_string(), field_space.total())],
             field_space
                 .fields()
-                .map(|(x, y)| (x, y.total()))
+                .map(|usage| (usage.field_name().to_string(), usage.total()))
                 .collect::<Vec<_>>()
         );
     }
@@ -327,6 +393,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", FAST | INDEXED);
         let schema = schema_builder.build();
+        let field_name = schema.get_field_name(name).to_string();
         let index = Index::create_in_ram(schema);
 
         {
@@ -349,11 +416,11 @@ mod test {
 
         assert_eq!(4, segment.num_docs());
 
-        expect_single_field(segment.termdict(), &name, 1, 512);
-        expect_single_field(segment.postings(), &name, 1, 512);
+        expect_single_field(segment.termdict(), &field_name, 1, 512);
+        expect_single_field(segment.postings(), &field_name, 1, 512);
         assert_eq!(segment.positions().total(), 0);
-        expect_single_field(segment.fast_fields(), &name, 1, 512);
-        expect_single_field(segment.fieldnorms(), &name, 1, 512);
+        expect_single_field(segment.fast_fields(), &field_name, 1, 512);
+        expect_single_field(segment.fieldnorms(), &field_name, 1, 512);
         // TODO: understand why the following fails
         //        assert_eq!(0, segment.store().total());
         assert_eq!(segment.deletes(), 0);
@@ -365,6 +432,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", TEXT);
         let schema = schema_builder.build();
+        let field_name = schema.get_field_name(name).to_string();
         let index = Index::create_in_ram(schema);
 
         {
@@ -389,11 +457,11 @@ mod test {
 
         assert_eq!(4, segment.num_docs());
 
-        expect_single_field(segment.termdict(), &name, 1, 512);
-        expect_single_field(segment.postings(), &name, 1, 512);
-        expect_single_field(segment.positions(), &name, 1, 512);
+        expect_single_field(segment.termdict(), &field_name, 1, 512);
+        expect_single_field(segment.postings(), &field_name, 1, 512);
+        expect_single_field(segment.positions(), &field_name, 1, 512);
         assert_eq!(segment.fast_fields().total(), 0);
-        expect_single_field(segment.fieldnorms(), &name, 1, 512);
+        expect_single_field(segment.fieldnorms(), &field_name, 1, 512);
         // TODO: understand why the following fails
         //        assert_eq!(0, segment.store().total());
         assert_eq!(segment.deletes(), 0);
@@ -429,10 +497,15 @@ mod test {
         assert_eq!(4, segment.num_docs());
 
         assert_eq!(segment.termdict().total(), 0);
+        assert!(segment.termdict().fields().next().is_none());
         assert_eq!(segment.postings().total(), 0);
+        assert!(segment.postings().fields().next().is_none());
         assert_eq!(segment.positions().total(), 0);
+        assert!(segment.positions().fields().next().is_none());
         assert_eq!(segment.fast_fields().total(), 0);
+        assert!(segment.fast_fields().fields().next().is_none());
         assert_eq!(segment.fieldnorms().total(), 0);
+        assert!(segment.fieldnorms().fields().next().is_none());
         assert!(segment.store().total() > 0);
         assert!(segment.store().total() < 512);
         assert_eq!(segment.deletes(), 0);
@@ -444,6 +517,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", INDEXED);
         let schema = schema_builder.build();
+        let field_name = schema.get_field_name(name).to_string();
         let index = Index::create_in_ram(schema);
 
         {
@@ -474,11 +548,11 @@ mod test {
 
         assert_eq!(2, segment_space_usage.num_docs());
 
-        expect_single_field(segment_space_usage.termdict(), &name, 1, 512);
-        expect_single_field(segment_space_usage.postings(), &name, 1, 512);
+        expect_single_field(segment_space_usage.termdict(), &field_name, 1, 512);
+        expect_single_field(segment_space_usage.postings(), &field_name, 1, 512);
         assert_eq!(segment_space_usage.positions().total(), 0u64);
         assert_eq!(segment_space_usage.fast_fields().total(), 0u64);
-        expect_single_field(segment_space_usage.fieldnorms(), &name, 1, 512);
+        expect_single_field(segment_space_usage.fieldnorms(), &field_name, 1, 512);
         assert!(segment_space_usage.deletes() > 0);
         Ok(())
     }
