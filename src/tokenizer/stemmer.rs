@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 /// Available stemmer languages.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone, Hash)]
 #[allow(missing_docs)]
 pub enum Language {
     Arabic,
