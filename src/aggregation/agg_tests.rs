@@ -1005,3 +1005,123 @@ fn test_aggregation_on_json_object_mixed_numerical_segments() {
         )
     );
 }
+
+#[test]
+fn test_aggregation_invalid_field_returns_error() {
+    // Test that aggregations return an error when given an invalid field name
+    let index = get_test_index_2_segments(false).unwrap();
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+
+    // Test with a field that doesn't exist at all
+    let agg_req_str = r#"
+    {
+        "date_histogram_test": {
+            "date_histogram": {
+                "field": "not_valid_field",
+                "fixed_interval": "30d"
+            }
+        }
+    }"#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let collector = get_collector(agg);
+    let result = searcher.search(&AllQuery, &collector);
+
+    assert!(result.is_err());
+    match result {
+        Err(crate::TantivyError::FieldNotFound(field_name)) => {
+            assert_eq!(field_name, "not_valid_field");
+        }
+        _ => panic!("Expected FieldNotFound error, got: {:?}", result),
+    }
+
+    // Test with histogram aggregation on invalid field
+    let agg_req_str = r#"
+    {
+        "histogram_test": {
+            "histogram": {
+                "field": "invalid_histogram_field",
+                "interval": 10.0
+            }
+        }
+    }"#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let collector = get_collector(agg);
+    let result = searcher.search(&AllQuery, &collector);
+
+    assert!(result.is_err());
+    match result {
+        Err(crate::TantivyError::FieldNotFound(field_name)) => {
+            assert_eq!(field_name, "invalid_histogram_field");
+        }
+        _ => panic!("Expected FieldNotFound error, got: {:?}", result),
+    }
+
+    // Test with terms aggregation on invalid field
+    let agg_req_str = r#"
+    {
+        "terms_test": {
+            "terms": {
+                "field": "invalid_terms_field"
+            }
+        }
+    }"#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let collector = get_collector(agg);
+    let result = searcher.search(&AllQuery, &collector);
+
+    assert!(result.is_err());
+    match result {
+        Err(crate::TantivyError::FieldNotFound(field_name)) => {
+            assert_eq!(field_name, "invalid_terms_field");
+        }
+        _ => panic!("Expected FieldNotFound error, got: {:?}", result),
+    }
+
+    // Test with avg metric aggregation on invalid field
+    let agg_req_str = r#"
+    {
+        "avg_test": {
+            "avg": {
+                "field": "invalid_avg_field"
+            }
+        }
+    }"#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let collector = get_collector(agg);
+    let result = searcher.search(&AllQuery, &collector);
+
+    assert!(result.is_err());
+    match result {
+        Err(crate::TantivyError::FieldNotFound(field_name)) => {
+            assert_eq!(field_name, "invalid_avg_field");
+        }
+        _ => panic!("Expected FieldNotFound error, got: {:?}", result),
+    }
+
+    // Test with range aggregation on invalid field
+    let agg_req_str = r#"
+    {
+        "range_test": {
+            "range": {
+                "field": "invalid_range_field",
+                "ranges": [
+                    { "to": 10.0 },
+                    { "from": 10.0, "to": 20.0 },
+                    { "from": 20.0 }
+                ]
+            }
+        }
+    }"#;
+    let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
+    let collector = get_collector(agg);
+    let result = searcher.search(&AllQuery, &collector);
+
+    assert!(result.is_err());
+    match result {
+        Err(crate::TantivyError::FieldNotFound(field_name)) => {
+            assert_eq!(field_name, "invalid_range_field");
+        }
+        _ => panic!("Expected FieldNotFound error, got: {:?}", result),
+    }
+}
