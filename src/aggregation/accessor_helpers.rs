@@ -55,22 +55,44 @@ pub(crate) fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
     ]
 }
 
-/// Get fast field reader or empty as default.
+/// Get fast field reader or return an error if the field doesn't exist.
 pub(crate) fn get_ff_reader(
     reader: &SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
 ) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
     let ff_fields = reader.fast_fields();
-    let ff_field_with_type = ff_fields
-        .u64_lenient_for_type(allowed_column_types, field_name)?
-        .unwrap_or_else(|| {
-            (
+    let ff_field_with_type = ff_fields.u64_lenient_for_type(allowed_column_types, field_name)?;
+
+    match ff_field_with_type {
+        Some(field) => Ok(field),
+        None => {
+            // Check if the field exists in the schema but is not a fast field
+            let schema = reader.schema();
+            if let Some((field, _path)) = schema.find_field(field_name) {
+                let field_type = schema.get_field_entry(field).field_type();
+                if !field_type.is_fast() {
+                    return Err(crate::TantivyError::SchemaError(format!(
+                        "Field '{}' is not a fast field. Aggregations require fast fields.",
+                        field_name
+                    )));
+                }
+            }
+
+            // Field doesn't exist at all or has no values in this segment
+            // Check if it exists in schema to provide a better error message
+            if schema.find_field(field_name).is_none() {
+                return Err(crate::TantivyError::FieldNotFound(field_name.to_string()));
+            }
+
+            // Field exists in schema and is a fast field, but has no values in this segment
+            // This is acceptable - return an empty column
+            Ok((
                 Column::build_empty_column(reader.num_docs()),
                 ColumnType::U64,
-            )
-        });
-    Ok(ff_field_with_type)
+            ))
+        }
+    }
 }
 
 pub(crate) fn get_dynamic_columns(
@@ -89,6 +111,7 @@ pub(crate) fn get_dynamic_columns(
 /// Get all fast field reader or empty as default.
 ///
 /// Is guaranteed to return at least one column.
+/// Returns an error if the field doesn't exist in the schema or is not a fast field.
 pub(crate) fn get_all_ff_reader_or_empty(
     reader: &SegmentReader,
     field_name: &str,
@@ -98,7 +121,25 @@ pub(crate) fn get_all_ff_reader_or_empty(
     let ff_fields = reader.fast_fields();
     let mut ff_field_with_type =
         ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
+
     if ff_field_with_type.is_empty() {
+        // Check if the field exists in the schema but is not a fast field
+        let schema = reader.schema();
+        if let Some((field, _path)) = schema.find_field(field_name) {
+            let field_type = schema.get_field_entry(field).field_type();
+            if !field_type.is_fast() {
+                return Err(crate::TantivyError::SchemaError(format!(
+                    "Field '{}' is not a fast field. Aggregations require fast fields.",
+                    field_name
+                )));
+            }
+        } else {
+            // Field doesn't exist in the schema at all
+            return Err(crate::TantivyError::FieldNotFound(field_name.to_string()));
+        }
+
+        // Field exists in schema and is a fast field, but has no values in this segment
+        // This is acceptable - return an empty column
         ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
     }
     Ok(ff_field_with_type)
