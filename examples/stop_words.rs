@@ -102,7 +102,7 @@ fn main() -> tantivy::Result<()> {
     // stop words are applied on the query as well.
     // The following will be equivalent to `title:frankenstein`
     let query = query_parser.parse_query("title:\"the Frankenstein\"")?;
-    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
 
     for (score, doc_address) in top_docs {
         let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;

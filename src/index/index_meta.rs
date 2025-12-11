@@ -13,9 +13,9 @@ use crate::store::Compressor;
 use crate::{Inventory, Opstamp, TrackedObject};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct DeleteMeta {
+pub struct DeleteMeta {
     num_deleted_docs: u32,
-    opstamp: Opstamp,
+    pub opstamp: Opstamp,
 }
 
 #[derive(Clone, Default)]
@@ -213,7 +213,7 @@ impl SegmentMeta {
 struct InnerSegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,
-    deletes: Option<DeleteMeta>,
+    pub deletes: Option<DeleteMeta>,
     /// If you want to avoid the SegmentComponent::TempStore file to be covered by
     /// garbage collection and deleted, set this to true. This is used during merge.
     #[serde(skip)]
@@ -276,13 +276,14 @@ impl Default for IndexSettings {
 }
 
 /// The order to sort by
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Order {
     /// Ascending Order
     Asc,
     /// Descending Order
     Desc,
 }
+
 impl Order {
     /// return if the Order is ascending
     pub fn is_asc(&self) -> bool {

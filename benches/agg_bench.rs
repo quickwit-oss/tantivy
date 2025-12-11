@@ -1,5 +1,6 @@
 use binggan::plugins::PeakMemAllocPlugin;
 use binggan::{black_box, InputGroup, PeakMemAlloc, INSTRUMENTED_SYSTEM};
+use rand::distributions::WeightedIndex;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -54,12 +55,18 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, extendedstats_f64);
     register!(group, percentiles_f64);
     register!(group, terms_few);
+    register!(group, terms_all_unique);
     register!(group, terms_many);
     register!(group, terms_many_top_1000);
     register!(group, terms_many_order_by_term);
     register!(group, terms_many_with_top_hits);
+    register!(group, terms_all_unique_with_avg_sub_agg);
     register!(group, terms_many_with_avg_sub_agg);
     register!(group, terms_few_with_avg_sub_agg);
+    register!(group, terms_status_with_avg_sub_agg);
+    register!(group, terms_status);
+    register!(group, terms_few_with_histogram);
+    register!(group, terms_status_with_histogram);
 
     register!(group, terms_many_json_mixed_type_with_avg_sub_agg);
 
@@ -132,12 +139,12 @@ fn extendedstats_f64(index: &Index) {
 }
 fn percentiles_f64(index: &Index) {
     let agg_req = json!({
-      "mypercentiles": {
-        "percentiles": {
-          "field": "score_f64",
-          "percents": [ 95, 99, 99.9 ]
+        "mypercentiles": {
+            "percentiles": {
+                "field": "score_f64",
+                "percents": [ 95, 99, 99.9 ]
+            }
         }
-      }
     });
     execute_agg(index, agg_req);
 }
@@ -174,6 +181,19 @@ fn terms_few(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+fn terms_status(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "terms": { "field": "text_few_terms_status" } },
+    });
+    execute_agg(index, agg_req);
+}
+fn terms_all_unique(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "terms": { "field": "text_all_unique_terms" } },
+    });
+    execute_agg(index, agg_req);
+}
+
 fn terms_many(index: &Index) {
     let agg_req = json!({
         "my_texts": { "terms": { "field": "text_many_terms" } },
@@ -222,11 +242,55 @@ fn terms_many_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+fn terms_all_unique_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_all_unique_terms" },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+fn terms_few_with_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms" },
+            "aggs": {
+                "histo": {"histogram": { "field": "score_f64", "interval": 10 }}
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+fn terms_status_with_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "histo": {"histogram": { "field": "score_f64", "interval": 10 }}
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
 
 fn terms_few_with_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
             "terms": { "field": "text_few_terms" },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+fn terms_status_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
             "aggs": {
                 "average_f64": { "avg": { "field": "score_f64" } }
             }
@@ -419,14 +483,21 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         .set_stored();
     let text_field = schema_builder.add_text_field("text", text_fieldtype);
     let json_field = schema_builder.add_json_field("json", FAST);
+    let text_field_all_unique_terms =
+        schema_builder.add_text_field("text_all_unique_terms", STRING | FAST);
+    let text_field_many_terms = schema_builder.add_text_field("text_many_terms", STRING | FAST);
     let text_field_many_terms = schema_builder.add_text_field("text_many_terms", STRING | FAST);
     let text_field_few_terms = schema_builder.add_text_field("text_few_terms", STRING | FAST);
+    let text_field_few_terms_status =
+        schema_builder.add_text_field("text_few_terms_status", STRING | FAST);
     let score_fieldtype = tantivy::schema::NumericOptions::default().set_fast();
     let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
     let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
     let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
     let index = Index::create_from_tempdir(schema_builder.build())?;
     let few_terms_data = ["INFO", "ERROR", "WARN", "DEBUG"];
+    // Approximate production log proportions: INFO dominant, WARN and DEBUG occasional, ERROR rare.
+    let log_level_distribution = WeightedIndex::new([80u32, 3, 12, 5]).unwrap();
 
     let lg_norm = rand_distr::LogNormal::new(2.996f64, 0.979f64).unwrap();
 
@@ -442,15 +513,21 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             index_writer.add_document(doc!())?;
         }
         if cardinality == Cardinality::Multivalued {
+            let log_level_sample_a = few_terms_data[log_level_distribution.sample(&mut rng)];
+            let log_level_sample_b = few_terms_data[log_level_distribution.sample(&mut rng)];
             index_writer.add_document(doc!(
                 json_field => json!({"mixed_type": 10.0}),
                 json_field => json!({"mixed_type": 10.0}),
                 text_field => "cool",
                 text_field => "cool",
+                text_field_all_unique_terms => "cool",
+                text_field_all_unique_terms => "coolo",
                 text_field_many_terms => "cool",
                 text_field_many_terms => "cool",
                 text_field_few_terms => "cool",
                 text_field_few_terms => "cool",
+                text_field_few_terms_status => log_level_sample_a,
+                text_field_few_terms_status => log_level_sample_b,
                 score_field => 1u64,
                 score_field => 1u64,
                 score_field_f64 => lg_norm.sample(&mut rng),
@@ -475,8 +552,10 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             index_writer.add_document(doc!(
                 text_field => "cool",
                 json_field => json,
+                text_field_all_unique_terms => format!("unique_term_{}", rng.gen::<u64>()),
                 text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
                 text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
+                text_field_few_terms_status => few_terms_data[log_level_distribution.sample(&mut rng)],
                 score_field => val as u64,
                 score_field_f64 => lg_norm.sample(&mut rng),
                 score_field_i64 => val as i64,

@@ -513,7 +513,7 @@ impl<D: Document> IndexWriter<D> {
     ///     let searcher = index.reader()?.searcher();
     ///     let query_parser = QueryParser::for_index(&index, vec![title]);
     ///     let query_promo = query_parser.parse_query("Prometheus")?;
-    ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1))?;
+    ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1).order_by_score())?;
     ///
     ///     assert!(top_docs_promo.is_empty());
     ///     Ok(())
@@ -946,11 +946,11 @@ mod tests {
         let searcher = reader.searcher();
 
         let a_docs = searcher
-            .search(&a_query, &TopDocs::with_limit(1))
+            .search(&a_query, &TopDocs::with_limit(1).order_by_score())
             .expect("search for a failed");
 
         let b_docs = searcher
-            .search(&b_query, &TopDocs::with_limit(1))
+            .search(&b_query, &TopDocs::with_limit(1).order_by_score())
             .expect("search for b failed");
 
         assert_eq!(a_docs.len(), 1);
@@ -2014,8 +2014,9 @@ mod tests {
             let query = QueryParser::for_index(&index, vec![field])
                 .parse_query(term)
                 .unwrap();
-            let top_docs: Vec<(f32, DocAddress)> =
-                searcher.search(&query, &TopDocs::with_limit(1000)).unwrap();
+            let top_docs: Vec<(f32, DocAddress)> = searcher
+                .search(&query, &TopDocs::with_limit(1000).order_by_score())
+                .unwrap();
 
             top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
         };
@@ -2449,8 +2450,9 @@ mod tests {
             Term::from_field_u64(id_field, existing_id),
             IndexRecordOption::Basic,
         );
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+        let top_docs: Vec<(f32, DocAddress)> = searcher
+            .search(&query, &TopDocs::with_limit(10).order_by_score())
+            .unwrap();
 
         assert_eq!(top_docs.len(), 1); // Was failing
 
@@ -2491,8 +2493,9 @@ mod tests {
             Term::from_field_i64(id_field, 10i64),
             IndexRecordOption::Basic,
         );
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+        let top_docs: Vec<(f32, DocAddress)> = searcher
+            .search(&query, &TopDocs::with_limit(10).order_by_score())
+            .unwrap();
 
         assert_eq!(top_docs.len(), 1); // Fails
 
@@ -2500,8 +2503,9 @@ mod tests {
             Term::from_field_i64(id_field, 30i64),
             IndexRecordOption::Basic,
         );
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+        let top_docs: Vec<(f32, DocAddress)> = searcher
+            .search(&query, &TopDocs::with_limit(10).order_by_score())
+            .unwrap();
 
         assert_eq!(top_docs.len(), 1); // Fails
 

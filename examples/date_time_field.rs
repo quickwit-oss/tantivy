@@ -50,14 +50,14 @@ fn main() -> tantivy::Result<()> {
     {
         // Simple exact search on the date
         let query = query_parser.parse_query("occurred_at:\"2022-06-22T12:53:50.53Z\"")?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(5))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(5).order_by_score())?;
         assert_eq!(count_docs.len(), 1);
     }
     {
         // Range query on the date field
         let query = query_parser
             .parse_query(r#"occurred_at:[2022-06-22T12:58:00Z TO 2022-06-23T00:00:00Z}"#)?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(4))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(4).order_by_score())?;
         assert_eq!(count_docs.len(), 1);
         for (_score, doc_address) in count_docs {
             let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;

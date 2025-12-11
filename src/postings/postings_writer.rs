@@ -11,7 +11,7 @@ use crate::postings::recorder::{BufferLender, Recorder};
 use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
 };
-use crate::schema::{Field, Schema, Term, Type};
+use crate::schema::{Field, Schema, Type};
 use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
 use crate::DocId;
 
@@ -59,14 +59,14 @@ pub(crate) fn serialize_postings(
     let mut term_offsets: Vec<(Field, OrderedPathId, &[u8], Addr)> =
         Vec::with_capacity(ctx.term_index.len());
     term_offsets.extend(ctx.term_index.iter().map(|(key, addr)| {
-        let field = Term::wrap(key).field();
+        let field = IndexingTerm::wrap(key).field();
         if schema.get_field_entry(field).field_type().value_type() == Type::Json {
-            let byte_range_path = 5..5 + 4;
+            let byte_range_path = 4..4 + 4;
             let unordered_id = u32::from_be_bytes(key[byte_range_path.clone()].try_into().unwrap());
             let path_id = unordered_id_to_ordered_id[unordered_id as usize];
             (field, path_id, &key[byte_range_path.end..], addr)
         } else {
-            (field, 0.into(), &key[5..], addr)
+            (field, 0.into(), &key[4..], addr)
         }
     }));
     // Sort by field, path, and term

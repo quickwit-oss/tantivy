@@ -5,7 +5,7 @@ use std::ops::Range;
 use common::{BinarySerializable, CountingWriter, HasLen, VInt};
 
 use crate::directory::{FileSlice, TerminatingWrite, WritePtr};
-use crate::schema::Field;
+use crate::schema::{Field, Schema};
 use crate::space_usage::{FieldUsage, PerFieldSpaceUsage};
 
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
@@ -167,10 +167,11 @@ impl CompositeFile {
             .map(|byte_range| self.data.slice(byte_range.clone()))
     }
 
-    pub fn space_usage(&self) -> PerFieldSpaceUsage {
+    pub fn space_usage(&self, schema: &Schema) -> PerFieldSpaceUsage {
         let mut fields = Vec::new();
         for (&field_addr, byte_range) in &self.offsets_index {
-            let mut field_usage = FieldUsage::empty(field_addr.field);
+            let field_name = schema.get_field_name(field_addr.field).to_string();
+            let mut field_usage = FieldUsage::empty(field_name);
             field_usage.add_field_idx(field_addr.idx, byte_range.len().into());
             fields.push(field_usage);
         }

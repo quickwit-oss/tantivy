@@ -48,7 +48,7 @@ pub use columnar::{
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 
-pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
+pub use self::dynamic_column::{ColumnSpaceUsage, DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 pub type DocId = u32;

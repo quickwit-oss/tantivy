@@ -59,12 +59,12 @@ fn main() -> tantivy::Result<()> {
     let query_parser = QueryParser::for_index(&index, vec![event_type, attributes]);
     {
         let query = query_parser.parse_query("target:submit-button")?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(count_docs.len(), 2);
     }
     {
         let query = query_parser.parse_query("target:submit")?;
-        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let count_docs = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(count_docs.len(), 2);
     }
     {
@@ -74,33 +74,33 @@ fn main() -> tantivy::Result<()> {
     }
     {
         let query = query_parser.parse_query("click AND cart.product_id:133")?;
-        let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let hits = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(hits.len(), 1);
     }
     {
         // The sub-fields in the json field marked as default field still need to be explicitly
         // addressed
         let query = query_parser.parse_query("click AND 133")?;
-        let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let hits = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(hits.len(), 0);
     }
     {
         // Default json fields are ignored if they collide with the schema
         let query = query_parser.parse_query("event_type:holiday-sale")?;
-        let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let hits = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(hits.len(), 0);
     }
     // # Query via full attribute path
     {
         // This only searches in our schema's `event_type` field
         let query = query_parser.parse_query("event_type:click")?;
-        let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let hits = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(hits.len(), 2);
     }
     {
         // Default json fields can still be accessed by full path
         let query = query_parser.parse_query("attributes.event_type:holiday-sale")?;
-        let hits = searcher.search(&*query, &TopDocs::with_limit(2))?;
+        let hits = searcher.search(&*query, &TopDocs::with_limit(2).order_by_score())?;
         assert_eq!(hits.len(), 1);
     }
     Ok(())
