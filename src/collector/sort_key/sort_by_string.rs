@@ -30,9 +30,7 @@ impl SortByString {
 
 impl SortKeyComputer for SortByString {
     type SortKey = Option<String>;
-
     type Child = ByStringColumnSegmentSortKeyComputer;
-
     type Comparator = NaturalComparator;
 
     fn segment_sort_key_computer(
@@ -50,8 +48,8 @@ pub struct ByStringColumnSegmentSortKeyComputer {
 
 impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
     type SortKey = Option<String>;
-
     type SegmentSortKey = Option<TermOrdinal>;
+    type SegmentComparator = NaturalComparator;
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Option<TermOrdinal> {
