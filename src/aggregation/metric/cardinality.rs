@@ -236,15 +236,11 @@ impl SegmentCardinalityCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) {
-        if let Some(missing) = self.missing_value_for_accessor {
-            agg_data
-                .column_block_accessor
-                .fetch_block_with_missing(docs, &self.accessor, missing);
-        } else {
-            agg_data
-                .column_block_accessor
-                .fetch_block(docs, &self.accessor);
-        }
+        agg_data.column_block_accessor.fetch_block_with_missing(
+            docs,
+            &self.accessor,
+            self.missing_value_for_accessor,
+        );
     }
 }
 

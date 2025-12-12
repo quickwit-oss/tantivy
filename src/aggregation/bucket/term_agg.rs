@@ -803,17 +803,11 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
 
         let req_data = &mut self.terms_req_data;
 
-        if let Some(missing) = req_data.missing_value_for_accessor {
-            agg_data.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &req_data.accessor,
-                missing,
-            );
-        } else {
-            agg_data
-                .column_block_accessor
-                .fetch_block(docs, &req_data.accessor);
-        }
+        agg_data.column_block_accessor.fetch_block_with_missing(
+            docs,
+            &req_data.accessor,
+            req_data.missing_value_for_accessor,
+        );
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];

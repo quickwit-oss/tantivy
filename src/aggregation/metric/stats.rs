@@ -285,15 +285,11 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
 
             return Ok(());
         }
-        if let Some(missing) = self.missing_u64.as_ref() {
-            agg_data
-                .column_block_accessor
-                .fetch_block_with_missing(docs, &self.accessor, *missing);
-        } else {
-            agg_data
-                .column_block_accessor
-                .fetch_block(docs, &self.accessor);
-        }
+        agg_data.column_block_accessor.fetch_block_with_missing(
+            docs,
+            &self.accessor,
+            self.missing_u64,
+        );
         collect_stats::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
             agg_data.column_block_accessor.iter_vals(),
