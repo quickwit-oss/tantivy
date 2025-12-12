@@ -20,7 +20,6 @@ use crate::collector::sort_key::ReverseComparator;
 use crate::collector::TopNComputer;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
-// duplicate import removed; already imported above
 
 /// Contains all information required by the TopHitsSegmentCollector to perform the
 /// top_hits aggregation on a segment.

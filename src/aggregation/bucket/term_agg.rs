@@ -333,6 +333,10 @@ impl TermsAggregationInternal {
     }
 }
 
+/// The treshold for maximum number of terms to use a Vec-backed bucket storage.
+/// TODO: Benchmark to validate the threshold
+pub const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
+
 /// Build a concrete `SegmentTermCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.
 pub(crate) fn build_segment_term_collector(
@@ -366,15 +370,10 @@ pub(crate) fn build_segment_term_collector(
     // Build sub-aggregation blueprint if there are children.
     let has_sub_aggregations = !node.children.is_empty();
 
-    // Decide whether to use a Vec-backed or HashMap-backed bucket storage.
-
     // TODO: A better metric instead of is_top_level would be the number of buckets expected.
     // E.g. If term agg is not top level, but the parent is a bucket agg with less than 10 buckets,
     // we can still use Vec.
     let is_top_level = terms_req_data.is_top_level;
-
-    // TODO: Benchmark to validate the threshold
-    const MAX_NUM_TERMS_FOR_VEC: u64 = 100;
 
     // Let's see if we can use a vec to aggregate our data
     // instead of a hashmap.
@@ -389,8 +388,7 @@ pub(crate) fn build_segment_term_collector(
     };
 
     let mut bucket_id_provider = BucketIdProvider::default();
-    // - use a Vec instead of a hashmap for our aggregation.
-
+    // Decide which bucket storage is best suited for this aggregation.
     if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
         let term_buckets = VecTermBucketsNoAgg::new(max_term_id + 1, &mut bucket_id_provider);
         let collector: SegmentTermCollector<_, true> = SegmentTermCollector {

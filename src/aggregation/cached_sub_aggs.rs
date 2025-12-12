@@ -1,5 +1,6 @@
 use super::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
+use crate::aggregation::bucket::MAX_NUM_TERMS_FOR_VEC;
 use crate::aggregation::BucketId;
 use crate::DocId;
 
@@ -28,9 +29,13 @@ pub(crate) struct CachedSubAggs<const LOWCARD: bool = false> {
     /// The outer Vec is indexed by BucketId.
     per_bucket_docs: Vec<Vec<DocId>>,
     /// Only used when LOWCARD is false.
-    /// For higher cardinalities we use a partitioned approach to store
     ///
-    /// partitioned Vec<(BucketId, DocId)> pairs to improve grouping locality.
+    /// This weird partitioning is used to do some cheap grouping on the bucket ids.
+    /// bucket ids are dense, e.g. when we don't detect the cardinality as low cardinality,
+    /// but there are just 16 bucket ids, each bucket id will go to its own partition.
+    ///
+    /// We want to keep this cheap, because high cardinality aggregations can have a lot of
+    /// buckets, and they may be nothing to group.
     partitions: [PartitionEntry; NUM_PARTITIONS],
     pub(crate) sub_agg_collector: Box<dyn SegmentAggregationCollector>,
     num_docs: usize,
@@ -110,7 +115,12 @@ impl<const LOWCARD: bool> CachedSubAggs<LOWCARD> {
             // the FLUSH_THRESHOLD, but never flush any buckets. (except the final flush)
             let mut bucket_treshold = FLUSH_THRESHOLD / (self.per_bucket_docs.len().max(1) * 2);
             const _: () = {
-                assert!(std::mem::size_of::<u64>() == 8, "expected 64-bit u64");
+                // MAX_NUM_TERMS_FOR_VEC == LOWCARD threshold
+                let bucket_treshold = FLUSH_THRESHOLD / (MAX_NUM_TERMS_FOR_VEC as usize * 2);
+                assert!(
+                    bucket_treshold > 0,
+                    "Bucket threshold must be greater than 0"
+                );
             };
             if force {
                 bucket_treshold = 0;

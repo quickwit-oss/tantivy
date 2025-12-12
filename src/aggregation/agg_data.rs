@@ -868,7 +868,7 @@ fn build_terms_or_cardinality_nodes(
         });
     }
 
-    // Add one node per accessor to mirror previous behavior and allow per-type missing handling.
+    // Add one node per accessor
     for (accessor, column_type) in column_and_types {
         let missing_value_for_accessor = if use_special_missing_agg {
             None
