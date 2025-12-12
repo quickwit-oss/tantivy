@@ -4,8 +4,8 @@ use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{
-    Column, ColumnBlockAccessor, ColumnType, Dictionary, MonotonicallyMappableToU128,
-    MonotonicallyMappableToU64, NumericalValue, StrColumn,
+    Column, ColumnType, Dictionary, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+    NumericalValue, StrColumn,
 };
 use common::{BitSet, TinySet};
 use rustc_hash::FxHashMap;
@@ -39,8 +39,6 @@ pub struct TermsAggReqData {
     pub str_dict_column: Option<StrColumn>,
     /// The missing value as u64 value.
     pub missing_value_for_accessor: Option<u64>,
-    /// The column block accessor to access the fast field values.
-    pub column_block_accessor: ColumnBlockAccessor<u64>,
     /// Used to build the correct nested result when we have an empty result.
     pub sug_aggregations: Aggregations,
     /// The name of the aggregation.
@@ -806,20 +804,20 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
         let req_data = &mut self.terms_req_data;
 
         if let Some(missing) = req_data.missing_value_for_accessor {
-            req_data.column_block_accessor.fetch_block_with_missing(
+            agg_data.column_block_accessor.fetch_block_with_missing(
                 docs,
                 &req_data.accessor,
                 missing,
             );
         } else {
-            req_data
+            agg_data
                 .column_block_accessor
                 .fetch_block(docs, &req_data.accessor);
         }
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
-            let it = req_data
+            let it = agg_data
                 .column_block_accessor
                 .iter_docid_vals(docs, &req_data.accessor);
             if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
@@ -840,7 +838,7 @@ impl<TermMap: TermAggregationMap, const LOWCARD: bool> SegmentAggregationCollect
             }
         } else {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
-            let it = req_data.column_block_accessor.iter_vals();
+            let it = agg_data.column_block_accessor.iter_vals();
             if let Some(allowed_bs) = req_data.allowed_term_ids.as_ref() {
                 let it = it.filter(move |&term_id| allowed_bs.contains(term_id as u32));
                 Self::collect_terms(it, term_buckets, &mut self.bucket_id_provider);

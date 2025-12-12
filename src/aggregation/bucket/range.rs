@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::Range;
 
-use columnar::{Column, ColumnBlockAccessor, ColumnType};
+use columnar::{Column, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
@@ -25,8 +25,6 @@ pub struct RangeAggReqData {
     pub accessor: Column<u64>,
     /// The type of the fast field.
     pub field_type: ColumnType,
-    /// The column block accessor to access the fast field values.
-    pub column_block_accessor: ColumnBlockAccessor<u64>,
     /// The range aggregation request.
     pub req: RangeAggregation,
     /// The name of the aggregation.
@@ -280,13 +278,15 @@ impl<const LOWCARD: bool> SegmentAggregationCollector for SegmentRangeCollector<
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mut req = agg_data.take_range_req_data(self.accessor_idx);
+        let req = agg_data.take_range_req_data(self.accessor_idx);
 
-        req.column_block_accessor.fetch_block(docs, &req.accessor);
+        agg_data
+            .column_block_accessor
+            .fetch_block(docs, &req.accessor);
 
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize];
 
-        for (doc, val) in req
+        for (doc, val) in agg_data
             .column_block_accessor
             .iter_docid_vals(docs, &req.accessor)
         {

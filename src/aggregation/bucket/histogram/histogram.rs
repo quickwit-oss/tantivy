@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use columnar::{Column, ColumnBlockAccessor, ColumnType};
+use columnar::{Column, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
@@ -26,8 +26,6 @@ pub struct HistogramAggReqData {
     pub accessor: Column<u64>,
     /// The field type of the fast field.
     pub field_type: ColumnType,
-    /// The column block accessor to access the fast field values.
-    pub column_block_accessor: ColumnBlockAccessor<u64>,
     /// The name of the aggregation.
     pub name: String,
     /// The histogram aggregation request.
@@ -325,7 +323,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mut req = agg_data.take_histogram_req_data(self.accessor_idx);
+        let req = agg_data.take_histogram_req_data(self.accessor_idx);
         let mem_pre = self.get_memory_consumption();
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize].buckets;
 
@@ -334,8 +332,10 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         let offset = req.offset;
         let get_bucket_pos = |val| get_bucket_pos_f64(val, interval, offset) as i64;
 
-        req.column_block_accessor.fetch_block(docs, &req.accessor);
-        for (doc, val) in req
+        agg_data
+            .column_block_accessor
+            .fetch_block(docs, &req.accessor);
+        for (doc, val) in agg_data
             .column_block_accessor
             .iter_docid_vals(docs, &req.accessor)
         {

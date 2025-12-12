@@ -1,4 +1,4 @@
-use columnar::{Column, ColumnType, StrColumn};
+use columnar::{Column, ColumnBlockAccessor, ColumnType, StrColumn};
 use common::BitSet;
 use rustc_hash::FxHashSet;
 use serde::Serialize;
@@ -35,6 +35,7 @@ pub struct AggregationsSegmentCtx {
     /// Request data for each aggregation type.
     pub per_request: PerRequestAggSegCtx,
     pub context: AggContextParams,
+    pub column_block_accessor: ColumnBlockAccessor<u64>,
 }
 
 impl AggregationsSegmentCtx {
@@ -371,6 +372,8 @@ pub(crate) fn build_segment_agg_collector(
             Ok(Box::new(SegmentCardinalityCollector::from_req(
                 req_data.column_type,
                 node.idx_in_req_data,
+                req_data.accessor.clone(),
+                req_data.missing_value_for_accessor,
             )))
         }
         AggKind::StatsKind(stats_type) => {
@@ -385,9 +388,17 @@ pub(crate) fn build_segment_agg_collector(
                 StatsType::ExtendedStats(sigma) => Ok(Box::new(
                     SegmentExtendedStatsCollector::from_req(req_data, sigma),
                 )),
-                StatsType::Percentiles => Ok(Box::new(
-                    SegmentPercentilesCollector::from_req_and_validate(node.idx_in_req_data)?,
-                )),
+                StatsType::Percentiles => {
+                    let req_data = req.get_metric_req_data_mut(node.idx_in_req_data);
+                    Ok(Box::new(
+                        SegmentPercentilesCollector::from_req_and_validate(
+                            req_data.field_type,
+                            req_data.missing_u64,
+                            req_data.accessor.clone(),
+                            node.idx_in_req_data,
+                        ),
+                    ))
+                }
             }
         }
         AggKind::TopHits => {
@@ -467,6 +478,7 @@ pub(crate) fn build_aggregations_data_from_req(
     let mut data = AggregationsSegmentCtx {
         per_request: Default::default(),
         context,
+        column_block_accessor: ColumnBlockAccessor::default(),
     };
 
     for (name, agg) in aggs.iter() {
@@ -495,7 +507,6 @@ fn build_nodes(
             let idx_in_req_data = data.push_range_req_data(RangeAggReqData {
                 accessor,
                 field_type,
-                column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
                 req: range_req.clone(),
                 is_top_level,
@@ -516,7 +527,6 @@ fn build_nodes(
             let idx_in_req_data = data.push_histogram_req_data(HistogramAggReqData {
                 accessor,
                 field_type,
-                column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
                 req: histo_req.clone(),
                 is_date_histogram: false,
@@ -542,7 +552,6 @@ fn build_nodes(
             let idx_in_req_data = data.push_histogram_req_data(HistogramAggReqData {
                 accessor,
                 field_type,
-                column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
                 req: histo_req,
                 is_date_histogram: true,
@@ -623,7 +632,6 @@ fn build_nodes(
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
                 accessor,
                 field_type,
-                column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
                 collecting_for,
                 missing: *missing,
@@ -651,7 +659,6 @@ fn build_nodes(
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
                 accessor,
                 field_type,
-                column_block_accessor: Default::default(),
                 name: agg_name.to_string(),
                 collecting_for: StatsType::Percentiles,
                 missing: percentiles_req.missing,
@@ -899,7 +906,6 @@ fn build_terms_or_cardinality_nodes(
                     column_type,
                     str_dict_column: str_dict_column.clone(),
                     missing_value_for_accessor,
-                    column_block_accessor: Default::default(),
                     name: agg_name.to_string(),
                     req: TermsAggregationInternal::from_req(req),
                     sug_aggregations: sub_aggs.clone(),
@@ -914,7 +920,6 @@ fn build_terms_or_cardinality_nodes(
                     column_type,
                     str_dict_column: str_dict_column.clone(),
                     missing_value_for_accessor,
-                    column_block_accessor: Default::default(),
                     name: agg_name.to_string(),
                     req: req.clone(),
                 });

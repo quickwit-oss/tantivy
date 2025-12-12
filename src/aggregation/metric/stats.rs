@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use columnar::{Column, ColumnBlockAccessor, ColumnType};
+use columnar::{Column, ColumnType};
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -195,7 +195,6 @@ fn create_collector<const TYPE_ID: u8>(
         collecting_for: req.collecting_for,
         is_number_or_date_type: req.is_number_or_date_type,
         missing_u64: req.missing_u64,
-        column_block_accessor: req.column_block_accessor.clone(),
         accessor: req.accessor.clone(),
         buckets: vec![IntermediateStats::default()],
     })
@@ -222,7 +221,6 @@ pub(crate) fn build_segment_stats_collector(
 pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
     pub(crate) missing_u64: Option<u64>,
     pub(crate) accessor: Column<u64>,
-    pub(crate) column_block_accessor: ColumnBlockAccessor<u64>,
     pub(crate) is_number_or_date_type: bool,
     pub(crate) buckets: Vec<IntermediateStats>,
     pub(crate) name: String,
@@ -275,7 +273,7 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
         &mut self,
         parent_bucket_id: BucketId,
         docs: &[crate::DocId],
-        _agg_data: &mut AggregationsSegmentCtx,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         // TODO: remove once we fetch all values for all bucket ids in one go
         if docs.len() == 1 && self.missing_u64.is_none() {
@@ -288,14 +286,17 @@ impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
             return Ok(());
         }
         if let Some(missing) = self.missing_u64.as_ref() {
-            self.column_block_accessor
+            agg_data
+                .column_block_accessor
                 .fetch_block_with_missing(docs, &self.accessor, *missing);
         } else {
-            self.column_block_accessor.fetch_block(docs, &self.accessor);
+            agg_data
+                .column_block_accessor
+                .fetch_block(docs, &self.accessor);
         }
         collect_stats::<COLUMN_TYPE_ID>(
             &mut self.buckets[parent_bucket_id as usize],
-            self.column_block_accessor.iter_vals(),
+            agg_data.column_block_accessor.iter_vals(),
             self.is_number_or_date_type,
         )?;
 

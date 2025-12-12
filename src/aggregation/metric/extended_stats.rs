@@ -323,7 +323,6 @@ pub(crate) struct SegmentExtendedStatsCollector {
     missing: Option<u64>,
     field_type: ColumnType,
     accessor: columnar::Column<u64>,
-    column_block_accessor: columnar::ColumnBlockAccessor<u64>,
     buckets: Vec<IntermediateExtendedStats>,
     sigma: Option<f64>,
 }
@@ -337,7 +336,6 @@ impl SegmentExtendedStatsCollector {
             name: req.name.clone(),
             field_type: req.field_type,
             accessor: req.accessor.clone(),
-            column_block_accessor: req.column_block_accessor.clone(),
             missing,
             buckets: vec![IntermediateExtendedStats::with_sigma(sigma); 16],
             sigma,
@@ -371,17 +369,20 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
         &mut self,
         parent_bucket_id: BucketId,
         docs: &[crate::DocId],
-        _agg_data: &mut AggregationsSegmentCtx,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let mut extended_stats = self.buckets[parent_bucket_id as usize].clone();
 
         if let Some(missing) = self.missing.as_ref() {
-            self.column_block_accessor
+            agg_data
+                .column_block_accessor
                 .fetch_block_with_missing(docs, &self.accessor, *missing);
         } else {
-            self.column_block_accessor.fetch_block(docs, &self.accessor);
+            agg_data
+                .column_block_accessor
+                .fetch_block(docs, &self.accessor);
         }
-        for val in self.column_block_accessor.iter_vals() {
+        for val in agg_data.column_block_accessor.iter_vals() {
             let val1 = f64_from_fastfield_u64(val, self.field_type);
             extended_stats.collect(val1);
         }
