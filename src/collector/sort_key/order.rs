@@ -34,7 +34,34 @@ fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedVal
         (OwnedValue::Facet(a), OwnedValue::Facet(b)) => a.cmp(b),
         (OwnedValue::Bytes(a), OwnedValue::Bytes(b)) => a.cmp(b),
         (OwnedValue::IpAddr(a), OwnedValue::IpAddr(b)) => a.cmp(b),
-        x => panic!("Unsupported comparison: {x:?}"),
+        (OwnedValue::U64(a), OwnedValue::I64(b)) => {
+            if *b < 0 {
+                Ordering::Greater
+            } else {
+                a.cmp(&(*b as u64))
+            }
+        }
+        (OwnedValue::I64(a), OwnedValue::U64(b)) => {
+            if *a < 0 {
+                Ordering::Less
+            } else {
+                (*a as u64).cmp(b)
+            }
+        }
+        (OwnedValue::U64(a), OwnedValue::F64(b)) => (*a as f64).to_u64().cmp(&b.to_u64()),
+        (OwnedValue::F64(a), OwnedValue::U64(b)) => a.to_u64().cmp(&(*b as f64).to_u64()),
+        (OwnedValue::I64(a), OwnedValue::F64(b)) => (*a as f64).to_u64().cmp(&b.to_u64()),
+        (OwnedValue::F64(a), OwnedValue::I64(b)) => a.to_u64().cmp(&(*b as f64).to_u64()),
+        (a, b) => {
+            let ord = a.discriminant_value().cmp(&b.discriminant_value());
+            // If the discriminant is equal, it's because a new type was added, but hasn't been
+            // included in this `match` statement.
+            assert!(
+                ord != Ordering::Equal,
+                "Unimplemented comparison for type of {a:?}, {b:?}"
+            );
+            ord
+        }
     }
 }
 
@@ -490,6 +517,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::OwnedValue;
 
     #[test]
     fn test_natural_none_is_higher() {
@@ -512,5 +540,28 @@ mod tests {
 
         // compare(None, None) should be Equal.
         assert_eq!(comp.compare(&null, &null), Ordering::Equal);
+    }
+
+    #[test]
+    fn test_mixed_ownedvalue_compare() {
+        let u = OwnedValue::U64(10);
+        let i = OwnedValue::I64(10);
+        let f = OwnedValue::F64(10.0);
+
+        let nc = NaturalComparator::default();
+        assert_eq!(nc.compare(&u, &i), Ordering::Equal);
+        assert_eq!(nc.compare(&u, &f), Ordering::Equal);
+        assert_eq!(nc.compare(&i, &f), Ordering::Equal);
+
+        let u2 = OwnedValue::U64(11);
+        assert_eq!(nc.compare(&u2, &f), Ordering::Greater);
+
+        let s = OwnedValue::Str("a".to_string());
+        // Str < U64
+        assert_eq!(nc.compare(&s, &u), Ordering::Less);
+        // Str < I64
+        assert_eq!(nc.compare(&s, &i), Ordering::Less);
+        // Str < F64
+        assert_eq!(nc.compare(&s, &f), Ordering::Less);
     }
 }
