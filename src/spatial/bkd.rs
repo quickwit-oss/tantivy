@@ -56,7 +56,7 @@ impl BoundingBoxSurvey {
         self.bbox[3] = triangle.words[3].max(self.bbox[3]);
     }
     fn bbox(&self) -> [i32; 4] {
-        self.bbox.clone()
+        self.bbox
     }
 }
 
