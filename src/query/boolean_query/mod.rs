@@ -9,12 +9,14 @@ pub use self::boolean_weight::BooleanWeight;
 #[cfg(test)]
 mod tests {
 
+    use std::ops::Bound;
+
     use super::*;
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
-    use crate::collector::TopDocs;
+    use crate::collector::{Count, TopDocs};
     use crate::query::term_query::TermScorer;
     use crate::query::{
-        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser,
+        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser, RangeQuery,
         RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
     };
     use crate::schema::*;
@@ -372,6 +374,47 @@ mod tests {
             let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
             assert!(scorer.is::<TermScorer>());
         }
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_min_should_match_with_all_query() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let num_field =
+            schema_builder.add_i64_field("num", NumericOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+
+        index_writer.add_document(doc!(text_field => "apple", num_field => 10i64))?;
+        index_writer.add_document(doc!(text_field => "banana", num_field => 20i64))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+
+        let effective_all_match_query: Box<dyn Query> = Box::new(RangeQuery::new(
+            Bound::Excluded(Term::from_field_i64(num_field, 0)),
+            Bound::Unbounded,
+        ));
+        let term_query: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "apple"),
+            IndexRecordOption::Basic,
+        ));
+
+        // in some previous version, we would remove the 2 all_match, but then say we need *4*
+        // matches out of the 3 term queries, which matches nothing.
+        let mut bool_query = BooleanQuery::new(vec![
+            (Occur::Should, effective_all_match_query.box_clone()),
+            (Occur::Should, effective_all_match_query.box_clone()),
+            (Occur::Should, term_query.box_clone()),
+            (Occur::Should, term_query.box_clone()),
+            (Occur::Should, term_query.box_clone()),
+        ]);
+        bool_query.set_minimum_number_should_match(4);
+        let count = searcher.search(&bool_query, &Count)?;
+        assert_eq!(count, 1);
+
         Ok(())
     }
 }

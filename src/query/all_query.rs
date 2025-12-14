@@ -23,7 +23,11 @@ pub struct AllWeight;
 impl Weight for AllWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let all_scorer = AllScorer::new(reader.max_doc());
-        Ok(Box::new(BoostScorer::new(all_scorer, boost)))
+        if boost != 1.0 {
+            Ok(Box::new(BoostScorer::new(all_scorer, boost)))
+        } else {
+            Ok(Box::new(all_scorer))
+        }
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {

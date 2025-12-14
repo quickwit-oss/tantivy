@@ -193,18 +193,18 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
         }
 
-        let minimum_number_should_match = self
+        let effective_minimum_number_should_match = self
             .minimum_number_should_match
             .saturating_sub(should_special_scorer_counts.num_all_scorers);
 
         let should_scorers: ShouldScorersCombinationMethod = {
             let num_of_should_scorers = should_scorers.len();
-            if minimum_number_should_match > num_of_should_scorers {
+            if effective_minimum_number_should_match > num_of_should_scorers {
                 // We don't have enough scorers to satisfy the minimum number of should matches.
                 // The request will match no documents.
                 return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
             }
-            match minimum_number_should_match {
+            match effective_minimum_number_should_match {
                 0 if num_of_should_scorers == 0 => ShouldScorersCombinationMethod::Ignored,
                 0 => ShouldScorersCombinationMethod::Optional(scorer_union(
                     should_scorers,
@@ -226,7 +226,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     scorer_disjunction(
                         should_scorers,
                         score_combiner_fn(),
-                        self.minimum_number_should_match,
+                        effective_minimum_number_should_match,
                     ),
                 )),
             }
