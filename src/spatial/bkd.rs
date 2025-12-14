@@ -720,9 +720,9 @@ pub fn search_within(
 }
 
 enum ContainsRelation {
-    CANDIDATE, // Query might be contained
-    NOTWITHIN, // Query definitely not contained
-    DISJOINT,  // Triangle doesn't overlap query
+    Candidate, // Query might be contained
+    NotWithin, // Query definitely not contained
+    Disjoint,  // Triangle doesn't overlap query
 }
 
 fn triangle_contains_relation(triangle: &Triangle, query: &[i32; 4]) -> ContainsRelation {
@@ -733,7 +733,7 @@ fn triangle_contains_relation(triangle: &Triangle, query: &[i32; 4]) -> Contains
         || query[0] > tri_bbox[2]
         || query[1] > tri_bbox[3]
     {
-        return ContainsRelation::DISJOINT;
+        return ContainsRelation::Disjoint;
     }
 
     let ([ay, ax, by, bx, cy, cx], [ab, bc, ca]) = triangle.decode();
@@ -761,21 +761,21 @@ fn triangle_contains_relation(triangle: &Triangle, query: &[i32; 4]) -> Contains
         || (bc && edge_crosses_bbox(bx, by, cx, cy, query))
         || (ca && edge_crosses_bbox(cx, cy, ax, ay, query))
     {
-        return ContainsRelation::NOTWITHIN;
+        return ContainsRelation::NotWithin;
     }
 
     if any_corner_inside || ab_intersects || bc_intersects || ca_intersects {
-        return ContainsRelation::CANDIDATE;
+        return ContainsRelation::Candidate;
     }
 
-    ContainsRelation::DISJOINT
+    ContainsRelation::Disjoint
 }
 
 /// Finds documents whose polygons contain the query bounding box.
 ///
 /// Traverses the tree starting at `offset` (typically `segment.root_offset`), testing each
-/// triangle using three-state logic: `CANDIDATE` (query might be contained), `NOTWITHIN` (boundary
-/// edge crosses query), or `DISJOINT` (no overlap). Only boundary edges are tested for crossing -
+/// triangle using three-state logic: `Candidate` (query might be contained), `NotWithin` (boundary
+/// edge crosses query), or `Disjoint` (no overlap). Only boundary edges are tested for crossing -
 /// internal tessellation edges are ignored.
 ///
 /// The query is `[min_y, min_x, max_y, max_x]` in integer coordinates. Uses two `BitSet`
@@ -801,9 +801,9 @@ pub fn search_contains(
                     continue;
                 }
                 match triangle_contains_relation(triangle, query) {
-                    ContainsRelation::CANDIDATE => result.insert(doc_id),
-                    ContainsRelation::NOTWITHIN => excluded.insert(doc_id),
-                    ContainsRelation::DISJOINT => {}
+                    ContainsRelation::Candidate => result.insert(doc_id),
+                    ContainsRelation::NotWithin => excluded.insert(doc_id),
+                    ContainsRelation::Disjoint => {}
                 }
             }
         }
