@@ -704,16 +704,16 @@ mod proptest_boolean_query {
     }
 
     impl BooleanQueryAST {
-        fn matches(&self, doc_id: DocId, num_docs: usize) -> bool {
+        fn matches(&self, doc_id: DocId) -> bool {
             match self {
                 BooleanQueryAST::All => true,
                 BooleanQueryAST::RangeAll => true,
                 BooleanQueryAST::Leaf { field_idx } => Self::matches_field(doc_id, *field_idx),
                 BooleanQueryAST::Union(children) => {
-                    children.iter().any(|child| child.matches(doc_id, num_docs))
+                    children.iter().any(|child| child.matches(doc_id))
                 }
                 BooleanQueryAST::Intersection(children) => {
-                    children.iter().all(|child| child.matches(doc_id, num_docs))
+                    children.iter().all(|child| child.matches(doc_id))
                 }
             }
         }
@@ -755,7 +755,16 @@ mod proptest_boolean_query {
         }
     }
 
-    fn create_index_with_boolean_permutations(num_fields: usize) -> (Index, Vec<Field>, Field) {
+    fn doc_ids(num_docs: usize, num_fields: usize) -> impl Iterator<Item = DocId> {
+        let permutations = 1 << num_fields;
+        let copies = (num_docs as f32 / permutations as f32).ceil() as u32;
+        (0..(permutations * copies)).into_iter()
+    }
+
+    fn create_index_with_boolean_permutations(
+        num_docs: usize,
+        num_fields: usize,
+    ) -> (Index, Vec<Field>, Field) {
         let mut schema_builder = Schema::builder();
         let fields: Vec<Field> = (0..num_fields)
             .map(|i| schema_builder.add_text_field(&format!("field_{}", i), TEXT))
@@ -769,7 +778,7 @@ mod proptest_boolean_query {
         let index = Index::create_in_ram(schema);
         let mut writer = index.writer_for_tests().unwrap();
 
-        for doc_id in 0..(1 << num_fields) {
+        for doc_id in doc_ids(num_docs, num_fields) {
             let mut doc: BTreeMap<_, OwnedValue> = BTreeMap::default();
             for (field_idx, &field) in fields.iter().enumerate() {
                 if (doc_id >> field_idx) & 1 == 1 {
@@ -806,16 +815,20 @@ mod proptest_boolean_query {
 
     #[test]
     fn proptest_boolean_query() {
+        // In the presence of optimizations around buffering, it can take large numbers of
+        // documents to uncover some issues.
+        let num_docs = 10000;
         let num_fields = 8;
         let num_docs = 1 << num_fields;
-        let (index, fields, range_field) = create_index_with_boolean_permutations(num_fields);
+        let (index, fields, range_field) =
+            create_index_with_boolean_permutations(num_docs, num_fields);
         let searcher = index.reader().unwrap().searcher();
         proptest!(|(ast in arb_boolean_query_ast(num_fields))| {
             let query = ast.to_query(&fields, range_field);
 
             let mut matching_docs = HashSet::new();
-            for doc_id in 0..num_docs {
-                if ast.matches(doc_id as DocId, num_docs) {
+            for doc_id in doc_ids(num_docs, num_fields) {
+                if ast.matches(doc_id as DocId) {
                     matching_docs.insert(doc_id as DocId);
                 }
             }
