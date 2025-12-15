@@ -1,12 +1,12 @@
 mod order;
-mod sort_by_owned;
+mod sort_by_erased_type;
 mod sort_by_score;
 mod sort_by_static_fast_value;
 mod sort_by_string;
 mod sort_key_computer;
 
 pub use order::*;
-pub use sort_by_owned::SortByOwnedValue;
+pub use sort_by_erased_type::SortByErasedType;
 pub use sort_by_score::SortBySimilarityScore;
 pub use sort_by_static_fast_value::SortByStaticFastValue;
 pub use sort_by_string::SortByString;
@@ -37,7 +37,7 @@ pub(crate) mod tests {
     use std::ops::Range;
 
     use crate::collector::sort_key::{
-        SortByOwnedValue, SortBySimilarityScore, SortByStaticFastValue, SortByString,
+        SortByErasedType, SortBySimilarityScore, SortByStaticFastValue, SortByString,
     };
     use crate::collector::{ComparableDoc, DocSetCollector, TopDocs};
     use crate::indexer::NoMergePolicy;
@@ -360,7 +360,7 @@ pub(crate) mod tests {
 
             let top_collector = TopDocs::with_limit(4).order_by::<(Score, OwnedValue)>((
                 (SortBySimilarityScore, score_order),
-                (SortByOwnedValue::for_field("city"), city_order),
+                (SortByErasedType::for_field("city"), city_order),
             ));
             let results: Vec<((Score, OwnedValue), DocAddress)> =
                 searcher.search(&AllQuery, &top_collector)?;

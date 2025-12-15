@@ -14,12 +14,14 @@ use crate::{DateTime, DocId, Score};
 /// are not known until runtime. But it comes with a performance cost: wherever possible, prefer to
 /// use a SortKeyComputer implementation with a known-type at compile time.
 #[derive(Debug, Clone)]
-pub enum SortByOwnedValue {
+pub enum SortByErasedType {
+    /// Sort by a fast field
     Field(String),
+    /// Sort by score
     Score,
 }
 
-impl SortByOwnedValue {
+impl SortByErasedType {
     /// Creates a new sort key computer which will sort by the given fast field column, with type
     /// erasure.
     pub fn for_field(column_name: impl ToString) -> Self {
@@ -32,18 +34,17 @@ impl SortByOwnedValue {
     }
 }
 
-/// TODO: Rename to Boxed...? Or Owned?
-trait AnySegmentSortKeyComputer: Send + Sync {
+trait ErasedSegmentSortKeyComputer: Send + Sync {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64>;
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue;
 }
 
-struct AnySegmentSortKeyComputerWrapper<C, F> {
+struct ErasedSegmentSortKeyComputerWrapper<C, F> {
     inner: C,
     converter: F,
 }
 
-impl<C, F> AnySegmentSortKeyComputer for AnySegmentSortKeyComputerWrapper<C, F>
+impl<C, F> ErasedSegmentSortKeyComputer for ErasedSegmentSortKeyComputerWrapper<C, F>
 where
     C: SegmentSortKeyComputer<SegmentSortKey = Option<u64>> + Send + Sync,
     F: Fn(C::SortKey) -> OwnedValue + Send + Sync + 'static,
@@ -62,7 +63,7 @@ struct ScoreSegmentSortKeyComputer {
     segment_computer: SortBySimilarityScore,
 }
 
-impl AnySegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
+impl ErasedSegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
         let score_value: f64 = self.segment_computer.segment_sort_key(doc, score).into();
         Some(score_value.to_u64())
@@ -74,9 +75,9 @@ impl AnySegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
     }
 }
 
-impl SortKeyComputer for SortByOwnedValue {
+impl SortKeyComputer for SortByErasedType {
     type SortKey = OwnedValue;
-    type Child = ByOwnedValueColumnSegmentSortKeyComputer;
+    type Child = ErasedColumnSegmentSortKeyComputer;
     type Comparator = NaturalComparator;
 
     fn requires_scoring(&self) -> bool {
@@ -87,7 +88,7 @@ impl SortKeyComputer for SortByOwnedValue {
         &self,
         segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let inner: Box<dyn AnySegmentSortKeyComputer> = match self {
+        let inner: Box<dyn ErasedSegmentSortKeyComputer> = match self {
             Self::Field(column_name) => {
                 let fast_fields = segment_reader.fast_fields();
                 // TODO: We currently double-open the column to avoid relying on the implementation
@@ -106,7 +107,7 @@ impl SortKeyComputer for SortByOwnedValue {
                     ColumnType::Str => {
                         let computer = SortByString::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
-                        Box::new(AnySegmentSortKeyComputerWrapper {
+                        Box::new(ErasedSegmentSortKeyComputerWrapper {
                             inner,
                             converter: |val: Option<String>| {
                                 val.map(OwnedValue::Str).unwrap_or(OwnedValue::Null)
@@ -116,7 +117,7 @@ impl SortKeyComputer for SortByOwnedValue {
                     ColumnType::U64 => {
                         let computer = SortByStaticFastValue::<u64>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
-                        Box::new(AnySegmentSortKeyComputerWrapper {
+                        Box::new(ErasedSegmentSortKeyComputerWrapper {
                             inner,
                             converter: |val: Option<u64>| {
                                 val.map(OwnedValue::U64).unwrap_or(OwnedValue::Null)
@@ -126,7 +127,7 @@ impl SortKeyComputer for SortByOwnedValue {
                     ColumnType::I64 => {
                         let computer = SortByStaticFastValue::<i64>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
-                        Box::new(AnySegmentSortKeyComputerWrapper {
+                        Box::new(ErasedSegmentSortKeyComputerWrapper {
                             inner,
                             converter: |val: Option<i64>| {
                                 val.map(OwnedValue::I64).unwrap_or(OwnedValue::Null)
@@ -136,7 +137,7 @@ impl SortKeyComputer for SortByOwnedValue {
                     ColumnType::F64 => {
                         let computer = SortByStaticFastValue::<f64>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
-                        Box::new(AnySegmentSortKeyComputerWrapper {
+                        Box::new(ErasedSegmentSortKeyComputerWrapper {
                             inner,
                             converter: |val: Option<f64>| {
                                 val.map(OwnedValue::F64).unwrap_or(OwnedValue::Null)
@@ -146,7 +147,7 @@ impl SortKeyComputer for SortByOwnedValue {
                     ColumnType::Bool => {
                         let computer = SortByStaticFastValue::<bool>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
-                        Box::new(AnySegmentSortKeyComputerWrapper {
+                        Box::new(ErasedSegmentSortKeyComputerWrapper {
                             inner,
                             converter: |val: Option<bool>| {
                                 val.map(OwnedValue::Bool).unwrap_or(OwnedValue::Null)
@@ -156,7 +157,7 @@ impl SortKeyComputer for SortByOwnedValue {
                     ColumnType::DateTime => {
                         let computer = SortByStaticFastValue::<DateTime>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
-                        Box::new(AnySegmentSortKeyComputerWrapper {
+                        Box::new(ErasedSegmentSortKeyComputerWrapper {
                             inner,
                             converter: |val: Option<DateTime>| {
                                 val.map(OwnedValue::Date).unwrap_or(OwnedValue::Null)
@@ -176,15 +177,15 @@ impl SortKeyComputer for SortByOwnedValue {
                 segment_computer: SortBySimilarityScore,
             }),
         };
-        Ok(ByOwnedValueColumnSegmentSortKeyComputer { inner })
+        Ok(ErasedColumnSegmentSortKeyComputer { inner })
     }
 }
 
-pub struct ByOwnedValueColumnSegmentSortKeyComputer {
-    inner: Box<dyn AnySegmentSortKeyComputer>,
+pub struct ErasedColumnSegmentSortKeyComputer {
+    inner: Box<dyn ErasedSegmentSortKeyComputer>,
 }
 
-impl SegmentSortKeyComputer for ByOwnedValueColumnSegmentSortKeyComputer {
+impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
     type SortKey = OwnedValue;
     type SegmentSortKey = Option<u64>;
     type SegmentComparator = NaturalComparator;
@@ -201,7 +202,7 @@ impl SegmentSortKeyComputer for ByOwnedValueColumnSegmentSortKeyComputer {
 
 #[cfg(test)]
 mod tests {
-    use crate::collector::sort_key::{ComparatorEnum, SortByOwnedValue};
+    use crate::collector::sort_key::{ComparatorEnum, SortByErasedType};
     use crate::collector::TopDocs;
     use crate::query::AllQuery;
     use crate::schema::{OwnedValue, Schema, FAST, TEXT};
@@ -223,7 +224,7 @@ mod tests {
         let searcher = reader.searcher();
 
         let collector = TopDocs::with_limit(10)
-            .order_by((SortByOwnedValue::for_field("id"), ComparatorEnum::Natural));
+            .order_by((SortByErasedType::for_field("id"), ComparatorEnum::Natural));
         let top_docs = searcher.search(&AllQuery, &collector).unwrap();
 
         let values: Vec<OwnedValue> = top_docs.into_iter().map(|(key, _)| key).collect();
@@ -234,7 +235,7 @@ mod tests {
         );
 
         let collector = TopDocs::with_limit(10).order_by((
-            SortByOwnedValue::for_field("id"),
+            SortByErasedType::for_field("id"),
             ComparatorEnum::ReverseNoneLower,
         ));
         let top_docs = searcher.search(&AllQuery, &collector).unwrap();
@@ -263,7 +264,7 @@ mod tests {
         let searcher = reader.searcher();
 
         let collector = TopDocs::with_limit(10).order_by((
-            SortByOwnedValue::for_field("city"),
+            SortByErasedType::for_field("city"),
             ComparatorEnum::ReverseNoneLower,
         ));
         let top_docs = searcher.search(&AllQuery, &collector).unwrap();
@@ -296,7 +297,7 @@ mod tests {
         let searcher = reader.searcher();
 
         let collector = TopDocs::with_limit(10)
-            .order_by((SortByOwnedValue::for_field("id"), ComparatorEnum::Reverse));
+            .order_by((SortByErasedType::for_field("id"), ComparatorEnum::Reverse));
         let top_docs = searcher.search(&AllQuery, &collector).unwrap();
 
         let values: Vec<OwnedValue> = top_docs.into_iter().map(|(key, _)| key).collect();
@@ -325,7 +326,7 @@ mod tests {
 
         // Sort by score descending (Natural)
         let collector = TopDocs::with_limit(10)
-            .order_by((SortByOwnedValue::for_score(), ComparatorEnum::Natural));
+            .order_by((SortByErasedType::for_score(), ComparatorEnum::Natural));
         let top_docs = searcher.search(&query, &collector).unwrap();
 
         let values: Vec<f64> = top_docs
@@ -341,7 +342,7 @@ mod tests {
 
         // Sort by score ascending (ReverseNoneLower)
         let collector = TopDocs::with_limit(10).order_by((
-            SortByOwnedValue::for_score(),
+            SortByErasedType::for_score(),
             ComparatorEnum::ReverseNoneLower,
         ));
         let top_docs = searcher.search(&query, &collector).unwrap();
