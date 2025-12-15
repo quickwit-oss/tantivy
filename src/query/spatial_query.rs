@@ -73,10 +73,13 @@ impl Weight for SpatialWeight {
         reader: &crate::SegmentReader,
         boost: crate::Score,
     ) -> crate::Result<Box<dyn super::Scorer>> {
-        let spatial_reader = reader
-            .spatial_fields()
-            .get_field(self.field)?
-            .ok_or_else(|| TantivyError::SchemaError(format!("No spatial data for field")))?;
+        let spatial_reader = match reader.spatial_fields().get_field(self.field)? {
+            Some(reader) => reader,
+            None => {
+                let empty_bitset = BitSet::with_max_value(reader.max_doc());
+                return Ok(Box::new(SpatialScorer::new(boost, empty_bitset, None)));
+            }
+        };
         let block_kd_tree = Segment::new(spatial_reader.get_bytes());
         match self.query_type {
             SpatialQueryType::Intersects => {

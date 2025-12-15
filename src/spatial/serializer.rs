@@ -23,6 +23,9 @@ impl SpatialSerializer {
 
     /// Serialize the given field
     pub fn serialize_field(&mut self, field: Field, triangles: &mut [Triangle]) -> io::Result<()> {
+        if triangles.is_empty() {
+            return Ok(());
+        }
         let write = self.composite_write.for_field(field);
         write_block_kd_tree(triangles, write)?;
         write.flush()?;

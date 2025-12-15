@@ -249,7 +249,7 @@ impl FieldType {
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
             FieldType::JsonObject(ref json_object_options) => json_object_options.is_indexed(),
             FieldType::IpAddr(ref ip_addr_options) => ip_addr_options.is_indexed(),
-            FieldType::Spatial(ref _spatial_options) => true,
+            FieldType::Spatial(ref _spatial_options) => false,
         }
     }
 
