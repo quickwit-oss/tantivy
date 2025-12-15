@@ -1,10 +1,11 @@
-use columnar::MonotonicallyMappableToU64;
+use columnar::{ColumnType, MonotonicallyMappableToU64};
 
 use crate::collector::sort_key::{
     NaturalComparator, SortBySimilarityScore, SortByStaticFastValue, SortByString,
 };
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
-use crate::schema::{OwnedValue, Type};
+use crate::fastfield::FastFieldNotAvailableError;
+use crate::schema::OwnedValue;
 use crate::{DateTime, DocId, Score};
 
 /// Sort by the boxed / OwnedValue representation of either a fast field, or of the score.
@@ -86,15 +87,23 @@ impl SortKeyComputer for SortByOwnedValue {
         &self,
         segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let schema = segment_reader.schema();
         let inner: Box<dyn AnySegmentSortKeyComputer> = match self {
             Self::Field(column_name) => {
-                let field = schema.get_field(column_name)?;
-                let field_entry = schema.get_field_entry(field);
-                let field_type = field_entry.field_type();
+                let fast_fields = segment_reader.fast_fields();
+                // TODO: We currently double-open the column to avoid relying on the implementation
+                // details of `SortByString` or `SortByStaticFastValue`. Once
+                // https://github.com/quickwit-oss/tantivy/issues/2776 is resolved, we should
+                // consider directly constructing the appropriate `SegmentSortKeyComputer` type for
+                // the column that we open here.
+                let (_column, column_type) =
+                    fast_fields.u64_lenient(column_name)?.ok_or_else(|| {
+                        FastFieldNotAvailableError {
+                            field_name: column_name.to_owned(),
+                        }
+                    })?;
 
-                match field_type.value_type() {
-                    Type::Str => {
+                match column_type {
+                    ColumnType::Str => {
                         let computer = SortByString::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
                         Box::new(AnySegmentSortKeyComputerWrapper {
@@ -104,7 +113,7 @@ impl SortKeyComputer for SortByOwnedValue {
                             },
                         })
                     }
-                    Type::U64 => {
+                    ColumnType::U64 => {
                         let computer = SortByStaticFastValue::<u64>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
                         Box::new(AnySegmentSortKeyComputerWrapper {
@@ -114,7 +123,7 @@ impl SortKeyComputer for SortByOwnedValue {
                             },
                         })
                     }
-                    Type::I64 => {
+                    ColumnType::I64 => {
                         let computer = SortByStaticFastValue::<i64>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
                         Box::new(AnySegmentSortKeyComputerWrapper {
@@ -124,7 +133,7 @@ impl SortKeyComputer for SortByOwnedValue {
                             },
                         })
                     }
-                    Type::F64 => {
+                    ColumnType::F64 => {
                         let computer = SortByStaticFastValue::<f64>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
                         Box::new(AnySegmentSortKeyComputerWrapper {
@@ -134,7 +143,7 @@ impl SortKeyComputer for SortByOwnedValue {
                             },
                         })
                     }
-                    Type::Bool => {
+                    ColumnType::Bool => {
                         let computer = SortByStaticFastValue::<bool>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
                         Box::new(AnySegmentSortKeyComputerWrapper {
@@ -144,7 +153,7 @@ impl SortKeyComputer for SortByOwnedValue {
                             },
                         })
                     }
-                    Type::Date => {
+                    ColumnType::DateTime => {
                         let computer = SortByStaticFastValue::<DateTime>::for_field(column_name);
                         let inner = computer.segment_sort_key_computer(segment_reader)?;
                         Box::new(AnySegmentSortKeyComputerWrapper {
@@ -154,12 +163,11 @@ impl SortKeyComputer for SortByOwnedValue {
                             },
                         })
                     }
-                    _ => {
+                    column_type => {
                         return Err(crate::TantivyError::SchemaError(format!(
-                            "Field `{}` is of type {:?}, which is not supported for sorting by \
-                             owned value yet.",
-                            column_name,
-                            field_type.value_type()
+                            "Field `{}` is of type {column_type:?}, which is not supported for \
+                             sorting by owned value yet.",
+                            column_name
                         )))
                     }
                 }
