@@ -58,6 +58,8 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
     }
 
     fn convert_segment_sort_key(&self, term_ord_opt: Option<TermOrdinal>) -> Option<String> {
+        // TODO: Individual lookups to the dictionary like this are very likely to repeatedly
+        // decompress the same blocks. See https://github.com/quickwit-oss/tantivy/issues/2776
         let term_ord = term_ord_opt?;
         let str_column = self.str_column_opt.as_ref()?;
         let mut bytes = Vec::new();
