@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use columnar::MonotonicallyMappableToU64;
 use serde::{Deserialize, Serialize};
 
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::{OwnedValue, Schema};
 use crate::{DocId, Order, Score};
 
@@ -69,6 +69,23 @@ fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedVal
 pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     /// Return the order between two values.
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
+    /// Return the order between two ComparableDoc values, using the semantics which are
+    /// implemented by TopNComputer.
+    #[inline(always)]
+    fn compare_doc<D: Ord>(
+        &self,
+        lhs: &ComparableDoc<T, D>,
+        rhs: &ComparableDoc<T, D>,
+    ) -> Ordering {
+        // TopNComputer sorts in descending order of the SortKey by default: we apply that ordering
+        // here to ease comparison in testing.
+        self.compare(&rhs.sort_key, &lhs.sort_key).then_with(|| {
+            // In case of a tie on the sort key, we always sort by ascending `DocAddress` in order
+            // to ensure a stable sorting of the documents, regardless of the sort key's order.
+            // See the TopNComputer docs for more information.
+            lhs.doc.cmp(&rhs.doc)
+        })
+    }
 }
 
 /// With the natural comparator, the top k collector will return
@@ -100,7 +117,8 @@ impl Comparator<OwnedValue> for NaturalComparator {
 /// first.
 ///
 /// The ReverseComparator does not necessarily imply that the sort order is reversed compared
-/// to the NaturalComparator. In presence of a tie, both version will retain the higher doc ids.
+/// to the NaturalComparator. In presence of a tie on the sort key, documents will always be
+/// sorted by ascending `DocId`/`DocAddress` in TopN results, regardless of the comparator.
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReverseComparator;
 
