@@ -67,6 +67,8 @@ impl OwnedValue {
             OwnedValue::Null => 0,
             OwnedValue::Str(_) => 1,
             OwnedValue::PreTokStr(_) => 2,
+            // It is key to make sure U64, I64, F64 are grouped together in there, otherwise we
+            // might be breaking transivity.
             OwnedValue::U64(_) => 3,
             OwnedValue::I64(_) => 4,
             OwnedValue::F64(_) => 5,
