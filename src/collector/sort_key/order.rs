@@ -12,7 +12,7 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
     /// Return the order between two ComparableDoc values.
     #[inline(always)]
-    fn compare_doc<D: PartialOrd>(
+    fn compare_doc<D: Ord>(
         &self,
         lhs: &ComparableDoc<T, D>,
         rhs: &ComparableDoc<T, D>,
@@ -21,7 +21,7 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
             // In case of a tie on the feature, we always sort by descending `DocAddress` in order
             // to ensure a stable sorting of the documents. See the TopNComputer docs for more
             // information.
-            rhs.doc.partial_cmp(&lhs.doc).unwrap_or(Ordering::Equal)
+            rhs.doc.cmp(&lhs.doc)
         })
     }
 }
