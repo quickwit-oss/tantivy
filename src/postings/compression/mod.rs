@@ -1,8 +1,10 @@
 use bitpacking::{BitPacker, BitPacker4x};
-use common::FixedSize;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
-const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * u32::SIZE_IN_BYTES;
+// in vint encoding, each byte stores 7 bits of data, so we need at most 32 / 7 = 4.57 bytes to
+// store a u32 in the worst case, rounding up to 5 bytes total
+const MAX_VINT_SIZE: usize = 5;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * MAX_VINT_SIZE;
 
 mod vint;
 
@@ -267,7 +269,6 @@ impl VIntDecoder for BlockDecoder {
 
 #[cfg(test)]
 pub(crate) mod tests {
-
     use super::*;
     use crate::TERMINATED;
 
@@ -371,6 +372,13 @@ pub(crate) mod tests {
                 assert_eq!(decoder.output(i), PADDING_VALUE);
             }
         }
+    }
+
+    #[test]
+    fn test_compress_vint_unsorted_does_not_overflow() {
+        let mut encoder = BlockEncoder::new();
+        let input: Vec<u32> = vec![u32::MAX; COMPRESSION_BLOCK_SIZE];
+        encoder.compress_vint_unsorted(&input);
     }
 }
 
