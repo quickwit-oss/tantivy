@@ -1,8 +1,8 @@
 use bitpacking::{BitPacker, BitPacker4x};
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
-// in vint encoding, each byte stores 7 bits of data, so we need 32 / 7 = 4.57 bytes to store a u32
-// this rounds up to 5 bytes
+// in vint encoding, each byte stores 7 bits of data, so we need at most 32 / 7 = 4.57 bytes to
+// store a u32 in the worst case, rounding up to 5 bytes total
 const MAX_VINT_SIZE: usize = 5;
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * MAX_VINT_SIZE;
 
