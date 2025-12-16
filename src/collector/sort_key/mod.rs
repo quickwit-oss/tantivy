@@ -15,7 +15,10 @@ mod tests {
     use std::collections::HashMap;
     use std::ops::Range;
 
-    use crate::collector::sort_key::{SortBySimilarityScore, SortByStaticFastValue, SortByString};
+    use crate::collector::sort_key::{
+        Comparator, NaturalComparator, ReverseComparator, SortBySimilarityScore,
+        SortByStaticFastValue, SortByString,
+    };
     use crate::collector::{ComparableDoc, DocSetCollector, TopDocs};
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, QueryParser};
@@ -372,15 +375,14 @@ mod tests {
 
             // Using the TopDocs collector should always be equivalent to sorting, skipping the
             // offset, and then taking the limit.
-            let sorted_docs: Vec<_> = if order.is_desc() {
-                let mut comparable_docs: Vec<ComparableDoc<_, _, true>> =
+            let sorted_docs: Vec<_> = {
+                let mut comparable_docs: Vec<ComparableDoc<_, _>> =
                     all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                comparable_docs.sort();
-                comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
-            } else {
-                let mut comparable_docs: Vec<ComparableDoc<_, _, false>> =
-                    all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                comparable_docs.sort();
+                if order.is_desc() {
+                    comparable_docs.sort_by(|l, r| NaturalComparator.compare_doc(l, r));
+                } else {
+                    comparable_docs.sort_by(|l, r| ReverseComparator.compare_doc(l, r));
+                }
                 comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             };
             let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();

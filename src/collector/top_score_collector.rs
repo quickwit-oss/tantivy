@@ -501,7 +501,13 @@ where
 /// For TopN == 0, it will be relative expensive.
 ///
 /// When using the natural comparator, the top N computer returns the top N elements in
-/// descending order, as expected for a top N.
+/// descending order, as expected for a top N. The TopNComputer will tiebreak using `Reverse<D>`:
+/// i.e., the `DocId|DocAddress` are always sorted in descending order, and the `Comparator` type
+/// is only applied to the `Score` type.
+///
+/// NOTE: Items must be `push`ed to the TopNComputer in ascending `DocId|DocAddress` order, as the
+/// threshold used to eliminate docs does not include the `DocId` or `DocAddress`: this provides
+/// the `Reverse<DocId|DocAddress>` behavior without additional comparisons.
 #[derive(Serialize, Deserialize)]
 #[serde(from = "TopNComputerDeser<Score, D, C>")]
 pub struct TopNComputer<Score, D, C> {
@@ -603,7 +609,8 @@ where
     #[inline]
     pub fn push(&mut self, sort_key: TSortKey, doc: D) {
         if let Some(last_median) = &self.threshold {
-            if self.comparator.compare(&sort_key, last_median) == Ordering::Less {
+            // See the struct docs for an explanation of why this comparison is strict.
+            if self.comparator.compare(&sort_key, last_median) != Ordering::Greater {
                 return;
             }
         }
@@ -628,11 +635,9 @@ where
     #[inline(never)]
     fn truncate_top_n(&mut self) -> TSortKey {
         // Use select_nth_unstable to find the top nth score
-        let (_, median_el, _) = self.buffer.select_nth_unstable_by(self.top_n, |lhs, rhs| {
-            self.comparator
-                .compare(&rhs.sort_key, &lhs.sort_key)
-                .then_with(|| lhs.doc.cmp(&rhs.doc))
-        });
+        let (_, median_el, _) = self
+            .buffer
+            .select_nth_unstable_by(self.top_n, |lhs, rhs| self.comparator.compare_doc(rhs, lhs));
 
         let median_score = median_el.sort_key.clone();
         // Remove all elements below the top_n
@@ -646,11 +651,8 @@ where
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
-        self.buffer.sort_unstable_by(|left, right| {
-            self.comparator
-                .compare(&right.sort_key, &left.sort_key)
-                .then_with(|| left.doc.cmp(&right.doc))
-        });
+        self.buffer
+            .sort_unstable_by(|left, right| self.comparator.compare_doc(right, left));
         self.buffer
     }
 
@@ -686,7 +688,9 @@ mod tests {
     use proptest::prelude::*;
 
     use super::{TopDocs, TopNComputer};
-    use crate::collector::sort_key::{ComparatorEnum, NaturalComparator, ReverseComparator};
+    use crate::collector::sort_key::{
+        Comparator, ComparatorEnum, NaturalComparator, ReverseComparator,
+    };
     use crate::collector::top_collector::ComparableDoc;
     use crate::collector::{Collector, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
@@ -778,8 +782,9 @@ mod tests {
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
             }
-            let mut comparable_docs: Vec<ComparableDoc<u64, u64>> = docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
-            comparable_docs.sort();
+            let mut comparable_docs =
+                docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
+            comparable_docs.sort_by(|l, r| ReverseComparator.compare_doc(l, r));
             comparable_docs.truncate(limit);
             prop_assert_eq!(
                 computer.into_sorted_vec(),
@@ -1406,15 +1411,14 @@ mod tests {
 
             // Using the TopDocs collector should always be equivalent to sorting, skipping the
             // offset, and then taking the limit.
-            let sorted_docs: Vec<_> = if order.is_desc() {
-                let mut comparable_docs: Vec<ComparableDoc<_, _, true>> =
+            let sorted_docs: Vec<_> = {
+                let mut comparable_docs: Vec<ComparableDoc<_, _>> =
                     all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                comparable_docs.sort();
-                comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
-            } else {
-                let mut comparable_docs: Vec<ComparableDoc<_, _, false>> =
-                    all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                comparable_docs.sort();
+                if order.is_desc() {
+                    comparable_docs.sort_by(|l, r| NaturalComparator.compare_doc(l, r));
+                } else {
+                    comparable_docs.sort_by(|l, r| ReverseComparator.compare_doc(l, r));
+                }
                 comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             };
             let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
