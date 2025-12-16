@@ -5,18 +5,20 @@ use common::BitSet;
 use crate::query::explanation::does_not_match;
 use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
 use crate::schema::Field;
-use crate::spatial::bkd::{search_intersects, Segment};
+use crate::spatial::bkd::{search_contains, search_intersects, search_within, Segment};
 use crate::spatial::point::GeoPoint;
 use crate::spatial::writer::as_point_i32;
-use crate::{DocId, DocSet, Score, TantivyError, TERMINATED};
+use crate::{DocId, DocSet, Score, TERMINATED};
 
 #[derive(Clone, Copy, Debug)]
 /// HUSH
 pub enum SpatialQueryType {
     /// HUSH
     Intersects,
-    //      Within,
-    // Contains,
+    /// HUSH
+    Within,
+    /// HUSH
+    Contains,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -97,6 +99,40 @@ impl Weight for SpatialWeight {
                 )?;
                 Ok(Box::new(SpatialScorer::new(boost, include, None)))
             }
+            SpatialQueryType::Within => {
+                let mut include = BitSet::with_max_value(reader.max_doc());
+                let mut exclude = BitSet::with_max_value(reader.max_doc());
+                search_within(
+                    &block_kd_tree,
+                    block_kd_tree.root_offset,
+                    &[
+                        self.bounds[0].1,
+                        self.bounds[0].0,
+                        self.bounds[1].1,
+                        self.bounds[1].0,
+                    ],
+                    &mut include,
+                    &mut exclude,
+                )?;
+                Ok(Box::new(SpatialScorer::new(boost, include, Some(exclude))))
+            }
+            SpatialQueryType::Contains => {
+                let mut include = BitSet::with_max_value(reader.max_doc());
+                let mut exclude = BitSet::with_max_value(reader.max_doc());
+                search_contains(
+                    &block_kd_tree,
+                    block_kd_tree.root_offset,
+                    &[
+                        self.bounds[0].1,
+                        self.bounds[0].0,
+                        self.bounds[1].1,
+                        self.bounds[1].0,
+                    ],
+                    &mut include,
+                    &mut exclude,
+                )?;
+                Ok(Box::new(SpatialScorer::new(boost, include, Some(exclude))))
+            }
         }
     }
     fn explain(
@@ -110,6 +146,8 @@ impl Weight for SpatialWeight {
         }
         let query_type_desc = match self.query_type {
             SpatialQueryType::Intersects => "SpatialQuery::Intersects",
+            SpatialQueryType::Within => "SpatialQuery::Within",
+            SpatialQueryType::Contains => "SpatialQuery::Contains",
         };
         let score = scorer.score();
         let mut explanation = Explanation::new(query_type_desc, score);

@@ -681,17 +681,17 @@ fn triangle_intersects(triangle: &Triangle, query: &[i32; 4]) -> bool {
 ///
 /// Traverses the tree starting at `offset` (typically `segment.root_offset`), testing each
 /// triangle to determine if it lies entirely within the query bounds. Uses two `BitSet` instances
-/// to track state: `result` accumulates candidate documents, while `excluded` marks documents that
+/// to track state: `include` accumulates candidate documents, while `exclude` marks documents that
 /// have at least one triangle extending outside the query.
 ///
 /// The query is `[min_y, min_x, max_y, max_x]` in integer coordinates. The final result is
-/// documents in `result` that are NOT in `excluded` - the caller must compute this difference.
+/// documents in `include` that are NOT in `exclude` - the caller must compute this difference.
 pub fn search_within(
     segment: &Segment,
     offset: i32,
     query: &[i32; 4], // [min_y, min_x, max_y, max_x]
-    result: &mut BitSet,
-    excluded: &mut BitSet,
+    include: &mut BitSet,
+    exclude: &mut BitSet,
 ) -> io::Result<()> {
     let bbox = segment.bounding_box(offset);
     if !bbox_intersects(&bbox, query) {
@@ -701,20 +701,20 @@ pub fn search_within(
         let triangles = decompress_leaf(segment.leaf_page(&leaf_node))?;
         for triangle in &triangles {
             if triangle_intersects(triangle, query) {
-                if excluded.contains(triangle.doc_id) {
+                if exclude.contains(triangle.doc_id) {
                     continue; // Already excluded
                 }
                 if triangle_within(triangle, query) {
-                    result.insert(triangle.doc_id);
+                    include.insert(triangle.doc_id);
                 } else {
-                    excluded.insert(triangle.doc_id);
+                    exclude.insert(triangle.doc_id);
                 }
             }
         }
     } else {
         let branch_node = segment.branch_node(offset);
-        search_within(segment, branch_node.left, query, result, excluded)?;
-        search_within(segment, branch_node.right, query, result, excluded)?;
+        search_within(segment, branch_node.left, query, include, exclude)?;
+        search_within(segment, branch_node.right, query, include, exclude)?;
     }
     Ok(())
 }
@@ -779,14 +779,14 @@ fn triangle_contains_relation(triangle: &Triangle, query: &[i32; 4]) -> Contains
 /// internal tessellation edges are ignored.
 ///
 /// The query is `[min_y, min_x, max_y, max_x]` in integer coordinates. Uses two `BitSet`
-/// instances: `result` accumulates candidates, `excluded` marks documents with disqualifying
-/// boundary crossings. The final result is documents in `result` that are NOT in `excluded`.
+/// instances: `include` accumulates candidates, `excluded` marks documents with disqualifying
+/// boundary crossings. The final result is documents in `include` that are NOT in `exclude`.
 pub fn search_contains(
     segment: &Segment,
     offset: i32,
     query: &[i32; 4],
-    result: &mut BitSet,
-    excluded: &mut BitSet,
+    include: &mut BitSet,
+    exclude: &mut BitSet,
 ) -> io::Result<()> {
     let bbox = segment.bounding_box(offset);
     if !bbox_intersects(&bbox, query) {
@@ -797,20 +797,20 @@ pub fn search_contains(
         for triangle in &triangles {
             if triangle_intersects(triangle, query) {
                 let doc_id = triangle.doc_id;
-                if excluded.contains(doc_id) {
+                if exclude.contains(doc_id) {
                     continue;
                 }
                 match triangle_contains_relation(triangle, query) {
-                    ContainsRelation::Candidate => result.insert(doc_id),
-                    ContainsRelation::NotWithin => excluded.insert(doc_id),
+                    ContainsRelation::Candidate => include.insert(doc_id),
+                    ContainsRelation::NotWithin => exclude.insert(doc_id),
                     ContainsRelation::Disjoint => {}
                 }
             }
         }
     } else {
         let branch_node = segment.branch_node(offset);
-        search_contains(segment, branch_node.left, query, result, excluded)?;
-        search_contains(segment, branch_node.right, query, result, excluded)?;
+        search_contains(segment, branch_node.left, query, include, exclude)?;
+        search_contains(segment, branch_node.right, query, include, exclude)?;
     }
     Ok(())
 }
