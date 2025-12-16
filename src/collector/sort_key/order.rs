@@ -44,7 +44,8 @@ impl<T: PartialOrd> Comparator<T> for NaturalComparator {
 /// first.
 ///
 /// The ReverseComparator does not necessarily imply that the sort order is reversed compared
-/// to the NaturalComparator. In presence of a tie, both version will retain the higher doc ids.
+/// to the NaturalComparator. In presence of a tie, both version will retain the documents based on
+/// descending `DocId`/`DocAddress`.
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReverseComparator;
 

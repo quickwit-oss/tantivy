@@ -23,10 +23,9 @@ use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 /// The theoretical complexity for collecting the top `K` out of `N` documents
 /// is `O(N + K)`.
 ///
-/// This collector does not guarantee a stable sorting in case of a tie on the
-/// document score, for stable sorting `PartialOrd` needs to resolve on other fields
-/// like docid in case of score equality.
-/// Only then, it is suitable for pagination.
+/// This collector guarantees a stable sorting in case of a tie on the
+/// document score/sort key: The document address (`DocAddress`) is used as a tie breaker.
+/// It is always sorted in descending order, regardless of the `Order` used for the sort key.
 ///
 /// ```rust
 /// use tantivy::collector::TopDocs;
@@ -500,10 +499,9 @@ where
 ///
 /// For TopN == 0, it will be relative expensive.
 ///
-/// When using the natural comparator, the top N computer returns the top N elements in
-/// descending order, as expected for a top N. The TopNComputer will tiebreak using `Reverse<D>`:
-/// i.e., the `DocId|DocAddress` are always sorted in descending order, and the `Comparator` type
-/// is only applied to the `Score` type.
+/// The TopNComputer will tiebreak using `Reverse<D>`:
+/// i.e., the `DocId|DocAddress` are always sorted in descending order, regardless of the
+/// `Comparator` used for the `Score` type.
 ///
 /// NOTE: Items must be `push`ed to the TopNComputer in ascending `DocId|DocAddress` order, as the
 /// threshold used to eliminate docs does not include the `DocId` or `DocAddress`: this provides
