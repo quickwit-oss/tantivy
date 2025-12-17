@@ -25,7 +25,7 @@ use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 ///
 /// This collector guarantees a stable sorting in case of a tie on the
 /// document score/sort key: The document address (`DocAddress`) is used as a tie breaker.
-/// It is always sorted in descending order, regardless of the `Order` used for the sort key.
+/// In case of a tie on the sort key, documents are always sorted by ascending `DocAddress`.
 ///
 /// ```rust
 /// use tantivy::collector::TopDocs;
@@ -499,13 +499,13 @@ where
 ///
 /// For TopN == 0, it will be relative expensive.
 ///
-/// The TopNComputer will tiebreak using `Reverse<D>`:
-/// i.e., the `DocId|DocAddress` are always sorted in descending order, regardless of the
-/// `Comparator` used for the `Score` type.
+/// The TopNComputer will tiebreak by using ascending `D` (DocId or DocAddress):
+/// i.e., in case of a tie on the sort key, the `DocId|DocAddress` are always sorted in
+/// ascending order, regardless of the `Comparator` used for the `Score` type.
 ///
 /// NOTE: Items must be `push`ed to the TopNComputer in ascending `DocId|DocAddress` order, as the
 /// threshold used to eliminate docs does not include the `DocId` or `DocAddress`: this provides
-/// the `Reverse<DocId|DocAddress>` behavior without additional comparisons.
+/// the ascending `DocId|DocAddress` tie-breaking behavior without additional comparisons.
 #[derive(Serialize, Deserialize)]
 #[serde(from = "TopNComputerDeser<Score, D, C>")]
 pub struct TopNComputer<Score, D, C> {

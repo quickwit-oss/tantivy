@@ -21,9 +21,9 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
         // TopNComputer sorts in descending order of the SortKey by default: we apply that ordering
         // here to ease comparison in testing.
         self.compare(&rhs.sort_key, &lhs.sort_key).then_with(|| {
-            // In case of a tie on the feature, we always sort by ascending `DocAddress` in order
-            // to ensure a stable sorting of the documents. See the TopNComputer docs for more
-            // information.
+            // In case of a tie on the sort key, we always sort by ascending `DocAddress` in order
+            // to ensure a stable sorting of the documents, regardless of the sort key's order.
+            // See the TopNComputer docs for more information.
             lhs.doc.cmp(&rhs.doc)
         })
     }
@@ -47,8 +47,8 @@ impl<T: PartialOrd> Comparator<T> for NaturalComparator {
 /// first.
 ///
 /// The ReverseComparator does not necessarily imply that the sort order is reversed compared
-/// to the NaturalComparator. In presence of a tie, both version will retain the documents based on
-/// descending `DocId`/`DocAddress`.
+/// to the NaturalComparator. In presence of a tie on the sort key, documents will always be
+/// sorted by ascending `DocId`/`DocAddress` in TopN results, regardless of the comparator.
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReverseComparator;
 
