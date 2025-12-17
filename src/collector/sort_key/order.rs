@@ -10,18 +10,21 @@ use crate::{DocId, Order, Score};
 pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     /// Return the order between two values.
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
-    /// Return the order between two ComparableDoc values.
+    /// Return the order between two ComparableDoc values, using the semantics which are
+    /// implemented by TopNComputer.
     #[inline(always)]
     fn compare_doc<D: Ord>(
         &self,
         lhs: &ComparableDoc<T, D>,
         rhs: &ComparableDoc<T, D>,
     ) -> Ordering {
-        self.compare(&lhs.sort_key, &rhs.sort_key).then_with(|| {
-            // In case of a tie on the feature, we always sort by descending `DocAddress` in order
+        // TopNComputer sorts in descending order of the SortKey by default: we apply that ordering
+        // here to ease comparison in testing.
+        self.compare(&rhs.sort_key, &lhs.sort_key).then_with(|| {
+            // In case of a tie on the feature, we always sort by ascending `DocAddress` in order
             // to ensure a stable sorting of the documents. See the TopNComputer docs for more
             // information.
-            rhs.doc.cmp(&lhs.doc)
+            lhs.doc.cmp(&rhs.doc)
         })
     }
 }

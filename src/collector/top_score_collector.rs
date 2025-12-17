@@ -604,6 +604,8 @@ where
 
     /// Push a new document to the top n.
     /// If the document is below the current threshold, it will be ignored.
+    ///
+    /// NOTE: `push` must be called in ascending `DocId`/`DocAddress` order.
     #[inline]
     pub fn push(&mut self, sort_key: TSortKey, doc: D) {
         if let Some(last_median) = &self.threshold {
@@ -635,7 +637,7 @@ where
         // Use select_nth_unstable to find the top nth score
         let (_, median_el, _) = self
             .buffer
-            .select_nth_unstable_by(self.top_n, |lhs, rhs| self.comparator.compare_doc(rhs, lhs));
+            .select_nth_unstable_by(self.top_n, |lhs, rhs| self.comparator.compare_doc(lhs, rhs));
 
         let median_score = median_el.sort_key.clone();
         // Remove all elements below the top_n
@@ -650,7 +652,7 @@ where
             self.truncate_top_n();
         }
         self.buffer
-            .sort_unstable_by(|left, right| self.comparator.compare_doc(right, left));
+            .sort_unstable_by(|left, right| self.comparator.compare_doc(left, right));
         self.buffer
     }
 
@@ -758,6 +760,33 @@ mod tests {
     }
 
     #[test]
+    fn test_topn_computer_duplicates() {
+        let mut computer: TopNComputer<u32, u32, NaturalComparator> =
+            TopNComputer::new_with_comparator(2, NaturalComparator);
+
+        computer.push(1u32, 1u32);
+        computer.push(1u32, 2u32);
+        computer.push(1u32, 3u32);
+        computer.push(1u32, 4u32);
+        computer.push(1u32, 5u32);
+
+        // In the presence of duplicates, DocIds are always ascending order.
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    sort_key: 1u32,
+                    doc: 1u32,
+                },
+                ComparableDoc {
+                    sort_key: 1u32,
+                    doc: 2u32,
+                }
+            ]
+        );
+    }
+
+    #[test]
     fn test_topn_computer_no_panic() {
         for top_n in 0..10 {
             let mut computer: TopNComputer<u32, u32, NaturalComparator> =
@@ -774,8 +803,10 @@ mod tests {
         #[test]
         fn test_topn_computer_asc_prop(
           limit in 0..10_usize,
-          docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
+          mut docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
         ) {
+            // NB: TopNComputer must receive inputs in ascending DocId order.
+            docs.sort_by_key(|(_, doc_id)| *doc_id);
             let mut computer: TopNComputer<_, _, ReverseComparator> = TopNComputer::new_with_comparator(limit, ReverseComparator);
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
