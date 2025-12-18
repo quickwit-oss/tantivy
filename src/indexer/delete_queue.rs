@@ -23,13 +23,18 @@ struct InnerDeleteQueue {
     last_block: Weak<Block>,
 }
 
+/// The delete queue is a linked list storing delete operations.
+///
+/// Several consumers can hold a reference to it. Delete operations
+/// get dropped/gc'ed when no more consumers are holding a reference
+/// to them.
 #[derive(Clone)]
 pub struct DeleteQueue {
     inner: Arc<RwLock<InnerDeleteQueue>>,
 }
 
 impl DeleteQueue {
-    // Creates a new delete queue.
+    /// Creates a new empty delete queue.
     pub fn new() -> DeleteQueue {
         DeleteQueue {
             inner: Arc::default(),
@@ -58,10 +63,10 @@ impl DeleteQueue {
         block
     }
 
-    // Creates a new cursor that makes it possible to
-    // consume future delete operations.
-    //
-    // Past delete operations are not accessible.
+    /// Creates a new cursor that makes it possible to
+    /// consume future delete operations.
+    ///
+    /// Past delete operations are not accessible.
     pub fn cursor(&self) -> DeleteCursor {
         let last_block = self.get_last_block();
         let operations_len = last_block.operations.len();
@@ -71,7 +76,7 @@ impl DeleteQueue {
         }
     }
 
-    // Appends a new delete operations.
+    /// Appends a new delete operations.
     pub fn push(&self, delete_operation: DeleteOperation) {
         self.inner
             .write()
@@ -169,6 +174,7 @@ struct Block {
     next: NextBlock,
 }
 
+/// As we process delete operations, keeps track of our position.
 #[derive(Clone)]
 pub struct DeleteCursor {
     block: Arc<Block>,

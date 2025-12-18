@@ -23,10 +23,9 @@ use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 /// The theoretical complexity for collecting the top `K` out of `N` documents
 /// is `O(N + K)`.
 ///
-/// This collector does not guarantee a stable sorting in case of a tie on the
-/// document score, for stable sorting `PartialOrd` needs to resolve on other fields
-/// like docid in case of score equality.
-/// Only then, it is suitable for pagination.
+/// This collector guarantees a stable sorting in case of a tie on the
+/// document score/sort key: The document address (`DocAddress`) is used as a tie breaker.
+/// In case of a tie on the sort key, documents are always sorted by ascending `DocAddress`.
 ///
 /// ```rust
 /// use tantivy::collector::TopDocs;
@@ -500,8 +499,13 @@ where
 ///
 /// For TopN == 0, it will be relative expensive.
 ///
-/// When using the natural comparator, the top N computer returns the top N elements in
-/// descending order, as expected for a top N.
+/// The TopNComputer will tiebreak by using ascending `D` (DocId or DocAddress):
+/// i.e., in case of a tie on the sort key, the `DocId|DocAddress` are always sorted in
+/// ascending order, regardless of the `Comparator` used for the `Score` type.
+///
+/// NOTE: Items must be `push`ed to the TopNComputer in ascending `DocId|DocAddress` order, as the
+/// threshold used to eliminate docs does not include the `DocId` or `DocAddress`: this provides
+/// the ascending `DocId|DocAddress` tie-breaking behavior without additional comparisons.
 #[derive(Serialize, Deserialize)]
 #[serde(from = "TopNComputerDeser<Score, D, C>")]
 pub struct TopNComputer<Score, D, C> {
@@ -580,6 +584,18 @@ where
     }
 }
 
+#[inline(always)]
+fn compare_for_top_k<TSortKey, D: Ord, C: Comparator<TSortKey>>(
+    c: &C,
+    lhs: &ComparableDoc<TSortKey, D>,
+    rhs: &ComparableDoc<TSortKey, D>,
+) -> std::cmp::Ordering {
+    c.compare(&lhs.sort_key, &rhs.sort_key)
+        .reverse() // Reverse here because we want top K.
+        .then_with(|| lhs.doc.cmp(&rhs.doc)) // Regardless of asc/desc, in presence of a tie, we
+                                             // sort by doc id
+}
+
 impl<TSortKey, D, C> TopNComputer<TSortKey, D, C>
 where
     D: Ord,
@@ -600,10 +616,13 @@ where
 
     /// Push a new document to the top n.
     /// If the document is below the current threshold, it will be ignored.
+    ///
+    /// NOTE: `push` must be called in ascending `DocId`/`DocAddress` order.
     #[inline]
     pub fn push(&mut self, sort_key: TSortKey, doc: D) {
         if let Some(last_median) = &self.threshold {
-            if self.comparator.compare(&sort_key, last_median) == Ordering::Less {
+            // See the struct docs for an explanation of why this comparison is strict.
+            if self.comparator.compare(&sort_key, last_median) != Ordering::Greater {
                 return;
             }
         }
@@ -629,9 +648,7 @@ where
     fn truncate_top_n(&mut self) -> TSortKey {
         // Use select_nth_unstable to find the top nth score
         let (_, median_el, _) = self.buffer.select_nth_unstable_by(self.top_n, |lhs, rhs| {
-            self.comparator
-                .compare(&rhs.sort_key, &lhs.sort_key)
-                .then_with(|| lhs.doc.cmp(&rhs.doc))
+            compare_for_top_k(&self.comparator, lhs, rhs)
         });
 
         let median_score = median_el.sort_key.clone();
@@ -646,11 +663,8 @@ where
         if self.buffer.len() > self.top_n {
             self.truncate_top_n();
         }
-        self.buffer.sort_unstable_by(|left, right| {
-            self.comparator
-                .compare(&right.sort_key, &left.sort_key)
-                .then_with(|| left.doc.cmp(&right.doc))
-        });
+        self.buffer
+            .sort_unstable_by(|lhs, rhs| compare_for_top_k(&self.comparator, lhs, rhs));
         self.buffer
     }
 
@@ -756,6 +770,33 @@ mod tests {
     }
 
     #[test]
+    fn test_topn_computer_duplicates() {
+        let mut computer: TopNComputer<u32, u32, NaturalComparator> =
+            TopNComputer::new_with_comparator(2, NaturalComparator);
+
+        computer.push(1u32, 1u32);
+        computer.push(1u32, 2u32);
+        computer.push(1u32, 3u32);
+        computer.push(1u32, 4u32);
+        computer.push(1u32, 5u32);
+
+        // In the presence of duplicates, DocIds are always ascending order.
+        assert_eq!(
+            computer.into_sorted_vec(),
+            &[
+                ComparableDoc {
+                    sort_key: 1u32,
+                    doc: 1u32,
+                },
+                ComparableDoc {
+                    sort_key: 1u32,
+                    doc: 2u32,
+                }
+            ]
+        );
+    }
+
+    #[test]
     fn test_topn_computer_no_panic() {
         for top_n in 0..10 {
             let mut computer: TopNComputer<u32, u32, NaturalComparator> =
@@ -772,14 +813,17 @@ mod tests {
         #[test]
         fn test_topn_computer_asc_prop(
           limit in 0..10_usize,
-          docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
+          mut docs in proptest::collection::vec((0..100_u64, 0..100_u64), 0..100_usize),
         ) {
+            // NB: TopNComputer must receive inputs in ascending DocId order.
+            docs.sort_by_key(|(_, doc_id)| *doc_id);
             let mut computer: TopNComputer<_, _, ReverseComparator> = TopNComputer::new_with_comparator(limit, ReverseComparator);
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
             }
-            let mut comparable_docs: Vec<ComparableDoc<u64, u64>> = docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
-            comparable_docs.sort();
+            let mut comparable_docs: Vec<ComparableDoc<u64, u64>> =
+                docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect();
+            crate::collector::sort_key::tests::sort_hits(&mut comparable_docs, Order::Asc);
             comparable_docs.truncate(limit);
             prop_assert_eq!(
                 computer.into_sorted_vec(),
@@ -1406,15 +1450,10 @@ mod tests {
 
             // Using the TopDocs collector should always be equivalent to sorting, skipping the
             // offset, and then taking the limit.
-            let sorted_docs: Vec<_> = if order.is_desc() {
-                let mut comparable_docs: Vec<ComparableDoc<_, _, true>> =
+            let sorted_docs: Vec<_> = {
+                let mut comparable_docs: Vec<ComparableDoc<_, _>> =
                     all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                comparable_docs.sort();
-                comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
-            } else {
-                let mut comparable_docs: Vec<ComparableDoc<_, _, false>> =
-                    all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                comparable_docs.sort();
+                crate::collector::sort_key::tests::sort_hits(&mut comparable_docs, order);
                 comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             };
             let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
