@@ -11,14 +11,30 @@ pub use sort_by_string::SortByString;
 pub use sort_key_computer::{SegmentSortKeyComputer, SortKeyComputer};
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+
+    // By spec, regardless of whether ascending or descending order was requested, in presence of a
+    // tie, we sort by ascending doc id/doc address.
+    pub(crate) fn sort_hits<TSortKey: Ord, D: Ord>(
+        hits: &mut [ComparableDoc<TSortKey, D>],
+        order: Order,
+    ) {
+        if order.is_asc() {
+            hits.sort_by(|l, r| l.sort_key.cmp(&r.sort_key).then(l.doc.cmp(&r.doc)));
+        } else {
+            hits.sort_by(|l, r| {
+                l.sort_key
+                    .cmp(&r.sort_key)
+                    .reverse() // This is descending
+                    .then(l.doc.cmp(&r.doc))
+            });
+        }
+    }
+
     use std::collections::HashMap;
     use std::ops::Range;
 
-    use crate::collector::sort_key::{
-        Comparator, NaturalComparator, ReverseComparator, SortBySimilarityScore,
-        SortByStaticFastValue, SortByString,
-    };
+    use crate::collector::sort_key::{SortBySimilarityScore, SortByStaticFastValue, SortByString};
     use crate::collector::{ComparableDoc, DocSetCollector, TopDocs};
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, QueryParser};
@@ -378,11 +394,7 @@ mod tests {
             let sorted_docs: Vec<_> = {
                 let mut comparable_docs: Vec<ComparableDoc<_, _>> =
                     all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                if order.is_desc() {
-                    comparable_docs.sort_by(|l, r| NaturalComparator.compare_doc(l, r));
-                } else {
-                    comparable_docs.sort_by(|l, r| ReverseComparator.compare_doc(l, r));
-                }
+                sort_hits(&mut comparable_docs, order);
                 comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             };
             let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();

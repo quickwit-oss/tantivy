@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use serde::{Deserialize, Serialize};
 
-use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::Schema;
 use crate::{DocId, Order, Score};
 
@@ -10,23 +10,6 @@ use crate::{DocId, Order, Score};
 pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     /// Return the order between two values.
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
-    /// Return the order between two ComparableDoc values, using the semantics which are
-    /// implemented by TopNComputer.
-    #[inline(always)]
-    fn compare_doc<D: Ord>(
-        &self,
-        lhs: &ComparableDoc<T, D>,
-        rhs: &ComparableDoc<T, D>,
-    ) -> Ordering {
-        // TopNComputer sorts in descending order of the SortKey by default: we apply that ordering
-        // here to ease comparison in testing.
-        self.compare(&rhs.sort_key, &lhs.sort_key).then_with(|| {
-            // In case of a tie on the sort key, we always sort by ascending `DocAddress` in order
-            // to ensure a stable sorting of the documents, regardless of the sort key's order.
-            // See the TopNComputer docs for more information.
-            lhs.doc.cmp(&rhs.doc)
-        })
-    }
 }
 
 /// With the natural comparator, the top k collector will return

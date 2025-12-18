@@ -584,6 +584,18 @@ where
     }
 }
 
+#[inline(always)]
+fn compare_for_top_k<TSortKey, D: Ord, C: Comparator<TSortKey>>(
+    c: &C,
+    lhs: &ComparableDoc<TSortKey, D>,
+    rhs: &ComparableDoc<TSortKey, D>,
+) -> std::cmp::Ordering {
+    c.compare(&lhs.sort_key, &rhs.sort_key)
+        .reverse() // Reverse here because we want top K.
+        .then_with(|| lhs.doc.cmp(&rhs.doc)) // Regardless of asc/desc, in presence of a tie, we
+                                             // sort by doc id
+}
+
 impl<TSortKey, D, C> TopNComputer<TSortKey, D, C>
 where
     D: Ord,
@@ -635,9 +647,9 @@ where
     #[inline(never)]
     fn truncate_top_n(&mut self) -> TSortKey {
         // Use select_nth_unstable to find the top nth score
-        let (_, median_el, _) = self
-            .buffer
-            .select_nth_unstable_by(self.top_n, |lhs, rhs| self.comparator.compare_doc(lhs, rhs));
+        let (_, median_el, _) = self.buffer.select_nth_unstable_by(self.top_n, |lhs, rhs| {
+            compare_for_top_k(&self.comparator, lhs, rhs)
+        });
 
         let median_score = median_el.sort_key.clone();
         // Remove all elements below the top_n
@@ -652,7 +664,7 @@ where
             self.truncate_top_n();
         }
         self.buffer
-            .sort_unstable_by(|left, right| self.comparator.compare_doc(left, right));
+            .sort_unstable_by(|lhs, rhs| compare_for_top_k(&self.comparator, lhs, rhs));
         self.buffer
     }
 
@@ -688,9 +700,7 @@ mod tests {
     use proptest::prelude::*;
 
     use super::{TopDocs, TopNComputer};
-    use crate::collector::sort_key::{
-        Comparator, ComparatorEnum, NaturalComparator, ReverseComparator,
-    };
+    use crate::collector::sort_key::{ComparatorEnum, NaturalComparator, ReverseComparator};
     use crate::collector::top_collector::ComparableDoc;
     use crate::collector::{Collector, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
@@ -811,9 +821,9 @@ mod tests {
             for (feature, doc) in &docs {
                 computer.push(*feature, *doc);
             }
-            let mut comparable_docs =
-                docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect::<Vec<_>>();
-            comparable_docs.sort_by(|l, r| ReverseComparator.compare_doc(l, r));
+            let mut comparable_docs: Vec<ComparableDoc<u64, u64>> =
+                docs.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc }).collect();
+            crate::collector::sort_key::tests::sort_hits(&mut comparable_docs, Order::Asc);
             comparable_docs.truncate(limit);
             prop_assert_eq!(
                 computer.into_sorted_vec(),
@@ -1443,11 +1453,7 @@ mod tests {
             let sorted_docs: Vec<_> = {
                 let mut comparable_docs: Vec<ComparableDoc<_, _>> =
                     all_results.into_iter().map(|(sort_key, doc)| ComparableDoc { sort_key, doc}).collect();
-                if order.is_desc() {
-                    comparable_docs.sort_by(|l, r| NaturalComparator.compare_doc(l, r));
-                } else {
-                    comparable_docs.sort_by(|l, r| ReverseComparator.compare_doc(l, r));
-                }
+                crate::collector::sort_key::tests::sort_hits(&mut comparable_docs, order);
                 comparable_docs.into_iter().map(|cd| (cd.sort_key, cd.doc)).collect()
             };
             let expected_docs = sorted_docs.into_iter().skip(offset).take(limit).collect::<Vec<_>>();
