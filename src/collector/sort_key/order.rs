@@ -12,11 +12,13 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
 }
 
-/// With the natural comparator, the top k collector will return
-/// the top documents in decreasing order.
+/// Compare values naturally (e.g. 1 < 2).
 ///
-/// None (or Null for `OwnedValue`) values are considered to be smaller than any other value,
-/// and will therefore appear last in a descending sort.
+/// When used with `TopDocs`, which reverses the order, this results in a
+/// "Descending" sort (Greatest values first).
+///
+/// `None` (or Null for `OwnedValue`) values are considered to be smaller than any other value,
+/// and will therefore appear last in a descending sort (e.g. `[Some(20), Some(10), None]`).
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct NaturalComparator;
 
@@ -27,10 +29,14 @@ impl<T: PartialOrd> Comparator<T> for NaturalComparator {
     }
 }
 
-/// Sorts document in reverse order.
+/// Compare values in reverse (e.g. 2 < 1).
 ///
-/// If the sort key is None, it is considered the lowest value, and will therefore appear
-/// first in an ascending sort.
+/// When used with `TopDocs`, which reverses the order, this results in an
+/// "Ascending" sort (Smallest values first).
+///
+/// `None` is considered smaller than `Some` in the underlying comparator, but because the
+/// comparison is reversed, `None` is effectively treated as the lowest value in the resulting
+/// Ascending sort (e.g. `[None, Some(10), Some(20)]`).
 ///
 /// The ReverseComparator does not necessarily imply that the sort order is reversed compared
 /// to the NaturalComparator. In presence of a tie on the sort key, documents will always be
@@ -47,8 +53,11 @@ where NaturalComparator: Comparator<T>
     }
 }
 
-/// Sorts document in reverse order, but considers None (or Null for `OwnedValue`) as having the
-/// lowest value.
+/// Compare values in reverse, but treating `None` as lower than `Some`.
+///
+/// When used with `TopDocs`, which reverses the order, this results in an
+/// "Ascending" sort (Smallest values first), but with `None` values appearing last
+/// (e.g. `[Some(10), Some(20), None]`).
 ///
 /// This is usually what is wanted when sorting by a field in an ascending order.
 /// For instance, in an e-commerce website, if sorting by price ascending,
@@ -112,8 +121,11 @@ impl Comparator<String> for ReverseNoneIsLowerComparator {
     }
 }
 
-/// Sorts document in natural order (usually Descending for TopN), but considers None as having the
-/// greatest value.
+/// Compare values naturally, but treating `None` as higher than `Some`.
+///
+/// When used with `TopDocs`, which reverses the order, this results in a
+/// "Descending" sort (Greatest values first), but with `None` values appearing first
+/// (e.g. `[None, Some(20), Some(10)]`).
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct NaturalNoneIsHigherComparator;
 
