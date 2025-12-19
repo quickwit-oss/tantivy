@@ -371,6 +371,52 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_order_by_compound_fast_fields() -> crate::Result<()> {
+        let index = make_index()?;
+
+        type CompoundSortKey = (Option<String>, Option<f64>);
+
+        fn assert_query(
+            index: &Index,
+            city_order: Order,
+            altitude_order: Order,
+            expected: Vec<(CompoundSortKey, u64)>,
+        ) -> crate::Result<()> {
+            let searcher = index.reader()?.searcher();
+            let ids = id_mapping(&searcher);
+
+            let top_collector = TopDocs::with_limit(4).order_by((
+                (SortByString::for_field("city"), city_order),
+                (
+                    SortByStaticFastValue::<f64>::for_field("altitude"),
+                    altitude_order,
+                ),
+            ));
+            let actual = searcher
+                .search(&AllQuery, &top_collector)?
+                .into_iter()
+                .map(|(key, doc)| (key, ids[&doc]))
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected);
+            Ok(())
+        }
+
+        assert_query(
+            &index,
+            Order::Asc,
+            Order::Desc,
+            vec![
+                ((Some("austin".to_owned()), Some(149.0)), 0),
+                ((Some("greenville".to_owned()), Some(27.0)), 1),
+                ((Some("tokyo".to_owned()), Some(40.0)), 2),
+                ((None, Some(0.0)), 3),
+            ],
+        )?;
+
+        Ok(())
+    }
+
     use proptest::prelude::*;
 
     proptest! {
