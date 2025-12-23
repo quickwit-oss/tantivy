@@ -90,7 +90,50 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
         self.sort_column.first(doc)
     }
 
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
+        let start = output.len();
+        output.resize(start + docs.len(), None);
+        self.sort_column.first_vals(docs, &mut output[start..]);
+    }
+
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         sort_key.map(T::from_u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::{Schema, FAST};
+    use crate::Index;
+
+    #[test]
+    fn test_sort_by_fast_value_batch() {
+        let mut schema_builder = Schema::builder();
+        let field_col = schema_builder.add_u64_field("field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+
+        index_writer
+            .add_document(crate::doc!(field_col => 10u64))
+            .unwrap();
+        index_writer
+            .add_document(crate::doc!(field_col => 20u64))
+            .unwrap();
+        index_writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let sorter = SortByStaticFastValue::<u64>::for_field("field");
+        let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
+
+        let docs = vec![0, 1];
+        let mut output = Vec::new();
+        computer.segment_sort_keys(&docs, &mut output);
+
+        assert_eq!(output, vec![Some(10), Some(20)]);
     }
 }

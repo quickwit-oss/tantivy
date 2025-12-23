@@ -36,6 +36,12 @@ impl SortByErasedType {
 
 trait ErasedSegmentSortKeyComputer: Send + Sync {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64>;
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Option<u64>>) {
+        output.reserve(docs.len());
+        for &doc in docs {
+            output.push(self.segment_sort_key(doc, 0.0));
+        }
+    }
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue;
 }
 
@@ -51,6 +57,10 @@ where
 {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
         self.inner.segment_sort_key(doc, score)
+    }
+
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Option<u64>>) {
+        self.inner.segment_sort_keys(docs, output);
     }
 
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
@@ -193,6 +203,10 @@ impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
         self.inner.segment_sort_key(doc, score)
+    }
+
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
+        self.inner.segment_sort_keys(docs, output);
     }
 
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> OwnedValue {

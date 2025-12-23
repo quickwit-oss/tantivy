@@ -57,6 +57,14 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
         str_column.ords().first(doc)
     }
 
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
+        let start = output.len();
+        output.resize(start + docs.len(), None);
+        if let Some(str_column) = &self.str_column_opt {
+            str_column.ords().first_vals(docs, &mut output[start..]);
+        }
+    }
+
     fn convert_segment_sort_key(&self, term_ord_opt: Option<TermOrdinal>) -> Option<String> {
         // TODO: Individual lookups to the dictionary like this are very likely to repeatedly
         // decompress the same blocks. See https://github.com/quickwit-oss/tantivy/issues/2776

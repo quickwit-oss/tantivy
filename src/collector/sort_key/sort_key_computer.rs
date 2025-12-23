@@ -34,6 +34,16 @@ pub trait SegmentSortKeyComputer: 'static {
     /// Computes the sort key for the given document and score.
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey;
 
+    /// Computes the sort keys for a batch of documents.
+    ///
+    /// The computed sort keys are appended to the `output` buffer.
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
+        output.reserve(docs.len());
+        for &doc in docs {
+            output.push(self.segment_sort_key(doc, 0.0));
+        }
+    }
+
     /// Computes the sort key and pushes the document in a TopN Computer.
     ///
     /// When using a tuple as the sorting key, the sort key is evaluated in a lazy manner.
@@ -61,9 +71,10 @@ pub trait SegmentSortKeyComputer: 'static {
             // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
             // threshold here.
             let threshold = threshold.clone();
-            // Eagerly push, with a threshold to compare to.
-            for &doc in docs {
-                let sort_key = self.segment_sort_key(doc, 0.0);
+
+            let mut sort_keys = Vec::with_capacity(docs.len());
+            self.segment_sort_keys(docs, &mut sort_keys);
+            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
                 let cmp = self.compare_segment_sort_key(&sort_key, &threshold);
                 if cmp == Ordering::Greater {
                     // We validated at the top of the method that we have capacity.
@@ -72,8 +83,9 @@ pub trait SegmentSortKeyComputer: 'static {
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            for &doc in docs {
-                let sort_key = self.segment_sort_key(doc, 0.0);
+            let mut sort_keys = Vec::with_capacity(docs.len());
+            self.segment_sort_keys(docs, &mut sort_keys);
+            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
                 // We validated at the top of the method that we have capacity.
                 top_n_computer.append_doc_unchecked(doc, sort_key);
             }
@@ -268,6 +280,19 @@ where
             .then_with(|| self.1.compare_segment_sort_key(&left.1, &right.1))
     }
 
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
+        let mut head_keys = Vec::with_capacity(docs.len());
+        self.0.segment_sort_keys(docs, &mut head_keys);
+
+        let mut tail_keys = Vec::with_capacity(docs.len());
+        self.1.segment_sort_keys(docs, &mut tail_keys);
+
+        output.reserve(docs.len());
+        for (head, tail) in head_keys.into_iter().zip(tail_keys) {
+            output.push((head, tail));
+        }
+    }
+
     #[inline(always)]
     fn compute_sort_key_and_collect<C: Comparator<Self::SegmentSortKey>>(
         &mut self,
@@ -301,17 +326,21 @@ where
             // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
             // threshold here.
             let threshold = threshold.clone();
-            // Eagerly push, with a threshold to compare to.
-            for &doc in docs {
-                if let Some((_cmp, lazy_sort_key)) = self.accept_sort_key_lazy(doc, 0.0, &threshold) {
+
+            let mut sort_keys = Vec::with_capacity(docs.len());
+            self.segment_sort_keys(docs, &mut sort_keys);
+            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
+                let cmp = self.compare_segment_sort_key(&sort_key, &threshold);
+                if cmp == Ordering::Greater {
                     // We validated at the top of the method that we have capacity.
-                    top_n_computer.append_doc_unchecked(doc, lazy_sort_key);
+                    top_n_computer.append_doc_unchecked(doc, sort_key);
                 }
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            for &doc in docs {
-                let sort_key = self.segment_sort_key(doc, 0.0);
+            let mut sort_keys = Vec::with_capacity(docs.len());
+            self.segment_sort_keys(docs, &mut sort_keys);
+            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
                 // We validated at the top of the method that we have capacity.
                 top_n_computer.append_doc_unchecked(doc, sort_key);
             }
@@ -373,6 +402,10 @@ where
 
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.sort_key_computer.segment_sort_key(doc, score)
+    }
+
+    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
+        self.sort_key_computer.segment_sort_keys(docs, output);
     }
 
     fn accept_sort_key_lazy(
@@ -599,6 +632,25 @@ mod tests {
             .unwrap();
         index_writer.commit().unwrap();
         index
+    }
+
+    #[test]
+    fn test_batch_score_computer() {
+        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
+        let score_computer_secondary = |_segment_reader: &SegmentReader| |_doc: DocId| 10u32;
+
+        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
+        let index = build_test_index();
+        let searcher = index.reader().unwrap().searcher();
+        let mut segment_sort_key_computer = lazy_score_computer
+            .segment_sort_key_computer(searcher.segment_reader(0))
+            .unwrap();
+
+        let docs = vec![1, 2, 3];
+        let mut output = Vec::new();
+        segment_sort_key_computer.segment_sort_keys(&docs, &mut output);
+
+        assert_eq!(output, vec![(200, 10), (200, 10), (200, 10)]);
     }
 
     #[test]
