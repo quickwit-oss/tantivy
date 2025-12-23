@@ -548,7 +548,7 @@ mod tests {
         let i = OwnedValue::I64(10);
         let f = OwnedValue::F64(10.0);
 
-        let nc = NaturalComparator::default();
+        let nc = NaturalComparator;
         assert_eq!(nc.compare(&u, &i), Ordering::Equal);
         assert_eq!(nc.compare(&u, &f), Ordering::Equal);
         assert_eq!(nc.compare(&i, &f), Ordering::Equal);

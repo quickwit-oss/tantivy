@@ -333,7 +333,7 @@ mod tests {
             .into_iter()
             .map(|(key, _)| match key {
                 OwnedValue::F64(val) => val,
-                _ => panic!("Wrong type {:?}", key),
+                _ => panic!("Wrong type {key:?}"),
             })
             .collect();
 
@@ -351,7 +351,7 @@ mod tests {
             .into_iter()
             .map(|(key, _)| match key {
                 OwnedValue::F64(val) => val,
-                _ => panic!("Wrong type {:?}", key),
+                _ => panic!("Wrong type {key:?}"),
             })
             .collect();
 
