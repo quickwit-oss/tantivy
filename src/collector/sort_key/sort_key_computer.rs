@@ -290,10 +290,32 @@ where
 
     fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
         &mut self,
-        _docs: &[DocId],
-        _top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        docs: &[DocId],
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
     ) {
-        todo!("Override for laziness.");
+        // The capacity of a TopNComputer is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so we
+        // should always be able to `reserve` space for the entire block.
+        top_n_computer.reserve(docs.len());
+
+        if let Some(threshold) = &top_n_computer.threshold {
+            // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
+            // threshold here.
+            let threshold = threshold.clone();
+            // Eagerly push, with a threshold to compare to.
+            for &doc in docs {
+                if let Some((_cmp, lazy_sort_key)) = self.accept_sort_key_lazy(doc, 0.0, &threshold) {
+                    // We validated at the top of the method that we have capacity.
+                    top_n_computer.append_doc_unchecked(doc, lazy_sort_key);
+                }
+            }
+        } else {
+            // Eagerly push, without a threshold to compare to.
+            for &doc in docs {
+                let sort_key = self.segment_sort_key(doc, 0.0);
+                // We validated at the top of the method that we have capacity.
+                top_n_computer.append_doc_unchecked(doc, sort_key);
+            }
+        }
     }
 
     #[inline(always)]
@@ -372,6 +394,15 @@ where
     ) {
         self.sort_key_computer
             .compute_sort_key_and_collect(doc, score, top_n_computer);
+    }
+
+    fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        docs: &[DocId],
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+    ) {
+        self.sort_key_computer
+            .compute_sort_keys_and_collect(docs, top_n_computer);
     }
 
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> Self::SortKey {
