@@ -6,17 +6,21 @@ use crate::{DocId, Score, TERMINATED};
 
 // doc num bits uses the following encoding:
 // given 0b a b cdefgh
-//         |1|2|   3  |
+//         |1|2|3|  4  |
 // - 1: unused
 // - 2: is delta-1 encoded. 0 if not, 1, if yes
-// - 3: a 6 bit number in 0..=32, the actual bitwidth
+// - 3: unused
+// - 4: a 5 bit number in 0..32, the actual bitwidth. Bitpacking could in theory say this is 32
+//   (requiring a 6th bit), but the biggest doc_id we can want to encode is TERMINATED-1, which can
+//   be represented on 31b without delta encoding.
 fn encode_bitwidth(bitwidth: u8, delta_1: bool) -> u8 {
+    assert!(bitwidth < 32);
     bitwidth | ((delta_1 as u8) << 6)
 }
 
 fn decode_bitwidth(raw_bitwidth: u8) -> (u8, bool) {
     let delta_1 = ((raw_bitwidth >> 6) & 1) != 0;
-    let bitwidth = raw_bitwidth & 0x3f;
+    let bitwidth = raw_bitwidth & 0x1f;
     (bitwidth, delta_1)
 }
 
@@ -430,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_bitwidth() {
-        for bitwidth in 0..=32 {
+        for bitwidth in 0..32 {
             for delta_1 in [false, true] {
                 assert_eq!(
                     (bitwidth, delta_1),
