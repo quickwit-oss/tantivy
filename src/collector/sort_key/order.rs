@@ -12,8 +12,13 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
 }
 
-/// With the natural comparator, the top k collector will return
-/// the top documents in decreasing order.
+/// Compare values naturally (e.g. 1 < 2).
+///
+/// When used with `TopDocs`, which reverses the order, this results in a
+/// "Descending" sort (Greatest values first).
+///
+/// `None` (or Null for `OwnedValue`) values are considered to be smaller than any other value,
+/// and will therefore appear last in a descending sort (e.g. `[Some(20), Some(10), None]`).
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct NaturalComparator;
 
@@ -24,14 +29,18 @@ impl<T: PartialOrd> Comparator<T> for NaturalComparator {
     }
 }
 
-/// Sorts document in reverse order.
+/// Compare values in reverse (e.g. 2 < 1).
 ///
-/// If the sort key is None, it will considered as the lowest value, and will therefore appear
-/// first.
+/// When used with `TopDocs`, which reverses the order, this results in an
+/// "Ascending" sort (Smallest values first).
+///
+/// `None` is considered smaller than `Some` in the underlying comparator, but because the
+/// comparison is reversed, `None` is effectively treated as the lowest value in the resulting
+/// Ascending sort (e.g. `[None, Some(10), Some(20)]`).
 ///
 /// The ReverseComparator does not necessarily imply that the sort order is reversed compared
 /// to the NaturalComparator. In presence of a tie on the sort key, documents will always be
-/// sorted by ascending `DocId`/`DocAddress` in TopN results, regardless of the comparator.
+/// sorted by ascending `DocId`/`DocAddress` in TopN results, regardless of the sort key's order.
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReverseComparator;
 
@@ -44,11 +53,15 @@ where NaturalComparator: Comparator<T>
     }
 }
 
-/// Sorts document in reverse order, but considers None as having the lowest value.
+/// Compare values in reverse, but treating `None` as lower than `Some`.
+///
+/// When used with `TopDocs`, which reverses the order, this results in an
+/// "Ascending" sort (Smallest values first), but with `None` values appearing last
+/// (e.g. `[Some(10), Some(20), None]`).
 ///
 /// This is usually what is wanted when sorting by a field in an ascending order.
-/// For instance, in a e-commerce website, if I sort by price ascending, I most likely want the
-/// cheapest items first, and the items without a price at last.
+/// For instance, in an e-commerce website, if sorting by price ascending,
+/// the cheapest items would appear first, and items without a price would appear last.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct ReverseNoneIsLowerComparator;
 
@@ -108,6 +121,70 @@ impl Comparator<String> for ReverseNoneIsLowerComparator {
     }
 }
 
+/// Compare values naturally, but treating `None` as higher than `Some`.
+///
+/// When used with `TopDocs`, which reverses the order, this results in a
+/// "Descending" sort (Greatest values first), but with `None` values appearing first
+/// (e.g. `[None, Some(20), Some(10)]`).
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+pub struct NaturalNoneIsHigherComparator;
+
+impl<T> Comparator<Option<T>> for NaturalNoneIsHigherComparator
+where NaturalComparator: Comparator<T>
+{
+    #[inline(always)]
+    fn compare(&self, lhs_opt: &Option<T>, rhs_opt: &Option<T>) -> Ordering {
+        match (lhs_opt, rhs_opt) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Greater,
+            (Some(_), None) => Ordering::Less,
+            (Some(lhs), Some(rhs)) => NaturalComparator.compare(lhs, rhs),
+        }
+    }
+}
+
+impl Comparator<u32> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &u32, rhs: &u32) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<u64> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &u64, rhs: &u64) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<f64> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &f64, rhs: &f64) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<f32> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &f32, rhs: &f32) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<i64> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &i64, rhs: &i64) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<String> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &String, rhs: &String) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
 /// An enum representing the different sort orders.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub enum ComparatorEnum {
@@ -116,8 +193,10 @@ pub enum ComparatorEnum {
     Natural,
     /// Reverse order (See [ReverseComparator])
     Reverse,
-    /// Reverse order by treating None as the lowest value.(See [ReverseNoneLowerComparator])
+    /// Reverse order by treating None as the lowest value. (See [ReverseNoneLowerComparator])
     ReverseNoneLower,
+    /// Natural order but treating None as the highest value. (See [NaturalNoneIsHigherComparator])
+    NaturalNoneHigher,
 }
 
 impl From<Order> for ComparatorEnum {
@@ -134,6 +213,7 @@ where
     ReverseNoneIsLowerComparator: Comparator<T>,
     NaturalComparator: Comparator<T>,
     ReverseComparator: Comparator<T>,
+    NaturalNoneIsHigherComparator: Comparator<T>,
 {
     #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
@@ -141,6 +221,7 @@ where
             ComparatorEnum::Natural => NaturalComparator.compare(lhs, rhs),
             ComparatorEnum::Reverse => ReverseComparator.compare(lhs, rhs),
             ComparatorEnum::ReverseNoneLower => ReverseNoneIsLowerComparator.compare(lhs, rhs),
+            ComparatorEnum::NaturalNoneHigher => NaturalNoneIsHigherComparator.compare(lhs, rhs),
         }
     }
 }
@@ -345,5 +426,33 @@ where
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         self.segment_sort_key_computer
             .convert_segment_sort_key(sort_key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_natural_none_is_higher() {
+        let comp = NaturalNoneIsHigherComparator;
+        let null = None;
+        let v1 = Some(1_u64);
+        let v2 = Some(2_u64);
+
+        // NaturalNoneIsGreaterComparator logic:
+        // 1. Delegates to NaturalComparator for non-nulls.
+        // NaturalComparator compare(2, 1) -> 2.cmp(1) -> Greater.
+        assert_eq!(comp.compare(&v2, &v1), Ordering::Greater);
+
+        // 2. Treats None (Null) as Greater than any value.
+        // compare(None, Some(2)) should be Greater.
+        assert_eq!(comp.compare(&null, &v2), Ordering::Greater);
+
+        // compare(Some(1), None) should be Less.
+        assert_eq!(comp.compare(&v1, &null), Ordering::Less);
+
+        // compare(None, None) should be Equal.
+        assert_eq!(comp.compare(&null, &null), Ordering::Equal);
     }
 }
