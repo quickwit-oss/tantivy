@@ -1057,7 +1057,7 @@ mod tests {
             "avg": {"field": "score"}
         }));
         let terms_string_with_child = agg_from_json(json!({
-            "terms": {"field": "string_id"},
+            "terms": {"field": "text"},
             "aggs": {
                 "histo": {"histogram": {"field": "score", "interval": 10.0}}
             }
