@@ -34,9 +34,7 @@ impl<T: FastValue> SortByStaticFastValue<T> {
 
 impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
     type Child = SortByFastValueSegmentSortKeyComputer<T>;
-
     type SortKey = Option<T>;
-
     type Comparator = NaturalComparator;
 
     fn check_schema(&self, schema: &crate::schema::Schema) -> crate::Result<()> {
@@ -84,8 +82,8 @@ pub struct SortByFastValueSegmentSortKeyComputer<T> {
 
 impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyComputer<T> {
     type SortKey = Option<T>;
-
     type SegmentSortKey = Option<u64>;
+    type SegmentComparator = NaturalComparator;
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
