@@ -317,8 +317,8 @@ impl Triangle {
     /// words of the structure. The bounding box is stored first for efficient spatial pruning,
     /// determining whether it is necessary to decode the triangle for precise intersection or
     /// containment tests.
-    pub fn bbox(&self) -> &[i32] {
-        &self.words[..4]
+    pub fn bbox(&self) -> [i32; 4] {
+        [self.words[0], self.words[1], self.words[2], self.words[3]]
     }
 }
 

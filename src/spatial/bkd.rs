@@ -562,45 +562,6 @@ fn edge_crosses_bbox(x1: i32, y1: i32, x2: i32, y2: i32, bbox: &[i32; 4]) -> boo
     p1_inside != p2_inside
 }
 
-fn triangle_within(triangle: &Triangle, query: &[i32; 4]) -> bool {
-    let tri_bbox = &triangle.words[0..4];
-
-    // Triangle bbox entirely within query → WITHIN
-    if tri_bbox[0] >= query[0]
-        && tri_bbox[1] >= query[1]
-        && tri_bbox[2] <= query[2]
-        && tri_bbox[3] <= query[3]
-    {
-        return true;
-    }
-
-    // Triangle bbox entirely outside → NOT WITHIN
-    if tri_bbox[2] < query[0]
-        || tri_bbox[3] < query[1]
-        || tri_bbox[0] > query[2]
-        || tri_bbox[1] > query[3]
-    {
-        return false;
-    }
-
-    // Decode vertices.
-    let ([ay, ax, by, bx, cy, cx], [ab, bc, ca]) = triangle.decode();
-
-    // Check each edge - if boundary edge crosses query bbox, NOT WITHIN
-    if ab && edge_crosses_bbox(ax, ay, bx, by, query) {
-        return false;
-    }
-    if bc && edge_crosses_bbox(bx, by, cx, cy, query) {
-        return false;
-    }
-    if ca && edge_crosses_bbox(cx, cy, ax, ay, query) {
-        return false;
-    }
-
-    // No boundary edges cross out
-    true
-}
-
 #[expect(clippy::too_many_arguments)]
 fn point_in_triangle(
     px: i32,
@@ -695,20 +656,18 @@ pub fn search_within(
 ) -> io::Result<()> {
     let bbox = segment.bounding_box(offset);
     if !bbox_intersects(&bbox, query) {
+    } else if bbox_within(&bbox, query) {
+        // triangles can still be rejected by crosses and not within
+        collect_all_docs(segment, offset, include)?;
     } else if offset < 0 {
         let leaf_node = segment.leaf_node(offset);
         // bbox crosses query → test each triangle
         let triangles = decompress_leaf(segment.leaf_page(&leaf_node))?;
         for triangle in &triangles {
-            if triangle_intersects(triangle, query) {
-                if exclude.contains(triangle.doc_id) {
-                    continue; // Already excluded
-                }
-                if triangle_within(triangle, query) {
-                    include.insert(triangle.doc_id);
-                } else {
-                    exclude.insert(triangle.doc_id);
-                }
+            if bbox_within(&triangle.bbox(), query) {
+                include.insert(triangle.doc_id);
+            } else {
+                exclude.insert(triangle.doc_id);
             }
         }
     } else {
