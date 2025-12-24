@@ -38,12 +38,16 @@ impl SortKeyComputer for SortByString {
         segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let str_column_opt = segment_reader.fast_fields().str(&self.column_name)?;
-        Ok(ByStringColumnSegmentSortKeyComputer { str_column_opt })
+        Ok(ByStringColumnSegmentSortKeyComputer {
+            str_column_opt,
+            buffer: Vec::new(),
+        })
     }
 }
 
 pub struct ByStringColumnSegmentSortKeyComputer {
     str_column_opt: Option<StrColumn>,
+    buffer: Vec<Option<TermOrdinal>>,
 }
 
 impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
@@ -57,12 +61,12 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
         str_column.ords().first(doc)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
-        let start = output.len();
-        output.resize(start + docs.len(), None);
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+        self.buffer.resize(docs.len(), None);
         if let Some(str_column) = &self.str_column_opt {
-            str_column.ords().first_vals(docs, &mut output[start..]);
+            str_column.ords().first_vals(docs, &mut self.buffer);
         }
+        &self.buffer
     }
 
     fn convert_segment_sort_key(&self, term_ord_opt: Option<TermOrdinal>) -> Option<String> {

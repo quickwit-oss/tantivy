@@ -71,6 +71,7 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
         Ok(SortByFastValueSegmentSortKeyComputer {
             sort_column,
             typ: PhantomData,
+            buffer: Vec::new(),
         })
     }
 }
@@ -78,6 +79,7 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
 pub struct SortByFastValueSegmentSortKeyComputer<T> {
     sort_column: Column<u64>,
     typ: PhantomData<T>,
+    buffer: Vec<Option<u64>>,
 }
 
 impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyComputer<T> {
@@ -90,10 +92,10 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
         self.sort_column.first(doc)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
-        let start = output.len();
-        output.resize(start + docs.len(), None);
-        self.sort_column.first_vals(docs, &mut output[start..]);
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+        self.buffer.resize(docs.len(), None);
+        self.sort_column.first_vals(docs, &mut self.buffer);
+        &self.buffer
     }
 
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
@@ -131,9 +133,8 @@ mod tests {
         let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
 
         let docs = vec![0, 1];
-        let mut output = Vec::new();
-        computer.segment_sort_keys(&docs, &mut output);
+        let output = computer.segment_sort_keys(&docs);
 
-        assert_eq!(output, vec![Some(10), Some(20)]);
+        assert_eq!(output, &[Some(10), Some(20)]);
     }
 }

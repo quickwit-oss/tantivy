@@ -9,7 +9,7 @@ pub struct SortBySimilarityScore;
 impl SortKeyComputer for SortBySimilarityScore {
     type SortKey = Score;
 
-    type Child = SortBySimilarityScore;
+    type Child = SortBySimilarityScoreSegmentComputer;
 
     type Comparator = NaturalComparator;
 
@@ -21,7 +21,7 @@ impl SortKeyComputer for SortBySimilarityScore {
         &self,
         _segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        Ok(SortBySimilarityScore)
+        Ok(SortBySimilarityScoreSegmentComputer)
     }
 
     // Sorting by score is special in that it allows for the Block-Wand optimization.
@@ -61,7 +61,9 @@ impl SortKeyComputer for SortBySimilarityScore {
     }
 }
 
-impl SegmentSortKeyComputer for SortBySimilarityScore {
+pub struct SortBySimilarityScoreSegmentComputer;
+
+impl SegmentSortKeyComputer for SortBySimilarityScoreSegmentComputer {
     type SortKey = Score;
     type SegmentSortKey = Score;
     type SegmentComparator = NaturalComparator;
@@ -69,6 +71,10 @@ impl SegmentSortKeyComputer for SortBySimilarityScore {
     #[inline(always)]
     fn segment_sort_key(&mut self, _doc: DocId, score: Score) -> Score {
         score
+    }
+
+    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &[Self::SegmentSortKey] {
+        unimplemented!("Batch computation not supported for score sorting")
     }
 
     fn convert_segment_sort_key(&self, score: Score) -> Score {

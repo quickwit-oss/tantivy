@@ -486,6 +486,10 @@ where
         (self.sort_key_fn)(doc, score)
     }
 
+    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &[Self::SegmentSortKey] {
+        unimplemented!("Batch computation is not supported for tweak score.")
+    }
+
     /// Convert a segment level score into the global level score.
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         sort_key

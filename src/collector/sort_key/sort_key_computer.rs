@@ -24,7 +24,7 @@ pub trait SegmentSortKeyComputer: 'static {
     type SegmentSortKey: 'static + Clone + Send + Sync + Clone;
 
     /// Comparator type.
-    type SegmentComparator: Comparator<Self::SegmentSortKey> + 'static;
+    type SegmentComparator: Comparator<Self::SegmentSortKey> + Clone + 'static;
 
     /// Returns the segment sort key comparator.
     fn segment_comparator(&self) -> Self::SegmentComparator {
@@ -36,13 +36,9 @@ pub trait SegmentSortKeyComputer: 'static {
 
     /// Computes the sort keys for a batch of documents.
     ///
-    /// The computed sort keys are appended to the `output` buffer.
-    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
-        output.reserve(docs.len());
-        for &doc in docs {
-            output.push(self.segment_sort_key(doc, 0.0));
-        }
-    }
+    /// The computed sort keys are stored in an internal buffer and returned as a slice.
+    /// Subsequent calls to this method may reuse and overwrite the internal buffer.
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey];
 
     /// Computes the sort key and pushes the document in a TopN Computer.
     ///
@@ -71,23 +67,22 @@ pub trait SegmentSortKeyComputer: 'static {
             // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
             // threshold here.
             let threshold = threshold.clone();
+            let comparator = self.segment_comparator();
+            let sort_keys = self.segment_sort_keys(docs);
 
-            let mut sort_keys = Vec::with_capacity(docs.len());
-            self.segment_sort_keys(docs, &mut sort_keys);
             for (&doc, sort_key) in docs.iter().zip(sort_keys) {
-                let cmp = self.compare_segment_sort_key(&sort_key, &threshold);
+                let cmp = comparator.compare(sort_key, &threshold);
                 if cmp == Ordering::Greater {
                     // We validated at the top of the method that we have capacity.
-                    top_n_computer.append_doc_unchecked(doc, sort_key);
+                    top_n_computer.append_doc_unchecked(doc, sort_key.clone());
                 }
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            let mut sort_keys = Vec::with_capacity(docs.len());
-            self.segment_sort_keys(docs, &mut sort_keys);
+            let sort_keys = self.segment_sort_keys(docs);
             for (&doc, sort_key) in docs.iter().zip(sort_keys) {
                 // We validated at the top of the method that we have capacity.
-                top_n_computer.append_doc_unchecked(doc, sort_key);
+                top_n_computer.append_doc_unchecked(doc, sort_key.clone());
             }
         }
     }
@@ -136,9 +131,10 @@ pub trait SegmentSortKeyComputer: 'static {
         threshold: &Self::SegmentSortKey,
         output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
     ) {
+        let comparator = self.segment_comparator();
         for &doc in docs {
             let sort_key = self.segment_sort_key(doc, 0.0);
-            let cmp = self.compare_segment_sort_key(&sort_key, threshold);
+            let cmp = comparator.compare(&sort_key, threshold);
             if cmp != Ordering::Less {
                 push_assuming_capacity(ComparableDoc { sort_key, doc }, output);
             }
@@ -212,7 +208,8 @@ where
     TailSortKeyComputer: SortKeyComputer,
 {
     type SortKey = (HeadSortKeyComputer::SortKey, TailSortKeyComputer::SortKey);
-    type Child = (HeadSortKeyComputer::Child, TailSortKeyComputer::Child);
+    type Child =
+        ChainSegmentSortKeyComputer<HeadSortKeyComputer::Child, TailSortKeyComputer::Child>;
 
     type Comparator = (
         HeadSortKeyComputer::Comparator,
@@ -224,10 +221,11 @@ where
     }
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
-        Ok((
-            self.0.segment_sort_key_computer(segment_reader)?,
-            self.1.segment_sort_key_computer(segment_reader)?,
-        ))
+        Ok(ChainSegmentSortKeyComputer {
+            head: self.0.segment_sort_key_computer(segment_reader)?,
+            tail: self.1.segment_sort_key_computer(segment_reader)?,
+            buffer: Vec::new(),
+        })
     }
 
     /// Checks whether the schema is compatible with the sort key computer.
@@ -245,25 +243,32 @@ where
     }
 }
 
-impl<HeadSegmentSortKeyComputer, TailSegmentSortKeyComputer> SegmentSortKeyComputer
-    for (HeadSegmentSortKeyComputer, TailSegmentSortKeyComputer)
+pub struct ChainSegmentSortKeyComputer<Head, Tail>
 where
-    HeadSegmentSortKeyComputer: SegmentSortKeyComputer,
-    TailSegmentSortKeyComputer: SegmentSortKeyComputer,
+    Head: SegmentSortKeyComputer,
+    Tail: SegmentSortKeyComputer,
 {
-    type SortKey = (
-        HeadSegmentSortKeyComputer::SortKey,
-        TailSegmentSortKeyComputer::SortKey,
-    );
-    type SegmentSortKey = (
-        HeadSegmentSortKeyComputer::SegmentSortKey,
-        TailSegmentSortKeyComputer::SegmentSortKey,
-    );
+    head: Head,
+    tail: Tail,
+    buffer: Vec<(Head::SegmentSortKey, Tail::SegmentSortKey)>,
+}
 
-    type SegmentComparator = (
-        HeadSegmentSortKeyComputer::SegmentComparator,
-        TailSegmentSortKeyComputer::SegmentComparator,
-    );
+impl<Head, Tail> SegmentSortKeyComputer for ChainSegmentSortKeyComputer<Head, Tail>
+where
+    Head: SegmentSortKeyComputer,
+    Tail: SegmentSortKeyComputer,
+{
+    type SortKey = (Head::SortKey, Tail::SortKey);
+    type SegmentSortKey = (Head::SegmentSortKey, Tail::SegmentSortKey);
+
+    type SegmentComparator = (Head::SegmentComparator, Tail::SegmentComparator);
+
+    fn segment_comparator(&self) -> Self::SegmentComparator {
+        (
+            self.head.segment_comparator(),
+            self.tail.segment_comparator(),
+        )
+    }
 
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
     /// its ordering.
@@ -275,22 +280,18 @@ where
         left: &Self::SegmentSortKey,
         right: &Self::SegmentSortKey,
     ) -> Ordering {
-        self.0
+        self.head
             .compare_segment_sort_key(&left.0, &right.0)
-            .then_with(|| self.1.compare_segment_sort_key(&left.1, &right.1))
+            .then_with(|| self.tail.compare_segment_sort_key(&left.1, &right.1))
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
-        let mut head_keys = Vec::with_capacity(docs.len());
-        self.0.segment_sort_keys(docs, &mut head_keys);
-
-        let mut tail_keys = Vec::with_capacity(docs.len());
-        self.1.segment_sort_keys(docs, &mut tail_keys);
-
-        output.reserve(docs.len());
-        for (head, tail) in head_keys.into_iter().zip(tail_keys) {
-            output.push((head, tail));
-        }
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+        let head_keys = self.head.segment_sort_keys(docs);
+        let tail_keys = self.tail.segment_sort_keys(docs);
+        self.buffer.clear();
+        self.buffer
+            .extend(head_keys.iter().cloned().zip(tail_keys.iter().cloned()));
+        &self.buffer
     }
 
     #[inline(always)]
@@ -326,31 +327,30 @@ where
             // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
             // threshold here.
             let threshold = threshold.clone();
+            let comparator = self.segment_comparator();
+            let sort_keys = self.segment_sort_keys(docs);
 
-            let mut sort_keys = Vec::with_capacity(docs.len());
-            self.segment_sort_keys(docs, &mut sort_keys);
             for (&doc, sort_key) in docs.iter().zip(sort_keys) {
-                let cmp = self.compare_segment_sort_key(&sort_key, &threshold);
+                let cmp = comparator.compare(sort_key, &threshold);
                 if cmp == Ordering::Greater {
                     // We validated at the top of the method that we have capacity.
-                    top_n_computer.append_doc_unchecked(doc, sort_key);
+                    top_n_computer.append_doc_unchecked(doc, sort_key.clone());
                 }
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            let mut sort_keys = Vec::with_capacity(docs.len());
-            self.segment_sort_keys(docs, &mut sort_keys);
+            let sort_keys = self.segment_sort_keys(docs);
             for (&doc, sort_key) in docs.iter().zip(sort_keys) {
                 // We validated at the top of the method that we have capacity.
-                top_n_computer.append_doc_unchecked(doc, sort_key);
+                top_n_computer.append_doc_unchecked(doc, sort_key.clone());
             }
         }
     }
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
-        let head_sort_key = self.0.segment_sort_key(doc, score);
-        let tail_sort_key = self.1.segment_sort_key(doc, score);
+        let head_sort_key = self.head.segment_sort_key(doc, score);
+        let tail_sort_key = self.tail.segment_sort_key(doc, score);
         (head_sort_key, tail_sort_key)
     }
 
@@ -362,13 +362,15 @@ where
     ) -> Option<(Ordering, Self::SegmentSortKey)> {
         let (head_threshold, tail_threshold) = threshold;
         let (head_cmp, head_sort_key) =
-            self.0.accept_sort_key_lazy(doc_id, score, head_threshold)?;
+            self.head
+                .accept_sort_key_lazy(doc_id, score, head_threshold)?;
         if head_cmp == Ordering::Equal {
             let (tail_cmp, tail_sort_key) =
-                self.1.accept_sort_key_lazy(doc_id, score, tail_threshold)?;
+                self.tail
+                    .accept_sort_key_lazy(doc_id, score, tail_threshold)?;
             Some((tail_cmp, (head_sort_key, tail_sort_key)))
         } else {
-            let tail_sort_key = self.1.segment_sort_key(doc_id, score);
+            let tail_sort_key = self.tail.segment_sort_key(doc_id, score);
             Some((head_cmp, (head_sort_key, tail_sort_key)))
         }
     }
@@ -376,21 +378,21 @@ where
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         let (head_sort_key, tail_sort_key) = sort_key;
         (
-            self.0.convert_segment_sort_key(head_sort_key),
-            self.1.convert_segment_sort_key(tail_sort_key),
+            self.head.convert_segment_sort_key(head_sort_key),
+            self.tail.convert_segment_sort_key(tail_sort_key),
         )
     }
 }
 
 /// This struct is used as an adapter to take a sort key computer and map its score to another
 /// new sort key.
-pub struct MappedSegmentSortKeyComputer<T, PreviousSortKey, NewSortKey> {
+pub struct MappedSegmentSortKeyComputer<T: SegmentSortKeyComputer, NewSortKey> {
     sort_key_computer: T,
-    map: fn(PreviousSortKey) -> NewSortKey,
+    map: fn(T::SortKey) -> NewSortKey,
 }
 
 impl<T, PreviousScore, NewScore> SegmentSortKeyComputer
-    for MappedSegmentSortKeyComputer<T, PreviousScore, NewScore>
+    for MappedSegmentSortKeyComputer<T, NewScore>
 where
     T: SegmentSortKeyComputer<SortKey = PreviousScore>,
     PreviousScore: 'static + Clone + Send + Sync,
@@ -400,12 +402,16 @@ where
     type SegmentSortKey = T::SegmentSortKey;
     type SegmentComparator = T::SegmentComparator;
 
+    fn segment_comparator(&self) -> Self::SegmentComparator {
+        self.sort_key_computer.segment_comparator()
+    }
+
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.sort_key_computer.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId], output: &mut Vec<Self::SegmentSortKey>) {
-        self.sort_key_computer.segment_sort_keys(docs, output);
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+        self.sort_key_computer.segment_sort_keys(docs)
     }
 
     fn accept_sort_key_lazy(
@@ -463,10 +469,6 @@ where
     );
     type Child = MappedSegmentSortKeyComputer<
         <(SortKeyComputer1, (SortKeyComputer2, SortKeyComputer3)) as SortKeyComputer>::Child,
-        (
-            SortKeyComputer1::SortKey,
-            (SortKeyComputer2::SortKey, SortKeyComputer3::SortKey),
-        ),
         Self::SortKey,
     >;
 
@@ -490,7 +492,15 @@ where
         let sort_key_computer3 = self.2.segment_sort_key_computer(segment_reader)?;
         let map = |(sort_key1, (sort_key2, sort_key3))| (sort_key1, sort_key2, sort_key3);
         Ok(MappedSegmentSortKeyComputer {
-            sort_key_computer: (sort_key_computer1, (sort_key_computer2, sort_key_computer3)),
+            sort_key_computer: ChainSegmentSortKeyComputer {
+                head: sort_key_computer1,
+                tail: ChainSegmentSortKeyComputer {
+                    head: sort_key_computer2,
+                    tail: sort_key_computer3,
+                    buffer: Vec::new(),
+                },
+                buffer: Vec::new(),
+            },
             map,
         })
     }
@@ -525,13 +535,6 @@ where
             SortKeyComputer1,
             (SortKeyComputer2, (SortKeyComputer3, SortKeyComputer4)),
         ) as SortKeyComputer>::Child,
-        (
-            SortKeyComputer1::SortKey,
-            (
-                SortKeyComputer2::SortKey,
-                (SortKeyComputer3::SortKey, SortKeyComputer4::SortKey),
-            ),
-        ),
         Self::SortKey,
     >;
     type SortKey = (
@@ -553,10 +556,19 @@ where
         let sort_key_computer3 = self.2.segment_sort_key_computer(segment_reader)?;
         let sort_key_computer4 = self.3.segment_sort_key_computer(segment_reader)?;
         Ok(MappedSegmentSortKeyComputer {
-            sort_key_computer: (
-                sort_key_computer1,
-                (sort_key_computer2, (sort_key_computer3, sort_key_computer4)),
-            ),
+            sort_key_computer: ChainSegmentSortKeyComputer {
+                head: sort_key_computer1,
+                tail: ChainSegmentSortKeyComputer {
+                    head: sort_key_computer2,
+                    tail: ChainSegmentSortKeyComputer {
+                        head: sort_key_computer3,
+                        tail: sort_key_computer4,
+                        buffer: Vec::new(),
+                    },
+                    buffer: Vec::new(),
+                },
+                buffer: Vec::new(),
+            },
             map: |(sort_key1, (sort_key2, (sort_key3, sort_key4)))| {
                 (sort_key1, sort_key2, sort_key3, sort_key4)
             },
@@ -579,6 +591,11 @@ where
     }
 }
 
+pub struct FuncSegmentSortKeyComputer<F, TSortKey> {
+    func: F,
+    buffer: Vec<TSortKey>,
+}
+
 impl<F, SegmentF, TSortKey> SortKeyComputer for F
 where
     F: 'static + Send + Sync + Fn(&SegmentReader) -> SegmentF,
@@ -586,15 +603,18 @@ where
     TSortKey: 'static + PartialOrd + Clone + Send + Sync + std::fmt::Debug,
 {
     type SortKey = TSortKey;
-    type Child = SegmentF;
+    type Child = FuncSegmentSortKeyComputer<SegmentF, TSortKey>;
     type Comparator = NaturalComparator;
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
-        Ok((self)(segment_reader))
+        Ok(FuncSegmentSortKeyComputer {
+            func: (self)(segment_reader),
+            buffer: Vec::new(),
+        })
     }
 }
 
-impl<F, TSortKey> SegmentSortKeyComputer for F
+impl<F, TSortKey> SegmentSortKeyComputer for FuncSegmentSortKeyComputer<F, TSortKey>
 where
     F: 'static + FnMut(DocId) -> TSortKey,
     TSortKey: 'static + PartialOrd + Clone + Send + Sync,
@@ -604,7 +624,16 @@ where
     type SegmentComparator = NaturalComparator;
 
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
-        (self)(doc)
+        (self.func)(doc)
+    }
+
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+        self.buffer.clear();
+        self.buffer.reserve(docs.len());
+        for &doc in docs {
+            self.buffer.push((self.func)(doc));
+        }
+        &self.buffer
     }
 
     /// Convert a segment level score into the global level score.
@@ -647,10 +676,9 @@ mod tests {
             .unwrap();
 
         let docs = vec![1, 2, 3];
-        let mut output = Vec::new();
-        segment_sort_key_computer.segment_sort_keys(&docs, &mut output);
+        let output = segment_sort_key_computer.segment_sort_keys(&docs);
 
-        assert_eq!(output, vec![(200, 10), (200, 10), (200, 10)]);
+        assert_eq!(output, &[(200, 10), (200, 10), (200, 10)]);
     }
 
     #[test]
