@@ -88,6 +88,9 @@ impl FileWatcher {
 
         Ok(hasher.finalize())
     }
+    pub fn terminate(&self) {
+        self.state.store(2, Ordering::SeqCst);
+    }
 }
 
 impl Drop for FileWatcher {
