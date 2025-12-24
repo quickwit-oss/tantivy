@@ -100,26 +100,6 @@ pub trait SegmentSortKeyComputer: 'static {
         self.segment_comparator().compare(left, right)
     }
 
-    /// Implementing this method makes it possible to avoid computing
-    /// a sort_key entirely if we can assess that it won't pass a threshold
-    /// with a partial computation.
-    ///
-    /// This is currently used for lexicographic sorting.
-    fn accept_sort_key_lazy(
-        &mut self,
-        doc_id: DocId,
-        score: Score,
-        threshold: &Self::SegmentSortKey,
-    ) -> Option<(Ordering, Self::SegmentSortKey)> {
-        let sort_key = self.segment_sort_key(doc_id, score);
-        let cmp = self.compare_segment_sort_key(&sort_key, threshold);
-        if cmp == Ordering::Less {
-            None
-        } else {
-            Some((cmp, sort_key))
-        }
-    }
-
     /// Similar to `accept_sort_key_lazy`, but pushes results directly into the given buffer. Does
     /// not support scoring.
     ///
@@ -253,6 +233,41 @@ where
     buffer: Vec<(Head::SegmentSortKey, Tail::SegmentSortKey)>,
 }
 
+impl<Head, Tail> ChainSegmentSortKeyComputer<Head, Tail>
+where
+    Head: SegmentSortKeyComputer,
+    Tail: SegmentSortKeyComputer,
+{
+    fn accept_sort_key_lazy(
+        &mut self,
+        doc_id: DocId,
+        score: Score,
+        threshold: &<Self as SegmentSortKeyComputer>::SegmentSortKey,
+    ) -> Option<(Ordering, <Self as SegmentSortKeyComputer>::SegmentSortKey)> {
+        let (head_threshold, tail_threshold) = threshold;
+        let head_sort_key = self.head.segment_sort_key(doc_id, score);
+        let head_cmp = self
+            .head
+            .compare_segment_sort_key(&head_sort_key, head_threshold);
+        if head_cmp == Ordering::Less {
+            None
+        } else if head_cmp == Ordering::Equal {
+            let tail_sort_key = self.tail.segment_sort_key(doc_id, score);
+            let tail_cmp = self
+                .tail
+                .compare_segment_sort_key(&tail_sort_key, tail_threshold);
+            if tail_cmp == Ordering::Less {
+                None
+            } else {
+                Some((tail_cmp, (head_sort_key, tail_sort_key)))
+            }
+        } else {
+            let tail_sort_key = self.tail.segment_sort_key(doc_id, score);
+            Some((head_cmp, (head_sort_key, tail_sort_key)))
+        }
+    }
+}
+
 impl<Head, Tail> SegmentSortKeyComputer for ChainSegmentSortKeyComputer<Head, Tail>
 where
     Head: SegmentSortKeyComputer,
@@ -354,27 +369,6 @@ where
         (head_sort_key, tail_sort_key)
     }
 
-    fn accept_sort_key_lazy(
-        &mut self,
-        doc_id: DocId,
-        score: Score,
-        threshold: &Self::SegmentSortKey,
-    ) -> Option<(Ordering, Self::SegmentSortKey)> {
-        let (head_threshold, tail_threshold) = threshold;
-        let (head_cmp, head_sort_key) =
-            self.head
-                .accept_sort_key_lazy(doc_id, score, head_threshold)?;
-        if head_cmp == Ordering::Equal {
-            let (tail_cmp, tail_sort_key) =
-                self.tail
-                    .accept_sort_key_lazy(doc_id, score, tail_threshold)?;
-            Some((tail_cmp, (head_sort_key, tail_sort_key)))
-        } else {
-            let tail_sort_key = self.tail.segment_sort_key(doc_id, score);
-            Some((head_cmp, (head_sort_key, tail_sort_key)))
-        }
-    }
-
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         let (head_sort_key, tail_sort_key) = sort_key;
         (
@@ -412,16 +406,6 @@ where
 
     fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
         self.sort_key_computer.segment_sort_keys(docs)
-    }
-
-    fn accept_sort_key_lazy(
-        &mut self,
-        doc_id: DocId,
-        score: Score,
-        threshold: &Self::SegmentSortKey,
-    ) -> Option<(Ordering, Self::SegmentSortKey)> {
-        self.sort_key_computer
-            .accept_sort_key_lazy(doc_id, score, threshold)
     }
 
     #[inline(always)]
