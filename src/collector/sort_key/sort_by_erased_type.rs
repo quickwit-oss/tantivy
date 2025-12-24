@@ -37,7 +37,7 @@ impl SortByErasedType {
 
 trait ErasedSegmentSortKeyComputer: Send + Sync {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64>;
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Option<u64>];
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Option<u64>>;
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue;
 }
 
@@ -55,7 +55,7 @@ where
         self.inner.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Option<u64>] {
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Option<u64>> {
         self.inner.segment_sort_keys(docs)
     }
 
@@ -75,7 +75,7 @@ impl ErasedSegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
         Some(score_value.to_u64())
     }
 
-    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &[Option<u64>] {
+    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &mut Vec<Option<u64>> {
         unimplemented!("Batch computation not supported for score sorting")
     }
 
@@ -206,7 +206,7 @@ impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
         self.inner.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         self.inner.segment_sort_keys(docs)
     }
 

@@ -38,7 +38,7 @@ pub trait SegmentSortKeyComputer: 'static {
     ///
     /// The computed sort keys are stored in an internal buffer and returned as a slice.
     /// Subsequent calls to this method may reuse and overwrite the internal buffer.
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey];
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey>;
 
     /// Computes the sort key and pushes the document in a TopN Computer.
     ///
@@ -70,19 +70,19 @@ pub trait SegmentSortKeyComputer: 'static {
             let comparator = self.segment_comparator();
             let sort_keys = self.segment_sort_keys(docs);
 
-            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
-                let cmp = comparator.compare(sort_key, &threshold);
+            for (&doc, sort_key) in docs.iter().zip(sort_keys.drain(..)) {
+                let cmp = comparator.compare(&sort_key, &threshold);
                 if cmp == Ordering::Greater {
                     // We validated at the top of the method that we have capacity.
-                    top_n_computer.append_doc_unchecked(doc, sort_key.clone());
+                    top_n_computer.append_doc_unchecked(doc, sort_key);
                 }
             }
         } else {
             // Eagerly push, without a threshold to compare to.
             let sort_keys = self.segment_sort_keys(docs);
-            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
+            for (&doc, sort_key) in docs.iter().zip(sort_keys.drain(..)) {
                 // We validated at the top of the method that we have capacity.
-                top_n_computer.append_doc_unchecked(doc, sort_key.clone());
+                top_n_computer.append_doc_unchecked(doc, sort_key);
             }
         }
     }
@@ -204,7 +204,8 @@ where
         Ok(ChainSegmentSortKeyComputer {
             head: self.0.segment_sort_key_computer(segment_reader)?,
             tail: self.1.segment_sort_key_computer(segment_reader)?,
-            buffer: Vec::new(),
+            head_key_buffer: Vec::new(),
+            doc_buffer: Vec::new(),
         })
     }
 
@@ -230,7 +231,8 @@ where
 {
     head: Head,
     tail: Tail,
-    buffer: Vec<(Head::SegmentSortKey, Tail::SegmentSortKey)>,
+    head_key_buffer: Vec<Head::SegmentSortKey>,
+    doc_buffer: Vec<DocId>,
 }
 
 impl<Head, Tail> ChainSegmentSortKeyComputer<Head, Tail>
@@ -300,13 +302,8 @@ where
             .then_with(|| self.tail.compare_segment_sort_key(&left.1, &right.1))
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
-        let head_keys = self.head.segment_sort_keys(docs);
-        let tail_keys = self.tail.segment_sort_keys(docs);
-        self.buffer.clear();
-        self.buffer
-            .extend(head_keys.iter().cloned().zip(tail_keys.iter().cloned()));
-        &self.buffer
+    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
+        unimplemented!("The head and the tail are accessed independently.");
     }
 
     #[inline(always)]
@@ -339,25 +336,51 @@ where
         top_n_computer.reserve(docs.len());
 
         if let Some(threshold) = &top_n_computer.threshold {
-            // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
-            // threshold here.
-            let threshold = threshold.clone();
-            let comparator = self.segment_comparator();
-            let sort_keys = self.segment_sort_keys(docs);
+            let (head_threshold, tail_threshold) = threshold.clone();
+            let head_cmp = self.head.segment_comparator();
+            let tail_cmp = self.tail.segment_comparator();
 
-            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
-                let cmp = comparator.compare(sort_key, &threshold);
-                if cmp == Ordering::Greater {
-                    // We validated at the top of the method that we have capacity.
-                    top_n_computer.append_doc_unchecked(doc, sort_key.clone());
+            let head_keys = self.head.segment_sort_keys(docs);
+            self.doc_buffer.clear();
+            self.head_key_buffer.clear();
+            for (head_key, &doc) in head_keys.drain(..).zip(docs) {
+                let cmp = head_cmp.compare(&head_key, &head_threshold);
+                if cmp != Ordering::Less {
+                    self.doc_buffer.push(doc);
+                    self.head_key_buffer.push(head_key);
+                }
+            }
+
+            if !self.doc_buffer.is_empty() {
+                let tail_keys = self.tail.segment_sort_keys(&self.doc_buffer);
+                for ((head_key, tail_key), &doc) in self
+                    .head_key_buffer
+                    .drain(..)
+                    .zip(tail_keys.drain(..))
+                    .zip(self.doc_buffer.iter())
+                {
+                    let head_ord = head_cmp.compare(&head_key, &head_threshold);
+                    let ord = if head_ord == Ordering::Equal {
+                        tail_cmp.compare(&tail_key, &tail_threshold)
+                    } else {
+                        head_ord
+                    };
+                    if ord == Ordering::Greater {
+                        top_n_computer.append_doc_unchecked(doc, (head_key, tail_key));
+                    }
                 }
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            let sort_keys = self.segment_sort_keys(docs);
-            for (&doc, sort_key) in docs.iter().zip(sort_keys) {
+            let head_keys = self.head.segment_sort_keys(docs);
+            let tail_keys = self.tail.segment_sort_keys(docs);
+            for ((doc, head_key), tail_key) in docs
+                .iter()
+                .zip(head_keys.drain(..))
+                .zip(tail_keys.drain(..))
+            {
                 // We validated at the top of the method that we have capacity.
-                top_n_computer.append_doc_unchecked(doc, sort_key.clone());
+                top_n_computer.append_doc_unchecked(*doc, (head_key, tail_key));
             }
         }
     }
@@ -404,7 +427,7 @@ where
         self.sort_key_computer.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         self.sort_key_computer.segment_sort_keys(docs)
     }
 
@@ -481,9 +504,11 @@ where
                 tail: ChainSegmentSortKeyComputer {
                     head: sort_key_computer2,
                     tail: sort_key_computer3,
-                    buffer: Vec::new(),
+                    head_key_buffer: Vec::new(),
+                    doc_buffer: Vec::new(),
                 },
-                buffer: Vec::new(),
+                head_key_buffer: Vec::new(),
+                doc_buffer: Vec::new(),
             },
             map,
         })
@@ -547,11 +572,14 @@ where
                     tail: ChainSegmentSortKeyComputer {
                         head: sort_key_computer3,
                         tail: sort_key_computer4,
-                        buffer: Vec::new(),
+                        head_key_buffer: Vec::new(),
+                        doc_buffer: Vec::new(),
                     },
-                    buffer: Vec::new(),
+                    head_key_buffer: Vec::new(),
+                    doc_buffer: Vec::new(),
                 },
-                buffer: Vec::new(),
+                head_key_buffer: Vec::new(),
+                doc_buffer: Vec::new(),
             },
             map: |(sort_key1, (sort_key2, (sort_key3, sort_key4)))| {
                 (sort_key1, sort_key2, sort_key3, sort_key4)
@@ -611,13 +639,13 @@ where
         (self.func)(doc)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         self.buffer.clear();
         self.buffer.reserve(docs.len());
         for &doc in docs {
             self.buffer.push((self.func)(doc));
         }
-        &self.buffer
+        &mut self.buffer
     }
 
     /// Convert a segment level score into the global level score.
@@ -645,24 +673,6 @@ mod tests {
             .unwrap();
         index_writer.commit().unwrap();
         index
-    }
-
-    #[test]
-    fn test_batch_score_computer() {
-        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
-        let score_computer_secondary = |_segment_reader: &SegmentReader| |_doc: DocId| 10u32;
-
-        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
-        let index = build_test_index();
-        let searcher = index.reader().unwrap().searcher();
-        let mut segment_sort_key_computer = lazy_score_computer
-            .segment_sort_key_computer(searcher.segment_reader(0))
-            .unwrap();
-
-        let docs = vec![1, 2, 3];
-        let output = segment_sort_key_computer.segment_sort_keys(&docs);
-
-        assert_eq!(output, &[(200, 10), (200, 10), (200, 10)]);
     }
 
     #[test]

@@ -520,7 +520,7 @@ where
         self.segment_sort_key_computer.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         self.segment_sort_key_computer.segment_sort_keys(docs)
     }
 

@@ -92,10 +92,10 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
         self.sort_column.first(doc)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &[Self::SegmentSortKey] {
+    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         self.buffer.resize(docs.len(), None);
         self.sort_column.first_vals(docs, &mut self.buffer);
-        &self.buffer
+        &mut self.buffer
     }
 
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {

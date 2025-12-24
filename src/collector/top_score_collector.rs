@@ -486,7 +486,7 @@ where
         (self.sort_key_fn)(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &[Self::SegmentSortKey] {
+    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         unimplemented!("Batch computation is not supported for tweak score.")
     }
 
