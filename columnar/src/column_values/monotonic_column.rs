@@ -85,15 +85,21 @@ where
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        let ValueRange::Inclusive(range) = range;
-        self.from_column.get_row_ids_for_value_range(
-            ValueRange::Inclusive(
-                self.monotonic_mapping.inverse(range.start().clone())
-                    ..=self.monotonic_mapping.inverse(range.end().clone()),
+        match range {
+            ValueRange::Inclusive(range) => self.from_column.get_row_ids_for_value_range(
+                ValueRange::Inclusive(
+                    self.monotonic_mapping.inverse(range.start().clone())
+                        ..=self.monotonic_mapping.inverse(range.end().clone()),
+                ),
+                doc_id_range,
+                positions,
             ),
-            doc_id_range,
-            positions,
-        )
+            ValueRange::All => self.from_column.get_row_ids_for_value_range(
+                ValueRange::All,
+                doc_id_range,
+                positions,
+            ),
+        }
     }
 
     // We voluntarily do not implement get_range as it yields a regression,

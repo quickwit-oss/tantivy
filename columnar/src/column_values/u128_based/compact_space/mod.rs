@@ -343,13 +343,20 @@ impl ColumnValues<u64> for CompactSpaceU64Accessor {
         position_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        let ValueRange::Inclusive(value_range) = value_range;
-        let value_range = ValueRange::Inclusive(
-            self.0.compact_to_u128(*value_range.start() as u32)
-                ..=self.0.compact_to_u128(*value_range.end() as u32),
-        );
-        self.0
-            .get_row_ids_for_value_range(value_range, position_range, positions)
+        match value_range {
+            ValueRange::Inclusive(value_range) => {
+                let value_range = ValueRange::Inclusive(
+                    self.0.compact_to_u128(*value_range.start() as u32)
+                        ..=self.0.compact_to_u128(*value_range.end() as u32),
+                );
+                self.0
+                    .get_row_ids_for_value_range(value_range, position_range, positions)
+            }
+            ValueRange::All => {
+                let position_range = position_range.start..position_range.end.min(self.num_vals());
+                positions.extend(position_range);
+            }
+        }
     }
 }
 
@@ -383,7 +390,15 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
         position_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        let ValueRange::Inclusive(value_range) = value_range;
+        let value_range = match value_range {
+            ValueRange::Inclusive(value_range) => value_range,
+            ValueRange::All => {
+                let position_range = position_range.start..position_range.end.min(self.num_vals());
+                positions.extend(position_range);
+                return;
+            }
+        };
+
         if value_range.start() > value_range.end() {
             return;
         }

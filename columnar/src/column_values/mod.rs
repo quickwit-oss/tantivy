@@ -144,6 +144,9 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     }
                 }
             }
+            ValueRange::All => {
+                row_id_hits.extend(row_id_range);
+            }
         }
     }
 

@@ -178,6 +178,8 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 pub enum ValueRange<T> {
     /// A range that includes both start and end.
     Inclusive(RangeInclusive<T>),
+    /// A range that matches all values.
+    All,
 }
 
 impl BinarySerializable for Cardinality {

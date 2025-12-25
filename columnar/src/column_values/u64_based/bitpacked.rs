@@ -70,9 +70,8 @@ const fn div_ceil(n: u64, q: NonZeroU64) -> u64 {
 // f(bitpacked) ∈ [min_value, max_value] <=> bitpacked ∈ [min_bitpacked_value, max_bitpacked_value]
 fn transform_range_before_linear_transformation(
     stats: &ColumnStats,
-    range: ValueRange<u64>,
+    range: RangeInclusive<u64>,
 ) -> Option<RangeInclusive<u64>> {
-    let ValueRange::Inclusive(range) = range;
     if range.is_empty() {
         return None;
     }
@@ -114,31 +113,39 @@ impl ColumnValues for BitpackedReader {
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        let Some(transformed_range) =
-            transform_range_before_linear_transformation(&self.stats, range)
-        else {
-            positions.clear();
-            return;
-        };
-        // TODO: This does not use the `self.blocks` cache, because callers are usually already
-        // doing sequential, and fairly dense reads. Fix it to iterate over blocks if that
-        // assumption turns out to be incorrect!
-        let data_range = self
-            .bit_unpacker
-            .block_oblivious_range(doc_id_range.clone(), self.data.len());
-        let data_offset = data_range.start;
-        let data_subset = self
-            .data
-            .slice(data_range)
-            .read_bytes()
-            .expect("Failed to read column values.");
-        self.bit_unpacker.get_ids_for_value_range_from_subset(
-            transformed_range,
-            doc_id_range,
-            data_offset,
-            &data_subset,
-            positions,
-        );
+        match range {
+            ValueRange::All => {
+                positions.extend(doc_id_range);
+                return;
+            }
+            ValueRange::Inclusive(range) => {
+                let Some(transformed_range) =
+                    transform_range_before_linear_transformation(&self.stats, range)
+                else {
+                    positions.clear();
+                    return;
+                };
+                // TODO: This does not use the `self.blocks` cache, because callers are usually
+                // already doing sequential, and fairly dense reads. Fix it to
+                // iterate over blocks if that assumption turns out to be incorrect!
+                let data_range = self
+                    .bit_unpacker
+                    .block_oblivious_range(doc_id_range.clone(), self.data.len());
+                let data_offset = data_range.start;
+                let data_subset = self
+                    .data
+                    .slice(data_range)
+                    .read_bytes()
+                    .expect("Failed to read column values.");
+                self.bit_unpacker.get_ids_for_value_range_from_subset(
+                    transformed_range,
+                    doc_id_range,
+                    data_offset,
+                    &data_subset,
+                    positions,
+                );
+            }
+        }
     }
 }
 
