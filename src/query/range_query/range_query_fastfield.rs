@@ -7,7 +7,7 @@ use std::ops::{Bound, RangeInclusive};
 
 use columnar::{
     Cardinality, Column, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
-    NumericalType, StrColumn,
+    NumericalType, StrColumn, ValueRange,
 };
 use common::bounds::{BoundsRange, TransformBound};
 
@@ -154,7 +154,7 @@ impl Weight for FastFieldRangeWeight {
                 ip_addr_column.min_value(),
                 ip_addr_column.max_value(),
             );
-            let docset = RangeDocSet::new(value_range, ip_addr_column);
+            let docset = RangeDocSet::new(ValueRange::Inclusive(value_range), ip_addr_column);
             Ok(Box::new(ConstScorer::new(docset, boost)))
         } else if field_type.is_str() {
             let Some(str_dict_column): Option<StrColumn> = reader.fast_fields().str(&field_name)?
@@ -426,7 +426,7 @@ fn search_on_u64_ff(
         }
     }
 
-    let docset = RangeDocSet::new(value_range, column);
+    let docset = RangeDocSet::new(ValueRange::Inclusive(value_range), column);
     Ok(Box::new(ConstScorer::new(docset, boost)))
 }
 

@@ -7,12 +7,14 @@
 //! - Monotonically map values to u64/u128
 
 use std::fmt::Debug;
-use std::ops::{Range, RangeInclusive};
+use std::ops::Range;
 use std::sync::Arc;
 
 use downcast_rs::DowncastSync;
 pub use monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
 pub use monotonic_mapping_u128::MonotonicallyMappableToU128;
+
+use crate::column::ValueRange;
 
 mod merge;
 pub(crate) mod monotonic_mapping;
@@ -128,15 +130,19 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// Note that position == docid for single value fast fields
     fn get_row_ids_for_value_range(
         &self,
-        value_range: RangeInclusive<T>,
+        value_range: ValueRange<T>,
         row_id_range: Range<RowId>,
         row_id_hits: &mut Vec<RowId>,
     ) {
         let row_id_range = row_id_range.start..row_id_range.end.min(self.num_vals());
-        for idx in row_id_range {
-            let val = self.get_val(idx);
-            if value_range.contains(&val) {
-                row_id_hits.push(idx);
+        match value_range {
+            ValueRange::Inclusive(range) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if range.contains(&val) {
+                        row_id_hits.push(idx);
+                    }
+                }
             }
         }
     }
@@ -233,7 +239,7 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_row_ids_for_value_range(
         &self,
-        range: RangeInclusive<T>,
+        range: ValueRange<T>,
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {

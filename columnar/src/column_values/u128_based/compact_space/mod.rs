@@ -25,6 +25,7 @@ use common::{BinarySerializable, CountingWriter, OwnedBytes, VInt, VIntU128};
 use tantivy_bitpacker::{BitPacker, BitUnpacker};
 
 use crate::RowId;
+use crate::column::ValueRange;
 use crate::column_values::ColumnValues;
 
 /// The cost per blank is quite hard actually, since blanks are delta encoded, the actual cost of
@@ -338,12 +339,15 @@ impl ColumnValues<u64> for CompactSpaceU64Accessor {
     #[inline]
     fn get_row_ids_for_value_range(
         &self,
-        value_range: RangeInclusive<u64>,
+        value_range: ValueRange<u64>,
         position_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
-        let value_range = self.0.compact_to_u128(*value_range.start() as u32)
-            ..=self.0.compact_to_u128(*value_range.end() as u32);
+        let ValueRange::Inclusive(value_range) = value_range;
+        let value_range = ValueRange::Inclusive(
+            self.0.compact_to_u128(*value_range.start() as u32)
+                ..=self.0.compact_to_u128(*value_range.end() as u32),
+        );
         self.0
             .get_row_ids_for_value_range(value_range, position_range, positions)
     }
@@ -375,10 +379,11 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
     #[inline]
     fn get_row_ids_for_value_range(
         &self,
-        value_range: RangeInclusive<u128>,
+        value_range: ValueRange<u128>,
         position_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {
+        let ValueRange::Inclusive(value_range) = value_range;
         if value_range.start() > value_range.end() {
             return;
         }
@@ -560,7 +565,7 @@ mod tests {
                     .collect::<Vec<_>>();
                 let mut positions = Vec::new();
                 decompressor.get_row_ids_for_value_range(
-                    range,
+                    ValueRange::Inclusive(range),
                     0..decompressor.num_vals(),
                     &mut positions,
                 );
@@ -604,7 +609,11 @@ mod tests {
             let val = *val;
             let pos = pos as u32;
             let mut positions = Vec::new();
-            decomp.get_row_ids_for_value_range(val..=val, pos..pos + 1, &mut positions);
+            decomp.get_row_ids_for_value_range(
+                ValueRange::Inclusive(val..=val),
+                pos..pos + 1,
+                &mut positions,
+            );
             assert_eq!(positions, vec![pos]);
         }
 
@@ -746,7 +755,11 @@ mod tests {
         doc_id_range: Range<u32>,
     ) -> Vec<u32> {
         let mut positions = Vec::new();
-        column.get_row_ids_for_value_range(value_range, doc_id_range, &mut positions);
+        column.get_row_ids_for_value_range(
+            ValueRange::Inclusive(value_range),
+            doc_id_range,
+            &mut positions,
+        );
         positions
     }
 

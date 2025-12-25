@@ -143,7 +143,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     #[inline]
     pub fn get_docids_for_value_range(
         &self,
-        value_range: RangeInclusive<T>,
+        value_range: ValueRange<T>,
         selected_docid_range: Range<u32>,
         doc_ids: &mut Vec<u32>,
     ) {
@@ -166,6 +166,18 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
             default_value,
         })
     }
+}
+
+/// A range of values.
+///
+/// This type is intended to be used in batch APIs, where the cost of unpacking the enum
+/// is outweighed by the time spent processing a batch.
+///
+/// Implementers should pattern match on the variants to use optimized loops for each case.
+#[derive(Clone, Debug)]
+pub enum ValueRange<T> {
+    /// A range that includes both start and end.
+    Inclusive(RangeInclusive<T>),
 }
 
 impl BinarySerializable for Cardinality {

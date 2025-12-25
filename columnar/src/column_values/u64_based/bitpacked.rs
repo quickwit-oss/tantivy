@@ -8,6 +8,7 @@ use common::{BinarySerializable, HasLen, OwnedBytes};
 use fastdivide::DividerU64;
 use tantivy_bitpacker::{BitPacker, BitUnpacker, compute_num_bits};
 
+use crate::column::ValueRange;
 use crate::column_values::u64_based::{ColumnCodec, ColumnCodecEstimator, ColumnStats};
 use crate::{ColumnValues, RowId};
 
@@ -69,8 +70,9 @@ const fn div_ceil(n: u64, q: NonZeroU64) -> u64 {
 // f(bitpacked) ∈ [min_value, max_value] <=> bitpacked ∈ [min_bitpacked_value, max_bitpacked_value]
 fn transform_range_before_linear_transformation(
     stats: &ColumnStats,
-    range: RangeInclusive<u64>,
+    range: ValueRange<u64>,
 ) -> Option<RangeInclusive<u64>> {
+    let ValueRange::Inclusive(range) = range;
     if range.is_empty() {
         return None;
     }
@@ -108,7 +110,7 @@ impl ColumnValues for BitpackedReader {
 
     fn get_row_ids_for_value_range(
         &self,
-        range: RangeInclusive<u64>,
+        range: ValueRange<u64>,
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {

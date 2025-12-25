@@ -79,7 +79,7 @@ mod tests {
     use std::ops::{Range, RangeInclusive};
     use std::path::Path;
 
-    use columnar::StrColumn;
+    use columnar::{StrColumn, ValueRange};
     use common::{ByteCount, DateTimePrecision, HasLen, TerminatingWrite};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
@@ -944,7 +944,7 @@ mod tests {
         let test_range = |range: RangeInclusive<u64>| {
             let expected_count = numbers.iter().filter(|num| range.contains(*num)).count();
             let mut vec = vec![];
-            field.get_row_ids_for_value_range(range, 0..u32::MAX, &mut vec);
+            field.get_row_ids_for_value_range(ValueRange::Inclusive(range), 0..u32::MAX, &mut vec);
             assert_eq!(vec.len(), expected_count);
         };
         test_range(50..=50);
@@ -1022,7 +1022,7 @@ mod tests {
         let test_range = |range: RangeInclusive<u64>| {
             let expected_count = numbers.iter().filter(|num| range.contains(*num)).count();
             let mut vec = vec![];
-            field.get_row_ids_for_value_range(range, 0..u32::MAX, &mut vec);
+            field.get_row_ids_for_value_range(ValueRange::Inclusive(range), 0..u32::MAX, &mut vec);
             assert_eq!(vec.len(), expected_count);
         };
         let test_range_variant = |start, stop| {
