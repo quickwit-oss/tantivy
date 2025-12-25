@@ -91,23 +91,57 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 
     /// Load the first value for each docid in the provided slice.
     #[inline]
-    pub fn first_vals(&self, docids: &[DocId], output: &mut [Option<T>]) {
-        match &self.index {
-            ColumnIndex::Empty { .. } => {}
-            ColumnIndex::Full => self.values.get_vals_opt(docids, output),
-            ColumnIndex::Optional(optional_index) => {
+    pub fn first_vals_in_value_range(
+        &self,
+        docids: &[DocId],
+        output: &mut [Option<T>],
+        value_range: ValueRange<T>,
+    ) {
+        match (&self.index, value_range) {
+            (ColumnIndex::Empty { .. }, _) => {}
+            (ColumnIndex::Full, value_range) => {
+                self.values
+                    .get_vals_in_value_range(docids, output, value_range);
+            }
+            (ColumnIndex::Optional(optional_index), ValueRange::All) => {
                 for (i, docid) in docids.iter().enumerate() {
                     output[i] = optional_index
                         .rank_if_exists(*docid)
                         .map(|rowid| self.values.get_val(rowid));
                 }
             }
-            ColumnIndex::Multivalued(multivalued_index) => {
+            (ColumnIndex::Optional(optional_index), ValueRange::Inclusive(range)) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    output[i] = optional_index
+                        .rank_if_exists(*docid)
+                        .map(|rowid| self.values.get_val(rowid))
+                        .filter(|val| range.contains(val));
+                }
+            }
+            (ColumnIndex::Multivalued(multivalued_index), ValueRange::All) => {
                 for (i, docid) in docids.iter().enumerate() {
                     let range = multivalued_index.range(*docid);
                     let is_empty = range.start == range.end;
                     if !is_empty {
                         output[i] = Some(self.values.get_val(range.start));
+                    } else {
+                        output[i] = None;
+                    }
+                }
+            }
+            (ColumnIndex::Multivalued(multivalued_index), ValueRange::Inclusive(range)) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    let row_range = multivalued_index.range(*docid);
+                    let is_empty = row_range.start == row_range.end;
+                    if !is_empty {
+                        let val = self.values.get_val(row_range.start);
+                        if range.contains(&val) {
+                            output[i] = Some(val);
+                        } else {
+                            output[i] = None;
+                        }
+                    } else {
+                        output[i] = None;
                     }
                 }
             }

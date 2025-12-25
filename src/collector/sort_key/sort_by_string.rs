@@ -1,4 +1,4 @@
-use columnar::StrColumn;
+use columnar::{StrColumn, ValueRange};
 
 use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
@@ -64,7 +64,9 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
     fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         self.buffer.resize(docs.len(), None);
         if let Some(str_column) = &self.str_column_opt {
-            str_column.ords().first_vals(docs, &mut self.buffer);
+            str_column
+                .ords()
+                .first_vals_in_value_range(docs, &mut self.buffer, ValueRange::All);
         }
         &mut self.buffer
     }

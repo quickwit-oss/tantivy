@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use columnar::Column;
+use columnar::{Column, ValueRange};
 
 use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
@@ -94,7 +94,8 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
 
     fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
         self.buffer.resize(docs.len(), None);
-        self.sort_column.first_vals(docs, &mut self.buffer);
+        self.sort_column
+            .first_vals_in_value_range(docs, &mut self.buffer, ValueRange::All);
         &mut self.buffer
     }
 

@@ -110,6 +110,43 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         }
     }
 
+    /// Load the values for the provided docids.
+    ///
+    /// The values are filtered by the provided value range.
+    fn get_vals_in_value_range(
+        &self,
+        indexes: &[u32],
+        output: &mut [Option<T>],
+        value_range: ValueRange<T>,
+    ) {
+        assert!(indexes.len() == output.len());
+        match value_range {
+            ValueRange::All => self.get_vals_opt(indexes, output),
+            ValueRange::Inclusive(range) => {
+                let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
+                for (out_x4, idx_x4) in out_and_idx_chunks {
+                    let v0 = self.get_val(idx_x4[0]);
+                    out_x4[0] = if range.contains(&v0) { Some(v0) } else { None };
+                    let v1 = self.get_val(idx_x4[1]);
+                    out_x4[1] = if range.contains(&v1) { Some(v1) } else { None };
+                    let v2 = self.get_val(idx_x4[2]);
+                    out_x4[2] = if range.contains(&v2) { Some(v2) } else { None };
+                    let v3 = self.get_val(idx_x4[3]);
+                    out_x4[3] = if range.contains(&v3) { Some(v3) } else { None };
+                }
+                let out_and_idx_chunks = output
+                    .chunks_exact_mut(4)
+                    .into_remainder()
+                    .iter_mut()
+                    .zip(indexes.chunks_exact(4).remainder());
+                for (out, idx) in out_and_idx_chunks {
+                    let v = self.get_val(*idx);
+                    *out = if range.contains(&v) { Some(v) } else { None };
+                }
+            }
+        }
+    }
+
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.
@@ -212,6 +249,17 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
         self.as_ref().get_vals_opt(indexes, output)
+    }
+
+    #[inline(always)]
+    fn get_vals_in_value_range(
+        &self,
+        indexes: &[u32],
+        output: &mut [Option<T>],
+        value_range: ValueRange<T>,
+    ) {
+        self.as_ref()
+            .get_vals_in_value_range(indexes, output, value_range)
     }
 
     #[inline(always)]

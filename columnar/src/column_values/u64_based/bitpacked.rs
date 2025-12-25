@@ -107,6 +107,37 @@ impl ColumnValues for BitpackedReader {
         self.stats.num_rows
     }
 
+    fn get_vals_in_value_range(
+        &self,
+        indexes: &[u32],
+        output: &mut [Option<u64>],
+        value_range: ValueRange<u64>,
+    ) {
+        match value_range {
+            ValueRange::All => {
+                self.get_vals_opt(indexes, output);
+            }
+            ValueRange::Inclusive(range) => {
+                if let Some(transformed_range) =
+                    transform_range_before_linear_transformation(&self.stats, range)
+                {
+                    for (i, doc) in indexes.iter().enumerate() {
+                        let raw_val = self.unpack_val(*doc);
+                        if transformed_range.contains(&raw_val) {
+                            output[i] = Some(self.stats.min_value + self.stats.gcd.get() * raw_val);
+                        } else {
+                            output[i] = None;
+                        }
+                    }
+                } else {
+                    for out in output.iter_mut() {
+                        *out = None;
+                    }
+                }
+            }
+        }
+    }
+
     fn get_row_ids_for_value_range(
         &self,
         range: ValueRange<u64>,

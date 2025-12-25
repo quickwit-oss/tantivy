@@ -1,6 +1,6 @@
 use binggan::{InputGroup, black_box};
 use common::*;
-use tantivy_columnar::Column;
+use tantivy_columnar::{Column, ValueRange};
 
 pub mod common;
 
@@ -55,7 +55,7 @@ fn bench_group(mut runner: InputGroup<Column>) {
                 docs[idx] = idx as u32 + i;
             }
 
-            column.first_vals(&docs, &mut buffer);
+            column.first_vals_in_value_range(&docs, &mut buffer, ValueRange::All);
             for val in buffer.iter() {
                 let Some(val) = val else { continue };
                 sum += *val;
