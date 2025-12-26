@@ -498,66 +498,114 @@ pub(crate) mod tests {
         }
     }
 
+    proptest! {
     #[test]
-    fn test_order_by_compound_filtering_with_none() -> crate::Result<()> {
+    fn test_order_by_compound_prop(
+        city_order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
+        altitude_order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
+        limit in 1..20_usize,
+        offset in 0..20_usize,
+        segments_data in proptest::collection::vec(
+            proptest::collection::vec(
+                (proptest::option::of("[a-c]"), proptest::option::of(0..50u64)),
+                1..10_usize // segment size
+            ),
+            1..4_usize // num segments
+        )
+    ) {
+        use crate::collector::sort_key::ComparatorEnum;
+        use crate::TantivyDocument;
+
         let mut schema_builder = Schema::builder();
         let city = schema_builder.add_text_field("city", TEXT | FAST);
         let altitude = schema_builder.add_u64_field("altitude", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
+        let mut index_writer = index.writer_for_tests().unwrap();
 
-        // Add enough docs to trigger thresholding.
-        // We want to sort by City Asc, Altitude Asc.
-        // Note: In NaturalComparator, None < Some.
-        // So Ascending order should be: None, then "a", then "b", then "c".
+        for segment_data in segments_data.into_iter() {
+            for (city_val, altitude_val) in segment_data.into_iter() {
+                let mut doc = TantivyDocument::default();
+                if let Some(c) = city_val {
+                    doc.add_text(city, c);
+                }
+                if let Some(a) = altitude_val {
+                    doc.add_u64(altitude, a);
+                }
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        }
 
-        // Docs:
-        // 0: "c", 10
-        // 1: "b", 10
-        // 2: "a", 20
-        // 3: "a", 10
-        // 4: None, 5
+        let searcher = index.reader().unwrap().searcher();
 
-        // Expected Ascending Order (None is Last in Tantivy's Order::Asc):
-        // 1. Doc 3 ("a", 10)
-        // 2. Doc 2 ("a", 20)
-        // 3. Doc 1 ("b", 10)
-        // 4. Doc 0 ("c", 10)
-        // 5. Doc 4 (None, 5)
+        let top_collector = TopDocs::with_limit(limit)
+            .and_offset(offset)
+            .order_by((
+                (SortByString::for_field("city"), city_order),
+                (
+                    SortByStaticFastValue::<u64>::for_field("altitude"),
+                    altitude_order,
+                ),
+            ));
 
-        index_writer.add_document(doc!(city => "c", altitude => 10u64))?;
-        index_writer.add_document(doc!(city => "b", altitude => 10u64))?;
-        index_writer.add_document(doc!(city => "a", altitude => 20u64))?;
-        index_writer.add_document(doc!(city => "a", altitude => 10u64))?;
-        index_writer.add_document(doc!(altitude => 5u64))?; // City is None
+        let actual_results = searcher.search(&AllQuery, &top_collector).unwrap();
+        let actual_doc_ids: Vec<DocAddress> =
+            actual_results.into_iter().map(|(_, doc)| doc).collect();
 
-        index_writer.commit()?;
+        // Verification logic
+        let all_docs_collector = DocSetCollector;
+        let all_docs = searcher.search(&AllQuery, &all_docs_collector).unwrap();
 
-        let searcher = index.reader()?.searcher();
-
-        // Use limit(2) to force a threshold update after the first few docs.
-        // The collector should eventually establish a threshold around ("a", 20) (Top 2: "a" 10,
-        // "a" 20). Then when seeing "b" and "c", it should filter them out based on the
-        // head key "city". This confirms that when filtering happens, the DocIds are
-        // preserved correctly.
-        let top_collector = TopDocs::with_limit(2).order_by((
-            (SortByString::for_field("city"), Order::Asc),
-            (
-                SortByStaticFastValue::<u64>::for_field("altitude"),
-                Order::Asc,
-            ),
-        ));
-
-        let results: Vec<DocAddress> = searcher
-            .search(&AllQuery, &top_collector)?
+        let docs_with_keys: Vec<((Option<String>, Option<u64>), DocAddress)> = all_docs
             .into_iter()
-            .map(|(_, doc)| doc)
+            .map(|doc_addr| {
+                let reader = searcher.segment_reader(doc_addr.segment_ord);
+
+                let city_val = if let Some(col) = reader.fast_fields().str("city").unwrap() {
+                     let ord = col.ords().first(doc_addr.doc_id);
+                     if let Some(ord) = ord {
+                         let mut out = Vec::new();
+                         col.dictionary().ord_to_term(ord, &mut out).unwrap();
+                         String::from_utf8(out).ok()
+                     } else {
+                         None
+                     }
+                } else {
+                    None
+                };
+
+                let alt_val = if let Some((col, _)) = reader.fast_fields().u64_lenient("altitude").unwrap() {
+                    col.first(doc_addr.doc_id)
+                } else {
+                    None
+                };
+
+                ((city_val, alt_val), doc_addr)
+            })
             .collect();
 
-        // Doc 3 is ("a", 10). Doc 2 is ("a", 20).
-        assert_eq!(results, vec![DocAddress::new(0, 3), DocAddress::new(0, 2)]);
+        let city_comparator = ComparatorEnum::from(city_order);
+        let alt_comparator = ComparatorEnum::from(altitude_order);
+        let comparator = (city_comparator, alt_comparator);
 
-        Ok(())
+        let mut comparable_docs: Vec<ComparableDoc<_, _>> = docs_with_keys
+            .into_iter()
+            .map(|(sort_key, doc)| ComparableDoc { sort_key, doc })
+            .collect();
+
+        comparable_docs.sort_by(|l, r| comparator.compare_doc(l, r));
+
+        let expected_results = comparable_docs
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
+
+        let expected_doc_ids: Vec<DocAddress> =
+            expected_results.into_iter().map(|cd| cd.doc).collect();
+
+        prop_assert_eq!(actual_doc_ids, expected_doc_ids);
+    }
     }
 }
