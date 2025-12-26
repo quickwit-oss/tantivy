@@ -356,6 +356,18 @@ impl ColumnValues<u64> for CompactSpaceU64Accessor {
                 let position_range = position_range.start..position_range.end.min(self.num_vals());
                 positions.extend(position_range);
             }
+            ValueRange::GreaterThan(threshold, _) => {
+                let value_range =
+                    ValueRange::GreaterThan(self.0.compact_to_u128(threshold as u32), false);
+                self.0
+                    .get_row_ids_for_value_range(value_range, position_range, positions)
+            }
+            ValueRange::LessThan(threshold, _) => {
+                let value_range =
+                    ValueRange::LessThan(self.0.compact_to_u128(threshold as u32), false);
+                self.0
+                    .get_row_ids_for_value_range(value_range, position_range, positions)
+            }
         }
     }
 }
@@ -396,6 +408,20 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
                 let position_range = position_range.start..position_range.end.min(self.num_vals());
                 positions.extend(position_range);
                 return;
+            }
+            ValueRange::GreaterThan(threshold, _) => {
+                let max = self.max_value();
+                if threshold >= max {
+                    return;
+                }
+                (threshold + 1)..=max
+            }
+            ValueRange::LessThan(threshold, _) => {
+                let min = self.min_value();
+                if threshold <= min {
+                    return;
+                }
+                min..=(threshold - 1)
             }
         };
 

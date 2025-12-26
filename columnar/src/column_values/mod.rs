@@ -144,6 +144,50 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     *out = if range.contains(&v) { Some(v) } else { None };
                 }
             }
+            ValueRange::GreaterThan(threshold, _) => {
+                let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
+                for (out_x4, idx_x4) in out_and_idx_chunks {
+                    let v0 = self.get_val(idx_x4[0]);
+                    out_x4[0] = if v0 > threshold { Some(v0) } else { None };
+                    let v1 = self.get_val(idx_x4[1]);
+                    out_x4[1] = if v1 > threshold { Some(v1) } else { None };
+                    let v2 = self.get_val(idx_x4[2]);
+                    out_x4[2] = if v2 > threshold { Some(v2) } else { None };
+                    let v3 = self.get_val(idx_x4[3]);
+                    out_x4[3] = if v3 > threshold { Some(v3) } else { None };
+                }
+                let out_and_idx_chunks = output
+                    .chunks_exact_mut(4)
+                    .into_remainder()
+                    .iter_mut()
+                    .zip(indexes.chunks_exact(4).remainder());
+                for (out, idx) in out_and_idx_chunks {
+                    let v = self.get_val(*idx);
+                    *out = if v > threshold { Some(v) } else { None };
+                }
+            }
+            ValueRange::LessThan(threshold, _) => {
+                let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
+                for (out_x4, idx_x4) in out_and_idx_chunks {
+                    let v0 = self.get_val(idx_x4[0]);
+                    out_x4[0] = if v0 < threshold { Some(v0) } else { None };
+                    let v1 = self.get_val(idx_x4[1]);
+                    out_x4[1] = if v1 < threshold { Some(v1) } else { None };
+                    let v2 = self.get_val(idx_x4[2]);
+                    out_x4[2] = if v2 < threshold { Some(v2) } else { None };
+                    let v3 = self.get_val(idx_x4[3]);
+                    out_x4[3] = if v3 < threshold { Some(v3) } else { None };
+                }
+                let out_and_idx_chunks = output
+                    .chunks_exact_mut(4)
+                    .into_remainder()
+                    .iter_mut()
+                    .zip(indexes.chunks_exact(4).remainder());
+                for (out, idx) in out_and_idx_chunks {
+                    let v = self.get_val(*idx);
+                    *out = if v < threshold { Some(v) } else { None };
+                }
+            }
         }
     }
 
@@ -177,6 +221,22 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                 for idx in row_id_range {
                     let val = self.get_val(idx);
                     if range.contains(&val) {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::GreaterThan(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val > threshold {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::LessThan(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val < threshold {
                         row_id_hits.push(idx);
                     }
                 }

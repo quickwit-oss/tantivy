@@ -118,6 +118,22 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
                         .filter(|val| range.contains(val));
                 }
             }
+            (ColumnIndex::Optional(optional_index), ValueRange::GreaterThan(threshold, _)) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    output[i] = optional_index
+                        .rank_if_exists(*docid)
+                        .map(|rowid| self.values.get_val(rowid))
+                        .filter(|val| *val > threshold);
+                }
+            }
+            (ColumnIndex::Optional(optional_index), ValueRange::LessThan(threshold, _)) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    output[i] = optional_index
+                        .rank_if_exists(*docid)
+                        .map(|rowid| self.values.get_val(rowid))
+                        .filter(|val| *val < threshold);
+                }
+            }
             (ColumnIndex::Multivalued(multivalued_index), ValueRange::All) => {
                 for (i, docid) in docids.iter().enumerate() {
                     let range = multivalued_index.range(*docid);
@@ -136,6 +152,41 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
                     if !is_empty {
                         let val = self.values.get_val(row_range.start);
                         if range.contains(&val) {
+                            output[i] = Some(val);
+                        } else {
+                            output[i] = None;
+                        }
+                    } else {
+                        output[i] = None;
+                    }
+                }
+            }
+            (
+                ColumnIndex::Multivalued(multivalued_index),
+                ValueRange::GreaterThan(threshold, _),
+            ) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    let row_range = multivalued_index.range(*docid);
+                    let is_empty = row_range.start == row_range.end;
+                    if !is_empty {
+                        let val = self.values.get_val(row_range.start);
+                        if val > threshold {
+                            output[i] = Some(val);
+                        } else {
+                            output[i] = None;
+                        }
+                    } else {
+                        output[i] = None;
+                    }
+                }
+            }
+            (ColumnIndex::Multivalued(multivalued_index), ValueRange::LessThan(threshold, _)) => {
+                for (i, docid) in docids.iter().enumerate() {
+                    let row_range = multivalued_index.range(*docid);
+                    let is_empty = row_range.start == row_range.end;
+                    if !is_empty {
+                        let val = self.values.get_val(row_range.start);
+                        if val < threshold {
                             output[i] = Some(val);
                         } else {
                             output[i] = None;
@@ -214,6 +265,12 @@ pub enum ValueRange<T> {
     Inclusive(RangeInclusive<T>),
     /// A range that matches all values.
     All,
+    /// A range that matches all values greater than the threshold.
+    /// The boolean flag indicates if null values should be included.
+    GreaterThan(T, bool),
+    /// A range that matches all values less than the threshold.
+    /// The boolean flag indicates if null values should be included.
+    LessThan(T, bool),
 }
 
 impl BinarySerializable for Cardinality {

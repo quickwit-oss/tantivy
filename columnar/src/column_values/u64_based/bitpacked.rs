@@ -135,6 +135,66 @@ impl ColumnValues for BitpackedReader {
                     }
                 }
             }
+            ValueRange::GreaterThan(threshold, _) => {
+                if threshold < self.stats.min_value {
+                    self.get_vals_opt(indexes, output);
+                } else if threshold >= self.stats.max_value {
+                    for out in output.iter_mut() {
+                        *out = None;
+                    }
+                } else {
+                    let raw_threshold = (threshold - self.stats.min_value) / self.stats.gcd.get();
+                    for (i, doc) in indexes.iter().enumerate() {
+                        let raw_val = self.unpack_val(*doc);
+                        if raw_val > raw_threshold {
+                            output[i] = Some(self.stats.min_value + self.stats.gcd.get() * raw_val);
+                        } else {
+                            output[i] = None;
+                        }
+                    }
+                }
+            }
+            ValueRange::LessThan(threshold, _) => {
+                if threshold > self.stats.max_value {
+                    self.get_vals_opt(indexes, output);
+                } else if threshold <= self.stats.min_value {
+                    for out in output.iter_mut() {
+                        *out = None;
+                    }
+                } else {
+                    // val < threshold
+                    // min + gcd * raw < threshold
+                    // gcd * raw < threshold - min
+                    // raw < (threshold - min) / gcd
+                    // If (threshold - min) % gcd == 0, then strictly less.
+                    // If remainder != 0, e.g. gcd=10, min=0, threshold=15. raw < 1.5 => raw <= 1.
+                    // (15-0)/10 = 1. raw < 1? No, raw=1 => 10 < 15. Correct.
+                    // threshold=10. raw < 1. raw=0 => 0 < 10. Correct.
+                    // So integer division works for strictly less if exact?
+                    // 10 < 10 is false. 10/10 = 1. raw < 1 => raw=0. 0 < 10.
+                    // So raw < (threshold - min + gcd - 1) / gcd ?
+                    // No. raw_val * gcd < threshold - min.
+                    // raw_val < (threshold - min) / gcd  (float).
+                    // integers: raw_val < ceil((threshold - min)/gcd)
+                    // raw_val < (threshold - min + gcd - 1) / gcd.
+                    let diff = threshold - self.stats.min_value;
+                    let gcd = self.stats.gcd.get();
+                    let raw_threshold = if diff % gcd == 0 {
+                        diff / gcd
+                    } else {
+                        diff / gcd + 1
+                    };
+
+                    for (i, doc) in indexes.iter().enumerate() {
+                        let raw_val = self.unpack_val(*doc);
+                        if raw_val < raw_threshold {
+                            output[i] = Some(self.stats.min_value + self.stats.gcd.get() * raw_val);
+                        } else {
+                            output[i] = None;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -159,6 +219,80 @@ impl ColumnValues for BitpackedReader {
                 // TODO: This does not use the `self.blocks` cache, because callers are usually
                 // already doing sequential, and fairly dense reads. Fix it to
                 // iterate over blocks if that assumption turns out to be incorrect!
+                let data_range = self
+                    .bit_unpacker
+                    .block_oblivious_range(doc_id_range.clone(), self.data.len());
+                let data_offset = data_range.start;
+                let data_subset = self
+                    .data
+                    .slice(data_range)
+                    .read_bytes()
+                    .expect("Failed to read column values.");
+                self.bit_unpacker.get_ids_for_value_range_from_subset(
+                    transformed_range,
+                    doc_id_range,
+                    data_offset,
+                    &data_subset,
+                    positions,
+                );
+            }
+            ValueRange::GreaterThan(threshold, _) => {
+                if threshold < self.stats.min_value {
+                    positions.extend(doc_id_range);
+                    return;
+                }
+                if threshold >= self.stats.max_value {
+                    return;
+                }
+                let raw_threshold = (threshold - self.stats.min_value) / self.stats.gcd.get();
+                // We want raw > raw_threshold.
+                // bit_unpacker.get_ids_for_value_range_from_subset takes a RangeInclusive.
+                // We can construct a RangeInclusive: (raw_threshold + 1) ..= u64::MAX
+                // But max raw value is known? (max_value - min_value) / gcd.
+                let max_raw = (self.stats.max_value - self.stats.min_value) / self.stats.gcd.get();
+                let transformed_range = (raw_threshold + 1)..=max_raw;
+
+                let data_range = self
+                    .bit_unpacker
+                    .block_oblivious_range(doc_id_range.clone(), self.data.len());
+                let data_offset = data_range.start;
+                let data_subset = self
+                    .data
+                    .slice(data_range)
+                    .read_bytes()
+                    .expect("Failed to read column values.");
+                self.bit_unpacker.get_ids_for_value_range_from_subset(
+                    transformed_range,
+                    doc_id_range,
+                    data_offset,
+                    &data_subset,
+                    positions,
+                );
+            }
+            ValueRange::LessThan(threshold, _) => {
+                if threshold > self.stats.max_value {
+                    positions.extend(doc_id_range);
+                    return;
+                }
+                if threshold <= self.stats.min_value {
+                    return;
+                }
+
+                let diff = threshold - self.stats.min_value;
+                let gcd = self.stats.gcd.get();
+                // We want raw < raw_threshold_limit
+                // raw <= raw_threshold_limit - 1
+                let raw_threshold_limit = if diff % gcd == 0 {
+                    diff / gcd
+                } else {
+                    diff / gcd + 1
+                };
+
+                if raw_threshold_limit == 0 {
+                    return;
+                }
+                let transformed_range = 0..=(raw_threshold_limit - 1);
+
                 let data_range = self
                     .bit_unpacker
                     .block_oblivious_range(doc_id_range.clone(), self.data.len());

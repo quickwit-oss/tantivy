@@ -99,6 +99,16 @@ where
                 doc_id_range,
                 positions,
             ),
+            ValueRange::GreaterThan(threshold, _) => self.from_column.get_row_ids_for_value_range(
+                ValueRange::GreaterThan(self.monotonic_mapping.inverse(threshold), false),
+                doc_id_range,
+                positions,
+            ),
+            ValueRange::LessThan(threshold, _) => self.from_column.get_row_ids_for_value_range(
+                ValueRange::LessThan(self.monotonic_mapping.inverse(threshold), false),
+                doc_id_range,
+                positions,
+            ),
         }
     }
 
