@@ -483,4 +483,67 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_order_by_compound_filtering_with_none() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let city = schema_builder.add_text_field("city", TEXT | FAST);
+        let altitude = schema_builder.add_u64_field("altitude", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+
+        // Add enough docs to trigger thresholding.
+        // We want to sort by City Asc, Altitude Asc.
+        // Note: In NaturalComparator, None < Some.
+        // So Ascending order should be: None, then "a", then "b", then "c".
+
+        // Docs:
+        // 0: "c", 10
+        // 1: "b", 10
+        // 2: "a", 20
+        // 3: "a", 10
+        // 4: None, 5
+
+        // Expected Ascending Order (None is Last in Tantivy's Order::Asc):
+        // 1. Doc 3 ("a", 10)
+        // 2. Doc 2 ("a", 20)
+        // 3. Doc 1 ("b", 10)
+        // 4. Doc 0 ("c", 10)
+        // 5. Doc 4 (None, 5)
+
+        index_writer.add_document(doc!(city => "c", altitude => 10u64))?;
+        index_writer.add_document(doc!(city => "b", altitude => 10u64))?;
+        index_writer.add_document(doc!(city => "a", altitude => 20u64))?;
+        index_writer.add_document(doc!(city => "a", altitude => 10u64))?;
+        index_writer.add_document(doc!(altitude => 5u64))?; // City is None
+
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+
+        // Use limit(2) to force a threshold update after the first few docs.
+        // The collector should eventually establish a threshold around ("a", 20) (Top 2: "a" 10,
+        // "a" 20). Then when seeing "b" and "c", it should filter them out based on the
+        // head key "city". This confirms that when filtering happens, the DocIds are
+        // preserved correctly.
+        let top_collector = TopDocs::with_limit(2).order_by((
+            (SortByString::for_field("city"), Order::Asc),
+            (
+                SortByStaticFastValue::<u64>::for_field("altitude"),
+                Order::Asc,
+            ),
+        ));
+
+        let results: Vec<DocAddress> = searcher
+            .search(&AllQuery, &top_collector)?
+            .into_iter()
+            .map(|(_, doc)| doc)
+            .collect();
+
+        // Doc 3 is ("a", 10). Doc 2 is ("a", 20).
+        assert_eq!(results, vec![DocAddress::new(0, 3), DocAddress::new(0, 2)]);
+
+        Ok(())
+    }
 }

@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use columnar::ValueRange;
+
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
 use crate::collector::top_score_collector::push_assuming_capacity;
@@ -38,7 +40,11 @@ pub trait SegmentSortKeyComputer: 'static {
     ///
     /// The computed sort keys are stored in an internal buffer and returned as a slice.
     /// Subsequent calls to this method may reuse and overwrite the internal buffer.
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey>;
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)>;
 
     /// Computes the sort key and pushes the document in a TopN Computer.
     ///
@@ -63,14 +69,18 @@ pub trait SegmentSortKeyComputer: 'static {
         // should always be able to `reserve` space for the entire block.
         top_n_computer.reserve(docs.len());
 
-        if let Some(threshold) = &top_n_computer.threshold {
-            // TODO: Would need to split the borrow of the TopNComputer to avoid cloning the
-            // threshold here.
-            let threshold = threshold.clone();
-            let comparator = self.segment_comparator();
-            let sort_keys = self.segment_sort_keys(docs);
+        let comparator = self.segment_comparator();
+        let value_range = if let Some(threshold) = &top_n_computer.threshold {
+            comparator.threshold_to_valuerange(threshold.clone())
+        } else {
+            ValueRange::All
+        };
 
-            for (&doc, sort_key) in docs.iter().zip(sort_keys.drain(..)) {
+        let sort_keys = self.segment_sort_keys(docs, value_range);
+
+        if let Some(threshold) = &top_n_computer.threshold {
+            let threshold = threshold.clone();
+            for (doc, sort_key) in sort_keys.drain(..) {
                 let cmp = comparator.compare(&sort_key, &threshold);
                 if cmp == Ordering::Greater {
                     // We validated at the top of the method that we have capacity.
@@ -79,8 +89,7 @@ pub trait SegmentSortKeyComputer: 'static {
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            let sort_keys = self.segment_sort_keys(docs);
-            for (&doc, sort_key) in docs.iter().zip(sort_keys.drain(..)) {
+            for (doc, sort_key) in sort_keys.drain(..) {
                 // We validated at the top of the method that we have capacity.
                 top_n_computer.append_doc_unchecked(doc, sort_key);
             }
@@ -302,7 +311,11 @@ where
             .then_with(|| self.tail.compare_segment_sort_key(&left.1, &right.1))
     }
 
-    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
+    fn segment_sort_keys(
+        &mut self,
+        _docs: &[DocId],
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
         unimplemented!("The head and the tail are accessed independently.");
     }
 
@@ -339,11 +352,12 @@ where
             let (head_threshold, tail_threshold) = threshold.clone();
             let head_cmp = self.head.segment_comparator();
             let tail_cmp = self.tail.segment_comparator();
+            let head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
 
-            let head_keys = self.head.segment_sort_keys(docs);
+            let head_keys = self.head.segment_sort_keys(docs, head_filter);
             self.doc_buffer.clear();
             self.head_key_buffer.clear();
-            for (head_key, &doc) in head_keys.drain(..).zip(docs) {
+            for (doc, head_key) in head_keys.drain(..) {
                 let cmp = head_cmp.compare(&head_key, &head_threshold);
                 if cmp != Ordering::Less {
                     self.doc_buffer.push(doc);
@@ -352,11 +366,13 @@ where
             }
 
             if !self.doc_buffer.is_empty() {
-                let tail_keys = self.tail.segment_sort_keys(&self.doc_buffer);
+                let tail_keys = self
+                    .tail
+                    .segment_sort_keys(&self.doc_buffer, ValueRange::All);
                 for ((head_key, tail_key), &doc) in self
                     .head_key_buffer
                     .drain(..)
-                    .zip(tail_keys.drain(..))
+                    .zip(tail_keys.drain(..).map(|(_, k)| k))
                     .zip(self.doc_buffer.iter())
                 {
                     let head_ord = head_cmp.compare(&head_key, &head_threshold);
@@ -372,15 +388,11 @@ where
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            let head_keys = self.head.segment_sort_keys(docs);
-            let tail_keys = self.tail.segment_sort_keys(docs);
-            for ((doc, head_key), tail_key) in docs
-                .iter()
-                .zip(head_keys.drain(..))
-                .zip(tail_keys.drain(..))
-            {
+            let head_keys = self.head.segment_sort_keys(docs, ValueRange::All);
+            let tail_keys = self.tail.segment_sort_keys(docs, ValueRange::All);
+            for ((doc, head_key), (_, tail_key)) in head_keys.drain(..).zip(tail_keys.drain(..)) {
                 // We validated at the top of the method that we have capacity.
-                top_n_computer.append_doc_unchecked(*doc, (head_key, tail_key));
+                top_n_computer.append_doc_unchecked(doc, (head_key, tail_key));
             }
         }
     }
@@ -427,8 +439,13 @@ where
         self.sort_key_computer.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
-        self.sort_key_computer.segment_sort_keys(docs)
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
+        self.sort_key_computer
+            .segment_sort_keys(docs, ValueRange::All)
     }
 
     #[inline(always)]
@@ -605,7 +622,7 @@ where
 
 pub struct FuncSegmentSortKeyComputer<F, TSortKey> {
     func: F,
-    buffer: Vec<TSortKey>,
+    buffer: Vec<(DocId, TSortKey)>,
 }
 
 impl<F, SegmentF, TSortKey> SortKeyComputer for F
@@ -639,11 +656,15 @@ where
         (self.func)(doc)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
         self.buffer.clear();
         self.buffer.reserve(docs.len());
         for &doc in docs {
-            self.buffer.push((self.func)(doc));
+            self.buffer.push((doc, (self.func)(doc)));
         }
         &mut self.buffer
     }
@@ -651,6 +672,34 @@ where
     /// Convert a segment level score into the global level score.
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         sort_key
+    }
+}
+
+pub(crate) fn range_contains_none(range: &ValueRange<Option<u64>>) -> bool {
+    match range {
+        ValueRange::All => true,
+        ValueRange::Inclusive(r) => r.contains(&None),
+        ValueRange::GreaterThan(threshold, match_nulls) => *match_nulls || (None > *threshold),
+        ValueRange::LessThan(threshold, match_nulls) => *match_nulls || (None < *threshold),
+    }
+}
+
+pub(crate) fn convert_optional_u64_range_to_u64_range(
+    range: ValueRange<Option<u64>>,
+) -> ValueRange<u64> {
+    if range_contains_none(&range) {
+        return ValueRange::All;
+    }
+    match range {
+        ValueRange::Inclusive(r) => {
+            let start = r.start().unwrap_or(0);
+            let end = r.end().unwrap_or(u64::MAX);
+            ValueRange::Inclusive(start..=end)
+        }
+        ValueRange::GreaterThan(Some(val), _match_nulls) => ValueRange::GreaterThan(val, false),
+        ValueRange::GreaterThan(None, _match_nulls) => ValueRange::Inclusive(u64::MIN..=u64::MAX),
+        ValueRange::LessThan(None, _match_nulls) => ValueRange::Inclusive(1..=0),
+        _ => ValueRange::All,
     }
 }
 

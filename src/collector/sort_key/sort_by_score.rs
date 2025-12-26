@@ -1,3 +1,5 @@
+use columnar::ValueRange;
+
 use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
 use crate::{DocAddress, DocId, Score};
@@ -73,7 +75,11 @@ impl SegmentSortKeyComputer for SortBySimilarityScoreSegmentComputer {
         score
     }
 
-    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
+    fn segment_sort_keys(
+        &mut self,
+        _docs: &[DocId],
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
         unimplemented!("Batch computation not supported for score sorting")
     }
 

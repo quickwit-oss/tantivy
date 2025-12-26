@@ -1,4 +1,4 @@
-use columnar::{ColumnType, MonotonicallyMappableToU64};
+use columnar::{ColumnType, MonotonicallyMappableToU64, ValueRange};
 
 use crate::collector::sort_key::sort_by_score::SortBySimilarityScoreSegmentComputer;
 use crate::collector::sort_key::{
@@ -37,7 +37,11 @@ impl SortByErasedType {
 
 trait ErasedSegmentSortKeyComputer: Send + Sync {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64>;
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Option<u64>>;
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Option<u64>>,
+    ) -> &mut Vec<(DocId, Option<u64>)>;
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue;
 }
 
@@ -55,8 +59,12 @@ where
         self.inner.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Option<u64>> {
-        self.inner.segment_sort_keys(docs)
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Option<u64>>,
+    ) -> &mut Vec<(DocId, Option<u64>)> {
+        self.inner.segment_sort_keys(docs, filter)
     }
 
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
@@ -75,7 +83,11 @@ impl ErasedSegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
         Some(score_value.to_u64())
     }
 
-    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &mut Vec<Option<u64>> {
+    fn segment_sort_keys(
+        &mut self,
+        _docs: &[DocId],
+        _filter: ValueRange<Option<u64>>,
+    ) -> &mut Vec<(DocId, Option<u64>)> {
         unimplemented!("Batch computation not supported for score sorting")
     }
 
@@ -206,8 +218,12 @@ impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
         self.inner.segment_sort_key(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
-        self.inner.segment_sort_keys(docs)
+    fn segment_sort_keys(
+        &mut self,
+        docs: &[DocId],
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
+        self.inner.segment_sort_keys(docs, filter)
     }
 
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> OwnedValue {

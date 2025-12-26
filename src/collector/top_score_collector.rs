@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Range;
 
+use columnar::ValueRange;
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
@@ -486,7 +487,11 @@ where
         (self.sort_key_fn)(doc, score)
     }
 
-    fn segment_sort_keys(&mut self, _docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
+    fn segment_sort_keys(
+        &mut self,
+        _docs: &[DocId],
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
         unimplemented!("Batch computation is not supported for tweak score.")
     }
 
