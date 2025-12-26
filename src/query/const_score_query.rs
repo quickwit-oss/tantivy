@@ -127,6 +127,10 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
         self.docset.doc()
     }
 
+    fn is_range(&self) -> bool {
+        self.docset.is_range()
+    }
+
     fn size_hint(&self) -> u32 {
         self.docset.size_hint()
     }

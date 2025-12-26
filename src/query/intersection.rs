@@ -58,17 +58,57 @@ pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<dyn Scorer>>
     num_docs: u32,
 }
 
+/// Modified go_to_first_doc function that handles both regular and range scorers
 fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
     assert!(!docsets.is_empty());
-    let mut candidate = docsets.iter().map(TDocSet::doc).max().unwrap();
+
+    // Separate range scorers from regular scorers
+    let mut range_scorers = Vec::new();
+    let mut remaining_scorers = Vec::new();
+
+    for docset in docsets {
+        if docset.is_range() {
+            range_scorers.push(docset);
+        } else {
+            remaining_scorers.push(docset);
+        }
+    }
+
+    // Ensure there's at least one scorer as the "left"
+    if remaining_scorers.is_empty() {
+        if let Some(first_range_scorer) = range_scorers.pop() {
+            first_range_scorer.seek(0);
+            remaining_scorers.push(first_range_scorer);
+        }
+    }
+
+    // Get initial candidate from remaining scorers
+    let mut candidate = remaining_scorers
+        .iter()
+        .map(|docset| docset.doc())
+        .max()
+        .unwrap();
+
     'outer: loop {
-        for docset in docsets.iter_mut() {
+        // Check all remaining (non-range) scorers
+        for docset in remaining_scorers.iter_mut() {
             let seek_doc = docset.seek(candidate);
             if seek_doc > candidate {
-                candidate = docset.doc();
+                candidate = seek_doc;
                 continue 'outer;
             }
         }
+
+        // If there are range scorers, check them too
+        for range_docset in range_scorers.iter_mut() {
+            let seek_doc = range_docset.seek(candidate);
+            if seek_doc > candidate {
+                candidate = seek_doc;
+                continue 'outer;
+            }
+        }
+
+        // All scorers are at or below the candidate, and at least one matches it
         return candidate;
     }
 }
