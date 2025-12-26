@@ -176,3 +176,7 @@ harness = false
 [[bench]]
 name = "and_or_queries"
 harness = false
+
+[[bench]]
+name = "bool_queries"
+harness = false
