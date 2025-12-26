@@ -72,6 +72,7 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
             sort_column,
             typ: PhantomData,
             buffer: Vec::new(),
+            fetch_buffer: Vec::new(),
         })
     }
 }
@@ -80,6 +81,7 @@ pub struct SortByFastValueSegmentSortKeyComputer<T> {
     sort_column: Column<u64>,
     typ: PhantomData<T>,
     buffer: Vec<Option<u64>>,
+    fetch_buffer: Vec<Option<Option<u64>>>,
 }
 
 impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyComputer<T> {
@@ -93,9 +95,13 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
     }
 
     fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
-        self.buffer.resize(docs.len(), None);
+        self.fetch_buffer.resize(docs.len(), None);
         self.sort_column
-            .first_vals_in_value_range(docs, &mut self.buffer, ValueRange::All);
+            .first_vals_in_value_range(docs, &mut self.fetch_buffer, ValueRange::All);
+
+        self.buffer.clear();
+        self.buffer
+            .extend(self.fetch_buffer.iter().map(|val| val.flatten()));
         &mut self.buffer
     }
 

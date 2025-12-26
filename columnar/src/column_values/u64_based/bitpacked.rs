@@ -110,12 +110,14 @@ impl ColumnValues for BitpackedReader {
     fn get_vals_in_value_range(
         &self,
         indexes: &[u32],
-        output: &mut [Option<u64>],
+        output: &mut [Option<Option<u64>>],
         value_range: ValueRange<u64>,
     ) {
         match value_range {
             ValueRange::All => {
-                self.get_vals_opt(indexes, output);
+                for (out, idx) in output.iter_mut().zip(indexes) {
+                    *out = Some(Some(self.get_val(*idx)));
+                }
             }
             ValueRange::Inclusive(range) => {
                 if let Some(transformed_range) =
@@ -124,7 +126,8 @@ impl ColumnValues for BitpackedReader {
                     for (i, doc) in indexes.iter().enumerate() {
                         let raw_val = self.unpack_val(*doc);
                         if transformed_range.contains(&raw_val) {
-                            output[i] = Some(self.stats.min_value + self.stats.gcd.get() * raw_val);
+                            output[i] =
+                                Some(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
                         } else {
                             output[i] = None;
                         }
@@ -137,7 +140,9 @@ impl ColumnValues for BitpackedReader {
             }
             ValueRange::GreaterThan(threshold, _) => {
                 if threshold < self.stats.min_value {
-                    self.get_vals_opt(indexes, output);
+                    for (out, idx) in output.iter_mut().zip(indexes) {
+                        *out = Some(Some(self.get_val(*idx)));
+                    }
                 } else if threshold >= self.stats.max_value {
                     for out in output.iter_mut() {
                         *out = None;
@@ -147,7 +152,8 @@ impl ColumnValues for BitpackedReader {
                     for (i, doc) in indexes.iter().enumerate() {
                         let raw_val = self.unpack_val(*doc);
                         if raw_val > raw_threshold {
-                            output[i] = Some(self.stats.min_value + self.stats.gcd.get() * raw_val);
+                            output[i] =
+                                Some(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
                         } else {
                             output[i] = None;
                         }
@@ -156,7 +162,9 @@ impl ColumnValues for BitpackedReader {
             }
             ValueRange::LessThan(threshold, _) => {
                 if threshold > self.stats.max_value {
-                    self.get_vals_opt(indexes, output);
+                    for (out, idx) in output.iter_mut().zip(indexes) {
+                        *out = Some(Some(self.get_val(*idx)));
+                    }
                 } else if threshold <= self.stats.min_value {
                     for out in output.iter_mut() {
                         *out = None;
@@ -188,7 +196,8 @@ impl ColumnValues for BitpackedReader {
                     for (i, doc) in indexes.iter().enumerate() {
                         let raw_val = self.unpack_val(*doc);
                         if raw_val < raw_threshold {
-                            output[i] = Some(self.stats.min_value + self.stats.gcd.get() * raw_val);
+                            output[i] =
+                                Some(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
                         } else {
                             output[i] = None;
                         }
@@ -197,7 +206,6 @@ impl ColumnValues for BitpackedReader {
             }
         }
     }
-
     fn get_row_ids_for_value_range(
         &self,
         range: ValueRange<u64>,

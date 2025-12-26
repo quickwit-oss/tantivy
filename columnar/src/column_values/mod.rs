@@ -116,23 +116,43 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     fn get_vals_in_value_range(
         &self,
         indexes: &[u32],
-        output: &mut [Option<T>],
+        output: &mut [Option<Option<T>>],
         value_range: ValueRange<T>,
     ) {
         assert!(indexes.len() == output.len());
         match value_range {
-            ValueRange::All => self.get_vals_opt(indexes, output),
+            ValueRange::All => {
+                for (out, idx) in output.iter_mut().zip(indexes) {
+                    *out = Some(Some(self.get_val(*idx)));
+                }
+            }
             ValueRange::Inclusive(range) => {
                 let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
                 for (out_x4, idx_x4) in out_and_idx_chunks {
                     let v0 = self.get_val(idx_x4[0]);
-                    out_x4[0] = if range.contains(&v0) { Some(v0) } else { None };
+                    out_x4[0] = if range.contains(&v0) {
+                        Some(Some(v0))
+                    } else {
+                        None
+                    };
                     let v1 = self.get_val(idx_x4[1]);
-                    out_x4[1] = if range.contains(&v1) { Some(v1) } else { None };
+                    out_x4[1] = if range.contains(&v1) {
+                        Some(Some(v1))
+                    } else {
+                        None
+                    };
                     let v2 = self.get_val(idx_x4[2]);
-                    out_x4[2] = if range.contains(&v2) { Some(v2) } else { None };
+                    out_x4[2] = if range.contains(&v2) {
+                        Some(Some(v2))
+                    } else {
+                        None
+                    };
                     let v3 = self.get_val(idx_x4[3]);
-                    out_x4[3] = if range.contains(&v3) { Some(v3) } else { None };
+                    out_x4[3] = if range.contains(&v3) {
+                        Some(Some(v3))
+                    } else {
+                        None
+                    };
                 }
                 let out_and_idx_chunks = output
                     .chunks_exact_mut(4)
@@ -141,20 +161,24 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     .zip(indexes.chunks_exact(4).remainder());
                 for (out, idx) in out_and_idx_chunks {
                     let v = self.get_val(*idx);
-                    *out = if range.contains(&v) { Some(v) } else { None };
+                    *out = if range.contains(&v) {
+                        Some(Some(v))
+                    } else {
+                        None
+                    };
                 }
             }
             ValueRange::GreaterThan(threshold, _) => {
                 let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
                 for (out_x4, idx_x4) in out_and_idx_chunks {
                     let v0 = self.get_val(idx_x4[0]);
-                    out_x4[0] = if v0 > threshold { Some(v0) } else { None };
+                    out_x4[0] = if v0 > threshold { Some(Some(v0)) } else { None };
                     let v1 = self.get_val(idx_x4[1]);
-                    out_x4[1] = if v1 > threshold { Some(v1) } else { None };
+                    out_x4[1] = if v1 > threshold { Some(Some(v1)) } else { None };
                     let v2 = self.get_val(idx_x4[2]);
-                    out_x4[2] = if v2 > threshold { Some(v2) } else { None };
+                    out_x4[2] = if v2 > threshold { Some(Some(v2)) } else { None };
                     let v3 = self.get_val(idx_x4[3]);
-                    out_x4[3] = if v3 > threshold { Some(v3) } else { None };
+                    out_x4[3] = if v3 > threshold { Some(Some(v3)) } else { None };
                 }
                 let out_and_idx_chunks = output
                     .chunks_exact_mut(4)
@@ -163,20 +187,20 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     .zip(indexes.chunks_exact(4).remainder());
                 for (out, idx) in out_and_idx_chunks {
                     let v = self.get_val(*idx);
-                    *out = if v > threshold { Some(v) } else { None };
+                    *out = if v > threshold { Some(Some(v)) } else { None };
                 }
             }
             ValueRange::LessThan(threshold, _) => {
                 let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
                 for (out_x4, idx_x4) in out_and_idx_chunks {
                     let v0 = self.get_val(idx_x4[0]);
-                    out_x4[0] = if v0 < threshold { Some(v0) } else { None };
+                    out_x4[0] = if v0 < threshold { Some(Some(v0)) } else { None };
                     let v1 = self.get_val(idx_x4[1]);
-                    out_x4[1] = if v1 < threshold { Some(v1) } else { None };
+                    out_x4[1] = if v1 < threshold { Some(Some(v1)) } else { None };
                     let v2 = self.get_val(idx_x4[2]);
-                    out_x4[2] = if v2 < threshold { Some(v2) } else { None };
+                    out_x4[2] = if v2 < threshold { Some(Some(v2)) } else { None };
                     let v3 = self.get_val(idx_x4[3]);
-                    out_x4[3] = if v3 < threshold { Some(v3) } else { None };
+                    out_x4[3] = if v3 < threshold { Some(Some(v3)) } else { None };
                 }
                 let out_and_idx_chunks = output
                     .chunks_exact_mut(4)
@@ -185,7 +209,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     .zip(indexes.chunks_exact(4).remainder());
                 for (out, idx) in out_and_idx_chunks {
                     let v = self.get_val(*idx);
-                    *out = if v < threshold { Some(v) } else { None };
+                    *out = if v < threshold { Some(Some(v)) } else { None };
                 }
             }
         }
@@ -298,6 +322,16 @@ impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
     fn num_vals(&self) -> u32 {
         0
     }
+
+    fn get_vals_in_value_range(
+        &self,
+        indexes: &[u32],
+        output: &mut [Option<Option<T>>],
+        value_range: ValueRange<T>,
+    ) {
+        let _ = (indexes, output, value_range);
+        panic!("Internal Error: Called get_vals_in_value_range of empty column.")
+    }
 }
 
 impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
@@ -315,7 +349,7 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     fn get_vals_in_value_range(
         &self,
         indexes: &[u32],
-        output: &mut [Option<T>],
+        output: &mut [Option<Option<T>>],
         value_range: ValueRange<T>,
     ) {
         self.as_ref()

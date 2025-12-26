@@ -41,6 +41,7 @@ impl SortKeyComputer for SortByString {
         Ok(ByStringColumnSegmentSortKeyComputer {
             str_column_opt,
             buffer: Vec::new(),
+            fetch_buffer: Vec::new(),
         })
     }
 }
@@ -48,6 +49,7 @@ impl SortKeyComputer for SortByString {
 pub struct ByStringColumnSegmentSortKeyComputer {
     str_column_opt: Option<StrColumn>,
     buffer: Vec<Option<TermOrdinal>>,
+    fetch_buffer: Vec<Option<Option<TermOrdinal>>>,
 }
 
 impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
@@ -62,12 +64,17 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
     }
 
     fn segment_sort_keys(&mut self, docs: &[DocId]) -> &mut Vec<Self::SegmentSortKey> {
-        self.buffer.resize(docs.len(), None);
+        self.fetch_buffer.resize(docs.len(), None);
         if let Some(str_column) = &self.str_column_opt {
-            str_column
-                .ords()
-                .first_vals_in_value_range(docs, &mut self.buffer, ValueRange::All);
+            str_column.ords().first_vals_in_value_range(
+                docs,
+                &mut self.fetch_buffer,
+                ValueRange::All,
+            );
         }
+        self.buffer.clear();
+        self.buffer
+            .extend(self.fetch_buffer.iter().map(|val| val.flatten()));
         &mut self.buffer
     }
 

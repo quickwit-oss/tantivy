@@ -57,7 +57,7 @@ fn bench_group(mut runner: InputGroup<Column>) {
 
             column.first_vals_in_value_range(&docs, &mut buffer, ValueRange::All);
             for val in buffer.iter() {
-                let Some(val) = val else { continue };
+                let Some(Some(val)) = val else { continue };
                 sum += *val;
             }
         }
