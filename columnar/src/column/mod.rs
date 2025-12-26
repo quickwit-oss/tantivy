@@ -103,76 +103,34 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
                 self.values
                     .get_vals_in_value_range(docids, output, value_range);
             }
-            (ColumnIndex::Optional(optional_index), ValueRange::All) => {
+            (ColumnIndex::Optional(optional_index), value_range) => {
+                let nulls_match = match &value_range {
+                    ValueRange::All => true,
+                    ValueRange::Inclusive(_) => false,
+                    ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                };
+
+                let mut row_ids = Vec::with_capacity(docids.len());
+                let mut output_indices = Vec::with_capacity(docids.len());
                 for (i, docid) in docids.iter().enumerate() {
-                    output[i] = Some(
-                        optional_index
-                            .rank_if_exists(*docid)
-                            .map(|rowid| self.values.get_val(rowid)),
-                    );
+                    if let Some(row_id) = optional_index.rank_if_exists(*docid) {
+                        row_ids.push(row_id);
+                        output_indices.push(i);
+                    } else if nulls_match {
+                        output[i] = Some(None);
+                    } else {
+                        output[i] = None;
+                    }
                 }
-            }
-            (ColumnIndex::Optional(optional_index), ValueRange::Inclusive(range)) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    output[i] = match optional_index.rank_if_exists(*docid) {
-                        Some(rowid) => {
-                            let val = self.values.get_val(rowid);
-                            if range.contains(&val) {
-                                Some(Some(val))
-                            } else {
-                                None
-                            }
-                        }
-                        None => None, // range does not include NULL
-                    };
-                }
-            }
-            (
-                ColumnIndex::Optional(optional_index),
-                ValueRange::GreaterThan(threshold, nulls_match),
-            ) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    output[i] = match optional_index.rank_if_exists(*docid) {
-                        Some(rowid) => {
-                            let val = self.values.get_val(rowid);
-                            if val > threshold {
-                                Some(Some(val))
-                            } else {
-                                None
-                            }
-                        }
-                        None => {
-                            if nulls_match {
-                                Some(None)
-                            } else {
-                                None
-                            }
-                        }
-                    };
-                }
-            }
-            (
-                ColumnIndex::Optional(optional_index),
-                ValueRange::LessThan(threshold, nulls_match),
-            ) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    output[i] = match optional_index.rank_if_exists(*docid) {
-                        Some(rowid) => {
-                            let val = self.values.get_val(rowid);
-                            if val < threshold {
-                                Some(Some(val))
-                            } else {
-                                None
-                            }
-                        }
-                        None => {
-                            if nulls_match {
-                                Some(None)
-                            } else {
-                                None
-                            }
-                        }
-                    };
+
+                if !row_ids.is_empty() {
+                    let mut values = vec![None; row_ids.len()];
+                    self.values
+                        .get_vals_in_value_range(&row_ids, &mut values, value_range);
+                    for (val, output_idx) in values.into_iter().zip(output_indices) {
+                        output[output_idx] = val;
+                    }
                 }
             }
             (ColumnIndex::Multivalued(multivalued_index), ValueRange::All) => {
