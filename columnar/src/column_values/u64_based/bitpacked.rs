@@ -109,82 +109,71 @@ impl ColumnValues for BitpackedReader {
 
     fn get_vals_in_value_range(
         &self,
-        indexes: &[u32],
-        output: &mut [Option<Option<u64>>],
+        indexes: &mut Vec<u32>,
+        output: &mut Vec<Option<u64>>,
         value_range: ValueRange<u64>,
     ) {
+        let mut write_head = 0;
         match value_range {
             ValueRange::All => {
-                for (out, idx) in output.iter_mut().zip(indexes) {
-                    *out = Some(Some(self.get_val(*idx)));
+                for i in 0..indexes.len() {
+                    let idx = indexes[i];
+                    indexes[write_head] = idx;
+                    output.push(Some(self.get_val(idx)));
+                    write_head += 1;
                 }
             }
             ValueRange::Inclusive(range) => {
                 if let Some(transformed_range) =
                     transform_range_before_linear_transformation(&self.stats, range)
                 {
-                    for (i, doc) in indexes.iter().enumerate() {
-                        let raw_val = self.unpack_val(*doc);
+                    for i in 0..indexes.len() {
+                        let doc = indexes[i];
+                        let raw_val = self.unpack_val(doc);
                         if transformed_range.contains(&raw_val) {
-                            output[i] =
-                                Some(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
-                        } else {
-                            output[i] = None;
+                            indexes[write_head] = doc;
+                            output
+                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            write_head += 1;
                         }
-                    }
-                } else {
-                    for out in output.iter_mut() {
-                        *out = None;
                     }
                 }
             }
             ValueRange::GreaterThan(threshold, _) => {
                 if threshold < self.stats.min_value {
-                    for (out, idx) in output.iter_mut().zip(indexes) {
-                        *out = Some(Some(self.get_val(*idx)));
+                    for i in 0..indexes.len() {
+                        let idx = indexes[i];
+                        indexes[write_head] = idx;
+                        output.push(Some(self.get_val(idx)));
+                        write_head += 1;
                     }
                 } else if threshold >= self.stats.max_value {
-                    for out in output.iter_mut() {
-                        *out = None;
-                    }
+                    // All filtered out
                 } else {
                     let raw_threshold = (threshold - self.stats.min_value) / self.stats.gcd.get();
-                    for (i, doc) in indexes.iter().enumerate() {
-                        let raw_val = self.unpack_val(*doc);
+                    for i in 0..indexes.len() {
+                        let doc = indexes[i];
+                        let raw_val = self.unpack_val(doc);
                         if raw_val > raw_threshold {
-                            output[i] =
-                                Some(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
-                        } else {
-                            output[i] = None;
+                            indexes[write_head] = doc;
+                            output
+                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            write_head += 1;
                         }
                     }
                 }
             }
             ValueRange::LessThan(threshold, _) => {
                 if threshold > self.stats.max_value {
-                    for (out, idx) in output.iter_mut().zip(indexes) {
-                        *out = Some(Some(self.get_val(*idx)));
+                    for i in 0..indexes.len() {
+                        let idx = indexes[i];
+                        indexes[write_head] = idx;
+                        output.push(Some(self.get_val(idx)));
+                        write_head += 1;
                     }
                 } else if threshold <= self.stats.min_value {
-                    for out in output.iter_mut() {
-                        *out = None;
-                    }
+                    // All filtered out
                 } else {
-                    // val < threshold
-                    // min + gcd * raw < threshold
-                    // gcd * raw < threshold - min
-                    // raw < (threshold - min) / gcd
-                    // If (threshold - min) % gcd == 0, then strictly less.
-                    // If remainder != 0, e.g. gcd=10, min=0, threshold=15. raw < 1.5 => raw <= 1.
-                    // (15-0)/10 = 1. raw < 1? No, raw=1 => 10 < 15. Correct.
-                    // threshold=10. raw < 1. raw=0 => 0 < 10. Correct.
-                    // So integer division works for strictly less if exact?
-                    // 10 < 10 is false. 10/10 = 1. raw < 1 => raw=0. 0 < 10.
-                    // So raw < (threshold - min + gcd - 1) / gcd ?
-                    // No. raw_val * gcd < threshold - min.
-                    // raw_val < (threshold - min) / gcd  (float).
-                    // integers: raw_val < ceil((threshold - min)/gcd)
-                    // raw_val < (threshold - min + gcd - 1) / gcd.
                     let diff = threshold - self.stats.min_value;
                     let gcd = self.stats.gcd.get();
                     let raw_threshold = if diff % gcd == 0 {
@@ -193,18 +182,20 @@ impl ColumnValues for BitpackedReader {
                         diff / gcd + 1
                     };
 
-                    for (i, doc) in indexes.iter().enumerate() {
-                        let raw_val = self.unpack_val(*doc);
+                    for i in 0..indexes.len() {
+                        let doc = indexes[i];
+                        let raw_val = self.unpack_val(doc);
                         if raw_val < raw_threshold {
-                            output[i] =
-                                Some(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
-                        } else {
-                            output[i] = None;
+                            indexes[write_head] = doc;
+                            output
+                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            write_head += 1;
                         }
                     }
                 }
             }
         }
+        indexes.truncate(write_head);
     }
     fn get_row_ids_for_value_range(
         &self,

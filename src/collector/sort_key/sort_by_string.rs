@@ -45,6 +45,7 @@ impl SortKeyComputer for SortByString {
             str_column_opt,
             buffer: Vec::new(),
             fetch_buffer: Vec::new(),
+            doc_buffer: Vec::new(),
         })
     }
 }
@@ -52,7 +53,8 @@ impl SortKeyComputer for SortByString {
 pub struct ByStringColumnSegmentSortKeyComputer {
     str_column_opt: Option<StrColumn>,
     buffer: Vec<(DocId, Option<TermOrdinal>)>,
-    fetch_buffer: Vec<Option<Option<TermOrdinal>>>,
+    fetch_buffer: Vec<Option<TermOrdinal>>,
+    doc_buffer: Vec<DocId>,
 }
 
 impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
@@ -71,23 +73,28 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
         docs: &[DocId],
         filter: ValueRange<Self::SegmentSortKey>,
     ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
-        self.fetch_buffer.resize(docs.len(), None);
+        self.doc_buffer.clear();
+        self.doc_buffer.extend_from_slice(docs);
+        self.fetch_buffer.clear();
+
         if let Some(str_column) = &self.str_column_opt {
             let u64_filter = convert_optional_u64_range_to_u64_range(filter);
-            str_column
-                .ords()
-                .first_vals_in_value_range(docs, &mut self.fetch_buffer, u64_filter);
+            str_column.ords().first_vals_in_value_range(
+                &mut self.doc_buffer,
+                &mut self.fetch_buffer,
+                u64_filter,
+            );
         } else if range_contains_none(&filter) {
-            self.fetch_buffer.fill(Some(None));
+            for _ in 0..docs.len() {
+                self.fetch_buffer.push(None);
+            }
         } else {
-            self.fetch_buffer.fill(None);
+            self.doc_buffer.clear();
         }
 
         self.buffer.clear();
-        for (&doc, val) in docs.iter().zip(self.fetch_buffer.iter()) {
-            if let Some(val) = val {
-                self.buffer.push((doc, *val));
-            }
+        for (&doc, &val) in self.doc_buffer.iter().zip(self.fetch_buffer.iter()) {
+            self.buffer.push((doc, val));
         }
         &mut self.buffer
     }

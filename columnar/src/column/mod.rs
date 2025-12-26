@@ -93,15 +93,29 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     #[inline]
     pub fn first_vals_in_value_range(
         &self,
-        docids: &[DocId],
-        output: &mut [Option<Option<T>>],
+        docids: &mut Vec<DocId>,
+        values: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
         match (&self.index, value_range) {
-            (ColumnIndex::Empty { .. }, _) => {}
+            (ColumnIndex::Empty { .. }, value_range) => {
+                let nulls_match = match &value_range {
+                    ValueRange::All => true,
+                    ValueRange::Inclusive(_) => false,
+                    ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                };
+                if nulls_match {
+                    for _ in 0..docids.len() {
+                        values.push(None);
+                    }
+                } else {
+                    docids.clear();
+                }
+            }
             (ColumnIndex::Full, value_range) => {
                 self.values
-                    .get_vals_in_value_range(docids, output, value_range);
+                    .get_vals_in_value_range(docids, values, value_range);
             }
             (ColumnIndex::Optional(optional_index), value_range) => {
                 let nulls_match = match &value_range {
@@ -111,100 +125,85 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
                 };
 
-                let mut row_ids = Vec::with_capacity(docids.len());
-                let mut output_indices = Vec::with_capacity(docids.len());
-                for (i, docid) in docids.iter().enumerate() {
+                let original_input_docids = std::mem::take(docids); // Take ownership to iterate and rebuild
+                let mut temp_present_doc_ids = Vec::with_capacity(original_input_docids.len());
+                let mut temp_row_ids = Vec::with_capacity(original_input_docids.len());
+
+                // Collect docids that have values and their corresponding row_ids
+                for docid in original_input_docids.iter() {
                     if let Some(row_id) = optional_index.rank_if_exists(*docid) {
-                        row_ids.push(row_id);
-                        output_indices.push(i);
-                    } else if nulls_match {
-                        output[i] = Some(None);
-                    } else {
-                        output[i] = None;
+                        temp_present_doc_ids.push(*docid);
+                        temp_row_ids.push(row_id);
                     }
                 }
 
-                if !row_ids.is_empty() {
-                    let mut values = vec![None; row_ids.len()];
-                    self.values
-                        .get_vals_in_value_range(&row_ids, &mut values, value_range);
-                    for (val, output_idx) in values.into_iter().zip(output_indices) {
-                        output[output_idx] = val;
+                let mut temp_values_for_present_docs = Vec::with_capacity(temp_row_ids.len());
+                // Batch process present values
+                self.values.get_vals_in_value_range(
+                    &mut temp_row_ids,
+                    &mut temp_values_for_present_docs,
+                    value_range,
+                );
+
+                // Now, rebuild the docids and values vectors, merging nulls_match
+                let mut present_iter = temp_present_doc_ids
+                    .into_iter()
+                    .zip(temp_values_for_present_docs.into_iter())
+                    .peekable();
+
+                docids.clear();
+                values.clear();
+
+                for docid_orig in original_input_docids.into_iter() {
+                    let mut is_present = false;
+                    if let Some((present_docid, _)) = present_iter.peek() {
+                        if docid_orig == present_docid {
+                            is_present = true;
+                        }
+                    }
+
+                    if is_present {
+                        let (present_docid, present_value) = present_iter.next().unwrap();
+                        docids.push(present_docid);
+                        values.push(present_value);
+                    } else if nulls_match {
+                        docids.push(docid_orig);
+                        values.push(None);
                     }
                 }
             }
-            (ColumnIndex::Multivalued(multivalued_index), ValueRange::All) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    let range = multivalued_index.range(*docid);
-                    let is_empty = range.start == range.end;
-                    if !is_empty {
-                        output[i] = Some(Some(self.values.get_val(range.start)));
-                    } else {
-                        output[i] = Some(None);
-                    }
-                }
-            }
-            (ColumnIndex::Multivalued(multivalued_index), ValueRange::Inclusive(range)) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    let row_range = multivalued_index.range(*docid);
+            (ColumnIndex::Multivalued(multivalued_index), value_range) => {
+                let nulls_match = match &value_range {
+                    ValueRange::All => true,
+                    ValueRange::Inclusive(_) => false,
+                    ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                };
+                let mut write_head = 0;
+                for i in 0..docids.len() {
+                    let docid = docids[i];
+                    let row_range = multivalued_index.range(docid);
                     let is_empty = row_range.start == row_range.end;
                     if !is_empty {
                         let val = self.values.get_val(row_range.start);
-                        if range.contains(&val) {
-                            output[i] = Some(Some(val));
-                        } else {
-                            output[i] = None;
+                        let matches = match &value_range {
+                            ValueRange::All => true,
+                            ValueRange::Inclusive(r) => r.contains(&val),
+                            ValueRange::GreaterThan(t, _) => val > *t,
+                            ValueRange::LessThan(t, _) => val < *t,
+                        };
+                        if matches {
+                            docids[write_head] = docid;
+                            values.push(Some(val));
+                            write_head += 1;
                         }
-                    } else {
-                        output[i] = None;
+                    } else if nulls_match {
+                        docids[write_head] = docid;
+                        values.push(None);
+                        write_head += 1;
                     }
                 }
-            }
-            (
-                ColumnIndex::Multivalued(multivalued_index),
-                ValueRange::GreaterThan(threshold, nulls_match),
-            ) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    let row_range = multivalued_index.range(*docid);
-                    let is_empty = row_range.start == row_range.end;
-                    if !is_empty {
-                        let val = self.values.get_val(row_range.start);
-                        if val > threshold {
-                            output[i] = Some(Some(val));
-                        } else {
-                            output[i] = None;
-                        }
-                    } else {
-                        if nulls_match {
-                            output[i] = Some(None);
-                        } else {
-                            output[i] = None;
-                        }
-                    }
-                }
-            }
-            (
-                ColumnIndex::Multivalued(multivalued_index),
-                ValueRange::LessThan(threshold, nulls_match),
-            ) => {
-                for (i, docid) in docids.iter().enumerate() {
-                    let row_range = multivalued_index.range(*docid);
-                    let is_empty = row_range.start == row_range.end;
-                    if !is_empty {
-                        let val = self.values.get_val(row_range.start);
-                        if val < threshold {
-                            output[i] = Some(Some(val));
-                        } else {
-                            output[i] = None;
-                        }
-                    } else {
-                        if nulls_match {
-                            output[i] = Some(None);
-                        } else {
-                            output[i] = None;
-                        }
-                    }
-                }
+                docids.truncate(write_head);
             }
         }
     }

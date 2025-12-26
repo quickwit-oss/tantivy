@@ -115,104 +115,171 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// The values are filtered by the provided value range.
     fn get_vals_in_value_range(
         &self,
-        indexes: &[u32],
-        output: &mut [Option<Option<T>>],
+        indexes: &mut Vec<u32>,
+        output: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
-        assert!(indexes.len() == output.len());
+        let mut write_head = 0;
+        let mut read_head = 0;
+        let len = indexes.len();
+
         match value_range {
             ValueRange::All => {
-                for (out, idx) in output.iter_mut().zip(indexes) {
-                    *out = Some(Some(self.get_val(*idx)));
+                while read_head + 3 < len {
+                    let idx0 = indexes[read_head];
+                    let idx1 = indexes[read_head + 1];
+                    let idx2 = indexes[read_head + 2];
+                    let idx3 = indexes[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    indexes[write_head] = idx0;
+                    output.push(Some(val0));
+                    write_head += 1;
+                    indexes[write_head] = idx1;
+                    output.push(Some(val1));
+                    write_head += 1;
+                    indexes[write_head] = idx2;
+                    output.push(Some(val2));
+                    write_head += 1;
+                    indexes[write_head] = idx3;
+                    output.push(Some(val3));
+                    write_head += 1;
+
+                    read_head += 4;
                 }
             }
-            ValueRange::Inclusive(range) => {
-                let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
-                for (out_x4, idx_x4) in out_and_idx_chunks {
-                    let v0 = self.get_val(idx_x4[0]);
-                    out_x4[0] = if range.contains(&v0) {
-                        Some(Some(v0))
-                    } else {
-                        None
-                    };
-                    let v1 = self.get_val(idx_x4[1]);
-                    out_x4[1] = if range.contains(&v1) {
-                        Some(Some(v1))
-                    } else {
-                        None
-                    };
-                    let v2 = self.get_val(idx_x4[2]);
-                    out_x4[2] = if range.contains(&v2) {
-                        Some(Some(v2))
-                    } else {
-                        None
-                    };
-                    let v3 = self.get_val(idx_x4[3]);
-                    out_x4[3] = if range.contains(&v3) {
-                        Some(Some(v3))
-                    } else {
-                        None
-                    };
-                }
-                let out_and_idx_chunks = output
-                    .chunks_exact_mut(4)
-                    .into_remainder()
-                    .iter_mut()
-                    .zip(indexes.chunks_exact(4).remainder());
-                for (out, idx) in out_and_idx_chunks {
-                    let v = self.get_val(*idx);
-                    *out = if range.contains(&v) {
-                        Some(Some(v))
-                    } else {
-                        None
-                    };
+            ValueRange::Inclusive(ref range) => {
+                while read_head + 3 < len {
+                    let idx0 = indexes[read_head];
+                    let idx1 = indexes[read_head + 1];
+                    let idx2 = indexes[read_head + 2];
+                    let idx3 = indexes[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if range.contains(&val0) {
+                        indexes[write_head] = idx0;
+                        output.push(Some(val0));
+                        write_head += 1;
+                    }
+                    if range.contains(&val1) {
+                        indexes[write_head] = idx1;
+                        output.push(Some(val1));
+                        write_head += 1;
+                    }
+                    if range.contains(&val2) {
+                        indexes[write_head] = idx2;
+                        output.push(Some(val2));
+                        write_head += 1;
+                    }
+                    if range.contains(&val3) {
+                        indexes[write_head] = idx3;
+                        output.push(Some(val3));
+                        write_head += 1;
+                    }
+
+                    read_head += 4;
                 }
             }
-            ValueRange::GreaterThan(threshold, _) => {
-                let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
-                for (out_x4, idx_x4) in out_and_idx_chunks {
-                    let v0 = self.get_val(idx_x4[0]);
-                    out_x4[0] = if v0 > threshold { Some(Some(v0)) } else { None };
-                    let v1 = self.get_val(idx_x4[1]);
-                    out_x4[1] = if v1 > threshold { Some(Some(v1)) } else { None };
-                    let v2 = self.get_val(idx_x4[2]);
-                    out_x4[2] = if v2 > threshold { Some(Some(v2)) } else { None };
-                    let v3 = self.get_val(idx_x4[3]);
-                    out_x4[3] = if v3 > threshold { Some(Some(v3)) } else { None };
-                }
-                let out_and_idx_chunks = output
-                    .chunks_exact_mut(4)
-                    .into_remainder()
-                    .iter_mut()
-                    .zip(indexes.chunks_exact(4).remainder());
-                for (out, idx) in out_and_idx_chunks {
-                    let v = self.get_val(*idx);
-                    *out = if v > threshold { Some(Some(v)) } else { None };
+            ValueRange::GreaterThan(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = indexes[read_head];
+                    let idx1 = indexes[read_head + 1];
+                    let idx2 = indexes[read_head + 2];
+                    let idx3 = indexes[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 > *threshold {
+                        indexes[write_head] = idx0;
+                        output.push(Some(val0));
+                        write_head += 1;
+                    }
+                    if val1 > *threshold {
+                        indexes[write_head] = idx1;
+                        output.push(Some(val1));
+                        write_head += 1;
+                    }
+                    if val2 > *threshold {
+                        indexes[write_head] = idx2;
+                        output.push(Some(val2));
+                        write_head += 1;
+                    }
+                    if val3 > *threshold {
+                        indexes[write_head] = idx3;
+                        output.push(Some(val3));
+                        write_head += 1;
+                    }
+
+                    read_head += 4;
                 }
             }
-            ValueRange::LessThan(threshold, _) => {
-                let out_and_idx_chunks = output.chunks_exact_mut(4).zip(indexes.chunks_exact(4));
-                for (out_x4, idx_x4) in out_and_idx_chunks {
-                    let v0 = self.get_val(idx_x4[0]);
-                    out_x4[0] = if v0 < threshold { Some(Some(v0)) } else { None };
-                    let v1 = self.get_val(idx_x4[1]);
-                    out_x4[1] = if v1 < threshold { Some(Some(v1)) } else { None };
-                    let v2 = self.get_val(idx_x4[2]);
-                    out_x4[2] = if v2 < threshold { Some(Some(v2)) } else { None };
-                    let v3 = self.get_val(idx_x4[3]);
-                    out_x4[3] = if v3 < threshold { Some(Some(v3)) } else { None };
-                }
-                let out_and_idx_chunks = output
-                    .chunks_exact_mut(4)
-                    .into_remainder()
-                    .iter_mut()
-                    .zip(indexes.chunks_exact(4).remainder());
-                for (out, idx) in out_and_idx_chunks {
-                    let v = self.get_val(*idx);
-                    *out = if v < threshold { Some(Some(v)) } else { None };
+            ValueRange::LessThan(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = indexes[read_head];
+                    let idx1 = indexes[read_head + 1];
+                    let idx2 = indexes[read_head + 2];
+                    let idx3 = indexes[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 < *threshold {
+                        indexes[write_head] = idx0;
+                        output.push(Some(val0));
+                        write_head += 1;
+                    }
+                    if val1 < *threshold {
+                        indexes[write_head] = idx1;
+                        output.push(Some(val1));
+                        write_head += 1;
+                    }
+                    if val2 < *threshold {
+                        indexes[write_head] = idx2;
+                        output.push(Some(val2));
+                        write_head += 1;
+                    }
+                    if val3 < *threshold {
+                        indexes[write_head] = idx3;
+                        output.push(Some(val3));
+                        write_head += 1;
+                    }
+
+                    read_head += 4;
                 }
             }
         }
+        // Process remaining elements (0 to 3)
+        while read_head < len {
+            let idx = indexes[read_head];
+            let val = self.get_val(idx);
+            let matches = match value_range {
+                // 'value_range' is still moved here. This is the outer `value_range`
+                ValueRange::All => true,
+                ValueRange::Inclusive(ref r) => r.contains(&val),
+                ValueRange::GreaterThan(ref t, _) => val > *t,
+                ValueRange::LessThan(ref t, _) => val < *t,
+            };
+            if matches {
+                indexes[write_head] = idx;
+                output.push(Some(val));
+                write_head += 1;
+            }
+            read_head += 1;
+        }
+        indexes.truncate(write_head);
     }
 
     /// Fills an output buffer with the fast field values
@@ -325,8 +392,8 @@ impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
 
     fn get_vals_in_value_range(
         &self,
-        indexes: &[u32],
-        output: &mut [Option<Option<T>>],
+        indexes: &mut Vec<u32>,
+        output: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
         let _ = (indexes, output, value_range);
@@ -348,8 +415,8 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_vals_in_value_range(
         &self,
-        indexes: &[u32],
-        output: &mut [Option<Option<T>>],
+        indexes: &mut Vec<u32>,
+        output: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
         self.as_ref()

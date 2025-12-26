@@ -74,6 +74,7 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
             typ: PhantomData,
             buffer: Vec::new(),
             fetch_buffer: Vec::new(),
+            doc_buffer: Vec::new(),
         })
     }
 }
@@ -82,7 +83,8 @@ pub struct SortByFastValueSegmentSortKeyComputer<T> {
     sort_column: Column<u64>,
     typ: PhantomData<T>,
     buffer: Vec<(DocId, Option<u64>)>,
-    fetch_buffer: Vec<Option<Option<u64>>>,
+    fetch_buffer: Vec<Option<u64>>,
+    doc_buffer: Vec<DocId>,
 }
 
 impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyComputer<T> {
@@ -100,16 +102,19 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
         docs: &[DocId],
         filter: ValueRange<Self::SegmentSortKey>,
     ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
-        self.fetch_buffer.resize(docs.len(), None);
+        self.doc_buffer.clear();
+        self.doc_buffer.extend_from_slice(docs);
+        self.fetch_buffer.clear();
         let u64_filter = convert_optional_u64_range_to_u64_range(filter);
-        self.sort_column
-            .first_vals_in_value_range(docs, &mut self.fetch_buffer, u64_filter);
+        self.sort_column.first_vals_in_value_range(
+            &mut self.doc_buffer,
+            &mut self.fetch_buffer,
+            u64_filter,
+        );
 
         self.buffer.clear();
-        for (&doc, val) in docs.iter().zip(self.fetch_buffer.iter()) {
-            if let Some(val) = val {
-                self.buffer.push((doc, *val));
-            }
+        for (&doc, &val) in self.doc_buffer.iter().zip(self.fetch_buffer.iter()) {
+            self.buffer.push((doc, val));
         }
         &mut self.buffer
     }
