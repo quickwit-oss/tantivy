@@ -146,6 +146,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 // Separate impl block for methods requiring `Default` for `T`.
 impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
     /// Load the first value for each docid in the provided slice.
+    ///
+    /// The `docids` vector is mutated: documents that do not match the `value_range` are removed.
+    /// The `values` vector is populated with the values of the remaining documents.
     #[inline]
     pub fn first_vals_in_value_range(
         &self,
@@ -153,6 +156,8 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
         values: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
+        // TODO: Move `COLLECT_BLOCK_BUFFER_LEN` to allow for use here, or use a different constant
+        // in this context.
         const BLOCK_LEN: usize = 64; // Corresponds to COLLECT_BLOCK_BUFFER_LEN in tantivy's docset
         match (&self.index, value_range) {
             (ColumnIndex::Empty { .. }, value_range) => {
