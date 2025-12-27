@@ -4,7 +4,7 @@ use crate::collector::sort_key::sort_key_computer::{
     convert_optional_u64_range_to_u64_range, range_contains_none,
 };
 use crate::collector::sort_key::NaturalComparator;
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
 use crate::termdict::TermOrdinal;
 use crate::{DocId, Score};
 
@@ -41,26 +41,33 @@ impl SortKeyComputer for SortByString {
         segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let str_column_opt = segment_reader.fast_fields().str(&self.column_name)?;
-        Ok(ByStringColumnSegmentSortKeyComputer {
-            str_column_opt,
-            buffer: Vec::new(),
-            fetch_buffer: Vec::new(),
-            doc_buffer: Vec::new(),
-        })
+        Ok(ByStringColumnSegmentSortKeyComputer { str_column_opt })
     }
 }
 
 pub struct ByStringColumnSegmentSortKeyComputer {
     str_column_opt: Option<StrColumn>,
-    buffer: Vec<(DocId, Option<TermOrdinal>)>,
-    fetch_buffer: Vec<Option<TermOrdinal>>,
-    doc_buffer: Vec<DocId>,
+}
+
+pub struct StringSortBuffer {
+    docs: Vec<DocId>,
+    vals: Vec<Option<TermOrdinal>>,
+}
+
+impl Default for StringSortBuffer {
+    fn default() -> Self {
+        StringSortBuffer {
+            docs: Vec::new(),
+            vals: Vec::new(),
+        }
+    }
 }
 
 impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
     type SortKey = Option<String>;
     type SegmentSortKey = Option<TermOrdinal>;
     type SegmentComparator = NaturalComparator;
+    type Buffer = StringSortBuffer;
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Option<TermOrdinal> {
@@ -70,33 +77,32 @@ impl SegmentSortKeyComputer for ByStringColumnSegmentSortKeyComputer {
 
     fn segment_sort_keys(
         &mut self,
-        docs: &[DocId],
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
         filter: ValueRange<Self::SegmentSortKey>,
-    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
-        self.doc_buffer.clear();
-        self.doc_buffer.extend_from_slice(docs);
-        self.fetch_buffer.clear();
-
+    ) {
         if let Some(str_column) = &self.str_column_opt {
             let u64_filter = convert_optional_u64_range_to_u64_range(filter);
+            buffer.docs.clear();
+            buffer.vals.clear();
             str_column.ords().first_vals_in_value_range(
-                &mut self.doc_buffer,
-                &mut self.fetch_buffer,
+                input_docs,
+                &mut buffer.docs,
+                &mut buffer.vals,
                 u64_filter,
             );
-        } else if range_contains_none(&filter) {
-            for _ in 0..docs.len() {
-                self.fetch_buffer.push(None);
+            for (&doc, &sort_key) in buffer.docs.iter().zip(buffer.vals.iter()) {
+                output.push(ComparableDoc { doc, sort_key });
             }
-        } else {
-            self.doc_buffer.clear();
+        } else if range_contains_none(&filter) {
+            for &doc in input_docs {
+                output.push(ComparableDoc {
+                    doc,
+                    sort_key: None,
+                });
+            }
         }
-
-        self.buffer.clear();
-        for (&doc, &val) in self.doc_buffer.iter().zip(self.fetch_buffer.iter()) {
-            self.buffer.push((doc, val));
-        }
-        &mut self.buffer
     }
 
     fn convert_segment_sort_key(&self, term_ord_opt: Option<TermOrdinal>) -> Option<String> {
@@ -143,13 +149,19 @@ mod tests {
         let sorter = SortByString::for_field("field");
         let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
 
-        let docs = vec![0, 1, 2];
-        let output = computer.segment_sort_keys(&docs, ValueRange::All);
+        let mut docs = vec![0, 1, 2];
+        let mut output = Vec::new();
+        let mut buffer = StringSortBuffer::default();
+        computer.segment_sort_keys(&mut docs, &mut output, &mut buffer, ValueRange::All);
 
-        // We expect ordinals.
-        // "a" -> 0
-        // "c" -> 1
-        assert_eq!(output, &[(0, Some(0)), (1, Some(1)), (2, None)]);
+        assert_eq!(
+            output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
+            &[Some(0), Some(1), None]
+        );
+        assert_eq!(
+            output.iter().map(|c| c.doc).collect::<Vec<_>>(),
+            &[0, 1, 2]
+        );
     }
 
     #[test]
@@ -176,16 +188,26 @@ mod tests {
         let sorter = SortByString::for_field("field");
         let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
 
-        let docs = vec![0, 1, 2];
+        let mut docs = vec![0, 1, 2];
+        let mut output = Vec::new();
         // Filter: > "b". "a" is 0, "c" is 1.
         // We want > "a" (ord 0). So we filter > ord 0.
         // 0 is "a", 1 is "c".
-        let output = computer.segment_sort_keys(
-            &docs,
+        let mut buffer = StringSortBuffer::default();
+        computer.segment_sort_keys(
+            &mut docs,
+            &mut output,
+            &mut buffer,
             ValueRange::GreaterThan(Some(0), false /* inclusive */),
         );
 
-        // Should contain only the document with value "c" (ord 1).
-        assert_eq!(output, &[(1, Some(1))]);
+        assert_eq!(
+            output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
+            &[Some(1)]
+        );
+        assert_eq!(
+            output.iter().map(|c| c.doc).collect::<Vec<_>>(),
+            &[1]
+        );
     }
 }

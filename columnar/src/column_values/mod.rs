@@ -115,49 +115,45 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// The values are filtered by the provided value range.
     fn get_vals_in_value_range(
         &self,
-        indexes: &mut Vec<u32>,
-        output: &mut Vec<Option<T>>,
+        input_indexes: &[u32],
+        output_indexes: &mut Vec<u32>,
+        output_values: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
-        let mut write_head = 0;
+        let len = input_indexes.len();
         let mut read_head = 0;
-        let len = indexes.len();
 
         match value_range {
             ValueRange::All => {
                 while read_head + 3 < len {
-                    let idx0 = indexes[read_head];
-                    let idx1 = indexes[read_head + 1];
-                    let idx2 = indexes[read_head + 2];
-                    let idx3 = indexes[read_head + 3];
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
 
                     let val0 = self.get_val(idx0);
                     let val1 = self.get_val(idx1);
                     let val2 = self.get_val(idx2);
                     let val3 = self.get_val(idx3);
 
-                    indexes[write_head] = idx0;
-                    output.push(Some(val0));
-                    write_head += 1;
-                    indexes[write_head] = idx1;
-                    output.push(Some(val1));
-                    write_head += 1;
-                    indexes[write_head] = idx2;
-                    output.push(Some(val2));
-                    write_head += 1;
-                    indexes[write_head] = idx3;
-                    output.push(Some(val3));
-                    write_head += 1;
+                    output_indexes.push(idx0);
+                    output_values.push(Some(val0));
+                    output_indexes.push(idx1);
+                    output_values.push(Some(val1));
+                    output_indexes.push(idx2);
+                    output_values.push(Some(val2));
+                    output_indexes.push(idx3);
+                    output_values.push(Some(val3));
 
                     read_head += 4;
                 }
             }
             ValueRange::Inclusive(ref range) => {
                 while read_head + 3 < len {
-                    let idx0 = indexes[read_head];
-                    let idx1 = indexes[read_head + 1];
-                    let idx2 = indexes[read_head + 2];
-                    let idx3 = indexes[read_head + 3];
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
 
                     let val0 = self.get_val(idx0);
                     let val1 = self.get_val(idx1);
@@ -165,24 +161,20 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     let val3 = self.get_val(idx3);
 
                     if range.contains(&val0) {
-                        indexes[write_head] = idx0;
-                        output.push(Some(val0));
-                        write_head += 1;
+                        output_indexes.push(idx0);
+                        output_values.push(Some(val0));
                     }
                     if range.contains(&val1) {
-                        indexes[write_head] = idx1;
-                        output.push(Some(val1));
-                        write_head += 1;
+                        output_indexes.push(idx1);
+                        output_values.push(Some(val1));
                     }
                     if range.contains(&val2) {
-                        indexes[write_head] = idx2;
-                        output.push(Some(val2));
-                        write_head += 1;
+                        output_indexes.push(idx2);
+                        output_values.push(Some(val2));
                     }
                     if range.contains(&val3) {
-                        indexes[write_head] = idx3;
-                        output.push(Some(val3));
-                        write_head += 1;
+                        output_indexes.push(idx3);
+                        output_values.push(Some(val3));
                     }
 
                     read_head += 4;
@@ -190,10 +182,10 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
             }
             ValueRange::GreaterThan(ref threshold, _) => {
                 while read_head + 3 < len {
-                    let idx0 = indexes[read_head];
-                    let idx1 = indexes[read_head + 1];
-                    let idx2 = indexes[read_head + 2];
-                    let idx3 = indexes[read_head + 3];
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
 
                     let val0 = self.get_val(idx0);
                     let val1 = self.get_val(idx1);
@@ -201,24 +193,20 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     let val3 = self.get_val(idx3);
 
                     if val0 > *threshold {
-                        indexes[write_head] = idx0;
-                        output.push(Some(val0));
-                        write_head += 1;
+                        output_indexes.push(idx0);
+                        output_values.push(Some(val0));
                     }
                     if val1 > *threshold {
-                        indexes[write_head] = idx1;
-                        output.push(Some(val1));
-                        write_head += 1;
+                        output_indexes.push(idx1);
+                        output_values.push(Some(val1));
                     }
                     if val2 > *threshold {
-                        indexes[write_head] = idx2;
-                        output.push(Some(val2));
-                        write_head += 1;
+                        output_indexes.push(idx2);
+                        output_values.push(Some(val2));
                     }
                     if val3 > *threshold {
-                        indexes[write_head] = idx3;
-                        output.push(Some(val3));
-                        write_head += 1;
+                        output_indexes.push(idx3);
+                        output_values.push(Some(val3));
                     }
 
                     read_head += 4;
@@ -226,10 +214,10 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
             }
             ValueRange::LessThan(ref threshold, _) => {
                 while read_head + 3 < len {
-                    let idx0 = indexes[read_head];
-                    let idx1 = indexes[read_head + 1];
-                    let idx2 = indexes[read_head + 2];
-                    let idx3 = indexes[read_head + 3];
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
 
                     let val0 = self.get_val(idx0);
                     let val1 = self.get_val(idx1);
@@ -237,24 +225,20 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     let val3 = self.get_val(idx3);
 
                     if val0 < *threshold {
-                        indexes[write_head] = idx0;
-                        output.push(Some(val0));
-                        write_head += 1;
+                        output_indexes.push(idx0);
+                        output_values.push(Some(val0));
                     }
                     if val1 < *threshold {
-                        indexes[write_head] = idx1;
-                        output.push(Some(val1));
-                        write_head += 1;
+                        output_indexes.push(idx1);
+                        output_values.push(Some(val1));
                     }
                     if val2 < *threshold {
-                        indexes[write_head] = idx2;
-                        output.push(Some(val2));
-                        write_head += 1;
+                        output_indexes.push(idx2);
+                        output_values.push(Some(val2));
                     }
                     if val3 < *threshold {
-                        indexes[write_head] = idx3;
-                        output.push(Some(val3));
-                        write_head += 1;
+                        output_indexes.push(idx3);
+                        output_values.push(Some(val3));
                     }
 
                     read_head += 4;
@@ -263,7 +247,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         }
         // Process remaining elements (0 to 3)
         while read_head < len {
-            let idx = indexes[read_head];
+            let idx = input_indexes[read_head];
             let val = self.get_val(idx);
             let matches = match value_range {
                 // 'value_range' is still moved here. This is the outer `value_range`
@@ -273,13 +257,11 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                 ValueRange::LessThan(ref t, _) => val < *t,
             };
             if matches {
-                indexes[write_head] = idx;
-                output.push(Some(val));
-                write_head += 1;
+                output_indexes.push(idx);
+                output_values.push(Some(val));
             }
             read_head += 1;
         }
-        indexes.truncate(write_head);
     }
 
     /// Fills an output buffer with the fast field values
@@ -392,11 +374,12 @@ impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
 
     fn get_vals_in_value_range(
         &self,
-        indexes: &mut Vec<u32>,
+        input_indexes: &[u32],
+        output_indexes: &mut Vec<u32>,
         output: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
-        let _ = (indexes, output, value_range);
+        let _ = (input_indexes, output_indexes, output, value_range);
         panic!("Internal Error: Called get_vals_in_value_range of empty column.")
     }
 }
@@ -415,12 +398,13 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_vals_in_value_range(
         &self,
-        indexes: &mut Vec<u32>,
+        input_indexes: &[u32],
+        output_indexes: &mut Vec<u32>,
         output: &mut Vec<Option<T>>,
         value_range: ValueRange<T>,
     ) {
         self.as_ref()
-            .get_vals_in_value_range(indexes, output, value_range)
+            .get_vals_in_value_range(input_indexes, output_indexes, output, value_range)
     }
 
     #[inline(always)]

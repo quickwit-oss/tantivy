@@ -28,6 +28,9 @@ pub trait SegmentSortKeyComputer: 'static {
     /// Comparator type.
     type SegmentComparator: Comparator<Self::SegmentSortKey> + Clone + 'static;
 
+    /// Buffer type used for scratch space.
+    type Buffer: Default + Send + Sync + 'static;
+
     /// Returns the segment sort key comparator.
     fn segment_comparator(&self) -> Self::SegmentComparator {
         Self::SegmentComparator::default()
@@ -38,13 +41,15 @@ pub trait SegmentSortKeyComputer: 'static {
 
     /// Computes the sort keys for a batch of documents.
     ///
-    /// The computed sort keys are stored in an internal buffer and returned as a slice.
-    /// Subsequent calls to this method may reuse and overwrite the internal buffer.
+    /// The computed sort keys and document IDs are pushed into the `output` vector.
+    /// The `buffer` is used for scratch space.
     fn segment_sort_keys(
         &mut self,
-        docs: &[DocId],
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
         filter: ValueRange<Self::SegmentSortKey>,
-    ) -> &mut Vec<(DocId, Self::SegmentSortKey)>;
+    );
 
     /// Computes the sort key and pushes the document in a TopN Computer.
     ///
@@ -54,7 +59,7 @@ pub trait SegmentSortKeyComputer: 'static {
         &mut self,
         doc: DocId,
         score: Score,
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         let sort_key = self.segment_sort_key(doc, score);
         top_n_computer.push(sort_key, doc);
@@ -63,7 +68,7 @@ pub trait SegmentSortKeyComputer: 'static {
     fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
         &mut self,
         docs: &[DocId],
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         // The capacity of a TopNComputer is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so we
         // should always be able to `reserve` space for the entire block.
@@ -76,24 +81,15 @@ pub trait SegmentSortKeyComputer: 'static {
             ValueRange::All
         };
 
-        let sort_keys = self.segment_sort_keys(docs, value_range);
+        let (buffer, scratch) = top_n_computer.buffer_and_scratch();
+        self.segment_sort_keys(
+            docs,
+            buffer,
+            scratch,
+            value_range,
+        );
 
-        if let Some(threshold) = &top_n_computer.threshold {
-            let threshold = threshold.clone();
-            for (doc, sort_key) in sort_keys.drain(..) {
-                let cmp = comparator.compare(&sort_key, &threshold);
-                if cmp == Ordering::Greater {
-                    // We validated at the top of the method that we have capacity.
-                    top_n_computer.append_doc_unchecked(doc, sort_key);
-                }
-            }
-        } else {
-            // Eagerly push, without a threshold to compare to.
-            for (doc, sort_key) in sort_keys.drain(..) {
-                // We validated at the top of the method that we have capacity.
-                top_n_computer.append_doc_unchecked(doc, sort_key);
-            }
-        }
+
     }
 
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
@@ -213,8 +209,6 @@ where
         Ok(ChainSegmentSortKeyComputer {
             head: self.0.segment_sort_key_computer(segment_reader)?,
             tail: self.1.segment_sort_key_computer(segment_reader)?,
-            head_key_buffer: Vec::new(),
-            doc_buffer: Vec::new(),
         })
     }
 
@@ -240,8 +234,28 @@ where
 {
     head: Head,
     tail: Tail,
-    head_key_buffer: Vec<Head::SegmentSortKey>,
-    doc_buffer: Vec<DocId>,
+}
+
+pub struct ChainBuffer<HeadBuffer, TailBuffer, HeadKey, TailKey> {
+    pub head: HeadBuffer,
+    pub tail: TailBuffer,
+    pub head_output: Vec<ComparableDoc<HeadKey, DocId>>,
+    pub tail_output: Vec<ComparableDoc<TailKey, DocId>>,
+    pub tail_input_docs: Vec<DocId>,
+}
+
+impl<HeadBuffer: Default, TailBuffer: Default, HeadKey, TailKey> Default
+    for ChainBuffer<HeadBuffer, TailBuffer, HeadKey, TailKey>
+{
+    fn default() -> Self {
+        ChainBuffer {
+            head: HeadBuffer::default(),
+            tail: TailBuffer::default(),
+            head_output: Vec::new(),
+            tail_output: Vec::new(),
+            tail_input_docs: Vec::new(),
+        }
+    }
 }
 
 impl<Head, Tail> ChainSegmentSortKeyComputer<Head, Tail>
@@ -289,6 +303,9 @@ where
 
     type SegmentComparator = (Head::SegmentComparator, Tail::SegmentComparator);
 
+    type Buffer =
+        ChainBuffer<Head::Buffer, Tail::Buffer, Head::SegmentSortKey, Tail::SegmentSortKey>;
+
     fn segment_comparator(&self) -> Self::SegmentComparator {
         (
             self.head.segment_comparator(),
@@ -313,9 +330,11 @@ where
 
     fn segment_sort_keys(
         &mut self,
-        _docs: &[DocId],
+        _input_docs: &[DocId],
+        _output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
         _filter: ValueRange<Self::SegmentSortKey>,
-    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
+    ) {
         unimplemented!("The head and the tail are accessed independently.");
     }
 
@@ -324,7 +343,7 @@ where
         &mut self,
         doc: DocId,
         score: Score,
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         let sort_key: Self::SegmentSortKey;
         if let Some(threshold) = &top_n_computer.threshold {
@@ -342,11 +361,13 @@ where
     fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
         &mut self,
         docs: &[DocId],
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         // The capacity of a TopNComputer is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so we
         // should always be able to `reserve` space for the entire block.
         top_n_computer.reserve(docs.len());
+
+        let mut scratch = std::mem::take(&mut top_n_computer.scratch);
 
         if let Some(threshold) = &top_n_computer.threshold {
             let (head_threshold, tail_threshold) = threshold.clone();
@@ -354,27 +375,38 @@ where
             let tail_cmp = self.tail.segment_comparator();
             let head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
 
-            let head_keys = self.head.segment_sort_keys(docs, head_filter);
-            self.doc_buffer.clear();
-            self.head_key_buffer.clear();
-            for (doc, head_key) in head_keys.drain(..) {
-                let cmp = head_cmp.compare(&head_key, &head_threshold);
-                if cmp != Ordering::Less {
-                    self.doc_buffer.push(doc);
-                    self.head_key_buffer.push(head_key);
-                }
-            }
+            scratch.head_output.clear();
+            self.head.segment_sort_keys(
+                docs,
+                &mut scratch.head_output,
+                &mut scratch.head,
+                head_filter,
+            );
 
-            if !self.doc_buffer.is_empty() {
-                let tail_keys = self
-                    .tail
-                    .segment_sort_keys(&self.doc_buffer, ValueRange::All);
-                for ((head_key, tail_key), &doc) in self
-                    .head_key_buffer
+            if !scratch.head_output.is_empty() {
+                scratch.tail_output.clear();
+                scratch.tail_input_docs.clear();
+                for cd in &scratch.head_output {
+                    scratch.tail_input_docs.push(cd.doc);
+                }
+
+                self.tail.segment_sort_keys(
+                    &scratch.tail_input_docs,
+                    &mut scratch.tail_output,
+                    &mut scratch.tail,
+                    ValueRange::All,
+                );
+
+                for (head_doc, tail_doc) in scratch
+                    .head_output
                     .drain(..)
-                    .zip(tail_keys.drain(..).map(|(_, k)| k))
-                    .zip(self.doc_buffer.iter())
+                    .zip(scratch.tail_output.drain(..))
                 {
+                    debug_assert_eq!(head_doc.doc, tail_doc.doc);
+                    let doc = head_doc.doc;
+                    let head_key = head_doc.sort_key;
+                    let tail_key = tail_doc.sort_key;
+
                     let head_ord = head_cmp.compare(&head_key, &head_threshold);
                     let ord = if head_ord == Ordering::Equal {
                         tail_cmp.compare(&tail_key, &tail_threshold)
@@ -382,19 +414,60 @@ where
                         head_ord
                     };
                     if ord == Ordering::Greater {
-                        top_n_computer.append_doc_unchecked(doc, (head_key, tail_key));
+                        push_assuming_capacity(
+                            ComparableDoc {
+                                sort_key: (head_key, tail_key),
+                                doc,
+                            },
+                            top_n_computer.buffer(),
+                        );
                     }
                 }
             }
         } else {
             // Eagerly push, without a threshold to compare to.
-            let head_keys = self.head.segment_sort_keys(docs, ValueRange::All);
-            let tail_keys = self.tail.segment_sort_keys(docs, ValueRange::All);
-            for ((doc, head_key), (_, tail_key)) in head_keys.drain(..).zip(tail_keys.drain(..)) {
+            scratch.head_output.clear();
+            self.head.segment_sort_keys(
+                docs,
+                &mut scratch.head_output,
+                &mut scratch.head,
+                ValueRange::All,
+            );
+
+            scratch.tail_output.clear();
+            scratch.tail_input_docs.clear();
+            for cd in &scratch.head_output {
+                scratch.tail_input_docs.push(cd.doc);
+            }
+
+            self.tail.segment_sort_keys(
+                &scratch.tail_input_docs,
+                &mut scratch.tail_output,
+                &mut scratch.tail,
+                ValueRange::All,
+            );
+
+            for (head_doc, tail_doc) in scratch
+                .head_output
+                .drain(..)
+                .zip(scratch.tail_output.drain(..))
+            {
+                debug_assert_eq!(head_doc.doc, tail_doc.doc);
+                let doc = head_doc.doc;
+                let head_key = head_doc.sort_key;
+                let tail_key = tail_doc.sort_key;
+
                 // We validated at the top of the method that we have capacity.
-                top_n_computer.append_doc_unchecked(doc, (head_key, tail_key));
+                push_assuming_capacity(
+                    ComparableDoc {
+                        sort_key: (head_key, tail_key),
+                        doc,
+                    },
+                    top_n_computer.buffer(),
+                );
             }
         }
+        top_n_computer.scratch = scratch;
     }
 
     #[inline(always)]
@@ -430,6 +503,7 @@ where
     type SortKey = NewScore;
     type SegmentSortKey = T::SegmentSortKey;
     type SegmentComparator = T::SegmentComparator;
+    type Buffer = T::Buffer;
 
     fn segment_comparator(&self) -> Self::SegmentComparator {
         self.sort_key_computer.segment_comparator()
@@ -441,11 +515,13 @@ where
 
     fn segment_sort_keys(
         &mut self,
-        docs: &[DocId],
-        _filter: ValueRange<Self::SegmentSortKey>,
-    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) {
         self.sort_key_computer
-            .segment_sort_keys(docs, ValueRange::All)
+            .segment_sort_keys(input_docs, output, buffer, filter)
     }
 
     #[inline(always)]
@@ -453,7 +529,7 @@ where
         &mut self,
         doc: DocId,
         score: Score,
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         self.sort_key_computer
             .compute_sort_key_and_collect(doc, score, top_n_computer);
@@ -462,7 +538,7 @@ where
     fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
         &mut self,
         docs: &[DocId],
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         self.sort_key_computer
             .compute_sort_keys_and_collect(docs, top_n_computer);
@@ -521,11 +597,7 @@ where
                 tail: ChainSegmentSortKeyComputer {
                     head: sort_key_computer2,
                     tail: sort_key_computer3,
-                    head_key_buffer: Vec::new(),
-                    doc_buffer: Vec::new(),
                 },
-                head_key_buffer: Vec::new(),
-                doc_buffer: Vec::new(),
             },
             map,
         })
@@ -589,14 +661,8 @@ where
                     tail: ChainSegmentSortKeyComputer {
                         head: sort_key_computer3,
                         tail: sort_key_computer4,
-                        head_key_buffer: Vec::new(),
-                        doc_buffer: Vec::new(),
                     },
-                    head_key_buffer: Vec::new(),
-                    doc_buffer: Vec::new(),
                 },
-                head_key_buffer: Vec::new(),
-                doc_buffer: Vec::new(),
             },
             map: |(sort_key1, (sort_key2, (sort_key3, sort_key4)))| {
                 (sort_key1, sort_key2, sort_key3, sort_key4)
@@ -620,10 +686,14 @@ where
     }
 }
 
+use std::marker::PhantomData;
+
 pub struct FuncSegmentSortKeyComputer<F, TSortKey> {
     func: F,
-    buffer: Vec<(DocId, TSortKey)>,
+    _phantom: PhantomData<TSortKey>,
 }
+
+
 
 impl<F, SegmentF, TSortKey> SortKeyComputer for F
 where
@@ -638,7 +708,7 @@ where
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         Ok(FuncSegmentSortKeyComputer {
             func: (self)(segment_reader),
-            buffer: Vec::new(),
+            _phantom: PhantomData,
         })
     }
 }
@@ -651,6 +721,7 @@ where
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
     type SegmentComparator = NaturalComparator;
+    type Buffer = ();
 
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
         (self.func)(doc)
@@ -658,15 +729,17 @@ where
 
     fn segment_sort_keys(
         &mut self,
-        docs: &[DocId],
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
         _filter: ValueRange<Self::SegmentSortKey>,
-    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
-        self.buffer.clear();
-        self.buffer.reserve(docs.len());
-        for &doc in docs {
-            self.buffer.push((doc, (self.func)(doc)));
+    ) {
+        for &doc in input_docs {
+            output.push(ComparableDoc {
+                sort_key: (self.func)(doc),
+                doc,
+            });
         }
-        &mut self.buffer
     }
 
     /// Convert a segment level score into the global level score.

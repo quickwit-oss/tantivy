@@ -109,67 +109,57 @@ impl ColumnValues for BitpackedReader {
 
     fn get_vals_in_value_range(
         &self,
-        indexes: &mut Vec<u32>,
-        output: &mut Vec<Option<u64>>,
+        input_indexes: &[u32],
+        output_indexes: &mut Vec<u32>,
+        output_values: &mut Vec<Option<u64>>,
         value_range: ValueRange<u64>,
     ) {
-        let mut write_head = 0;
         match value_range {
             ValueRange::All => {
-                for i in 0..indexes.len() {
-                    let idx = indexes[i];
-                    indexes[write_head] = idx;
-                    output.push(Some(self.get_val(idx)));
-                    write_head += 1;
+                for &idx in input_indexes {
+                    output_indexes.push(idx);
+                    output_values.push(Some(self.get_val(idx)));
                 }
             }
             ValueRange::Inclusive(range) => {
                 if let Some(transformed_range) =
                     transform_range_before_linear_transformation(&self.stats, range)
                 {
-                    for i in 0..indexes.len() {
-                        let doc = indexes[i];
+                    for &doc in input_indexes {
                         let raw_val = self.unpack_val(doc);
                         if transformed_range.contains(&raw_val) {
-                            indexes[write_head] = doc;
-                            output
+                            output_indexes.push(doc);
+                            output_values
                                 .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
-                            write_head += 1;
                         }
                     }
                 }
             }
             ValueRange::GreaterThan(threshold, _) => {
                 if threshold < self.stats.min_value {
-                    for i in 0..indexes.len() {
-                        let idx = indexes[i];
-                        indexes[write_head] = idx;
-                        output.push(Some(self.get_val(idx)));
-                        write_head += 1;
+                    for &idx in input_indexes {
+                        output_indexes.push(idx);
+                        output_values.push(Some(self.get_val(idx)));
                     }
                 } else if threshold >= self.stats.max_value {
                     // All filtered out
                 } else {
                     let raw_threshold = (threshold - self.stats.min_value) / self.stats.gcd.get();
-                    for i in 0..indexes.len() {
-                        let doc = indexes[i];
+                    for &doc in input_indexes {
                         let raw_val = self.unpack_val(doc);
                         if raw_val > raw_threshold {
-                            indexes[write_head] = doc;
-                            output
+                            output_indexes.push(doc);
+                            output_values
                                 .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
-                            write_head += 1;
                         }
                     }
                 }
             }
             ValueRange::LessThan(threshold, _) => {
                 if threshold > self.stats.max_value {
-                    for i in 0..indexes.len() {
-                        let idx = indexes[i];
-                        indexes[write_head] = idx;
-                        output.push(Some(self.get_val(idx)));
-                        write_head += 1;
+                    for &idx in input_indexes {
+                        output_indexes.push(idx);
+                        output_values.push(Some(self.get_val(idx)));
                     }
                 } else if threshold <= self.stats.min_value {
                     // All filtered out
@@ -182,20 +172,17 @@ impl ColumnValues for BitpackedReader {
                         diff / gcd + 1
                     };
 
-                    for i in 0..indexes.len() {
-                        let doc = indexes[i];
+                    for &doc in input_indexes {
                         let raw_val = self.unpack_val(doc);
                         if raw_val < raw_threshold {
-                            indexes[write_head] = doc;
-                            output
+                            output_indexes.push(doc);
+                            output_values
                                 .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
-                            write_head += 1;
                         }
                     }
                 }
             }
         }
-        indexes.truncate(write_head);
     }
     fn get_row_ids_for_value_range(
         &self,
