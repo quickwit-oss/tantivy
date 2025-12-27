@@ -11,8 +11,7 @@ use crate::collector::sort_key::{
     SortByStaticFastValue, SortByString,
 };
 use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
-use crate::collector::top_collector::ComparableDoc;
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastValue;
 use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 
@@ -669,7 +668,9 @@ where
         &mut self.buffer
     }
 
-    pub(crate) fn buffer_and_scratch(&mut self) -> (&mut Vec<ComparableDoc<TSortKey, D>>, &mut Buffer) {
+    pub(crate) fn buffer_and_scratch(
+        &mut self,
+    ) -> (&mut Vec<ComparableDoc<TSortKey, D>>, &mut Buffer) {
         (&mut self.buffer, &mut self.scratch)
     }
 
@@ -732,8 +733,7 @@ mod tests {
     use crate::collector::sort_key::{
         Comparator, ComparatorEnum, NaturalComparator, ReverseComparator,
     };
-    use crate::collector::top_collector::ComparableDoc;
-    use crate::collector::{Collector, DocSetCollector};
+    use crate::collector::{Collector, ComparableDoc, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;

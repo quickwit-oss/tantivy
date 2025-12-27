@@ -153,8 +153,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
     pub fn first_vals_in_value_range(
         &self,
         input_docs: &[DocId],
-        output_docs: &mut Vec<DocId>,
-        output_values: &mut Vec<Option<T>>,
+        output: &mut Vec<crate::ComparableDoc<Option<T>, DocId>>,
         value_range: ValueRange<T>,
     ) {
         // TODO: Move `COLLECT_BLOCK_BUFFER_LEN` to allow for use here, or use a different constant
@@ -170,14 +169,16 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                 };
                 if nulls_match {
                     for &doc in input_docs {
-                        output_docs.push(doc);
-                        output_values.push(None);
+                        output.push(crate::ComparableDoc {
+                            doc,
+                            sort_key: None,
+                        });
                     }
                 }
             }
             (ColumnIndex::Full, value_range) => {
                 self.values
-                    .get_vals_in_value_range(input_docs, output_docs, output_values, value_range);
+                    .get_vals_in_value_range(input_docs, output, value_range);
             }
             (ColumnIndex::Optional(optional_index), value_range) => {
                 let len = input_docs.len();
@@ -243,13 +244,17 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                         };
 
                         if value_matches {
-                            output_docs.push(original_doc_id);
-                            output_values.push(Some(val));
+                            output.push(crate::ComparableDoc {
+                                doc: original_doc_id,
+                                sort_key: Some(val),
+                            });
                         }
                     } else if nulls_match {
                         // This doc_id was not present in the optional index (null) and nulls match
-                        output_docs.push(original_doc_id);
-                        output_values.push(None);
+                        output.push(crate::ComparableDoc {
+                            doc: original_doc_id,
+                            sort_key: None,
+                        });
                     }
                 }
             }
@@ -273,12 +278,16 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                             ValueRange::LessThan(t, _) => val < *t,
                         };
                         if matches {
-                            output_docs.push(docid);
-                            output_values.push(Some(val));
+                            output.push(crate::ComparableDoc {
+                                doc: docid,
+                                sort_key: Some(val),
+                            });
                         }
                     } else if nulls_match {
-                        output_docs.push(docid);
-                        output_values.push(None);
+                        output.push(crate::ComparableDoc {
+                            doc: docid,
+                            sort_key: None,
+                        });
                     }
                 }
             }

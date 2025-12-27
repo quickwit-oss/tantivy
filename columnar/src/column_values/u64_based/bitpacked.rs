@@ -110,15 +110,16 @@ impl ColumnValues for BitpackedReader {
     fn get_vals_in_value_range(
         &self,
         input_indexes: &[u32],
-        output_indexes: &mut Vec<u32>,
-        output_values: &mut Vec<Option<u64>>,
+        output: &mut Vec<crate::ComparableDoc<Option<u64>, crate::DocId>>,
         value_range: ValueRange<u64>,
     ) {
         match value_range {
             ValueRange::All => {
                 for &idx in input_indexes {
-                    output_indexes.push(idx);
-                    output_values.push(Some(self.get_val(idx)));
+                    output.push(crate::ComparableDoc {
+                        doc: idx,
+                        sort_key: Some(self.get_val(idx)),
+                    });
                 }
             }
             ValueRange::Inclusive(range) => {
@@ -128,9 +129,12 @@ impl ColumnValues for BitpackedReader {
                     for &doc in input_indexes {
                         let raw_val = self.unpack_val(doc);
                         if transformed_range.contains(&raw_val) {
-                            output_indexes.push(doc);
-                            output_values
-                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            output.push(crate::ComparableDoc {
+                                doc,
+                                sort_key: Some(
+                                    self.stats.min_value + self.stats.gcd.get() * raw_val,
+                                ),
+                            });
                         }
                     }
                 }
@@ -138,8 +142,10 @@ impl ColumnValues for BitpackedReader {
             ValueRange::GreaterThan(threshold, _) => {
                 if threshold < self.stats.min_value {
                     for &idx in input_indexes {
-                        output_indexes.push(idx);
-                        output_values.push(Some(self.get_val(idx)));
+                        output.push(crate::ComparableDoc {
+                            doc: idx,
+                            sort_key: Some(self.get_val(idx)),
+                        });
                     }
                 } else if threshold >= self.stats.max_value {
                     // All filtered out
@@ -148,9 +154,12 @@ impl ColumnValues for BitpackedReader {
                     for &doc in input_indexes {
                         let raw_val = self.unpack_val(doc);
                         if raw_val > raw_threshold {
-                            output_indexes.push(doc);
-                            output_values
-                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            output.push(crate::ComparableDoc {
+                                doc,
+                                sort_key: Some(
+                                    self.stats.min_value + self.stats.gcd.get() * raw_val,
+                                ),
+                            });
                         }
                     }
                 }
@@ -158,8 +167,10 @@ impl ColumnValues for BitpackedReader {
             ValueRange::LessThan(threshold, _) => {
                 if threshold > self.stats.max_value {
                     for &idx in input_indexes {
-                        output_indexes.push(idx);
-                        output_values.push(Some(self.get_val(idx)));
+                        output.push(crate::ComparableDoc {
+                            doc: idx,
+                            sort_key: Some(self.get_val(idx)),
+                        });
                     }
                 } else if threshold <= self.stats.min_value {
                     // All filtered out
@@ -175,9 +186,12 @@ impl ColumnValues for BitpackedReader {
                     for &doc in input_indexes {
                         let raw_val = self.unpack_val(doc);
                         if raw_val < raw_threshold {
-                            output_indexes.push(doc);
-                            output_values
-                                .push(Some(self.stats.min_value + self.stats.gcd.get() * raw_val));
+                            output.push(crate::ComparableDoc {
+                                doc,
+                                sort_key: Some(
+                                    self.stats.min_value + self.stats.gcd.get() * raw_val,
+                                ),
+                            });
                         }
                     }
                 }

@@ -116,8 +116,7 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     fn get_vals_in_value_range(
         &self,
         input_indexes: &[u32],
-        output_indexes: &mut Vec<u32>,
-        output_values: &mut Vec<Option<T>>,
+        output: &mut Vec<crate::ComparableDoc<Option<T>, crate::DocId>>,
         value_range: ValueRange<T>,
     ) {
         let len = input_indexes.len();
@@ -136,14 +135,22 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     let val2 = self.get_val(idx2);
                     let val3 = self.get_val(idx3);
 
-                    output_indexes.push(idx0);
-                    output_values.push(Some(val0));
-                    output_indexes.push(idx1);
-                    output_values.push(Some(val1));
-                    output_indexes.push(idx2);
-                    output_values.push(Some(val2));
-                    output_indexes.push(idx3);
-                    output_values.push(Some(val3));
+                    output.push(crate::ComparableDoc {
+                        doc: idx0,
+                        sort_key: Some(val0),
+                    });
+                    output.push(crate::ComparableDoc {
+                        doc: idx1,
+                        sort_key: Some(val1),
+                    });
+                    output.push(crate::ComparableDoc {
+                        doc: idx2,
+                        sort_key: Some(val2),
+                    });
+                    output.push(crate::ComparableDoc {
+                        doc: idx3,
+                        sort_key: Some(val3),
+                    });
 
                     read_head += 4;
                 }
@@ -161,20 +168,28 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     let val3 = self.get_val(idx3);
 
                     if range.contains(&val0) {
-                        output_indexes.push(idx0);
-                        output_values.push(Some(val0));
+                        output.push(crate::ComparableDoc {
+                            doc: idx0,
+                            sort_key: Some(val0),
+                        });
                     }
                     if range.contains(&val1) {
-                        output_indexes.push(idx1);
-                        output_values.push(Some(val1));
+                        output.push(crate::ComparableDoc {
+                            doc: idx1,
+                            sort_key: Some(val1),
+                        });
                     }
                     if range.contains(&val2) {
-                        output_indexes.push(idx2);
-                        output_values.push(Some(val2));
+                        output.push(crate::ComparableDoc {
+                            doc: idx2,
+                            sort_key: Some(val2),
+                        });
                     }
                     if range.contains(&val3) {
-                        output_indexes.push(idx3);
-                        output_values.push(Some(val3));
+                        output.push(crate::ComparableDoc {
+                            doc: idx3,
+                            sort_key: Some(val3),
+                        });
                     }
 
                     read_head += 4;
@@ -193,20 +208,28 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     let val3 = self.get_val(idx3);
 
                     if val0 > *threshold {
-                        output_indexes.push(idx0);
-                        output_values.push(Some(val0));
+                        output.push(crate::ComparableDoc {
+                            doc: idx0,
+                            sort_key: Some(val0),
+                        });
                     }
                     if val1 > *threshold {
-                        output_indexes.push(idx1);
-                        output_values.push(Some(val1));
+                        output.push(crate::ComparableDoc {
+                            doc: idx1,
+                            sort_key: Some(val1),
+                        });
                     }
                     if val2 > *threshold {
-                        output_indexes.push(idx2);
-                        output_values.push(Some(val2));
+                        output.push(crate::ComparableDoc {
+                            doc: idx2,
+                            sort_key: Some(val2),
+                        });
                     }
                     if val3 > *threshold {
-                        output_indexes.push(idx3);
-                        output_values.push(Some(val3));
+                        output.push(crate::ComparableDoc {
+                            doc: idx3,
+                            sort_key: Some(val3),
+                        });
                     }
 
                     read_head += 4;
@@ -225,20 +248,28 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     let val3 = self.get_val(idx3);
 
                     if val0 < *threshold {
-                        output_indexes.push(idx0);
-                        output_values.push(Some(val0));
+                        output.push(crate::ComparableDoc {
+                            doc: idx0,
+                            sort_key: Some(val0),
+                        });
                     }
                     if val1 < *threshold {
-                        output_indexes.push(idx1);
-                        output_values.push(Some(val1));
+                        output.push(crate::ComparableDoc {
+                            doc: idx1,
+                            sort_key: Some(val1),
+                        });
                     }
                     if val2 < *threshold {
-                        output_indexes.push(idx2);
-                        output_values.push(Some(val2));
+                        output.push(crate::ComparableDoc {
+                            doc: idx2,
+                            sort_key: Some(val2),
+                        });
                     }
                     if val3 < *threshold {
-                        output_indexes.push(idx3);
-                        output_values.push(Some(val3));
+                        output.push(crate::ComparableDoc {
+                            doc: idx3,
+                            sort_key: Some(val3),
+                        });
                     }
 
                     read_head += 4;
@@ -257,8 +288,10 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                 ValueRange::LessThan(ref t, _) => val < *t,
             };
             if matches {
-                output_indexes.push(idx);
-                output_values.push(Some(val));
+                output.push(crate::ComparableDoc {
+                    doc: idx,
+                    sort_key: Some(val),
+                });
             }
             read_head += 1;
         }
@@ -375,11 +408,10 @@ impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
     fn get_vals_in_value_range(
         &self,
         input_indexes: &[u32],
-        output_indexes: &mut Vec<u32>,
-        output: &mut Vec<Option<T>>,
+        output: &mut Vec<crate::ComparableDoc<Option<T>, crate::DocId>>,
         value_range: ValueRange<T>,
     ) {
-        let _ = (input_indexes, output_indexes, output, value_range);
+        let _ = (input_indexes, output, value_range);
         panic!("Internal Error: Called get_vals_in_value_range of empty column.")
     }
 }
@@ -399,12 +431,11 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     fn get_vals_in_value_range(
         &self,
         input_indexes: &[u32],
-        output_indexes: &mut Vec<u32>,
-        output: &mut Vec<Option<T>>,
+        output: &mut Vec<crate::ComparableDoc<Option<T>, crate::DocId>>,
         value_range: ValueRange<T>,
     ) {
         self.as_ref()
-            .get_vals_in_value_range(input_indexes, output_indexes, output, value_range)
+            .get_vals_in_value_range(input_indexes, output, value_range)
     }
 
     #[inline(always)]

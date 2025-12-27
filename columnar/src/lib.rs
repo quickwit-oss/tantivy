@@ -29,6 +29,7 @@ mod column;
 pub mod column_index;
 pub mod column_values;
 mod columnar;
+mod comparable_doc;
 mod dictionary;
 mod dynamic_column;
 mod iterable;
@@ -45,6 +46,7 @@ pub use columnar::{
     CURRENT_VERSION, ColumnType, ColumnarReader, ColumnarWriter, HasAssociatedColumnType,
     MergeRowOrder, ShuffleMergeOrder, StackMergeOrder, Version, merge_columnar,
 };
+pub use comparable_doc::ComparableDoc;
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 

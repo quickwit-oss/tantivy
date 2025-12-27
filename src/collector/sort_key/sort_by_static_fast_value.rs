@@ -81,25 +81,11 @@ pub struct SortByFastValueSegmentSortKeyComputer<T> {
     typ: PhantomData<T>,
 }
 
-pub struct FastValueBuffer {
-    docs: Vec<DocId>,
-    vals: Vec<Option<u64>>,
-}
-
-impl Default for FastValueBuffer {
-    fn default() -> Self {
-        FastValueBuffer {
-            docs: Vec::new(),
-            vals: Vec::new(),
-        }
-    }
-}
-
 impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyComputer<T> {
     type SortKey = Option<T>;
     type SegmentSortKey = Option<u64>;
     type SegmentComparator = NaturalComparator;
-    type Buffer = FastValueBuffer;
+    type Buffer = ();
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
@@ -110,21 +96,12 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
         &mut self,
         input_docs: &[DocId],
         output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
-        buffer: &mut Self::Buffer,
+        _buffer: &mut Self::Buffer,
         filter: ValueRange<Self::SegmentSortKey>,
     ) {
         let u64_filter = convert_optional_u64_range_to_u64_range(filter);
-        buffer.docs.clear();
-        buffer.vals.clear();
-        self.sort_column.first_vals_in_value_range(
-            input_docs,
-            &mut buffer.docs,
-            &mut buffer.vals,
-            u64_filter,
-        );
-        for (&doc, &sort_key) in buffer.docs.iter().zip(buffer.vals.iter()) {
-            output.push(ComparableDoc { doc, sort_key });
-        }
+        self.sort_column
+            .first_vals_in_value_range(input_docs, output, u64_filter);
     }
 
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
@@ -164,17 +141,14 @@ mod tests {
 
         let mut docs = vec![0, 1, 2];
         let mut output = Vec::new();
-        let mut buffer = FastValueBuffer::default();
+        let mut buffer = ();
         computer.segment_sort_keys(&mut docs, &mut output, &mut buffer, ValueRange::All);
 
         assert_eq!(
             output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
             &[Some(10), Some(20), None]
         );
-        assert_eq!(
-            output.iter().map(|c| c.doc).collect::<Vec<_>>(),
-            &[0, 1, 2]
-        );
+        assert_eq!(output.iter().map(|c| c.doc).collect::<Vec<_>>(), &[0, 1, 2]);
     }
 
     #[test]
@@ -203,7 +177,7 @@ mod tests {
 
         let mut docs = vec![0, 1, 2];
         let mut output = Vec::new();
-        let mut buffer = FastValueBuffer::default();
+        let mut buffer = ();
         computer.segment_sort_keys(
             &mut docs,
             &mut output,
@@ -215,9 +189,6 @@ mod tests {
             output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
             &[Some(20)]
         );
-        assert_eq!(
-            output.iter().map(|c| c.doc).collect::<Vec<_>>(),
-            &[1]
-        );
+        assert_eq!(output.iter().map(|c| c.doc).collect::<Vec<_>>(), &[1]);
     }
 }

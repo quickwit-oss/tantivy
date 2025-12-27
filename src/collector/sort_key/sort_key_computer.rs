@@ -82,14 +82,7 @@ pub trait SegmentSortKeyComputer: 'static {
         };
 
         let (buffer, scratch) = top_n_computer.buffer_and_scratch();
-        self.segment_sort_keys(
-            docs,
-            buffer,
-            scratch,
-            value_range,
-        );
-
-
+        self.segment_sort_keys(docs, buffer, scratch, value_range);
     }
 
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
@@ -692,8 +685,6 @@ pub struct FuncSegmentSortKeyComputer<F, TSortKey> {
     func: F,
     _phantom: PhantomData<TSortKey>,
 }
-
-
 
 impl<F, SegmentF, TSortKey> SortKeyComputer for F
 where
