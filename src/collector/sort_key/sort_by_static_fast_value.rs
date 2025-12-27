@@ -4,7 +4,7 @@ use columnar::{Column, ValueRange};
 
 use crate::collector::sort_key::sort_key_computer::convert_optional_u64_range_to_u64_range;
 use crate::collector::sort_key::NaturalComparator;
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::{DocId, Score, SegmentReader};
 
@@ -72,9 +72,6 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
         Ok(SortByFastValueSegmentSortKeyComputer {
             sort_column,
             typ: PhantomData,
-            buffer: Vec::new(),
-            fetch_buffer: Vec::new(),
-            doc_buffer: Vec::new(),
         })
     }
 }
@@ -82,15 +79,13 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
 pub struct SortByFastValueSegmentSortKeyComputer<T> {
     sort_column: Column<u64>,
     typ: PhantomData<T>,
-    buffer: Vec<(DocId, Option<u64>)>,
-    fetch_buffer: Vec<Option<u64>>,
-    doc_buffer: Vec<DocId>,
 }
 
 impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyComputer<T> {
     type SortKey = Option<T>;
     type SegmentSortKey = Option<u64>;
     type SegmentComparator = NaturalComparator;
+    type Buffer = ();
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
@@ -99,24 +94,14 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
 
     fn segment_sort_keys(
         &mut self,
-        docs: &[DocId],
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
         filter: ValueRange<Self::SegmentSortKey>,
-    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
-        self.doc_buffer.clear();
-        self.doc_buffer.extend_from_slice(docs);
-        self.fetch_buffer.clear();
+    ) {
         let u64_filter = convert_optional_u64_range_to_u64_range(filter);
-        self.sort_column.first_vals_in_value_range(
-            &mut self.doc_buffer,
-            &mut self.fetch_buffer,
-            u64_filter,
-        );
-
-        self.buffer.clear();
-        for (&doc, &val) in self.doc_buffer.iter().zip(self.fetch_buffer.iter()) {
-            self.buffer.push((doc, val));
-        }
-        &mut self.buffer
+        self.sort_column
+            .first_vals_in_value_range(input_docs, output, u64_filter);
     }
 
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
@@ -154,10 +139,16 @@ mod tests {
         let sorter = SortByStaticFastValue::<u64>::for_field("field");
         let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
 
-        let docs = vec![0, 1, 2];
-        let output = computer.segment_sort_keys(&docs, ValueRange::All);
+        let mut docs = vec![0, 1, 2];
+        let mut output = Vec::new();
+        let mut buffer = ();
+        computer.segment_sort_keys(&mut docs, &mut output, &mut buffer, ValueRange::All);
 
-        assert_eq!(output, &[(0, Some(10)), (1, Some(20)), (2, None)]);
+        assert_eq!(
+            output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
+            &[Some(10), Some(20), None]
+        );
+        assert_eq!(output.iter().map(|c| c.doc).collect::<Vec<_>>(), &[0, 1, 2]);
     }
 
     #[test]
@@ -184,15 +175,20 @@ mod tests {
         let sorter = SortByStaticFastValue::<u64>::for_field("field");
         let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
 
-        let docs = vec![0, 1, 2];
-        let output = computer.segment_sort_keys(
-            &docs,
+        let mut docs = vec![0, 1, 2];
+        let mut output = Vec::new();
+        let mut buffer = ();
+        computer.segment_sort_keys(
+            &mut docs,
+            &mut output,
+            &mut buffer,
             ValueRange::GreaterThan(Some(15u64), false /* inclusive */),
         );
 
-        // Should contain only the document with value 20.
-        // Doc 0 (10) < 15
-        // Doc 2 (None) < 15
-        assert_eq!(output, &[(1, Some(20))]);
+        assert_eq!(
+            output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
+            &[Some(20)]
+        );
+        assert_eq!(output.iter().map(|c| c.doc).collect::<Vec<_>>(), &[1]);
     }
 }

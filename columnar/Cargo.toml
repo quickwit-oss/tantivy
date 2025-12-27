@@ -16,7 +16,7 @@ stacker = { version= "0.6", path = "../stacker", package="tantivy-stacker"}
 sstable = { version= "0.6", path = "../sstable", package = "tantivy-sstable" }
 common = { version= "0.10", path = "../common", package = "tantivy-common" }
 tantivy-bitpacker = { version= "0.9", path = "../bitpacker/" }
-serde = "1.0.152"
+serde = { version = "1.0.152", features = ["derive"] }
 downcast-rs = "2.0.1"
 
 [dev-dependencies]

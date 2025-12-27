@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use columnar::{MonotonicallyMappableToU64, ValueRange};
+use columnar::{ComparableDoc, MonotonicallyMappableToU64, ValueRange};
 use serde::{Deserialize, Serialize};
 
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
@@ -619,6 +619,7 @@ where
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
     type SegmentComparator = TComparator;
+    type Buffer = TSegmentSortKeyComputer::Buffer;
 
     fn segment_comparator(&self) -> Self::SegmentComparator {
         self.comparator.clone()
@@ -630,11 +631,13 @@ where
 
     fn segment_sort_keys(
         &mut self,
-        docs: &[DocId],
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
         filter: ValueRange<Self::SegmentSortKey>,
-    ) -> &mut Vec<(DocId, Self::SegmentSortKey)> {
+    ) {
         self.segment_sort_key_computer
-            .segment_sort_keys(docs, filter)
+            .segment_sort_keys(input_docs, output, buffer, filter)
     }
 
     #[inline(always)]

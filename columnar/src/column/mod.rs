@@ -146,13 +146,18 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
 // Separate impl block for methods requiring `Default` for `T`.
 impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
     /// Load the first value for each docid in the provided slice.
+    ///
+    /// The `docids` vector is mutated: documents that do not match the `value_range` are removed.
+    /// The `values` vector is populated with the values of the remaining documents.
     #[inline]
     pub fn first_vals_in_value_range(
         &self,
-        docids: &mut Vec<DocId>,
-        values: &mut Vec<Option<T>>,
+        input_docs: &[DocId],
+        output: &mut Vec<crate::ComparableDoc<Option<T>, DocId>>,
         value_range: ValueRange<T>,
     ) {
+        // TODO: Move `COLLECT_BLOCK_BUFFER_LEN` to allow for use here, or use a different constant
+        // in this context.
         const BLOCK_LEN: usize = 64; // Corresponds to COLLECT_BLOCK_BUFFER_LEN in tantivy's docset
         match (&self.index, value_range) {
             (ColumnIndex::Empty { .. }, value_range) => {
@@ -163,19 +168,20 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
                 };
                 if nulls_match {
-                    for _ in 0..docids.len() {
-                        values.push(None);
+                    for &doc in input_docs {
+                        output.push(crate::ComparableDoc {
+                            doc,
+                            sort_key: None,
+                        });
                     }
-                } else {
-                    docids.clear();
                 }
             }
             (ColumnIndex::Full, value_range) => {
                 self.values
-                    .get_vals_in_value_range(docids, values, value_range);
+                    .get_vals_in_value_range(input_docs, output, value_range);
             }
             (ColumnIndex::Optional(optional_index), value_range) => {
-                let len = docids.len();
+                let len = input_docs.len();
                 // Ensure the input docids length does not exceed BLOCK_LEN for stack allocation
                 // safety. If it does, we might need to handle this with multiple
                 // chunks or fallback to heap. For now, an assert is used to confirm
@@ -188,7 +194,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                 );
 
                 let mut input_docs_buffer = [0u32; BLOCK_LEN];
-                input_docs_buffer[..len].copy_from_slice(docids);
+                input_docs_buffer[..len].copy_from_slice(input_docs);
 
                 let mut dense_row_ids_buffer = [0u32; BLOCK_LEN];
                 let mut dense_values_buffer = [T::default(); BLOCK_LEN];
@@ -221,9 +227,6 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                 };
 
                 // Phase 3: Filter and merge results, reconstructing docids and values
-                docids.clear();
-                values.clear();
-
                 let mut dense_values_cursor = 0;
                 for i in 0..len {
                     let original_doc_id = input_docs_buffer[i];
@@ -241,13 +244,17 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                         };
 
                         if value_matches {
-                            docids.push(original_doc_id);
-                            values.push(Some(val));
+                            output.push(crate::ComparableDoc {
+                                doc: original_doc_id,
+                                sort_key: Some(val),
+                            });
                         }
                     } else if nulls_match {
                         // This doc_id was not present in the optional index (null) and nulls match
-                        docids.push(original_doc_id);
-                        values.push(None);
+                        output.push(crate::ComparableDoc {
+                            doc: original_doc_id,
+                            sort_key: None,
+                        });
                     }
                 }
             }
@@ -258,9 +265,8 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                     ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
                 };
-                let mut write_head = 0;
-                for i in 0..docids.len() {
-                    let docid = docids[i];
+                for i in 0..input_docs.len() {
+                    let docid = input_docs[i];
                     let row_range = multivalued_index.range(docid);
                     let is_empty = row_range.start == row_range.end;
                     if !is_empty {
@@ -272,17 +278,18 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                             ValueRange::LessThan(t, _) => val < *t,
                         };
                         if matches {
-                            docids[write_head] = docid;
-                            values.push(Some(val));
-                            write_head += 1;
+                            output.push(crate::ComparableDoc {
+                                doc: docid,
+                                sort_key: Some(val),
+                            });
                         }
                     } else if nulls_match {
-                        docids[write_head] = docid;
-                        values.push(None);
-                        write_head += 1;
+                        output.push(crate::ComparableDoc {
+                            doc: docid,
+                            sort_key: None,
+                        });
                     }
                 }
-                docids.truncate(write_head);
             }
         }
     }

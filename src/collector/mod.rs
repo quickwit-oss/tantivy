@@ -96,10 +96,9 @@ mod histogram_collector;
 pub use histogram_collector::HistogramCollector;
 
 mod multi_collector;
-pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
+pub use columnar::ComparableDoc;
 
-mod top_collector;
-pub use self::top_collector::ComparableDoc;
+pub use self::multi_collector::{FruitHandle, MultiCollector, MultiFruit};
 
 mod top_score_collector;
 pub use self::top_score_collector::{TopDocs, TopNComputer};

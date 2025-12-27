@@ -39,6 +39,7 @@ pub(crate) mod tests {
     use crate::collector::sort_key::{
         SortByErasedType, SortBySimilarityScore, SortByStaticFastValue, SortByString,
     };
+    use crate::collector::top_score_collector::compare_for_top_k;
     use crate::collector::{ComparableDoc, DocSetCollector, TopDocs};
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, QueryParser};
@@ -594,7 +595,7 @@ pub(crate) mod tests {
             .map(|(sort_key, doc)| ComparableDoc { sort_key, doc })
             .collect();
 
-        comparable_docs.sort_by(|l, r| comparator.compare_doc(l, r));
+        comparable_docs.sort_by(|l, r| compare_for_top_k(&comparator, l, r));
 
         let expected_results = comparable_docs
             .into_iter()
