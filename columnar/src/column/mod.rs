@@ -1,6 +1,7 @@
 mod dictionary_encoded;
 mod serialize;
 
+use std::cell::RefCell;
 use std::fmt::{self, Debug};
 use std::io::Write;
 use std::ops::{Range, RangeInclusive};
@@ -18,6 +19,11 @@ use crate::column_index::{ColumnIndex, Set};
 use crate::column_values::monotonic_mapping::StrictlyMonotonicMappingToInternal;
 use crate::column_values::{ColumnValues, monotonic_map_column};
 use crate::{Cardinality, DocId, EmptyColumnValues, MonotonicallyMappableToU64, RowId};
+
+thread_local! {
+    static ROWS: RefCell<Vec<RowId>> = const { RefCell::new(Vec::new()) };
+    static DOCS: RefCell<Vec<DocId>> = const { RefCell::new(Vec::new()) };
+}
 
 #[derive(Clone)]
 pub struct Column<T = u64> {
@@ -156,16 +162,15 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
         output: &mut Vec<crate::ComparableDoc<Option<T>, DocId>>,
         value_range: ValueRange<T>,
     ) {
-        // TODO: Move `COLLECT_BLOCK_BUFFER_LEN` to allow for use here, or use a different constant
-        // in this context.
-        const BLOCK_LEN: usize = 64; // Corresponds to COLLECT_BLOCK_BUFFER_LEN in tantivy's docset
         match (&self.index, value_range) {
             (ColumnIndex::Empty { .. }, value_range) => {
                 let nulls_match = match &value_range {
                     ValueRange::All => true,
                     ValueRange::Inclusive(_) => false,
                     ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::GreaterThanOrEqual(_, nulls_match) => *nulls_match,
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThanOrEqual(_, nulls_match) => *nulls_match,
                 };
                 if nulls_match {
                     for &doc in input_docs {
@@ -178,83 +183,77 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
             }
             (ColumnIndex::Full, value_range) => {
                 self.values
-                    .get_vals_in_value_range(input_docs, output, value_range);
+                    .get_vals_in_value_range(input_docs, input_docs, output, value_range);
             }
             (ColumnIndex::Optional(optional_index), value_range) => {
-                let len = input_docs.len();
-                // Ensure the input docids length does not exceed BLOCK_LEN for stack allocation
-                // safety. If it does, we might need to handle this with multiple
-                // chunks or fallback to heap. For now, an assert is used to confirm
-                // expected usage within batch processing limits.
-                assert!(
-                    len <= BLOCK_LEN,
-                    "Input docids length ({}) exceeds BLOCK_LEN ({})",
-                    len,
-                    BLOCK_LEN
-                );
-
-                let mut input_docs_buffer = [0u32; BLOCK_LEN];
-                input_docs_buffer[..len].copy_from_slice(input_docs);
-
-                let mut dense_row_ids_buffer = [0u32; BLOCK_LEN];
-                let mut dense_values_buffer = [T::default(); BLOCK_LEN];
-                let mut presence_mask: u64 = 0; // Bitmask to track which input_docs have a value
-                let mut num_present = 0;
-
-                // Phase 1: Identify existing RowIds and build dense_row_ids_buffer
-                for (i, &doc_id) in input_docs_buffer[..len].iter().enumerate() {
-                    if let Some(row_id) = optional_index.rank_if_exists(doc_id) {
-                        dense_row_ids_buffer[num_present] = row_id;
-                        presence_mask |= 1u64 << i; // Set bit for present docid
-                        num_present += 1;
-                    }
-                }
-
-                // Phase 2: Batch fetch values for present docs
-                if num_present > 0 {
-                    self.values.get_vals(
-                        &dense_row_ids_buffer[..num_present],
-                        &mut dense_values_buffer[..num_present],
-                    );
-                }
-
-                // Determine if nulls match the value range
                 let nulls_match = match &value_range {
                     ValueRange::All => true,
                     ValueRange::Inclusive(_) => false,
                     ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::GreaterThanOrEqual(_, nulls_match) => *nulls_match,
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThanOrEqual(_, nulls_match) => *nulls_match,
                 };
 
-                // Phase 3: Filter and merge results, reconstructing docids and values
-                let mut dense_values_cursor = 0;
-                for i in 0..len {
-                    let original_doc_id = input_docs_buffer[i];
-                    if (presence_mask & (1u64 << i)) != 0 {
-                        // This doc_id was present in the optional index and has a value
-                        let val = dense_values_buffer[dense_values_cursor];
-                        dense_values_cursor += 1;
+                let fallback_needed = ROWS.with(|rows_cell| {
+                    DOCS.with(|docs_cell| {
+                        let mut rows = rows_cell.borrow_mut();
+                        let mut docs = docs_cell.borrow_mut();
+                        rows.clear();
+                        docs.clear();
 
-                        // Check if the value matches the value range
-                        let value_matches = match &value_range {
-                            ValueRange::All => true,
-                            ValueRange::Inclusive(r) => r.contains(&val),
-                            ValueRange::GreaterThan(t, _) => val > *t,
-                            ValueRange::LessThan(t, _) => val < *t,
-                        };
+                        let mut has_nulls = false;
 
-                        if value_matches {
+                        for &doc_id in input_docs {
+                            if let Some(row_id) = optional_index.rank_if_exists(doc_id) {
+                                rows.push(row_id);
+                                docs.push(doc_id);
+                            } else {
+                                has_nulls = true;
+                                if nulls_match {
+                                    break;
+                                }
+                            }
+                        }
+
+                        if !has_nulls || !nulls_match {
+                            self.values.get_vals_in_value_range(
+                                &rows,
+                                &docs,
+                                output,
+                                value_range.clone(),
+                            );
+                            return false;
+                        }
+                        true
+                    })
+                });
+
+                if fallback_needed {
+                    for &doc_id in input_docs {
+                        if let Some(row_id) = optional_index.rank_if_exists(doc_id) {
+                            let val = self.values.get_val(row_id);
+                            let value_matches = match &value_range {
+                                ValueRange::All => true,
+                                ValueRange::Inclusive(r) => r.contains(&val),
+                                ValueRange::GreaterThan(t, _) => val > *t,
+                                ValueRange::GreaterThanOrEqual(t, _) => val >= *t,
+                                ValueRange::LessThan(t, _) => val < *t,
+                                ValueRange::LessThanOrEqual(t, _) => val <= *t,
+                            };
+
+                            if value_matches {
+                                output.push(crate::ComparableDoc {
+                                    doc: doc_id,
+                                    sort_key: Some(val),
+                                });
+                            }
+                        } else if nulls_match {
                             output.push(crate::ComparableDoc {
-                                doc: original_doc_id,
-                                sort_key: Some(val),
+                                doc: doc_id,
+                                sort_key: None,
                             });
                         }
-                    } else if nulls_match {
-                        // This doc_id was not present in the optional index (null) and nulls match
-                        output.push(crate::ComparableDoc {
-                            doc: original_doc_id,
-                            sort_key: None,
-                        });
                     }
                 }
             }
@@ -263,7 +262,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                     ValueRange::All => true,
                     ValueRange::Inclusive(_) => false,
                     ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::GreaterThanOrEqual(_, nulls_match) => *nulls_match,
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThanOrEqual(_, nulls_match) => *nulls_match,
                 };
                 for i in 0..input_docs.len() {
                     let docid = input_docs[i];
@@ -275,7 +276,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                             ValueRange::All => true,
                             ValueRange::Inclusive(r) => r.contains(&val),
                             ValueRange::GreaterThan(t, _) => val > *t,
+                            ValueRange::GreaterThanOrEqual(t, _) => val >= *t,
                             ValueRange::LessThan(t, _) => val < *t,
+                            ValueRange::LessThanOrEqual(t, _) => val <= *t,
                         };
                         if matches {
                             output.push(crate::ComparableDoc {
@@ -310,9 +313,15 @@ pub enum ValueRange<T> {
     /// A range that matches all values greater than the threshold.
     /// The boolean flag indicates if null values should be included.
     GreaterThan(T, bool),
+    /// A range that matches all values greater than or equal to the threshold.
+    /// The boolean flag indicates if null values should be included.
+    GreaterThanOrEqual(T, bool),
     /// A range that matches all values less than the threshold.
     /// The boolean flag indicates if null values should be included.
     LessThan(T, bool),
+    /// A range that matches all values less than or equal to the threshold.
+    /// The boolean flag indicates if null values should be included.
+    LessThanOrEqual(T, bool),
 }
 
 impl<T: PartialOrd> ValueRange<T> {
@@ -321,7 +330,9 @@ impl<T: PartialOrd> ValueRange<T> {
             ValueRange::Inclusive(range) => *range.start() <= max && *range.end() >= min,
             ValueRange::All => true,
             ValueRange::GreaterThan(val, _) => max > *val,
+            ValueRange::GreaterThanOrEqual(val, _) => max >= *val,
             ValueRange::LessThan(val, _) => min < *val,
+            ValueRange::LessThanOrEqual(val, _) => min <= *val,
         }
     }
 }

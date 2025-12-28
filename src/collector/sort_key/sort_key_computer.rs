@@ -4,7 +4,6 @@ use columnar::ValueRange;
 
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
-use crate::collector::top_score_collector::push_assuming_capacity;
 use crate::collector::{
     default_collect_segment_impl, ComparableDoc, SegmentCollector as _, TopNComputer,
 };
@@ -96,27 +95,6 @@ pub trait SegmentSortKeyComputer: 'static {
         right: &Self::SegmentSortKey,
     ) -> Ordering {
         self.segment_comparator().compare(left, right)
-    }
-
-    /// Similar to `accept_sort_key_lazy`, but pushes results directly into the given buffer. Does
-    /// not support scoring.
-    ///
-    /// The buffer must have at least enough capacity for `docs` matches, or this method will
-    /// panic.
-    fn accept_sort_key_block_lazy(
-        &mut self,
-        docs: &[DocId],
-        threshold: &Self::SegmentSortKey,
-        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
-    ) {
-        let comparator = self.segment_comparator();
-        for &doc in docs {
-            let sort_key = self.segment_sort_key(doc, 0.0);
-            let cmp = comparator.compare(&sort_key, threshold);
-            if cmp != Ordering::Less {
-                push_assuming_capacity(ComparableDoc { sort_key, doc }, output);
-            }
-        }
     }
 
     /// Convert a segment level sort key into the global sort key.
@@ -323,12 +301,83 @@ where
 
     fn segment_sort_keys(
         &mut self,
-        _input_docs: &[DocId],
-        _output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
-        _buffer: &mut Self::Buffer,
-        _filter: ValueRange<Self::SegmentSortKey>,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
     ) {
-        unimplemented!("The head and the tail are accessed independently.");
+        let (head_filter, threshold) = match filter {
+            ValueRange::GreaterThan((head_threshold, tail_threshold), _)
+            | ValueRange::LessThan((head_threshold, tail_threshold), _) => {
+                let head_cmp = self.head.segment_comparator();
+                let strict_head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
+                let head_filter = match strict_head_filter {
+                    ValueRange::GreaterThan(t, m) => ValueRange::GreaterThanOrEqual(t, m),
+                    ValueRange::LessThan(t, m) => ValueRange::LessThanOrEqual(t, m),
+                    other => other,
+                };
+                (head_filter, Some((head_threshold, tail_threshold)))
+            }
+            _ => (ValueRange::All, None),
+        };
+
+        buffer.head_output.clear();
+        self.head.segment_sort_keys(
+            input_docs,
+            &mut buffer.head_output,
+            &mut buffer.head,
+            head_filter,
+        );
+
+        if buffer.head_output.is_empty() {
+            return;
+        }
+
+        buffer.tail_output.clear();
+        buffer.tail_input_docs.clear();
+        for cd in &buffer.head_output {
+            buffer.tail_input_docs.push(cd.doc);
+        }
+
+        self.tail.segment_sort_keys(
+            &buffer.tail_input_docs,
+            &mut buffer.tail_output,
+            &mut buffer.tail,
+            ValueRange::All,
+        );
+
+        let head_cmp = self.head.segment_comparator();
+        let tail_cmp = self.tail.segment_comparator();
+
+        for (head_doc, tail_doc) in buffer
+            .head_output
+            .drain(..)
+            .zip(buffer.tail_output.drain(..))
+        {
+            debug_assert_eq!(head_doc.doc, tail_doc.doc);
+            let doc = head_doc.doc;
+            let head_key = head_doc.sort_key;
+            let tail_key = tail_doc.sort_key;
+
+            let accept = if let Some((head_threshold, tail_threshold)) = &threshold {
+                let head_ord = head_cmp.compare(&head_key, head_threshold);
+                let ord = if head_ord == Ordering::Equal {
+                    tail_cmp.compare(&tail_key, tail_threshold)
+                } else {
+                    head_ord
+                };
+                ord == Ordering::Greater
+            } else {
+                true
+            };
+
+            if accept {
+                output.push(ComparableDoc {
+                    sort_key: (head_key, tail_key),
+                    doc,
+                });
+            }
+        }
     }
 
     #[inline(always)]
@@ -349,118 +398,6 @@ where
             sort_key = self.segment_sort_key(doc, score);
         };
         top_n_computer.append_doc(doc, sort_key);
-    }
-
-    fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
-        &mut self,
-        docs: &[DocId],
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
-    ) {
-        // The capacity of a TopNComputer is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so we
-        // should always be able to `reserve` space for the entire block.
-        top_n_computer.reserve(docs.len());
-
-        let mut scratch = std::mem::take(&mut top_n_computer.scratch);
-
-        if let Some(threshold) = &top_n_computer.threshold {
-            let (head_threshold, tail_threshold) = threshold.clone();
-            let head_cmp = self.head.segment_comparator();
-            let tail_cmp = self.tail.segment_comparator();
-            let head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
-
-            scratch.head_output.clear();
-            self.head.segment_sort_keys(
-                docs,
-                &mut scratch.head_output,
-                &mut scratch.head,
-                head_filter,
-            );
-
-            if !scratch.head_output.is_empty() {
-                scratch.tail_output.clear();
-                scratch.tail_input_docs.clear();
-                for cd in &scratch.head_output {
-                    scratch.tail_input_docs.push(cd.doc);
-                }
-
-                self.tail.segment_sort_keys(
-                    &scratch.tail_input_docs,
-                    &mut scratch.tail_output,
-                    &mut scratch.tail,
-                    ValueRange::All,
-                );
-
-                for (head_doc, tail_doc) in scratch
-                    .head_output
-                    .drain(..)
-                    .zip(scratch.tail_output.drain(..))
-                {
-                    debug_assert_eq!(head_doc.doc, tail_doc.doc);
-                    let doc = head_doc.doc;
-                    let head_key = head_doc.sort_key;
-                    let tail_key = tail_doc.sort_key;
-
-                    let head_ord = head_cmp.compare(&head_key, &head_threshold);
-                    let ord = if head_ord == Ordering::Equal {
-                        tail_cmp.compare(&tail_key, &tail_threshold)
-                    } else {
-                        head_ord
-                    };
-                    if ord == Ordering::Greater {
-                        push_assuming_capacity(
-                            ComparableDoc {
-                                sort_key: (head_key, tail_key),
-                                doc,
-                            },
-                            top_n_computer.buffer(),
-                        );
-                    }
-                }
-            }
-        } else {
-            // Eagerly push, without a threshold to compare to.
-            scratch.head_output.clear();
-            self.head.segment_sort_keys(
-                docs,
-                &mut scratch.head_output,
-                &mut scratch.head,
-                ValueRange::All,
-            );
-
-            scratch.tail_output.clear();
-            scratch.tail_input_docs.clear();
-            for cd in &scratch.head_output {
-                scratch.tail_input_docs.push(cd.doc);
-            }
-
-            self.tail.segment_sort_keys(
-                &scratch.tail_input_docs,
-                &mut scratch.tail_output,
-                &mut scratch.tail,
-                ValueRange::All,
-            );
-
-            for (head_doc, tail_doc) in scratch
-                .head_output
-                .drain(..)
-                .zip(scratch.tail_output.drain(..))
-            {
-                debug_assert_eq!(head_doc.doc, tail_doc.doc);
-                let doc = head_doc.doc;
-                let head_key = head_doc.sort_key;
-                let tail_key = tail_doc.sort_key;
-
-                // We validated at the top of the method that we have capacity.
-                push_assuming_capacity(
-                    ComparableDoc {
-                        sort_key: (head_key, tail_key),
-                        doc,
-                    },
-                    top_n_computer.buffer(),
-                );
-            }
-        }
-        top_n_computer.scratch = scratch;
     }
 
     #[inline(always)]
@@ -743,27 +680,61 @@ pub(crate) fn range_contains_none(range: &ValueRange<Option<u64>>) -> bool {
     match range {
         ValueRange::All => true,
         ValueRange::Inclusive(r) => r.contains(&None),
-        ValueRange::GreaterThan(threshold, match_nulls) => *match_nulls || (None > *threshold),
-        ValueRange::LessThan(threshold, match_nulls) => *match_nulls || (None < *threshold),
+        ValueRange::GreaterThan(_threshold, match_nulls) => *match_nulls,
+        ValueRange::GreaterThanOrEqual(_threshold, match_nulls) => *match_nulls,
+        ValueRange::LessThan(_threshold, match_nulls) => *match_nulls,
+        ValueRange::LessThanOrEqual(_threshold, match_nulls) => *match_nulls,
     }
 }
 
 pub(crate) fn convert_optional_u64_range_to_u64_range(
     range: ValueRange<Option<u64>>,
 ) -> ValueRange<u64> {
-    if range_contains_none(&range) {
-        return ValueRange::All;
-    }
     match range {
         ValueRange::Inclusive(r) => {
             let start = r.start().unwrap_or(0);
             let end = r.end().unwrap_or(u64::MAX);
             ValueRange::Inclusive(start..=end)
         }
-        ValueRange::GreaterThan(Some(val), _match_nulls) => ValueRange::GreaterThan(val, false),
-        ValueRange::GreaterThan(None, _match_nulls) => ValueRange::Inclusive(u64::MIN..=u64::MAX),
-        ValueRange::LessThan(None, _match_nulls) => ValueRange::Inclusive(1..=0),
-        _ => ValueRange::All,
+        ValueRange::GreaterThan(Some(val), match_nulls) => {
+            ValueRange::GreaterThan(val, match_nulls)
+        }
+        ValueRange::GreaterThan(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::All
+            } else {
+                ValueRange::Inclusive(u64::MIN..=u64::MAX)
+            }
+        }
+        ValueRange::GreaterThanOrEqual(Some(val), match_nulls) => {
+            ValueRange::GreaterThanOrEqual(val, match_nulls)
+        }
+        ValueRange::GreaterThanOrEqual(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::All
+            } else {
+                ValueRange::Inclusive(u64::MIN..=u64::MAX)
+            }
+        }
+        ValueRange::LessThan(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::LessThan(u64::MIN, true)
+            } else {
+                ValueRange::Inclusive(1..=0)
+            }
+        }
+        ValueRange::LessThan(Some(val), match_nulls) => ValueRange::LessThan(val, match_nulls),
+        ValueRange::LessThanOrEqual(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::LessThan(u64::MIN, true)
+            } else {
+                ValueRange::Inclusive(1..=0)
+            }
+        }
+        ValueRange::LessThanOrEqual(Some(val), match_nulls) => {
+            ValueRange::LessThanOrEqual(val, match_nulls)
+        }
+        ValueRange::All => ValueRange::All,
     }
 }
 
@@ -773,7 +744,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Arc;
 
-    use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+    use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
     use crate::schema::Schema;
     use crate::{DocId, Index, Order, SegmentReader};
 
@@ -920,5 +891,179 @@ mod tests {
             segment_sort_key_computer.convert_segment_sort_key(expected_sort_key),
             (200u32, 2u32)
         );
+    }
+    #[test]
+    fn test_batch_score_computer_edge_case() {
+        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
+        let score_computer_secondary = |_segment_reader: &SegmentReader| |_doc: DocId| "b";
+        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
+        let index = build_test_index();
+        let searcher = index.reader().unwrap().searcher();
+        let mut segment_sort_key_computer = lazy_score_computer
+            .segment_sort_key_computer(searcher.segment_reader(0))
+            .unwrap();
+
+        let mut top_n_computer =
+            TopNComputer::new_with_comparator(10, lazy_score_computer.comparator());
+        // Threshold (200, "a"). Doc is (200, "b"). 200 == 200, "b" > "a". Should be accepted.
+        top_n_computer.threshold = Some((200, "a"));
+
+        let docs = vec![0];
+        segment_sort_key_computer.compute_sort_keys_and_collect(&docs, &mut top_n_computer);
+
+        let results = top_n_computer.into_sorted_vec();
+        assert_eq!(results.len(), 1);
+        let result = &results[0];
+        assert_eq!(result.doc, 0);
+        assert_eq!(result.sort_key, (200, "b"));
+    }
+}
+
+#[cfg(test)]
+mod proptest_tests {
+    use proptest::prelude::*;
+
+    use super::*;
+    use crate::collector::sort_key::order::*;
+
+    // Re-implement logic to interpret ValueRange<Option<u64>> manually to verify expectations
+    fn range_contains_opt(range: &ValueRange<Option<u64>>, val: &Option<u64>) -> bool {
+        match range {
+            ValueRange::All => true,
+            ValueRange::Inclusive(r) => r.contains(val),
+            ValueRange::GreaterThan(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val > t
+                }
+            }
+            ValueRange::GreaterThanOrEqual(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val >= t
+                }
+            }
+            ValueRange::LessThan(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val < t
+                }
+            }
+            ValueRange::LessThanOrEqual(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val <= t
+                }
+            }
+        }
+    }
+
+    fn range_contains_u64(range: &ValueRange<u64>, val: &u64) -> bool {
+        match range {
+            ValueRange::All => true,
+            ValueRange::Inclusive(r) => r.contains(val),
+            ValueRange::GreaterThan(t, _) => val > t,
+            ValueRange::GreaterThanOrEqual(t, _) => val >= t,
+            ValueRange::LessThan(t, _) => val < t,
+            ValueRange::LessThanOrEqual(t, _) => val <= t,
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_comparator_consistency_natural_none_is_lower(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<NaturalComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_reverse(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<ReverseComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_reverse_none_is_lower(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<ReverseNoneIsLowerComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_natural_none_is_higher(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<NaturalNoneIsHigherComparator>(threshold, val)?;
+        }
+    }
+
+    fn check_comparator<C: Comparator<Option<u64>>>(
+        threshold: Option<u64>,
+        val: Option<u64>,
+    ) -> std::result::Result<(), proptest::test_runner::TestCaseError> {
+        let comparator = C::default();
+        let range = comparator.threshold_to_valuerange(threshold);
+        let ordering = comparator.compare(&val, &threshold);
+        let should_be_in_range = ordering == Ordering::Greater;
+
+        let in_range_opt = range_contains_opt(&range, &val);
+
+        prop_assert_eq!(
+            in_range_opt,
+            should_be_in_range,
+            "Comparator consistency failed for {:?}. Threshold: {:?}, Val: {:?}, Range: {:?}, \
+             Ordering: {:?}. range_contains_opt says {}, but compare says {}",
+            std::any::type_name::<C>(),
+            threshold,
+            val,
+            range,
+            ordering,
+            in_range_opt,
+            should_be_in_range
+        );
+
+        // Check range_contains_none
+        let expected_none_in_range = range_contains_opt(&range, &None);
+        let actual_none_in_range = range_contains_none(&range);
+        prop_assert_eq!(
+            actual_none_in_range,
+            expected_none_in_range,
+            "range_contains_none failed for {:?}. Range: {:?}. Expected (from \
+             range_contains_opt): {}, Actual: {}",
+            std::any::type_name::<C>(),
+            range,
+            expected_none_in_range,
+            actual_none_in_range
+        );
+
+        // Check convert_optional_u64_range_to_u64_range
+        let u64_range = convert_optional_u64_range_to_u64_range(range.clone());
+        if let Some(v) = val {
+            let in_u64_range = range_contains_u64(&u64_range, &v);
+            let in_opt_range = range_contains_opt(&range, &Some(v));
+            prop_assert_eq!(
+                in_u64_range,
+                in_opt_range,
+                "convert_optional_u64_range_to_u64_range failed for {:?}. Val: {:?}, OptRange: \
+                 {:?}, U64Range: {:?}. Opt says {}, U64 says {}",
+                std::any::type_name::<C>(),
+                v,
+                range,
+                u64_range,
+                in_opt_range,
+                in_u64_range
+            );
+        }
+        Ok(())
     }
 }

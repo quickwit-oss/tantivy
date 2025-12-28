@@ -71,7 +71,6 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
 
     /// Return a `ValueRange` that matches all values that are greater than the provided threshold.
-    #[allow(dead_code)]
     fn threshold_to_valuerange(&self, threshold: T) -> ValueRange<T>;
 }
 
@@ -126,16 +125,68 @@ impl Comparator<OwnedValue> for NaturalComparator {
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReverseComparator;
 
-impl<T> Comparator<T> for ReverseComparator
-where NaturalComparator: Comparator<T>
+macro_rules! impl_reverse_comparator_primitive {
+    ($($t:ty),*) => {
+        $(
+            impl Comparator<$t> for ReverseComparator {
+                #[inline(always)]
+                fn compare(&self, lhs: &$t, rhs: &$t) -> Ordering {
+                    NaturalComparator.compare(rhs, lhs)
+                }
+
+                fn threshold_to_valuerange(&self, threshold: $t) -> ValueRange<$t> {
+                    ValueRange::LessThan(threshold, true)
+                }
+            }
+        )*
+    }
+}
+
+impl_reverse_comparator_primitive!(
+    bool,
+    u8,
+    u16,
+    u32,
+    u64,
+    u128,
+    usize,
+    i8,
+    i16,
+    i32,
+    i64,
+    i128,
+    isize,
+    f32,
+    f64,
+    String,
+    crate::DateTime,
+    Vec<u8>,
+    crate::schema::Facet
+);
+
+impl<T: PartialOrd + Send + Sync + std::fmt::Debug + Clone + 'static> Comparator<Option<T>>
+    for ReverseComparator
 {
     #[inline(always)]
-    fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
+    fn compare(&self, lhs: &Option<T>, rhs: &Option<T>) -> Ordering {
         NaturalComparator.compare(rhs, lhs)
     }
 
-    fn threshold_to_valuerange(&self, threshold: T) -> ValueRange<T> {
-        ValueRange::LessThan(threshold, true)
+    fn threshold_to_valuerange(&self, threshold: Option<T>) -> ValueRange<Option<T>> {
+        let is_some = threshold.is_some();
+        ValueRange::LessThan(threshold, is_some)
+    }
+}
+
+impl Comparator<OwnedValue> for ReverseComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+        NaturalComparator.compare(rhs, lhs)
+    }
+
+    fn threshold_to_valuerange(&self, threshold: OwnedValue) -> ValueRange<OwnedValue> {
+        let is_not_null = !matches!(threshold, OwnedValue::Null);
+        ValueRange::LessThan(threshold, is_not_null)
     }
 }
 
@@ -165,7 +216,11 @@ where ReverseComparator: Comparator<T>
     }
 
     fn threshold_to_valuerange(&self, threshold: Option<T>) -> ValueRange<Option<T>> {
-        ValueRange::LessThan(threshold, false)
+        if threshold.is_some() {
+            ValueRange::LessThan(threshold, false)
+        } else {
+            ValueRange::GreaterThan(threshold, false)
+        }
     }
 }
 
@@ -268,7 +323,12 @@ where NaturalComparator: Comparator<T>
     }
 
     fn threshold_to_valuerange(&self, threshold: Option<T>) -> ValueRange<Option<T>> {
-        ValueRange::GreaterThan(threshold, true)
+        if threshold.is_some() {
+            let is_some = threshold.is_some();
+            ValueRange::GreaterThan(threshold, is_some)
+        } else {
+            ValueRange::LessThan(threshold, false)
+        }
     }
 }
 

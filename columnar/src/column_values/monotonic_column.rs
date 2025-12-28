@@ -104,11 +104,28 @@ where
                 doc_id_range,
                 positions,
             ),
+            ValueRange::GreaterThanOrEqual(threshold, _) => {
+                self.from_column.get_row_ids_for_value_range(
+                    ValueRange::GreaterThanOrEqual(
+                        self.monotonic_mapping.inverse(threshold),
+                        false,
+                    ),
+                    doc_id_range,
+                    positions,
+                )
+            }
             ValueRange::LessThan(threshold, _) => self.from_column.get_row_ids_for_value_range(
                 ValueRange::LessThan(self.monotonic_mapping.inverse(threshold), false),
                 doc_id_range,
                 positions,
             ),
+            ValueRange::LessThanOrEqual(threshold, _) => {
+                self.from_column.get_row_ids_for_value_range(
+                    ValueRange::LessThanOrEqual(self.monotonic_mapping.inverse(threshold), false),
+                    doc_id_range,
+                    positions,
+                )
+            }
         }
     }
 

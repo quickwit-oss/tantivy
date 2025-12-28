@@ -362,9 +362,21 @@ impl ColumnValues<u64> for CompactSpaceU64Accessor {
                 self.0
                     .get_row_ids_for_value_range(value_range, position_range, positions)
             }
+            ValueRange::GreaterThanOrEqual(threshold, _) => {
+                let value_range =
+                    ValueRange::GreaterThanOrEqual(self.0.compact_to_u128(threshold as u32), false);
+                self.0
+                    .get_row_ids_for_value_range(value_range, position_range, positions)
+            }
             ValueRange::LessThan(threshold, _) => {
                 let value_range =
                     ValueRange::LessThan(self.0.compact_to_u128(threshold as u32), false);
+                self.0
+                    .get_row_ids_for_value_range(value_range, position_range, positions)
+            }
+            ValueRange::LessThanOrEqual(threshold, _) => {
+                let value_range =
+                    ValueRange::LessThanOrEqual(self.0.compact_to_u128(threshold as u32), false);
                 self.0
                     .get_row_ids_for_value_range(value_range, position_range, positions)
             }
@@ -416,12 +428,26 @@ impl ColumnValues<u128> for CompactSpaceDecompressor {
                 }
                 (threshold + 1)..=max
             }
+            ValueRange::GreaterThanOrEqual(threshold, _) => {
+                let max = self.max_value();
+                if threshold > max {
+                    return;
+                }
+                threshold..=max
+            }
             ValueRange::LessThan(threshold, _) => {
                 let min = self.min_value();
                 if threshold <= min {
                     return;
                 }
                 min..=(threshold - 1)
+            }
+            ValueRange::LessThanOrEqual(threshold, _) => {
+                let min = self.min_value();
+                if threshold < min {
+                    return;
+                }
+                min..=threshold
             }
         };
 
