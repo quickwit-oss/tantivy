@@ -110,14 +110,15 @@ impl ColumnValues for BitpackedReader {
     fn get_vals_in_value_range(
         &self,
         input_indexes: &[u32],
+        input_doc_ids: &[u32],
         output: &mut Vec<crate::ComparableDoc<Option<u64>, crate::DocId>>,
         value_range: ValueRange<u64>,
     ) {
         match value_range {
             ValueRange::All => {
-                for &idx in input_indexes {
+                for (&idx, &doc) in input_indexes.iter().zip(input_doc_ids.iter()) {
                     output.push(crate::ComparableDoc {
-                        doc: idx,
+                        doc,
                         sort_key: Some(self.get_val(idx)),
                     });
                 }
@@ -126,8 +127,8 @@ impl ColumnValues for BitpackedReader {
                 if let Some(transformed_range) =
                     transform_range_before_linear_transformation(&self.stats, range)
                 {
-                    for &doc in input_indexes {
-                        let raw_val = self.unpack_val(doc);
+                    for (&idx, &doc) in input_indexes.iter().zip(input_doc_ids.iter()) {
+                        let raw_val = self.unpack_val(idx);
                         if transformed_range.contains(&raw_val) {
                             output.push(crate::ComparableDoc {
                                 doc,
@@ -141,9 +142,9 @@ impl ColumnValues for BitpackedReader {
             }
             ValueRange::GreaterThan(threshold, _) => {
                 if threshold < self.stats.min_value {
-                    for &idx in input_indexes {
+                    for (&idx, &doc) in input_indexes.iter().zip(input_doc_ids.iter()) {
                         output.push(crate::ComparableDoc {
-                            doc: idx,
+                            doc,
                             sort_key: Some(self.get_val(idx)),
                         });
                     }
@@ -151,8 +152,8 @@ impl ColumnValues for BitpackedReader {
                     // All filtered out
                 } else {
                     let raw_threshold = (threshold - self.stats.min_value) / self.stats.gcd.get();
-                    for &doc in input_indexes {
-                        let raw_val = self.unpack_val(doc);
+                    for (&idx, &doc) in input_indexes.iter().zip(input_doc_ids.iter()) {
+                        let raw_val = self.unpack_val(idx);
                         if raw_val > raw_threshold {
                             output.push(crate::ComparableDoc {
                                 doc,
@@ -166,9 +167,9 @@ impl ColumnValues for BitpackedReader {
             }
             ValueRange::LessThan(threshold, _) => {
                 if threshold > self.stats.max_value {
-                    for &idx in input_indexes {
+                    for (&idx, &doc) in input_indexes.iter().zip(input_doc_ids.iter()) {
                         output.push(crate::ComparableDoc {
-                            doc: idx,
+                            doc,
                             sort_key: Some(self.get_val(idx)),
                         });
                     }
@@ -183,8 +184,8 @@ impl ColumnValues for BitpackedReader {
                         diff / gcd + 1
                     };
 
-                    for &doc in input_indexes {
-                        let raw_val = self.unpack_val(doc);
+                    for (&idx, &doc) in input_indexes.iter().zip(input_doc_ids.iter()) {
+                        let raw_val = self.unpack_val(idx);
                         if raw_val < raw_threshold {
                             output.push(crate::ComparableDoc {
                                 doc,
