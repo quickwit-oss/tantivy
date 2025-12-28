@@ -597,6 +597,7 @@ where
     D: Ord,
     TSortKey: Clone,
     NaturalComparator: Comparator<TSortKey>,
+    ReverseComparator: Comparator<TSortKey>,
 {
     /// Create a new `TopNComputer`.
     /// Internally it will allocate a buffer of size `2 * top_n`.

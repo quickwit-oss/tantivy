@@ -604,7 +604,7 @@ mod tests {
         segments_data in proptest::collection::vec(
             proptest::collection::vec(
                 proptest::option::of(0..100u64),
-                1..10_usize // segment size
+                1..1000_usize // segment size
             ),
             1..4_usize // num segments
         )

@@ -743,27 +743,39 @@ pub(crate) fn range_contains_none(range: &ValueRange<Option<u64>>) -> bool {
     match range {
         ValueRange::All => true,
         ValueRange::Inclusive(r) => r.contains(&None),
-        ValueRange::GreaterThan(threshold, match_nulls) => *match_nulls || (None > *threshold),
-        ValueRange::LessThan(threshold, match_nulls) => *match_nulls || (None < *threshold),
+        ValueRange::GreaterThan(_threshold, match_nulls) => *match_nulls,
+        ValueRange::LessThan(_threshold, match_nulls) => *match_nulls,
     }
 }
 
 pub(crate) fn convert_optional_u64_range_to_u64_range(
     range: ValueRange<Option<u64>>,
 ) -> ValueRange<u64> {
-    if range_contains_none(&range) {
-        return ValueRange::All;
-    }
     match range {
         ValueRange::Inclusive(r) => {
             let start = r.start().unwrap_or(0);
             let end = r.end().unwrap_or(u64::MAX);
             ValueRange::Inclusive(start..=end)
         }
-        ValueRange::GreaterThan(Some(val), _match_nulls) => ValueRange::GreaterThan(val, false),
-        ValueRange::GreaterThan(None, _match_nulls) => ValueRange::Inclusive(u64::MIN..=u64::MAX),
-        ValueRange::LessThan(None, _match_nulls) => ValueRange::Inclusive(1..=0),
-        _ => ValueRange::All,
+        ValueRange::GreaterThan(Some(val), match_nulls) => {
+            ValueRange::GreaterThan(val, match_nulls)
+        }
+        ValueRange::GreaterThan(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::All
+            } else {
+                ValueRange::Inclusive(u64::MIN..=u64::MAX)
+            }
+        }
+        ValueRange::LessThan(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::LessThan(u64::MIN, true)
+            } else {
+                ValueRange::Inclusive(1..=0)
+            }
+        }
+        ValueRange::LessThan(Some(val), match_nulls) => ValueRange::LessThan(val, match_nulls),
+        ValueRange::All => ValueRange::All,
     }
 }
 
@@ -920,5 +932,138 @@ mod tests {
             segment_sort_key_computer.convert_segment_sort_key(expected_sort_key),
             (200u32, 2u32)
         );
+    }
+}
+
+#[cfg(test)]
+mod proptest_tests {
+    use proptest::prelude::*;
+
+    use super::*;
+    use crate::collector::sort_key::order::*;
+
+    // Re-implement logic to interpret ValueRange<Option<u64>> manually to verify expectations
+    fn range_contains_opt(range: &ValueRange<Option<u64>>, val: &Option<u64>) -> bool {
+        match range {
+            ValueRange::All => true,
+            ValueRange::Inclusive(r) => r.contains(val),
+            ValueRange::GreaterThan(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val > t
+                }
+            }
+            ValueRange::LessThan(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val < t
+                }
+            }
+        }
+    }
+
+    fn range_contains_u64(range: &ValueRange<u64>, val: &u64) -> bool {
+        match range {
+            ValueRange::All => true,
+            ValueRange::Inclusive(r) => r.contains(val),
+            ValueRange::GreaterThan(t, _) => val > t,
+            ValueRange::LessThan(t, _) => val < t,
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_comparator_consistency_natural_none_is_lower(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<NaturalComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_reverse(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<ReverseComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_reverse_none_is_lower(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<ReverseNoneIsLowerComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_natural_none_is_higher(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<NaturalNoneIsHigherComparator>(threshold, val)?;
+        }
+    }
+
+    fn check_comparator<C: Comparator<Option<u64>>>(
+        threshold: Option<u64>,
+        val: Option<u64>,
+    ) -> std::result::Result<(), proptest::test_runner::TestCaseError> {
+        let comparator = C::default();
+        let range = comparator.threshold_to_valuerange(threshold);
+        let ordering = comparator.compare(&val, &threshold);
+        let should_be_in_range = ordering == Ordering::Greater;
+
+        let in_range_opt = range_contains_opt(&range, &val);
+
+        prop_assert_eq!(
+            in_range_opt,
+            should_be_in_range,
+            "Comparator consistency failed for {:?}. Threshold: {:?}, Val: {:?}, Range: {:?}, \
+             Ordering: {:?}. range_contains_opt says {}, but compare says {}",
+            std::any::type_name::<C>(),
+            threshold,
+            val,
+            range,
+            ordering,
+            in_range_opt,
+            should_be_in_range
+        );
+
+        // Check range_contains_none
+        let expected_none_in_range = range_contains_opt(&range, &None);
+        let actual_none_in_range = range_contains_none(&range);
+        prop_assert_eq!(
+            actual_none_in_range,
+            expected_none_in_range,
+            "range_contains_none failed for {:?}. Range: {:?}. Expected (from \
+             range_contains_opt): {}, Actual: {}",
+            std::any::type_name::<C>(),
+            range,
+            expected_none_in_range,
+            actual_none_in_range
+        );
+
+        // Check convert_optional_u64_range_to_u64_range
+        let u64_range = convert_optional_u64_range_to_u64_range(range.clone());
+        if let Some(v) = val {
+            let in_u64_range = range_contains_u64(&u64_range, &v);
+            let in_opt_range = range_contains_opt(&range, &Some(v));
+            prop_assert_eq!(
+                in_u64_range,
+                in_opt_range,
+                "convert_optional_u64_range_to_u64_range failed for {:?}. Val: {:?}, OptRange: \
+                 {:?}, U64Range: {:?}. Opt says {}, U64 says {}",
+                std::any::type_name::<C>(),
+                v,
+                range,
+                u64_range,
+                in_opt_range,
+                in_u64_range
+            );
+        }
+        Ok(())
     }
 }
