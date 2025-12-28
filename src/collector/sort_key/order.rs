@@ -88,7 +88,6 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     }
 
     /// Return a `ValueRange` that matches all values that are greater than the provided threshold.
-    #[allow(dead_code)]
     fn threshold_to_valuerange(&self, threshold: T) -> ValueRange<T>;
 }
 
