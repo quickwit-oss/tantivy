@@ -527,7 +527,7 @@ pub struct TopNComputer<Score, D, C, Buffer = ()> {
     pub(crate) threshold: Option<Score>,
     comparator: C,
     #[serde(skip)]
-    pub scratch: Buffer,
+    scratch: Buffer,
 }
 
 // Intermediate struct for TopNComputer for deserialization, to keep vec capacity
@@ -663,10 +663,6 @@ where
             debug_assert!(self.buffer.len() + additional <= self.buffer.capacity());
             self.threshold = Some(median);
         }
-    }
-
-    pub(crate) fn buffer(&mut self) -> &mut Vec<ComparableDoc<TSortKey, D>> {
-        &mut self.buffer
     }
 
     pub(crate) fn buffer_and_scratch(

@@ -4,7 +4,6 @@ use columnar::ValueRange;
 
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
-use crate::collector::top_score_collector::push_assuming_capacity;
 use crate::collector::{
     default_collect_segment_impl, ComparableDoc, SegmentCollector as _, TopNComputer,
 };
@@ -96,27 +95,6 @@ pub trait SegmentSortKeyComputer: 'static {
         right: &Self::SegmentSortKey,
     ) -> Ordering {
         self.segment_comparator().compare(left, right)
-    }
-
-    /// Similar to `accept_sort_key_lazy`, but pushes results directly into the given buffer. Does
-    /// not support scoring.
-    ///
-    /// The buffer must have at least enough capacity for `docs` matches, or this method will
-    /// panic.
-    fn accept_sort_key_block_lazy(
-        &mut self,
-        docs: &[DocId],
-        threshold: &Self::SegmentSortKey,
-        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
-    ) {
-        let comparator = self.segment_comparator();
-        for &doc in docs {
-            let sort_key = self.segment_sort_key(doc, 0.0);
-            let cmp = comparator.compare(&sort_key, threshold);
-            if cmp != Ordering::Less {
-                push_assuming_capacity(ComparableDoc { sort_key, doc }, output);
-            }
-        }
     }
 
     /// Convert a segment level sort key into the global sort key.
@@ -323,12 +301,78 @@ where
 
     fn segment_sort_keys(
         &mut self,
-        _input_docs: &[DocId],
-        _output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
-        _buffer: &mut Self::Buffer,
-        _filter: ValueRange<Self::SegmentSortKey>,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
     ) {
-        unimplemented!("The head and the tail are accessed independently.");
+        let (head_filter, threshold) = match filter {
+            ValueRange::GreaterThan((head_threshold, tail_threshold), _)
+            | ValueRange::LessThan((head_threshold, tail_threshold), _) => {
+                let head_cmp = self.head.segment_comparator();
+                let head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
+                (head_filter, Some((head_threshold, tail_threshold)))
+            }
+            _ => (ValueRange::All, None),
+        };
+
+        buffer.head_output.clear();
+        self.head.segment_sort_keys(
+            input_docs,
+            &mut buffer.head_output,
+            &mut buffer.head,
+            head_filter,
+        );
+
+        if buffer.head_output.is_empty() {
+            return;
+        }
+
+        buffer.tail_output.clear();
+        buffer.tail_input_docs.clear();
+        for cd in &buffer.head_output {
+            buffer.tail_input_docs.push(cd.doc);
+        }
+
+        self.tail.segment_sort_keys(
+            &buffer.tail_input_docs,
+            &mut buffer.tail_output,
+            &mut buffer.tail,
+            ValueRange::All,
+        );
+
+        let head_cmp = self.head.segment_comparator();
+        let tail_cmp = self.tail.segment_comparator();
+
+        for (head_doc, tail_doc) in buffer
+            .head_output
+            .drain(..)
+            .zip(buffer.tail_output.drain(..))
+        {
+            debug_assert_eq!(head_doc.doc, tail_doc.doc);
+            let doc = head_doc.doc;
+            let head_key = head_doc.sort_key;
+            let tail_key = tail_doc.sort_key;
+
+            let accept = if let Some((head_threshold, tail_threshold)) = &threshold {
+                let head_ord = head_cmp.compare(&head_key, head_threshold);
+                let ord = if head_ord == Ordering::Equal {
+                    tail_cmp.compare(&tail_key, tail_threshold)
+                } else {
+                    head_ord
+                };
+                ord == Ordering::Greater
+            } else {
+                true
+            };
+
+            if accept {
+                output.push(ComparableDoc {
+                    sort_key: (head_key, tail_key),
+                    doc,
+                });
+            }
+        }
     }
 
     #[inline(always)]
@@ -349,118 +393,6 @@ where
             sort_key = self.segment_sort_key(doc, score);
         };
         top_n_computer.append_doc(doc, sort_key);
-    }
-
-    fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
-        &mut self,
-        docs: &[DocId],
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
-    ) {
-        // The capacity of a TopNComputer is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so we
-        // should always be able to `reserve` space for the entire block.
-        top_n_computer.reserve(docs.len());
-
-        let mut scratch = std::mem::take(&mut top_n_computer.scratch);
-
-        if let Some(threshold) = &top_n_computer.threshold {
-            let (head_threshold, tail_threshold) = threshold.clone();
-            let head_cmp = self.head.segment_comparator();
-            let tail_cmp = self.tail.segment_comparator();
-            let head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
-
-            scratch.head_output.clear();
-            self.head.segment_sort_keys(
-                docs,
-                &mut scratch.head_output,
-                &mut scratch.head,
-                head_filter,
-            );
-
-            if !scratch.head_output.is_empty() {
-                scratch.tail_output.clear();
-                scratch.tail_input_docs.clear();
-                for cd in &scratch.head_output {
-                    scratch.tail_input_docs.push(cd.doc);
-                }
-
-                self.tail.segment_sort_keys(
-                    &scratch.tail_input_docs,
-                    &mut scratch.tail_output,
-                    &mut scratch.tail,
-                    ValueRange::All,
-                );
-
-                for (head_doc, tail_doc) in scratch
-                    .head_output
-                    .drain(..)
-                    .zip(scratch.tail_output.drain(..))
-                {
-                    debug_assert_eq!(head_doc.doc, tail_doc.doc);
-                    let doc = head_doc.doc;
-                    let head_key = head_doc.sort_key;
-                    let tail_key = tail_doc.sort_key;
-
-                    let head_ord = head_cmp.compare(&head_key, &head_threshold);
-                    let ord = if head_ord == Ordering::Equal {
-                        tail_cmp.compare(&tail_key, &tail_threshold)
-                    } else {
-                        head_ord
-                    };
-                    if ord == Ordering::Greater {
-                        push_assuming_capacity(
-                            ComparableDoc {
-                                sort_key: (head_key, tail_key),
-                                doc,
-                            },
-                            top_n_computer.buffer(),
-                        );
-                    }
-                }
-            }
-        } else {
-            // Eagerly push, without a threshold to compare to.
-            scratch.head_output.clear();
-            self.head.segment_sort_keys(
-                docs,
-                &mut scratch.head_output,
-                &mut scratch.head,
-                ValueRange::All,
-            );
-
-            scratch.tail_output.clear();
-            scratch.tail_input_docs.clear();
-            for cd in &scratch.head_output {
-                scratch.tail_input_docs.push(cd.doc);
-            }
-
-            self.tail.segment_sort_keys(
-                &scratch.tail_input_docs,
-                &mut scratch.tail_output,
-                &mut scratch.tail,
-                ValueRange::All,
-            );
-
-            for (head_doc, tail_doc) in scratch
-                .head_output
-                .drain(..)
-                .zip(scratch.tail_output.drain(..))
-            {
-                debug_assert_eq!(head_doc.doc, tail_doc.doc);
-                let doc = head_doc.doc;
-                let head_key = head_doc.sort_key;
-                let tail_key = tail_doc.sort_key;
-
-                // We validated at the top of the method that we have capacity.
-                push_assuming_capacity(
-                    ComparableDoc {
-                        sort_key: (head_key, tail_key),
-                        doc,
-                    },
-                    top_n_computer.buffer(),
-                );
-            }
-        }
-        top_n_computer.scratch = scratch;
     }
 
     #[inline(always)]
