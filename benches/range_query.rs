@@ -253,7 +253,7 @@ fn execute_query_(query: &str, index: &Index) -> NumHits {
     let reader = index.reader().unwrap();
     let searcher = reader.searcher();
     let num_hits = searcher
-        .search(&query, &(TopDocs::with_limit(10), Count))
+        .search(&query, &(TopDocs::with_limit(10).order_by_score(), Count))
         .unwrap()
         .1;
     NumHits { count: num_hits }

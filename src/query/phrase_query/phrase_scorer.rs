@@ -560,15 +560,6 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         // 10 * self.num_terms.
         self.intersection_docset.size_hint() as u64 * 10 * self.num_terms as u64
     }
-
-    /// Returns a best-effort hint of the
-    /// cost to drive the docset.
-    fn cost(&self) -> u64 {
-        // Evaluating phrase matches is generally more expensive than simple term matches,
-        // as it requires loading and comparing positions. Use a conservative multiplier
-        // based on the number of terms.
-        self.intersection_docset.size_hint() as u64 * 10 * self.num_terms as u64
-    }
 }
 
 impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {

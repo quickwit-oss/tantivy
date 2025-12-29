@@ -1,6 +1,5 @@
 use super::size_hint::estimate_intersection;
 use crate::docset::{DocSet, TERMINATED};
-use crate::query::size_hint::estimate_intersection;
 use crate::query::term_query::TermScorer;
 use crate::query::{EmptyScorer, Scorer};
 use crate::{DocId, Score};
