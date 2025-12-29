@@ -310,7 +310,12 @@ where
             ValueRange::GreaterThan((head_threshold, tail_threshold), _)
             | ValueRange::LessThan((head_threshold, tail_threshold), _) => {
                 let head_cmp = self.head.segment_comparator();
-                let head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
+                let strict_head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
+                let head_filter = match strict_head_filter {
+                    ValueRange::GreaterThan(t, m) => ValueRange::GreaterThanOrEqual(t, m),
+                    ValueRange::LessThan(t, m) => ValueRange::LessThanOrEqual(t, m),
+                    other => other,
+                };
                 (head_filter, Some((head_threshold, tail_threshold)))
             }
             _ => (ValueRange::All, None),
@@ -676,7 +681,9 @@ pub(crate) fn range_contains_none(range: &ValueRange<Option<u64>>) -> bool {
         ValueRange::All => true,
         ValueRange::Inclusive(r) => r.contains(&None),
         ValueRange::GreaterThan(_threshold, match_nulls) => *match_nulls,
+        ValueRange::GreaterThanOrEqual(_threshold, match_nulls) => *match_nulls,
         ValueRange::LessThan(_threshold, match_nulls) => *match_nulls,
+        ValueRange::LessThanOrEqual(_threshold, match_nulls) => *match_nulls,
     }
 }
 
@@ -699,6 +706,16 @@ pub(crate) fn convert_optional_u64_range_to_u64_range(
                 ValueRange::Inclusive(u64::MIN..=u64::MAX)
             }
         }
+        ValueRange::GreaterThanOrEqual(Some(val), match_nulls) => {
+            ValueRange::GreaterThanOrEqual(val, match_nulls)
+        }
+        ValueRange::GreaterThanOrEqual(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::All
+            } else {
+                ValueRange::Inclusive(u64::MIN..=u64::MAX)
+            }
+        }
         ValueRange::LessThan(None, match_nulls) => {
             if match_nulls {
                 ValueRange::LessThan(u64::MIN, true)
@@ -707,6 +724,16 @@ pub(crate) fn convert_optional_u64_range_to_u64_range(
             }
         }
         ValueRange::LessThan(Some(val), match_nulls) => ValueRange::LessThan(val, match_nulls),
+        ValueRange::LessThanOrEqual(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::LessThan(u64::MIN, true)
+            } else {
+                ValueRange::Inclusive(1..=0)
+            }
+        }
+        ValueRange::LessThanOrEqual(Some(val), match_nulls) => {
+            ValueRange::LessThanOrEqual(val, match_nulls)
+        }
         ValueRange::All => ValueRange::All,
     }
 }
@@ -717,7 +744,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Arc;
 
-    use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+    use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
     use crate::schema::Schema;
     use crate::{DocId, Index, Order, SegmentReader};
 
@@ -865,6 +892,31 @@ mod tests {
             (200u32, 2u32)
         );
     }
+    #[test]
+    fn test_batch_score_computer_edge_case() {
+        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
+        let score_computer_secondary = |_segment_reader: &SegmentReader| |_doc: DocId| "b";
+        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
+        let index = build_test_index();
+        let searcher = index.reader().unwrap().searcher();
+        let mut segment_sort_key_computer = lazy_score_computer
+            .segment_sort_key_computer(searcher.segment_reader(0))
+            .unwrap();
+
+        let mut top_n_computer =
+            TopNComputer::new_with_comparator(10, lazy_score_computer.comparator());
+        // Threshold (200, "a"). Doc is (200, "b"). 200 == 200, "b" > "a". Should be accepted.
+        top_n_computer.threshold = Some((200, "a"));
+
+        let docs = vec![0];
+        segment_sort_key_computer.compute_sort_keys_and_collect(&docs, &mut top_n_computer);
+
+        let results = top_n_computer.into_sorted_vec();
+        assert_eq!(results.len(), 1);
+        let result = &results[0];
+        assert_eq!(result.doc, 0);
+        assert_eq!(result.sort_key, (200, "b"));
+    }
 }
 
 #[cfg(test)]
@@ -886,11 +938,25 @@ mod proptest_tests {
                     val > t
                 }
             }
+            ValueRange::GreaterThanOrEqual(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val >= t
+                }
+            }
             ValueRange::LessThan(t, match_nulls) => {
                 if val.is_none() {
                     *match_nulls
                 } else {
                     val < t
+                }
+            }
+            ValueRange::LessThanOrEqual(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val <= t
                 }
             }
         }
@@ -901,7 +967,9 @@ mod proptest_tests {
             ValueRange::All => true,
             ValueRange::Inclusive(r) => r.contains(val),
             ValueRange::GreaterThan(t, _) => val > t,
+            ValueRange::GreaterThanOrEqual(t, _) => val >= t,
             ValueRange::LessThan(t, _) => val < t,
+            ValueRange::LessThanOrEqual(t, _) => val <= t,
         }
     }
 

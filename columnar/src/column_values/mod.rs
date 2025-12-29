@@ -251,6 +251,51 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     read_head += 4;
                 }
             }
+            ValueRange::GreaterThanOrEqual(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc0,
+                            sort_key: Some(val0),
+                        });
+                    }
+                    if val1 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc1,
+                            sort_key: Some(val1),
+                        });
+                    }
+                    if val2 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc2,
+                            sort_key: Some(val2),
+                        });
+                    }
+                    if val3 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc3,
+                            sort_key: Some(val3),
+                        });
+                    }
+
+                    read_head += 4;
+                }
+            }
             ValueRange::LessThan(ref threshold, _) => {
                 while read_head + 3 < len {
                     let idx0 = input_indexes[read_head];
@@ -296,6 +341,51 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     read_head += 4;
                 }
             }
+            ValueRange::LessThanOrEqual(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc0,
+                            sort_key: Some(val0),
+                        });
+                    }
+                    if val1 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc1,
+                            sort_key: Some(val1),
+                        });
+                    }
+                    if val2 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc2,
+                            sort_key: Some(val2),
+                        });
+                    }
+                    if val3 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc3,
+                            sort_key: Some(val3),
+                        });
+                    }
+
+                    read_head += 4;
+                }
+            }
         }
         // Process remaining elements (0 to 3)
         while read_head < len {
@@ -307,7 +397,9 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                 ValueRange::All => true,
                 ValueRange::Inclusive(ref r) => r.contains(&val),
                 ValueRange::GreaterThan(ref t, _) => val > *t,
+                ValueRange::GreaterThanOrEqual(ref t, _) => val >= *t,
                 ValueRange::LessThan(ref t, _) => val < *t,
+                ValueRange::LessThanOrEqual(ref t, _) => val <= *t,
             };
             if matches {
                 output.push(crate::ComparableDoc {
@@ -361,10 +453,26 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
                     }
                 }
             }
+            ValueRange::GreaterThanOrEqual(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val >= threshold {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
             ValueRange::LessThan(threshold, _) => {
                 for idx in row_id_range {
                     let val = self.get_val(idx);
                     if val < threshold {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::LessThanOrEqual(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val <= threshold {
                         row_id_hits.push(idx);
                     }
                 }

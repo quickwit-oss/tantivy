@@ -168,7 +168,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                     ValueRange::All => true,
                     ValueRange::Inclusive(_) => false,
                     ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::GreaterThanOrEqual(_, nulls_match) => *nulls_match,
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThanOrEqual(_, nulls_match) => *nulls_match,
                 };
                 if nulls_match {
                     for &doc in input_docs {
@@ -188,7 +190,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                     ValueRange::All => true,
                     ValueRange::Inclusive(_) => false,
                     ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::GreaterThanOrEqual(_, nulls_match) => *nulls_match,
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThanOrEqual(_, nulls_match) => *nulls_match,
                 };
 
                 let fallback_needed = ROWS.with(|rows_cell| {
@@ -233,7 +237,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                                 ValueRange::All => true,
                                 ValueRange::Inclusive(r) => r.contains(&val),
                                 ValueRange::GreaterThan(t, _) => val > *t,
+                                ValueRange::GreaterThanOrEqual(t, _) => val >= *t,
                                 ValueRange::LessThan(t, _) => val < *t,
+                                ValueRange::LessThanOrEqual(t, _) => val <= *t,
                             };
 
                             if value_matches {
@@ -256,7 +262,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                     ValueRange::All => true,
                     ValueRange::Inclusive(_) => false,
                     ValueRange::GreaterThan(_, nulls_match) => *nulls_match,
+                    ValueRange::GreaterThanOrEqual(_, nulls_match) => *nulls_match,
                     ValueRange::LessThan(_, nulls_match) => *nulls_match,
+                    ValueRange::LessThanOrEqual(_, nulls_match) => *nulls_match,
                 };
                 for i in 0..input_docs.len() {
                     let docid = input_docs[i];
@@ -268,7 +276,9 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static + Default> Column<T> {
                             ValueRange::All => true,
                             ValueRange::Inclusive(r) => r.contains(&val),
                             ValueRange::GreaterThan(t, _) => val > *t,
+                            ValueRange::GreaterThanOrEqual(t, _) => val >= *t,
                             ValueRange::LessThan(t, _) => val < *t,
+                            ValueRange::LessThanOrEqual(t, _) => val <= *t,
                         };
                         if matches {
                             output.push(crate::ComparableDoc {
@@ -303,9 +313,15 @@ pub enum ValueRange<T> {
     /// A range that matches all values greater than the threshold.
     /// The boolean flag indicates if null values should be included.
     GreaterThan(T, bool),
+    /// A range that matches all values greater than or equal to the threshold.
+    /// The boolean flag indicates if null values should be included.
+    GreaterThanOrEqual(T, bool),
     /// A range that matches all values less than the threshold.
     /// The boolean flag indicates if null values should be included.
     LessThan(T, bool),
+    /// A range that matches all values less than or equal to the threshold.
+    /// The boolean flag indicates if null values should be included.
+    LessThanOrEqual(T, bool),
 }
 
 impl BinarySerializable for Cardinality {
