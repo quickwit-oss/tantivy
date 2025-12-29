@@ -41,12 +41,6 @@ fn transform_range_before_linear_transformation(
     if range.is_empty() {
         return None;
     }
-    if stats.min_value > *range.end() {
-        return None;
-    }
-    if stats.max_value < *range.start() {
-        return None;
-    }
     let shifted_range =
         range.start().saturating_sub(stats.min_value)..=range.end().saturating_sub(stats.min_value);
     let start_before_gcd_multiplication: u64 = div_ceil(*shifted_range.start(), stats.gcd);
