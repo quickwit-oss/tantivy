@@ -4,7 +4,7 @@ use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{BlockSegmentPostings, Postings};
+use crate::postings::{BlockSegmentPostings, BlockSegmentPostingsNotLoaded, Postings};
 use crate::{DocId, TERMINATED};
 
 /// `SegmentPostings` represents the inverted list or postings associated with
@@ -86,7 +86,7 @@ impl SegmentPostings {
             IndexRecordOption::Basic,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None)
+        SegmentPostings::from_block_postings(block_segment_postings, None, 0)
     }
 
     /// Helper functions to create `SegmentPostings` for tests.
@@ -134,21 +134,22 @@ impl SegmentPostings {
             IndexRecordOption::WithFreqs,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None)
+        SegmentPostings::from_block_postings(block_segment_postings, None, 0)
     }
 
-    /// Reads a Segment postings from an &[u8]
-    ///
-    /// * `len` - number of document in the posting lists.
-    /// * `data` - data array. The complete data is not necessarily used.
-    /// * `freq_handler` - the freq handler is in charge of decoding frequencies and/or positions
+    /// Creates a Segment Postings from a
+    /// - `BlockSegmentPostings`,
+    /// - a position reader
+    /// - a target document to seek to
     pub(crate) fn from_block_postings(
-        segment_block_postings: BlockSegmentPostings,
+        segment_block_postings: BlockSegmentPostingsNotLoaded,
         position_reader: Option<PositionReader>,
+        seek_doc: DocId,
     ) -> SegmentPostings {
+        let (block_cursor, cur) = segment_block_postings.seek_and_load(seek_doc);
         SegmentPostings {
-            block_cursor: segment_block_postings,
-            cur: 0, // cursor within the block
+            block_cursor,
+            cur,
             position_reader,
         }
     }

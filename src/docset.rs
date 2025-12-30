@@ -42,6 +42,7 @@ pub trait DocSet: Send {
     /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a `DocSet`.
     ///
     /// `target` has to be larger or equal to `.doc()` when calling `seek`.
+    /// If `target` is equal to `.doc()` then the DocSet should not advance.
     fn seek(&mut self, target: DocId) -> DocId {
         let mut doc = self.doc();
         debug_assert!(doc <= target);
@@ -164,6 +165,19 @@ pub trait DocSet: Send {
         }
         count
     }
+}
+
+/// Consumes the `DocSet` and returns a Vec with all of the docs in the DocSet
+/// including the current doc.
+#[cfg(test)]
+pub fn docset_to_doc_vec(mut doc_set: Box<dyn DocSet>) -> Vec<DocId> {
+    let mut output = Vec::new();
+    let mut doc = doc_set.doc();
+    while doc != TERMINATED {
+        output.push(doc);
+        doc = doc_set.advance();
+    }
+    output
 }
 
 impl DocSet for &mut dyn DocSet {

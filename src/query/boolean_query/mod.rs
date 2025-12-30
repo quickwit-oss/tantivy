@@ -57,7 +57,7 @@ mod tests {
         let query = query_parser.parse_query("+a")?;
         let searcher = index.reader()?.searcher();
         let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
-        let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+        let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
         assert!(scorer.is::<TermScorer>());
         Ok(())
     }
@@ -70,13 +70,13 @@ mod tests {
         {
             let query = query_parser.parse_query("+a +b +c")?;
             let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
             assert!(scorer.is::<Intersection<TermScorer>>());
         }
         {
             let query = query_parser.parse_query("+a +(b c)")?;
             let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
             assert!(scorer.is::<Intersection<Box<dyn Scorer>>>());
         }
         Ok(())
@@ -90,14 +90,14 @@ mod tests {
         {
             let query = query_parser.parse_query("+a b")?;
             let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
             assert!(scorer
                 .is::<RequiredOptionalScorer<Box<dyn Scorer>, Box<dyn Scorer>, SumCombiner>>());
         }
         {
             let query = query_parser.parse_query("+a b")?;
             let weight = query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
             assert!(scorer.is::<TermScorer>());
         }
         Ok(())
@@ -244,12 +244,14 @@ mod tests {
             .weight(EnableScoring::enabled_from_searcher(&searcher))
             .unwrap();
         {
-            let mut boolean_scorer = boolean_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+            let mut boolean_scorer =
+                boolean_weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
             assert_eq!(boolean_scorer.doc(), 0u32);
             assert_nearly_equals!(boolean_scorer.score(), 0.84163445);
         }
         {
-            let mut boolean_scorer = boolean_weight.scorer(searcher.segment_reader(0u32), 2.0)?;
+            let mut boolean_scorer =
+                boolean_weight.scorer(searcher.segment_reader(0u32), 2.0, 0)?;
             assert_eq!(boolean_scorer.doc(), 0u32);
             assert_nearly_equals!(boolean_scorer.score(), 1.6832689);
         }
@@ -343,7 +345,7 @@ mod tests {
                 (Occur::Must, term_match_some.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32, 0)?;
             assert!(scorer.is::<TermScorer>());
         }
         {
@@ -353,7 +355,7 @@ mod tests {
                 (Occur::Must, term_match_none.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32, 0)?;
             assert!(scorer.is::<EmptyScorer>());
         }
         {
@@ -362,7 +364,7 @@ mod tests {
                 (Occur::Should, term_match_none.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32, 0)?;
             assert!(scorer.is::<AllScorer>());
         }
         {
@@ -371,7 +373,7 @@ mod tests {
                 (Occur::Should, term_match_none.box_clone()),
             ]);
             let weight = query.weight(EnableScoring::disabled_from_searcher(&searcher))?;
-            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+            let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0f32, 0)?;
             assert!(scorer.is::<TermScorer>());
         }
         Ok(())

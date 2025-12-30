@@ -249,7 +249,12 @@ mod tests {
 
     struct DummyWeight;
     impl Weight for DummyWeight {
-        fn scorer(&self, _reader: &SegmentReader, _boost: Score) -> crate::Result<Box<dyn Scorer>> {
+        fn scorer(
+            &self,
+            _reader: &SegmentReader,
+            _boost: Score,
+            _seek_doc: DocId,
+        ) -> crate::Result<Box<dyn Scorer>> {
             Err(crate::TantivyError::InternalError("dummy impl".to_owned()))
         }
 
