@@ -817,7 +817,6 @@ mod proptest_boolean_query {
     fn proptest_boolean_query() {
         // In the presence of optimizations around buffering, it can take large numbers of
         // documents to uncover some issues.
-        let num_docs = 10000;
         let num_fields = 8;
         let num_docs = 1 << num_fields;
         let (index, fields, range_field) =

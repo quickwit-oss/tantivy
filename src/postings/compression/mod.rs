@@ -9,6 +9,7 @@ const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * MAX_VINT_SIZE;
 mod vint;
 
 /// Returns the size in bytes of a compressed block, given `num_bits`.
+#[inline]
 pub fn compressed_block_size(num_bits: u8) -> usize {
     (num_bits as usize) * COMPRESSION_BLOCK_SIZE / 8
 }

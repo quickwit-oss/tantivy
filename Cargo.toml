@@ -75,12 +75,12 @@ typetag = "0.2.21"
 winapi = "0.3.9"
 
 [dev-dependencies]
-binggan = "0.14.0"
+binggan = "0.14.2"
 rand = "0.8.5"
 maplit = "1.0.2"
 matches = "0.1.9"
 pretty_assertions = "1.2.1"
-proptest = "1.0.0"
+proptest = "1.7.0"
 test-log = "0.2.10"
 futures = "0.3.21"
 paste = "1.0.11"
@@ -171,6 +171,10 @@ harness = false
 
 [[bench]]
 name = "exists_json"
+harness = false
+
+[[bench]]
+name = "range_query"
 harness = false
 
 [[bench]]
