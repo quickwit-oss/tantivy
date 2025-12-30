@@ -1,5 +1,5 @@
 use super::size_hint::estimate_intersection;
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekIntoTheDangerZoneResult, TERMINATED};
 use crate::query::term_query::TermScorer;
 use crate::query::{EmptyScorer, Scorer};
 use crate::{DocId, Score};
@@ -117,14 +117,15 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             // of the two rarest `DocSet` in the intersection.
 
             loop {
-                if right.seek_into_the_danger_zone(candidate) {
+                let SeekIntoTheDangerZoneResult::NewTarget(right_new_target) =
+                    right.seek_into_the_danger_zone(candidate)
+                else {
                     break;
-                }
-                let right_doc = right.doc();
+                };
                 // TODO: Think about which value would make sense here
                 // It depends on the DocSet implementation, when a seek would outweigh an advance.
-                if right_doc > candidate.wrapping_add(100) {
-                    candidate = left.seek(right_doc);
+                if right_new_target > candidate.wrapping_add(100) {
+                    candidate = left.seek(right_new_target);
                 } else {
                     candidate = left.advance();
                 }
@@ -135,17 +136,20 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
 
             debug_assert_eq!(left.doc(), right.doc());
             // test the remaining scorers
-            if self
-                .others
-                .iter_mut()
-                .all(|docset| docset.seek_into_the_danger_zone(candidate))
-            {
-                debug_assert_eq!(candidate, self.left.doc());
-                debug_assert_eq!(candidate, self.right.doc());
-                debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));
-                return candidate;
+            for other in &mut self.others {
+                if let SeekIntoTheDangerZoneResult::NewTarget(new_target) = other.seek_into_the_danger_zone(candidate) {
+                    if new_target > candidate.wrapping_add(100) {
+                        candidate = left.seek(new_target);
+                    } else {
+                        candidate = left.advance();
+                    }
+                    continue;
+                }
             }
-            candidate = left.advance();
+            debug_assert_eq!(candidate, self.left.doc());
+            debug_assert_eq!(candidate, self.right.doc());
+            debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));
+            return candidate;
         }
     }
 
@@ -165,13 +169,25 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
     ///
     /// Some implementations may choose to advance past the target if beneficial for performance.
     /// The return value is `true` if the target is in the docset, and `false` otherwise.
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        self.left.seek_into_the_danger_zone(target)
-            && self.right.seek_into_the_danger_zone(target)
-            && self
-                .others
-                .iter_mut()
-                .all(|docset| docset.seek_into_the_danger_zone(target))
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
+        if let SeekIntoTheDangerZoneResult::NewTarget(new_target) =
+            self.left.seek_into_the_danger_zone(target)
+        {
+            return SeekIntoTheDangerZoneResult::NewTarget(new_target);
+        }
+        if let SeekIntoTheDangerZoneResult::NewTarget(new_target) =
+            self.right.seek_into_the_danger_zone(target)
+        {
+            return SeekIntoTheDangerZoneResult::NewTarget(new_target);
+        }
+        for docset in &mut self.others {
+            if let SeekIntoTheDangerZoneResult::NewTarget(new_target) =
+                docset.seek_into_the_danger_zone(target)
+            {
+                return SeekIntoTheDangerZoneResult::NewTarget(new_target);
+            }
+        }
+        SeekIntoTheDangerZoneResult::Found
     }
 
     fn doc(&self) -> DocId {

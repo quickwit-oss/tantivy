@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekIntoTheDangerZoneResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
@@ -193,11 +193,16 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        if self.phrase_scorer.seek_into_the_danger_zone(target) {
-            self.matches_prefix()
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
+        if let SeekIntoTheDangerZoneResult::NewTarget(new_target) =
+            self.phrase_scorer.seek_into_the_danger_zone(target)
+        {
+            return SeekIntoTheDangerZoneResult::NewTarget(new_target);
+        }
+        if self.matches_prefix() {
+            SeekIntoTheDangerZoneResult::Found
         } else {
-            false
+            SeekIntoTheDangerZoneResult::NewTarget(target)
         }
     }
 
