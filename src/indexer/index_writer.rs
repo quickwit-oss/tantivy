@@ -303,7 +303,7 @@ impl<D: Document> IndexWriter<D> {
         let (document_sender, document_receiver) =
             crossbeam_channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
-        let delete_queue = DeleteQueue::new();
+        let delete_queue = DeleteQueue::default();
 
         let current_opstamp = index.load_metas()?.opstamp;
 

@@ -28,19 +28,12 @@ struct InnerDeleteQueue {
 /// Several consumers can hold a reference to it. Delete operations
 /// get dropped/gc'ed when no more consumers are holding a reference
 /// to them.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct DeleteQueue {
     inner: Arc<RwLock<InnerDeleteQueue>>,
 }
 
 impl DeleteQueue {
-    /// Creates a new empty delete queue.
-    pub fn new() -> DeleteQueue {
-        DeleteQueue {
-            inner: Arc::default(),
-        }
-    }
-
     fn get_last_block(&self) -> Arc<Block> {
         {
             // try get the last block with simply acquiring the read lock.
@@ -267,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_deletequeue() {
-        let delete_queue = DeleteQueue::new();
+        let delete_queue = DeleteQueue::default();
 
         let make_op = |i: usize| DeleteOperation {
             opstamp: i as u64,
