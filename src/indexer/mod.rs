@@ -4,6 +4,7 @@
 //! `IndexWriter` is the main entry point for that, which created from
 //! [`Index::writer`](crate::Index::writer).
 
+/// Delete queue implementation for broadcasting delete operations to consumers.
 pub(crate) mod delete_queue;
 pub(crate) mod path_to_unordered_id;
 

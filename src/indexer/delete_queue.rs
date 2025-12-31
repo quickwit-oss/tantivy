@@ -4,19 +4,20 @@ use std::sync::{Arc, RwLock, Weak};
 use super::operation::DeleteOperation;
 use crate::Opstamp;
 
-// The DeleteQueue is similar in conceptually to a multiple
-// consumer single producer broadcast channel.
-//
-// All consumer will receive all messages.
-//
-// Consumer of the delete queue are holding a `DeleteCursor`,
-// which points to a specific place of the `DeleteQueue`.
-//
-// New consumer can be created in two ways
-// - calling `delete_queue.cursor()` returns a cursor, that will include all future delete operation
-//   (and some or none of the past operations... The client is in charge of checking the opstamps.).
-// - cloning an existing cursor returns a new cursor, that is at the exact same position, and can
-//   now advance independently from the original cursor.
+/// The DeleteQueue is similar in conceptually to a multiple
+/// consumer single producer broadcast channel.
+///
+/// All consumer will receive all messages.
+///
+/// Consumer of the delete queue are holding a `DeleteCursor`,
+/// which points to a specific place of the `DeleteQueue`.
+///
+/// New consumer can be created in two ways
+/// - calling `delete_queue.cursor()` returns a cursor, that will include all future delete
+///   operation (and some or none of the past operations... The client is in charge of checking the
+///   opstamps.).
+/// - cloning an existing cursor returns a new cursor, that is at the exact same position, and can
+///   now advance independently from the original cursor.
 #[derive(Default)]
 struct InnerDeleteQueue {
     writer: Vec<DeleteOperation>,
