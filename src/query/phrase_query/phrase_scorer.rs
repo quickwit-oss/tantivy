@@ -563,6 +563,7 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
 }
 
 impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);

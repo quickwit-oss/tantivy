@@ -105,6 +105,7 @@ impl DocSet for AllScorer {
 }
 
 impl Scorer for AllScorer {
+    #[inline]
     fn score(&mut self) -> Score {
         1.0
     }

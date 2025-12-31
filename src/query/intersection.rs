@@ -105,6 +105,7 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
 }
 
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
+    #[inline]
     fn advance(&mut self) -> DocId {
         let (left, right) = (&mut self.left, &mut self.right);
         let mut candidate = left.advance();
@@ -174,6 +175,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                 .all(|docset| docset.seek_into_the_danger_zone(target))
     }
 
+    #[inline]
     fn doc(&self) -> DocId {
         self.left.doc()
     }
@@ -200,6 +202,7 @@ where
     TScorer: Scorer,
     TOtherScorer: Scorer,
 {
+    #[inline]
     fn score(&mut self) -> Score {
         self.left.score()
             + self.right.score()

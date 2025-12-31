@@ -119,6 +119,7 @@ impl DocSet for TermScorer {
 }
 
 impl Scorer for TermScorer {
+    #[inline]
     fn score(&mut self) -> Score {
         let fieldnorm_id = self.fieldnorm_id();
         let term_freq = self.term_freq();

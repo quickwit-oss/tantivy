@@ -128,6 +128,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         }
     }
 
+    #[inline]
     fn advance_buffered(&mut self) -> bool {
         while self.bucket_idx < HORIZON_NUM_TINYBITSETS {
             if let Some(val) = self.bitsets[self.bucket_idx].pop_lowest() {
@@ -156,6 +157,7 @@ where
     TScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
+    #[inline]
     fn advance(&mut self) -> DocId {
         if self.advance_buffered() {
             return self.doc;
@@ -245,6 +247,7 @@ where
         }
     }
 
+    #[inline]
     fn doc(&self) -> DocId {
         self.doc
     }
@@ -286,6 +289,7 @@ where
     TScoreCombiner: ScoreCombiner,
     TScorer: Scorer,
 {
+    #[inline]
     fn score(&mut self) -> Score {
         self.score
     }
