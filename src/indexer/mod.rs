@@ -4,7 +4,7 @@
 //! `IndexWriter` is the main entry point for that, which created from
 //! [`Index::writer`](crate::Index::writer).
 
-pub mod delete_queue;
+pub(crate) mod delete_queue;
 pub(crate) mod path_to_unordered_id;
 
 pub(crate) mod doc_id_mapping;

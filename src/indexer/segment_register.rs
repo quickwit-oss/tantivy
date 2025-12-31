@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_segment_register() {
         let inventory = SegmentMetaInventory::default();
-        let delete_queue = DeleteQueue::new();
+        let delete_queue = DeleteQueue::default();
 
         let mut segment_register = SegmentRegister::default();
         let segment_id_a = SegmentId::generate_random();

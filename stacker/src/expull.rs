@@ -117,7 +117,7 @@ impl ExpUnrolledLinkedListWriter<'_> {
 fn get_block_size(block_num: u32) -> u16 {
     // Cap at 15 to prevent block sizes > 32KB
     // block_num can now be much larger than 15, but block size maxes out
-    let exp = block_num.min(15) as u32;
+    let exp: u32 = block_num.min(15u32);
     (1u32 << exp) as u16
 }
 
@@ -309,6 +309,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::needless_range_loop)]
     fn test_large_dataset_simulation() {
         // Simulate the scenario: large arrays requiring many blocks
         // We write enough data to require thousands of blocks
@@ -452,8 +453,10 @@ mod tests {
     fn test_increment_overflow_protection() {
         // Test that we panic gracefully if we somehow hit u32::MAX
         // This is extremely unlikely in practice (would require 128TB of data)
-        let mut eull = ExpUnrolledLinkedList::default();
-        eull.block_num = u32::MAX;
+        let mut eull = ExpUnrolledLinkedList {
+            block_num: u32::MAX,
+            ..Default::default()
+        };
 
         // This should panic with our custom error message
         eull.increment_num_blocks();
