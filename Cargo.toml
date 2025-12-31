@@ -184,3 +184,7 @@ harness = false
 [[bench]]
 name = "range_queries"
 harness = false
+
+[[bench]]
+name = "bool_queries_with_range"
+harness = false
