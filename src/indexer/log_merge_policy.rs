@@ -92,7 +92,7 @@ impl MergePolicy for LogMergePolicy {
         // Filter for segments that have less than the target number of docs, count total unmerged
         // docs, and sort in descending order
         let mut unmerged_docs = 0;
-        let mut levels = segments
+        let mut sorted_segments = segments
             .iter()
             .map(|seg| (seg.num_docs() as usize, seg))
             .filter(|(docs, _)| *docs < self.target_segment_size)
@@ -107,7 +107,7 @@ impl MergePolicy for LogMergePolicy {
             let mut batch_docs = 0;
             let mut batch = Vec::new();
             // Start with the smallest segments and add them to the batch until we reach the target
-            while let Some((docs, seg)) = levels.pop() {
+            while let Some((docs, seg)) = sorted_segments.pop() {
                 batch_docs += docs;
                 batch.push(seg);
 
@@ -131,7 +131,7 @@ impl MergePolicy for LogMergePolicy {
 
         let mut current_max_log_size = f64::MAX;
         let mut batch = Vec::new();
-        levels
+        for (_, group) in sorted_segments
             .iter()
             .chunk_by(|(docs, _)| {
                 let segment_log_size = f64::from(self.clip_min_size(*docs as u32)).log2();
@@ -142,21 +142,21 @@ impl MergePolicy for LogMergePolicy {
                 current_max_log_size
             })
             .into_iter()
-            .for_each(|(_, group)| {
-                let mut hit_delete_threshold = false;
-                group.for_each(|(_, seg)| {
-                    batch.push(seg.id());
-                    if !hit_delete_threshold && self.segment_above_deletes_threshold(seg) {
-                        hit_delete_threshold = true;
-                    }
-                });
-
-                if batch.len() >= self.min_num_segments || hit_delete_threshold {
-                    candidates.push(MergeCandidate(std::mem::take(&mut batch)));
-                } else {
-                    batch.clear();
+        {
+            let mut hit_delete_threshold = false;
+            for (_, segment) in group {
+                batch.push(segment.id());
+                if !hit_delete_threshold && self.segment_above_deletes_threshold(segment) {
+                    hit_delete_threshold = true;
                 }
-            });
+            }
+
+            if batch.len() >= self.min_num_segments || hit_delete_threshold {
+                candidates.push(MergeCandidate(std::mem::take(&mut batch)));
+            } else {
+                batch.clear();
+            }
+        }
 
         candidates
     }
