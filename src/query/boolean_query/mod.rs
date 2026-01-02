@@ -613,6 +613,134 @@ mod tests {
         Ok(())
     }
 
+    /// Test that the seek_doc parameter correctly skips documents in BooleanWeight::scorer.
+    ///
+    /// When seek_doc is provided, the scorer should start from that document (or the first
+    /// matching document >= seek_doc), skipping earlier documents.
+    #[test]
+    pub fn test_boolean_weight_seek_doc() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let value_field = schema_builder.add_u64_field("value", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+
+        // Create 11 documents:
+        // doc 0: value=0
+        // doc 1: value=10
+        // doc 2: value=20
+        // ...
+        // doc 9: value=90
+        // doc 10: value=50 (matches range 30-70)
+        for i in 0..10 {
+            index_writer.add_document(doc!(
+                text_field => "hello",
+                value_field => (i * 10) as u64
+            ))?;
+        }
+        index_writer.add_document(doc!(
+            text_field => "hello",
+            value_field => 50u64
+        ))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // Create a Boolean query: MUST(term "hello") AND MUST(range 30..=70)
+        // This should match docs with value in [30, 70]: docs 3, 4, 5, 6, 7, 10
+        let term_query: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "hello"),
+            IndexRecordOption::Basic,
+        ));
+        let range_query: Box<dyn Query> = Box::new(RangeQuery::new(
+            Bound::Included(Term::from_field_u64(value_field, 30)),
+            Bound::Included(Term::from_field_u64(value_field, 70)),
+        ));
+
+        let boolean_query =
+            BooleanQuery::new(vec![(Occur::Must, term_query), (Occur::Must, range_query)]);
+
+        let weight =
+            boolean_query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
+
+        let doc_when_seeking_from = |seek_from: DocId| {
+            let scorer = weight.scorer(segment_reader, 1.0f32, seek_from).unwrap();
+            crate::docset::docset_to_doc_vec(scorer)
+        };
+
+        // Expected matching docs: 3, 4, 5, 6, 7, 10 (values 30, 40, 50, 60, 70, 50)
+        assert_eq!(doc_when_seeking_from(0), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(1), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(3), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(4), vec![4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(7), vec![7, 10]);
+        assert_eq!(doc_when_seeking_from(8), vec![10]);
+        assert_eq!(doc_when_seeking_from(10), vec![10]);
+        assert_eq!(doc_when_seeking_from(11), Vec::<DocId>::new());
+
+        Ok(())
+    }
+
+    /// Test that the seek_doc parameter works correctly with SHOULD clauses.
+    #[test]
+    pub fn test_boolean_weight_seek_doc_with_should() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+
+        // Create documents:
+        // doc 0: "a b"
+        // doc 1: "a"
+        // doc 2: "b"
+        // doc 3: "c"
+        // doc 4: "a b c"
+        index_writer.add_document(doc!(text_field => "a b"))?;
+        index_writer.add_document(doc!(text_field => "a"))?;
+        index_writer.add_document(doc!(text_field => "b"))?;
+        index_writer.add_document(doc!(text_field => "c"))?;
+        index_writer.add_document(doc!(text_field => "a b c"))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        // Create a Boolean query: SHOULD(term "a") OR SHOULD(term "b")
+        // This should match docs 0, 1, 2, 4
+        let term_a: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "a"),
+            IndexRecordOption::Basic,
+        ));
+        let term_b: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text_field, "b"),
+            IndexRecordOption::Basic,
+        ));
+
+        let boolean_query =
+            BooleanQuery::new(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
+
+        let weight =
+            boolean_query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
+
+        let doc_when_seeking_from = |seek_from: DocId| {
+            let scorer = weight.scorer(segment_reader, 1.0f32, seek_from).unwrap();
+            crate::docset::docset_to_doc_vec(scorer)
+        };
+
+        // Expected matching docs: 0, 1, 2, 4
+        assert_eq!(doc_when_seeking_from(0), vec![0, 1, 2, 4]);
+        assert_eq!(doc_when_seeking_from(1), vec![1, 2, 4]);
+        assert_eq!(doc_when_seeking_from(2), vec![2, 4]);
+        assert_eq!(doc_when_seeking_from(3), vec![4]);
+        assert_eq!(doc_when_seeking_from(4), vec![4]);
+        assert_eq!(doc_when_seeking_from(5), Vec::<DocId>::new());
+
+        Ok(())
+    }
+
     /// Test multiple AllScorer instances in different clause types.
     ///
     /// Verifies correct behavior when AllScorers appear in multiple positions.
