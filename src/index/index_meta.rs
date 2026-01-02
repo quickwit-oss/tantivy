@@ -404,7 +404,10 @@ mod tests {
             schema_builder.build()
         };
         let index_metas = IndexMeta {
-            index_settings: IndexSettings::default(),
+            index_settings: IndexSettings {
+                docstore_compression: Compressor::None,
+                ..Default::default()
+            },
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -413,7 +416,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"docstore_compression":"lz4","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -494,6 +497,8 @@ mod tests {
     #[test]
     #[cfg(feature = "lz4-compression")]
     fn test_index_settings_default() {
+        use crate::store::Compressor;
+
         let mut index_settings = IndexSettings::default();
         assert_eq!(
             index_settings,

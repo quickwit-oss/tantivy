@@ -1,3 +1,5 @@
+mod file_watcher;
+
 use std::collections::HashMap;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
@@ -7,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock, Weak};
 
 use common::StableDeref;
+use file_watcher::FileWatcher;
 use fs4::fs_std::FileExt;
 #[cfg(all(feature = "mmap", unix))]
 pub use memmap2::Advice;
@@ -18,7 +21,6 @@ use crate::core::META_FILEPATH;
 use crate::directory::error::{
     DeleteError, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
-use crate::directory::file_watcher::FileWatcher;
 use crate::directory::{
     AntiCallToken, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes, TerminatingWrite,
     WatchCallback, WatchHandle, WritePtr,

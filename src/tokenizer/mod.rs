@@ -132,13 +132,14 @@ mod regex_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
 mod split_compound_words;
-mod stemmer;
 mod stop_word_filter;
 mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 mod whitespace_tokenizer;
 
+#[cfg(feature = "stemmer")]
+mod stemmer;
 pub use tokenizer_api::{BoxTokenStream, Token, TokenFilter, TokenStream, Tokenizer};
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
@@ -151,6 +152,7 @@ pub use self::regex_tokenizer::RegexTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::{SimpleTokenStream, SimpleTokenizer};
 pub use self::split_compound_words::SplitCompoundWords;
+#[cfg(feature = "stemmer")]
 pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
@@ -167,10 +169,7 @@ pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{
-        Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, TokenizerManager,
-    };
-    use crate::tokenizer::TextAnalyzer;
+    use super::{Token, TokenizerManager};
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
@@ -205,59 +204,15 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_en_tokenizer() {
+    fn test_tokenizer_does_not_exist() {
         let tokenizer_manager = TokenizerManager::default();
         assert!(tokenizer_manager.get("en_doesnotexist").is_none());
-        let mut en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
-        let mut tokens: Vec<Token> = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                tokens.push(token.clone());
-            };
-            en_tokenizer
-                .token_stream("Hello, happy tax payer!")
-                .process(&mut add_token);
-        }
-
-        assert_eq!(tokens.len(), 4);
-        assert_token(&tokens[0], 0, "hello", 0, 5);
-        assert_token(&tokens[1], 1, "happi", 7, 12);
-        assert_token(&tokens[2], 2, "tax", 13, 16);
-        assert_token(&tokens[3], 3, "payer", 17, 22);
-    }
-
-    #[test]
-    fn test_non_en_tokenizer() {
-        let tokenizer_manager = TokenizerManager::default();
-        tokenizer_manager.register(
-            "el_stem",
-            TextAnalyzer::builder(SimpleTokenizer::default())
-                .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
-                .filter(Stemmer::new(Language::Greek))
-                .build(),
-        );
-        let mut en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
-        let mut tokens: Vec<Token> = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                tokens.push(token.clone());
-            };
-            en_tokenizer
-                .token_stream("Καλημέρα, χαρούμενε φορολογούμενε!")
-                .process(&mut add_token);
-        }
-
-        assert_eq!(tokens.len(), 3);
-        assert_token(&tokens[0], 0, "καλημερ", 0, 16);
-        assert_token(&tokens[1], 1, "χαρουμεν", 18, 36);
-        assert_token(&tokens[2], 2, "φορολογουμεν", 37, 63);
     }
 
     #[test]
     fn test_tokenizer_empty() {
         let tokenizer_manager = TokenizerManager::default();
-        let mut en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
+        let mut en_tokenizer = tokenizer_manager.get("default").unwrap();
         {
             let mut tokens: Vec<Token> = vec![];
             {
