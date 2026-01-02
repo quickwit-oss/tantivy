@@ -17,6 +17,7 @@
 //!
 //! ```rust
 //! # use std::path::Path;
+//! # use std::fs;
 //! # use tempfile::TempDir;
 //! # use tantivy::collector::TopDocs;
 //! # use tantivy::query::QueryParser;
@@ -27,8 +28,11 @@
 //! #     // Let's create a temporary directory for the
 //! #     // sake of this example
 //! #     if let Ok(dir) = TempDir::new() {
-//! #         run_example(dir.path()).unwrap();
-//! #         dir.close().unwrap();
+//! #         let index_path = dir.path().join("index");
+//! #         // In case the directory already exists, we remove it
+//! #         let _ = fs::remove_dir_all(&index_path);
+//! #         fs::create_dir_all(&index_path).unwrap();
+//! #         run_example(&index_path).unwrap();
 //! #     }
 //! # }
 //! #
