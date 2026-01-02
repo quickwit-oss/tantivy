@@ -25,7 +25,7 @@ pub struct NaturalComparator;
 impl<T: PartialOrd> Comparator<T> for NaturalComparator {
     #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
-        lhs.partial_cmp(rhs).unwrap()
+        lhs.partial_cmp(rhs).unwrap_or(Ordering::Equal)
     }
 }
 
