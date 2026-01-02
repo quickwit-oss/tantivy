@@ -134,6 +134,7 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
 }
 
 impl<S: Scorer> Scorer for BoostScorer<S> {
+    #[inline]
     fn score(&mut self) -> Score {
         self.underlying.score() * self.boost
     }

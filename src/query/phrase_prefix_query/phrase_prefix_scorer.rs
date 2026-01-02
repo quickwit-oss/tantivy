@@ -81,6 +81,7 @@ impl<TPostings: Postings> DocSet for PhraseKind<TPostings> {
 }
 
 impl<TPostings: Postings> Scorer for PhraseKind<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         match self {
             PhraseKind::SinglePrefix { positions, .. } => {
@@ -215,6 +216,7 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
 }
 
 impl<TPostings: Postings> Scorer for PhrasePrefixScorer<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         // TODO modify score??
         self.phrase_scorer.score()

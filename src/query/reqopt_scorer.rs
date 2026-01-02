@@ -81,6 +81,7 @@ where
     TOptScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
+    #[inline]
     fn score(&mut self) -> Score {
         if let Some(score) = self.score_cache {
             return score;

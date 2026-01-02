@@ -173,6 +173,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
     for Disjunction<TScorer, TScoreCombiner>
 {
+    #[inline]
     fn score(&mut self) -> Score {
         self.current_score
     }
@@ -307,6 +308,7 @@ mod tests {
     }
 
     impl Scorer for DummyScorer {
+        #[inline]
         fn score(&mut self) -> Score {
             self.foo.get(self.cursor).map(|x| x.1).unwrap_or(0.0)
         }

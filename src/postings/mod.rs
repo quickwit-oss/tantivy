@@ -527,6 +527,7 @@ pub(crate) mod tests {
     }
 
     impl<TScorer: Scorer> Scorer for UnoptimizedDocSet<TScorer> {
+        #[inline]
         fn score(&mut self) -> Score {
             self.0.score()
         }
