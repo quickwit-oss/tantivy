@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekIntoTheDangerZoneResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
@@ -530,12 +530,18 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         self.advance()
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
         debug_assert!(target >= self.doc());
-        if self.intersection_docset.seek_into_the_danger_zone(target) && self.phrase_match() {
-            return true;
+        match self.intersection_docset.seek_into_the_danger_zone(target) {
+            SeekIntoTheDangerZoneResult::Found => {
+                if self.phrase_match() {
+                    SeekIntoTheDangerZoneResult::Found
+                } else {
+                    SeekIntoTheDangerZoneResult::NewTarget(target)
+                }
+            }
+            new_target => new_target,
         }
-        false
     }
 
     fn doc(&self) -> DocId {
