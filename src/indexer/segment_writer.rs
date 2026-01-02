@@ -421,10 +421,9 @@ fn remap_and_write(
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use columnar::ColumnType;
-    use tempfile::TempDir;
 
     use crate::collector::{Count, TopDocs};
     use crate::directory::RamDirectory;
@@ -1067,10 +1066,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("title", text_options);
         let schema = schema_builder.build();
-        let tempdir = TempDir::new().unwrap();
-        let tempdir_path = PathBuf::from(tempdir.path());
-        Index::create_in_dir(&tempdir_path, schema).unwrap();
-        let index = Index::open_in_dir(tempdir_path).unwrap();
+        let index = Index::create_in_ram(schema);
         let schema = index.schema();
         let mut index_writer = index.writer(50_000_000).unwrap();
         let title = schema.get_field("title").unwrap();
