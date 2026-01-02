@@ -29,12 +29,20 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         }
     }
     #[inline]
-    pub fn fetch_block_with_missing(&mut self, docs: &[u32], accessor: &Column<T>, missing: T) {
+    pub fn fetch_block_with_missing(
+        &mut self,
+        docs: &[u32],
+        accessor: &Column<T>,
+        missing: Option<T>,
+    ) {
         self.fetch_block(docs, accessor);
         // no missing values
         if accessor.index.get_cardinality().is_full() {
             return;
         }
+        let Some(missing) = missing else {
+            return;
+        };
 
         // We can compare docid_cache length with docs to find missing docs
         // For multi value columns we can't rely on the length and always need to scan

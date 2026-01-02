@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use columnar::{Column, ColumnType};
 use serde::{Deserialize, Serialize};
 
 use super::*;
@@ -7,10 +8,9 @@ use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
-use crate::aggregation::metric::MetricAggReqData;
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
-use crate::{DocId, TantivyError};
+use crate::TantivyError;
 
 /// A multi-value metric aggregation that computes a collection of statistics on numeric values that
 /// are extracted from the aggregated documents.
@@ -83,7 +83,7 @@ impl Stats {
 
 /// Intermediate result of the stats aggregation that can be combined with other intermediate
 /// results.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateStats {
     /// The number of extracted values.
     pub(crate) count: u64,
@@ -187,75 +187,75 @@ pub enum StatsType {
     Percentiles,
 }
 
+fn create_collector<const TYPE_ID: u8>(
+    req: &MetricAggReqData,
+) -> Box<dyn SegmentAggregationCollector> {
+    Box::new(SegmentStatsCollector::<TYPE_ID> {
+        name: req.name.clone(),
+        collecting_for: req.collecting_for,
+        is_number_or_date_type: req.is_number_or_date_type,
+        missing_u64: req.missing_u64,
+        accessor: req.accessor.clone(),
+        buckets: vec![IntermediateStats::default()],
+    })
+}
+
+/// Build a concrete `SegmentStatsCollector` depending on the column type.
+pub(crate) fn build_segment_stats_collector(
+    req: &MetricAggReqData,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    match req.field_type {
+        ColumnType::I64 => Ok(create_collector::<{ ColumnType::I64 as u8 }>(req)),
+        ColumnType::U64 => Ok(create_collector::<{ ColumnType::U64 as u8 }>(req)),
+        ColumnType::F64 => Ok(create_collector::<{ ColumnType::F64 as u8 }>(req)),
+        ColumnType::Bool => Ok(create_collector::<{ ColumnType::Bool as u8 }>(req)),
+        ColumnType::DateTime => Ok(create_collector::<{ ColumnType::DateTime as u8 }>(req)),
+        ColumnType::Bytes => Ok(create_collector::<{ ColumnType::Bytes as u8 }>(req)),
+        ColumnType::Str => Ok(create_collector::<{ ColumnType::Str as u8 }>(req)),
+        ColumnType::IpAddr => Ok(create_collector::<{ ColumnType::IpAddr as u8 }>(req)),
+    }
+}
+
+#[repr(C)]
 #[derive(Clone, Debug)]
-pub(crate) struct SegmentStatsCollector {
-    pub(crate) stats: IntermediateStats,
-    pub(crate) accessor_idx: usize,
+pub(crate) struct SegmentStatsCollector<const COLUMN_TYPE_ID: u8> {
+    pub(crate) missing_u64: Option<u64>,
+    pub(crate) accessor: Column<u64>,
+    pub(crate) is_number_or_date_type: bool,
+    pub(crate) buckets: Vec<IntermediateStats>,
+    pub(crate) name: String,
+    pub(crate) collecting_for: StatsType,
 }
 
-impl SegmentStatsCollector {
-    pub fn from_req(accessor_idx: usize) -> Self {
-        Self {
-            stats: IntermediateStats::default(),
-            accessor_idx,
-        }
-    }
-    #[inline]
-    pub(crate) fn collect_block_with_field(
-        &mut self,
-        docs: &[DocId],
-        req_data: &mut MetricAggReqData,
-    ) {
-        if let Some(missing) = req_data.missing_u64.as_ref() {
-            req_data.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &req_data.accessor,
-                *missing,
-            );
-        } else {
-            req_data
-                .column_block_accessor
-                .fetch_block(docs, &req_data.accessor);
-        }
-        if req_data.is_number_or_date_type {
-            for val in req_data.column_block_accessor.iter_vals() {
-                let val1 = f64_from_fastfield_u64(val, &req_data.field_type);
-                self.stats.collect(val1);
-            }
-        } else {
-            for _val in req_data.column_block_accessor.iter_vals() {
-                // we ignore the value and simply record that we got something
-                self.stats.collect(0.0);
-            }
-        }
-    }
-}
-
-impl SegmentAggregationCollector for SegmentStatsCollector {
+impl<const COLUMN_TYPE_ID: u8> SegmentAggregationCollector
+    for SegmentStatsCollector<COLUMN_TYPE_ID>
+{
     #[inline]
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let req = agg_data.get_metric_req_data(self.accessor_idx);
-        let name = req.name.clone();
+        let name = self.name.clone();
 
-        let intermediate_metric_result = match req.collecting_for {
+        self.prepare_max_bucket(parent_bucket_id, agg_data)?;
+        let stats = self.buckets[parent_bucket_id as usize];
+        let intermediate_metric_result = match self.collecting_for {
             StatsType::Average => {
-                IntermediateMetricResult::Average(IntermediateAverage::from_collector(*self))
+                IntermediateMetricResult::Average(IntermediateAverage::from_stats(stats))
             }
             StatsType::Count => {
-                IntermediateMetricResult::Count(IntermediateCount::from_collector(*self))
+                IntermediateMetricResult::Count(IntermediateCount::from_stats(stats))
             }
-            StatsType::Max => IntermediateMetricResult::Max(IntermediateMax::from_collector(*self)),
-            StatsType::Min => IntermediateMetricResult::Min(IntermediateMin::from_collector(*self)),
-            StatsType::Stats => IntermediateMetricResult::Stats(self.stats),
-            StatsType::Sum => IntermediateMetricResult::Sum(IntermediateSum::from_collector(*self)),
+            StatsType::Max => IntermediateMetricResult::Max(IntermediateMax::from_stats(stats)),
+            StatsType::Min => IntermediateMetricResult::Min(IntermediateMin::from_stats(stats)),
+            StatsType::Stats => IntermediateMetricResult::Stats(stats),
+            StatsType::Sum => IntermediateMetricResult::Sum(IntermediateSum::from_stats(stats)),
             _ => {
                 return Err(TantivyError::InvalidArgument(format!(
                     "Unsupported stats type for stats aggregation: {:?}",
-                    req.collecting_for
+                    self.collecting_for
                 )))
             }
         };
@@ -271,41 +271,67 @@ impl SegmentAggregationCollector for SegmentStatsCollector {
     #[inline]
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        let req_data = agg_data.get_metric_req_data(self.accessor_idx);
-        if let Some(missing) = req_data.missing_u64 {
-            let mut has_val = false;
-            for val in req_data.accessor.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &req_data.field_type);
-                self.stats.collect(val1);
-                has_val = true;
-            }
-            if !has_val {
-                self.stats
-                    .collect(f64_from_fastfield_u64(missing, &req_data.field_type));
-            }
-        } else {
-            for val in req_data.accessor.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &req_data.field_type);
-                self.stats.collect(val1);
-            }
-        }
-
-        Ok(())
-    }
-
-    #[inline]
-    fn collect_block(
-        &mut self,
+        parent_bucket_id: BucketId,
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let req_data = agg_data.get_metric_req_data_mut(self.accessor_idx);
-        self.collect_block_with_field(docs, req_data);
+        // TODO: remove once we fetch all values for all bucket ids in one go
+        if docs.len() == 1 && self.missing_u64.is_none() {
+            collect_stats::<COLUMN_TYPE_ID>(
+                &mut self.buckets[parent_bucket_id as usize],
+                self.accessor.values_for_doc(docs[0]),
+                self.is_number_or_date_type,
+            )?;
+
+            return Ok(());
+        }
+        agg_data.column_block_accessor.fetch_block_with_missing(
+            docs,
+            &self.accessor,
+            self.missing_u64,
+        );
+        collect_stats::<COLUMN_TYPE_ID>(
+            &mut self.buckets[parent_bucket_id as usize],
+            agg_data.column_block_accessor.iter_vals(),
+            self.is_number_or_date_type,
+        )?;
+
         Ok(())
     }
+
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        let required_buckets = (max_bucket as usize) + 1;
+        if self.buckets.len() < required_buckets {
+            self.buckets
+                .resize_with(required_buckets, IntermediateStats::default);
+        }
+        Ok(())
+    }
+}
+
+#[inline]
+fn collect_stats<const COLUMN_TYPE_ID: u8>(
+    stats: &mut IntermediateStats,
+    vals: impl Iterator<Item = u64>,
+    is_number_or_date_type: bool,
+) -> crate::Result<()> {
+    if is_number_or_date_type {
+        for val in vals {
+            let val1 = convert_to_f64::<COLUMN_TYPE_ID>(val);
+            stats.collect(val1);
+        }
+    } else {
+        for _val in vals {
+            // we ignore the value and simply record that we got something
+            stats.collect(0.0);
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
