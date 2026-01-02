@@ -34,12 +34,19 @@ impl TermOrEmptyOrAllScorer {
 }
 
 impl Weight for TermWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        Ok(self.specialized_scorer(reader, boost)?.into_boxed_scorer())
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
+        Ok(self
+            .specialized_scorer(reader, boost, seek_doc)?
+            .into_boxed_scorer())
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        match self.specialized_scorer(reader, 1.0)? {
+        match self.specialized_scorer(reader, 1.0, doc)? {
             TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
                 if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
                     return Err(does_not_match(doc));
@@ -55,7 +62,7 @@ impl Weight for TermWeight {
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         if let Some(alive_bitset) = reader.alive_bitset() {
-            Ok(self.scorer(reader, 1.0)?.count(alive_bitset))
+            Ok(self.scorer(reader, 1.0, 0)?.count(alive_bitset))
         } else {
             let field = self.term.field();
             let inv_index = reader.inverted_index(field)?;
@@ -71,7 +78,7 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        match self.specialized_scorer(reader, 1.0)? {
+        match self.specialized_scorer(reader, 1.0, 0u32)? {
             TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
                 for_each_scorer(&mut *term_scorer, callback);
             }
@@ -90,7 +97,7 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
-        match self.specialized_scorer(reader, 1.0)? {
+        match self.specialized_scorer(reader, 1.0, 0u32)? {
             TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
                 let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
                 for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
@@ -121,7 +128,7 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
+        let specialized_scorer = self.specialized_scorer(reader, 1.0, 0u32)?;
         match specialized_scorer {
             TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
                 crate::query::boolean_query::block_wand_single_scorer(
@@ -138,6 +145,12 @@ impl Weight for TermWeight {
             }
         }
         Ok(())
+    }
+
+    /// Returns a priority number used to sort weights when running an
+    /// intersection.
+    fn intersection_priority(&self) -> u32 {
+        10u32
     }
 }
 
@@ -169,7 +182,7 @@ impl TermWeight {
         reader: &SegmentReader,
         boost: Score,
     ) -> crate::Result<Option<TermScorer>> {
-        let scorer = self.specialized_scorer(reader, boost)?;
+        let scorer = self.specialized_scorer(reader, boost, 0u32)?;
         Ok(match scorer {
             TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(*scorer),
             _ => None,
@@ -180,6 +193,7 @@ impl TermWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
+        seek_doc: DocId,
     ) -> crate::Result<TermOrEmptyOrAllScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field)?;
@@ -196,8 +210,11 @@ impl TermWeight {
             )));
         }
 
-        let segment_postings: SegmentPostings =
-            inverted_index.read_postings_from_terminfo(&term_info, self.index_record_option)?;
+        let segment_postings: SegmentPostings = inverted_index.read_postings_from_terminfo(
+            &term_info,
+            self.index_record_option,
+            seek_doc,
+        )?;
 
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);

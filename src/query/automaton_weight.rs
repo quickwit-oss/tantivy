@@ -84,7 +84,12 @@ where
     A: Automaton + Send + Sync + 'static,
     A::State: Clone,
 {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
         let inverted_index = reader.inverted_index(self.field)?;
@@ -93,7 +98,9 @@ where
         while term_stream.advance() {
             let term_info = term_stream.value();
             let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+                .read_block_postings_from_terminfo_not_loaded(term_info, IndexRecordOption::Basic)?
+                .seek_and_load(seek_doc)
+                .0;
             loop {
                 let docs = block_segment_postings.docs();
                 if docs.is_empty() {
@@ -111,7 +118,7 @@ where
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        let mut scorer = self.scorer(reader, 1.0, 0)?;
         if scorer.seek(doc) == doc {
             Ok(Explanation::new("AutomatonScorer", 1.0))
         } else {
@@ -186,7 +193,7 @@ mod tests {
         let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+        let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
         assert_eq!(scorer.doc(), 0u32);
         assert_eq!(scorer.score(), 1.0);
         assert_eq!(scorer.advance(), 2u32);
@@ -203,7 +210,7 @@ mod tests {
         let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.32)?;
+        let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.32, 0)?;
         assert_eq!(scorer.doc(), 0u32);
         assert_eq!(scorer.score(), 1.32);
         Ok(())

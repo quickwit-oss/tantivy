@@ -11,9 +11,12 @@ use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
-use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
+use crate::postings::{
+    BlockSegmentPostings, BlockSegmentPostingsNotLoaded, SegmentPostings, TermInfo,
+};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
+use crate::DocId;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated with a specific field.
@@ -192,20 +195,23 @@ impl InvertedIndexReader {
         term: &Term,
         option: IndexRecordOption,
     ) -> io::Result<Option<BlockSegmentPostings>> {
-        self.get_term_info(term)?
-            .map(move |term_info| self.read_block_postings_from_terminfo(&term_info, option))
-            .transpose()
+        let Some(term_info) = self.get_term_info(term)? else {
+            return Ok(None);
+        };
+        let block_postings_not_loaded =
+            self.read_block_postings_from_terminfo(&term_info, option)?;
+        Ok(Some(block_postings_not_loaded))
     }
 
     /// Returns a block postings given a `term_info`.
     /// This method is for an advanced usage only.
     ///
     /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub fn read_block_postings_from_terminfo(
+    pub(crate) fn read_block_postings_from_terminfo_not_loaded(
         &self,
         term_info: &TermInfo,
         requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
+    ) -> io::Result<BlockSegmentPostingsNotLoaded> {
         let postings_data = self
             .postings_file_slice
             .slice(term_info.postings_range.clone());
@@ -217,6 +223,21 @@ impl InvertedIndexReader {
         )
     }
 
+    /// Returns a block postings given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most users should prefer using [`Self::read_postings()`] instead.
+    pub fn read_block_postings_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+        requested_option: IndexRecordOption,
+    ) -> io::Result<BlockSegmentPostings> {
+        let block_segment_postings_not_loaded = self
+            .read_block_postings_from_terminfo_not_loaded(term_info, requested_option)?
+            .load_at_start();
+        Ok(block_segment_postings_not_loaded)
+    }
+
     /// Returns a posting object given a `term_info`.
     /// This method is for an advanced usage only.
     ///
@@ -224,13 +245,13 @@ impl InvertedIndexReader {
     pub fn read_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
-        option: IndexRecordOption,
+        record_option: IndexRecordOption,
+        seek_doc: DocId,
     ) -> io::Result<SegmentPostings> {
-        let option = option.downgrade(self.record_option);
-
-        let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
+        let block_segment_postings_not_loaded =
+            self.read_block_postings_from_terminfo_not_loaded(term_info, record_option)?;
         let position_reader = {
-            if option.has_positions() {
+            if record_option.has_positions() {
                 let positions_data = self
                     .positions_file_slice
                     .read_bytes_slice(term_info.positions_range.clone())?;
@@ -241,8 +262,9 @@ impl InvertedIndexReader {
             }
         };
         Ok(SegmentPostings::from_block_postings(
-            block_postings,
+            block_segment_postings_not_loaded,
             position_reader,
+            seek_doc,
         ))
     }
 
@@ -268,7 +290,7 @@ impl InvertedIndexReader {
         option: IndexRecordOption,
     ) -> io::Result<Option<SegmentPostings>> {
         self.get_term_info(term)?
-            .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
+            .map(move |term_info| self.read_postings_from_terminfo(&term_info, option, 0u32))
             .transpose()
     }
 

@@ -37,7 +37,7 @@ mod tests {
         );
         let term_weight = term_query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let segment_reader = searcher.segment_reader(0);
-        let mut term_scorer = term_weight.scorer(segment_reader, 1.0)?;
+        let mut term_scorer = term_weight.scorer(segment_reader, 1.0, 0)?;
         assert_eq!(term_scorer.doc(), 0);
         assert_nearly_equals!(term_scorer.score(), 0.28768212);
         Ok(())
@@ -65,7 +65,7 @@ mod tests {
         );
         let term_weight = term_query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let segment_reader = searcher.segment_reader(0);
-        let mut term_scorer = term_weight.scorer(segment_reader, 1.0)?;
+        let mut term_scorer = term_weight.scorer(segment_reader, 1.0, 0)?;
         for i in 0u32..COMPRESSION_BLOCK_SIZE as u32 {
             assert_eq!(term_scorer.doc(), i);
             if i == COMPRESSION_BLOCK_SIZE as u32 - 1u32 {
@@ -162,7 +162,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         let term_weight =
             term_query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
-        let mut term_scorer = term_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+        let mut term_scorer = term_weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1u32);
         assert_eq!(term_scorer.doc(), 1u32);
@@ -470,7 +470,7 @@ mod tests {
                 .weight(EnableScoring::disabled_from_schema(&schema))
                 .unwrap();
             term_weight
-                .scorer(searcher.segment_reader(0u32), 1.0f32)
+                .scorer(searcher.segment_reader(0u32), 1.0f32, 0)
                 .unwrap()
         };
         // Should be an allscorer
@@ -482,6 +482,53 @@ mod tests {
         assert!(match_all_scorer.is::<AllScorer>());
         assert!(match_some_scorer.is::<TermScorer>());
         assert!(empty_scorer.is::<EmptyScorer>());
+    }
+
+    #[test]
+    fn test_term_weight_seek_doc() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer_for_tests()?;
+
+        // Create 11 documents where docs 3, 4, 5, 6, 7, and 10 contain "target"
+        // (similar pattern to test_fastfield_range_weight_seek_doc)
+        for i in 0..11 {
+            if i == 3 || i == 4 || i == 5 || i == 6 || i == 7 || i == 10 {
+                index_writer.add_document(doc!(text_field => "target"))?;
+            } else {
+                index_writer.add_document(doc!(text_field => "other"))?;
+            }
+        }
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "target"),
+            IndexRecordOption::Basic,
+        );
+        let term_weight =
+            term_query.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
+
+        let doc_when_seeking_from = |seek_from: crate::DocId| {
+            let scorer = term_weight
+                .scorer(segment_reader, 1.0f32, seek_from)
+                .unwrap();
+            crate::docset::docset_to_doc_vec(scorer)
+        };
+
+        assert_eq!(doc_when_seeking_from(0), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(1), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(3), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(7), vec![7, 10]);
+        assert_eq!(doc_when_seeking_from(8), vec![10]);
+        assert_eq!(doc_when_seeking_from(10), vec![10]);
+        assert_eq!(doc_when_seeking_from(11), Vec::<crate::DocId>::new());
+
+        Ok(())
     }
 
     #[test]
@@ -509,7 +556,7 @@ mod tests {
                 .weight(EnableScoring::enabled_from_searcher(&searcher))
                 .unwrap();
             term_weight
-                .scorer(searcher.segment_reader(0u32), 1.0f32)
+                .scorer(searcher.segment_reader(0u32), 1.0f32, 0)
                 .unwrap()
         };
         // Should be an allscorer

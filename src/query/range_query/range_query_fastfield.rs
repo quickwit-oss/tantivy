@@ -52,7 +52,12 @@ impl FastFieldRangeWeight {
 }
 
 impl Weight for FastFieldRangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
         // Check if both bounds are Bound::Unbounded
         if self.bounds.is_unbounded() {
             return Ok(Box::new(AllScorer::new(reader.max_doc())));
@@ -109,11 +114,21 @@ impl Weight for FastFieldRangeWeight {
                     else {
                         return Ok(Box::new(EmptyScorer));
                     };
-                    search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+                    search_on_u64_ff(
+                        column,
+                        boost,
+                        BoundsRange::new(lower_bound, upper_bound),
+                        seek_doc,
+                    )
                 }
-                Type::U64 | Type::I64 | Type::F64 => {
-                    search_on_json_numerical_field(reader, &field_name, typ, bounds, boost)
-                }
+                Type::U64 | Type::I64 | Type::F64 => search_on_json_numerical_field(
+                    reader,
+                    &field_name,
+                    typ,
+                    bounds,
+                    boost,
+                    seek_doc,
+                ),
                 Type::Date => {
                     let fast_field_reader = reader.fast_fields();
                     let Some((column, _col_type)) = fast_field_reader
@@ -126,6 +141,7 @@ impl Weight for FastFieldRangeWeight {
                         column,
                         boost,
                         BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+                        seek_doc,
                     )
                 }
                 Type::Bool | Type::Facet | Type::Bytes | Type::Json | Type::IpAddr => {
@@ -154,7 +170,7 @@ impl Weight for FastFieldRangeWeight {
                 ip_addr_column.min_value(),
                 ip_addr_column.max_value(),
             );
-            let docset = RangeDocSet::new(value_range, ip_addr_column);
+            let docset = RangeDocSet::new(value_range, ip_addr_column, seek_doc);
             Ok(Box::new(ConstScorer::new(docset, boost)))
         } else if field_type.is_str() {
             let Some(str_dict_column): Option<StrColumn> = reader.fast_fields().str(&field_name)?
@@ -173,7 +189,12 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
-            search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+            search_on_u64_ff(
+                column,
+                boost,
+                BoundsRange::new(lower_bound, upper_bound),
+                seek_doc,
+            )
         } else {
             assert!(
                 maps_to_u64_fastfield(field_type.value_type()),
@@ -215,12 +236,13 @@ impl Weight for FastFieldRangeWeight {
                 column,
                 boost,
                 BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+                seek_doc,
             )
         }
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        let mut scorer = self.scorer(reader, 1.0, 0)?;
         if scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
                 "Document #({doc}) does not match"
@@ -229,6 +251,10 @@ impl Weight for FastFieldRangeWeight {
         let explanation = Explanation::new("Const", scorer.score());
 
         Ok(explanation)
+    }
+
+    fn intersection_priority(&self) -> u32 {
+        30u32
     }
 }
 
@@ -241,6 +267,7 @@ fn search_on_json_numerical_field(
     typ: Type,
     bounds: BoundsRange<ValueBytes<Vec<u8>>>,
     boost: Score,
+    seek_doc: DocId,
 ) -> crate::Result<Box<dyn Scorer>> {
     // Since we don't know which type was interpolated for the internal column we
     // have to check for all numeric types (only one exists)
@@ -318,6 +345,7 @@ fn search_on_json_numerical_field(
         column,
         boost,
         BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+        seek_doc,
     )
 }
 
@@ -396,6 +424,7 @@ fn search_on_u64_ff(
     column: Column<u64>,
     boost: Score,
     bounds: BoundsRange<u64>,
+    seek_doc: DocId,
 ) -> crate::Result<Box<dyn Scorer>> {
     let col_min_value = column.min_value();
     let col_max_value = column.max_value();
@@ -426,8 +455,8 @@ fn search_on_u64_ff(
         }
     }
 
-    let docset = RangeDocSet::new(value_range, column);
-    Ok(Box::new(ConstScorer::new(docset, boost)))
+    let doc_set = RangeDocSet::new(value_range, column, seek_doc);
+    Ok(Box::new(ConstScorer::new(doc_set, boost)))
 }
 
 /// Returns true if the type maps to a u64 fast field
@@ -504,7 +533,7 @@ mod tests {
         DateOptions, Field, NumericOptions, Schema, SchemaBuilder, FAST, INDEXED, STORED, STRING,
         TEXT,
     };
-    use crate::{Index, IndexWriter, TantivyDocument, Term, TERMINATED};
+    use crate::{DocId, Index, IndexWriter, TantivyDocument, Term, TERMINATED};
 
     #[test]
     fn test_text_field_ff_range_query() -> crate::Result<()> {
@@ -1142,9 +1171,50 @@ mod tests {
             Bound::Included(Term::from_field_u64(field, 50_002)),
         ));
         let scorer = range_query
-            .scorer(searcher.segment_reader(0), 1.0f32)
+            .scorer(searcher.segment_reader(0), 1.0f32, 0)
             .unwrap();
         assert_eq!(scorer.doc(), TERMINATED);
+    }
+
+    #[test]
+    fn test_fastfield_range_weight_seek_doc() {
+        let mut schema_builder = SchemaBuilder::new();
+        let field = schema_builder.add_u64_field("value", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer: IndexWriter = index.writer_for_tests().unwrap();
+
+        // Create 20 documents with values
+        //  0, 10, 20, ..., 90
+        // and then 50  again.
+        for i in 0..10 {
+            writer.add_document(doc!(field => (i * 10) as u64)).unwrap();
+        }
+        writer.add_document(doc!(field => 50u64)).unwrap();
+        writer.commit().unwrap();
+
+        let searcher = index.reader().unwrap().searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let range_weight = FastFieldRangeWeight::new(BoundsRange::new(
+            Bound::Included(Term::from_field_u64(field, 30)),
+            Bound::Included(Term::from_field_u64(field, 70)),
+        ));
+
+        let doc_when_seeking_from = |seek_from: DocId| {
+            let doc_set = range_weight
+                .scorer(segment_reader, 1.0f32, seek_from)
+                .unwrap();
+            crate::docset::docset_to_doc_vec(doc_set)
+        };
+
+        assert_eq!(doc_when_seeking_from(0), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(1), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(3), vec![3, 4, 5, 6, 7, 10]);
+        assert_eq!(doc_when_seeking_from(7), vec![7, 10]);
+        assert_eq!(doc_when_seeking_from(8), vec![10]);
+        assert_eq!(doc_when_seeking_from(10), vec![10]);
+        assert_eq!(doc_when_seeking_from(11), Vec::<DocId>::new());
     }
 
     #[test]

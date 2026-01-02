@@ -87,6 +87,31 @@ fn split_into_skips_and_postings(
     Ok((Some(skip_data), postings_data))
 }
 
+/// A block segment postings for which the first block has not been loaded yet.
+///
+/// You can either call `load_at_start` to load it its first block,
+/// or skip a few blocks by calling `seek_and_load`.
+pub(crate) struct BlockSegmentPostingsNotLoaded(BlockSegmentPostings);
+
+impl BlockSegmentPostingsNotLoaded {
+    /// Seek into the block segment postings directly, possibly avoiding loading its first block.
+    pub fn seek_and_load(self, seek_doc: DocId) -> (BlockSegmentPostings, usize) {
+        let BlockSegmentPostingsNotLoaded(mut block_segment_postings) = self;
+        block_segment_postings.load_block();
+        let inner_pos = if seek_doc == 0 {
+            0
+        } else {
+            block_segment_postings.seek(seek_doc)
+        };
+        (block_segment_postings, inner_pos)
+    }
+
+    /// Load the first block of segment postings.
+    pub fn load_at_start(self) -> BlockSegmentPostings {
+        self.seek_and_load(0u32).0
+    }
+}
+
 impl BlockSegmentPostings {
     /// Opens a `BlockSegmentPostings`.
     /// `doc_freq` is the number of documents in the posting list.
@@ -99,7 +124,7 @@ impl BlockSegmentPostings {
         data: FileSlice,
         mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
+    ) -> io::Result<BlockSegmentPostingsNotLoaded> {
         let bytes = data.read_bytes()?;
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
         let skip_reader = match skip_data_opt {
@@ -125,7 +150,7 @@ impl BlockSegmentPostings {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let mut block_segment_postings = BlockSegmentPostings {
+        Ok(BlockSegmentPostingsNotLoaded(BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             block_loaded: false,
             freq_decoder: BlockDecoder::with_val(1),
@@ -134,9 +159,7 @@ impl BlockSegmentPostings {
             doc_freq,
             data: postings_data,
             skip_reader,
-        };
-        block_segment_postings.load_block();
-        Ok(block_segment_postings)
+        }))
     }
 
     /// Returns the block_max_score for the current block.
@@ -258,7 +281,9 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_len
     }
 
-    /// Position on a block that may contains `target_doc`.
+    /// Position on a block that may contains `target_doc`, and returns the
+    /// position of the first document greater than or equal to `target_doc`
+    /// within that block.
     ///
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
@@ -388,7 +413,7 @@ mod tests {
     use crate::index::Index;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::postings::postings::Postings;
-    use crate::postings::SegmentPostings;
+    use crate::postings::{BlockSegmentPostingsNotLoaded, SegmentPostings};
     use crate::schema::{IndexRecordOption, Schema, Term, INDEXED};
     use crate::DocId;
 
@@ -427,7 +452,8 @@ mod tests {
 
     #[test]
     fn test_block_segment_postings() -> crate::Result<()> {
-        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>())?;
+        let mut block_segments =
+            build_block_postings(&(0..100_000).collect::<Vec<u32>>())?.load_at_start();
         let mut offset: u32 = 0u32;
         // checking that the `doc_freq` is correct
         assert_eq!(block_segments.doc_freq(), 100_000);
@@ -453,7 +479,7 @@ mod tests {
         doc_ids.push(130);
         {
             let block_segments = build_block_postings(&doc_ids)?;
-            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None, 0);
             assert_eq!(docset.seek(128), 129);
             assert_eq!(docset.doc(), 129);
             assert_eq!(docset.advance(), 130);
@@ -462,7 +488,7 @@ mod tests {
         }
         {
             let block_segments = build_block_postings(&doc_ids).unwrap();
-            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None, 0);
             assert_eq!(docset.seek(129), 129);
             assert_eq!(docset.doc(), 129);
             assert_eq!(docset.advance(), 130);
@@ -471,7 +497,7 @@ mod tests {
         }
         {
             let block_segments = build_block_postings(&doc_ids)?;
-            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None, 0);
             assert_eq!(docset.doc(), 0);
             assert_eq!(docset.seek(131), TERMINATED);
             assert_eq!(docset.doc(), TERMINATED);
@@ -479,7 +505,7 @@ mod tests {
         Ok(())
     }
 
-    fn build_block_postings(docs: &[DocId]) -> crate::Result<BlockSegmentPostings> {
+    fn build_block_postings(docs: &[DocId]) -> crate::Result<BlockSegmentPostingsNotLoaded> {
         let mut schema_builder = Schema::builder();
         let int_field = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
@@ -499,9 +525,9 @@ mod tests {
         let inverted_index = segment_reader.inverted_index(int_field).unwrap();
         let term = Term::from_field_u64(int_field, 0u64);
         let term_info = inverted_index.get_term_info(&term)?.unwrap();
-        let block_postings = inverted_index
-            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
-        Ok(block_postings)
+        let block_postings_not_loaded = inverted_index
+            .read_block_postings_from_terminfo_not_loaded(&term_info, IndexRecordOption::Basic)?;
+        Ok(block_postings_not_loaded)
     }
 
     #[test]
@@ -510,7 +536,7 @@ mod tests {
         for i in 0..1300 {
             docs.push((i * i / 100) + i);
         }
-        let mut block_postings = build_block_postings(&docs[..])?;
+        let mut block_postings = build_block_postings(&docs[..])?.load_at_start();
         for i in &[0, 424, 10000] {
             block_postings.seek(*i);
             let docs = block_postings.docs();

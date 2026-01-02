@@ -67,8 +67,13 @@ impl BoostWeight {
 }
 
 impl Weight for BoostWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        self.weight.scorer(reader, boost * self.boost)
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
+        self.weight.scorer(reader, boost * self.boost, seek_doc)
     }
 
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
@@ -82,6 +87,10 @@ impl Weight for BoostWeight {
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         self.weight.count(reader)
+    }
+
+    fn intersection_priority(&self) -> u32 {
+        self.weight.intersection_priority()
     }
 }
 

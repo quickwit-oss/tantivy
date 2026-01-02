@@ -446,7 +446,7 @@ impl DocumentQueryEvaluator {
         let weight = query.weight(EnableScoring::disabled_from_schema(&schema))?;
 
         // Get a scorer that iterates over matching documents
-        let mut scorer = weight.scorer(segment_reader, 1.0)?;
+        let mut scorer = weight.scorer(segment_reader, 1.0, 0)?;
 
         // Create a BitSet to hold all matching documents
         let mut bitset = BitSet::with_max_value(max_doc);
