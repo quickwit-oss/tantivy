@@ -12,13 +12,21 @@ use crate::{DocAddress, DocId, Result, Score, SegmentReader};
 /// It is the segment local version of the [`SortKeyComputer`].
 pub trait SegmentSortKeyComputer: 'static {
     /// The final score being emitted.
-    type SortKey: 'static + PartialOrd + Send + Sync + Clone;
+    type SortKey: 'static + Send + Sync + Clone;
 
     /// Sort key used by at the segment level by the `SegmentSortKeyComputer`.
     ///
     /// It is typically small like a `u64`, and is meant to be converted
     /// to the final score at the end of the collection of the segment.
-    type SegmentSortKey: 'static + PartialOrd + Clone + Send + Sync + Clone;
+    type SegmentSortKey: 'static + Clone + Send + Sync + Clone;
+
+    /// Comparator type.
+    type SegmentComparator: Comparator<Self::SegmentSortKey> + 'static;
+
+    /// Returns the segment sort key comparator.
+    fn segment_comparator(&self) -> Self::SegmentComparator {
+        Self::SegmentComparator::default()
+    }
 
     /// Computes the sort key for the given document and score.
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey;
@@ -47,7 +55,7 @@ pub trait SegmentSortKeyComputer: 'static {
         left: &Self::SegmentSortKey,
         right: &Self::SegmentSortKey,
     ) -> Ordering {
-        NaturalComparator.compare(left, right)
+        self.segment_comparator().compare(left, right)
     }
 
     /// Implementing this method makes it possible to avoid computing
@@ -81,7 +89,7 @@ pub trait SegmentSortKeyComputer: 'static {
 /// the sort key at a segment scale.
 pub trait SortKeyComputer: Sync {
     /// The sort key type.
-    type SortKey: 'static + Send + Sync + PartialOrd + Clone + std::fmt::Debug;
+    type SortKey: 'static + Send + Sync + Clone + std::fmt::Debug;
     /// Type of the associated [`SegmentSortKeyComputer`].
     type Child: SegmentSortKeyComputer<SortKey = Self::SortKey>;
     /// Comparator type.
@@ -136,10 +144,7 @@ where
     HeadSortKeyComputer: SortKeyComputer,
     TailSortKeyComputer: SortKeyComputer,
 {
-    type SortKey = (
-        <HeadSortKeyComputer::Child as SegmentSortKeyComputer>::SortKey,
-        <TailSortKeyComputer::Child as SegmentSortKeyComputer>::SortKey,
-    );
+    type SortKey = (HeadSortKeyComputer::SortKey, TailSortKeyComputer::SortKey);
     type Child = (HeadSortKeyComputer::Child, TailSortKeyComputer::Child);
 
     type Comparator = (
@@ -186,6 +191,11 @@ where
     type SegmentSortKey = (
         HeadSegmentSortKeyComputer::SegmentSortKey,
         TailSegmentSortKeyComputer::SegmentSortKey,
+    );
+
+    type SegmentComparator = (
+        HeadSegmentSortKeyComputer::SegmentComparator,
+        TailSegmentSortKeyComputer::SegmentComparator,
     );
 
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
@@ -269,11 +279,12 @@ impl<T, PreviousScore, NewScore> SegmentSortKeyComputer
     for MappedSegmentSortKeyComputer<T, PreviousScore, NewScore>
 where
     T: SegmentSortKeyComputer<SortKey = PreviousScore>,
-    PreviousScore: 'static + Clone + Send + Sync + PartialOrd,
-    NewScore: 'static + Clone + Send + Sync + PartialOrd,
+    PreviousScore: 'static + Clone + Send + Sync,
+    NewScore: 'static + Clone + Send + Sync,
 {
     type SortKey = NewScore;
     type SegmentSortKey = T::SegmentSortKey;
+    type SegmentComparator = T::SegmentComparator;
 
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.sort_key_computer.segment_sort_key(doc, score)
@@ -463,6 +474,7 @@ where
 {
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
+    type SegmentComparator = NaturalComparator;
 
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
         (self)(doc)
