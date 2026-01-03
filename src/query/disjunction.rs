@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use crate::docset::SeekDangerResult;
 use crate::query::score_combiner::DoNothingCombiner;
-use crate::query::{ScoreCombiner, Scorer};
+use crate::query::{ScoreCombiner, Scorer, SeekAntiCallToken};
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// `Disjunction` is responsible for merging `DocSet` from multiple
@@ -67,10 +68,16 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
         self.current_doc = doc_id;
         doc_id
     }
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        let found = self.scorer.seek_into_the_danger_zone(target);
+    fn seek_into_the_danger_zone(
+        &mut self,
+        target: DocId,
+        anti_call_token: SeekAntiCallToken,
+    ) -> SeekDangerResult {
+        let result = self
+            .scorer
+            .seek_into_the_danger_zone(target, anti_call_token);
         self.current_doc = self.scorer.doc();
-        found
+        result
     }
 
     fn doc(&self) -> DocId {

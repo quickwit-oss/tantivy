@@ -1,10 +1,10 @@
 use std::cmp::Ordering;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
-use crate::query::{Intersection, Scorer};
+use crate::query::{Intersection, Scorer, SeekAntiCallToken};
 use crate::{DocId, Score};
 
 struct PostingsWithOffset<TPostings> {
@@ -530,12 +530,23 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         self.advance()
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(
+        &mut self,
+        target: DocId,
+        token: SeekAntiCallToken,
+    ) -> SeekDangerResult {
         debug_assert!(target >= self.doc());
-        if self.intersection_docset.seek_into_the_danger_zone(target) && self.phrase_match() {
-            return true;
+        if let SeekDangerResult::NotFound(seek_doc) = self
+            .intersection_docset
+            .seek_into_the_danger_zone(target, token)
+        {
+            return SeekDangerResult::NotFound(seek_doc);
         }
-        false
+        if self.phrase_match() {
+            SeekDangerResult::Success
+        } else {
+            SeekDangerResult::NotFound(target + 1)
+        }
     }
 
     fn doc(&self) -> DocId {

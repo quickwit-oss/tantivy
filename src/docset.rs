@@ -1,6 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 
 use crate::fastfield::AliveBitSet;
+use crate::query::SeekAntiCallToken;
 use crate::DocId;
 
 /// Sentinel value returned when a [`DocSet`] has been entirely consumed.
@@ -13,6 +14,15 @@ pub const TERMINATED: DocId = i32::MAX as u32;
 /// Passed results to `collect_block` will not exceed this size and will be
 /// exactly this size as long as we can fill the buffer.
 pub const COLLECT_BLOCK_BUFFER_LEN: usize = 64;
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum SeekDangerResult {
+    /// The seek operation was successful.
+    Success,
+    /// The seek operation was unsuccessful.
+    /// The document was not found.
+    NotFound(DocId),
+}
 
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet: Send {
@@ -70,12 +80,20 @@ pub trait DocSet: Send {
     ///
     /// # Warning
     /// This is an advanced API used by intersection. The API contract is tricky, avoid using it.
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(
+        &mut self,
+        target: DocId,
+        _: SeekAntiCallToken,
+    ) -> SeekDangerResult {
         let current_doc = self.doc();
         if current_doc < target {
             self.seek(target);
         }
-        self.doc() == target
+        if self.doc() == target {
+            SeekDangerResult::Success
+        } else {
+            SeekDangerResult::NotFound(self.doc())
+        }
     }
 
     /// Fills a given mutable buffer with the next doc ids from the
@@ -175,8 +193,12 @@ impl DocSet for &mut dyn DocSet {
         (**self).seek(target)
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        (**self).seek_into_the_danger_zone(target)
+    fn seek_into_the_danger_zone(
+        &mut self,
+        target: DocId,
+        token: SeekAntiCallToken,
+    ) -> SeekDangerResult {
+        (**self).seek_into_the_danger_zone(target, token)
     }
 
     fn doc(&self) -> u32 {
@@ -211,9 +233,13 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.seek(target)
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(
+        &mut self,
+        target: DocId,
+        token: SeekAntiCallToken,
+    ) -> SeekDangerResult {
         let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.seek_into_the_danger_zone(target)
+        unboxed.seek_into_the_danger_zone(target, token)
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {

@@ -1,9 +1,9 @@
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::phrase_query::{intersection_count, PhraseScorer};
-use crate::query::Scorer;
+use crate::query::{Scorer, SeekAntiCallToken};
 use crate::{DocId, Score};
 
 // MultiPrefix is the larger variant, and also the one we expect most often. PhraseScorer is > 1kB
@@ -194,11 +194,20 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        if self.phrase_scorer.seek_into_the_danger_zone(target) {
-            self.matches_prefix()
+    fn seek_into_the_danger_zone(
+        &mut self,
+        target: DocId,
+        token: SeekAntiCallToken,
+    ) -> SeekDangerResult {
+        if let SeekDangerResult::NotFound(seek_doc) =
+            self.phrase_scorer.seek_into_the_danger_zone(target, token)
+        {
+            return SeekDangerResult::NotFound(seek_doc);
+        }
+        if self.matches_prefix() {
+            SeekDangerResult::Success
         } else {
-            false
+            SeekDangerResult::NotFound(target + 1)
         }
     }
 

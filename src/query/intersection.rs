@@ -1,8 +1,15 @@
 use super::size_hint::estimate_intersection;
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::query::term_query::TermScorer;
 use crate::query::{EmptyScorer, Scorer};
 use crate::{DocId, Score};
+
+/// This is a token used to prevent calls to seek_into_the_danger_zone
+/// outside of the intersection.
+///
+/// This is zero-cost.
+#[derive(Clone, Copy)]
+pub struct SeekAntiCallToken(());
 
 /// Returns the intersection scorer.
 ///
@@ -113,15 +120,19 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             return TERMINATED;
         }
 
+        const ANTI_CALL_TOKEN: SeekAntiCallToken = SeekAntiCallToken(());
+
         loop {
             // In the first part we look for a document in the intersection
             // of the two rarest `DocSet` in the intersection.
 
             loop {
-                if right.seek_into_the_danger_zone(candidate) {
-                    break;
-                }
-                let right_doc = right.doc();
+                let right_doc = match right.seek_into_the_danger_zone(candidate, ANTI_CALL_TOKEN) {
+                    SeekDangerResult::Success => {
+                        break;
+                    }
+                    SeekDangerResult::NotFound(seek_lower_bound) => seek_lower_bound,
+                };
                 // TODO: Think about which value would make sense here
                 // It depends on the DocSet implementation, when a seek would outweigh an advance.
                 if right_doc > candidate.wrapping_add(100) {
@@ -136,11 +147,10 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
 
             debug_assert_eq!(left.doc(), right.doc());
             // test the remaining scorers
-            if self
-                .others
-                .iter_mut()
-                .all(|docset| docset.seek_into_the_danger_zone(candidate))
-            {
+            if self.others.iter_mut().all(|docset| {
+                docset.seek_into_the_danger_zone(candidate, ANTI_CALL_TOKEN)
+                    == SeekDangerResult::Success
+            }) {
                 debug_assert_eq!(candidate, self.left.doc());
                 debug_assert_eq!(candidate, self.right.doc());
                 debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));
@@ -166,13 +176,29 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
     ///
     /// Some implementations may choose to advance past the target if beneficial for performance.
     /// The return value is `true` if the target is in the docset, and `false` otherwise.
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        self.left.seek_into_the_danger_zone(target)
-            && self.right.seek_into_the_danger_zone(target)
-            && self
-                .others
-                .iter_mut()
-                .all(|docset| docset.seek_into_the_danger_zone(target))
+    fn seek_into_the_danger_zone(
+        &mut self,
+        target: DocId,
+        token: SeekAntiCallToken,
+    ) -> SeekDangerResult {
+        if let SeekDangerResult::NotFound(seek_doc) =
+            self.left.seek_into_the_danger_zone(target, token)
+        {
+            return SeekDangerResult::NotFound(seek_doc);
+        }
+        if let SeekDangerResult::NotFound(seek_doc) =
+            self.right.seek_into_the_danger_zone(target, token)
+        {
+            return SeekDangerResult::NotFound(seek_doc);
+        }
+        for other in self.others.iter_mut() {
+            if let SeekDangerResult::NotFound(seek_doc) =
+                other.seek_into_the_danger_zone(target, token)
+            {
+                return SeekDangerResult::NotFound(seek_doc);
+            }
+        }
+        SeekDangerResult::Success
     }
 
     #[inline]
