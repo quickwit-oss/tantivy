@@ -85,8 +85,8 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
     }
 
     #[inline]
-    pub fn first(&self, row_id: RowId) -> Option<T> {
-        self.values_for_doc(row_id).next()
+    pub fn first(&self, doc_id: DocId) -> Option<T> {
+        self.values_for_doc(doc_id).next()
     }
 
     /// Load the first value for each docid in the provided slice.

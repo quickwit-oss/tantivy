@@ -60,7 +60,7 @@ fn test_dataframe_writer_bool() {
     let DynamicColumn::Bool(bool_col) = dyn_bool_col else {
         panic!();
     };
-    let vals: Vec<Option<bool>> = (0..5).map(|row_id| bool_col.first(row_id)).collect();
+    let vals: Vec<Option<bool>> = (0..5).map(|doc_id| bool_col.first(doc_id)).collect();
     assert_eq!(&vals, &[None, Some(false), None, Some(true), None,]);
 }
 
@@ -108,7 +108,7 @@ fn test_dataframe_writer_ip_addr() {
     let DynamicColumn::IpAddr(ip_col) = dyn_bool_col else {
         panic!();
     };
-    let vals: Vec<Option<Ipv6Addr>> = (0..5).map(|row_id| ip_col.first(row_id)).collect();
+    let vals: Vec<Option<Ipv6Addr>> = (0..5).map(|doc_id| ip_col.first(doc_id)).collect();
     assert_eq!(
         &vals,
         &[
@@ -169,7 +169,7 @@ fn test_dictionary_encoded_str() {
     let DynamicColumn::Str(str_col) = col_handles[0].open().unwrap() else {
         panic!();
     };
-    let index: Vec<Option<u64>> = (0..5).map(|row_id| str_col.ords().first(row_id)).collect();
+    let index: Vec<Option<u64>> = (0..5).map(|doc_id| str_col.ords().first(doc_id)).collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(str_col.num_rows(), 5);
     let mut term_buffer = String::new();
@@ -204,7 +204,7 @@ fn test_dictionary_encoded_bytes() {
         panic!();
     };
     let index: Vec<Option<u64>> = (0..5)
-        .map(|row_id| bytes_col.ords().first(row_id))
+        .map(|doc_id| bytes_col.ords().first(doc_id))
         .collect();
     assert_eq!(index, &[None, Some(0), None, Some(2), Some(1)]);
     assert_eq!(bytes_col.num_rows(), 5);
