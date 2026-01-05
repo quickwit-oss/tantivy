@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 
-use columnar::Column;
+use columnar::{Column, ValueRange};
 
+use crate::collector::sort_key::sort_key_computer::convert_optional_u64_range_to_u64_range;
 use crate::collector::sort_key::NaturalComparator;
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::{FastFieldNotAvailableError, FastValue};
 use crate::{DocId, Score, SegmentReader};
 
@@ -84,13 +85,110 @@ impl<T: FastValue> SegmentSortKeyComputer for SortByFastValueSegmentSortKeyCompu
     type SortKey = Option<T>;
     type SegmentSortKey = Option<u64>;
     type SegmentComparator = NaturalComparator;
+    type Buffer = ();
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> Self::SegmentSortKey {
         self.sort_column.first(doc)
     }
 
+    fn segment_sort_keys(
+        &mut self,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) {
+        let u64_filter = convert_optional_u64_range_to_u64_range(filter);
+        self.sort_column
+            .first_vals_in_value_range(input_docs, output, u64_filter);
+    }
+
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         sort_key.map(T::from_u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::{Schema, FAST};
+    use crate::Index;
+
+    #[test]
+    fn test_sort_by_fast_value_batch() {
+        let mut schema_builder = Schema::builder();
+        let field_col = schema_builder.add_u64_field("field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+
+        index_writer
+            .add_document(crate::doc!(field_col => 10u64))
+            .unwrap();
+        index_writer
+            .add_document(crate::doc!(field_col => 20u64))
+            .unwrap();
+        index_writer.add_document(crate::doc!()).unwrap();
+        index_writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let sorter = SortByStaticFastValue::<u64>::for_field("field");
+        let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
+
+        let mut docs = vec![0, 1, 2];
+        let mut output = Vec::new();
+        let mut buffer = ();
+        computer.segment_sort_keys(&mut docs, &mut output, &mut buffer, ValueRange::All);
+
+        assert_eq!(
+            output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
+            &[Some(10), Some(20), None]
+        );
+        assert_eq!(output.iter().map(|c| c.doc).collect::<Vec<_>>(), &[0, 1, 2]);
+    }
+
+    #[test]
+    fn test_sort_by_fast_value_batch_with_filter() {
+        let mut schema_builder = Schema::builder();
+        let field_col = schema_builder.add_u64_field("field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+
+        index_writer
+            .add_document(crate::doc!(field_col => 10u64))
+            .unwrap();
+        index_writer
+            .add_document(crate::doc!(field_col => 20u64))
+            .unwrap();
+        index_writer.add_document(crate::doc!()).unwrap();
+        index_writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let sorter = SortByStaticFastValue::<u64>::for_field("field");
+        let mut computer = sorter.segment_sort_key_computer(segment_reader).unwrap();
+
+        let mut docs = vec![0, 1, 2];
+        let mut output = Vec::new();
+        let mut buffer = ();
+        computer.segment_sort_keys(
+            &mut docs,
+            &mut output,
+            &mut buffer,
+            ValueRange::GreaterThan(Some(15u64), false /* inclusive */),
+        );
+
+        assert_eq!(
+            output.iter().map(|c| c.sort_key).collect::<Vec<_>>(),
+            &[Some(20)]
+        );
+        assert_eq!(output.iter().map(|c| c.doc).collect::<Vec<_>>(), &[1]);
     }
 }

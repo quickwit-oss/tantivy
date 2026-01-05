@@ -1,7 +1,8 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::net::Ipv6Addr;
 
-use columnar::{Column, ColumnType, ColumnarReader, DynamicColumn};
+use columnar::{Column, ColumnType, ColumnarReader, DynamicColumn, ValueRange};
 use common::json_path_writer::JSON_PATH_SEGMENT_SEP_STR;
 use common::DateTime;
 use regex::Regex;
@@ -16,7 +17,7 @@ use crate::aggregation::intermediate_agg_result::{
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::AggregationError;
-use crate::collector::sort_key::ReverseComparator;
+use crate::collector::sort_key::{Comparator, ReverseComparator};
 use crate::collector::TopNComputer;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
@@ -383,7 +384,7 @@ impl From<FastFieldValue> for OwnedValue {
 
 /// Holds a fast field value in its u64 representation, and the order in which it should be sorted.
 #[derive(Clone, Serialize, Deserialize, Debug)]
-struct DocValueAndOrder {
+pub(crate) struct DocValueAndOrder {
     /// A fast field value in its u64 representation.
     value: Option<u64>,
     /// Sort order for the value
@@ -455,6 +456,37 @@ impl PartialEq for DocSortValuesAndFields {
 
 impl Eq for DocSortValuesAndFields {}
 
+impl Comparator<DocSortValuesAndFields> for ReverseComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &DocSortValuesAndFields, rhs: &DocSortValuesAndFields) -> Ordering {
+        rhs.cmp(lhs)
+    }
+
+    fn threshold_to_valuerange(
+        &self,
+        threshold: DocSortValuesAndFields,
+    ) -> ValueRange<DocSortValuesAndFields> {
+        ValueRange::LessThan(threshold, true)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct TopHitsSegmentSortKey(pub Vec<DocValueAndOrder>);
+
+impl Comparator<TopHitsSegmentSortKey> for ReverseComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &TopHitsSegmentSortKey, rhs: &TopHitsSegmentSortKey) -> Ordering {
+        rhs.cmp(lhs)
+    }
+
+    fn threshold_to_valuerange(
+        &self,
+        threshold: TopHitsSegmentSortKey,
+    ) -> ValueRange<TopHitsSegmentSortKey> {
+        ValueRange::LessThan(threshold, true)
+    }
+}
+
 /// The TopHitsCollector used for collecting over segments and merging results.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TopHitsTopNComputer {
@@ -518,7 +550,7 @@ impl TopHitsTopNComputer {
 pub(crate) struct TopHitsSegmentCollector {
     segment_ordinal: SegmentOrdinal,
     accessor_idx: usize,
-    top_n: TopNComputer<Vec<DocValueAndOrder>, DocAddress, ReverseComparator>,
+    top_n: TopNComputer<TopHitsSegmentSortKey, DocAddress, ReverseComparator>,
 }
 
 impl TopHitsSegmentCollector {
@@ -539,13 +571,15 @@ impl TopHitsSegmentCollector {
         req: &TopHitsAggregationReq,
     ) -> TopHitsTopNComputer {
         let mut top_hits_computer = TopHitsTopNComputer::new(req);
+        // Map TopHitsSegmentSortKey back to Vec<DocValueAndOrder> if needed or use directly
+        // The TopNComputer here stores TopHitsSegmentSortKey.
         let top_results = self.top_n.into_vec();
 
         for res in top_results {
             let doc_value_fields = req.get_document_field_data(value_accessors, res.doc.doc_id);
             top_hits_computer.collect(
                 DocSortValuesAndFields {
-                    sorts: res.sort_key,
+                    sorts: res.sort_key.0,
                     doc_value_fields,
                 },
                 res.doc,
@@ -579,7 +613,7 @@ impl TopHitsSegmentCollector {
             .collect();
 
         self.top_n.push(
-            sorts,
+            TopHitsSegmentSortKey(sorts),
             DocAddress {
                 segment_ord: self.segment_ordinal,
                 doc_id,

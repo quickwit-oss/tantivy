@@ -1,9 +1,10 @@
-use columnar::{ColumnType, MonotonicallyMappableToU64};
+use columnar::{ColumnType, MonotonicallyMappableToU64, ValueRange};
 
+use crate::collector::sort_key::sort_by_score::SortBySimilarityScoreSegmentComputer;
 use crate::collector::sort_key::{
     NaturalComparator, SortBySimilarityScore, SortByStaticFastValue, SortByString,
 };
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::schema::OwnedValue;
 use crate::{DateTime, DocId, Score};
@@ -36,12 +37,23 @@ impl SortByErasedType {
 
 trait ErasedSegmentSortKeyComputer: Send + Sync {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64>;
+    fn segment_sort_keys(
+        &mut self,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Option<u64>, DocId>>,
+        filter: ValueRange<Option<u64>>,
+    );
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue;
 }
 
-struct ErasedSegmentSortKeyComputerWrapper<C, F> {
+struct ErasedSegmentSortKeyComputerWrapper<C, F>
+where
+    C: SegmentSortKeyComputer<SegmentSortKey = Option<u64>> + Send + Sync,
+    F: Fn(C::SortKey) -> OwnedValue + Send + Sync + 'static,
+{
     inner: C,
     converter: F,
+    buffer: C::Buffer,
 }
 
 impl<C, F> ErasedSegmentSortKeyComputer for ErasedSegmentSortKeyComputerWrapper<C, F>
@@ -53,6 +65,16 @@ where
         self.inner.segment_sort_key(doc, score)
     }
 
+    fn segment_sort_keys(
+        &mut self,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Option<u64>, DocId>>,
+        filter: ValueRange<Option<u64>>,
+    ) {
+        self.inner
+            .segment_sort_keys(input_docs, output, &mut self.buffer, filter)
+    }
+
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
         let val = self.inner.convert_segment_sort_key(sort_key);
         (self.converter)(val)
@@ -60,13 +82,22 @@ where
 }
 
 struct ScoreSegmentSortKeyComputer {
-    segment_computer: SortBySimilarityScore,
+    segment_computer: SortBySimilarityScoreSegmentComputer,
 }
 
 impl ErasedSegmentSortKeyComputer for ScoreSegmentSortKeyComputer {
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
         let score_value: f64 = self.segment_computer.segment_sort_key(doc, score).into();
         Some(score_value.to_u64())
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        _input_docs: &[DocId],
+        _output: &mut Vec<ComparableDoc<Option<u64>, DocId>>,
+        _filter: ValueRange<Option<u64>>,
+    ) {
+        unimplemented!("Batch computation not supported for score sorting")
     }
 
     fn convert_segment_sort_key(&self, sort_key: Option<u64>) -> OwnedValue {
@@ -112,6 +143,7 @@ impl SortKeyComputer for SortByErasedType {
                             converter: |val: Option<String>| {
                                 val.map(OwnedValue::Str).unwrap_or(OwnedValue::Null)
                             },
+                            buffer: Default::default(),
                         })
                     }
                     ColumnType::U64 => {
@@ -122,6 +154,7 @@ impl SortKeyComputer for SortByErasedType {
                             converter: |val: Option<u64>| {
                                 val.map(OwnedValue::U64).unwrap_or(OwnedValue::Null)
                             },
+                            buffer: Default::default(),
                         })
                     }
                     ColumnType::I64 => {
@@ -132,6 +165,7 @@ impl SortKeyComputer for SortByErasedType {
                             converter: |val: Option<i64>| {
                                 val.map(OwnedValue::I64).unwrap_or(OwnedValue::Null)
                             },
+                            buffer: Default::default(),
                         })
                     }
                     ColumnType::F64 => {
@@ -142,6 +176,7 @@ impl SortKeyComputer for SortByErasedType {
                             converter: |val: Option<f64>| {
                                 val.map(OwnedValue::F64).unwrap_or(OwnedValue::Null)
                             },
+                            buffer: Default::default(),
                         })
                     }
                     ColumnType::Bool => {
@@ -152,6 +187,7 @@ impl SortKeyComputer for SortByErasedType {
                             converter: |val: Option<bool>| {
                                 val.map(OwnedValue::Bool).unwrap_or(OwnedValue::Null)
                             },
+                            buffer: Default::default(),
                         })
                     }
                     ColumnType::DateTime => {
@@ -162,6 +198,7 @@ impl SortKeyComputer for SortByErasedType {
                             converter: |val: Option<DateTime>| {
                                 val.map(OwnedValue::Date).unwrap_or(OwnedValue::Null)
                             },
+                            buffer: Default::default(),
                         })
                     }
                     column_type => {
@@ -174,7 +211,8 @@ impl SortKeyComputer for SortByErasedType {
                 }
             }
             Self::Score => Box::new(ScoreSegmentSortKeyComputer {
-                segment_computer: SortBySimilarityScore,
+                segment_computer: SortBySimilarityScore
+                    .segment_sort_key_computer(segment_reader)?,
             }),
         };
         Ok(ErasedColumnSegmentSortKeyComputer { inner })
@@ -189,10 +227,21 @@ impl SegmentSortKeyComputer for ErasedColumnSegmentSortKeyComputer {
     type SortKey = OwnedValue;
     type SegmentSortKey = Option<u64>;
     type SegmentComparator = NaturalComparator;
+    type Buffer = ();
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Option<u64> {
         self.inner.segment_sort_key(doc, score)
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) {
+        self.inner.segment_sort_keys(input_docs, output, filter)
     }
 
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> OwnedValue {

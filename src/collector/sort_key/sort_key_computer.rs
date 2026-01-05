@@ -1,8 +1,12 @@
 use std::cmp::Ordering;
 
+use columnar::ValueRange;
+
 use crate::collector::sort_key::{Comparator, NaturalComparator};
 use crate::collector::sort_key_top_collector::TopBySortKeySegmentCollector;
-use crate::collector::{default_collect_segment_impl, SegmentCollector as _, TopNComputer};
+use crate::collector::{
+    default_collect_segment_impl, ComparableDoc, SegmentCollector as _, TopNComputer,
+};
 use crate::schema::Schema;
 use crate::{DocAddress, DocId, Result, Score, SegmentReader};
 
@@ -21,7 +25,10 @@ pub trait SegmentSortKeyComputer: 'static {
     type SegmentSortKey: 'static + Clone + Send + Sync + Clone;
 
     /// Comparator type.
-    type SegmentComparator: Comparator<Self::SegmentSortKey> + 'static;
+    type SegmentComparator: Comparator<Self::SegmentSortKey> + Clone + 'static;
+
+    /// Buffer type used for scratch space.
+    type Buffer: Default + Send + Sync + 'static;
 
     /// Returns the segment sort key comparator.
     fn segment_comparator(&self) -> Self::SegmentComparator {
@@ -31,6 +38,18 @@ pub trait SegmentSortKeyComputer: 'static {
     /// Computes the sort key for the given document and score.
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey;
 
+    /// Computes the sort keys for a batch of documents.
+    ///
+    /// The computed sort keys and document IDs are pushed into the `output` vector.
+    /// The `buffer` is used for scratch space.
+    fn segment_sort_keys(
+        &mut self,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
+    );
+
     /// Computes the sort key and pushes the document in a TopN Computer.
     ///
     /// When using a tuple as the sorting key, the sort key is evaluated in a lazy manner.
@@ -39,10 +58,30 @@ pub trait SegmentSortKeyComputer: 'static {
         &mut self,
         doc: DocId,
         score: Score,
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         let sort_key = self.segment_sort_key(doc, score);
         top_n_computer.push(sort_key, doc);
+    }
+
+    fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        docs: &[DocId],
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
+    ) {
+        // The capacity of a TopNComputer is larger than 2*n + COLLECT_BLOCK_BUFFER_LEN, so we
+        // should always be able to `reserve` space for the entire block.
+        top_n_computer.reserve(docs.len());
+
+        let comparator = self.segment_comparator();
+        let value_range = if let Some(threshold) = &top_n_computer.threshold {
+            comparator.threshold_to_valuerange(threshold.clone())
+        } else {
+            ValueRange::All
+        };
+
+        let (buffer, scratch) = top_n_computer.buffer_and_scratch();
+        self.segment_sort_keys(docs, buffer, scratch, value_range);
     }
 
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
@@ -56,26 +95,6 @@ pub trait SegmentSortKeyComputer: 'static {
         right: &Self::SegmentSortKey,
     ) -> Ordering {
         self.segment_comparator().compare(left, right)
-    }
-
-    /// Implementing this method makes it possible to avoid computing
-    /// a sort_key entirely if we can assess that it won't pass a threshold
-    /// with a partial computation.
-    ///
-    /// This is currently used for lexicographic sorting.
-    fn accept_sort_key_lazy(
-        &mut self,
-        doc_id: DocId,
-        score: Score,
-        threshold: &Self::SegmentSortKey,
-    ) -> Option<(Ordering, Self::SegmentSortKey)> {
-        let sort_key = self.segment_sort_key(doc_id, score);
-        let cmp = self.compare_segment_sort_key(&sort_key, threshold);
-        if cmp == Ordering::Less {
-            None
-        } else {
-            Some((cmp, sort_key))
-        }
     }
 
     /// Convert a segment level sort key into the global sort key.
@@ -145,7 +164,8 @@ where
     TailSortKeyComputer: SortKeyComputer,
 {
     type SortKey = (HeadSortKeyComputer::SortKey, TailSortKeyComputer::SortKey);
-    type Child = (HeadSortKeyComputer::Child, TailSortKeyComputer::Child);
+    type Child =
+        ChainSegmentSortKeyComputer<HeadSortKeyComputer::Child, TailSortKeyComputer::Child>;
 
     type Comparator = (
         HeadSortKeyComputer::Comparator,
@@ -157,10 +177,10 @@ where
     }
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
-        Ok((
-            self.0.segment_sort_key_computer(segment_reader)?,
-            self.1.segment_sort_key_computer(segment_reader)?,
-        ))
+        Ok(ChainSegmentSortKeyComputer {
+            head: self.0.segment_sort_key_computer(segment_reader)?,
+            tail: self.1.segment_sort_key_computer(segment_reader)?,
+        })
     }
 
     /// Checks whether the schema is compatible with the sort key computer.
@@ -178,25 +198,91 @@ where
     }
 }
 
-impl<HeadSegmentSortKeyComputer, TailSegmentSortKeyComputer> SegmentSortKeyComputer
-    for (HeadSegmentSortKeyComputer, TailSegmentSortKeyComputer)
+pub struct ChainSegmentSortKeyComputer<Head, Tail>
 where
-    HeadSegmentSortKeyComputer: SegmentSortKeyComputer,
-    TailSegmentSortKeyComputer: SegmentSortKeyComputer,
+    Head: SegmentSortKeyComputer,
+    Tail: SegmentSortKeyComputer,
 {
-    type SortKey = (
-        HeadSegmentSortKeyComputer::SortKey,
-        TailSegmentSortKeyComputer::SortKey,
-    );
-    type SegmentSortKey = (
-        HeadSegmentSortKeyComputer::SegmentSortKey,
-        TailSegmentSortKeyComputer::SegmentSortKey,
-    );
+    head: Head,
+    tail: Tail,
+}
 
-    type SegmentComparator = (
-        HeadSegmentSortKeyComputer::SegmentComparator,
-        TailSegmentSortKeyComputer::SegmentComparator,
-    );
+pub struct ChainBuffer<HeadBuffer, TailBuffer, HeadKey, TailKey> {
+    pub head: HeadBuffer,
+    pub tail: TailBuffer,
+    pub head_output: Vec<ComparableDoc<HeadKey, DocId>>,
+    pub tail_output: Vec<ComparableDoc<TailKey, DocId>>,
+    pub tail_input_docs: Vec<DocId>,
+}
+
+impl<HeadBuffer: Default, TailBuffer: Default, HeadKey, TailKey> Default
+    for ChainBuffer<HeadBuffer, TailBuffer, HeadKey, TailKey>
+{
+    fn default() -> Self {
+        ChainBuffer {
+            head: HeadBuffer::default(),
+            tail: TailBuffer::default(),
+            head_output: Vec::new(),
+            tail_output: Vec::new(),
+            tail_input_docs: Vec::new(),
+        }
+    }
+}
+
+impl<Head, Tail> ChainSegmentSortKeyComputer<Head, Tail>
+where
+    Head: SegmentSortKeyComputer,
+    Tail: SegmentSortKeyComputer,
+{
+    fn accept_sort_key_lazy(
+        &mut self,
+        doc_id: DocId,
+        score: Score,
+        threshold: &<Self as SegmentSortKeyComputer>::SegmentSortKey,
+    ) -> Option<(Ordering, <Self as SegmentSortKeyComputer>::SegmentSortKey)> {
+        let (head_threshold, tail_threshold) = threshold;
+        let head_sort_key = self.head.segment_sort_key(doc_id, score);
+        let head_cmp = self
+            .head
+            .compare_segment_sort_key(&head_sort_key, head_threshold);
+        if head_cmp == Ordering::Less {
+            None
+        } else if head_cmp == Ordering::Equal {
+            let tail_sort_key = self.tail.segment_sort_key(doc_id, score);
+            let tail_cmp = self
+                .tail
+                .compare_segment_sort_key(&tail_sort_key, tail_threshold);
+            if tail_cmp == Ordering::Less {
+                None
+            } else {
+                Some((tail_cmp, (head_sort_key, tail_sort_key)))
+            }
+        } else {
+            let tail_sort_key = self.tail.segment_sort_key(doc_id, score);
+            Some((head_cmp, (head_sort_key, tail_sort_key)))
+        }
+    }
+}
+
+impl<Head, Tail> SegmentSortKeyComputer for ChainSegmentSortKeyComputer<Head, Tail>
+where
+    Head: SegmentSortKeyComputer,
+    Tail: SegmentSortKeyComputer,
+{
+    type SortKey = (Head::SortKey, Tail::SortKey);
+    type SegmentSortKey = (Head::SegmentSortKey, Tail::SegmentSortKey);
+
+    type SegmentComparator = (Head::SegmentComparator, Tail::SegmentComparator);
+
+    type Buffer =
+        ChainBuffer<Head::Buffer, Tail::Buffer, Head::SegmentSortKey, Tail::SegmentSortKey>;
+
+    fn segment_comparator(&self) -> Self::SegmentComparator {
+        (
+            self.head.segment_comparator(),
+            self.tail.segment_comparator(),
+        )
+    }
 
     /// A SegmentSortKeyComputer maps to a SegmentSortKey, but it can also decide on
     /// its ordering.
@@ -208,9 +294,90 @@ where
         left: &Self::SegmentSortKey,
         right: &Self::SegmentSortKey,
     ) -> Ordering {
-        self.0
+        self.head
             .compare_segment_sort_key(&left.0, &right.0)
-            .then_with(|| self.1.compare_segment_sort_key(&left.1, &right.1))
+            .then_with(|| self.tail.compare_segment_sort_key(&left.1, &right.1))
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) {
+        let (head_filter, threshold) = match filter {
+            ValueRange::GreaterThan((head_threshold, tail_threshold), _)
+            | ValueRange::LessThan((head_threshold, tail_threshold), _) => {
+                let head_cmp = self.head.segment_comparator();
+                let strict_head_filter = head_cmp.threshold_to_valuerange(head_threshold.clone());
+                let head_filter = match strict_head_filter {
+                    ValueRange::GreaterThan(t, m) => ValueRange::GreaterThanOrEqual(t, m),
+                    ValueRange::LessThan(t, m) => ValueRange::LessThanOrEqual(t, m),
+                    other => other,
+                };
+                (head_filter, Some((head_threshold, tail_threshold)))
+            }
+            _ => (ValueRange::All, None),
+        };
+
+        buffer.head_output.clear();
+        self.head.segment_sort_keys(
+            input_docs,
+            &mut buffer.head_output,
+            &mut buffer.head,
+            head_filter,
+        );
+
+        if buffer.head_output.is_empty() {
+            return;
+        }
+
+        buffer.tail_output.clear();
+        buffer.tail_input_docs.clear();
+        for cd in &buffer.head_output {
+            buffer.tail_input_docs.push(cd.doc);
+        }
+
+        self.tail.segment_sort_keys(
+            &buffer.tail_input_docs,
+            &mut buffer.tail_output,
+            &mut buffer.tail,
+            ValueRange::All,
+        );
+
+        let head_cmp = self.head.segment_comparator();
+        let tail_cmp = self.tail.segment_comparator();
+
+        for (head_doc, tail_doc) in buffer
+            .head_output
+            .drain(..)
+            .zip(buffer.tail_output.drain(..))
+        {
+            debug_assert_eq!(head_doc.doc, tail_doc.doc);
+            let doc = head_doc.doc;
+            let head_key = head_doc.sort_key;
+            let tail_key = tail_doc.sort_key;
+
+            let accept = if let Some((head_threshold, tail_threshold)) = &threshold {
+                let head_ord = head_cmp.compare(&head_key, head_threshold);
+                let ord = if head_ord == Ordering::Equal {
+                    tail_cmp.compare(&tail_key, tail_threshold)
+                } else {
+                    head_ord
+                };
+                ord == Ordering::Greater
+            } else {
+                true
+            };
+
+            if accept {
+                output.push(ComparableDoc {
+                    sort_key: (head_key, tail_key),
+                    doc,
+                });
+            }
+        }
     }
 
     #[inline(always)]
@@ -218,7 +385,7 @@ where
         &mut self,
         doc: DocId,
         score: Score,
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         let sort_key: Self::SegmentSortKey;
         if let Some(threshold) = &top_n_computer.threshold {
@@ -235,48 +402,29 @@ where
 
     #[inline(always)]
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
-        let head_sort_key = self.0.segment_sort_key(doc, score);
-        let tail_sort_key = self.1.segment_sort_key(doc, score);
+        let head_sort_key = self.head.segment_sort_key(doc, score);
+        let tail_sort_key = self.tail.segment_sort_key(doc, score);
         (head_sort_key, tail_sort_key)
-    }
-
-    fn accept_sort_key_lazy(
-        &mut self,
-        doc_id: DocId,
-        score: Score,
-        threshold: &Self::SegmentSortKey,
-    ) -> Option<(Ordering, Self::SegmentSortKey)> {
-        let (head_threshold, tail_threshold) = threshold;
-        let (head_cmp, head_sort_key) =
-            self.0.accept_sort_key_lazy(doc_id, score, head_threshold)?;
-        if head_cmp == Ordering::Equal {
-            let (tail_cmp, tail_sort_key) =
-                self.1.accept_sort_key_lazy(doc_id, score, tail_threshold)?;
-            Some((tail_cmp, (head_sort_key, tail_sort_key)))
-        } else {
-            let tail_sort_key = self.1.segment_sort_key(doc_id, score);
-            Some((head_cmp, (head_sort_key, tail_sort_key)))
-        }
     }
 
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         let (head_sort_key, tail_sort_key) = sort_key;
         (
-            self.0.convert_segment_sort_key(head_sort_key),
-            self.1.convert_segment_sort_key(tail_sort_key),
+            self.head.convert_segment_sort_key(head_sort_key),
+            self.tail.convert_segment_sort_key(tail_sort_key),
         )
     }
 }
 
 /// This struct is used as an adapter to take a sort key computer and map its score to another
 /// new sort key.
-pub struct MappedSegmentSortKeyComputer<T, PreviousSortKey, NewSortKey> {
+pub struct MappedSegmentSortKeyComputer<T: SegmentSortKeyComputer, NewSortKey> {
     sort_key_computer: T,
-    map: fn(PreviousSortKey) -> NewSortKey,
+    map: fn(T::SortKey) -> NewSortKey,
 }
 
 impl<T, PreviousScore, NewScore> SegmentSortKeyComputer
-    for MappedSegmentSortKeyComputer<T, PreviousScore, NewScore>
+    for MappedSegmentSortKeyComputer<T, NewScore>
 where
     T: SegmentSortKeyComputer<SortKey = PreviousScore>,
     PreviousScore: 'static + Clone + Send + Sync,
@@ -285,19 +433,25 @@ where
     type SortKey = NewScore;
     type SegmentSortKey = T::SegmentSortKey;
     type SegmentComparator = T::SegmentComparator;
+    type Buffer = T::Buffer;
+
+    fn segment_comparator(&self) -> Self::SegmentComparator {
+        self.sort_key_computer.segment_comparator()
+    }
 
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.sort_key_computer.segment_sort_key(doc, score)
     }
 
-    fn accept_sort_key_lazy(
+    fn segment_sort_keys(
         &mut self,
-        doc_id: DocId,
-        score: Score,
-        threshold: &Self::SegmentSortKey,
-    ) -> Option<(Ordering, Self::SegmentSortKey)> {
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        buffer: &mut Self::Buffer,
+        filter: ValueRange<Self::SegmentSortKey>,
+    ) {
         self.sort_key_computer
-            .accept_sort_key_lazy(doc_id, score, threshold)
+            .segment_sort_keys(input_docs, output, buffer, filter)
     }
 
     #[inline(always)]
@@ -305,10 +459,19 @@ where
         &mut self,
         doc: DocId,
         score: Score,
-        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C>,
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
     ) {
         self.sort_key_computer
             .compute_sort_key_and_collect(doc, score, top_n_computer);
+    }
+
+    fn compute_sort_keys_and_collect<C: Comparator<Self::SegmentSortKey>>(
+        &mut self,
+        docs: &[DocId],
+        top_n_computer: &mut TopNComputer<Self::SegmentSortKey, DocId, C, Self::Buffer>,
+    ) {
+        self.sort_key_computer
+            .compute_sort_keys_and_collect(docs, top_n_computer);
     }
 
     fn convert_segment_sort_key(&self, segment_sort_key: Self::SegmentSortKey) -> Self::SortKey {
@@ -336,10 +499,6 @@ where
     );
     type Child = MappedSegmentSortKeyComputer<
         <(SortKeyComputer1, (SortKeyComputer2, SortKeyComputer3)) as SortKeyComputer>::Child,
-        (
-            SortKeyComputer1::SortKey,
-            (SortKeyComputer2::SortKey, SortKeyComputer3::SortKey),
-        ),
         Self::SortKey,
     >;
 
@@ -363,7 +522,13 @@ where
         let sort_key_computer3 = self.2.segment_sort_key_computer(segment_reader)?;
         let map = |(sort_key1, (sort_key2, sort_key3))| (sort_key1, sort_key2, sort_key3);
         Ok(MappedSegmentSortKeyComputer {
-            sort_key_computer: (sort_key_computer1, (sort_key_computer2, sort_key_computer3)),
+            sort_key_computer: ChainSegmentSortKeyComputer {
+                head: sort_key_computer1,
+                tail: ChainSegmentSortKeyComputer {
+                    head: sort_key_computer2,
+                    tail: sort_key_computer3,
+                },
+            },
             map,
         })
     }
@@ -398,13 +563,6 @@ where
             SortKeyComputer1,
             (SortKeyComputer2, (SortKeyComputer3, SortKeyComputer4)),
         ) as SortKeyComputer>::Child,
-        (
-            SortKeyComputer1::SortKey,
-            (
-                SortKeyComputer2::SortKey,
-                (SortKeyComputer3::SortKey, SortKeyComputer4::SortKey),
-            ),
-        ),
         Self::SortKey,
     >;
     type SortKey = (
@@ -426,10 +584,16 @@ where
         let sort_key_computer3 = self.2.segment_sort_key_computer(segment_reader)?;
         let sort_key_computer4 = self.3.segment_sort_key_computer(segment_reader)?;
         Ok(MappedSegmentSortKeyComputer {
-            sort_key_computer: (
-                sort_key_computer1,
-                (sort_key_computer2, (sort_key_computer3, sort_key_computer4)),
-            ),
+            sort_key_computer: ChainSegmentSortKeyComputer {
+                head: sort_key_computer1,
+                tail: ChainSegmentSortKeyComputer {
+                    head: sort_key_computer2,
+                    tail: ChainSegmentSortKeyComputer {
+                        head: sort_key_computer3,
+                        tail: sort_key_computer4,
+                    },
+                },
+            },
             map: |(sort_key1, (sort_key2, (sort_key3, sort_key4)))| {
                 (sort_key1, sort_key2, sort_key3, sort_key4)
             },
@@ -452,6 +616,13 @@ where
     }
 }
 
+use std::marker::PhantomData;
+
+pub struct FuncSegmentSortKeyComputer<F, TSortKey> {
+    func: F,
+    _phantom: PhantomData<TSortKey>,
+}
+
 impl<F, SegmentF, TSortKey> SortKeyComputer for F
 where
     F: 'static + Send + Sync + Fn(&SegmentReader) -> SegmentF,
@@ -459,15 +630,18 @@ where
     TSortKey: 'static + PartialOrd + Clone + Send + Sync + std::fmt::Debug,
 {
     type SortKey = TSortKey;
-    type Child = SegmentF;
+    type Child = FuncSegmentSortKeyComputer<SegmentF, TSortKey>;
     type Comparator = NaturalComparator;
 
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
-        Ok((self)(segment_reader))
+        Ok(FuncSegmentSortKeyComputer {
+            func: (self)(segment_reader),
+            _phantom: PhantomData,
+        })
     }
 }
 
-impl<F, TSortKey> SegmentSortKeyComputer for F
+impl<F, TSortKey> SegmentSortKeyComputer for FuncSegmentSortKeyComputer<F, TSortKey>
 where
     F: 'static + FnMut(DocId) -> TSortKey,
     TSortKey: 'static + PartialOrd + Clone + Send + Sync,
@@ -475,14 +649,92 @@ where
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
     type SegmentComparator = NaturalComparator;
+    type Buffer = ();
 
     fn segment_sort_key(&mut self, doc: DocId, _score: Score) -> TSortKey {
-        (self)(doc)
+        (self.func)(doc)
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        input_docs: &[DocId],
+        output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) {
+        for &doc in input_docs {
+            output.push(ComparableDoc {
+                sort_key: (self.func)(doc),
+                doc,
+            });
+        }
     }
 
     /// Convert a segment level score into the global level score.
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         sort_key
+    }
+}
+
+pub(crate) fn range_contains_none(range: &ValueRange<Option<u64>>) -> bool {
+    match range {
+        ValueRange::All => true,
+        ValueRange::Inclusive(r) => r.contains(&None),
+        ValueRange::GreaterThan(_threshold, match_nulls) => *match_nulls,
+        ValueRange::GreaterThanOrEqual(_threshold, match_nulls) => *match_nulls,
+        ValueRange::LessThan(_threshold, match_nulls) => *match_nulls,
+        ValueRange::LessThanOrEqual(_threshold, match_nulls) => *match_nulls,
+    }
+}
+
+pub(crate) fn convert_optional_u64_range_to_u64_range(
+    range: ValueRange<Option<u64>>,
+) -> ValueRange<u64> {
+    match range {
+        ValueRange::Inclusive(r) => {
+            let start = r.start().unwrap_or(0);
+            let end = r.end().unwrap_or(u64::MAX);
+            ValueRange::Inclusive(start..=end)
+        }
+        ValueRange::GreaterThan(Some(val), match_nulls) => {
+            ValueRange::GreaterThan(val, match_nulls)
+        }
+        ValueRange::GreaterThan(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::All
+            } else {
+                ValueRange::Inclusive(u64::MIN..=u64::MAX)
+            }
+        }
+        ValueRange::GreaterThanOrEqual(Some(val), match_nulls) => {
+            ValueRange::GreaterThanOrEqual(val, match_nulls)
+        }
+        ValueRange::GreaterThanOrEqual(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::All
+            } else {
+                ValueRange::Inclusive(u64::MIN..=u64::MAX)
+            }
+        }
+        ValueRange::LessThan(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::LessThan(u64::MIN, true)
+            } else {
+                ValueRange::Inclusive(1..=0)
+            }
+        }
+        ValueRange::LessThan(Some(val), match_nulls) => ValueRange::LessThan(val, match_nulls),
+        ValueRange::LessThanOrEqual(None, match_nulls) => {
+            if match_nulls {
+                ValueRange::LessThan(u64::MIN, true)
+            } else {
+                ValueRange::Inclusive(1..=0)
+            }
+        }
+        ValueRange::LessThanOrEqual(Some(val), match_nulls) => {
+            ValueRange::LessThanOrEqual(val, match_nulls)
+        }
+        ValueRange::All => ValueRange::All,
     }
 }
 
@@ -492,7 +744,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Arc;
 
-    use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+    use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
     use crate::schema::Schema;
     use crate::{DocId, Index, Order, SegmentReader};
 
@@ -639,5 +891,179 @@ mod tests {
             segment_sort_key_computer.convert_segment_sort_key(expected_sort_key),
             (200u32, 2u32)
         );
+    }
+    #[test]
+    fn test_batch_score_computer_edge_case() {
+        let score_computer_primary = |_segment_reader: &SegmentReader| |_doc: DocId| 200u32;
+        let score_computer_secondary = |_segment_reader: &SegmentReader| |_doc: DocId| "b";
+        let lazy_score_computer = (score_computer_primary, score_computer_secondary);
+        let index = build_test_index();
+        let searcher = index.reader().unwrap().searcher();
+        let mut segment_sort_key_computer = lazy_score_computer
+            .segment_sort_key_computer(searcher.segment_reader(0))
+            .unwrap();
+
+        let mut top_n_computer =
+            TopNComputer::new_with_comparator(10, lazy_score_computer.comparator());
+        // Threshold (200, "a"). Doc is (200, "b"). 200 == 200, "b" > "a". Should be accepted.
+        top_n_computer.threshold = Some((200, "a"));
+
+        let docs = vec![0];
+        segment_sort_key_computer.compute_sort_keys_and_collect(&docs, &mut top_n_computer);
+
+        let results = top_n_computer.into_sorted_vec();
+        assert_eq!(results.len(), 1);
+        let result = &results[0];
+        assert_eq!(result.doc, 0);
+        assert_eq!(result.sort_key, (200, "b"));
+    }
+}
+
+#[cfg(test)]
+mod proptest_tests {
+    use proptest::prelude::*;
+
+    use super::*;
+    use crate::collector::sort_key::order::*;
+
+    // Re-implement logic to interpret ValueRange<Option<u64>> manually to verify expectations
+    fn range_contains_opt(range: &ValueRange<Option<u64>>, val: &Option<u64>) -> bool {
+        match range {
+            ValueRange::All => true,
+            ValueRange::Inclusive(r) => r.contains(val),
+            ValueRange::GreaterThan(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val > t
+                }
+            }
+            ValueRange::GreaterThanOrEqual(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val >= t
+                }
+            }
+            ValueRange::LessThan(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val < t
+                }
+            }
+            ValueRange::LessThanOrEqual(t, match_nulls) => {
+                if val.is_none() {
+                    *match_nulls
+                } else {
+                    val <= t
+                }
+            }
+        }
+    }
+
+    fn range_contains_u64(range: &ValueRange<u64>, val: &u64) -> bool {
+        match range {
+            ValueRange::All => true,
+            ValueRange::Inclusive(r) => r.contains(val),
+            ValueRange::GreaterThan(t, _) => val > t,
+            ValueRange::GreaterThanOrEqual(t, _) => val >= t,
+            ValueRange::LessThan(t, _) => val < t,
+            ValueRange::LessThanOrEqual(t, _) => val <= t,
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_comparator_consistency_natural_none_is_lower(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<NaturalComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_reverse(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<ReverseComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_reverse_none_is_lower(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<ReverseNoneIsLowerComparator>(threshold, val)?;
+        }
+
+        #[test]
+        fn test_comparator_consistency_natural_none_is_higher(
+            threshold in any::<Option<u64>>(),
+            val in any::<Option<u64>>()
+        ) {
+             check_comparator::<NaturalNoneIsHigherComparator>(threshold, val)?;
+        }
+    }
+
+    fn check_comparator<C: Comparator<Option<u64>>>(
+        threshold: Option<u64>,
+        val: Option<u64>,
+    ) -> std::result::Result<(), proptest::test_runner::TestCaseError> {
+        let comparator = C::default();
+        let range = comparator.threshold_to_valuerange(threshold);
+        let ordering = comparator.compare(&val, &threshold);
+        let should_be_in_range = ordering == Ordering::Greater;
+
+        let in_range_opt = range_contains_opt(&range, &val);
+
+        prop_assert_eq!(
+            in_range_opt,
+            should_be_in_range,
+            "Comparator consistency failed for {:?}. Threshold: {:?}, Val: {:?}, Range: {:?}, \
+             Ordering: {:?}. range_contains_opt says {}, but compare says {}",
+            std::any::type_name::<C>(),
+            threshold,
+            val,
+            range,
+            ordering,
+            in_range_opt,
+            should_be_in_range
+        );
+
+        // Check range_contains_none
+        let expected_none_in_range = range_contains_opt(&range, &None);
+        let actual_none_in_range = range_contains_none(&range);
+        prop_assert_eq!(
+            actual_none_in_range,
+            expected_none_in_range,
+            "range_contains_none failed for {:?}. Range: {:?}. Expected (from \
+             range_contains_opt): {}, Actual: {}",
+            std::any::type_name::<C>(),
+            range,
+            expected_none_in_range,
+            actual_none_in_range
+        );
+
+        // Check convert_optional_u64_range_to_u64_range
+        let u64_range = convert_optional_u64_range_to_u64_range(range.clone());
+        if let Some(v) = val {
+            let in_u64_range = range_contains_u64(&u64_range, &v);
+            let in_opt_range = range_contains_opt(&range, &Some(v));
+            prop_assert_eq!(
+                in_u64_range,
+                in_opt_range,
+                "convert_optional_u64_range_to_u64_range failed for {:?}. Val: {:?}, OptRange: \
+                 {:?}, U64Range: {:?}. Opt says {}, U64 says {}",
+                std::any::type_name::<C>(),
+                v,
+                range,
+                u64_range,
+                in_opt_range,
+                in_u64_range
+            );
+        }
+        Ok(())
     }
 }

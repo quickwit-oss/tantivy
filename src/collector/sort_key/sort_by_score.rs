@@ -1,5 +1,7 @@
+use columnar::ValueRange;
+
 use crate::collector::sort_key::NaturalComparator;
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
 use crate::{DocAddress, DocId, Score};
 
 /// Sort by similarity score.
@@ -9,7 +11,7 @@ pub struct SortBySimilarityScore;
 impl SortKeyComputer for SortBySimilarityScore {
     type SortKey = Score;
 
-    type Child = SortBySimilarityScore;
+    type Child = SortBySimilarityScoreSegmentComputer;
 
     type Comparator = NaturalComparator;
 
@@ -21,7 +23,7 @@ impl SortKeyComputer for SortBySimilarityScore {
         &self,
         _segment_reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
-        Ok(SortBySimilarityScore)
+        Ok(SortBySimilarityScoreSegmentComputer)
     }
 
     // Sorting by score is special in that it allows for the Block-Wand optimization.
@@ -61,14 +63,27 @@ impl SortKeyComputer for SortBySimilarityScore {
     }
 }
 
-impl SegmentSortKeyComputer for SortBySimilarityScore {
+pub struct SortBySimilarityScoreSegmentComputer;
+
+impl SegmentSortKeyComputer for SortBySimilarityScoreSegmentComputer {
     type SortKey = Score;
     type SegmentSortKey = Score;
     type SegmentComparator = NaturalComparator;
+    type Buffer = ();
 
     #[inline(always)]
     fn segment_sort_key(&mut self, _doc: DocId, score: Score) -> Score {
         score
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        _input_docs: &[DocId],
+        _output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) {
+        unimplemented!("Batch computation not supported for score sorting")
     }
 
     fn convert_segment_sort_key(&self, score: Score) -> Score {

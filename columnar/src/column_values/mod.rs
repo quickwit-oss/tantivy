@@ -7,12 +7,14 @@
 //! - Monotonically map values to u64/u128
 
 use std::fmt::Debug;
-use std::ops::{Range, RangeInclusive};
+use std::ops::Range;
 use std::sync::Arc;
 
 use downcast_rs::DowncastSync;
 pub use monotonic_mapping::{MonotonicallyMappableToU64, StrictlyMonotonicFn};
 pub use monotonic_mapping_u128::MonotonicallyMappableToU128;
+
+use crate::column::ValueRange;
 
 mod merge;
 pub(crate) mod monotonic_mapping;
@@ -109,6 +111,307 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
         }
     }
 
+    /// Load the values for the provided docids.
+    ///
+    /// The values are filtered by the provided value range.
+    fn get_vals_in_value_range(
+        &self,
+        input_indexes: &[u32],
+        input_doc_ids: &[u32],
+        output: &mut Vec<crate::ComparableDoc<Option<T>, crate::DocId>>,
+        value_range: ValueRange<T>,
+    ) {
+        let len = input_indexes.len();
+        let mut read_head = 0;
+
+        match value_range {
+            ValueRange::All => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    output.push(crate::ComparableDoc {
+                        doc: doc0,
+                        sort_key: Some(val0),
+                    });
+                    output.push(crate::ComparableDoc {
+                        doc: doc1,
+                        sort_key: Some(val1),
+                    });
+                    output.push(crate::ComparableDoc {
+                        doc: doc2,
+                        sort_key: Some(val2),
+                    });
+                    output.push(crate::ComparableDoc {
+                        doc: doc3,
+                        sort_key: Some(val3),
+                    });
+
+                    read_head += 4;
+                }
+            }
+            ValueRange::Inclusive(ref range) => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if range.contains(&val0) {
+                        output.push(crate::ComparableDoc {
+                            doc: doc0,
+                            sort_key: Some(val0),
+                        });
+                    }
+                    if range.contains(&val1) {
+                        output.push(crate::ComparableDoc {
+                            doc: doc1,
+                            sort_key: Some(val1),
+                        });
+                    }
+                    if range.contains(&val2) {
+                        output.push(crate::ComparableDoc {
+                            doc: doc2,
+                            sort_key: Some(val2),
+                        });
+                    }
+                    if range.contains(&val3) {
+                        output.push(crate::ComparableDoc {
+                            doc: doc3,
+                            sort_key: Some(val3),
+                        });
+                    }
+
+                    read_head += 4;
+                }
+            }
+            ValueRange::GreaterThan(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 > *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc0,
+                            sort_key: Some(val0),
+                        });
+                    }
+                    if val1 > *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc1,
+                            sort_key: Some(val1),
+                        });
+                    }
+                    if val2 > *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc2,
+                            sort_key: Some(val2),
+                        });
+                    }
+                    if val3 > *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc3,
+                            sort_key: Some(val3),
+                        });
+                    }
+
+                    read_head += 4;
+                }
+            }
+            ValueRange::GreaterThanOrEqual(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc0,
+                            sort_key: Some(val0),
+                        });
+                    }
+                    if val1 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc1,
+                            sort_key: Some(val1),
+                        });
+                    }
+                    if val2 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc2,
+                            sort_key: Some(val2),
+                        });
+                    }
+                    if val3 >= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc3,
+                            sort_key: Some(val3),
+                        });
+                    }
+
+                    read_head += 4;
+                }
+            }
+            ValueRange::LessThan(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 < *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc0,
+                            sort_key: Some(val0),
+                        });
+                    }
+                    if val1 < *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc1,
+                            sort_key: Some(val1),
+                        });
+                    }
+                    if val2 < *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc2,
+                            sort_key: Some(val2),
+                        });
+                    }
+                    if val3 < *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc3,
+                            sort_key: Some(val3),
+                        });
+                    }
+
+                    read_head += 4;
+                }
+            }
+            ValueRange::LessThanOrEqual(ref threshold, _) => {
+                while read_head + 3 < len {
+                    let idx0 = input_indexes[read_head];
+                    let idx1 = input_indexes[read_head + 1];
+                    let idx2 = input_indexes[read_head + 2];
+                    let idx3 = input_indexes[read_head + 3];
+
+                    let doc0 = input_doc_ids[read_head];
+                    let doc1 = input_doc_ids[read_head + 1];
+                    let doc2 = input_doc_ids[read_head + 2];
+                    let doc3 = input_doc_ids[read_head + 3];
+
+                    let val0 = self.get_val(idx0);
+                    let val1 = self.get_val(idx1);
+                    let val2 = self.get_val(idx2);
+                    let val3 = self.get_val(idx3);
+
+                    if val0 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc0,
+                            sort_key: Some(val0),
+                        });
+                    }
+                    if val1 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc1,
+                            sort_key: Some(val1),
+                        });
+                    }
+                    if val2 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc2,
+                            sort_key: Some(val2),
+                        });
+                    }
+                    if val3 <= *threshold {
+                        output.push(crate::ComparableDoc {
+                            doc: doc3,
+                            sort_key: Some(val3),
+                        });
+                    }
+
+                    read_head += 4;
+                }
+            }
+        }
+        // Process remaining elements (0 to 3)
+        while read_head < len {
+            let idx = input_indexes[read_head];
+            let doc = input_doc_ids[read_head];
+            let val = self.get_val(idx);
+            let matches = match value_range {
+                // 'value_range' is still moved here. This is the outer `value_range`
+                ValueRange::All => true,
+                ValueRange::Inclusive(ref r) => r.contains(&val),
+                ValueRange::GreaterThan(ref t, _) => val > *t,
+                ValueRange::GreaterThanOrEqual(ref t, _) => val >= *t,
+                ValueRange::LessThan(ref t, _) => val < *t,
+                ValueRange::LessThanOrEqual(ref t, _) => val <= *t,
+            };
+            if matches {
+                output.push(crate::ComparableDoc {
+                    doc,
+                    sort_key: Some(val),
+                });
+            }
+            read_head += 1;
+        }
+    }
+
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.
@@ -129,15 +432,54 @@ pub trait ColumnValues<T: PartialOrd = u64>: Send + Sync + DowncastSync {
     /// Note that position == docid for single value fast fields
     fn get_row_ids_for_value_range(
         &self,
-        value_range: RangeInclusive<T>,
+        value_range: ValueRange<T>,
         row_id_range: Range<RowId>,
         row_id_hits: &mut Vec<RowId>,
     ) {
         let row_id_range = row_id_range.start..row_id_range.end.min(self.num_vals());
-        for idx in row_id_range {
-            let val = self.get_val(idx);
-            if value_range.contains(&val) {
-                row_id_hits.push(idx);
+        match value_range {
+            ValueRange::Inclusive(range) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if range.contains(&val) {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::GreaterThan(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val > threshold {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::GreaterThanOrEqual(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val >= threshold {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::LessThan(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val < threshold {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::LessThanOrEqual(threshold, _) => {
+                for idx in row_id_range {
+                    let val = self.get_val(idx);
+                    if val <= threshold {
+                        row_id_hits.push(idx);
+                    }
+                }
+            }
+            ValueRange::All => {
+                row_id_hits.extend(row_id_range);
             }
         }
     }
@@ -193,6 +535,17 @@ impl<T: PartialOrd + Default> ColumnValues<T> for EmptyColumnValues {
     fn num_vals(&self) -> u32 {
         0
     }
+
+    fn get_vals_in_value_range(
+        &self,
+        input_indexes: &[u32],
+        input_doc_ids: &[u32],
+        output: &mut Vec<crate::ComparableDoc<Option<T>, crate::DocId>>,
+        value_range: ValueRange<T>,
+    ) {
+        let _ = (input_indexes, input_doc_ids, output, value_range);
+        panic!("Internal Error: Called get_vals_in_value_range of empty column.")
+    }
 }
 
 impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnValues<T>> {
@@ -204,6 +557,18 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_vals_opt(&self, indexes: &[u32], output: &mut [Option<T>]) {
         self.as_ref().get_vals_opt(indexes, output)
+    }
+
+    #[inline(always)]
+    fn get_vals_in_value_range(
+        &self,
+        input_indexes: &[u32],
+        input_doc_ids: &[u32],
+        output: &mut Vec<crate::ComparableDoc<Option<T>, crate::DocId>>,
+        value_range: ValueRange<T>,
+    ) {
+        self.as_ref()
+            .get_vals_in_value_range(input_indexes, input_doc_ids, output, value_range)
     }
 
     #[inline(always)]
@@ -234,7 +599,7 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
     #[inline(always)]
     fn get_row_ids_for_value_range(
         &self,
-        range: RangeInclusive<T>,
+        range: ValueRange<T>,
         doc_id_range: Range<u32>,
         positions: &mut Vec<u32>,
     ) {

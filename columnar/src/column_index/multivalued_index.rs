@@ -333,7 +333,7 @@ mod tests {
     use std::ops::Range;
 
     use super::MultiValueIndex;
-    use crate::{ColumnarReader, DynamicColumn};
+    use crate::{ColumnarReader, DynamicColumn, ValueRange};
 
     fn index_to_pos_helper(
         index: &MultiValueIndex,
@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(row_id_range, 0..4);
 
         let check = |range, expected| {
-            let full_range = 0..=u64::MAX;
+            let full_range = ValueRange::All;
             let mut docids = Vec::new();
             column.get_docids_for_value_range(full_range, range, &mut docids);
             assert_eq!(docids, expected);

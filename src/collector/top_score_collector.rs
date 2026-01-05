@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Range;
 
+use columnar::ValueRange;
 use serde::{Deserialize, Serialize};
 
 use super::Collector;
@@ -10,8 +11,7 @@ use crate::collector::sort_key::{
     SortByStaticFastValue, SortByString,
 };
 use crate::collector::sort_key_top_collector::TopBySortKeyCollector;
-use crate::collector::top_collector::ComparableDoc;
-use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
+use crate::collector::{ComparableDoc, SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastValue;
 use crate::{DocAddress, DocId, Order, Score, SegmentReader};
 
@@ -481,9 +481,20 @@ where
     type SortKey = TSortKey;
     type SegmentSortKey = TSortKey;
     type SegmentComparator = NaturalComparator;
+    type Buffer = ();
 
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> TSortKey {
         (self.sort_key_fn)(doc, score)
+    }
+
+    fn segment_sort_keys(
+        &mut self,
+        _input_docs: &[DocId],
+        _output: &mut Vec<ComparableDoc<Self::SegmentSortKey, DocId>>,
+        _buffer: &mut Self::Buffer,
+        _filter: ValueRange<Self::SegmentSortKey>,
+    ) {
+        unimplemented!("Batch computation is not supported for tweak score.")
     }
 
     /// Convert a segment level score into the global level score.
@@ -509,12 +520,14 @@ where
 /// the ascending `DocId|DocAddress` tie-breaking behavior without additional comparisons.
 #[derive(Serialize, Deserialize)]
 #[serde(from = "TopNComputerDeser<Score, D, C>")]
-pub struct TopNComputer<Score, D, C> {
+pub struct TopNComputer<Score, D, C, Buffer = ()> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
     buffer: Vec<ComparableDoc<Score, D>>,
     top_n: usize,
     pub(crate) threshold: Option<Score>,
     comparator: C,
+    #[serde(skip)]
+    scratch: Buffer,
 }
 
 // Intermediate struct for TopNComputer for deserialization, to keep vec capacity
@@ -526,7 +539,9 @@ struct TopNComputerDeser<Score, D, C> {
     comparator: C,
 }
 
-impl<Score, D, C> From<TopNComputerDeser<Score, D, C>> for TopNComputer<Score, D, C> {
+impl<Score, D, C, Buffer> From<TopNComputerDeser<Score, D, C>> for TopNComputer<Score, D, C, Buffer>
+where Buffer: Default
+{
     fn from(mut value: TopNComputerDeser<Score, D, C>) -> Self {
         let expected_cap = value.top_n.max(1) * 2;
         let current_cap = value.buffer.capacity();
@@ -541,12 +556,15 @@ impl<Score, D, C> From<TopNComputerDeser<Score, D, C>> for TopNComputer<Score, D
             top_n: value.top_n,
             threshold: value.threshold,
             comparator: value.comparator,
+            scratch: Buffer::default(),
         }
     }
 }
 
-impl<Score: std::fmt::Debug, D, C> std::fmt::Debug for TopNComputer<Score, D, C>
-where C: Comparator<Score>
+impl<Score: std::fmt::Debug, D, C, Buffer> std::fmt::Debug for TopNComputer<Score, D, C, Buffer>
+where
+    C: Comparator<Score>,
+    Buffer: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("TopNComputer")
@@ -554,12 +572,13 @@ where C: Comparator<Score>
             .field("top_n", &self.top_n)
             .field("current_threshold", &self.threshold)
             .field("comparator", &self.comparator)
+            .field("scratch", &self.scratch)
             .finish()
     }
 }
 
 // Custom clone to keep capacity
-impl<Score: Clone, D: Clone, C: Clone> Clone for TopNComputer<Score, D, C> {
+impl<Score: Clone, D: Clone, C: Clone, Buffer: Clone> Clone for TopNComputer<Score, D, C, Buffer> {
     fn clone(&self) -> Self {
         let mut buffer_clone = Vec::with_capacity(self.buffer.capacity());
         buffer_clone.extend(self.buffer.iter().cloned());
@@ -568,15 +587,17 @@ impl<Score: Clone, D: Clone, C: Clone> Clone for TopNComputer<Score, D, C> {
             top_n: self.top_n,
             threshold: self.threshold.clone(),
             comparator: self.comparator.clone(),
+            scratch: self.scratch.clone(),
         }
     }
 }
 
-impl<TSortKey, D> TopNComputer<TSortKey, D, ReverseComparator>
+impl<TSortKey, D> TopNComputer<TSortKey, D, ReverseComparator, ()>
 where
     D: Ord,
     TSortKey: Clone,
     NaturalComparator: Comparator<TSortKey>,
+    ReverseComparator: Comparator<TSortKey>,
 {
     /// Create a new `TopNComputer`.
     /// Internally it will allocate a buffer of size `2 * top_n`.
@@ -586,7 +607,7 @@ where
 }
 
 #[inline(always)]
-fn compare_for_top_k<TSortKey, D: Ord, C: Comparator<TSortKey>>(
+pub fn compare_for_top_k<TSortKey, D: Ord, C: Comparator<TSortKey>>(
     c: &C,
     lhs: &ComparableDoc<TSortKey, D>,
     rhs: &ComparableDoc<TSortKey, D>,
@@ -597,21 +618,26 @@ fn compare_for_top_k<TSortKey, D: Ord, C: Comparator<TSortKey>>(
                                              // sort by doc id
 }
 
-impl<TSortKey, D, C> TopNComputer<TSortKey, D, C>
+impl<TSortKey, D, C, Buffer> TopNComputer<TSortKey, D, C, Buffer>
 where
     D: Ord,
     TSortKey: Clone,
     C: Comparator<TSortKey>,
+    Buffer: Default,
 {
     /// Create a new `TopNComputer`.
-    /// Internally it will allocate a buffer of size `2 * top_n`.
+    /// Internally it will allocate a buffer of size `(top_n.max(1) * 2) +
+    /// COLLECT_BLOCK_BUFFER_LEN`.
     pub fn new_with_comparator(top_n: usize, comparator: C) -> Self {
-        let vec_cap = top_n.max(1) * 2;
+        // We ensure that there is always enough space to include an entire block in the buffer if
+        // need be, so that `push_block_lazy` can avoid checking capacity inside its loop.
+        let vec_cap = (top_n.max(1) * 2) + crate::COLLECT_BLOCK_BUFFER_LEN;
         TopNComputer {
             buffer: Vec::with_capacity(vec_cap),
             top_n,
             threshold: None,
             comparator,
+            scratch: Buffer::default(),
         }
     }
 
@@ -635,14 +661,26 @@ where
     // At this point, we need to have established that the doc is above the threshold.
     #[inline(always)]
     pub(crate) fn append_doc(&mut self, doc: D, sort_key: TSortKey) {
-        if self.buffer.len() == self.buffer.capacity() {
-            let median = self.truncate_top_n();
-            self.threshold = Some(median);
-        }
-        // This cannot panic, because we truncate_median will at least remove one element, since
-        // the min capacity is 2.
+        self.reserve(1);
+        // This cannot panic, because we've reserved room for one element.
         let comparable_doc = ComparableDoc { doc, sort_key };
         push_assuming_capacity(comparable_doc, &mut self.buffer);
+    }
+
+    // Ensure that there is capacity to push `additional` more elements without resizing.
+    #[inline(always)]
+    pub(crate) fn reserve(&mut self, additional: usize) {
+        if self.buffer.len() + additional > self.buffer.capacity() {
+            let median = self.truncate_top_n();
+            debug_assert!(self.buffer.len() + additional <= self.buffer.capacity());
+            self.threshold = Some(median);
+        }
+    }
+
+    pub(crate) fn buffer_and_scratch(
+        &mut self,
+    ) -> (&mut Vec<ComparableDoc<TSortKey, D>>, &mut Buffer) {
+        (&mut self.buffer, &mut self.scratch)
     }
 
     #[inline(never)]
@@ -684,7 +722,7 @@ where
 //
 // Panics if there is not enough capacity to add an element.
 #[inline(always)]
-fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
+pub fn push_assuming_capacity<T>(el: T, buf: &mut Vec<T>) {
     let prev_len = buf.len();
     assert!(prev_len < buf.capacity());
     // This is mimicking the current (non-stabilized) implementation in std.
@@ -702,8 +740,7 @@ mod tests {
 
     use super::{TopDocs, TopNComputer};
     use crate::collector::sort_key::{ComparatorEnum, NaturalComparator, ReverseComparator};
-    use crate::collector::top_collector::ComparableDoc;
-    use crate::collector::{Collector, DocSetCollector};
+    use crate::collector::{Collector, ComparableDoc, DocSetCollector};
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::time::format_description::well_known::Rfc3339;
@@ -1408,11 +1445,11 @@ mod tests {
         #[test]
         fn test_top_field_collect_string_prop(
           order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
-          limit in 1..256_usize,
-          offset in 0..256_usize,
+          limit in 1..32_usize,
+          offset in 0..32_usize,
           segments_terms in
             proptest::collection::vec(
-                proptest::collection::vec(0..32_u8, 1..32_usize),
+                proptest::collection::vec(0..64_u8, 1..256_usize),
                 0..8_usize,
             )
         ) {
@@ -1733,7 +1770,8 @@ mod tests {
 
     #[test]
     fn test_top_n_computer_not_at_capacity() {
-        let mut top_n_computer = TopNComputer::new_with_comparator(4, NaturalComparator);
+        let mut top_n_computer: TopNComputer<f32, u32, _, ()> =
+            TopNComputer::new_with_comparator(4, NaturalComparator);
         top_n_computer.append_doc(1, 0.8);
         top_n_computer.append_doc(3, 0.2);
         top_n_computer.append_doc(5, 0.3);
@@ -1758,7 +1796,8 @@ mod tests {
 
     #[test]
     fn test_top_n_computer_at_capacity() {
-        let mut top_collector = TopNComputer::new_with_comparator(4, NaturalComparator);
+        let mut top_collector: TopNComputer<f32, u32, _, ()> =
+            TopNComputer::new_with_comparator(4, NaturalComparator);
         top_collector.append_doc(1, 0.8);
         top_collector.append_doc(3, 0.2);
         top_collector.append_doc(5, 0.3);
@@ -1795,12 +1834,14 @@ mod tests {
         let doc_ids_collection = [4, 5, 6];
         let score = 3.3f32;
 
-        let mut top_collector_limit_2 = TopNComputer::new_with_comparator(2, NaturalComparator);
+        let mut top_collector_limit_2: TopNComputer<f32, u32, _, ()> =
+            TopNComputer::new_with_comparator(2, NaturalComparator);
         for id in &doc_ids_collection {
             top_collector_limit_2.append_doc(*id, score);
         }
 
-        let mut top_collector_limit_3 = TopNComputer::new_with_comparator(3, NaturalComparator);
+        let mut top_collector_limit_3: TopNComputer<f32, u32, _, ()> =
+            TopNComputer::new_with_comparator(3, NaturalComparator);
         for id in &doc_ids_collection {
             top_collector_limit_3.append_doc(*id, score);
         }
@@ -1821,15 +1862,16 @@ mod bench {
 
     #[bench]
     fn bench_top_segment_collector_collect_at_capacity(b: &mut Bencher) {
-        let mut top_collector = TopNComputer::new_with_comparator(100, NaturalComparator);
+        let mut top_collector: TopNComputer<f32, u32, _, ()> =
+            TopNComputer::new_with_comparator(100, NaturalComparator);
 
         for i in 0..100 {
-            top_collector.append_doc(i, 0.8);
+            top_collector.append_doc(i as u32, 0.8);
         }
 
         b.iter(|| {
             for i in 0..100 {
-                top_collector.append_doc(i, 0.8);
+                top_collector.append_doc(i as u32, 0.8);
             }
         });
     }

@@ -99,7 +99,12 @@ where
     TSegmentSortKeyComputer: SegmentSortKeyComputer,
     C: Comparator<TSegmentSortKeyComputer::SegmentSortKey>,
 {
-    pub(crate) topn_computer: TopNComputer<TSegmentSortKeyComputer::SegmentSortKey, DocId, C>,
+    pub(crate) topn_computer: TopNComputer<
+        TSegmentSortKeyComputer::SegmentSortKey,
+        DocId,
+        C,
+        TSegmentSortKeyComputer::Buffer,
+    >,
     pub(crate) segment_ord: u32,
     pub(crate) segment_sort_key_computer: TSegmentSortKeyComputer,
 }
@@ -118,6 +123,11 @@ where
             score,
             &mut self.topn_computer,
         );
+    }
+
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.segment_sort_key_computer
+            .compute_sort_keys_and_collect(docs, &mut self.topn_computer);
     }
 
     fn harvest(self) -> Self::Fruit {

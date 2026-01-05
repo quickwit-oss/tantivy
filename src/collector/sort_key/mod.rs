@@ -39,6 +39,7 @@ pub(crate) mod tests {
     use crate::collector::sort_key::{
         SortByErasedType, SortBySimilarityScore, SortByStaticFastValue, SortByString,
     };
+    use crate::collector::top_score_collector::compare_for_top_k;
     use crate::collector::{ComparableDoc, DocSetCollector, TopDocs};
     use crate::indexer::NoMergePolicy;
     use crate::query::{AllQuery, QueryParser};
@@ -389,6 +390,52 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_order_by_compound_fast_fields() -> crate::Result<()> {
+        let index = make_index()?;
+
+        type CompoundSortKey = (Option<String>, Option<f64>);
+
+        fn assert_query(
+            index: &Index,
+            city_order: Order,
+            altitude_order: Order,
+            expected: Vec<(CompoundSortKey, u64)>,
+        ) -> crate::Result<()> {
+            let searcher = index.reader()?.searcher();
+            let ids = id_mapping(&searcher);
+
+            let top_collector = TopDocs::with_limit(4).order_by((
+                (SortByString::for_field("city"), city_order),
+                (
+                    SortByStaticFastValue::<f64>::for_field("altitude"),
+                    altitude_order,
+                ),
+            ));
+            let actual = searcher
+                .search(&AllQuery, &top_collector)?
+                .into_iter()
+                .map(|(key, doc)| (key, ids[&doc]))
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected);
+            Ok(())
+        }
+
+        assert_query(
+            &index,
+            Order::Asc,
+            Order::Desc,
+            vec![
+                ((Some("austin".to_owned()), Some(149.0)), 0),
+                ((Some("greenville".to_owned()), Some(27.0)), 1),
+                ((Some("tokyo".to_owned()), Some(40.0)), 2),
+                ((None, Some(0.0)), 3),
+            ],
+        )?;
+
+        Ok(())
+    }
+
     use proptest::prelude::*;
 
     proptest! {
@@ -450,5 +497,198 @@ pub(crate) mod tests {
                 top_n_results
             );
         }
+    }
+
+    proptest! {
+    #[test]
+    fn test_order_by_compound_prop(
+        city_order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
+        altitude_order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
+        limit in 1..20_usize,
+        offset in 0..20_usize,
+        segments_data in proptest::collection::vec(
+            proptest::collection::vec(
+                (proptest::option::of("[a-c]"), proptest::option::of(0..50u64)),
+                1..10_usize // segment size
+            ),
+            1..4_usize // num segments
+        )
+    ) {
+        use crate::collector::sort_key::ComparatorEnum;
+        use crate::TantivyDocument;
+
+        let mut schema_builder = Schema::builder();
+        let city = schema_builder.add_text_field("city", TEXT | FAST);
+        let altitude = schema_builder.add_u64_field("altitude", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+
+        for segment_data in segments_data.into_iter() {
+            for (city_val, altitude_val) in segment_data.into_iter() {
+                let mut doc = TantivyDocument::default();
+                if let Some(c) = city_val {
+                    doc.add_text(city, c);
+                }
+                if let Some(a) = altitude_val {
+                    doc.add_u64(altitude, a);
+                }
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        }
+
+        let searcher = index.reader().unwrap().searcher();
+
+        let top_collector = TopDocs::with_limit(limit)
+            .and_offset(offset)
+            .order_by((
+                (SortByString::for_field("city"), city_order),
+                (
+                    SortByStaticFastValue::<u64>::for_field("altitude"),
+                    altitude_order,
+                ),
+            ));
+
+        let actual_results = searcher.search(&AllQuery, &top_collector).unwrap();
+        let actual_doc_ids: Vec<DocAddress> =
+            actual_results.into_iter().map(|(_, doc)| doc).collect();
+
+        // Verification logic
+        let all_docs_collector = DocSetCollector;
+        let all_docs = searcher.search(&AllQuery, &all_docs_collector).unwrap();
+
+        let docs_with_keys: Vec<((Option<String>, Option<u64>), DocAddress)> = all_docs
+            .into_iter()
+            .map(|doc_addr| {
+                let reader = searcher.segment_reader(doc_addr.segment_ord);
+
+                let city_val = if let Some(col) = reader.fast_fields().str("city").unwrap() {
+                     let ord = col.ords().first(doc_addr.doc_id);
+                     if let Some(ord) = ord {
+                         let mut out = Vec::new();
+                         col.dictionary().ord_to_term(ord, &mut out).unwrap();
+                         String::from_utf8(out).ok()
+                     } else {
+                         None
+                     }
+                } else {
+                    None
+                };
+
+                let alt_val = if let Some((col, _)) = reader.fast_fields().u64_lenient("altitude").unwrap() {
+                    col.first(doc_addr.doc_id)
+                } else {
+                    None
+                };
+
+                ((city_val, alt_val), doc_addr)
+            })
+            .collect();
+
+        let city_comparator = ComparatorEnum::from(city_order);
+        let alt_comparator = ComparatorEnum::from(altitude_order);
+        let comparator = (city_comparator, alt_comparator);
+
+        let mut comparable_docs: Vec<ComparableDoc<_, _>> = docs_with_keys
+            .into_iter()
+            .map(|(sort_key, doc)| ComparableDoc { sort_key, doc })
+            .collect();
+
+        comparable_docs.sort_by(|l, r| compare_for_top_k(&comparator, l, r));
+
+        let expected_results = comparable_docs
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
+
+        let expected_doc_ids: Vec<DocAddress> =
+            expected_results.into_iter().map(|cd| cd.doc).collect();
+
+        prop_assert_eq!(actual_doc_ids, expected_doc_ids);
+    }
+    }
+
+    proptest! {
+    #[test]
+    fn test_order_by_u64_prop(
+        order in prop_oneof!(Just(Order::Desc), Just(Order::Asc)),
+        limit in 1..20_usize,
+        offset in 0..20_usize,
+        segments_data in proptest::collection::vec(
+            proptest::collection::vec(
+                proptest::option::of(0..100u64),
+                1..1000_usize // segment size
+            ),
+            1..4_usize // num segments
+        )
+    ) {
+        use crate::collector::sort_key::ComparatorEnum;
+        use crate::TantivyDocument;
+
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_u64_field("field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+
+        for segment_data in segments_data.into_iter() {
+            for val in segment_data.into_iter() {
+                let mut doc = TantivyDocument::default();
+                if let Some(v) = val {
+                    doc.add_u64(field, v);
+                }
+                index_writer.add_document(doc).unwrap();
+            }
+            index_writer.commit().unwrap();
+        }
+
+        let searcher = index.reader().unwrap().searcher();
+
+        let top_collector = TopDocs::with_limit(limit)
+            .and_offset(offset)
+            .order_by((SortByStaticFastValue::<u64>::for_field("field"), order));
+
+        let actual_results = searcher.search(&AllQuery, &top_collector).unwrap();
+        let actual_doc_ids: Vec<DocAddress> =
+            actual_results.into_iter().map(|(_, doc)| doc).collect();
+
+        // Verification logic
+        let all_docs_collector = DocSetCollector;
+        let all_docs = searcher.search(&AllQuery, &all_docs_collector).unwrap();
+
+        let docs_with_keys: Vec<(Option<u64>, DocAddress)> = all_docs
+            .into_iter()
+            .map(|doc_addr| {
+                let reader = searcher.segment_reader(doc_addr.segment_ord);
+                let val = if let Some((col, _)) = reader.fast_fields().u64_lenient("field").unwrap() {
+                    col.first(doc_addr.doc_id)
+                } else {
+                    None
+                };
+                (val, doc_addr)
+            })
+            .collect();
+
+        let comparator = ComparatorEnum::from(order);
+        let mut comparable_docs: Vec<ComparableDoc<_, _>> = docs_with_keys
+            .into_iter()
+            .map(|(sort_key, doc)| ComparableDoc { sort_key, doc })
+            .collect();
+
+        comparable_docs.sort_by(|l, r| compare_for_top_k(&comparator, l, r));
+
+        let expected_results = comparable_docs
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
+
+        let expected_doc_ids: Vec<DocAddress> =
+            expected_results.into_iter().map(|cd| cd.doc).collect();
+
+        prop_assert_eq!(actual_doc_ids, expected_doc_ids);
+    }
     }
 }
