@@ -6,13 +6,10 @@ use super::merge_policy::{MergeCandidate, MergePolicy};
 use crate::index::SegmentMeta;
 
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
-const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
+const DEFAULT_MIN_LAYER_SIZE: u32 = 100;
 const DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE: usize = 8;
-const DEFAULT_TARGET_SEGMENT_SIZE: usize = 10_000_000;
-// The default value of 1 means that deletes are not taken in account when
-// identifying merge candidates. This is not a very sensible default: it was
-// set like that for backward compatibility and might change in the near future.
-const DEFAULT_DEL_DOCS_RATIO_BEFORE_MERGE: f32 = 1.0f32;
+const DEFAULT_TARGET_SEGMENT_SIZE: usize = 200_000_000;
+const DEFAULT_DEL_DOCS_RATIO_BEFORE_MERGE: f32 = 0.3f32;
 
 /// `LogMergePolicy` tries to merge segments that have a similar number of
 /// documents.
@@ -77,13 +74,11 @@ impl LogMergePolicy {
     }
 
     fn segment_above_deletes_threshold(&self, segment: &SegmentMeta) -> bool {
-        match segment.max_doc() {
-            0 => false,
-            _ => {
-                (segment.num_deleted_docs() as f32 / segment.max_doc() as f32)
-                    > self.del_docs_ratio_before_merge
-            }
+        let num_deleted = segment.num_deleted_docs();
+        if num_deleted == 0 {
+            return false;
         }
+        num_deleted as f32 > segment.max_doc() as f32 * self.del_docs_ratio_before_merge
     }
 }
 
@@ -92,13 +87,17 @@ impl MergePolicy for LogMergePolicy {
         // Filter for segments that have less than the target number of docs, count total unmerged
         // docs, and sort in descending order
         let mut unmerged_docs = 0;
-        let mut sorted_segments = segments
-            .iter()
-            .map(|seg| (seg.num_docs() as usize, seg))
-            .filter(|(docs, _)| *docs < self.target_segment_size)
-            .inspect(|(docs, _)| unmerged_docs += docs)
-            .sorted_by(|(a, _), (b, _)| b.cmp(a))
-            .collect_vec();
+        let mut filtered = Vec::new();
+        for segment in segments {
+            if segment.max_doc() < self.target_segment_size as u32
+                || self.segment_above_deletes_threshold(segment)
+            {
+                let num_docs = segment.num_docs() as usize;
+                unmerged_docs += num_docs;
+                filtered.push((num_docs, segment));
+            }
+        }
+        filtered.sort_unstable_by(|(a, _), (b, _)| b.cmp(a));
 
         // If there are enough unmerged documents to create a new segment of the target size,
         // then create a merge candidate for them.
@@ -107,7 +106,7 @@ impl MergePolicy for LogMergePolicy {
             let mut batch_docs = 0;
             let mut batch = Vec::new();
             // Start with the smallest segments and add them to the batch until we reach the target
-            while let Some((docs, seg)) = sorted_segments.pop() {
+            while let Some((docs, seg)) = filtered.pop() {
                 batch_docs += docs;
                 batch.push(seg);
 
@@ -131,24 +130,18 @@ impl MergePolicy for LogMergePolicy {
 
         let mut current_max_log_size = f64::MAX;
         let mut batch = Vec::new();
-        for (_, group) in sorted_segments
-            .iter()
-            .chunk_by(|(docs, _)| {
-                let segment_log_size = f64::from(self.clip_min_size(*docs as u32)).log2();
-                if segment_log_size < (current_max_log_size - self.level_log_size) {
-                    // update current_max_log_size to create a new group
-                    current_max_log_size = segment_log_size;
-                }
-                current_max_log_size
-            })
-            .into_iter()
-        {
+        for (_, group) in &filtered.iter().chunk_by(|(docs, _)| {
+            let segment_log_size = f64::from(self.clip_min_size(*docs as u32)).log2();
+            if segment_log_size < current_max_log_size {
+                // update current_max_log_size to create a new group
+                current_max_log_size = segment_log_size - self.level_log_size;
+            }
+            current_max_log_size
+        }) {
             let mut hit_delete_threshold = false;
             for (_, segment) in group {
                 batch.push(segment.id());
-                if !hit_delete_threshold && self.segment_above_deletes_threshold(segment) {
-                    hit_delete_threshold = true;
-                }
+                hit_delete_threshold |= self.segment_above_deletes_threshold(segment);
             }
 
             if batch.len() >= self.min_num_segments || hit_delete_threshold {

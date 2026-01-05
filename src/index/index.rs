@@ -597,6 +597,7 @@ impl Index {
     #[cfg(test)]
     pub fn writer_for_tests<D: Document>(&self) -> crate::Result<IndexWriter<D>> {
         self.writer_with_num_threads(1, MEMORY_BUDGET_NUM_BYTES_MIN)
+            .inspect(|w| w.set_merge_policy(Box::<crate::indexer::NoMergePolicy>::default()))
     }
 
     /// Creates a multithreaded writer
