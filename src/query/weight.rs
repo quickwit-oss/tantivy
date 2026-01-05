@@ -146,6 +146,10 @@ pub trait Weight: Send + Sync + 'static {
 
     /// Returns a priority number used to sort weights when running an
     /// intersection.
+    ///
+    /// Tweaking this value only impacts performance.
+    /// A higher priority means that the `.scorer()` will be more likely to be evaluated
+    /// after the sibling weights, and be passed a higher `seek_doc` value as a result.
     fn intersection_priority(&self) -> u32 {
         20u32
     }

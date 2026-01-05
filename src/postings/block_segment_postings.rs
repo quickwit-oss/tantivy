@@ -97,8 +97,8 @@ impl BlockSegmentPostingsNotLoaded {
     /// Seek into the block segment postings directly, possibly avoiding loading its first block.
     pub fn seek_and_load(self, seek_doc: DocId) -> (BlockSegmentPostings, usize) {
         let BlockSegmentPostingsNotLoaded(mut block_segment_postings) = self;
-        block_segment_postings.load_block();
         let inner_pos = if seek_doc == 0 {
+            block_segment_postings.load_block();
             0
         } else {
             block_segment_postings.seek(seek_doc)
