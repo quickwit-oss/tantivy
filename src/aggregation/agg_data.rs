@@ -10,9 +10,9 @@ use crate::aggregation::accessor_helpers::{
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
-    build_segment_range_collector, FilterAggReqData, HistogramAggReqData, HistogramBounds,
-    IncludeExcludeParam, MissingTermAggReqData, RangeAggReqData, SegmentFilterCollector,
-    SegmentHistogramCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
+    build_segment_filter_collector, build_segment_range_collector, FilterAggReqData,
+    HistogramAggReqData, HistogramBounds, IncludeExcludeParam, MissingTermAggReqData,
+    RangeAggReqData, SegmentHistogramCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
     TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
@@ -416,9 +416,7 @@ pub(crate) fn build_segment_agg_collector(
             req, node,
         )?)),
         AggKind::Range => Ok(build_segment_range_collector(req, node)?),
-        AggKind::Filter => Ok(Box::new(SegmentFilterCollector::from_req_and_validate(
-            req, node,
-        )?)),
+        AggKind::Filter => build_segment_filter_collector(req, node),
     }
 }
 
@@ -733,6 +731,7 @@ fn build_nodes(
                 segment_reader: reader.clone(),
                 evaluator,
                 matching_docs_buffer,
+                is_top_level,
             });
             let children = build_children(&req.sub_aggregation, reader, segment_ordinal, data)?;
             Ok(vec![AggRefNode {

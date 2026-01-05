@@ -5,7 +5,7 @@ use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::bucket::term_agg::TermsAggregation;
-use crate::aggregation::cached_sub_aggs::CachedSubAggs;
+use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardCachedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
@@ -47,7 +47,7 @@ struct MissingCount {
 #[derive(Default, Debug)]
 pub struct TermMissingAgg {
     accessor_idx: usize,
-    sub_agg: Option<CachedSubAggs>,
+    sub_agg: Option<HighCardCachedSubAggs>,
     /// Idx = parent bucket id, Value = missing count for that bucket
     missing_count_per_bucket: Vec<MissingCount>,
     bucket_id_provider: BucketIdProvider,

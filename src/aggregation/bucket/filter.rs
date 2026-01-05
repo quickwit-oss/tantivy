@@ -6,7 +6,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
-use crate::aggregation::cached_sub_aggs::CachedSubAggs;
+use crate::aggregation::cached_sub_aggs::{
+    CachedSubAggs, HighCardSubAggCache, LowCardSubAggCache, SubAggCache,
+};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
 };
@@ -406,6 +408,8 @@ pub struct FilterAggReqData {
     pub evaluator: DocumentQueryEvaluator,
     /// Reusable buffer for matching documents to minimize allocations during collection
     pub matching_docs_buffer: Vec<DocId>,
+    /// True if this filter aggregation is at the top level of the aggregation tree (not nested).
+    pub is_top_level: bool,
 }
 
 impl FilterAggReqData {
@@ -415,6 +419,7 @@ impl FilterAggReqData {
         + std::mem::size_of::<SegmentReader>()
         + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
         + self.matching_docs_buffer.capacity() * std::mem::size_of::<DocId>()
+        + std::mem::size_of::<bool>()
     }
 }
 
@@ -498,17 +503,17 @@ struct DocCount {
 }
 
 /// Segment collector for filter aggregation
-pub struct SegmentFilterCollector {
+pub struct SegmentFilterCollector<C: SubAggCache> {
     /// Document counts per parent bucket
     parent_buckets: Vec<DocCount>,
     /// Sub-aggregation collectors
-    sub_aggregations: Option<CachedSubAggs<true>>,
+    sub_aggregations: Option<CachedSubAggs<C>>,
     bucket_id_provider: BucketIdProvider,
     /// Accessor index for this filter aggregation (to access FilterAggReqData)
     accessor_idx: usize,
 }
 
-impl SegmentFilterCollector {
+impl<C: SubAggCache> SegmentFilterCollector<C> {
     /// Create a new filter segment collector following the new agg_data pattern
     pub(crate) fn from_req_and_validate(
         req: &mut AggregationsSegmentCtx,
@@ -531,7 +536,27 @@ impl SegmentFilterCollector {
     }
 }
 
-impl Debug for SegmentFilterCollector {
+pub(crate) fn build_segment_filter_collector(
+    req: &mut AggregationsSegmentCtx,
+    node: &AggRefNode,
+) -> crate::Result<Box<dyn SegmentAggregationCollector>> {
+    let is_top_level = req.per_request.filter_req_data[node.idx_in_req_data]
+        .as_ref()
+        .expect("filter_req_data slot is empty")
+        .is_top_level;
+
+    if is_top_level {
+        Ok(Box::new(
+            SegmentFilterCollector::<LowCardSubAggCache>::from_req_and_validate(req, node)?,
+        ))
+    } else {
+        Ok(Box::new(
+            SegmentFilterCollector::<HighCardSubAggCache>::from_req_and_validate(req, node)?,
+        ))
+    }
+}
+
+impl<C: SubAggCache> Debug for SegmentFilterCollector<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentFilterCollector")
             .field("buckets", &self.parent_buckets)
@@ -541,7 +566,7 @@ impl Debug for SegmentFilterCollector {
     }
 }
 
-impl SegmentAggregationCollector for SegmentFilterCollector {
+impl<C: SubAggCache> SegmentAggregationCollector for SegmentFilterCollector<C> {
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,

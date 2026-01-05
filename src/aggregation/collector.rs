@@ -1,6 +1,6 @@
 use super::agg_req::Aggregations;
 use super::agg_result::AggregationResults;
-use super::cached_sub_aggs::CachedSubAggs;
+use super::cached_sub_aggs::LowCardCachedSubAggs;
 use super::intermediate_agg_result::IntermediateAggregationResults;
 use super::AggContextParams;
 // group buffering strategy is chosen explicitly by callers; no need to hash-group on the fly.
@@ -136,7 +136,7 @@ fn merge_fruits(
 /// `AggregationSegmentCollector` does the aggregation collection on a segment.
 pub struct AggregationSegmentCollector {
     aggs_with_accessor: AggregationsSegmentCtx,
-    agg_collector: CachedSubAggs<true>,
+    agg_collector: LowCardCachedSubAggs,
     error: Option<TantivyError>,
 }
 
@@ -151,7 +151,8 @@ impl AggregationSegmentCollector {
     ) -> crate::Result<Self> {
         let mut agg_data =
             build_aggregations_data_from_req(agg, reader, segment_ordinal, context.clone())?;
-        let mut result = CachedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
+        let mut result =
+            LowCardCachedSubAggs::new(build_segment_agg_collectors_root(&mut agg_data)?);
         result
             .get_sub_agg_collector()
             .prepare_max_bucket(0, &agg_data)?; // prepare for bucket zero
