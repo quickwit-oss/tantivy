@@ -35,6 +35,7 @@ pub struct AggregationLimitsGuard {
     /// Allocated memory with this guard.
     allocated_with_the_guard: u64,
 }
+
 impl Clone for AggregationLimitsGuard {
     fn clone(&self) -> Self {
         Self {
@@ -70,7 +71,7 @@ impl AggregationLimitsGuard {
     /// *memory_limit*
     /// memory_limit is defined in bytes.
     /// Aggregation fails when the estimated memory consumption of the aggregation is higher than
-    /// memory_limit.     
+    /// memory_limit.
     /// memory_limit will default to `DEFAULT_MEMORY_LIMIT` (500MB)
     ///
     /// *bucket_limit*

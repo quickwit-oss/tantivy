@@ -41,12 +41,6 @@ fn transform_range_before_linear_transformation(
     if range.is_empty() {
         return None;
     }
-    if stats.min_value > *range.end() {
-        return None;
-    }
-    if stats.max_value < *range.start() {
-        return None;
-    }
     let shifted_range =
         range.start().saturating_sub(stats.min_value)..=range.end().saturating_sub(stats.min_value);
     let start_before_gcd_multiplication: u64 = div_ceil(*shifted_range.start(), stats.gcd);
@@ -105,7 +99,7 @@ impl ColumnCodecEstimator for BitpackedCodecEstimator {
 
     fn estimate(&self, stats: &ColumnStats) -> Option<u64> {
         let num_bits_per_value = num_bits(stats);
-        Some(stats.num_bytes() + (stats.num_rows as u64 * (num_bits_per_value as u64) + 7) / 8)
+        Some(stats.num_bytes() + (stats.num_rows as u64 * (num_bits_per_value as u64)).div_ceil(8))
     }
 
     fn serialize(

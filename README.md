@@ -23,8 +23,6 @@ performance for different types of queries/collections.
 
 Your mileage WILL vary depending on the nature of queries and their load.
 
-<img src="doc/assets/images/searchbenchmark.png">
-
 Details about the benchmark can be found at this [repository](https://github.com/quickwit-oss/search-benchmark-game).
 
 ## Features
@@ -125,6 +123,7 @@ You can also find other bindings on [GitHub](https://github.com/search?q=tantivy
 - [seshat](https://github.com/matrix-org/seshat/): A matrix message database/indexer
 - [tantiny](https://github.com/baygeldin/tantiny): Tiny full-text search for Ruby
 - [lnx](https://github.com/lnx-search/lnx): adaptable, typo tolerant search engine with a REST API
+- [Bichon](https://github.com/rustmailer/bichon): A lightweight, high-performance Rust email archiver with WebUI
 - and [more](https://github.com/search?q=tantivy)!
 
 ### On average, how much faster is Tantivy compared to Lucene?

@@ -484,7 +484,6 @@ impl FacetCounts {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
-    use std::iter;
 
     use columnar::Dictionary;
     use rand::distributions::Uniform;
@@ -739,7 +738,7 @@ mod tests {
                 .flat_map(|(c, count)| {
                     let facet = Facet::from(&format!("/facet/{c}"));
                     let doc = doc!(facet_field => facet);
-                    iter::repeat(doc).take(count)
+                    std::iter::repeat_n(doc, count)
                 })
                 .map(|mut doc| {
                     doc.add_facet(
@@ -787,7 +786,7 @@ mod tests {
             .flat_map(|(c, count)| {
                 let facet = Facet::from(&format!("/facet/{c}"));
                 let doc = doc!(facet_field => facet);
-                iter::repeat(doc).take(count)
+                std::iter::repeat_n(doc, count)
             })
             .collect();
 

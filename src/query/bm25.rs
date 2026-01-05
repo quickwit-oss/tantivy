@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::fieldnorm::FieldNormReader;
 use crate::query::Explanation;
@@ -59,19 +59,13 @@ fn cached_tf_component(fieldnorm: u32, average_fieldnorm: Score) -> Score {
     K1 * (1.0 - B + B * fieldnorm as Score / average_fieldnorm)
 }
 
-fn compute_tf_cache(average_fieldnorm: Score) -> [Score; 256] {
+fn compute_tf_cache(average_fieldnorm: Score) -> Arc<[Score; 256]> {
     let mut cache: [Score; 256] = [0.0; 256];
     for (fieldnorm_id, cache_mut) in cache.iter_mut().enumerate() {
         let fieldnorm = FieldNormReader::id_to_fieldnorm(fieldnorm_id as u8);
         *cache_mut = cached_tf_component(fieldnorm, average_fieldnorm);
     }
-    cache
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct Bm25Params {
-    pub idf: Score,
-    pub avg_fieldnorm: Score,
+    Arc::new(cache)
 }
 
 /// A struct used for computing BM25 scores.
@@ -79,17 +73,20 @@ pub struct Bm25Params {
 pub struct Bm25Weight {
     idf_explain: Option<Explanation>,
     weight: Score,
-    cache: [Score; 256],
+    cache: Arc<[Score; 256]>,
     average_fieldnorm: Score,
 }
 
 impl Bm25Weight {
     /// Increase the weight by a multiplicative factor.
     pub fn boost_by(&self, boost: Score) -> Bm25Weight {
+        if boost == 1.0f32 {
+            return self.clone();
+        }
         Bm25Weight {
             idf_explain: self.idf_explain.clone(),
             weight: self.weight * boost,
-            cache: self.cache,
+            cache: self.cache.clone(),
             average_fieldnorm: self.average_fieldnorm,
         }
     }

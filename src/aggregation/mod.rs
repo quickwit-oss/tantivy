@@ -127,9 +127,10 @@
 //! [`AggregationResults`](agg_result::AggregationResults) via the
 //! [`into_final_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_result) method.
 
+mod accessor_helpers;
+mod agg_data;
 mod agg_limits;
 pub mod agg_req;
-mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
 mod buf_collector;
@@ -140,7 +141,6 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
-use std::collections::HashMap;
 use std::fmt::Display;
 
 #[cfg(test)]
@@ -159,6 +159,28 @@ pub use error::AggregationError;
 use itertools::Itertools;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::tokenizer::TokenizerManager;
+
+/// Context parameters for aggregation execution
+///
+/// This struct holds shared resources needed during aggregation execution:
+/// - `limits`: Memory and bucket limits for the aggregation
+/// - `tokenizers`: TokenizerManager for parsing query strings in filter aggregations
+#[derive(Clone, Default)]
+pub struct AggContextParams {
+    /// Aggregation limits (memory and bucket count)
+    pub limits: AggregationLimitsGuard,
+    /// Tokenizer manager for query string parsing
+    pub tokenizers: TokenizerManager,
+}
+
+impl AggContextParams {
+    /// Create new aggregation context parameters
+    pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
+        Self { limits, tokenizers }
+    }
+}
 
 fn parse_str_into_f64<E: de::Error>(value: &str) -> Result<f64, E> {
     let parsed = value
@@ -255,80 +277,6 @@ where D: Deserializer<'de> {
     }
 
     deserializer.deserialize_any(StringOrFloatVisitor)
-}
-
-/// Represents an associative array `(key => values)` in a very efficient manner.
-#[derive(PartialEq, Serialize, Deserialize)]
-pub(crate) struct VecWithNames<T> {
-    pub(crate) values: Vec<T>,
-    keys: Vec<String>,
-}
-
-impl<T: Clone> Clone for VecWithNames<T> {
-    fn clone(&self) -> Self {
-        Self {
-            values: self.values.clone(),
-            keys: self.keys.clone(),
-        }
-    }
-}
-
-impl<T> Default for VecWithNames<T> {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            keys: Default::default(),
-        }
-    }
-}
-
-impl<T: std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_map().entries(self.iter()).finish()
-    }
-}
-
-impl<T> From<HashMap<String, T>> for VecWithNames<T> {
-    fn from(map: HashMap<String, T>) -> Self {
-        VecWithNames::from_entries(map.into_iter().collect_vec())
-    }
-}
-
-impl<T> VecWithNames<T> {
-    fn from_entries(mut entries: Vec<(String, T)>) -> Self {
-        // Sort to ensure order of elements match across multiple instances
-        entries.sort_by(|left, right| left.0.cmp(&right.0));
-        let mut data = Vec::with_capacity(entries.len());
-        let mut data_names = Vec::with_capacity(entries.len());
-        for entry in entries {
-            data_names.push(entry.0);
-            data.push(entry.1);
-        }
-        VecWithNames {
-            values: data,
-            keys: data_names,
-        }
-    }
-    fn iter(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
-        self.keys().zip(self.values.iter())
-    }
-    fn keys(&self) -> impl Iterator<Item = &str> + '_ {
-        self.keys.iter().map(|key| key.as_str())
-    }
-    fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
-        self.values.iter_mut()
-    }
-    fn is_empty(&self) -> bool {
-        self.keys.is_empty()
-    }
-    fn len(&self) -> usize {
-        self.keys.len()
-    }
-    fn get(&self, name: &str) -> Option<&T> {
-        self.keys()
-            .position(|key| key == name)
-            .map(|pos| &self.values[pos])
-    }
 }
 
 /// The serialized key is used in a `HashMap`.
@@ -464,7 +412,10 @@ mod tests {
         query: Option<(&str, &str)>,
         limits: AggregationLimitsGuard,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req, limits);
+        let collector = AggregationCollector::from_aggs(
+            agg_req,
+            AggContextParams::new(limits, index.tokenizers().clone()),
+        );
 
         let reader = index.reader()?;
         let searcher = reader.searcher();

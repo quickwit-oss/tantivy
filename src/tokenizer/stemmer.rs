@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{Token, TokenFilter, TokenStream, Tokenizer};
 
 /// Available stemmer languages.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone, Hash)]
 #[allow(missing_docs)]
 pub enum Language {
     Arabic,
@@ -140,5 +140,62 @@ impl<T: TokenStream> TokenStream for StemmerTokenStream<T> {
 
     fn token_mut(&mut self) -> &mut Token {
         self.tail.token_mut()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokenizer_api::Token;
+
+    use super::*;
+    use crate::tokenizer::tests::assert_token;
+    use crate::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer, TokenizerManager};
+
+    #[test]
+    fn test_en_stem() {
+        let tokenizer_manager = TokenizerManager::default();
+        let mut en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            en_tokenizer
+                .token_stream("Dogs are the bests!")
+                .process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 4);
+        assert_token(&tokens[0], 0, "dog", 0, 4);
+        assert_token(&tokens[1], 1, "are", 5, 8);
+        assert_token(&tokens[2], 2, "the", 9, 12);
+        assert_token(&tokens[3], 3, "best", 13, 18);
+    }
+
+    #[test]
+    fn test_non_en_stem() {
+        let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register(
+            "el_stem",
+            TextAnalyzer::builder(SimpleTokenizer::default())
+                .filter(LowerCaser)
+                .filter(Stemmer::new(Language::Greek))
+                .build(),
+        );
+        let mut el_tokenizer = tokenizer_manager.get("el_stem").unwrap();
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            el_tokenizer
+                .token_stream("Καλημέρα, χαρούμενε φορολογούμενε!")
+                .process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 3);
+        assert_token(&tokens[0], 0, "καλημερ", 0, 16);
+        assert_token(&tokens[1], 1, "χαρουμεν", 18, 36);
+        assert_token(&tokens[2], 2, "φορολογουμεν", 37, 63);
     }
 }

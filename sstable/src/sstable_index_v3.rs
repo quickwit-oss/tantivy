@@ -181,7 +181,7 @@ impl SSTableIndexV3 {
 // cannot match. this isn't as bad as it sounds given the fst is a lot smaller than the rest of the
 // sstable.
 // To do that, we can't use tantivy_fst's Stream with an automaton, as we need to know 2 consecutive
-// fst keys to form a proper opinion on whether this is a match, which we wan't translate into a
+// fst keys to form a proper opinion on whether this is a match, which we want translate into a
 // single automaton
 struct GetBlockForAutomaton<'a, A: Automaton> {
     streamer: tantivy_fst::map::Stream<'a>,
@@ -394,7 +394,7 @@ impl SSTableIndexBuilder {
 
 fn fst_error_to_io_error(error: tantivy_fst::Error) -> io::Error {
     match error {
-        tantivy_fst::Error::Fst(fst_error) => io::Error::new(io::ErrorKind::Other, fst_error),
+        tantivy_fst::Error::Fst(fst_error) => io::Error::other(fst_error),
         tantivy_fst::Error::Io(ioerror) => ioerror,
     }
 }
@@ -438,7 +438,7 @@ impl BlockAddrBlockMetadata {
         let ordinal_addr = range_start_addr + self.range_start_nbits as usize;
         let range_end_addr = range_start_addr + num_bits;
 
-        if (range_end_addr + self.range_start_nbits as usize + 7) / 8 > data.len() {
+        if (range_end_addr + self.range_start_nbits as usize).div_ceil(8) > data.len() {
             return None;
         }
 

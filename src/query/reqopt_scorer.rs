@@ -56,12 +56,21 @@ where
         self.req_scorer.seek(target)
     }
 
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        self.score_cache = None;
+        self.req_scorer.seek_into_the_danger_zone(target)
+    }
+
     fn doc(&self) -> DocId {
         self.req_scorer.doc()
     }
 
     fn size_hint(&self) -> u32 {
         self.req_scorer.size_hint()
+    }
+
+    fn cost(&self) -> u64 {
+        self.req_scorer.cost()
     }
 }
 
@@ -72,6 +81,7 @@ where
     TOptScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
+    #[inline]
     fn score(&mut self) -> Score {
         if let Some(score) = self.score_cache {
             return score;

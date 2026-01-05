@@ -114,7 +114,7 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         }
     }
 
-    /// Translates a block of docis to row_ids.
+    /// Translates a block of docids to row_ids.
     ///
     /// returns the row_ids and the matching docids on the same index
     /// e.g.
@@ -131,6 +131,8 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.index.docids_to_rowids(doc_ids, doc_ids_out, row_ids)
     }
 
+    /// Get an iterator over the values for the provided docid.
+    #[inline]
     pub fn values_for_doc(&self, doc_id: DocId) -> impl Iterator<Item = T> + '_ {
         self.index
             .value_row_ids(doc_id)
@@ -156,15 +158,6 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         // Convert rows to docids
         self.index
             .select_batch_in_place(selected_docid_range.start, doc_ids);
-    }
-
-    /// Fills the output vector with the (possibly multiple values that are associated_with
-    /// `row_id`.
-    ///
-    /// This method clears the `output` vector.
-    pub fn fill_vals(&self, row_id: RowId, output: &mut Vec<T>) {
-        output.clear();
-        output.extend(self.values_for_doc(row_id));
     }
 
     pub fn first_or_default_col(self, default_value: T) -> Arc<dyn ColumnValues<T>> {

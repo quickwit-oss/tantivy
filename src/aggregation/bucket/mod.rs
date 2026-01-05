@@ -22,6 +22,7 @@
 //! - [Range](RangeAggregation)
 //! - [Terms](TermsAggregation)
 
+mod filter;
 mod histogram;
 mod range;
 mod term_agg;
@@ -30,6 +31,7 @@ mod term_missing_agg;
 use std::collections::HashMap;
 use std::fmt;
 
+pub use filter::*;
 pub use histogram::*;
 pub use range::*;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};

@@ -24,7 +24,9 @@ use super::metric::{
 };
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
-use crate::aggregation::agg_result::{AggregationResults, BucketEntries, BucketEntry};
+use crate::aggregation::agg_result::{
+    AggregationResults, BucketEntries, BucketEntry, FilterBucketResult,
+};
 use crate::aggregation::bucket::TermsAggregationInternal;
 use crate::aggregation::metric::CardinalityCollector;
 use crate::TantivyError;
@@ -179,12 +181,17 @@ impl IntermediateAggregationResults {
     }
 
     /// Merge another intermediate aggregation result into this result.
-    ///
-    /// The order of the values need to be the same on both results. This is ensured when the same
-    /// (key values) are present on the underlying `VecWithNames` struct.
-    pub fn merge_fruits(&mut self, other: IntermediateAggregationResults) -> crate::Result<()> {
-        for (left, right) in self.aggs_res.values_mut().zip(other.aggs_res.into_values()) {
-            left.merge_fruits(right)?;
+    pub fn merge_fruits(&mut self, mut other: IntermediateAggregationResults) -> crate::Result<()> {
+        for (key, left) in self.aggs_res.iter_mut() {
+            if let Some(key) = other.aggs_res.remove(key) {
+                left.merge_fruits(key)?;
+            }
+        }
+        // Move remainder of other aggs_res into self.
+        // Note: Currently we don't expect this to happen, as we create empty intermediate results
+        // via [IntermediateAggregationResults::empty_from_req].
+        for (key, value) in other.aggs_res {
+            self.aggs_res.insert(key, value);
         }
         Ok(())
     }
@@ -241,11 +248,16 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
         Cardinality(_) => IntermediateAggregationResult::Metric(
             IntermediateMetricResult::Cardinality(CardinalityCollector::default()),
         ),
+        Filter(_) => IntermediateAggregationResult::Bucket(IntermediateBucketResult::Filter {
+            doc_count: 0,
+            sub_aggregations: IntermediateAggregationResults::default(),
+        }),
     }
 }
 
 /// An aggregation is either a bucket or a metric.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum IntermediateAggregationResult {
     /// Bucket variant
     Bucket(IntermediateBucketResult),
@@ -426,6 +438,13 @@ pub enum IntermediateBucketResult {
         /// The term buckets
         buckets: IntermediateTermBucketResult,
     },
+    /// Filter aggregation - a single bucket with sub-aggregations
+    Filter {
+        /// Document count in the filter bucket
+        doc_count: u64,
+        /// Sub-aggregation results
+        sub_aggregations: IntermediateAggregationResults,
+    },
 }
 
 impl IntermediateBucketResult {
@@ -509,6 +528,18 @@ impl IntermediateBucketResult {
                 req.sub_aggregation(),
                 limits,
             ),
+            IntermediateBucketResult::Filter {
+                doc_count,
+                sub_aggregations,
+            } => {
+                // Convert sub-aggregation results to final format
+                let final_sub_aggregations = sub_aggregations
+                    .into_final_result(req.sub_aggregation().clone(), limits.clone())?;
+                Ok(BucketResult::Filter(FilterBucketResult {
+                    doc_count,
+                    sub_aggregations: final_sub_aggregations,
+                }))
+            }
         }
     }
 
@@ -562,6 +593,19 @@ impl IntermediateBucketResult {
 
                 *buckets_left = buckets?;
             }
+            (
+                IntermediateBucketResult::Filter {
+                    doc_count: doc_count_left,
+                    sub_aggregations: sub_aggs_left,
+                },
+                IntermediateBucketResult::Filter {
+                    doc_count: doc_count_right,
+                    sub_aggregations: sub_aggs_right,
+                },
+            ) => {
+                *doc_count_left += doc_count_right;
+                sub_aggs_left.merge_fruits(sub_aggs_right)?;
+            }
             (IntermediateBucketResult::Range(_), _) => {
                 panic!("try merge on different types")
             }
@@ -569,6 +613,9 @@ impl IntermediateBucketResult {
                 panic!("try merge on different types")
             }
             (IntermediateBucketResult::Terms { .. }, _) => {
+                panic!("try merge on different types")
+            }
+            (IntermediateBucketResult::Filter { .. }, _) => {
                 panic!("try merge on different types")
             }
         }

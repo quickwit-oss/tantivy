@@ -128,7 +128,7 @@ fn compute_deleted_bitset(
 /// is `==` target_opstamp.
 /// For instance, there was no delete operation between the state of the `segment_entry` and
 /// the `target_opstamp`, `segment_entry` is not updated.
-pub(crate) fn advance_deletes(
+pub fn advance_deletes(
     mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
@@ -303,7 +303,7 @@ impl<D: Document> IndexWriter<D> {
         let (document_sender, document_receiver) =
             crossbeam_channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
-        let delete_queue = DeleteQueue::new();
+        let delete_queue = DeleteQueue::default();
 
         let current_opstamp = index.load_metas()?.opstamp;
 
@@ -370,7 +370,7 @@ impl<D: Document> IndexWriter<D> {
             .map_err(|_| error_in_index_worker_thread("Failed to join merging thread."));
 
         if let Err(ref e) = result {
-            error!("Some merging thread failed {:?}", e);
+            error!("Some merging thread failed {e:?}");
         }
 
         result
@@ -513,7 +513,7 @@ impl<D: Document> IndexWriter<D> {
     ///     let searcher = index.reader()?.searcher();
     ///     let query_parser = QueryParser::for_index(&index, vec![title]);
     ///     let query_promo = query_parser.parse_query("Prometheus")?;
-    ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1))?;
+    ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1).order_by_score())?;
     ///
     ///     assert!(top_docs_promo.is_empty());
     ///     Ok(())
@@ -615,7 +615,7 @@ impl<D: Document> IndexWriter<D> {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`].
-    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<D>> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<'_, D>> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -644,7 +644,7 @@ impl<D: Document> IndexWriter<D> {
 
         let commit_opstamp = self.stamper.stamp();
         let prepared_commit = PreparedCommit::new(self, commit_opstamp);
-        info!("Prepared commit {}", commit_opstamp);
+        info!("Prepared commit {commit_opstamp}");
         Ok(prepared_commit)
     }
 
@@ -946,11 +946,11 @@ mod tests {
         let searcher = reader.searcher();
 
         let a_docs = searcher
-            .search(&a_query, &TopDocs::with_limit(1))
+            .search(&a_query, &TopDocs::with_limit(1).order_by_score())
             .expect("search for a failed");
 
         let b_docs = searcher
-            .search(&b_query, &TopDocs::with_limit(1))
+            .search(&b_query, &TopDocs::with_limit(1).order_by_score())
             .expect("search for b failed");
 
         assert_eq!(a_docs.len(), 1);
@@ -2013,8 +2013,9 @@ mod tests {
             let query = QueryParser::for_index(&index, vec![field])
                 .parse_query(term)
                 .unwrap();
-            let top_docs: Vec<(f32, DocAddress)> =
-                searcher.search(&query, &TopDocs::with_limit(1000)).unwrap();
+            let top_docs: Vec<(f32, DocAddress)> = searcher
+                .search(&query, &TopDocs::with_limit(1000).order_by_score())
+                .unwrap();
 
             top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
         };
@@ -2447,8 +2448,9 @@ mod tests {
             Term::from_field_u64(id_field, existing_id),
             IndexRecordOption::Basic,
         );
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+        let top_docs: Vec<(f32, DocAddress)> = searcher
+            .search(&query, &TopDocs::with_limit(10).order_by_score())
+            .unwrap();
 
         assert_eq!(top_docs.len(), 1); // Was failing
 
@@ -2488,8 +2490,9 @@ mod tests {
             Term::from_field_i64(id_field, 10i64),
             IndexRecordOption::Basic,
         );
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+        let top_docs: Vec<(f32, DocAddress)> = searcher
+            .search(&query, &TopDocs::with_limit(10).order_by_score())
+            .unwrap();
 
         assert_eq!(top_docs.len(), 1); // Fails
 
@@ -2497,8 +2500,9 @@ mod tests {
             Term::from_field_i64(id_field, 30i64),
             IndexRecordOption::Basic,
         );
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+        let top_docs: Vec<(f32, DocAddress)> = searcher
+            .search(&query, &TopDocs::with_limit(10).order_by_score())
+            .unwrap();
 
         assert_eq!(top_docs.len(), 1); // Fails
 

@@ -1,6 +1,6 @@
 [package]
 name = "tantivy-stacker"
-version = "0.3.0"
+version = "0.6.0"
 edition = "2024"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
@@ -9,9 +9,8 @@ description = "term hashmap used for indexing"
 
 [dependencies]
 murmurhash32 = "0.3"
-common = { version = "0.7", path = "../common/", package = "tantivy-common" }
+common = { version = "0.10", path = "../common/", package = "tantivy-common" }
 ahash = { version = "0.8.11", default-features = false, optional = true }
-rand_distr = "0.4.3"
 
 
 [[bench]]
@@ -29,6 +28,7 @@ zipf = "7.0.0"
 rustc-hash = "2.1.0"
 proptest = "1.2.0"
 binggan = { version = "0.14.0" }
+rand_distr = "0.4.3"
 
 [features]
 compare_hash_only = ["ahash"] # Compare hash only, not the key in the Hashmap

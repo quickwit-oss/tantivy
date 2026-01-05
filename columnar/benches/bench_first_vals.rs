@@ -1,12 +1,9 @@
-#![feature(test)]
-extern crate test;
-
 use std::sync::Arc;
 
+use binggan::{InputGroup, black_box};
 use rand::prelude::*;
 use tantivy_columnar::column_values::{CodecType, serialize_and_load_u64_based_column_values};
 use tantivy_columnar::*;
-use test::{Bencher, black_box};
 
 struct Columns {
     pub optional: Column,
@@ -68,88 +65,38 @@ pub fn serialize_and_load(column: &[u64], codec_type: CodecType) -> Arc<dyn Colu
     serialize_and_load_u64_based_column_values(&column, &[codec_type])
 }
 
-fn run_bench_on_column_full_scan(b: &mut Bencher, column: Column) {
-    let num_iter = black_box(NUM_VALUES);
-    b.iter(|| {
+fn main() {
+    let Columns {
+        optional,
+        full,
+        multi,
+    } = get_test_columns();
+
+    let inputs = vec![
+        ("full".to_string(), full),
+        ("optional".to_string(), optional),
+        ("multi".to_string(), multi),
+    ];
+
+    let mut group = InputGroup::new_with_inputs(inputs);
+
+    group.register("first_full_scan", |column| {
         let mut sum = 0u64;
-        for i in 0..num_iter as u32 {
+        for i in 0..NUM_VALUES as u32 {
             let val = column.first(i);
             sum += val.unwrap_or(0);
         }
-        sum
+        black_box(sum);
     });
-}
-fn run_bench_on_column_block_fetch(b: &mut Bencher, column: Column) {
-    let mut block: Vec<Option<u64>> = vec![None; 64];
-    let fetch_docids = (0..64).collect::<Vec<_>>();
-    b.iter(move || {
-        column.first_vals(&fetch_docids, &mut block);
-        block[0]
-    });
-}
-fn run_bench_on_column_block_single_calls(b: &mut Bencher, column: Column) {
-    let mut block: Vec<Option<u64>> = vec![None; 64];
-    let fetch_docids = (0..64).collect::<Vec<_>>();
-    b.iter(move || {
+
+    group.register("first_block_single_calls", |column| {
+        let mut block: Vec<Option<u64>> = vec![None; 64];
+        let fetch_docids = (0..64).collect::<Vec<_>>();
         for i in 0..fetch_docids.len() {
             block[i] = column.first(fetch_docids[i]);
         }
-        block[0]
+        black_box(block[0]);
     });
-}
 
-/// Column first method
-#[bench]
-fn bench_get_first_on_full_column_full_scan(b: &mut Bencher) {
-    let column = get_test_columns().full;
-    run_bench_on_column_full_scan(b, column);
-}
-
-#[bench]
-fn bench_get_first_on_optional_column_full_scan(b: &mut Bencher) {
-    let column = get_test_columns().optional;
-    run_bench_on_column_full_scan(b, column);
-}
-
-#[bench]
-fn bench_get_first_on_multi_column_full_scan(b: &mut Bencher) {
-    let column = get_test_columns().multi;
-    run_bench_on_column_full_scan(b, column);
-}
-
-/// Block fetch column accessor
-#[bench]
-fn bench_get_block_first_on_optional_column(b: &mut Bencher) {
-    let column = get_test_columns().optional;
-    run_bench_on_column_block_fetch(b, column);
-}
-
-#[bench]
-fn bench_get_block_first_on_multi_column(b: &mut Bencher) {
-    let column = get_test_columns().multi;
-    run_bench_on_column_block_fetch(b, column);
-}
-
-#[bench]
-fn bench_get_block_first_on_full_column(b: &mut Bencher) {
-    let column = get_test_columns().full;
-    run_bench_on_column_block_fetch(b, column);
-}
-
-#[bench]
-fn bench_get_block_first_on_optional_column_single_calls(b: &mut Bencher) {
-    let column = get_test_columns().optional;
-    run_bench_on_column_block_single_calls(b, column);
-}
-
-#[bench]
-fn bench_get_block_first_on_multi_column_single_calls(b: &mut Bencher) {
-    let column = get_test_columns().multi;
-    run_bench_on_column_block_single_calls(b, column);
-}
-
-#[bench]
-fn bench_get_block_first_on_full_column_single_calls(b: &mut Bencher) {
-    let column = get_test_columns().full;
-    run_bench_on_column_block_single_calls(b, column);
+    group.run();
 }

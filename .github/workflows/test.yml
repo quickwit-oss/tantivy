@@ -39,11 +39,11 @@ jobs:
 
     - name: Check Formatting
       run: cargo +nightly fmt --all -- --check
-    
+
     - name: Check Stable Compilation
       run: cargo build --all-features
 
-    
+
     - name: Check Bench Compilation
       run: cargo +nightly bench --no-run --profile=dev --all-features
 
@@ -59,10 +59,10 @@ jobs:
 
     strategy:
       matrix:
-        features: [
-            { label: "all", flags: "mmap,stopwords,lz4-compression,zstd-compression,failpoints" },
-            { label: "quickwit", flags: "mmap,quickwit,failpoints" }
-        ]
+        features:
+          - { label: "all", flags: "mmap,stopwords,lz4-compression,zstd-compression,failpoints,stemmer" }
+          - { label: "quickwit", flags: "mmap,quickwit,failpoints" }
+          - { label: "none", flags: "" }
 
     name: test-${{ matrix.features.label}}
 
@@ -80,7 +80,21 @@ jobs:
     - uses: Swatinem/rust-cache@v2
 
     - name: Run tests
-      run: cargo +stable nextest run --features ${{ matrix.features.flags }} --verbose --workspace
+      run: |
+        # if matrix.feature.flags is empty then run on --lib to avoid compiling examples
+        # (as most of them rely on mmap) otherwise run all
+        if [ -z "${{ matrix.features.flags }}" ]; then
+          cargo +stable nextest run --lib --no-default-features --verbose --workspace
+        else
+          cargo +stable nextest run --features ${{ matrix.features.flags }} --no-default-features --verbose --workspace
+        fi
 
     - name: Run doctests
-      run: cargo +stable test --doc --features ${{ matrix.features.flags }} --verbose --workspace
+      run: |
+        # if matrix.feature.flags is empty then run on --lib to avoid compiling examples
+        # (as most of them rely on mmap) otherwise run all
+        if [ -z "${{ matrix.features.flags }}" ]; then
+          echo "no doctest for no feature flag"
+        else
+          cargo +stable test --doc --features ${{ matrix.features.flags }} --verbose --workspace
+        fi

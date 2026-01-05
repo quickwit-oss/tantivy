@@ -726,22 +726,22 @@ mod tests {
             .column_opt::<DateTime>("multi_date")
             .unwrap()
             .unwrap();
-        let mut dates = Vec::new();
+
         {
             assert_eq!(date_fast_field.get_val(0).into_timestamp_nanos(), 1i64);
-            dates_fast_field.fill_vals(0u32, &mut dates);
+            let dates: Vec<DateTime> = dates_fast_field.values_for_doc(0u32).collect();
             assert_eq!(dates.len(), 2);
             assert_eq!(dates[0].into_timestamp_nanos(), 2i64);
             assert_eq!(dates[1].into_timestamp_nanos(), 3i64);
         }
         {
             assert_eq!(date_fast_field.get_val(1).into_timestamp_nanos(), 4i64);
-            dates_fast_field.fill_vals(1u32, &mut dates);
+            let dates: Vec<DateTime> = dates_fast_field.values_for_doc(1u32).collect();
             assert!(dates.is_empty());
         }
         {
             assert_eq!(date_fast_field.get_val(2).into_timestamp_nanos(), 0i64);
-            dates_fast_field.fill_vals(2u32, &mut dates);
+            let dates: Vec<DateTime> = dates_fast_field.values_for_doc(2u32).collect();
             assert_eq!(dates.len(), 2);
             assert_eq!(dates[0].into_timestamp_nanos(), 5i64);
             assert_eq!(dates[1].into_timestamp_nanos(), 6i64);

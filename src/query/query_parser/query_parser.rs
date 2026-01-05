@@ -2,12 +2,14 @@ use std::net::{AddrParseError, IpAddr};
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::{FromStr, ParseBoolError};
+use std::sync::Arc;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use itertools::Itertools;
 use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 use rustc_hash::FxHashMap;
+use tantivy_fst::Regex;
 
 use super::logical_ast::*;
 use crate::index::Index;
@@ -15,7 +17,7 @@ use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
-    PhraseQuery, Query, TermQuery, TermSetQuery,
+    PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -206,6 +208,7 @@ pub struct QueryParser {
     tokenizer_manager: TokenizerManager,
     boost: FxHashMap<Field, Score>,
     fuzzy: FxHashMap<Field, Fuzzy>,
+    regexes_allowed: bool,
 }
 
 #[derive(Clone)]
@@ -260,6 +263,7 @@ impl QueryParser {
             conjunction_by_default: false,
             boost: Default::default(),
             fuzzy: Default::default(),
+            regexes_allowed: false,
         }
     }
 
@@ -318,6 +322,11 @@ impl QueryParser {
                 transpose_cost_one,
             },
         );
+    }
+
+    /// Allow regexes in queries
+    pub fn allow_regexes(&mut self) {
+        self.regexes_allowed = true;
     }
 
     /// Parse a query
@@ -486,24 +495,17 @@ impl QueryParser {
                 Ok(terms.into_iter().next().unwrap())
             }
             FieldType::JsonObject(ref json_options) => {
-                let get_term_with_path = || {
-                    Term::from_field_json_path(
-                        field,
-                        json_path,
-                        json_options.is_expand_dots_enabled(),
-                    )
-                };
+                let mut term = Term::from_field_json_path(
+                    field,
+                    json_path,
+                    json_options.is_expand_dots_enabled(),
+                );
                 if let Some(term) =
                     // Try to convert the phrase to a fast value
-                    convert_to_fast_value_and_append_to_json_term(
-                        get_term_with_path(),
-                        phrase,
-                        false,
-                    )
+                    convert_to_fast_value_and_append_to_json_term(&term, phrase, false)
                 {
                     Ok(term)
                 } else {
-                    let mut term = get_term_with_path();
                     term.append_type_and_str(phrase);
                     Ok(term)
                 }
@@ -670,7 +672,7 @@ impl QueryParser {
             }
             UserInputAst::Boost(ast, boost) => {
                 let (ast, errors) = self.compute_logical_ast_with_occur_lenient(*ast);
-                (ast.boost(boost as Score), errors)
+                (ast.boost(boost.into_inner() as Score), errors)
             }
             UserInputAst::Leaf(leaf) => {
                 let (ast, errors) = self.compute_logical_ast_from_leaf_lenient(*leaf);
@@ -778,6 +780,12 @@ impl QueryParser {
                         asts.push(LogicalAst::Leaf(Box::new(ast)).boost(boost));
                     }
                 }
+                if !asts.is_empty() {
+                    // if some fields failed but other succeeded, we consider this a success, it
+                    // probably means the default_fields contains
+                    // text and non-text fields, and the non-text ones failed
+                    errors.clear();
+                }
                 let result_ast: LogicalAst = if asts.len() == 1 {
                     asts.into_iter().next().unwrap()
                 } else {
@@ -854,6 +862,51 @@ impl QueryParser {
                     "Range query need to target a specific field.".to_string(),
                 )],
             ),
+            UserInputLeaf::Regex { field, pattern } => {
+                if !self.regexes_allowed {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Regex queries are not allowed.".to_string(),
+                        )],
+                    );
+                }
+                let full_path = try_tuple!(field.ok_or_else(|| {
+                    QueryParserError::UnsupportedQuery(
+                        "Regex query need to target a specific field.".to_string(),
+                    )
+                }));
+                let (field, json_path) = try_tuple!(self
+                    .split_full_path(&full_path)
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
+                if !json_path.is_empty() {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Regex query does not support json paths.".to_string(),
+                        )],
+                    );
+                }
+                if !matches!(
+                    self.schema.get_field_entry(field).field_type(),
+                    FieldType::Str(_)
+                ) {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Regex query only supported on text fields".to_string(),
+                        )],
+                    );
+                }
+                let pattern = try_tuple!(Regex::new(&pattern).map_err(|e| {
+                    QueryParserError::UnsupportedQuery(format!("Invalid regex: {e}"))
+                }));
+                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Regex {
+                    pattern: Arc::new(pattern),
+                    field,
+                }));
+                (Some(logical_ast), Vec::new())
+            }
         }
     }
 }
@@ -896,6 +949,9 @@ fn convert_literal_to_query(
         LogicalLiteral::Range { lower, upper } => Box::new(RangeQuery::new(lower, upper)),
         LogicalLiteral::Set { elements, .. } => Box::new(TermSetQuery::new(elements)),
         LogicalLiteral::All => Box::new(AllQuery),
+        LogicalLiteral::Regex { pattern, field } => {
+            Box::new(RegexQuery::from_regex(pattern, field))
+        }
     }
 }
 
@@ -965,7 +1021,7 @@ fn generate_literals_for_json_object(
 
     // Try to convert the phrase to a fast value
     if let Some(term) =
-        convert_to_fast_value_and_append_to_json_term(get_term_with_path(), phrase, true)
+        convert_to_fast_value_and_append_to_json_term(&get_term_with_path(), phrase, true)
     {
         logical_literals.push(LogicalLiteral::Term(term));
     }
@@ -1090,25 +1146,64 @@ mod test {
         make_query_parser_with_default_fields(&["title", "text"])
     }
 
-    fn parse_query_to_logical_ast(
+    fn parse_query_to_logical_ast_with_default_fields(
         query: &str,
         default_conjunction: bool,
+        default_fields: &[&'static str],
+        allow_regexes: bool,
     ) -> Result<LogicalAst, QueryParserError> {
-        let mut query_parser = make_query_parser();
+        let mut query_parser = make_query_parser_with_default_fields(default_fields);
         if default_conjunction {
             query_parser.set_conjunction_by_default();
+        }
+        if allow_regexes {
+            query_parser.allow_regexes();
         }
         query_parser.parse_query_to_logical_ast(query)
     }
 
+    fn parse_query_to_logical_ast(
+        query: &str,
+        default_conjunction: bool,
+    ) -> Result<LogicalAst, QueryParserError> {
+        parse_query_to_logical_ast_with_default_fields(
+            query,
+            default_conjunction,
+            &["title", "text"],
+            true,
+        )
+    }
+
+    #[track_caller]
+    fn test_parse_query_to_logical_ast_helper_with_default_fields(
+        query: &str,
+        expected: &str,
+        default_conjunction: bool,
+        default_fields: &[&'static str],
+    ) {
+        let query = parse_query_to_logical_ast_with_default_fields(
+            query,
+            default_conjunction,
+            default_fields,
+            true,
+        )
+        .unwrap();
+        let query_str = format!("{query:?}");
+        assert_eq!(query_str, expected);
+    }
+
+    #[track_caller]
     fn test_parse_query_to_logical_ast_helper(
         query: &str,
         expected: &str,
         default_conjunction: bool,
     ) {
-        let query = parse_query_to_logical_ast(query, default_conjunction).unwrap();
-        let query_str = format!("{query:?}");
-        assert_eq!(query_str, expected);
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            query,
+            expected,
+            default_conjunction,
+            &["title", "text"],
+        )
     }
 
     #[test]
@@ -1752,6 +1847,15 @@ mod test {
     }
 
     #[test]
+    fn test_space_before_value() {
+        test_parse_query_to_logical_ast_helper(
+            "title: a",
+            r#"Term(field=0, type=Str, "a")"#,
+            false,
+        );
+    }
+
+    #[test]
     fn test_escaped_field() {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field(r"a\.b", STRING);
@@ -1921,5 +2025,90 @@ mod test {
                  minimum_number_should_match: 1 }"
             );
         }
+    }
+
+    #[test]
+    pub fn test_set_default_field_integer() {
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "2324",
+            "(Term(field=0, type=Str, \"2324\") Term(field=2, type=I64, 2324))",
+            false,
+            &["title", "signed"],
+        );
+
+        test_parse_query_to_logical_ast_helper_with_default_fields(
+            "abc",
+            "Term(field=0, type=Str, \"abc\")",
+            false,
+            &["title", "signed"],
+        );
+
+        let query_parser = make_query_parser_with_default_fields(&["signed"]);
+        assert_matches!(
+            query_parser.parse_query("abc"),
+            Err(QueryParserError::ExpectedInt(_))
+        );
+    }
+
+    #[test]
+    pub fn test_deduplication() {
+        let query = "be be";
+        test_parse_query_to_logical_ast_helper(
+            query,
+            "(Term(field=0, type=Str, \"be\") Term(field=1, type=Str, \"be\"))",
+            false,
+        );
+    }
+
+    #[test]
+    pub fn test_regex() {
+        let expected_regex = tantivy_fst::Regex::new(r".*b").unwrap();
+        test_parse_query_to_logical_ast_helper(
+            "title:/.*b/",
+            format!("Regex(Field(0), {:#?})", expected_regex).as_str(),
+            false,
+        );
+
+        // Invalid field
+        let err = parse_query_to_logical_ast("float:/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query only supported on text fields"
+        );
+
+        // No field specified
+        let err = parse_query_to_logical_ast("/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query need to target a specific field."
+        );
+
+        // Regex on a json path
+        let err = parse_query_to_logical_ast("title.subpath:/.*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex query does not support json paths."
+        );
+
+        // Invalid regex
+        let err = parse_query_to_logical_ast("title:/[A-Z*b/", false).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Invalid regex: regex parse error:\n    [A-Z*b\n    ^\nerror: \
+             unclosed character class"
+        );
+
+        // Regexes not allowed
+        let err = parse_query_to_logical_ast_with_default_fields(
+            "title:/.*b/",
+            false,
+            &["title", "text"],
+            false,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Unsupported query: Regex queries are not allowed."
+        );
     }
 }

@@ -1,12 +1,15 @@
 use bitpacking::{BitPacker, BitPacker4x};
-use common::FixedSize;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
-const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * u32::SIZE_IN_BYTES;
+// in vint encoding, each byte stores 7 bits of data, so we need at most 32 / 7 = 4.57 bytes to
+// store a u32 in the worst case, rounding up to 5 bytes total
+const MAX_VINT_SIZE: usize = 5;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * MAX_VINT_SIZE;
 
 mod vint;
 
 /// Returns the size in bytes of a compressed block, given `num_bits`.
+#[inline]
 pub fn compressed_block_size(num_bits: u8) -> usize {
     (num_bits as usize) * COMPRESSION_BLOCK_SIZE / 8
 }
@@ -151,9 +154,11 @@ impl BlockDecoder {
         &self.output[..self.output_len]
     }
 
+    /// Return in-block index of first value >= `target`.
+    /// Uses the padded buffer to enable branchless search.
     #[inline]
-    pub(crate) fn full_output(&self) -> &[u32; COMPRESSION_BLOCK_SIZE] {
-        &self.output
+    pub(crate) fn seek_within_block(&self, target: u32) -> usize {
+        crate::postings::branchless_binary_search(&self.output, target)
     }
 
     #[inline]
@@ -265,7 +270,6 @@ impl VIntDecoder for BlockDecoder {
 
 #[cfg(test)]
 pub(crate) mod tests {
-
     use super::*;
     use crate::TERMINATED;
 
@@ -369,6 +373,13 @@ pub(crate) mod tests {
                 assert_eq!(decoder.output(i), PADDING_VALUE);
             }
         }
+    }
+
+    #[test]
+    fn test_compress_vint_unsorted_does_not_overflow() {
+        let mut encoder = BlockEncoder::new();
+        let input: Vec<u32> = vec![u32::MAX; COMPRESSION_BLOCK_SIZE];
+        encoder.compress_vint_unsorted(&input);
     }
 }
 

@@ -16,7 +16,7 @@ use super::{AggregationError, Key};
 use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-/// The final aggegation result.
+/// The final aggregation result.
 pub struct AggregationResults(pub FxHashMap<String, AggregationResult>);
 
 impl AggregationResults {
@@ -156,6 +156,8 @@ pub enum BucketResult {
         /// The upper bound error for the doc count of each term.
         doc_count_error_upper_bound: Option<u64>,
     },
+    /// This is the filter result - a single bucket with sub-aggregations
+    Filter(FilterBucketResult),
 }
 
 impl BucketResult {
@@ -172,6 +174,11 @@ impl BucketResult {
                 sum_other_doc_count: _,
                 doc_count_error_upper_bound: _,
             } => buckets.iter().map(|bucket| bucket.get_bucket_count()).sum(),
+            BucketResult::Filter(filter_result) => {
+                // Filter doesn't add to bucket count - it's not a user-facing bucket
+                // Only count sub-aggregation buckets
+                filter_result.sub_aggregations.get_bucket_count()
+            }
         }
     }
 }
@@ -307,4 +314,26 @@ impl RangeBucketEntry {
     pub(crate) fn get_bucket_count(&self) -> u64 {
         1 + self.sub_aggregation.get_bucket_count()
     }
+}
+
+/// This is the filter bucket result, which contains the document count and sub-aggregations.
+///
+/// # JSON Format
+/// ```json
+/// {
+///   "electronics_only": {
+///     "doc_count": 2,
+///     "avg_price": {
+///       "value": 150.0
+///     }
+///   }
+/// }
+/// ```
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FilterBucketResult {
+    /// Number of documents in the filter bucket
+    pub doc_count: u64,
+    /// Sub-aggregation results
+    #[serde(flatten)]
+    pub sub_aggregations: AggregationResults,
 }
