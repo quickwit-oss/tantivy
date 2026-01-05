@@ -8,5 +8,6 @@ pub mod radix_select;
 pub mod reader;
 pub mod serializer;
 pub mod triangle;
+pub mod spatial_index_manager;
 pub mod writer;
 pub mod xor;
