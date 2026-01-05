@@ -218,10 +218,12 @@ impl SubAggCache for LowCardSubAggCache {
         // the FLUSH_THRESHOLD, but never flush any buckets. (except the final flush)
         let mut bucket_treshold = FLUSH_THRESHOLD / (self.per_bucket_docs.len().max(1) * 2);
         const _: () = {
-            // MAX_NUM_TERMS_FOR_VEC == LOWCARD threshold
-            let bucket_treshold = FLUSH_THRESHOLD / (MAX_NUM_TERMS_FOR_VEC as usize * 2);
+            // MAX_NUM_TERMS_FOR_VEC threshold is used for term aggregations
+            // Note: There may be other flexible values, for other aggregations, but we can use the
+            // const value here as a upper bound. (better than nothing)
+            let bucket_treshold_limit = FLUSH_THRESHOLD / (MAX_NUM_TERMS_FOR_VEC as usize * 2);
             assert!(
-                bucket_treshold > 0,
+                bucket_treshold_limit > 0,
                 "Bucket threshold must be greater than 0"
             );
         };

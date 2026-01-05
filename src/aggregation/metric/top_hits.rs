@@ -602,8 +602,7 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
         let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
         let req = &req_data.req;
         let accessors = &req_data.accessors;
-        for doc_id in docs {
-            let doc_id = *doc_id;
+        for &doc_id in docs {
             // TODO: this is terrible, a new vec is allocated for every doc
             // We can fetch blocks instead
             // We don't need to store the order for every value
