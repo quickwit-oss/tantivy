@@ -95,11 +95,21 @@ pub(crate) fn get_all_ff_reader_or_empty(
     allowed_column_types: Option<&[ColumnType]>,
     fallback_type: ColumnType,
 ) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
-    let ff_fields = reader.fast_fields();
-    let mut ff_field_with_type =
-        ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
+    let mut ff_field_with_type = get_all_ff_readers(reader, field_name, allowed_column_types)?;
     if ff_field_with_type.is_empty() {
         ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
     }
+    Ok(ff_field_with_type)
+}
+
+/// Get all fast field reader.
+pub(crate) fn get_all_ff_readers(
+    reader: &SegmentReader,
+    field_name: &str,
+    allowed_column_types: Option<&[ColumnType]>,
+) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
+    let ff_fields = reader.fast_fields();
+    let ff_field_with_type =
+        ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
     Ok(ff_field_with_type)
 }
