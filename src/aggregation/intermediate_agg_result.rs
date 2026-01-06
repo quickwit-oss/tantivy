@@ -25,9 +25,12 @@ use super::metric::{
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
 use crate::aggregation::agg_result::{
-    AggregationResults, BucketEntries, BucketEntry, FilterBucketResult,
+    AggregationResults, BucketEntries, BucketEntry, CompositeBucketEntry, FilterBucketResult,
 };
-use crate::aggregation::bucket::TermsAggregationInternal;
+use crate::aggregation::bucket::{
+    composite_intermediate_key_ordering, CompositeAggregation, MissingOrder,
+    TermsAggregationInternal,
+};
 use crate::aggregation::metric::CardinalityCollector;
 use crate::TantivyError;
 
@@ -216,6 +219,11 @@ pub(crate) fn empty_from_req(req: &Aggregation) -> IntermediateAggregationResult
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Histogram {
                 buckets: Vec::new(),
                 is_date_agg: true,
+            })
+        }
+        Composite(_) => {
+            IntermediateAggregationResult::Bucket(IntermediateBucketResult::Composite {
+                buckets: Default::default(),
             })
         }
         Average(_) => IntermediateAggregationResult::Metric(IntermediateMetricResult::Average(
@@ -445,6 +453,11 @@ pub enum IntermediateBucketResult {
         /// Sub-aggregation results
         sub_aggregations: IntermediateAggregationResults,
     },
+    /// Composite aggregation
+    Composite {
+        /// The composite buckets
+        buckets: IntermediateCompositeBucketResult,
+    },
 }
 
 impl IntermediateBucketResult {
@@ -540,6 +553,13 @@ impl IntermediateBucketResult {
                     sub_aggregations: final_sub_aggregations,
                 }))
             }
+            IntermediateBucketResult::Composite { buckets } => buckets.into_final_result(
+                req.agg
+                    .as_composite()
+                    .expect("unexpected aggregation, expected composite aggregation"),
+                req.sub_aggregation(),
+                limits,
+            ),
         }
     }
 
@@ -606,6 +626,16 @@ impl IntermediateBucketResult {
                 *doc_count_left += doc_count_right;
                 sub_aggs_left.merge_fruits(sub_aggs_right)?;
             }
+            (
+                IntermediateBucketResult::Composite {
+                    buckets: buckets_left,
+                },
+                IntermediateBucketResult::Composite {
+                    buckets: buckets_right,
+                },
+            ) => {
+                buckets_left.merge_fruits(buckets_right)?;
+            }
             (IntermediateBucketResult::Range(_), _) => {
                 panic!("try merge on different types")
             }
@@ -616,6 +646,9 @@ impl IntermediateBucketResult {
                 panic!("try merge on different types")
             }
             (IntermediateBucketResult::Filter { .. }, _) => {
+                panic!("try merge on different types")
+            }
+            (IntermediateBucketResult::Composite { .. }, _) => {
                 panic!("try merge on different types")
             }
         }
@@ -820,7 +853,7 @@ impl IntermediateRangeBucketEntry {
         };
 
         // If we have a date type on the histogram buckets, we add the `key_as_string` field as
-        // rfc339
+        // rfc3339
         if column_type == Some(ColumnType::DateTime) {
             if let Some(val) = range_bucket_entry.to {
                 let key_as_string = format_date(val as i64)?;
@@ -844,6 +877,182 @@ pub struct IntermediateTermBucketEntry {
     pub doc_count: u32,
     /// The sub_aggregation in this bucket.
     pub sub_aggregation: IntermediateAggregationResults,
+}
+
+/// Entry for the composite bucket.
+pub type IntermediateCompositeBucketEntry = IntermediateTermBucketEntry;
+
+/// The fully typed key for composite aggregation
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum CompositeIntermediateKey {
+    /// Bool key
+    Bool(bool),
+    /// String key
+    Str(String),
+    /// Float key
+    F64(f64),
+    /// Signed integer key
+    I64(i64),
+    /// Unsigned integer key
+    U64(u64),
+    /// DateTime key, nanoseconds since epoch
+    DateTime(i64),
+    /// IP Address key
+    IpAddr(Ipv6Addr),
+    /// Missing value key
+    Null,
+}
+
+impl Eq for CompositeIntermediateKey {}
+
+impl std::hash::Hash for CompositeIntermediateKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            CompositeIntermediateKey::Bool(val) => val.hash(state),
+            CompositeIntermediateKey::Str(text) => text.hash(state),
+            CompositeIntermediateKey::F64(val) => val.to_bits().hash(state),
+            CompositeIntermediateKey::U64(val) => val.hash(state),
+            CompositeIntermediateKey::I64(val) => val.hash(state),
+            CompositeIntermediateKey::DateTime(val) => val.hash(state),
+            CompositeIntermediateKey::IpAddr(val) => val.hash(state),
+            CompositeIntermediateKey::Null => {}
+        }
+    }
+}
+
+/// Composite aggregation page.
+#[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct IntermediateCompositeBucketResult {
+    pub(crate) entries: FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry>,
+    pub(crate) target_size: u32,
+    pub(crate) orders: Vec<(Order, MissingOrder)>,
+}
+
+impl IntermediateCompositeBucketResult {
+    pub(crate) fn into_final_result(
+        self,
+        req: &CompositeAggregation,
+        sub_aggregation_req: &Aggregations,
+        limits: &mut AggregationLimitsGuard,
+    ) -> crate::Result<BucketResult> {
+        let trimmed_entry_vec =
+            trim_composite_buckets(self.entries, &self.orders, self.target_size)?;
+        let after_key = if trimmed_entry_vec.len() == req.size as usize {
+            trimmed_entry_vec
+                .last()
+                .map(|bucket| {
+                    let (intermediate_key, _entry) = bucket;
+                    intermediate_key
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, intermediate_key)| {
+                            let source = &req.sources[idx];
+                            (source.name().to_string(), intermediate_key.clone().into())
+                        })
+                        .collect()
+                })
+                .unwrap()
+        } else {
+            FxHashMap::default()
+        };
+
+        let buckets = trimmed_entry_vec
+            .into_iter()
+            .map(|(intermediate_key, entry)| {
+                let key = intermediate_key
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, intermediate_key)| {
+                        let source = &req.sources[idx];
+                        (source.name().to_string(), intermediate_key.into())
+                    })
+                    .collect();
+                Ok(CompositeBucketEntry {
+                    key,
+                    doc_count: entry.doc_count as u64,
+                    sub_aggregation: entry
+                        .sub_aggregation
+                        .into_final_result_internal(sub_aggregation_req, limits)?,
+                })
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+
+        Ok(BucketResult::Composite { after_key, buckets })
+    }
+
+    fn merge_fruits(&mut self, other: IntermediateCompositeBucketResult) -> crate::Result<()> {
+        merge_maps(&mut self.entries, other.entries)?;
+        if self.entries.len() as u32 > 2 * self.target_size {
+            // 2x factor used to avoid trimming too often (expensive operation)
+            // an optimal threshold could probably be figured out
+            self.trim()?;
+        }
+        Ok(())
+    }
+
+    /// Trim the composite buckets to the target size, according to the ordering.
+    ///
+    /// Returns an error if the ordering comparison fails.
+    pub(crate) fn trim(&mut self) -> crate::Result<()> {
+        if self.entries.len() as u32 <= self.target_size {
+            return Ok(());
+        }
+
+        let sorted_entries = trim_composite_buckets(
+            std::mem::take(&mut self.entries),
+            &self.orders,
+            self.target_size,
+        )?;
+
+        self.entries = sorted_entries.into_iter().collect();
+        Ok(())
+    }
+}
+
+fn trim_composite_buckets(
+    entries: FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry>,
+    orders: &[(Order, MissingOrder)],
+    target_size: u32,
+) -> crate::Result<
+    Vec<(
+        Vec<CompositeIntermediateKey>,
+        IntermediateCompositeBucketEntry,
+    )>,
+> {
+    let mut entries: Vec<_> = entries.into_iter().collect();
+    let mut sort_error: Option<TantivyError> = None;
+    entries.sort_by(|(left_key, _), (right_key, _)| {
+        // Only attempt sorting if we haven't encountered an error yet
+        if sort_error.is_some() {
+            return Ordering::Equal; // Return a default, we'll handle the error after sorting
+        }
+
+        for i in 0..orders.len() {
+            match composite_intermediate_key_ordering(
+                &left_key[i],
+                &right_key[i],
+                orders[i].0,
+                orders[i].1,
+            ) {
+                Ok(ordering) if ordering != Ordering::Equal => return ordering,
+                Ok(_) => continue, // Equal, try next key
+                Err(err) => {
+                    sort_error = Some(err);
+                    break;
+                }
+            }
+        }
+        Ordering::Equal
+    });
+
+    // If we encountered an error during sorting, return it now
+    if let Some(err) = sort_error {
+        return Err(err);
+    }
+
+    entries.truncate(target_size as usize);
+    Ok(entries)
 }
 
 impl MergeFruits for IntermediateTermBucketEntry {

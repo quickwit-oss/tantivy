@@ -51,7 +51,7 @@ mod sstable_index_v3;
 pub use sstable_index_v3::{BlockAddr, SSTableIndex, SSTableIndexBuilder, SSTableIndexV3};
 mod sstable_index_v2;
 pub(crate) mod vint;
-pub use dictionary::Dictionary;
+pub use dictionary::{Dictionary, TermOrdHit};
 pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;

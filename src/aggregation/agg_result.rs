@@ -13,6 +13,8 @@ use super::metric::{
     ExtendedStats, PercentilesMetricResult, SingleMetricResult, Stats, TopHitsMetricResult,
 };
 use super::{AggregationError, Key};
+use crate::aggregation::bucket::AfterKey;
+use crate::aggregation::intermediate_agg_result::CompositeIntermediateKey;
 use crate::TantivyError;
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
@@ -158,6 +160,16 @@ pub enum BucketResult {
     },
     /// This is the filter result - a single bucket with sub-aggregations
     Filter(FilterBucketResult),
+    /// This is the composite aggregation result
+    Composite {
+        /// The buckets
+        ///
+        /// See [`CompositeAggregation`](super::bucket::CompositeAggregation)
+        buckets: Vec<CompositeBucketEntry>,
+        /// The key to start after when paginating
+        #[serde(skip_serializing_if = "FxHashMap::is_empty")]
+        after_key: FxHashMap<String, AfterKey>,
+    },
 }
 
 impl BucketResult {
@@ -178,6 +190,9 @@ impl BucketResult {
                 // Filter doesn't add to bucket count - it's not a user-facing bucket
                 // Only count sub-aggregation buckets
                 filter_result.sub_aggregations.get_bucket_count()
+            }
+            BucketResult::Composite { buckets, .. } => {
+                buckets.iter().map(|bucket| bucket.get_bucket_count()).sum()
             }
         }
     }
@@ -336,4 +351,131 @@ pub struct FilterBucketResult {
     /// Sub-aggregation results
     #[serde(flatten)]
     pub sub_aggregations: AggregationResults,
+}
+
+/// The JSON mappable key to identify a composite bucket.
+///
+/// This is similar to `Key`, but composite keys can also be boolean and null.
+///
+/// Note the type information loss compared to `CompositeIntermediateKey`.
+/// Pagination is performed using `AfterKey`, which encodes type information.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CompositeKey {
+    /// Boolean key
+    Bool(bool),
+    /// String key
+    Str(String),
+    /// `i64` key
+    I64(i64),
+    /// `u64` key
+    U64(u64),
+    /// `f64` key
+    F64(f64),
+    /// Null key
+    Null,
+}
+impl Eq for CompositeKey {}
+impl std::hash::Hash for CompositeKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::Bool(val) => val.hash(state),
+            Self::Str(text) => text.hash(state),
+            Self::F64(val) => val.to_bits().hash(state),
+            Self::U64(val) => val.hash(state),
+            Self::I64(val) => val.hash(state),
+            Self::Null => {}
+        }
+    }
+}
+impl PartialEq for CompositeKey {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bool(l), Self::Bool(r)) => l == r,
+            (Self::Str(l), Self::Str(r)) => l == r,
+            (Self::F64(l), Self::F64(r)) => l.to_bits() == r.to_bits(),
+            (Self::I64(l), Self::I64(r)) => l == r,
+            (Self::U64(l), Self::U64(r)) => l == r,
+            (Self::Null, Self::Null) => true,
+            (
+                Self::Bool(_)
+                | Self::Str(_)
+                | Self::F64(_)
+                | Self::I64(_)
+                | Self::U64(_)
+                | Self::Null,
+                _,
+            ) => false,
+        }
+    }
+}
+impl From<CompositeIntermediateKey> for CompositeKey {
+    fn from(value: CompositeIntermediateKey) -> Self {
+        match value {
+            CompositeIntermediateKey::Str(s) => Self::Str(s),
+            CompositeIntermediateKey::IpAddr(s) => {
+                // Prefer to use the IPv4 representation if possible
+                if let Some(ip) = s.to_ipv4_mapped() {
+                    Self::Str(ip.to_string())
+                } else {
+                    Self::Str(s.to_string())
+                }
+            }
+            CompositeIntermediateKey::F64(f) => Self::F64(f),
+            CompositeIntermediateKey::Bool(f) => Self::Bool(f),
+            CompositeIntermediateKey::U64(f) => Self::U64(f),
+            CompositeIntermediateKey::I64(f) => Self::I64(f),
+            CompositeIntermediateKey::DateTime(f) => Self::I64(f / 1_000_000), // Convert ns to ms
+            CompositeIntermediateKey::Null => Self::Null,
+        }
+    }
+}
+
+/// This is the default entry for a bucket, which contains a composite key, count, and optionally
+/// sub-aggregations.
+///   ...
+///     "my_composite": {
+///       "buckets": [
+///         {
+///           "key": {
+///             "date": 1494201600000,
+///             "product": "rocky"
+///           },
+///           "doc_count": 5
+///         },
+///         {
+///           "key": {
+///             "date": 1494201600000,
+///             "product": "balboa"
+///           },
+///           "doc_count": 2
+///         },
+///         {
+///           "key": {
+///             "date": 1494201700000,
+///             "product": "john"
+///           },
+///           "doc_count": 3
+///         }
+///       ]
+///    }
+///    ...
+/// }
+/// ```
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CompositeBucketEntry {
+    /// The identifier of the bucket.
+    pub key: FxHashMap<String, CompositeKey>,
+    /// Number of documents in the bucket.
+    pub doc_count: u64,
+    #[serde(flatten)]
+    /// Sub-aggregations in this bucket.
+    pub sub_aggregation: AggregationResults,
+}
+
+impl CompositeBucketEntry {
+    pub(crate) fn get_bucket_count(&self) -> u64 {
+        1 + self.sub_aggregation.get_bucket_count()
+    }
 }
