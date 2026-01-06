@@ -97,10 +97,12 @@ where
         let mut term_stream = self.automaton_stream(term_dict)?;
         while term_stream.advance() {
             let term_info = term_stream.value();
-            let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo_not_loaded(term_info, IndexRecordOption::Basic)?
-                .seek_and_load(seek_doc)
-                .0;
+            let (mut block_segment_postings, _) = inverted_index
+                .read_block_postings_from_terminfo_with_seek(
+                    term_info,
+                    IndexRecordOption::Basic,
+                    seek_doc,
+                )?;
             loop {
                 let docs = block_segment_postings.docs();
                 if docs.is_empty() {

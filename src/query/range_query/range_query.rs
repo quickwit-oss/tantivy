@@ -234,8 +234,11 @@ impl Weight for InvertedIndexRangeWeight {
             processed_count += 1;
             let term_info = term_range.value();
             let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo_not_loaded(term_info, IndexRecordOption::Basic)?
-                .seek_and_load(seek_doc)
+                .read_block_postings_from_terminfo_with_seek(
+                    term_info,
+                    IndexRecordOption::Basic,
+                    seek_doc,
+                )?
                 .0;
             loop {
                 let docs = block_segment_postings.docs();

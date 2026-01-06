@@ -4,7 +4,7 @@ use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{BlockSegmentPostings, BlockSegmentPostingsNotLoaded, Postings};
+use crate::postings::{BlockSegmentPostings, Postings};
 use crate::{DocId, TERMINATED};
 
 /// `SegmentPostings` represents the inverted list or postings associated with
@@ -79,14 +79,15 @@ impl SegmentPostings {
                 .close_term(docs.len() as u32)
                 .expect("In memory Serialization should never fail.");
         }
-        let block_segment_postings = BlockSegmentPostings::open(
+        let (block_segment_postings, position_within_block) = BlockSegmentPostings::open(
             docs.len() as u32,
             FileSlice::from(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
+            0u32,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None, 0)
+        SegmentPostings::from_block_postings(block_segment_postings, None, position_within_block)
     }
 
     /// Helper functions to create `SegmentPostings` for tests.
@@ -127,14 +128,15 @@ impl SegmentPostings {
         postings_serializer
             .close_term(doc_and_tfs.len() as u32)
             .unwrap();
-        let block_segment_postings = BlockSegmentPostings::open(
+        let (block_segment_postings, position_within_block) = BlockSegmentPostings::open(
             doc_and_tfs.len() as u32,
             FileSlice::from(buffer),
             IndexRecordOption::WithFreqs,
             IndexRecordOption::WithFreqs,
+            0u32,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None, 0)
+        SegmentPostings::from_block_postings(block_segment_postings, None, position_within_block)
     }
 
     /// Creates a Segment Postings from a
@@ -142,14 +144,13 @@ impl SegmentPostings {
     /// - a position reader
     /// - a target document to seek to
     pub(crate) fn from_block_postings(
-        segment_block_postings: BlockSegmentPostingsNotLoaded,
+        segment_block_postings: BlockSegmentPostings,
         position_reader: Option<PositionReader>,
-        seek_doc: DocId,
+        position_within_block: usize,
     ) -> SegmentPostings {
-        let (block_cursor, cur) = segment_block_postings.seek_and_load(seek_doc);
         SegmentPostings {
-            block_cursor,
-            cur,
+            block_cursor: segment_block_postings,
+            cur: position_within_block,
             position_reader,
         }
     }

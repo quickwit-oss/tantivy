@@ -11,9 +11,7 @@ use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
-use crate::postings::{
-    BlockSegmentPostings, BlockSegmentPostingsNotLoaded, SegmentPostings, TermInfo,
-};
+use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 use crate::DocId;
@@ -207,11 +205,12 @@ impl InvertedIndexReader {
     /// This method is for an advanced usage only.
     ///
     /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub(crate) fn read_block_postings_from_terminfo_not_loaded(
+    pub(crate) fn read_block_postings_from_terminfo_with_seek(
         &self,
         term_info: &TermInfo,
         requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostingsNotLoaded> {
+        seek_doc: DocId,
+    ) -> io::Result<(BlockSegmentPostings, usize)> {
         let postings_data = self
             .postings_file_slice
             .slice(term_info.postings_range.clone());
@@ -220,6 +219,7 @@ impl InvertedIndexReader {
             postings_data,
             self.record_option,
             requested_option,
+            seek_doc,
         )
     }
 
@@ -232,10 +232,9 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
-        let block_segment_postings_not_loaded = self
-            .read_block_postings_from_terminfo_not_loaded(term_info, requested_option)?
-            .load_at_start();
-        Ok(block_segment_postings_not_loaded)
+        let (block_segment_postings, _) =
+            self.read_block_postings_from_terminfo_with_seek(term_info, requested_option, 0)?;
+        Ok(block_segment_postings)
     }
 
     /// Returns a posting object given a `term_info`.
@@ -248,8 +247,8 @@ impl InvertedIndexReader {
         record_option: IndexRecordOption,
         seek_doc: DocId,
     ) -> io::Result<SegmentPostings> {
-        let block_segment_postings_not_loaded =
-            self.read_block_postings_from_terminfo_not_loaded(term_info, record_option)?;
+        let (block_segment_postings, position_within_block) =
+            self.read_block_postings_from_terminfo_with_seek(term_info, record_option, seek_doc)?;
         let position_reader = {
             if record_option.has_positions() {
                 let positions_data = self
@@ -262,9 +261,9 @@ impl InvertedIndexReader {
             }
         };
         Ok(SegmentPostings::from_block_postings(
-            block_segment_postings_not_loaded,
+            block_segment_postings,
             position_reader,
-            seek_doc,
+            position_within_block,
         ))
     }
 
