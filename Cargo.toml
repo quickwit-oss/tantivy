@@ -39,7 +39,7 @@ uuid = { version = "1.0.0", features = ["v4", "serde"] }
 crossbeam-channel = "0.5.4"
 rust-stemmers = { version = "1.2.0", optional = true }
 downcast-rs = "2.0.1"
-bitpacking = { version = "0.9.2", default-features = false, features = [
+bitpacking = { version = "0.9.3", default-features = false, features = [
     "bitpacker4x",
 ] }
 census = "0.4.2"
