@@ -3,6 +3,7 @@ use common::JsonPathWriter;
 use itertools::Itertools;
 use tokenizer_api::BoxTokenStream;
 
+use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
 use super::operation::AddOperation;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
@@ -16,6 +17,7 @@ use crate::postings::{
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
+use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, TantivyError};
 
@@ -40,6 +42,20 @@ fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<
         })
 }
 
+fn remap_doc_opstamps(
+    opstamps: Vec<Opstamp>,
+    doc_id_mapping_opt: Option<&DocIdMapping>,
+) -> Vec<Opstamp> {
+    if let Some(doc_id_mapping_opt) = doc_id_mapping_opt {
+        doc_id_mapping_opt
+            .iter_old_doc_ids()
+            .map(|doc| opstamps[doc as usize])
+            .collect()
+    } else {
+        opstamps
+    }
+}
+
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// set of documents.
 ///
@@ -58,6 +74,7 @@ pub struct SegmentWriter {
     per_field_text_analyzers: Vec<TextAnalyzer>,
     term_buffer: IndexingTerm,
     schema: Schema,
+    ignore_store: bool,
 }
 
 impl SegmentWriter {
@@ -70,12 +87,16 @@ impl SegmentWriter {
     ///   behavior as a memory limit.
     /// - segment: The segment being written
     /// - schema
-    pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
+    pub fn for_segment(
+        memory_budget_in_bytes: usize,
+        segment: Segment,
+        ignore_store: bool,
+    ) -> crate::Result<Self> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
         let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
-        let segment_serializer = SegmentSerializer::for_segment(segment)?;
+        let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
         let per_field_text_analyzers = schema
             .fields()
@@ -115,6 +136,7 @@ impl SegmentWriter {
             per_field_text_analyzers,
             term_buffer: IndexingTerm::with_capacity(16),
             schema,
+            ignore_store,
         })
     }
 
@@ -124,6 +146,15 @@ impl SegmentWriter {
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+        let mapping: Option<DocIdMapping> = self
+            .segment_serializer
+            .segment()
+            .index()
+            .settings()
+            .sort_by_field
+            .clone()
+            .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
+            .transpose()?;
         remap_and_write(
             self.schema,
             &self.per_field_postings_writers,
@@ -131,8 +162,11 @@ impl SegmentWriter {
             self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
+            mapping.as_ref(),
+            self.ignore_store,
         )?;
-        Ok(self.doc_opstamps)
+        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping.as_ref());
+        Ok(doc_opstamps)
     }
 
     /// Returns an estimation of the current memory usage of the segment writer.
@@ -393,10 +427,12 @@ fn remap_and_write(
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
+    doc_id_map: Option<&DocIdMapping>,
+    ignore_store: bool,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
-        fieldnorms_writer.serialize(fieldnorms_serializer)?;
+        fieldnorms_writer.serialize(fieldnorms_serializer, doc_id_map)?;
     }
     let fieldnorm_data = serializer
         .segment()
@@ -407,10 +443,41 @@ fn remap_and_write(
         schema,
         per_field_postings_writers,
         fieldnorm_readers,
+        doc_id_map,
         serializer.get_postings_serializer(),
     )?;
     debug!("fastfield-serialize");
-    fast_field_writers.serialize(serializer.get_fast_field_write())?;
+    fast_field_writers.serialize(serializer.get_fast_field_write(), doc_id_map)?;
+
+    // finalize temp docstore and create version, which reflects the doc_id_map
+    if !ignore_store {
+        if let Some(doc_id_map) = doc_id_map {
+            debug!("resort-docstore");
+            let store_write = serializer
+                .segment_mut()
+                .open_write(SegmentComponent::Store)?;
+            let settings = serializer.segment().index().settings();
+            let store_writer = StoreWriter::new(
+                store_write,
+                settings.docstore_compression,
+                settings.docstore_blocksize,
+                settings.docstore_compress_dedicated_thread,
+            )?;
+            let old_store_writer = std::mem::replace(&mut serializer.store_writer, store_writer);
+            old_store_writer.close()?;
+            let store_read = StoreReader::open(
+                serializer
+                    .segment()
+                    .open_read(SegmentComponent::TempStore)?,
+                1, /* The docstore is configured to have one doc per block, and each doc is
+                    * accessed only once: we don't need caching. */
+            )?;
+            for old_doc_id in doc_id_map.iter_old_doc_ids() {
+                let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
+                serializer.get_store_writer().store_bytes(&doc_bytes)?;
+            }
+        }
+    }
 
     debug!("serializer-close");
     serializer.close()?;
