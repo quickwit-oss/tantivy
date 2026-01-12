@@ -31,7 +31,7 @@ where P: FnMut(&mut T) -> bool {
 /// Creates a `DocSet` that iterate through the union of two or more `DocSet`s.
 pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     /// Active scorers (already filtered of `TERMINATED`).
-    docsets: Vec<TScorer>,
+    scorers: Vec<TScorer>,
     /// Sliding window presence map for upcoming docs.
     ///
     /// There are `HORIZON_NUM_TINYBITSETS` buckets, each covering
@@ -46,6 +46,8 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     /// hit the same doc within the buffered window.
     scores: Box<[TScoreCombiner; HORIZON as usize]>,
     /// Start doc ID (inclusive) of the current sliding window.
+    /// None if the window is not loaded yet. This is true for a freshly created
+    /// BufferedUnionScorer.
     window_start_doc: DocId,
     /// Current doc ID of the union.
     doc: DocId,
@@ -81,51 +83,81 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer, TScoreCombiner> {
+    /// Returns the underlying scorers in the union.
+    pub fn into_scorers(self) -> Vec<TScorer> {
+        self.scorers
+    }
+
+    /// Accessor for the underlying scorers in the union.
+    pub fn scorers(&self) -> &[TScorer] {
+        &self.scorers[..]
+    }
+
     /// num_docs is the number of documents in the segment.
     pub(crate) fn build(
         docsets: Vec<TScorer>,
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
         num_docs: u32,
     ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
-        let non_empty_docsets: Vec<TScorer> = docsets
+        let score_combiner = score_combiner_fn();
+        let mut non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
             .filter(|docset| docset.doc() != TERMINATED)
             .collect();
-        let mut union = BufferedUnionScorer {
-            docsets: non_empty_docsets,
-            bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
-            scores: Box::new([score_combiner_fn(); HORIZON as usize]),
-            bucket_idx: HORIZON_NUM_TINYBITSETS,
-            window_start_doc: 0,
-            doc: 0,
-            score: 0.0,
-            num_docs,
-        };
-        if union.refill() {
-            union.advance();
-        } else {
-            union.doc = TERMINATED;
+
+        let first_doc: DocId = non_empty_docsets
+            .iter()
+            .map(|docset| docset.doc())
+            .min()
+            .unwrap_or(TERMINATED);
+        let mut score_combiner_cloned = score_combiner;
+        let mut i = 0;
+        while i < non_empty_docsets.len() {
+            let should_remove_docset: bool = {
+                let non_empty_docset = &mut non_empty_docsets[i];
+                if non_empty_docset.doc() != first_doc {
+                    false
+                } else {
+                    score_combiner_cloned.update(non_empty_docset);
+                    non_empty_docsets[i].advance() == TERMINATED
+                }
+            };
+            if should_remove_docset {
+                non_empty_docsets.swap_remove(i);
+            } else {
+                i += 1;
+            }
         }
-        union
+        let first_score: Score = score_combiner_cloned.score();
+        BufferedUnionScorer {
+            scorers: non_empty_docsets,
+            bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
+            scores: Box::new([score_combiner; HORIZON as usize]),
+            bucket_idx: HORIZON_NUM_TINYBITSETS,
+            // That way we will be detected as outside the window,
+            window_start_doc: u32::MAX - HORIZON,
+            doc: first_doc,
+            score: first_score,
+            num_docs,
+        }
     }
 
     fn refill(&mut self) -> bool {
-        if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
-            // Reset the sliding window to start at the smallest doc
-            // across all scorers and prebuffer within the horizon.
-            self.window_start_doc = min_doc;
-            self.bucket_idx = 0;
-            self.doc = min_doc;
-            refill(
-                &mut self.docsets,
-                &mut self.bitsets,
-                &mut self.scores,
-                min_doc,
-            );
-            true
-        } else {
-            false
-        }
+        let Some(min_doc) = self.scorers.iter().map(DocSet::doc).min() else {
+            return false;
+        };
+        // Reset the sliding window to start at the smallest doc
+        // across all scorers and prebuffer within the horizon.
+        self.window_start_doc = min_doc;
+        self.bucket_idx = 0;
+        self.doc = min_doc;
+        refill(
+            &mut self.scorers,
+            &mut self.bitsets,
+            &mut self.scores,
+            min_doc,
+        );
+        true
     }
 
     #[inline]
@@ -147,6 +179,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
 
     fn is_in_horizon(&self, target: DocId) -> bool {
         // wrapping_sub, because target may be < window_start_doc
+        // in particular during initialization.
         let gap = target.wrapping_sub(self.window_start_doc);
         gap < HORIZON
     }
@@ -176,11 +209,10 @@ where
         if self.doc >= target {
             return self.doc;
         }
-        let gap = target - self.window_start_doc;
-        if gap < HORIZON {
+        if self.is_in_horizon(target) {
             // Our value is within the buffered horizon.
-
             // Skipping to corresponding bucket.
+            let gap = target.wrapping_sub(self.window_start_doc);
             let new_bucket_idx = gap as usize / 64;
             for obsolete_tinyset in &mut self.bitsets[self.bucket_idx..new_bucket_idx] {
                 obsolete_tinyset.clear();
@@ -199,16 +231,14 @@ where
             doc
         } else {
             // clear the buffered info.
-            for obsolete_tinyset in self.bitsets.iter_mut() {
-                *obsolete_tinyset = TinySet::empty();
-            }
+            self.bitsets.fill(TinySet::empty());
             for score_combiner in self.scores.iter_mut() {
                 score_combiner.clear();
             }
 
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
-            unordered_drain_filter(&mut self.docsets, |docset| {
+            unordered_drain_filter(&mut self.scorers, |docset| {
                 if docset.doc() < target {
                     docset.seek(target);
                 }
@@ -245,8 +275,8 @@ where
         let mut is_hit = false;
         let mut min_new_target = TERMINATED;
 
-        for docset in self.docsets.iter_mut() {
-            match docset.seek_danger(target) {
+        for scorer in self.scorers.iter_mut() {
+            match scorer.seek_danger(target) {
                 SeekDangerResult::Found => {
                     is_hit = true;
                     break;
@@ -275,11 +305,11 @@ where
     }
 
     fn size_hint(&self) -> u32 {
-        estimate_union(self.docsets.iter().map(DocSet::size_hint), self.num_docs)
+        estimate_union(self.scorers.iter().map(DocSet::size_hint), self.num_docs)
     }
 
     fn cost(&self) -> u64 {
-        self.docsets.iter().map(|docset| docset.cost()).sum()
+        self.scorers.iter().map(|docset| docset.cost()).sum()
     }
 
     // TODO Also implement `count` with deletes efficiently.
@@ -287,21 +317,17 @@ where
         if self.doc == TERMINATED {
             return 0;
         }
-        let mut count = self.bitsets[self.bucket_idx..HORIZON_NUM_TINYBITSETS]
+        let mut count = 1 + self.bitsets[self.bucket_idx..HORIZON_NUM_TINYBITSETS]
             .iter()
-            .map(|bitset| bitset.len())
-            .sum::<u32>()
-            + 1;
-        for bitset in self.bitsets.iter_mut() {
-            bitset.clear();
-        }
+            .copied()
+            .map(TinySet::len)
+            .sum::<u32>();
         while self.refill() {
-            count += self.bitsets.iter().map(|bitset| bitset.len()).sum::<u32>();
-            for bitset in self.bitsets.iter_mut() {
-                bitset.clear();
-            }
+            count += self.bitsets.iter().copied().map(TinySet::len).sum::<u32>();
+            self.bitsets.fill(TinySet::empty());
         }
         self.bucket_idx = HORIZON_NUM_TINYBITSETS;
+        self.doc = TERMINATED;
         count
     }
 }

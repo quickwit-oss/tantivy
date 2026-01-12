@@ -1,16 +1,15 @@
 use crate::postings::json_postings_writer::JsonPostingsWriter;
-use crate::postings::postings_writer::SpecializedPostingsWriter;
+use crate::postings::postings_writer::{PostingsWriterEnum, SpecializedPostingsWriter};
 use crate::postings::recorder::{DocIdRecorder, TermFrequencyRecorder, TfAndPositionRecorder};
-use crate::postings::PostingsWriter;
 use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema};
 
 pub(crate) struct PerFieldPostingsWriter {
-    per_field_postings_writers: Vec<Box<dyn PostingsWriter>>,
+    per_field_postings_writers: Vec<PostingsWriterEnum>,
 }
 
 impl PerFieldPostingsWriter {
     pub fn for_schema(schema: &Schema) -> Self {
-        let per_field_postings_writers = schema
+        let per_field_postings_writers: Vec<PostingsWriterEnum> = schema
             .fields()
             .map(|(_, field_entry)| posting_writer_from_field_entry(field_entry))
             .collect();
@@ -19,16 +18,16 @@ impl PerFieldPostingsWriter {
         }
     }
 
-    pub(crate) fn get_for_field(&self, field: Field) -> &dyn PostingsWriter {
-        self.per_field_postings_writers[field.field_id() as usize].as_ref()
+    pub(crate) fn get_for_field(&self, field: Field) -> &PostingsWriterEnum {
+        &self.per_field_postings_writers[field.field_id() as usize]
     }
 
-    pub(crate) fn get_for_field_mut(&mut self, field: Field) -> &mut dyn PostingsWriter {
-        self.per_field_postings_writers[field.field_id() as usize].as_mut()
+    pub(crate) fn get_for_field_mut(&mut self, field: Field) -> &mut PostingsWriterEnum {
+        &mut self.per_field_postings_writers[field.field_id() as usize]
     }
 }
 
-fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
+fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> PostingsWriterEnum {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => text_options
             .get_indexing_options()
@@ -51,7 +50,7 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
         | FieldType::Date(_)
         | FieldType::Bytes(_)
         | FieldType::IpAddr(_)
-        | FieldType::Facet(_) => Box::<SpecializedPostingsWriter<DocIdRecorder>>::default(),
+        | FieldType::Facet(_) => <SpecializedPostingsWriter<DocIdRecorder>>::default().into(),
         FieldType::JsonObject(ref json_object_options) => {
             if let Some(text_indexing_option) = json_object_options.get_text_indexing_options() {
                 match text_indexing_option.index_option() {
