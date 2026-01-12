@@ -6,11 +6,13 @@ use tantivy_fst::Regex;
 use super::PhraseScorer;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
-use crate::postings::{LoadedPostings, Postings, SegmentPostings, TermInfo};
+use crate::postings::{LoadedPostings, Postings, TermInfo};
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::union::{BitSetPostingUnion, SimpleUnion};
-use crate::query::{AutomatonWeight, BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{
+    box_scorer, AutomatonWeight, BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight,
+};
 use crate::schema::{Field, IndexRecordOption};
 use crate::{DocId, DocSet, InvertedIndexReader, Score};
 
@@ -103,18 +105,9 @@ impl RegexPhraseWeight {
         term_info: &TermInfo,
         doc_bitset: &mut BitSet,
     ) -> crate::Result<()> {
-        let mut block_segment_postings = inverted_index
-            .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-        loop {
-            let docs = block_segment_postings.docs();
-            if docs.is_empty() {
-                break;
-            }
-            for &doc in docs {
-                doc_bitset.insert(doc);
-            }
-            block_segment_postings.advance();
-        }
+        let mut segment_postings =
+            inverted_index.read_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+        segment_postings.fill_bitset(doc_bitset);
         Ok(())
     }
 
@@ -188,7 +181,7 @@ impl RegexPhraseWeight {
         // - Bucket 1: Terms appearing in 0.1% to 1% of documents
         // - Bucket 2: Terms appearing in 1% to 10% of documents
         // - Bucket 3: Terms appearing in more than 10% of documents
-        let mut buckets: Vec<(BitSet, Vec<SegmentPostings>)> = (0..4)
+        let mut buckets: Vec<(BitSet, Vec<Box<dyn Postings>>)> = (0..4)
             .map(|_| (BitSet::with_max_value(max_doc), Vec::new()))
             .collect();
 
@@ -197,7 +190,7 @@ impl RegexPhraseWeight {
         for term_info in term_infos {
             let mut term_posting = inverted_index
                 .read_postings_from_terminfo(term_info, IndexRecordOption::WithFreqsAndPositions)?;
-            let num_docs = term_posting.doc_freq();
+            let num_docs = u32::from(term_posting.doc_freq());
 
             if num_docs < SPARSE_TERM_DOC_THRESHOLD {
                 let current_bucket = &mut sparse_buckets[0];
@@ -271,9 +264,9 @@ impl RegexPhraseWeight {
 impl Weight for RegexPhraseWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
-            Ok(Box::new(scorer))
+            Ok(box_scorer(scorer))
         } else {
-            Ok(Box::new(EmptyScorer))
+            Ok(box_scorer(EmptyScorer))
         }
     }
 

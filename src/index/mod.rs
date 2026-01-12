@@ -2,6 +2,7 @@
 //!
 //! It contains `Index` and `Segment`, where a `Index` consists of one or more `Segment`s.
 
+mod codec_configuration;
 mod index;
 mod index_meta;
 mod inverted_index_reader;
@@ -10,6 +11,7 @@ mod segment_component;
 mod segment_id;
 mod segment_reader;
 
+pub use self::codec_configuration::CodecConfiguration;
 pub use self::index::{Index, IndexBuilder};
 pub(crate) use self::index_meta::SegmentMetaInventory;
 pub use self::index_meta::{IndexMeta, IndexSettings, Order, SegmentMeta};
