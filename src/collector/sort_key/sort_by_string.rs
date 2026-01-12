@@ -3,7 +3,7 @@ use columnar::StrColumn;
 use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::termdict::TermOrdinal;
-use crate::{DocId, Score};
+use crate::{DocId, Score, SegmentReader};
 
 /// Sort by the first value of a string column.
 ///
@@ -35,7 +35,7 @@ impl SortKeyComputer for SortByString {
 
     fn segment_sort_key_computer(
         &self,
-        segment_reader: &crate::SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let str_column_opt = segment_reader.fast_fields().str(&self.column_name)?;
         Ok(ByStringColumnSegmentSortKeyComputer { str_column_opt })

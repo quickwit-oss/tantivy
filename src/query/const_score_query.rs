@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
-use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::query::{box_scorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
 
 /// `ConstScoreQuery` is a wrapper over a query to provide a constant score.
@@ -63,12 +63,15 @@ impl ConstWeight {
 }
 
 impl Weight for ConstWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let inner_scorer = self.weight.scorer(reader, boost)?;
-        Ok(Box::new(ConstScorer::new(inner_scorer, boost * self.score)))
+        Ok(box_scorer(ConstScorer::new(
+            inner_scorer,
+            boost * self.score,
+        )))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
@@ -81,7 +84,7 @@ impl Weight for ConstWeight {
         Ok(explanation)
     }
 
-    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+    fn count(&self, reader: &dyn SegmentReader) -> crate::Result<u32> {
         self.weight.count(reader)
     }
 }

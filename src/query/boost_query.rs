@@ -67,11 +67,11 @@ impl BoostWeight {
 }
 
 impl Weight for BoostWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         self.weight.scorer(reader, boost * self.boost)
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let underlying_explanation = self.weight.explain(reader, doc)?;
         let score = underlying_explanation.value() * self.boost;
         let mut explanation =
@@ -80,7 +80,7 @@ impl Weight for BoostWeight {
         Ok(explanation)
     }
 
-    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+    fn count(&self, reader: &dyn SegmentReader) -> crate::Result<u32> {
         self.weight.count(reader)
     }
 }

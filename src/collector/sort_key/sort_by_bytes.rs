@@ -32,7 +32,7 @@ impl SortKeyComputer for SortByBytes {
 
     fn segment_sort_key_computer(
         &self,
-        segment_reader: &crate::SegmentReader,
+        segment_reader: &dyn crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let bytes_column_opt = segment_reader.fast_fields().bytes(&self.column_name)?;
         Ok(ByBytesColumnSegmentSortKeyComputer { bytes_column_opt })

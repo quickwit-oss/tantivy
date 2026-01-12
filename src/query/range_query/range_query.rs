@@ -8,10 +8,12 @@ use super::range_query_fastfield::FastFieldRangeWeight;
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
 use crate::query::range_query::is_type_valid_for_fastfield_range_query;
-use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::query::{
+    box_scorer, BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight,
+};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::{DocId, Score};
+use crate::{DocId, DocSet, Score};
 
 /// `RangeQuery` matches all documents that have at least one term within a defined range.
 ///
@@ -212,7 +214,7 @@ impl InvertedIndexRangeWeight {
 }
 
 impl Weight for InvertedIndexRangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
@@ -228,24 +230,17 @@ impl Weight for InvertedIndexRangeWeight {
             }
             processed_count += 1;
             let term_info = term_range.value();
-            let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-            loop {
-                let docs = block_segment_postings.docs();
-                if docs.is_empty() {
-                    break;
-                }
-                for &doc in block_segment_postings.docs() {
-                    doc_bitset.insert(doc);
-                }
-                block_segment_postings.advance();
-            }
+            inverted_index.fill_bitset_for_term(
+                term_info,
+                IndexRecordOption::Basic,
+                &mut doc_bitset,
+            )?;
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
-        Ok(Box::new(ConstScorer::new(doc_bitset, boost)))
+        Ok(box_scorer(ConstScorer::new(doc_bitset, boost)))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
@@ -686,7 +681,7 @@ mod tests {
                 .weight(EnableScoring::disabled_from_schema(&schema))
                 .unwrap();
             let range_scorer = range_weight
-                .scorer(&searcher.segment_readers()[0], 1.0f32)
+                .scorer(searcher.segment_readers()[0].as_ref(), 1.0f32)
                 .unwrap();
             range_scorer
         };
