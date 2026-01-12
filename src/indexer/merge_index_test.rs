@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use crate::codec::StandardCodec;
     use crate::collector::TopDocs;
     use crate::fastfield::AliveBitSet;
     use crate::index::Index;
-    use crate::postings::Postings;
+    use crate::postings::{DocFreq, Postings};
     use crate::query::QueryParser;
     use crate::schema::{
         self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
@@ -121,21 +122,26 @@ mod tests {
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let term_a = Term::from_field_text(my_text_field, "text");
             let inverted_index = segment_reader.inverted_index(my_text_field).unwrap();
+            let term_info = inverted_index.get_term_info(&term_a).unwrap().unwrap();
             let mut postings = inverted_index
-                .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
-                .unwrap()
+                .read_postings_from_terminfo_specialized(
+                    &term_info,
+                    IndexRecordOption::WithFreqsAndPositions,
+                    &StandardCodec,
+                )
                 .unwrap();
-            assert_eq!(postings.doc_freq(), 2);
+            assert_eq!(postings.doc_freq(), DocFreq::Exact(2));
             let fallback_bitset = AliveBitSet::for_test_from_deleted_docs(&[0], 100);
             assert_eq!(
-                postings.doc_freq_given_deletes(
+                crate::indexer::merger::doc_freq_given_deletes(
+                    &postings,
                     segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2
             );
 
             assert_eq!(postings.term_freq(), 1);
-            let mut output = vec![];
+            let mut output = Vec::new();
             postings.positions(&mut output);
             assert_eq!(output, vec![1]);
             postings.advance();

@@ -196,13 +196,11 @@ impl TinySet {
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
-    len: u64,
     max_value: u32,
 }
 impl std::fmt::Debug for BitSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BitSet")
-            .field("len", &self.len)
             .field("max_value", &self.max_value)
             .finish()
     }
@@ -230,7 +228,6 @@ impl BitSet {
         let tinybitsets = vec![TinySet::empty(); num_buckets as usize].into_boxed_slice();
         BitSet {
             tinysets: tinybitsets,
-            len: 0,
             max_value,
         }
     }
@@ -248,7 +245,6 @@ impl BitSet {
         }
         BitSet {
             tinysets: tinybitsets,
-            len: max_value as u64,
             max_value,
         }
     }
@@ -267,17 +263,19 @@ impl BitSet {
 
     /// Intersect with tinysets
     fn intersect_update_with_iter(&mut self, other: impl Iterator<Item = TinySet>) {
-        self.len = 0;
         for (left, right) in self.tinysets.iter_mut().zip(other) {
             *left = left.intersect(right);
-            self.len += left.len() as u64;
         }
     }
 
     /// Returns the number of elements in the `BitSet`.
     #[inline]
     pub fn len(&self) -> usize {
-        self.len as usize
+        self.tinysets
+            .iter()
+            .copied()
+            .map(|tinyset| tinyset.len())
+            .sum::<u32>() as usize
     }
 
     /// Inserts an element in the `BitSet`
@@ -286,7 +284,7 @@ impl BitSet {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len += u64::from(self.tinysets[higher as usize].insert_mut(lower));
+        self.tinysets[higher as usize].insert_mut(lower);
     }
 
     /// Inserts an element in the `BitSet`
@@ -295,7 +293,7 @@ impl BitSet {
         // we do not check saturated els.
         let higher = el / 64u32;
         let lower = el % 64u32;
-        self.len -= u64::from(self.tinysets[higher as usize].remove_mut(lower));
+        self.tinysets[higher as usize].remove_mut(lower);
     }
 
     /// Returns true iff the elements is in the `BitSet`.
@@ -317,6 +315,9 @@ impl BitSet {
             .map(|delta_bucket| bucket + delta_bucket as u32)
     }
 
+    /// Returns the maximum number of elements in the bitset.
+    ///
+    /// Warning: The largest element the bitset can contain is `max_value - 1`.
     #[inline]
     pub fn max_value(&self) -> u32 {
         self.max_value

@@ -1,4 +1,6 @@
-use std::borrow::{Borrow, BorrowMut};
+use std::ops::{Deref as _, DerefMut as _};
+
+use common::BitSet;
 
 use common::TinySet;
 
@@ -136,6 +138,19 @@ pub trait DocSet: Send {
             }
         }
         buffer.len()
+    }
+
+    /// Fills the given bitset with the documents in the docset.
+    ///
+    /// If the docset max_doc is smaller than the largest doc, this function might not consume the
+    /// docset entirely.
+    fn fill_bitset(&mut self, bitset: &mut BitSet) {
+        let bitset_max_value: u32 = bitset.max_value();
+        let mut doc = self.doc();
+        while doc < bitset_max_value {
+            bitset.insert(doc);
+            doc = self.advance();
+        }
     }
 
     /// Returns the current document
@@ -278,27 +293,30 @@ impl DocSet for &mut dyn DocSet {
     fn count_including_deleted(&mut self) -> u32 {
         (**self).count_including_deleted()
     }
+
+    fn fill_bitset(&mut self, bitset: &mut BitSet) {
+        (**self).fill_bitset(bitset);
+    }
 }
 
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
+    #[inline]
     fn advance(&mut self) -> DocId {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.advance()
+        self.deref_mut().advance()
     }
 
+    #[inline]
     fn seek(&mut self, target: DocId) -> DocId {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.seek(target)
+        self.deref_mut().seek(target)
     }
 
     fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.seek_danger(target)
+        self.deref_mut().seek_danger(target)
     }
 
+    #[inline]
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.fill_buffer(buffer)
+        self.deref_mut().fill_buffer(buffer)
     }
 
     fn fill_bitset_block(
@@ -310,28 +328,31 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.fill_bitset_block(min_doc, mask)
     }
 
+    #[inline]
     fn doc(&self) -> DocId {
-        let unboxed: &TDocSet = self.borrow();
-        unboxed.doc()
+        self.deref().doc()
     }
 
+    #[inline]
     fn size_hint(&self) -> u32 {
-        let unboxed: &TDocSet = self.borrow();
-        unboxed.size_hint()
+        self.deref().size_hint()
     }
 
+    #[inline]
     fn cost(&self) -> u64 {
-        let unboxed: &TDocSet = self.borrow();
-        unboxed.cost()
+        self.deref().cost()
     }
 
+    #[inline]
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.count(alive_bitset)
+        self.deref_mut().count(alive_bitset)
     }
 
     fn count_including_deleted(&mut self) -> u32 {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.count_including_deleted()
+        self.deref_mut().count_including_deleted()
+    }
+
+    fn fill_bitset(&mut self, bitset: &mut BitSet) {
+        self.deref_mut().fill_bitset(bitset);
     }
 }

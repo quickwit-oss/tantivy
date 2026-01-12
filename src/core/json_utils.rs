@@ -4,7 +4,7 @@ use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
 use crate::indexer::indexing_term::IndexingTerm;
-use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
+use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter as _, PostingsWriterEnum};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{Type, DATE_TIME_PRECISION_INDEXED};
 use crate::time::format_description::well_known::Rfc3339;
@@ -80,7 +80,7 @@ fn index_json_object<'a, V: Value<'a>>(
     text_analyzer: &mut TextAnalyzer,
     term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
-    postings_writer: &mut dyn PostingsWriter,
+    postings_writer: &mut PostingsWriterEnum,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
@@ -110,7 +110,7 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
     text_analyzer: &mut TextAnalyzer,
     term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
-    postings_writer: &mut dyn PostingsWriter,
+    postings_writer: &mut PostingsWriterEnum,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {

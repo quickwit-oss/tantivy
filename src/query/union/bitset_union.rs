@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::docset::DocSet;
-use crate::postings::Postings;
+use crate::postings::{DocFreq, Postings};
 use crate::query::BitSetDocSet;
 use crate::DocId;
 
@@ -16,6 +16,9 @@ pub struct BitSetPostingUnion<TDocSet> {
     docsets: RefCell<Vec<TDocSet>>,
     /// The already unionized BitSet of the docsets
     bitset: BitSetDocSet,
+    /// The total number of documents in the union (regardless of the position we are in the
+    /// bitset).
+    doc_freq: u32,
 }
 
 impl<TDocSet: DocSet> BitSetPostingUnion<TDocSet> {
@@ -23,9 +26,11 @@ impl<TDocSet: DocSet> BitSetPostingUnion<TDocSet> {
         docsets: Vec<TDocSet>,
         bitset: BitSetDocSet,
     ) -> BitSetPostingUnion<TDocSet> {
+        let doc_freq = bitset.doc_freq();
         BitSetPostingUnion {
             docsets: RefCell::new(docsets),
             bitset,
+            doc_freq,
         }
     }
 }
@@ -46,6 +51,10 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
         term_freq
     }
 
+    fn has_freq(&self) -> bool {
+        true
+    }
+
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         let curr_doc = self.bitset.doc();
         let mut docsets = self.docsets.borrow_mut();
@@ -63,6 +72,10 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
         );
         output.sort_unstable();
         output.dedup();
+    }
+
+    fn doc_freq(&self) -> DocFreq {
+        DocFreq::Exact(self.doc_freq)
     }
 }
 

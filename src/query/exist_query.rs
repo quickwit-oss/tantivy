@@ -3,7 +3,7 @@ use core::fmt::Debug;
 use columnar::{ColumnIndex, DynamicColumn};
 use common::BitSet;
 
-use super::{ConstScorer, EmptyScorer};
+use super::{box_scorer, ConstScorer, EmptyScorer};
 use crate::docset::{DocSet, TERMINATED};
 use crate::index::SegmentReader;
 use crate::query::all_query::AllScorer;
@@ -117,7 +117,7 @@ impl Weight for ExistsWeight {
             }
         }
         if non_empty_columns.is_empty() {
-            return Ok(Box::new(EmptyScorer));
+            return Ok(box_scorer(EmptyScorer));
         }
 
         // If any column is full, all docs match.
@@ -128,9 +128,9 @@ impl Weight for ExistsWeight {
         {
             let all_scorer = AllScorer::new(max_doc);
             if boost != 1.0f32 {
-                return Ok(Box::new(BoostScorer::new(all_scorer, boost)));
+                return Ok(box_scorer(BoostScorer::new(all_scorer, boost)));
             } else {
-                return Ok(Box::new(all_scorer));
+                return Ok(box_scorer(all_scorer));
             }
         }
 
@@ -138,7 +138,7 @@ impl Weight for ExistsWeight {
         // NOTE: A lower number may be better for very sparse columns
         if non_empty_columns.len() < 4 {
             let docset = ExistsDocSet::new(non_empty_columns, reader.max_doc());
-            return Ok(Box::new(ConstScorer::new(docset, boost)));
+            return Ok(box_scorer(ConstScorer::new(docset, boost)));
         }
 
         // If we have many dynamic columns, precompute a bitset of matching docs
@@ -162,7 +162,7 @@ impl Weight for ExistsWeight {
             }
         }
         let docset = BitSetDocSet::from(doc_bitset);
-        Ok(Box::new(ConstScorer::new(docset, boost)))
+        Ok(box_scorer(ConstScorer::new(docset, boost)))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
