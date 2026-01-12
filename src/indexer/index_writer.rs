@@ -616,7 +616,7 @@ impl<C: Codec, D: Document> IndexWriter<C, D> {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`].
-    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<'_, D>> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<'_, C, D>> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -666,7 +666,7 @@ impl<C: Codec, D: Document> IndexWriter<C, D> {
         self.prepare_commit()?.commit()
     }
 
-    pub(crate) fn segment_updater(&self) -> &SegmentUpdater {
+    pub(crate) fn segment_updater(&self) -> &SegmentUpdater<C> {
         &self.segment_updater
     }
 
@@ -805,7 +805,7 @@ impl<C: Codec, D: Document> IndexWriter<C, D> {
     }
 }
 
-impl<D: Document> Drop for IndexWriter<D> {
+impl<C: Codec, D: Document> Drop for IndexWriter<C, D> {
     fn drop(&mut self) {
         self.segment_updater.kill();
         self.drop_sender();

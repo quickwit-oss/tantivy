@@ -10,7 +10,7 @@ use std::sync::{Arc, RwLock};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use super::segment_manager::SegmentManager;
-use crate::codec::Codec;
+use crate::codec::{Codec, CodecConfiguration};
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
@@ -25,7 +25,7 @@ use crate::indexer::{
     DefaultMergePolicy, MergeCandidate, MergeOperation, MergePolicy, SegmentEntry,
     SegmentSerializer,
 };
-use crate::{FutureResult, IndexBuilder, Opstamp, TantivyError};
+use crate::{FutureResult, Opstamp, TantivyError};
 
 const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 
@@ -140,10 +140,10 @@ fn merge<Codec: crate::codec::Codec>(
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
 #[doc(hidden)]
-pub fn merge_indices<Codec: crate::codec::Codec, T: Into<Box<dyn Directory>>>(
+pub fn merge_indices<Codec: crate::codec::Codec>(
     indices: &[Index<Codec>],
-    output_directory: T,
-) -> crate::Result<Index> {
+    output_directory: Box<dyn Directory>,
+) -> crate::Result<Index<Codec>> {
     if indices.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
         return Err(crate::TantivyError::InvalidArgument(
@@ -237,6 +237,7 @@ pub fn merge_filtered_segments<Codec: crate::codec::Codec, T: Into<Box<dyn Direc
             ))
             .trim_end()
     );
+    let codec_configuration = CodecConfiguration::from_codec(segments[0].index().codec());
 
     let index_meta = IndexMeta {
         index_settings: target_settings, // index_settings of all segments should be the same
@@ -244,6 +245,7 @@ pub fn merge_filtered_segments<Codec: crate::codec::Codec, T: Into<Box<dyn Direc
         schema: target_schema,
         opstamp: 0u64,
         payload: Some(stats),
+        codec: codec_configuration,
     };
 
     // save the meta.json
@@ -406,12 +408,14 @@ impl<Codec: crate::codec::Codec> SegmentUpdater<Codec> {
             //
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
             committed_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
+            let codec = CodecConfiguration::from_codec(index.codec());
             let index_meta = IndexMeta {
                 index_settings: index.settings().clone(),
                 segments: committed_segment_metas,
                 schema: index.schema(),
                 opstamp,
                 payload: commit_message,
+                codec,
             };
             // TODO add context to the error.
             save_metas(&index_meta, directory.box_clone().borrow_mut())?;
@@ -445,7 +449,7 @@ impl<Codec: crate::codec::Codec> SegmentUpdater<Codec> {
         opstamp: Opstamp,
         payload: Option<String>,
     ) -> FutureResult<Opstamp> {
-        let segment_updater: SegmentUpdater = self.clone();
+        let segment_updater: SegmentUpdater<Codec> = self.clone();
         self.schedule_task(move || {
             let segment_entries = segment_updater.purge_deletes(opstamp)?;
             segment_updater.segment_manager.commit(segment_entries);
@@ -704,6 +708,7 @@ impl<Codec: crate::codec::Codec> SegmentUpdater<Codec> {
 #[cfg(test)]
 mod tests {
     use super::merge_indices;
+    use crate::codec::StandardCodec;
     use crate::collector::TopDocs;
     use crate::directory::RamDirectory;
     use crate::fastfield::AliveBitSet;
@@ -917,7 +922,7 @@ mod tests {
 
     #[test]
     fn test_merge_empty_indices_array() {
-        let merge_result = merge_indices(&[], RamDirectory::default());
+        let merge_result = merge_indices::<StandardCodec>(&[], Box::new(RamDirectory::default()));
         assert!(merge_result.is_err());
     }
 
@@ -944,7 +949,7 @@ mod tests {
         };
 
         // mismatched schema index list
-        let result = merge_indices(&[first_index, second_index], RamDirectory::default());
+        let result = merge_indices(&[first_index, second_index], Box::new(RamDirectory::default()));
         assert!(result.is_err());
 
         Ok(())

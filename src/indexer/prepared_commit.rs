@@ -1,16 +1,17 @@
 use super::IndexWriter;
+use crate::codec::Codec;
 use crate::schema::document::Document;
 use crate::{FutureResult, Opstamp, TantivyDocument};
 
 /// A prepared commit
-pub struct PreparedCommit<'a, C, D: Document = TantivyDocument> {
+pub struct PreparedCommit<'a, C: Codec, D: Document = TantivyDocument> {
     index_writer: &'a mut IndexWriter<C, D>,
     payload: Option<String>,
     opstamp: Opstamp,
 }
 
-impl<'a, D: Document> PreparedCommit<'a, D> {
-    pub(crate) fn new(index_writer: &'a mut IndexWriter<D>, opstamp: Opstamp) -> Self {
+impl<'a, C: Codec, D: Document> PreparedCommit<'a, C, D> {
+    pub(crate) fn new(index_writer: &'a mut IndexWriter<C, D>, opstamp: Opstamp) -> Self {
         Self {
             index_writer,
             payload: None,

@@ -387,13 +387,13 @@ impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
 /// to the `SegmentSerializer`.
 ///
 /// `doc_id_map` is used to map to the new doc_id order.
-fn remap_and_write(
+fn remap_and_write<C: Codec>(
     schema: Schema,
     per_field_postings_writers: &PerFieldPostingsWriter,
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
-    mut serializer: SegmentSerializer<Codec>,
+    mut serializer: SegmentSerializer<C>,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {

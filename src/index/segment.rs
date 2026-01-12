@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use super::SegmentComponent;
+use crate::codec::StandardCodec;
 use crate::directory::error::{OpenReadError, OpenWriteError};
 use crate::directory::{Directory, FileSlice, WritePtr};
 use crate::index::{Index, SegmentId, SegmentMeta};
@@ -10,7 +11,7 @@ use crate::Opstamp;
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
-pub struct Segment<C: crate::codec::Codec> {
+pub struct Segment<C: crate::codec::Codec=StandardCodec> {
     index: Index<C>,
     meta: SegmentMeta,
 }

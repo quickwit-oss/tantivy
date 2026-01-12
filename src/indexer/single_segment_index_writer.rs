@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::codec::CodecConfiguration;
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::SegmentWriter;
@@ -48,6 +49,7 @@ impl<Codec: crate::codec::Codec, D: Document> SingleSegmentIndexWriter<Codec, D>
             schema: index.schema(),
             opstamp: 0,
             payload: None,
+            codec: CodecConfiguration::from_codec(index.codec()),
         };
         save_metas(&index_meta, index.directory())?;
         index.directory().sync_directory()?;

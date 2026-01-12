@@ -8,7 +8,7 @@ use std::thread::available_parallelism;
 use super::segment::Segment;
 use super::segment_reader::merge_field_meta_data;
 use super::{FieldMetadata, IndexSettings};
-use crate::codec::StandardCodec;
+use crate::codec::{CodecConfiguration, StandardCodec};
 use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
@@ -60,6 +60,7 @@ fn save_new_metas(
     schema: Schema,
     index_settings: IndexSettings,
     directory: &dyn Directory,
+    codec: CodecConfiguration,
 ) -> crate::Result<()> {
     save_metas(
         &IndexMeta {
@@ -68,6 +69,7 @@ fn save_new_metas(
             schema,
             opstamp: 0u64,
             payload: None,
+            codec,
         },
         directory,
     )?;
@@ -173,7 +175,7 @@ impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
     /// The index will be allocated in anonymous memory.
     /// This is useful for indexing small set of documents
     /// for instances like unit test or temporary in memory index.
-    pub fn create_in_ram(self) -> Result<Index, TantivyError> {
+    pub fn create_in_ram(self) -> Result<Index<Codec>, TantivyError> {
         let ram_directory = RamDirectory::create();
         self.create(ram_directory)
     }
@@ -184,9 +186,9 @@ impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
     /// If a previous index was in this directory, it returns an
     /// [`TantivyError::IndexAlreadyExists`] error.
     #[cfg(feature = "mmap")]
-    pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
+    pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index<Codec>> {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::open(directory_path)?);
-        if Self::exists(&*mmap_directory)? {
+        if Index::exists(&*mmap_directory)? {
             return Err(TantivyError::IndexAlreadyExists);
         }
         self.create(mmap_directory)
@@ -221,7 +223,7 @@ impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
     /// For other unit tests, prefer the [`RamDirectory`], see:
     /// [`IndexBuilder::create_in_ram()`].
     #[cfg(feature = "mmap")]
-    pub fn create_from_tempdir(self) -> crate::Result<Index> {
+    pub fn create_from_tempdir(self) -> crate::Result<Index<Codec>> {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::create_from_tempdir()?);
         self.create(mmap_directory)
     }
@@ -234,12 +236,15 @@ impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
     }
 
     /// Opens or creates a new index in the provided directory
-    pub fn open_or_create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+    pub fn open_or_create<T: Into<Box<dyn Directory>>>(
+        self,
+        dir: T,
+    ) -> crate::Result<Index<Codec>> {
         let dir: Box<dyn Directory> = dir.into();
-        if !Self::exists(&*dir)? {
+        if !Index::exists(&*dir)? {
             return self.create(dir);
         }
-        let mut index = Index::open(dir)?;
+        let mut index: Index<Codec> = Index::<Codec>::open_with_codec(dir)?;
         index.set_tokenizers(self.tokenizer_manager.clone());
         if index.schema() == self.get_expect_schema()? {
             Ok(index)
@@ -263,18 +268,26 @@ impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    pub fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+    pub fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index<Codec>> {
+        self.create_avoid_monomorphization(dir.into())
+    }
+
+    fn create_avoid_monomorphization(self, dir: Box<dyn Directory>) -> crate::Result<Index<Codec>> {
         self.validate()?;
         let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
+        let codec: CodecConfiguration = CodecConfiguration::from_codec(&self.codec);
         save_new_metas(
             self.get_expect_schema()?,
             self.index_settings.clone(),
             &directory,
+            codec,
         )?;
-        let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
+        let schema = self.get_expect_schema()?;
+        let mut metas = IndexMeta::with_schema_and_codec(schema, &self.codec);
         metas.index_settings = self.index_settings;
-        let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
+        let mut index: Index<Codec> =
+            Index::<Codec>::open_from_metas(directory, &metas, SegmentMetaInventory::default())?;
         index.set_tokenizers(self.tokenizer_manager);
         index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
         Ok(index)
@@ -294,53 +307,10 @@ pub struct Index<Codec: crate::codec::Codec = crate::codec::StandardCodec> {
     codec: Codec,
 }
 
-
 impl Index {
     /// Creates a new builder.
     pub fn builder() -> IndexBuilder {
         IndexBuilder::new()
-    }
-}
-
-impl<Codec: crate::codec::Codec> Index<Codec> {
-    /// Examines the directory to see if it contains an index.
-    ///
-    /// Effectively, it only checks for the presence of the `meta.json` file.
-    pub fn exists(dir: &dyn Directory) -> Result<bool, OpenReadError> {
-        dir.exists(&META_FILEPATH)
-    }
-
-    pub fn codec(&self) -> &Codec {
-        &self.codec
-    }
-
-    /// Accessor to the search executor.
-    ///
-    /// This pool is used by default when calling `searcher.search(...)`
-    /// to perform search on the individual segments.
-    ///
-    /// By default the executor is single thread, and simply runs in the calling thread.
-    pub fn search_executor(&self) -> &Executor {
-        &self.executor
-    }
-
-    /// Replace the default single thread search executor pool
-    /// by a thread pool with a given number of threads.
-    pub fn set_multithread_executor(&mut self, num_threads: usize) -> crate::Result<()> {
-        self.executor = Executor::multi_thread(num_threads, "tantivy-search-")?;
-        Ok(())
-    }
-
-    /// Custom thread pool by a outer thread pool.
-    pub fn set_executor(&mut self, executor: Executor) {
-        self.executor = executor;
-    }
-
-    /// Replace the default single thread search executor pool
-    /// by a thread pool with as many threads as there are CPUs on the system.
-    pub fn set_default_multithread_executor(&mut self) -> crate::Result<()> {
-        let default_num_threads = available_parallelism()?.get();
-        self.set_multithread_executor(default_num_threads)
     }
 
     /// Creates a new index using the [`RamDirectory`].
@@ -350,6 +320,13 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     /// for instances like unit test or temporary in memory index.
     pub fn create_in_ram(schema: Schema) -> Index {
         IndexBuilder::new().schema(schema).create_in_ram().unwrap()
+    }
+
+    /// Examines the directory to see if it contains an index.
+    ///
+    /// Effectively, it only checks for the presence of the `meta.json` file.
+    pub fn exists(directory: &dyn Directory) -> Result<bool, OpenReadError> {
+        directory.exists(&META_FILEPATH)
     }
 
     /// Creates a new index in a given filepath.
@@ -398,10 +375,97 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
         schema: Schema,
         settings: IndexSettings,
     ) -> crate::Result<Index> {
-        let dir: Box<dyn Directory> = dir.into();
+        Self::create_to_avoid_monomorphization(dir.into(), schema, settings)
+    }
+
+    fn create_to_avoid_monomorphization(
+        dir: Box<dyn Directory>,
+        schema: Schema,
+        settings: IndexSettings,
+    ) -> crate::Result<Index> {
         let mut builder = IndexBuilder::new().schema(schema);
         builder = builder.settings(settings);
         builder.create(dir)
+    }
+
+    /// Opens a new directory from an index path.
+    #[cfg(feature = "mmap")]
+    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
+        Self::open_in_dir_to_avoid_monomorphization(directory_path.as_ref())
+    }
+
+    #[inline(never)]
+    fn open_in_dir_to_avoid_monomorphization(directory_path: &Path) -> crate::Result<Index> {
+        let mmap_directory = MmapDirectory::open(directory_path)?;
+        Index::open(mmap_directory)
+    }
+
+    /// Open the index using the provided directory
+    pub fn open<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+        Index::<StandardCodec>::open_with_codec(directory.into())
+    }
+}
+
+
+impl<Codec: crate::codec::Codec> Index<Codec> {
+    /// Returns a version of this index with the standard codec.
+    /// This is useful when you need to pass the index to APIs that
+    /// don't care about the codec (e.g., for reading).
+    pub(crate) fn with_standard_codec(&self) -> Index<StandardCodec> {
+        Index {
+            directory: self.directory.clone(),
+            schema: self.schema.clone(),
+            settings: self.settings.clone(),
+            executor: self.executor.clone(),
+            tokenizers: self.tokenizers.clone(),
+            fast_field_tokenizers: self.fast_field_tokenizers.clone(),
+            inventory: self.inventory.clone(),
+            codec: StandardCodec::default(),
+        }
+    }
+
+    /// Open the index using the provided directory
+    #[inline(never)]
+    pub fn open_with_codec(directory: Box<dyn Directory>) -> crate::Result<Index<Codec>> {
+        let directory = ManagedDirectory::wrap(directory)?;
+        let inventory = SegmentMetaInventory::default();
+        let metas = load_metas(&directory, &inventory)?;
+        let index: Index<Codec> = Index::<Codec>::open_from_metas(directory, &metas, inventory)?;
+        Ok(index)
+    }
+
+    /// Accessor to the codec.
+    pub fn codec(&self) -> &Codec {
+        &self.codec
+    }
+
+    /// Accessor to the search executor.
+    ///
+    /// This pool is used by default when calling `searcher.search(...)`
+    /// to perform search on the individual segments.
+    ///
+    /// By default the executor is single thread, and simply runs in the calling thread.
+    pub fn search_executor(&self) -> &Executor {
+        &self.executor
+    }
+
+    /// Replace the default single thread search executor pool
+    /// by a thread pool with a given number of threads.
+    pub fn set_multithread_executor(&mut self, num_threads: usize) -> crate::Result<()> {
+        self.executor = Executor::multi_thread(num_threads, "tantivy-search-")?;
+        Ok(())
+    }
+
+    /// Custom thread pool by a outer thread pool.
+    pub fn set_executor(&mut self, executor: Executor) {
+        self.executor = executor;
+    }
+
+    /// Replace the default single thread search executor pool
+    /// by a thread pool with as many threads as there are CPUs on the system.
+    pub fn set_default_multithread_executor(&mut self) -> crate::Result<()> {
+        let default_num_threads = available_parallelism()?.get();
+        self.set_multithread_executor(default_num_threads)
     }
 
     /// Creates a new index given a directory and an [`IndexMeta`].
@@ -409,10 +473,10 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
         directory: ManagedDirectory,
         metas: &IndexMeta,
         inventory: SegmentMetaInventory,
-    ) -> Index<C> {
+    ) -> crate::Result<Index<C>> {
         let schema = metas.schema.clone();
-        let codec = C::default();
-        Index {
+        let codec = metas.codec.to_codec::<C>()?;
+        Ok(Index {
             settings: metas.index_settings.clone(),
             directory,
             schema,
@@ -421,7 +485,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
             executor: Executor::single_thread(),
             inventory,
             codec,
-        }
+        })
     }
 
     /// Setter for the tokenizer manager.
@@ -477,7 +541,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     /// Create a default [`IndexReader`] for the given index.
     ///
     /// See [`Index.reader_builder()`].
-    pub fn reader(&self) -> crate::Result<IndexReader> {
+    pub fn reader(&self) -> crate::Result<IndexReader<Codec>> {
         self.reader_builder().try_into()
     }
 
@@ -485,15 +549,8 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     ///
     /// Most project should create at most one reader for a given index.
     /// This method is typically called only once per `Index` instance.
-    pub fn reader_builder(&self) -> IndexReaderBuilder {
+    pub fn reader_builder(&self) -> IndexReaderBuilder<Codec> {
         IndexReaderBuilder::new(self.clone())
-    }
-
-    /// Opens a new directory from an index path.
-    #[cfg(feature = "mmap")]
-    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
-        let mmap_directory = MmapDirectory::open(directory_path)?;
-        Index::open(mmap_directory)
     }
 
     /// Returns the list of the segment metas tracked by the index.
@@ -536,16 +593,6 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
         self.inventory.new_segment_meta(segment_id, max_doc)
     }
 
-    /// Open the index using the provided directory
-    pub fn open<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
-        let directory = directory.into();
-        let directory = ManagedDirectory::wrap(directory)?;
-        let inventory = SegmentMetaInventory::default();
-        let metas = load_metas(&directory, &inventory)?;
-        let index = Index::open_from_metas(directory, &metas, inventory);
-        Ok(index)
-    }
-
     /// Reads the index meta file from the directory.
     pub fn load_metas(&self) -> crate::Result<IndexMeta> {
         load_metas(self.directory(), &self.inventory)
@@ -569,7 +616,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     pub fn writer_with_options<D: Document>(
         &self,
         options: IndexWriterOptions,
-    ) -> crate::Result<IndexWriter<D>> {
+    ) -> crate::Result<IndexWriter<Codec, D>> {
         let directory_lock = self
             .directory
             .acquire_lock(&INDEX_WRITER_LOCK)
@@ -611,7 +658,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
         &self,
         num_threads: usize,
         overall_memory_budget_in_bytes: usize,
-    ) -> crate::Result<IndexWriter<D>> {
+    ) -> crate::Result<IndexWriter<Codec, D>> {
         let memory_arena_in_bytes_per_thread = overall_memory_budget_in_bytes / num_threads;
         let options = IndexWriterOptions::builder()
             .num_worker_threads(num_threads)
@@ -625,7 +672,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     /// That index writer only simply has a single thread and a memory budget of 15 MB.
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
-    pub fn writer_for_tests<D: Document>(&self) -> crate::Result<IndexWriter<D>> {
+    pub fn writer_for_tests<D: Document>(&self) -> crate::Result<IndexWriter<Codec, D>> {
         self.writer_with_num_threads(1, MEMORY_BUDGET_NUM_BYTES_MIN)
     }
 
@@ -643,7 +690,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     pub fn writer<D: Document>(
         &self,
         memory_budget_in_bytes: usize,
-    ) -> crate::Result<IndexWriter<D>> {
+    ) -> crate::Result<IndexWriter<Codec, D>> {
         let mut num_threads = std::cmp::min(available_parallelism()?.get(), MAX_NUM_THREAD);
         let memory_budget_num_bytes_per_thread = memory_budget_in_bytes / num_threads;
         if memory_budget_num_bytes_per_thread < MEMORY_BUDGET_NUM_BYTES_MIN {
@@ -670,7 +717,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     }
 
     /// Returns the list of segments that are searchable
-    pub fn searchable_segments(&self) -> crate::Result<Vec<Segment>> {
+    pub fn searchable_segments(&self) -> crate::Result<Vec<Segment<Codec>>> {
         Ok(self
             .searchable_segment_metas()?
             .into_iter()
@@ -679,12 +726,12 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
     }
 
     #[doc(hidden)]
-    pub fn segment(&self, segment_meta: SegmentMeta) -> Segment {
+    pub fn segment(&self, segment_meta: SegmentMeta) -> Segment<Codec> {
         Segment::for_index(self.clone(), segment_meta)
     }
 
     /// Creates a new segment.
-    pub fn new_segment(&self) -> Segment {
+    pub fn new_segment(&self) -> Segment<Codec> {
         let segment_meta = self
             .inventory
             .new_segment_meta(SegmentId::generate_random(), 0);

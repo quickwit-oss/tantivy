@@ -140,13 +140,13 @@ impl SegmentReader {
     }
 
     /// Open a new segment for reading.
-    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
+    pub fn open<C: crate::codec::Codec>(segment: &Segment<C>) -> crate::Result<SegmentReader> {
         Self::open_with_custom_alive_set(segment, None)
     }
 
     /// Open a new segment for reading.
-    pub fn open_with_custom_alive_set(
-        segment: &Segment,
+    pub fn open_with_custom_alive_set<C: crate::codec::Codec>(
+        segment: &Segment<C>,
         custom_bitset: Option<AliveBitSet>,
     ) -> crate::Result<SegmentReader> {
         let termdict_file = segment.open_read(SegmentComponent::Terms)?;

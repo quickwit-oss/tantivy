@@ -7,6 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::SegmentComponent;
+use crate::codec::{Codec, CodecConfiguration, StandardCodec};
 use crate::index::SegmentId;
 use crate::schema::Schema;
 use crate::store::Compressor;
@@ -320,7 +321,9 @@ pub struct IndexMeta {
     /// This payload is entirely unused by tantivy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
+    pub codec: CodecConfiguration,
 }
+
 
 #[derive(Deserialize, Debug)]
 struct UntrackedIndexMeta {
@@ -331,6 +334,8 @@ struct UntrackedIndexMeta {
     pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
+    #[serde(default)]
+    pub codec: CodecConfiguration,
 }
 
 impl UntrackedIndexMeta {
@@ -345,6 +350,7 @@ impl UntrackedIndexMeta {
             schema: self.schema,
             opstamp: self.opstamp,
             payload: self.payload,
+            codec: self.codec,
         }
     }
 }
@@ -355,13 +361,14 @@ impl IndexMeta {
     ///
     /// This new index does not contains any segments.
     /// Opstamp will the value `0u64`.
-    pub fn with_schema(schema: Schema) -> IndexMeta {
+    pub fn with_schema_and_codec<C: Codec>(schema: Schema, codec: &C) -> IndexMeta {
         IndexMeta {
             index_settings: IndexSettings::default(),
             segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,
+            codec: CodecConfiguration::from_codec(codec),
         }
     }
 
@@ -412,11 +419,12 @@ mod tests {
             schema,
             opstamp: 0u64,
             payload: None,
+            codec: Default::default(),
         };
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0,"codec":{"name":"standard"}}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
