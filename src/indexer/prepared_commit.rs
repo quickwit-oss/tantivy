@@ -3,8 +3,8 @@ use crate::schema::document::Document;
 use crate::{FutureResult, Opstamp, TantivyDocument};
 
 /// A prepared commit
-pub struct PreparedCommit<'a, D: Document = TantivyDocument> {
-    index_writer: &'a mut IndexWriter<D>,
+pub struct PreparedCommit<'a, C, D: Document = TantivyDocument> {
+    index_writer: &'a mut IndexWriter<C, D>,
     payload: Option<String>,
     opstamp: Opstamp,
 }

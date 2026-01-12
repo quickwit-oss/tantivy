@@ -7,22 +7,22 @@ use crate::schema::document::Document;
 use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
 
 #[doc(hidden)]
-pub struct SingleSegmentIndexWriter<D: Document = TantivyDocument> {
-    segment_writer: SegmentWriter,
-    segment: Segment,
+pub struct SingleSegmentIndexWriter<Codec: crate::codec::Codec, D: Document = TantivyDocument> {
+    segment_writer: SegmentWriter<Codec>,
+    segment: Segment<Codec>,
     opstamp: Opstamp,
-    _phantom: PhantomData<D>,
+    _doc: PhantomData<D>,
 }
 
-impl<D: Document> SingleSegmentIndexWriter<D> {
-    pub fn new(index: Index, mem_budget: usize) -> crate::Result<Self> {
+impl<Codec: crate::codec::Codec, D: Document> SingleSegmentIndexWriter<Codec, D> {
+    pub fn new(index: Index<Codec>, mem_budget: usize) -> crate::Result<Self> {
         let segment = index.new_segment();
         let segment_writer = SegmentWriter::for_segment(mem_budget, segment.clone())?;
         Ok(Self {
             segment_writer,
             segment,
             opstamp: 0,
-            _phantom: PhantomData,
+            _doc: PhantomData,
         })
     }
 
@@ -37,10 +37,10 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
             .add_document(AddOperation { opstamp, document })
     }
 
-    pub fn finalize(self) -> crate::Result<Index> {
+    pub fn finalize(self) -> crate::Result<Index<Codec>> {
         let max_doc = self.segment_writer.max_doc();
         self.segment_writer.finalize()?;
-        let segment: Segment = self.segment.with_max_doc(max_doc);
+        let segment: Segment<Codec> = self.segment.with_max_doc(max_doc);
         let index = segment.index();
         let index_meta = IndexMeta {
             index_settings: index.settings().clone(),

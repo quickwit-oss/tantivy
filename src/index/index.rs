@@ -8,6 +8,7 @@ use std::thread::available_parallelism;
 use super::segment::Segment;
 use super::segment_reader::merge_field_meta_data;
 use super::{FieldMetadata, IndexSettings};
+use crate::codec::StandardCodec;
 use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
@@ -101,18 +102,21 @@ fn save_new_metas(
 /// };
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 /// ```
-pub struct IndexBuilder {
+pub struct IndexBuilder<Codec: crate::codec::Codec = StandardCodec> {
     schema: Option<Schema>,
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
+    codec: Codec,
 }
-impl Default for IndexBuilder {
+
+impl Default for IndexBuilder<StandardCodec> {
     fn default() -> Self {
         IndexBuilder::new()
     }
 }
-impl IndexBuilder {
+
+impl IndexBuilder<StandardCodec> {
     /// Creates a new `IndexBuilder`
     pub fn new() -> Self {
         Self {
@@ -120,6 +124,21 @@ impl IndexBuilder {
             index_settings: IndexSettings::default(),
             tokenizer_manager: TokenizerManager::default(),
             fast_field_tokenizer_manager: TokenizerManager::default(),
+            codec: StandardCodec,
+        }
+    }
+}
+
+impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
+    /// Set the codec
+    #[must_use]
+    pub fn codec<NewCodec: crate::codec::Codec>(self, codec: NewCodec) -> IndexBuilder<NewCodec> {
+        IndexBuilder {
+            schema: self.schema,
+            index_settings: self.index_settings,
+            tokenizer_manager: self.tokenizer_manager,
+            fast_field_tokenizer_manager: self.fast_field_tokenizer_manager,
+            codec,
         }
     }
 
@@ -167,7 +186,7 @@ impl IndexBuilder {
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::open(directory_path)?);
-        if Index::exists(&*mmap_directory)? {
+        if Self::exists(&*mmap_directory)? {
             return Err(TantivyError::IndexAlreadyExists);
         }
         self.create(mmap_directory)
@@ -186,7 +205,7 @@ impl IndexBuilder {
         self,
         dir: impl Into<Box<dyn Directory>>,
         mem_budget: usize,
-    ) -> crate::Result<SingleSegmentIndexWriter<D>> {
+    ) -> crate::Result<SingleSegmentIndexWriter<Codec, D>> {
         let index = self.create(dir)?;
         let index_simple_writer = SingleSegmentIndexWriter::new(index, mem_budget)?;
         Ok(index_simple_writer)
@@ -217,7 +236,7 @@ impl IndexBuilder {
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
         let dir: Box<dyn Directory> = dir.into();
-        if !Index::exists(&*dir)? {
+        if !Self::exists(&*dir)? {
             return self.create(dir);
         }
         let mut index = Index::open(dir)?;
@@ -244,7 +263,7 @@ impl IndexBuilder {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+    pub fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
         self.validate()?;
         let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
@@ -264,7 +283,7 @@ impl IndexBuilder {
 
 /// Search Index
 #[derive(Clone)]
-pub struct Index {
+pub struct Index<Codec: crate::codec::Codec = crate::codec::StandardCodec> {
     directory: ManagedDirectory,
     schema: Schema,
     settings: IndexSettings,
@@ -272,18 +291,27 @@ pub struct Index {
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
+    codec: Codec,
 }
+
 
 impl Index {
     /// Creates a new builder.
     pub fn builder() -> IndexBuilder {
         IndexBuilder::new()
     }
+}
+
+impl<Codec: crate::codec::Codec> Index<Codec> {
     /// Examines the directory to see if it contains an index.
     ///
     /// Effectively, it only checks for the presence of the `meta.json` file.
     pub fn exists(dir: &dyn Directory) -> Result<bool, OpenReadError> {
         dir.exists(&META_FILEPATH)
+    }
+
+    pub fn codec(&self) -> &Codec {
+        &self.codec
     }
 
     /// Accessor to the search executor.
@@ -377,12 +405,13 @@ impl Index {
     }
 
     /// Creates a new index given a directory and an [`IndexMeta`].
-    fn open_from_metas(
+    fn open_from_metas<C: crate::codec::Codec>(
         directory: ManagedDirectory,
         metas: &IndexMeta,
         inventory: SegmentMetaInventory,
-    ) -> Index {
+    ) -> Index<C> {
         let schema = metas.schema.clone();
+        let codec = C::default();
         Index {
             settings: metas.index_settings.clone(),
             directory,
@@ -391,6 +420,7 @@ impl Index {
             fast_field_tokenizers: TokenizerManager::default(),
             executor: Executor::single_thread(),
             inventory,
+            codec,
         }
     }
 

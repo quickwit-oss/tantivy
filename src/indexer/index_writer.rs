@@ -9,6 +9,7 @@ use smallvec::smallvec;
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::{AddBatch, AddBatchReceiver, AddBatchSender, PreparedCommit};
+use crate::codec::{Codec, StandardCodec};
 use crate::directory::{DirectoryLock, GarbageCollectionResult, TerminatingWrite};
 use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
@@ -68,12 +69,12 @@ pub struct IndexWriterOptions {
 /// indexing queue.
 /// Each indexing thread builds its own independent [`Segment`], via
 /// a `SegmentWriter` object.
-pub struct IndexWriter<D: Document = TantivyDocument> {
+pub struct IndexWriter<C: Codec = StandardCodec, D: Document = TantivyDocument> {
     // the lock is just used to bind the
     // lifetime of the lock with that of the IndexWriter.
     _directory_lock: Option<DirectoryLock>,
 
-    index: Index,
+    index: Index<C>,
 
     options: IndexWriterOptions,
 
@@ -82,7 +83,7 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
     index_writer_status: IndexWriterStatus<D>,
     operation_sender: AddBatchSender<D>,
 
-    segment_updater: SegmentUpdater,
+    segment_updater: SegmentUpdater<C>,
 
     worker_id: usize,
 
@@ -128,8 +129,8 @@ fn compute_deleted_bitset(
 /// is `==` target_opstamp.
 /// For instance, there was no delete operation between the state of the `segment_entry` and
 /// the `target_opstamp`, `segment_entry` is not updated.
-pub fn advance_deletes(
-    mut segment: Segment,
+pub fn advance_deletes<C: Codec>(
+    mut segment: Segment<C>,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
 ) -> crate::Result<()> {
@@ -179,11 +180,11 @@ pub fn advance_deletes(
     Ok(())
 }
 
-fn index_documents<D: Document>(
+fn index_documents<C: crate::codec::Codec, D: Document>(
     memory_budget: usize,
-    segment: Segment,
+    segment: Segment<C>,
     grouped_document_iterator: &mut dyn Iterator<Item = AddBatch<D>>,
-    segment_updater: &SegmentUpdater,
+    segment_updater: &SegmentUpdater<C>,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<()> {
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone())?;
@@ -226,8 +227,8 @@ fn index_documents<D: Document>(
 }
 
 /// `doc_opstamps` is required to be non-empty.
-fn apply_deletes(
-    segment: &Segment,
+fn apply_deletes<C: crate::codec::Codec>(
+    segment: &Segment<C>,
     delete_cursor: &mut DeleteCursor,
     doc_opstamps: &[Opstamp],
 ) -> crate::Result<Option<BitSet>> {
@@ -262,7 +263,7 @@ fn apply_deletes(
     })
 }
 
-impl<D: Document> IndexWriter<D> {
+impl<C: Codec, D: Document> IndexWriter<C, D> {
     /// Create a new index writer. Attempts to acquire a lockfile.
     ///
     /// The lockfile should be deleted on drop, but it is possible
@@ -278,7 +279,7 @@ impl<D: Document> IndexWriter<D> {
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
     pub(crate) fn new(
-        index: &Index,
+        index: &Index<C>,
         options: IndexWriterOptions,
         directory_lock: DirectoryLock,
     ) -> crate::Result<Self> {
@@ -345,7 +346,7 @@ impl<D: Document> IndexWriter<D> {
     }
 
     /// Accessor to the index.
-    pub fn index(&self) -> &Index {
+    pub fn index(&self) -> &Index<C> {
         &self.index
     }
 
@@ -393,7 +394,7 @@ impl<D: Document> IndexWriter<D> {
     /// It is safe to start writing file associated with the new `Segment`.
     /// These will not be garbage collected as long as an instance object of
     /// `SegmentMeta` object associated with the new `Segment` is "alive".
-    pub fn new_segment(&self) -> Segment {
+    pub fn new_segment(&self) -> Segment<C> {
         self.index.new_segment()
     }
 

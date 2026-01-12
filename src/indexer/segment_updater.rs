@@ -10,6 +10,7 @@ use std::sync::{Arc, RwLock};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use super::segment_manager::SegmentManager;
+use crate::codec::Codec;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
@@ -24,7 +25,7 @@ use crate::indexer::{
     DefaultMergePolicy, MergeCandidate, MergeOperation, MergePolicy, SegmentEntry,
     SegmentSerializer,
 };
-use crate::{FutureResult, Opstamp, TantivyError};
+use crate::{FutureResult, IndexBuilder, Opstamp, TantivyError};
 
 const PANIC_CAUGHT: &str = "Panic caught in merge thread";
 
@@ -61,10 +62,10 @@ pub(crate) fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate:
 // We voluntarily pass a merge_operation ref to guarantee that
 // the merge_operation is alive during the process
 #[derive(Clone)]
-pub(crate) struct SegmentUpdater(Arc<InnerSegmentUpdater>);
+pub(crate) struct SegmentUpdater<C: Codec>(Arc<InnerSegmentUpdater<C>>);
 
-impl Deref for SegmentUpdater {
-    type Target = InnerSegmentUpdater;
+impl<C: Codec> Deref for SegmentUpdater<C> {
+    type Target = InnerSegmentUpdater<C>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -72,8 +73,8 @@ impl Deref for SegmentUpdater {
     }
 }
 
-fn garbage_collect_files(
-    segment_updater: SegmentUpdater,
+fn garbage_collect_files<C: Codec>(
+    segment_updater: SegmentUpdater<C>,
 ) -> crate::Result<GarbageCollectionResult> {
     info!("Running garbage collection");
     let mut index = segment_updater.index.clone();
@@ -84,8 +85,8 @@ fn garbage_collect_files(
 
 /// Merges a list of segments the list of segment givens in the `segment_entries`.
 /// This function happens in the calling thread and is computationally expensive.
-fn merge(
-    index: &Index,
+fn merge<Codec: crate::codec::Codec>(
+    index: &Index<Codec>,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
 ) -> crate::Result<Option<SegmentEntry>> {
@@ -108,7 +109,7 @@ fn merge(
 
     let delete_cursor = segment_entries[0].delete_cursor().clone();
 
-    let segments: Vec<Segment> = segment_entries
+    let segments: Vec<Segment<Codec>> = segment_entries
         .iter()
         .map(|segment_entry| index.segment(segment_entry.meta().clone()))
         .collect();
@@ -139,8 +140,8 @@ fn merge(
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
 #[doc(hidden)]
-pub fn merge_indices<T: Into<Box<dyn Directory>>>(
-    indices: &[Index],
+pub fn merge_indices<Codec: crate::codec::Codec, T: Into<Box<dyn Directory>>>(
+    indices: &[Index<Codec>],
     output_directory: T,
 ) -> crate::Result<Index> {
     if indices.is_empty() {
@@ -163,7 +164,7 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
         ));
     }
 
-    let mut segments: Vec<Segment> = Vec::new();
+    let mut segments: Vec<Segment<Codec>> = Vec::new();
     for index in indices {
         segments.extend(index.searchable_segments()?);
     }
@@ -185,12 +186,12 @@ pub fn merge_indices<T: Into<Box<dyn Directory>>>(
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
 #[doc(hidden)]
-pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
-    segments: &[Segment],
+pub fn merge_filtered_segments<Codec: crate::codec::Codec, T: Into<Box<dyn Directory>>>(
+    segments: &[Segment<Codec>],
     target_settings: IndexSettings,
     filter_doc_ids: Vec<Option<AliveBitSet>>,
     output_directory: T,
-) -> crate::Result<Index> {
+) -> crate::Result<Index<Codec>> {
     if segments.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
         return Err(crate::TantivyError::InvalidArgument(
@@ -211,11 +212,12 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
         ));
     }
 
-    let mut merged_index = Index::create(
-        output_directory,
-        target_schema.clone(),
-        target_settings.clone(),
-    )?;
+    let mut merged_index: Index<Codec> = Index::builder()
+        .schema(target_schema.clone())
+        .codec(segments[0].index().codec().clone())
+        .settings(target_settings.clone())
+        .create(output_directory.into())?;
+
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
     let merger: IndexMerger =
@@ -250,7 +252,7 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     Ok(merged_index)
 }
 
-pub(crate) struct InnerSegmentUpdater {
+pub(crate) struct InnerSegmentUpdater<C: Codec> {
     // we keep a copy of the current active IndexMeta to
     // avoid loading the file every time we need it in the
     // `SegmentUpdater`.
@@ -261,7 +263,7 @@ pub(crate) struct InnerSegmentUpdater {
     pool: ThreadPool,
     merge_thread_pool: ThreadPool,
 
-    index: Index,
+    index: Index<C>,
     segment_manager: SegmentManager,
     merge_policy: RwLock<Arc<dyn MergePolicy>>,
     killed: AtomicBool,
@@ -269,13 +271,13 @@ pub(crate) struct InnerSegmentUpdater {
     merge_operations: MergeOperationInventory,
 }
 
-impl SegmentUpdater {
+impl<Codec: crate::codec::Codec> SegmentUpdater<Codec> {
     pub fn create(
-        index: Index,
+        index: Index<Codec>,
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
         num_merge_threads: usize,
-    ) -> crate::Result<SegmentUpdater> {
+    ) -> crate::Result<Self> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         let pool = ThreadPoolBuilder::new()

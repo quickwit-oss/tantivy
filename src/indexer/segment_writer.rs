@@ -2,6 +2,7 @@ use columnar::MonotonicallyMappableToU64;
 use common::JsonPathWriter;
 use itertools::Itertools;
 use tokenizer_api::BoxTokenStream;
+use crate::codec::Codec;
 
 use super::operation::AddOperation;
 use crate::fastfield::FastFieldsWriter;
@@ -45,11 +46,11 @@ fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<
 ///
 /// They creates the postings list in anonymous memory.
 /// The segment is laid on disk when the segment gets `finalized`.
-pub struct SegmentWriter {
+pub struct SegmentWriter<Codec: crate::codec::Codec> {
     pub(crate) max_doc: DocId,
     pub(crate) ctx: IndexingContext,
     pub(crate) per_field_postings_writers: PerFieldPostingsWriter,
-    pub(crate) segment_serializer: SegmentSerializer,
+    pub(crate) segment_serializer: SegmentSerializer<Codec>,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
     pub(crate) json_path_writer: JsonPathWriter,
@@ -60,7 +61,7 @@ pub struct SegmentWriter {
     schema: Schema,
 }
 
-impl SegmentWriter {
+impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
     /// Creates a new `SegmentWriter`
     ///
     /// The arguments are defined as follows
@@ -70,7 +71,7 @@ impl SegmentWriter {
     ///   behavior as a memory limit.
     /// - segment: The segment being written
     /// - schema
-    pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
+    pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment<Codec>) -> crate::Result<Self> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
@@ -392,7 +393,7 @@ fn remap_and_write(
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
-    mut serializer: SegmentSerializer,
+    mut serializer: SegmentSerializer<Codec>,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
