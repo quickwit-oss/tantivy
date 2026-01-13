@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 
 use columnar::Column;
 
+use crate::docset::SeekIntoTheDangerZoneResult;
 use crate::{DocId, DocSet, TERMINATED};
 
 /// Helper to have a cursor over a vec of docids
@@ -182,6 +183,34 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
         }
         self.last_seek_pos_opt = Some(target);
         doc
+    }
+
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
+        if self.is_last_seek_distance_large(target) {
+            self.reset_fetch_range();
+        }
+        let last_block: bool;
+        if target > self.next_fetch_start {
+            self.next_fetch_start = target;
+            // Contrary to seek, we fetch at most a single block.
+            last_block = self.fetch_horizon(DEFAULT_FETCH_HORIZON);
+        } else {
+            last_block = false;
+        }
+        while let Some(loaded_doc) = self.loaded_docs.next() {
+            if loaded_doc < target {
+                continue;
+            } else if loaded_doc == target {
+                return SeekIntoTheDangerZoneResult::Found;
+            } else {
+                return SeekIntoTheDangerZoneResult::NewTarget(loaded_doc);
+            }
+        }
+        if last_block {
+            SeekIntoTheDangerZoneResult::NewTarget(TERMINATED)
+        } else {
+            SeekIntoTheDangerZoneResult::NewTarget(target)
+        }
     }
 
     fn size_hint(&self) -> u32 {
