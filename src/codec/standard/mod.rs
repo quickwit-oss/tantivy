@@ -3,8 +3,10 @@ use serde::{Deserialize, Serialize};
 use crate::codec::standard::postings::StandardPostingsCodec;
 use crate::codec::Codec;
 
+/// Tantivy's default postings codec.
 pub mod postings;
 
+/// Tantivy's default codec.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct StandardCodec;
 

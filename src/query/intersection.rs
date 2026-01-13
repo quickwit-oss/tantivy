@@ -1,7 +1,7 @@
 use super::size_hint::estimate_intersection;
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::term_query::TermScorer;
-use crate::query::{EmptyScorer, Scorer};
+use crate::query::{box_scorer, EmptyScorer, Scorer};
 use crate::{DocId, Score};
 
 /// Returns the intersection scorer.
@@ -20,7 +20,7 @@ pub fn intersect_scorers(
     num_docs_segment: u32,
 ) -> Box<dyn Scorer> {
     if scorers.is_empty() {
-        return Box::new(EmptyScorer);
+        return box_scorer(EmptyScorer);
     }
     if scorers.len() == 1 {
         return scorers.pop().unwrap();
@@ -29,7 +29,7 @@ pub fn intersect_scorers(
     scorers.sort_by_key(|scorer| scorer.cost());
     let doc = go_to_first_doc(&mut scorers[..]);
     if doc == TERMINATED {
-        return Box::new(EmptyScorer);
+        return box_scorer(EmptyScorer);
     }
     // We know that we have at least 2 elements.
     let left = scorers.remove(0);
@@ -38,14 +38,14 @@ pub fn intersect_scorers(
         .iter()
         .all(|&scorer| scorer.is::<TermScorer>());
     if all_term_scorers {
-        return Box::new(Intersection {
+        return box_scorer(Intersection {
             left: *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             right: *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             others: scorers,
             num_docs: num_docs_segment,
         });
     }
-    Box::new(Intersection {
+    box_scorer(Intersection {
         left,
         right,
         others: scorers,

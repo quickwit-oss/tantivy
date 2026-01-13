@@ -192,7 +192,6 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
             "Called new_term, while the previous term was not closed."
         );
         self.term_open = true;
-        self.postings_serializer.clear();
         self.current_term_info = self.current_term_info();
         self.term_dictionary_builder.insert_key(term)?;
         self.postings_serializer

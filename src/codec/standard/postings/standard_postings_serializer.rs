@@ -12,6 +12,7 @@ use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
+/// Default tantivy postings codec serializer.
 pub struct StandardPostingsSerializer {
     last_doc_id_encoded: u32,
 
@@ -31,6 +32,7 @@ pub struct StandardPostingsSerializer {
 }
 
 impl StandardPostingsSerializer {
+    /// Creates a new instance of `StandardPostingsSerializer`.
     pub fn new(
         avg_fieldnorm: Score,
         mode: IndexRecordOption,
@@ -53,7 +55,7 @@ impl StandardPostingsSerializer {
 
 impl PostingsSerializer for StandardPostingsSerializer {
     fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool) {
-        self.bm25_weight = None;
+        self.clear();
 
         self.term_has_freq = self.mode.has_freq() && record_term_freq;
         if !self.term_has_freq {
@@ -85,11 +87,7 @@ impl PostingsSerializer for StandardPostingsSerializer {
         }
     }
 
-    fn close_term(
-        &mut self,
-        doc_freq: u32,
-        output_write: &mut impl std::io::Write,
-    ) -> io::Result<()> {
+    fn close_term(&mut self, doc_freq: u32, output_write: &mut impl io::Write) -> io::Result<()> {
         if !self.block.is_empty() {
             // we have doc ids waiting to be written
             // this happens when the number of doc ids is
@@ -123,14 +121,15 @@ impl PostingsSerializer for StandardPostingsSerializer {
         self.bm25_weight = None;
         Ok(())
     }
-
-    fn clear(&mut self) {
-        self.block.clear();
-        self.last_doc_id_encoded = 0;
-    }
 }
 
 impl StandardPostingsSerializer {
+    fn clear(&mut self) {
+        self.bm25_weight = None;
+        self.block.clear();
+        self.last_doc_id_encoded = 0;
+    }
+
     fn write_block(&mut self) {
         {
             // encode the doc ids

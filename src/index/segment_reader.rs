@@ -6,6 +6,7 @@ use common::{ByteCount, HasLen};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 
+use crate::codec::ObjectSafeCodec;
 use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
@@ -47,6 +48,8 @@ pub struct SegmentReader {
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
     schema: Schema,
+
+    pub(crate) codec: Arc<dyn ObjectSafeCodec>,
 }
 
 impl SegmentReader {
@@ -149,6 +152,7 @@ impl SegmentReader {
         segment: &Segment<C>,
         custom_bitset: Option<AliveBitSet>,
     ) -> crate::Result<SegmentReader> {
+        let codec: Arc<dyn ObjectSafeCodec> = Arc::new(segment.index().codec().clone());
         let termdict_file = segment.open_read(SegmentComponent::Terms)?;
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
@@ -204,6 +208,7 @@ impl SegmentReader {
             alive_bitset_opt,
             positions_composite,
             schema,
+            codec,
         })
     }
 
@@ -273,6 +278,7 @@ impl SegmentReader {
             postings_file,
             positions_file,
             record_option,
+            self.codec.clone(),
         )?);
 
         // by releasing the lock in between, we may end up opening the inverting index

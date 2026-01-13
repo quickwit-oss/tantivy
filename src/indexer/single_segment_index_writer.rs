@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::codec::CodecConfiguration;
+use crate::codec::StandardCodec;
+use crate::index::CodecConfiguration;
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::SegmentWriter;
@@ -8,7 +9,10 @@ use crate::schema::document::Document;
 use crate::{Directory, Index, IndexMeta, Opstamp, Segment, TantivyDocument};
 
 #[doc(hidden)]
-pub struct SingleSegmentIndexWriter<Codec: crate::codec::Codec, D: Document = TantivyDocument> {
+pub struct SingleSegmentIndexWriter<
+    Codec: crate::codec::Codec = StandardCodec,
+    D: Document = TantivyDocument,
+> {
     segment_writer: SegmentWriter<Codec>,
     segment: Segment<Codec>,
     opstamp: Opstamp,
@@ -49,7 +53,7 @@ impl<Codec: crate::codec::Codec, D: Document> SingleSegmentIndexWriter<Codec, D>
             schema: index.schema(),
             opstamp: 0,
             payload: None,
-            codec: CodecConfiguration::from_codec(index.codec()),
+            codec: CodecConfiguration::from(index.codec()),
         };
         save_metas(&index_meta, index.directory())?;
         index.directory().sync_directory()?;

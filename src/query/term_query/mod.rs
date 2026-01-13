@@ -4,9 +4,9 @@ mod term_weight;
 
 pub use self::term_query::TermQuery;
 pub use self::term_scorer::TermScorer;
+
 #[cfg(test)]
 mod tests {
-
     use crate::collector::TopDocs;
     use crate::docset::DocSet;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;

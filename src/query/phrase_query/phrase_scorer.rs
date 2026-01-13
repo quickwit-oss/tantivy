@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 
+use crate::codec::standard::postings::StandardPostings;
 use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
-use crate::query::{Intersection, Scorer};
+use crate::query::{Explanation, Intersection, Scorer};
 use crate::{DocId, Score};
 
 struct PostingsWithOffset<TPostings> {
@@ -43,7 +44,7 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
     }
 }
 
-pub struct PhraseScorer<TPostings: Postings> {
+pub struct PhraseScorer<TPostings: Postings = StandardPostings> {
     intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
     num_terms: usize,
     left_positions: Vec<u32>,
@@ -58,7 +59,7 @@ pub struct PhraseScorer<TPostings: Postings> {
 }
 
 /// Returns true if and only if the two sorted arrays contain a common element
-fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
+pub(crate) fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     let mut left_index = 0;
     let mut right_index = 0;
     while left_index < left.len() && right_index < right.len() {
@@ -79,7 +80,7 @@ fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     false
 }
 
-pub(crate) fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+fn intersection_count(left: &[u32], right: &[u32]) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
@@ -402,6 +403,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         scorer
     }
 
+    /// Returns the number of phrases identified in the current matching doc.
     pub fn phrase_count(&self) -> u32 {
         self.phrase_count
     }
@@ -572,6 +574,17 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
         } else {
             1.0f32
         }
+    }
+
+    fn explain(&mut self) -> Explanation {
+        let doc = self.doc();
+        let phrase_count = self.phrase_count();
+        let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+        let mut explanation = Explanation::new("Phrase Scorer", self.score());
+        if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
+            explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
+        }
+        explanation
     }
 }
 

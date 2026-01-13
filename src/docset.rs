@@ -1,5 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 
+use common::BitSet;
+
 use crate::fastfield::AliveBitSet;
 use crate::DocId;
 
@@ -104,6 +106,15 @@ pub trait DocSet: Send {
             }
         }
         buffer.len()
+    }
+
+    /// TODO comment on the size of the bitset
+    fn fill_bitset(&mut self, bitset: &mut BitSet) {
+        let mut doc = self.doc();
+        while doc != TERMINATED {
+            bitset.insert(doc);
+            doc = self.advance();
+        }
     }
 
     /// Returns the current document

@@ -1,11 +1,13 @@
-use common::HasLen;
+use common::{BitSet, HasLen};
 
+use super::BlockSegmentPostings;
+use crate::codec::postings::PostingsWithBlockMax;
 use crate::docset::DocSet;
-use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{BlockSegmentPostings, Postings};
-use crate::{DocId, TERMINATED};
+use crate::postings::{DocFreq, Postings};
+use crate::query::Bm25Weight;
+use crate::{DocId, Score};
 
 /// `SegmentPostings` represents the inverted list or postings associated with
 /// a term in a `Segment`.
@@ -27,31 +29,6 @@ impl SegmentPostings {
             cur: 0,
             position_reader: None,
         }
-    }
-
-    /// Compute the number of non-deleted documents.
-    ///
-    /// This method will clone and scan through the posting lists.
-    /// (this is a rather expensive operation).
-    pub fn doc_freq_given_deletes(&self, alive_bitset: &AliveBitSet) -> u32 {
-        let mut docset = self.clone();
-        let mut doc_freq = 0;
-        loop {
-            let doc = docset.doc();
-            if doc == TERMINATED {
-                return doc_freq;
-            }
-            if alive_bitset.is_alive(doc) {
-                doc_freq += 1u32;
-            }
-            docset.advance();
-        }
-    }
-
-    /// Returns the overall number of documents in the block postings.
-    /// It does not take in account whether documents are deleted or not.
-    pub fn doc_freq(&self) -> u32 {
-        self.block_cursor.doc_freq()
     }
 
     /// Creates a segment postings object with the given documents
@@ -166,7 +143,6 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> DocId {
-        debug_assert!(self.block_cursor.block_is_loaded());
         if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
             self.cur = 0;
             self.block_cursor.advance();
@@ -199,6 +175,19 @@ impl DocSet for SegmentPostings {
     fn size_hint(&self) -> u32 {
         self.len() as u32
     }
+
+    fn fill_bitset(&mut self, bitset: &mut BitSet) {
+        loop {
+            let docs = self.block_cursor.docs();
+            if docs.is_empty() {
+                break;
+            }
+            for &doc in docs {
+                bitset.insert(doc);
+            }
+            self.block_cursor.advance();
+        }
+    }
 }
 
 impl HasLen for SegmentPostings {
@@ -214,7 +203,7 @@ impl Postings for SegmentPostings {
     ///
     /// # Panics
     ///
-    /// Will panics if called without having called advance before.
+    /// Will panics if called without having cagled advance before.
     fn term_freq(&self) -> u32 {
         debug_assert!(
             // Here we do not use the len of `freqs()`
@@ -227,6 +216,13 @@ impl Postings for SegmentPostings {
             "Have you forgotten to call `.advance()` at least once before calling `.term_freq()`."
         );
         self.block_cursor.freq(self.cur)
+    }
+
+    /// Returns the overall number of documents in the block postings.
+    /// It does not take in account whether documents are deleted or not.
+    #[inline(always)]
+    fn doc_freq(&self) -> DocFreq {
+        DocFreq::Exact(self.block_cursor.doc_freq())
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
@@ -252,6 +248,25 @@ impl Postings for SegmentPostings {
             }
         }
     }
+
+    fn has_freq(&self) -> bool {
+        !self.block_cursor.freqs().is_empty()
+    }
+}
+
+impl PostingsWithBlockMax for SegmentPostings {
+    fn seek_block_max(
+        &mut self,
+        target_doc: crate::DocId,
+        similarity_weight: &Bm25Weight,
+    ) -> Score {
+        self.block_cursor.seek_block_without_loading(target_doc);
+        self.block_cursor.block_max_score(similarity_weight)
+    }
+
+    fn last_doc_in_block(&self) -> crate::DocId {
+        self.block_cursor.skip_reader().last_doc_in_block()
+    }
 }
 
 #[cfg(test)]
@@ -261,14 +276,15 @@ mod tests {
 
     use super::SegmentPostings;
     use crate::docset::{DocSet, TERMINATED};
-    use crate::fastfield::AliveBitSet;
-    use crate::postings::postings::Postings;
+    use crate::postings::Postings;
 
     #[test]
     fn test_empty_segment_postings() {
         let mut postings = SegmentPostings::empty();
+        assert_eq!(postings.doc(), TERMINATED);
         assert_eq!(postings.advance(), TERMINATED);
         assert_eq!(postings.advance(), TERMINATED);
+        assert_eq!(postings.doc_freq(), crate::postings::DocFreq::Exact(0));
         assert_eq!(postings.len(), 0);
     }
 
@@ -283,16 +299,5 @@ mod tests {
     fn test_empty_postings_doc_term_freq_returns_0() {
         let postings = SegmentPostings::empty();
         assert_eq!(postings.term_freq(), 1);
-    }
-
-    #[test]
-    fn test_doc_freq() {
-        let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
-        assert_eq!(docs.doc_freq(), 3);
-        let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
-        assert_eq!(docs.doc_freq_given_deletes(&alive_bitset), 2);
-        let all_deleted =
-            AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
-        assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
     }
 }

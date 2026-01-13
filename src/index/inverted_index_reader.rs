@@ -1,7 +1,8 @@
 use std::io;
+use std::sync::Arc;
 
 use common::json_path_writer::JSON_END_OF_PATH;
-use common::{BinarySerializable, ByteCount};
+use common::{BinarySerializable, ByteCount, OwnedBytes};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
@@ -9,9 +10,13 @@ use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
+use crate::codec::postings::PostingsCodec;
+use crate::codec::{Codec, ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
-use crate::positions::PositionReader;
-use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
+use crate::fieldnorm::FieldNormReader;
+use crate::postings::{Postings, TermInfo};
+use crate::query::term_query::TermScorer;
+use crate::query::{Bm25Weight, PhraseScorer, Scorer};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
@@ -33,6 +38,7 @@ pub struct InvertedIndexReader {
     positions_file_slice: FileSlice,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
+    codec: Arc<dyn ObjectSafeCodec>,
 }
 
 /// Object that records the amount of space used by a field in an inverted index.
@@ -68,6 +74,7 @@ impl InvertedIndexReader {
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
         record_option: IndexRecordOption,
+        codec: Arc<dyn ObjectSafeCodec>,
     ) -> io::Result<InvertedIndexReader> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
         let total_num_tokens = u64::deserialize(&mut total_num_tokens_slice.read_bytes()?)?;
@@ -77,6 +84,7 @@ impl InvertedIndexReader {
             positions_file_slice,
             record_option,
             total_num_tokens,
+            codec,
         })
     }
 
@@ -89,6 +97,7 @@ impl InvertedIndexReader {
             positions_file_slice: FileSlice::empty(),
             record_option,
             total_num_tokens: 0u64,
+            codec: Arc::new(StandardCodec),
         }
     }
 
@@ -160,62 +169,98 @@ impl InvertedIndexReader {
         Ok(fields)
     }
 
-    /// Resets the block segment to another position of the postings
-    /// file.
-    ///
-    /// This is useful for enumerating through a list of terms,
-    /// and consuming the associated posting lists while avoiding
-    /// reallocating a [`BlockSegmentPostings`].
-    ///
-    /// # Warning
-    ///
-    /// This does not reset the positions list.
-    pub fn reset_block_postings_from_terminfo(
+    pub(crate) fn new_term_scorer_specialized<C: Codec>(
         &self,
         term_info: &TermInfo,
-        block_postings: &mut BlockSegmentPostings,
-    ) -> io::Result<()> {
-        let postings_slice = self
-            .postings_file_slice
-            .slice(term_info.postings_range.clone());
-        let postings_bytes = postings_slice.read_bytes()?;
-        block_postings.reset(term_info.doc_freq, postings_bytes)?;
-        Ok(())
-    }
-
-    /// Returns a block postings given a `Term`.
-    /// This method is for an advanced usage only.
-    ///
-    /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub fn read_block_postings(
-        &self,
-        term: &Term,
         option: IndexRecordOption,
-    ) -> io::Result<Option<BlockSegmentPostings>> {
-        self.get_term_info(term)?
-            .map(move |term_info| self.read_block_postings_from_terminfo(&term_info, option))
-            .transpose()
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+        codec: &C,
+    ) -> io::Result<TermScorer<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings>> {
+        let postings = self.read_postings_from_terminfo_specialized(term_info, option, codec)?;
+        let term_scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
+        Ok(term_scorer)
     }
 
-    /// Returns a block postings given a `term_info`.
-    /// This method is for an advanced usage only.
-    ///
-    /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub fn read_block_postings_from_terminfo(
+    pub(crate) fn new_phrase_scorer_type_specialized<C: Codec>(
+        &self,
+        term_infos: &[(usize, TermInfo)],
+        similarity_weight_opt: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        codec: &C,
+    ) -> io::Result<PhraseScorer<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings>> {
+        let mut offset_and_term_postings: Vec<(
+            usize,
+            <<C as Codec>::PostingsCodec as PostingsCodec>::Postings,
+        )> = Vec::with_capacity(term_infos.len());
+        for (offset, term_info) in term_infos {
+            let postings = self.read_postings_from_terminfo_specialized(
+                term_info,
+                IndexRecordOption::WithFreqsAndPositions,
+                codec,
+            )?;
+            offset_and_term_postings.push((*offset, postings));
+        }
+        let phrase_scorer = PhraseScorer::new(
+            offset_and_term_postings,
+            similarity_weight_opt,
+            fieldnorm_reader,
+            slop,
+        );
+        Ok(phrase_scorer)
+    }
+
+    /// Build a new term scorer.
+    pub fn new_term_scorer(
         &self,
         term_info: &TermInfo,
-        requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
+        option: IndexRecordOption,
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+    ) -> io::Result<Box<dyn Scorer>> {
+        let term_scorer = self.codec.load_term_scorer_type_erased(
+            term_info,
+            option,
+            self,
+            fieldnorm_reader,
+            similarity_weight,
+        )?;
+        Ok(term_scorer)
+    }
+
+    /// Returns a postings object specific with a concrete type.
+    ///
+    /// This requires you to provied the actual codec.
+    pub fn read_postings_from_terminfo_specialized<C: Codec>(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        codec: &C,
+    ) -> io::Result<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings> {
+        let option = option.downgrade(self.record_option);
         let postings_data = self
             .postings_file_slice
             .slice(term_info.postings_range.clone())
             .read_bytes()?;
-        BlockSegmentPostings::open(
-            term_info.doc_freq,
-            postings_data,
-            self.record_option,
-            requested_option,
-        )
+        let positions_data: Option<OwnedBytes> = if option.has_positions() {
+            let positions_data = self
+                .positions_file_slice
+                .slice(term_info.positions_range.clone())
+                .read_bytes()?;
+            Some(positions_data)
+        } else {
+            None
+        };
+        let postings: <<C as Codec>::PostingsCodec as PostingsCodec>::Postings =
+            codec.postings_codec().load_postings(
+                term_info.doc_freq,
+                postings_data,
+                self.record_option,
+                option,
+                positions_data,
+            )?;
+        Ok(postings)
     }
 
     /// Returns a posting object given a `term_info`.
@@ -226,25 +271,9 @@ impl InvertedIndexReader {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-    ) -> io::Result<SegmentPostings> {
-        let option = option.downgrade(self.record_option);
-
-        let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
-        let position_reader = {
-            if option.has_positions() {
-                let positions_data = self
-                    .positions_file_slice
-                    .read_bytes_slice(term_info.positions_range.clone())?;
-                let position_reader = PositionReader::open(positions_data)?;
-                Some(position_reader)
-            } else {
-                None
-            }
-        };
-        Ok(SegmentPostings::from_block_postings(
-            block_postings,
-            position_reader,
-        ))
+    ) -> io::Result<Box<dyn Postings>> {
+        self.codec
+            .load_postings_type_erased(term_info, option, self)
     }
 
     /// Returns the total number of tokens recorded for all documents
@@ -267,7 +296,7 @@ impl InvertedIndexReader {
         &self,
         term: &Term,
         option: IndexRecordOption,
-    ) -> io::Result<Option<SegmentPostings>> {
+    ) -> io::Result<Option<Box<dyn Postings>>> {
         self.get_term_info(term)?
             .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
             .transpose()

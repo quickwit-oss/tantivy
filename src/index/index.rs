@@ -8,13 +8,14 @@ use std::thread::available_parallelism;
 use super::segment::Segment;
 use super::segment_reader::merge_field_meta_data;
 use super::{FieldMetadata, IndexSettings};
-use crate::codec::{CodecConfiguration, StandardCodec};
+use crate::codec::StandardCodec;
 use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
+use crate::index::codec_configuration::CodecConfiguration;
 use crate::index::{IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory};
 use crate::indexer::index_writer::{
     IndexWriterOptions, MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN,
@@ -274,9 +275,8 @@ impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
 
     fn create_avoid_monomorphization(self, dir: Box<dyn Directory>) -> crate::Result<Index<Codec>> {
         self.validate()?;
-        let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
-        let codec: CodecConfiguration = CodecConfiguration::from_codec(&self.codec);
+        let codec: CodecConfiguration = CodecConfiguration::from(&self.codec);
         save_new_metas(
             self.get_expect_schema()?,
             self.index_settings.clone(),
@@ -419,7 +419,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
             tokenizers: self.tokenizers.clone(),
             fast_field_tokenizers: self.fast_field_tokenizers.clone(),
             inventory: self.inventory.clone(),
-            codec: StandardCodec::default(),
+            codec: StandardCodec,
         }
     }
 

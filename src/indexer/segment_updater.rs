@@ -10,11 +10,13 @@ use std::sync::{Arc, RwLock};
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use super::segment_manager::SegmentManager;
-use crate::codec::{Codec, CodecConfiguration};
+use crate::codec::Codec;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
-use crate::index::{Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta};
+use crate::index::{
+    CodecConfiguration, Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta,
+};
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
@@ -237,7 +239,7 @@ pub fn merge_filtered_segments<C: crate::codec::Codec, T: Into<Box<dyn Directory
             ))
             .trim_end()
     );
-    let codec_configuration = CodecConfiguration::from_codec(segments[0].index().codec());
+    let codec_configuration = CodecConfiguration::from(segments[0].index().codec());
 
     let index_meta = IndexMeta {
         index_settings: target_settings, // index_settings of all segments should be the same
@@ -408,7 +410,7 @@ impl<Codec: crate::codec::Codec> SegmentUpdater<Codec> {
             //
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
             committed_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
-            let codec = CodecConfiguration::from_codec(index.codec());
+            let codec = CodecConfiguration::from(index.codec());
             let index_meta = IndexMeta {
                 index_settings: index.settings().clone(),
                 segments: committed_segment_metas,

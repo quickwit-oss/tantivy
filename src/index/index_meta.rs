@@ -7,8 +7,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::SegmentComponent;
-use crate::codec::{Codec, CodecConfiguration};
-use crate::index::SegmentId;
+use crate::codec::Codec;
+use crate::index::{CodecConfiguration, SegmentId};
 use crate::schema::Schema;
 use crate::store::Compressor;
 use crate::{Inventory, Opstamp, TrackedObject};
@@ -321,6 +321,7 @@ pub struct IndexMeta {
     /// This payload is entirely unused by tantivy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
+    /// Codec configuration for the index.
     pub codec: CodecConfiguration,
 }
 
@@ -367,7 +368,7 @@ impl IndexMeta {
             schema,
             opstamp: 0u64,
             payload: None,
-            codec: CodecConfiguration::from_codec(codec),
+            codec: CodecConfiguration::from(codec),
         }
     }
 
