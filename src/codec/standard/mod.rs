@@ -15,7 +15,10 @@ impl Codec for StandardCodec {
 
     fn from_json_props(json_value: &serde_json::Value) -> crate::Result<Self> {
         if !json_value.is_null() {
-            return Err(crate::TantivyError::InvalidArgument(format!("Codec property for the StandardCodec are unexpected. expected null, got {}", json_value.as_str().unwrap_or("null"))))
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Codec property for the StandardCodec are unexpected. expected null, got {}",
+                json_value.as_str().unwrap_or("null")
+            )));
         }
         Ok(StandardCodec)
     }

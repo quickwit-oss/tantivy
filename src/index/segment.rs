@@ -11,7 +11,7 @@ use crate::Opstamp;
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
-pub struct Segment<C: crate::codec::Codec=StandardCodec> {
+pub struct Segment<C: crate::codec::Codec = StandardCodec> {
     index: Index<C>,
     meta: SegmentMeta,
 }

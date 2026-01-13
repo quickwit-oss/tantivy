@@ -406,7 +406,6 @@ impl Index {
     }
 }
 
-
 impl<Codec: crate::codec::Codec> Index<Codec> {
     /// Returns a version of this index with the standard codec.
     /// This is useful when you need to pass the index to APIs that

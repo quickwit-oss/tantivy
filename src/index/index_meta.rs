@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use super::SegmentComponent;
-use crate::codec::{Codec, CodecConfiguration, StandardCodec};
+use crate::codec::{Codec, CodecConfiguration};
 use crate::index::SegmentId;
 use crate::schema::Schema;
 use crate::store::Compressor;
@@ -323,7 +323,6 @@ pub struct IndexMeta {
     pub payload: Option<String>,
     pub codec: CodecConfiguration,
 }
-
 
 #[derive(Deserialize, Debug)]
 struct UntrackedIndexMeta {

@@ -166,8 +166,8 @@ mod functional_test;
 
 #[macro_use]
 mod macros;
-mod future_result;
 pub mod codec;
+mod future_result;
 
 // Re-exports
 pub use common::{ByteCount, DateTime};

@@ -145,7 +145,10 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
 }
 
 impl IndexMerger {
-    pub fn open<C: crate::codec::Codec>(schema: Schema, segments: &[Segment<C>]) -> crate::Result<IndexMerger> {
+    pub fn open<C: crate::codec::Codec>(
+        schema: Schema,
+        segments: &[Segment<C>],
+    ) -> crate::Result<IndexMerger> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
         Self::open_with_custom_alive_set(schema, segments, alive_bitset)
     }
@@ -525,7 +528,10 @@ impl IndexMerger {
     ///
     /// # Returns
     /// The number of documents in the resulting segment.
-    pub fn write<C: crate::codec::Codec>(&self, mut serializer: SegmentSerializer<C>) -> crate::Result<u32> {
+    pub fn write<C: crate::codec::Codec>(
+        &self,
+        mut serializer: SegmentSerializer<C>,
+    ) -> crate::Result<u32> {
         let doc_id_mapping = self.get_doc_id_from_concatenated_data()?;
         debug!("write-fieldnorms");
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {

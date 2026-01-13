@@ -949,7 +949,10 @@ mod tests {
         };
 
         // mismatched schema index list
-        let result = merge_indices(&[first_index, second_index], Box::new(RamDirectory::default()));
+        let result = merge_indices(
+            &[first_index, second_index],
+            Box::new(RamDirectory::default()),
+        );
         assert!(result.is_err());
 
         Ok(())

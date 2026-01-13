@@ -32,7 +32,11 @@ impl CodecConfiguration {
 
     pub fn to_codec<C: Codec>(&self) -> crate::Result<C> {
         if self.name != C::NAME {
-            return Err(crate::TantivyError::InvalidArgument(format!("Codec name mismatch: expected {}, got {}", C::NAME, self.name)));
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Codec name mismatch: expected {}, got {}",
+                C::NAME,
+                self.name
+            )));
         }
         C::from_json_props(&self.props)
     }
