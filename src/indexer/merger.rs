@@ -7,6 +7,7 @@ use common::ReadOnlyBitSet;
 use itertools::Itertools;
 use measure_time::debug_time;
 
+use crate::codec::{Codec, StandardCodec};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
@@ -76,10 +77,11 @@ fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::
     Ok(total_num_tokens)
 }
 
-pub struct IndexMerger {
+pub struct IndexMerger<C: Codec = StandardCodec> {
     schema: Schema,
     pub(crate) readers: Vec<SegmentReader>,
     max_doc: u32,
+    codec: C,
 }
 
 struct DeltaComputer {
@@ -144,11 +146,8 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
         .collect()
 }
 
-impl IndexMerger {
-    pub fn open<C: crate::codec::Codec>(
-        schema: Schema,
-        segments: &[Segment<C>],
-    ) -> crate::Result<IndexMerger> {
+impl<C: Codec> IndexMerger<C> {
+    pub fn open(schema: Schema, segments: &[Segment<C>]) -> crate::Result<IndexMerger<C>> {
         let alive_bitset = segments.iter().map(|_| None).collect_vec();
         Self::open_with_custom_alive_set(schema, segments, alive_bitset)
     }
@@ -165,11 +164,15 @@ impl IndexMerger {
     // This can be used to merge but also apply an additional filter.
     // One use case is demux, which is basically taking a list of
     // segments and partitions them e.g. by a value in a field.
-    pub fn open_with_custom_alive_set<C: crate::codec::Codec>(
+    //
+    // # Panics if segments is empty.
+    pub fn open_with_custom_alive_set(
         schema: Schema,
         segments: &[Segment<C>],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
-    ) -> crate::Result<IndexMerger> {
+    ) -> crate::Result<IndexMerger<C>> {
+        assert!(!segments.is_empty());
+        let codec = segments[0].index().codec().clone();
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
@@ -192,6 +195,7 @@ impl IndexMerger {
             schema,
             readers,
             max_doc,
+            codec,
         })
     }
 
@@ -290,7 +294,7 @@ impl IndexMerger {
         &self,
         indexed_field: Field,
         _field_type: &FieldType,
-        serializer: &mut InvertedIndexSerializer,
+        serializer: &mut InvertedIndexSerializer<C>,
         fieldnorm_reader: Option<FieldNormReader>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
@@ -470,7 +474,7 @@ impl IndexMerger {
 
     fn write_postings(
         &self,
-        serializer: &mut InvertedIndexSerializer,
+        serializer: &mut InvertedIndexSerializer<C>,
         fieldnorm_readers: FieldNormReaders,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
@@ -528,10 +532,7 @@ impl IndexMerger {
     ///
     /// # Returns
     /// The number of documents in the resulting segment.
-    pub fn write<C: crate::codec::Codec>(
-        &self,
-        mut serializer: SegmentSerializer<C>,
-    ) -> crate::Result<u32> {
+    pub fn write(&self, mut serializer: SegmentSerializer<C>) -> crate::Result<u32> {
         let doc_id_mapping = self.get_doc_id_from_concatenated_data()?;
         debug!("write-fieldnorms");
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {

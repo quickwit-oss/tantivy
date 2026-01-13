@@ -4,6 +4,7 @@ use std::ops::Range;
 
 use stacker::Addr;
 
+use crate::codec::Codec;
 use crate::fieldnorm::FieldNormReaders;
 use crate::indexer::indexing_term::IndexingTerm;
 use crate::indexer::path_to_unordered_id::OrderedPathId;
@@ -48,12 +49,12 @@ fn make_field_partition(
 /// Serialize the inverted index.
 /// It pushes all term, one field at a time, towards the
 /// postings serializer.
-pub(crate) fn serialize_postings(
+pub(crate) fn serialize_postings<C: Codec>(
     ctx: IndexingContext,
     schema: Schema,
     per_field_postings_writers: &PerFieldPostingsWriter,
     fieldnorm_readers: FieldNormReaders,
-    serializer: &mut InvertedIndexSerializer,
+    serializer: &mut InvertedIndexSerializer<C>,
 ) -> crate::Result<()> {
     // Replace unordered ids by ordered ids to be able to sort
     let unordered_id_to_ordered_id: Vec<OrderedPathId> =
@@ -166,12 +167,12 @@ impl PostingsWriter for PostingsWriterEnum {
         }
     }
 
-    fn serialize(
+    fn serialize<C: Codec>(
         &self,
         term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
         ordered_id_to_path: &[&str],
         ctx: &IndexingContext,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<C>,
     ) -> io::Result<()> {
         match self {
             PostingsWriterEnum::DocId(writer) => {
@@ -254,12 +255,12 @@ pub(crate) trait PostingsWriter: Send + Sync {
 
     /// Serializes the postings on disk.
     /// The actual serialization format is handled by the `PostingsSerializer`.
-    fn serialize(
+    fn serialize<C: Codec>(
         &self,
         term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
         ordered_id_to_path: &[&str],
         ctx: &IndexingContext,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<C>,
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
@@ -311,12 +312,12 @@ pub(crate) struct SpecializedPostingsWriter<Rec: Recorder> {
 
 impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
     #[inline]
-    pub(crate) fn serialize_one_term(
+    pub(crate) fn serialize_one_term<C: Codec>(
         term: &[u8],
         addr: Addr,
         buffer_lender: &mut BufferLender,
         ctx: &IndexingContext,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<C>,
     ) -> io::Result<()> {
         let recorder: Rec = ctx.term_index.read(addr);
         let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
@@ -357,12 +358,12 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
         });
     }
 
-    fn serialize(
+    fn serialize<C: Codec>(
         &self,
         term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
         _ordered_id_to_path: &[&str],
         ctx: &IndexingContext,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<C>,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for (_field, _path_id, term, addr) in term_addrs {

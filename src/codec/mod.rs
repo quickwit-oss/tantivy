@@ -1,13 +1,15 @@
-mod postings;
-mod standard;
+pub mod postings;
+pub mod standard;
 
 use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
 pub use standard::StandardCodec;
 
+use crate::codec::postings::PostingsCodec;
+
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
-    type PostingsCodec;
+    type PostingsCodec: PostingsCodec;
 
     const NAME: &'static str;
 

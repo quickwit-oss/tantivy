@@ -1,16 +1,14 @@
-use std::cmp::Ordering;
 use std::io::{self, Write};
 
-use common::{BinarySerializable, CountingWriter, VInt};
+use common::{BinarySerializable, CountingWriter};
 
 use super::TermInfo;
+use crate::codec::postings::{PostingsCodec, PostingsSerializer};
+use crate::codec::Codec;
 use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::Segment;
 use crate::positions::PositionSerializer;
-use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
-use crate::postings::skip::SkipSerializer;
-use crate::query::Bm25Weight;
 use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema};
 use crate::termdict::TermDictionaryBuilder;
 use crate::{DocId, Score};
@@ -46,24 +44,25 @@ use crate::{DocId, Score};
 ///
 /// A description of the serialization format is
 /// [available here](https://fulmicoton.gitbooks.io/tantivy-doc/content/inverted-index.html).
-pub struct InvertedIndexSerializer {
+pub struct InvertedIndexSerializer<C: Codec> {
     terms_write: CompositeWrite<WritePtr>,
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
     schema: Schema,
+    codec: C,
 }
 
-impl InvertedIndexSerializer {
+impl<C: Codec> InvertedIndexSerializer<C> {
     /// Open a new `InvertedIndexSerializer` for the given segment
-    pub fn open<C: crate::codec::Codec>(
-        segment: &mut Segment<C>,
-    ) -> crate::Result<InvertedIndexSerializer> {
+    pub fn open(segment: &mut Segment<C>) -> crate::Result<InvertedIndexSerializer<C>> {
         use crate::index::SegmentComponent::{Positions, Postings, Terms};
+        let codec = segment.index().codec().clone();
         let inv_index_serializer = InvertedIndexSerializer {
             terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),
             postings_write: CompositeWrite::wrap(segment.open_write(Postings)?),
             positions_write: CompositeWrite::wrap(segment.open_write(Positions)?),
             schema: segment.schema(),
+            codec,
         };
         Ok(inv_index_serializer)
     }
@@ -77,7 +76,7 @@ impl InvertedIndexSerializer {
         field: Field,
         total_num_tokens: u64,
         fieldnorm_reader: Option<FieldNormReader>,
-    ) -> io::Result<FieldSerializer<'_>> {
+    ) -> io::Result<FieldSerializer<'_, C>> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
@@ -104,9 +103,9 @@ impl InvertedIndexSerializer {
 
 /// The field serializer is in charge of
 /// the serialization of a specific field.
-pub struct FieldSerializer<'a> {
+pub struct FieldSerializer<'a, C: Codec> {
     term_dictionary_builder: TermDictionaryBuilder<&'a mut CountingWriter<WritePtr>>,
-    postings_serializer: PostingsSerializer,
+    postings_serializer: <C::PostingsCodec as PostingsCodec>::PostingsSerializer,
     positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
     current_term_info: TermInfo,
     term_open: bool,
@@ -114,7 +113,7 @@ pub struct FieldSerializer<'a> {
     postings_start_offset: u64,
 }
 
-impl<'a> FieldSerializer<'a> {
+impl<'a, C: Codec> FieldSerializer<'a, C> {
     fn create(
         field_type: &FieldType,
         total_num_tokens: u64,
@@ -122,7 +121,7 @@ impl<'a> FieldSerializer<'a> {
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
         fieldnorm_reader: Option<FieldNormReader>,
-    ) -> io::Result<FieldSerializer<'a>> {
+    ) -> io::Result<FieldSerializer<'a, C>> {
         total_num_tokens.serialize(postings_write)?;
         let index_record_option = field_type
             .index_record_option()
@@ -133,7 +132,11 @@ impl<'a> FieldSerializer<'a> {
             .map(|ff_reader| total_num_tokens as Score / ff_reader.num_docs() as Score)
             .unwrap_or(0.0);
         let postings_serializer =
-            PostingsSerializer::new(average_fieldnorm, index_record_option, fieldnorm_reader);
+            <<C::PostingsCodec as PostingsCodec>::PostingsSerializer as PostingsSerializer>::new(
+                average_fieldnorm,
+                index_record_option,
+                fieldnorm_reader,
+            );
         let positions_serializer_opt = if index_record_option.has_positions() {
             Some(PositionSerializer::new(positions_write))
         } else {
@@ -248,225 +251,5 @@ impl<'a> FieldSerializer<'a> {
         self.postings_write.flush()?;
         self.term_dictionary_builder.finish()?;
         Ok(())
-    }
-}
-
-struct Block {
-    doc_ids: [DocId; COMPRESSION_BLOCK_SIZE],
-    term_freqs: [u32; COMPRESSION_BLOCK_SIZE],
-    len: usize,
-}
-
-impl Block {
-    fn new() -> Self {
-        Block {
-            doc_ids: [0u32; COMPRESSION_BLOCK_SIZE],
-            term_freqs: [0u32; COMPRESSION_BLOCK_SIZE],
-            len: 0,
-        }
-    }
-
-    fn doc_ids(&self) -> &[DocId] {
-        &self.doc_ids[..self.len]
-    }
-
-    fn term_freqs(&self) -> &[u32] {
-        &self.term_freqs[..self.len]
-    }
-
-    fn clear(&mut self) {
-        self.len = 0;
-    }
-
-    fn append_doc(&mut self, doc: DocId, term_freq: u32) {
-        let len = self.len;
-        self.doc_ids[len] = doc;
-        self.term_freqs[len] = term_freq;
-        self.len = len + 1;
-    }
-
-    fn is_full(&self) -> bool {
-        self.len == COMPRESSION_BLOCK_SIZE
-    }
-
-    fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    fn last_doc(&self) -> DocId {
-        assert_eq!(self.len, COMPRESSION_BLOCK_SIZE);
-        self.doc_ids[COMPRESSION_BLOCK_SIZE - 1]
-    }
-}
-
-pub struct PostingsSerializer {
-    last_doc_id_encoded: u32,
-
-    block_encoder: BlockEncoder,
-    block: Box<Block>,
-
-    postings_write: Vec<u8>,
-    skip_write: SkipSerializer,
-
-    mode: IndexRecordOption,
-    fieldnorm_reader: Option<FieldNormReader>,
-
-    bm25_weight: Option<Bm25Weight>,
-    avg_fieldnorm: Score, /* Average number of term in the field for that segment.
-                           * this value is used to compute the block wand information. */
-    term_has_freq: bool,
-}
-
-impl PostingsSerializer {
-    pub fn new(
-        avg_fieldnorm: Score,
-        mode: IndexRecordOption,
-        fieldnorm_reader: Option<FieldNormReader>,
-    ) -> PostingsSerializer {
-        PostingsSerializer {
-            block_encoder: BlockEncoder::new(),
-            block: Box::new(Block::new()),
-
-            postings_write: Vec::new(),
-            skip_write: SkipSerializer::new(),
-
-            last_doc_id_encoded: 0u32,
-            mode,
-
-            fieldnorm_reader,
-            bm25_weight: None,
-            avg_fieldnorm,
-            term_has_freq: false,
-        }
-    }
-
-    pub fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool) {
-        self.bm25_weight = None;
-
-        self.term_has_freq = self.mode.has_freq() && record_term_freq;
-        if !self.term_has_freq {
-            return;
-        }
-
-        let num_docs_in_segment: u64 =
-            if let Some(fieldnorm_reader) = self.fieldnorm_reader.as_ref() {
-                fieldnorm_reader.num_docs() as u64
-            } else {
-                return;
-            };
-
-        if num_docs_in_segment == 0 {
-            return;
-        }
-
-        self.bm25_weight = Some(Bm25Weight::for_one_term_without_explain(
-            term_doc_freq as u64,
-            num_docs_in_segment,
-            self.avg_fieldnorm,
-        ));
-    }
-
-    fn write_block(&mut self) {
-        {
-            // encode the doc ids
-            let (num_bits, block_encoded): (u8, &[u8]) = self
-                .block_encoder
-                .compress_block_sorted(self.block.doc_ids(), self.last_doc_id_encoded);
-            self.last_doc_id_encoded = self.block.last_doc();
-            self.skip_write
-                .write_doc(self.last_doc_id_encoded, num_bits);
-            // last el block 0, offset block 1,
-            self.postings_write.extend(block_encoded);
-        }
-        if self.term_has_freq {
-            let (num_bits, block_encoded): (u8, &[u8]) = self
-                .block_encoder
-                .compress_block_unsorted(self.block.term_freqs(), true);
-            self.postings_write.extend(block_encoded);
-            self.skip_write.write_term_freq(num_bits);
-            if self.mode.has_positions() {
-                // We serialize the sum of term freqs within the skip information
-                // in order to navigate through positions.
-                let sum_freq = self.block.term_freqs().iter().cloned().sum();
-                self.skip_write.write_total_term_freq(sum_freq);
-            }
-            let mut blockwand_params = (0u8, 0u32);
-            if let Some(bm25_weight) = self.bm25_weight.as_ref() {
-                if let Some(fieldnorm_reader) = self.fieldnorm_reader.as_ref() {
-                    let docs = self.block.doc_ids().iter().cloned();
-                    let term_freqs = self.block.term_freqs().iter().cloned();
-                    let fieldnorms = docs.map(|doc| fieldnorm_reader.fieldnorm_id(doc));
-                    blockwand_params = fieldnorms
-                        .zip(term_freqs)
-                        .max_by(
-                            |(left_fieldnorm_id, left_term_freq),
-                             (right_fieldnorm_id, right_term_freq)| {
-                                let left_score =
-                                    bm25_weight.tf_factor(*left_fieldnorm_id, *left_term_freq);
-                                let right_score =
-                                    bm25_weight.tf_factor(*right_fieldnorm_id, *right_term_freq);
-                                left_score
-                                    .partial_cmp(&right_score)
-                                    .unwrap_or(Ordering::Equal)
-                            },
-                        )
-                        .unwrap();
-                }
-            }
-            let (fieldnorm_id, term_freq) = blockwand_params;
-            self.skip_write.write_blockwand_max(fieldnorm_id, term_freq);
-        }
-        self.block.clear();
-    }
-
-    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) {
-        self.block.append_doc(doc_id, term_freq);
-        if self.block.is_full() {
-            self.write_block();
-        }
-    }
-
-    pub fn close_term(
-        &mut self,
-        doc_freq: u32,
-        output_write: &mut impl std::io::Write,
-    ) -> io::Result<()> {
-        if !self.block.is_empty() {
-            // we have doc ids waiting to be written
-            // this happens when the number of doc ids is
-            // not a perfect multiple of our block size.
-            //
-            // In that case, the remaining part is encoded
-            // using variable int encoding.
-            {
-                let block_encoded = self
-                    .block_encoder
-                    .compress_vint_sorted(self.block.doc_ids(), self.last_doc_id_encoded);
-                self.postings_write.write_all(block_encoded)?;
-            }
-            // ... Idem for term frequencies
-            if self.term_has_freq {
-                let block_encoded = self
-                    .block_encoder
-                    .compress_vint_unsorted(self.block.term_freqs());
-                self.postings_write.write_all(block_encoded)?;
-            }
-            self.block.clear();
-        }
-        if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
-            let skip_data = self.skip_write.data();
-            VInt(skip_data.len() as u64).serialize(output_write)?;
-            output_write.write_all(skip_data)?;
-        }
-        output_write.write_all(&self.postings_write[..])?;
-        self.skip_write.clear();
-        self.postings_write.clear();
-        self.bm25_weight = None;
-        Ok(())
-    }
-
-    fn clear(&mut self) {
-        self.block.clear();
-        self.last_doc_id_encoded = 0;
     }
 }

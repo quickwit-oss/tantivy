@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::codec::standard::postings::StandardPostingsCodec;
 use crate::codec::Codec;
 
-mod postings;
+pub mod postings;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct StandardCodec;

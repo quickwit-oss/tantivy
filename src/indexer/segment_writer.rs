@@ -13,7 +13,7 @@ use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
-    PerFieldPostingsWriter, PostingsWriter,
+    PerFieldPostingsWriter, PostingsWriter, PostingsWriterEnum,
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
@@ -173,7 +173,7 @@ impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
             }
 
             let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
-            let postings_writer: &mut dyn PostingsWriter =
+            let postings_writer: &mut PostingsWriterEnum =
                 self.per_field_postings_writers.get_for_field_mut(field);
             term_buffer.clear_with_field(field);
 

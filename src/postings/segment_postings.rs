@@ -65,12 +65,17 @@ impl SegmentPostings {
     #[cfg(test)]
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         use crate::directory::FileSlice;
-        use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
         let mut buffer = Vec::new();
         {
+            use crate::codec::postings::PostingsSerializer;
+
             let mut postings_serializer =
-                PostingsSerializer::new(0.0, IndexRecordOption::Basic, None);
+                crate::codec::standard::postings::StandardPostingsSerializer::new(
+                    0.0,
+                    IndexRecordOption::Basic,
+                    None,
+                );
             postings_serializer.new_term(docs.len() as u32, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
@@ -95,9 +100,10 @@ impl SegmentPostings {
         doc_and_tfs: &[(u32, u32)],
         fieldnorms: Option<&[u32]>,
     ) -> SegmentPostings {
+        use crate::codec::postings::PostingsSerializer as _;
+        use crate::codec::standard::postings::StandardPostingsSerializer;
         use crate::directory::FileSlice;
         use crate::fieldnorm::FieldNormReader;
-        use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
         use crate::Score;
         let mut buffer: Vec<u8> = Vec::new();
@@ -114,7 +120,7 @@ impl SegmentPostings {
                 total_num_tokens as Score / fieldnorms.len() as Score
             })
             .unwrap_or(0.0);
-        let mut postings_serializer = PostingsSerializer::new(
+        let mut postings_serializer = StandardPostingsSerializer::new(
             average_field_norm,
             IndexRecordOption::WithFreqs,
             fieldnorm_reader,

@@ -20,4 +20,6 @@ pub trait PostingsSerializer {
     fn write_doc(&mut self, doc_id: DocId, term_freq: u32);
 
     fn close_term(&mut self, doc_freq: u32, wrt: &mut impl io::Write) -> io::Result<()>;
+
+    fn clear(&mut self);
 }

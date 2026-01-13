@@ -115,7 +115,7 @@ fn merge<Codec: crate::codec::Codec>(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
+    let merger: IndexMerger<Codec> = IndexMerger::open(index.schema(), &segments[..])?;
 
     // ... we just serialize this index merger in our new segment to merge the segments.
     let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
@@ -186,12 +186,12 @@ pub fn merge_indices<Codec: crate::codec::Codec>(
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
 #[doc(hidden)]
-pub fn merge_filtered_segments<Codec: crate::codec::Codec, T: Into<Box<dyn Directory>>>(
-    segments: &[Segment<Codec>],
+pub fn merge_filtered_segments<C: crate::codec::Codec, T: Into<Box<dyn Directory>>>(
+    segments: &[Segment<C>],
     target_settings: IndexSettings,
     filter_doc_ids: Vec<Option<AliveBitSet>>,
     output_directory: T,
-) -> crate::Result<Index<Codec>> {
+) -> crate::Result<Index<C>> {
     if segments.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
         return Err(crate::TantivyError::InvalidArgument(
@@ -212,7 +212,7 @@ pub fn merge_filtered_segments<Codec: crate::codec::Codec, T: Into<Box<dyn Direc
         ));
     }
 
-    let mut merged_index: Index<Codec> = Index::builder()
+    let mut merged_index: Index<C> = Index::builder()
         .schema(target_schema.clone())
         .codec(segments[0].index().codec().clone())
         .settings(target_settings.clone())
@@ -220,7 +220,7 @@ pub fn merge_filtered_segments<Codec: crate::codec::Codec, T: Into<Box<dyn Direc
 
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger =
+    let merger: IndexMerger<C> =
         IndexMerger::open_with_custom_alive_set(merged_index.schema(), segments, filter_doc_ids)?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
     let num_docs = merger.write(segment_serializer)?;

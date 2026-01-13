@@ -124,6 +124,11 @@ impl PostingsSerializer for StandardPostingsSerializer {
         self.bm25_weight = None;
         Ok(())
     }
+
+    fn clear(&mut self) {
+        self.block.clear();
+        self.last_doc_id_encoded = 0;
+    }
 }
 
 impl StandardPostingsSerializer {
@@ -178,10 +183,5 @@ impl StandardPostingsSerializer {
             self.skip_write.write_blockwand_max(fieldnorm_id, term_freq);
         }
         self.block.clear();
-    }
-
-    fn clear(&mut self) {
-        self.block.clear();
-        self.last_doc_id_encoded = 0;
     }
 }

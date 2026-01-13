@@ -3,6 +3,7 @@ use std::io;
 use common::json_path_writer::JSON_END_OF_PATH;
 use stacker::Addr;
 
+use crate::codec::Codec;
 use crate::indexer::indexing_term::IndexingTerm;
 use crate::indexer::path_to_unordered_id::OrderedPathId;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
@@ -52,12 +53,12 @@ impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
     }
 
     /// The actual serialization format is handled by the `PostingsSerializer`.
-    fn serialize(
+    fn serialize<C: Codec>(
         &self,
         ordered_term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
         ordered_id_to_path: &[&str],
         ctx: &IndexingContext,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<C>,
     ) -> io::Result<()> {
         let mut term_buffer = JsonTermSerializer(Vec::with_capacity(48));
         let mut buffer_lender = BufferLender::default();

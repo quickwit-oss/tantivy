@@ -13,7 +13,7 @@ pub struct SegmentSerializer<C: crate::codec::Codec> {
     pub(crate) store_writer: StoreWriter,
     fast_field_write: WritePtr,
     fieldnorms_serializer: Option<FieldNormsSerializer>,
-    postings_serializer: InvertedIndexSerializer,
+    postings_serializer: InvertedIndexSerializer<C>,
 }
 
 impl<C: crate::codec::Codec> SegmentSerializer<C> {
@@ -55,7 +55,7 @@ impl<C: crate::codec::Codec> SegmentSerializer<C> {
     }
 
     /// Accessor to the `PostingsSerializer`.
-    pub fn get_postings_serializer(&mut self) -> &mut InvertedIndexSerializer {
+    pub fn get_postings_serializer(&mut self) -> &mut InvertedIndexSerializer<C> {
         &mut self.postings_serializer
     }
 
