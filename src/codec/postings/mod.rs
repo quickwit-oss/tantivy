@@ -4,6 +4,7 @@ use common::OwnedBytes;
 
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::FreqReadingOption;
+use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
@@ -70,4 +71,10 @@ pub trait PostingsReader: Sized {
 
     // TODO Move to the codec and use the serializer.
     fn empty() -> Self;
+
+    fn block_max_score(
+        &mut self,
+        fieldnorm_reader: &FieldNormReader,
+        bm25_weight: &Bm25Weight,
+    ) -> Score;
 }

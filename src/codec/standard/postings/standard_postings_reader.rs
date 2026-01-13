@@ -269,6 +269,45 @@ impl PostingsReader for StandardPostingsReader {
             skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
         }
     }
+
+    /// Returns the block_max_score for the current block.
+    /// It does not require the block to be loaded. For instance, it is ok to call this method
+    /// after having called `.shallow_advance(..)`.
+    ///
+    /// See `TermScorer::block_max_score(..)` for more information.
+    fn block_max_score(
+        &mut self,
+        fieldnorm_reader: &FieldNormReader,
+        bm25_weight: &Bm25Weight,
+    ) -> Score {
+        if let Some(score) = self.block_max_score_cache {
+            return score;
+        }
+        if let Some(skip_reader_max_score) = self.skip_reader.block_max_score(bm25_weight) {
+            // if we are on a full block, the skip reader should have the block max information
+            // for us
+            self.block_max_score_cache = Some(skip_reader_max_score);
+            return skip_reader_max_score;
+        }
+        // this is the last block of the segment posting list.
+        // If it is actually loaded, we can compute block max manually.
+        if self.block_loaded {
+            let docs = self.doc_decoder.output_array().iter().cloned();
+            let freqs = self.freq_decoder.output_array().iter().cloned();
+            let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
+                let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
+                bm25_weight.score(fieldnorm_id, term_freq)
+            });
+            let block_max_score = max_score(bm25_scores).unwrap_or(0.0);
+            self.block_max_score_cache = Some(block_max_score);
+            return block_max_score;
+        }
+        // We do not have access to any good block max value. We return bm25_weight.max_score()
+        // as it is a valid upperbound.
+        //
+        // We do not cache it however, so that it gets computed when once block is loaded.
+        bm25_weight.max_score()
+    }
 }
 
 impl StandardPostingsReader {

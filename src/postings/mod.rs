@@ -35,7 +35,7 @@ pub use self::term_info::TermInfo;
 
 #[expect(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
-pub(crate) enum FreqReadingOption {
+pub enum FreqReadingOption {
     NoFreq,
     SkipFreq,
     ReadFreq,

@@ -4,12 +4,12 @@ use crate::schema::IndexRecordOption;
 use crate::Score;
 
 mod block;
-mod block_segment_postings;
-mod postings_serializer;
+mod standard_postings_reader;
+mod standard_postings_serializer;
 mod skip;
 
-pub use block_segment_postings::StandardPostingsReader;
-pub use postings_serializer::StandardPostingsSerializer;
+pub use standard_postings_reader::StandardPostingsReader;
+pub use standard_postings_serializer::StandardPostingsSerializer;
 
 pub struct StandardPostingsCodec;
 

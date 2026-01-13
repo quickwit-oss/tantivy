@@ -159,7 +159,7 @@ impl BlockSegmentPostings {
         }
         // this is the last block of the segment posting list.
         // If it is actually loaded, we can compute block max manually.
-        if self.block_is_loaded() {
+        if self.block_loaded {
             let docs = self.doc_decoder.output_array().iter().cloned();
             let freqs = self.freq_decoder.output_array().iter().cloned();
             let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
@@ -222,7 +222,7 @@ impl BlockSegmentPostings {
     /// returned by `.docs()` is empty.
     #[inline]
     pub fn docs(&self) -> &[DocId] {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.doc_decoder.output_array()
     }
 
@@ -235,14 +235,14 @@ impl BlockSegmentPostings {
     /// Return the array of `term freq` in the block.
     #[inline]
     pub fn freqs(&self) -> &[u32] {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.freq_decoder.output_array()
     }
 
     /// Return the frequency at index `idx` of the block.
     #[inline]
     pub fn freq(&self, idx: usize) -> u32 {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.freq_decoder.output(idx)
     }
 
@@ -253,7 +253,7 @@ impl BlockSegmentPostings {
     /// of any number between 1 and `NUM_DOCS_PER_BLOCK - 1`
     #[inline]
     pub fn block_len(&self) -> usize {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.doc_decoder.output_len
     }
 
@@ -297,13 +297,9 @@ impl BlockSegmentPostings {
         }
     }
 
-    pub(crate) fn block_is_loaded(&self) -> bool {
-        self.block_loaded
-    }
-
-    pub(crate) fn load_block(&mut self) {
+    fn load_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
-        if self.block_is_loaded() {
+        if self.block_loaded {
             return;
         }
         match self.skip_reader.block_info() {

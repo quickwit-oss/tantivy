@@ -166,7 +166,6 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> DocId {
-        debug_assert!(self.block_cursor.block_is_loaded());
         if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
             self.cur = 0;
             self.block_cursor.advance();
