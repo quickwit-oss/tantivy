@@ -4,7 +4,7 @@ use std::{fmt, io};
 
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-use crate::{Endianness, VInt};
+use crate::{Endianness, RefReader, VInt};
 
 #[derive(Default)]
 struct Counter(u64);
@@ -39,6 +39,13 @@ pub trait BinarySerializable: fmt::Debug + Sized {
     }
 }
 
+/// Trait for deserializing from a `RefReader`
+///
+/// Allows for references to facilitate zerocopy deserialization
+pub trait BinaryRefDeserializable<'a>: fmt::Debug + Sized {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self>;
+}
+
 pub trait DeserializeFrom<T: BinarySerializable> {
     fn deserialize(&mut self) -> io::Result<T>;
 }
@@ -50,6 +57,15 @@ pub trait DeserializeFrom<T: BinarySerializable> {
 impl<T: BinarySerializable> DeserializeFrom<T> for &[u8] {
     fn deserialize(&mut self) -> io::Result<T> {
         T::deserialize(self)
+    }
+}
+
+/// Implement BinaryRefDeserializable from for all types which implement
+/// BinarySerializable and FixedSize.
+impl<'a, T: BinarySerializable + FixedSize> BinaryRefDeserializable<'a> for T {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<T> {
+        let mut bytes = reader.read_n(T::SIZE_IN_BYTES)?;
+        T::deserialize(&mut bytes)
     }
 }
 
@@ -284,6 +300,82 @@ impl<'a> BinarySerializable for Cow<'a, [u8]> {
             items.push(item);
         }
         Ok(Cow::Owned(items))
+    }
+}
+
+fn end_of_buffer_error<T>() -> Result<T, io::Error> {
+    Err(io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "Unexpected end of buffer",
+    ))
+}
+
+impl<'a> BinaryRefDeserializable<'a> for &'a [u8] {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        let len = VInt::deserialize_from_ref(reader)?.val() as usize;
+
+        if let Ok(slice) = reader.read_n(len) {
+            Ok(slice)
+        } else {
+            end_of_buffer_error()
+        }
+    }
+}
+
+impl<'a> BinaryRefDeserializable<'a> for Cow<'a, [u8]> {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        let len = VInt::deserialize_from_ref(reader)?.val() as usize;
+
+        if let Ok(slice) = reader.read_n(len) {
+            Ok(Cow::Borrowed(slice))
+        } else {
+            end_of_buffer_error()
+        }
+    }
+}
+
+impl<'a> BinaryRefDeserializable<'a> for &'a str {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        let len = VInt::deserialize_from_ref(reader)?.val() as usize;
+        if let Ok(slice) = reader.read_n(len) {
+            match str::from_utf8(slice) {
+                Ok(valid_str) => Ok(valid_str),
+                Err(_) => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid UTF-8 sequence",
+                )),
+            }
+        } else {
+            end_of_buffer_error()
+        }
+    }
+}
+
+impl<'a> BinaryRefDeserializable<'a> for Cow<'a, str> {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        let len = VInt::deserialize_from_ref(reader)?.val() as usize;
+        if let Ok(slice) = reader.read_n(len) {
+            match str::from_utf8(slice) {
+                Ok(valid_str) => Ok(Cow::Borrowed(valid_str)),
+                Err(_) => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid UTF-8 sequence",
+                )),
+            }
+        } else {
+            end_of_buffer_error()
+        }
+    }
+}
+
+impl<'a, T: BinaryRefDeserializable<'a>> BinaryRefDeserializable<'a> for Vec<T> {
+    fn deserialize_from_ref<'b: 'a>(reader: &'b RefReader) -> io::Result<Self> {
+        let len = VInt::deserialize_from_ref(reader)?.val() as usize;
+        let mut vec = Vec::with_capacity(len);
+        for _ in 0..len {
+            vec.push(T::deserialize_from_ref(reader)?);
+        }
+        Ok(vec)
     }
 }
 

@@ -69,7 +69,7 @@
 //! // The API for this is very similar to serde but a little bit
 //! // more specialised, giving you access to types like IP addresses, datetime, etc...
 //! impl DocumentDeserialize for MyCustomDocument {
-//!     fn deserialize<'de, D>(deserializer: D) -> Result<Self, DeserializeError>
+//!     fn deserialize<'de, D>(deserializer: &'de D) -> Result<Self, DeserializeError>
 //!     where D: DocumentDeserializer<'de>
 //!     {
 //!         // We're not going to implement the necessary logic for this example
@@ -160,8 +160,8 @@
 //! TODO: Complete this section...
 
 mod de;
-mod default_document;
 mod existing_type_impls;
+mod owned_document;
 mod owned_value;
 mod se;
 mod value;
@@ -169,12 +169,11 @@ mod value;
 use std::collections::BTreeMap;
 use std::mem;
 
-pub(crate) use self::de::BinaryDocumentDeserializer;
 pub use self::de::{
-    ArrayAccess, DeserializeError, DocumentDeserialize, DocumentDeserializer, ObjectAccess,
-    ValueDeserialize, ValueDeserializer, ValueType, ValueVisitor,
+    ArrayAccess, BinaryDocumentDeserializer, DeserializeError, DocumentDeserialize,
+    DocumentDeserializeRef, DocumentDeserializer, ObjectAccess, RefValue, ValueType,
 };
-pub use self::default_document::{
+pub use self::owned_document::{
     CompactDocArrayIter, CompactDocObjectIter, CompactDocValue, DocParsingError, TantivyDocument,
 };
 pub use self::owned_value::OwnedValue;

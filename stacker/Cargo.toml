@@ -32,4 +32,4 @@ rand_distr = "0.4.3"
 
 [features]
 compare_hash_only = ["ahash"] # Compare hash only, not the key in the Hashmap
-unstable = [] # useful for benches.
+unstable = []                 # useful for benches.
