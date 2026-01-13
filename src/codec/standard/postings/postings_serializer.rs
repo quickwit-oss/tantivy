@@ -30,29 +30,28 @@ pub struct StandardPostingsSerializer {
     term_has_freq: bool,
 }
 
-impl PostingsSerializer for StandardPostingsSerializer {
-    fn new(
+impl StandardPostingsSerializer {
+    pub fn new(
         avg_fieldnorm: Score,
         mode: IndexRecordOption,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> StandardPostingsSerializer {
         Self {
+            last_doc_id_encoded: 0,
             block_encoder: BlockEncoder::new(),
             block: Box::new(Block::new()),
-
             postings_write: Vec::new(),
             skip_write: SkipSerializer::new(),
-
-            last_doc_id_encoded: 0u32,
             mode,
-
             fieldnorm_reader,
             bm25_weight: None,
             avg_fieldnorm,
             term_has_freq: false,
         }
     }
+}
 
+impl PostingsSerializer for StandardPostingsSerializer {
     fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool) {
         self.bm25_weight = None;
 

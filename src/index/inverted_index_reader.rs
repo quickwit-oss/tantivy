@@ -208,7 +208,8 @@ impl InvertedIndexReader {
     ) -> io::Result<BlockSegmentPostings> {
         let postings_data = self
             .postings_file_slice
-            .slice(term_info.postings_range.clone());
+            .slice(term_info.postings_range.clone())
+            .read_bytes()?;
         BlockSegmentPostings::open(
             term_info.doc_freq,
             postings_data,

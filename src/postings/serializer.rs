@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use common::{BinarySerializable, CountingWriter};
 
 use super::TermInfo;
-use crate::codec::postings::{PostingsCodec, PostingsSerializer};
+use crate::codec::postings::PostingsSerializer;
 use crate::codec::Codec;
 use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
@@ -52,6 +52,8 @@ pub struct InvertedIndexSerializer<C: Codec> {
     codec: C,
 }
 
+use crate::codec::postings::PostingsCodec;
+
 impl<C: Codec> InvertedIndexSerializer<C> {
     /// Open a new `InvertedIndexSerializer` for the given segment
     pub fn open(segment: &mut Segment<C>) -> crate::Result<InvertedIndexSerializer<C>> {
@@ -89,6 +91,7 @@ impl<C: Codec> InvertedIndexSerializer<C> {
             postings_write,
             positions_write,
             fieldnorm_reader,
+            &self.codec,
         )
     }
 
@@ -121,6 +124,7 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
         fieldnorm_reader: Option<FieldNormReader>,
+        codec: &C,
     ) -> io::Result<FieldSerializer<'a, C>> {
         total_num_tokens.serialize(postings_write)?;
         let index_record_option = field_type
@@ -131,12 +135,11 @@ impl<'a, C: Codec> FieldSerializer<'a, C> {
             .as_ref()
             .map(|ff_reader| total_num_tokens as Score / ff_reader.num_docs() as Score)
             .unwrap_or(0.0);
-        let postings_serializer =
-            <<C::PostingsCodec as PostingsCodec>::PostingsSerializer as PostingsSerializer>::new(
-                average_fieldnorm,
-                index_record_option,
-                fieldnorm_reader,
-            );
+        let postings_serializer = codec.postings_codec().new_serializer(
+            average_fieldnorm,
+            index_record_option,
+            fieldnorm_reader,
+        );
         let positions_serializer_opt = if index_record_option.has_positions() {
             Some(PositionSerializer::new(positions_write))
         } else {

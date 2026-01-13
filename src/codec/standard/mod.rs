@@ -26,4 +26,8 @@ impl Codec for StandardCodec {
     fn to_json_props(&self) -> serde_json::Value {
         serde_json::Value::Null
     }
+
+    fn postings_codec(&self) -> &Self::PostingsCodec {
+        &StandardPostingsCodec
+    }
 }

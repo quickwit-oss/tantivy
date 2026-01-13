@@ -15,6 +15,8 @@ pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
 
     fn from_json_props(json_value: &serde_json::Value) -> crate::Result<Self>;
     fn to_json_props(&self) -> serde_json::Value;
+
+    fn postings_codec(&self) -> &Self::PostingsCodec;
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

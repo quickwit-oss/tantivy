@@ -64,7 +64,8 @@ impl SegmentPostings {
     /// buffer with the serialized data.
     #[cfg(test)]
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
-        use crate::directory::FileSlice;
+        use common::OwnedBytes;
+
         use crate::schema::IndexRecordOption;
         let mut buffer = Vec::new();
         {
@@ -86,7 +87,7 @@ impl SegmentPostings {
         }
         let block_segment_postings = BlockSegmentPostings::open(
             docs.len() as u32,
-            FileSlice::from(buffer),
+            OwnedBytes::new(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
         )
@@ -100,9 +101,10 @@ impl SegmentPostings {
         doc_and_tfs: &[(u32, u32)],
         fieldnorms: Option<&[u32]>,
     ) -> SegmentPostings {
+        use common::OwnedBytes;
+
         use crate::codec::postings::PostingsSerializer as _;
         use crate::codec::standard::postings::StandardPostingsSerializer;
-        use crate::directory::FileSlice;
         use crate::fieldnorm::FieldNormReader;
         use crate::schema::IndexRecordOption;
         use crate::Score;
@@ -134,7 +136,7 @@ impl SegmentPostings {
             .unwrap();
         let block_segment_postings = BlockSegmentPostings::open(
             doc_and_tfs.len() as u32,
-            FileSlice::from(buffer),
+            OwnedBytes::new(buffer),
             IndexRecordOption::WithFreqs,
             IndexRecordOption::WithFreqs,
         )
