@@ -8,7 +8,7 @@ const TOTAL_NUM_VALUES: u32 = 1_000_000;
 fn gen_optional_index(fill_ratio: f64) -> OptionalIndex {
     let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
     let vals: Vec<u32> = (0..TOTAL_NUM_VALUES)
-        .map(|_| rng.gen_bool(fill_ratio))
+        .map(|_| rng.random_bool(fill_ratio))
         .enumerate()
         .filter(|(_pos, val)| *val)
         .map(|(pos, _)| pos as u32)
@@ -25,7 +25,7 @@ fn random_range_iterator(
     let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
     let mut current = start;
     std::iter::from_fn(move || {
-        current += rng.gen_range(avg_step_size - avg_deviation..=avg_step_size + avg_deviation);
+        current += rng.random_range(avg_step_size - avg_deviation..=avg_step_size + avg_deviation);
         if current >= end { None } else { Some(current) }
     })
 }

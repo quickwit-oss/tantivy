@@ -429,7 +429,7 @@ mod tests {
                 docs.push(doc);
             }
 
-            docs.shuffle(&mut rand::thread_rng());
+            docs.shuffle(&mut rand::rng());
             let mut docs_it = docs.into_iter();
             for doc in (&mut docs_it).take(50) {
                 index_writer.add_document(doc)?;

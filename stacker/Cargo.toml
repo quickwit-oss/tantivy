@@ -23,12 +23,12 @@ name = "hashmap"
 path = "example/hashmap.rs"
 
 [dev-dependencies]
-rand = "0.8.5"
+rand = "0.9"
 zipf = "7.0.0"
 rustc-hash = "2.1.0"
 proptest = "1.2.0"
 binggan = { version = "0.14.0" }
-rand_distr = "0.4.3"
+rand_distr = "0.5"
 
 [features]
 compare_hash_only = ["ahash"] # Compare hash only, not the key in the Hashmap

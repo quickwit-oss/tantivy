@@ -397,7 +397,10 @@ mod bench {
         let mut seed: [u8; 32] = [0; 32];
         seed[31] = seed_val;
         let mut rng = StdRng::from_seed(seed);
-        (0u32..).filter(|_| rng.gen_bool(ratio)).take(n).collect()
+        (0u32..)
+            .filter(|_| rng.random_bool(ratio))
+            .take(n)
+            .collect()
     }
 
     pub fn generate_array(n: usize, ratio: f64) -> Vec<u32> {

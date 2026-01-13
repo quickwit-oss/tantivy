@@ -162,7 +162,7 @@ mod tests {
 mod bench {
 
     use rand::prelude::IteratorRandom;
-    use rand::thread_rng;
+    use rand::rng;
     use test::Bencher;
 
     use super::AliveBitSet;
@@ -176,7 +176,7 @@ mod bench {
     }
 
     fn remove_rand(raw: &mut Vec<u32>) {
-        let i = (0..raw.len()).choose(&mut thread_rng()).unwrap();
+        let i = (0..raw.len()).choose(&mut rng()).unwrap();
         raw.remove(i);
     }
 

@@ -491,7 +491,7 @@ mod tests {
     use common::DateTime;
     use proptest::prelude::*;
     use rand::rngs::StdRng;
-    use rand::seq::SliceRandom;
+    use rand::seq::IndexedRandom;
     use rand::SeedableRng;
     use time::format_description::well_known::Rfc3339;
     use time::OffsetDateTime;

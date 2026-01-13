@@ -377,7 +377,7 @@ pub mod tests {
 
     use common::{BinarySerializable, FixedSize};
     use query_grammar::{UserInputAst, UserInputLeaf, UserInputLiteral};
-    use rand::distributions::{Bernoulli, Uniform};
+    use rand::distr::{Bernoulli, Uniform};
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use time::OffsetDateTime;
@@ -428,7 +428,7 @@ pub mod tests {
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
         let seed: [u8; 32] = [1; 32];
         StdRng::from_seed(seed)
-            .sample_iter(&Uniform::new(0u32, max_value))
+            .sample_iter(&Uniform::new(0u32, max_value).unwrap())
             .take(n_elems)
             .collect::<Vec<u32>>()
     }

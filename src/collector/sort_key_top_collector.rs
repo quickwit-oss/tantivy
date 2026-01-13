@@ -160,7 +160,7 @@ mod tests {
         expected: &[(crate::Score, usize)],
     ) {
         let mut vals: Vec<(crate::Score, usize)> = (0..10).map(|val| (val as f32, val)).collect();
-        vals.shuffle(&mut rand::thread_rng());
+        vals.shuffle(&mut rand::rng());
         let vals_merged = merge_top_k(vals.into_iter(), doc_range, ComparatorEnum::from(order));
         assert_eq!(&vals_merged, expected);
     }

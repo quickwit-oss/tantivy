@@ -39,7 +39,7 @@ fn get_data_50percent_item() -> Vec<u128> {
 
     let mut data = vec![];
     for _ in 0..300_000 {
-        let val = rng.gen_range(1..=100);
+        let val = rng.random_range(1..=100);
         data.push(val);
     }
     data.push(SINGLE_ITEM);
