@@ -6,7 +6,7 @@ use tantivy_columnar::column_values::{CodecType, serialize_u64_based_column_valu
 fn get_data() -> Vec<u64> {
     let mut rng = StdRng::seed_from_u64(2u64);
     let mut data: Vec<_> = (100..55_000_u64)
-        .map(|num| num + rng.r#gen::<u8>() as u64)
+        .map(|num| num + rng.random::<u8>() as u64)
         .collect();
     data.push(99_000);
     data.insert(1000, 2000);

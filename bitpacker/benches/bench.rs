@@ -4,8 +4,8 @@ extern crate test;
 
 #[cfg(test)]
 mod tests {
+    use rand::rng;
     use rand::seq::IteratorRandom;
-    use rand::thread_rng;
     use tantivy_bitpacker::{BitPacker, BitUnpacker, BlockedBitpacker};
     use test::Bencher;
 
@@ -27,7 +27,7 @@ mod tests {
         let num_els = 1_000_000u32;
         let bit_unpacker = BitUnpacker::new(bit_width);
         let data = create_bitpacked_data(bit_width, num_els);
-        let idxs: Vec<u32> = (0..num_els).choose_multiple(&mut thread_rng(), 100_000);
+        let idxs: Vec<u32> = (0..num_els).choose_multiple(&mut rng(), 100_000);
         b.iter(|| {
             let mut out = 0u64;
             for &idx in &idxs {

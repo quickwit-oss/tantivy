@@ -33,7 +33,7 @@ fn build_shared_indices(num_docs: usize, distribution: &str) -> BenchIndex {
         match distribution {
             "dense" => {
                 for doc_id in 0..num_docs {
-                    let num_rand = rng.gen_range(0u64..1000u64);
+                    let num_rand = rng.random_range(0u64..1000u64);
                     let num_asc = (doc_id / 10000) as u64;
 
                     writer
@@ -46,7 +46,7 @@ fn build_shared_indices(num_docs: usize, distribution: &str) -> BenchIndex {
             }
             "sparse" => {
                 for doc_id in 0..num_docs {
-                    let num_rand = rng.gen_range(0u64..10000000u64);
+                    let num_rand = rng.random_range(0u64..10000000u64);
                     let num_asc = doc_id as u64;
 
                     writer

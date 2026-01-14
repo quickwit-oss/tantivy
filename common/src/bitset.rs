@@ -416,7 +416,7 @@ mod tests {
     use std::collections::HashSet;
 
     use ownedbytes::OwnedBytes;
-    use rand::distributions::Bernoulli;
+    use rand::distr::Bernoulli;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 

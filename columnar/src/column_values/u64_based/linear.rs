@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn linear_interpol_fast_field_rand() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..50 {
             let mut data = (0..10_000).map(|_| rng.next_u64()).collect::<Vec<_>>();
             create_and_validate::<LinearCodec>(&data, "random");

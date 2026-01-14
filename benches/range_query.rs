@@ -97,20 +97,20 @@ fn get_index_0_to_100() -> Index {
     let num_vals = 100_000;
     let docs: Vec<_> = (0..num_vals)
         .map(|_i| {
-            let id_name = if rng.gen_bool(0.01) {
+            let id_name = if rng.random_bool(0.01) {
                 "veryfew".to_string() // 1%
-            } else if rng.gen_bool(0.1) {
+            } else if rng.random_bool(0.1) {
                 "few".to_string() // 9%
             } else {
                 "most".to_string() // 90%
             };
             Doc {
                 id_name,
-                id: rng.gen_range(0..100),
+                id: rng.random_range(0..100),
                 // Multiply by 1000, so that we create most buckets in the compact space
                 // The benches depend on this range to select n-percent of elements with the
                 // methods below.
-                ip: Ipv6Addr::from_u128(rng.gen_range(0..100) * 1000),
+                ip: Ipv6Addr::from_u128(rng.random_range(0..100) * 1000),
             }
         })
         .collect();

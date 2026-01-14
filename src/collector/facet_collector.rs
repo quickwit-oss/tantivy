@@ -486,9 +486,9 @@ mod tests {
     use std::collections::BTreeSet;
 
     use columnar::Dictionary;
-    use rand::distributions::Uniform;
+    use rand::distr::Uniform;
     use rand::prelude::SliceRandom;
-    use rand::{thread_rng, Rng};
+    use rand::{rng, Rng};
 
     use super::{FacetCollector, FacetCounts};
     use crate::collector::facet_collector::compress_mapping;
@@ -731,7 +731,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let uniform = Uniform::new_inclusive(1, 100_000);
+        let uniform = Uniform::new_inclusive(1, 100_000).unwrap();
         let mut docs: Vec<TantivyDocument> =
             vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
                 .into_iter()
@@ -741,14 +741,11 @@ mod tests {
                     std::iter::repeat_n(doc, count)
                 })
                 .map(|mut doc| {
-                    doc.add_facet(
-                        facet_field,
-                        &format!("/facet/{}", thread_rng().sample(uniform)),
-                    );
+                    doc.add_facet(facet_field, &format!("/facet/{}", rng().sample(uniform)));
                     doc
                 })
                 .collect();
-        docs[..].shuffle(&mut thread_rng());
+        docs[..].shuffle(&mut rng());
 
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         for doc in docs {
@@ -822,8 +819,8 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
+    use rand::rng;
     use rand::seq::SliceRandom;
-    use rand::thread_rng;
     use test::Bencher;
 
     use crate::collector::FacetCollector;
@@ -846,7 +843,7 @@ mod bench {
             }
         }
         // 40425 docs
-        docs[..].shuffle(&mut thread_rng());
+        docs[..].shuffle(&mut rng());
 
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
         for doc in docs {

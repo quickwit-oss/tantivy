@@ -879,7 +879,7 @@ mod tests {
         const ONE_HOUR_IN_MICROSECS: i64 = 3_600 * 1_000_000;
         let times: Vec<DateTime> = std::iter::repeat_with(|| {
             // +- One hour.
-            let t = T0 + rng.gen_range(-ONE_HOUR_IN_MICROSECS..ONE_HOUR_IN_MICROSECS);
+            let t = T0 + rng.random_range(-ONE_HOUR_IN_MICROSECS..ONE_HOUR_IN_MICROSECS);
             DateTime::from_timestamp_micros(t)
         })
         .take(1_000)

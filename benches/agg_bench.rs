@@ -1,8 +1,8 @@
 use binggan::plugins::PeakMemAllocPlugin;
 use binggan::{black_box, InputGroup, PeakMemAlloc, INSTRUMENTED_SYSTEM};
-use rand::distributions::WeightedIndex;
-use rand::prelude::SliceRandom;
+use rand::distr::weighted::WeightedIndex;
 use rand::rngs::StdRng;
+use rand::seq::IndexedRandom;
 use rand::{Rng, SeedableRng};
 use rand_distr::Distribution;
 use serde_json::json;
@@ -532,7 +532,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     // Prepare 1000 unique terms sampled using a Zipf distribution.
     // Exponent ~1.1 approximates top-20 terms covering around ~20%.
     let terms_1000: Vec<String> = (1..=1000).map(|i| format!("term_{i}")).collect();
-    let zipf_1000 = rand_distr::Zipf::new(1000, 1.1f64).unwrap();
+    let zipf_1000 = rand_distr::Zipf::new(1000.0, 1.1f64).unwrap();
 
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
@@ -576,8 +576,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         }
         let _val_max = 1_000_000.0;
         for _ in 0..doc_with_value {
-            let val: f64 = rng.gen_range(0.0..1_000_000.0);
-            let json = if rng.gen_bool(0.1) {
+            let val: f64 = rng.random_range(0.0..1_000_000.0);
+            let json = if rng.random_bool(0.1) {
                 // 10% are numeric values
                 json!({ "mixed_type": val })
             } else {
@@ -586,7 +586,7 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             index_writer.add_document(doc!(
                 text_field => "cool",
                 json_field => json,
-                text_field_all_unique_terms => format!("unique_term_{}", rng.gen::<u64>()),
+                text_field_all_unique_terms => format!("unique_term_{}", rng.random::<u64>()),
                 text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
                 text_field_few_terms_status => status_field_data[log_level_distribution.sample(&mut rng)].0,
                 text_field_1000_terms_zipf => terms_1000[zipf_1000.sample(&mut rng) as usize - 1].as_str(),

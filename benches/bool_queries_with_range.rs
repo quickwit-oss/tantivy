@@ -36,13 +36,13 @@ fn build_shared_indices(num_docs: usize, p_title_a: f32, distribution: &str) -> 
             "dense" => {
                 for doc_id in 0..num_docs {
                     // Always add title to avoid empty documents
-                    let title_token = if rng.gen_bool(p_title_a as f64) {
+                    let title_token = if rng.random_bool(p_title_a as f64) {
                         "a"
                     } else {
                         "b"
                     };
 
-                    let num_rand = rng.gen_range(0u64..1000u64);
+                    let num_rand = rng.random_range(0u64..1000u64);
 
                     let num_asc = (doc_id / 10000) as u64;
 
@@ -60,13 +60,13 @@ fn build_shared_indices(num_docs: usize, p_title_a: f32, distribution: &str) -> 
             "sparse" => {
                 for doc_id in 0..num_docs {
                     // Always add title to avoid empty documents
-                    let title_token = if rng.gen_bool(p_title_a as f64) {
+                    let title_token = if rng.random_bool(p_title_a as f64) {
                         "a"
                     } else {
                         "b"
                     };
 
-                    let num_rand = rng.gen_range(0u64..10000000u64);
+                    let num_rand = rng.random_range(0u64..10000000u64);
 
                     let num_asc = doc_id as u64;
 

@@ -1,6 +1,6 @@
 use binggan::{BenchRunner, black_box};
+use rand::rng;
 use rand::seq::IteratorRandom;
-use rand::thread_rng;
 use tantivy_common::{BitSet, TinySet, serialize_vint_u32};
 
 fn bench_vint() {
@@ -17,7 +17,7 @@ fn bench_vint() {
         black_box(out);
     });
 
-    let vals: Vec<u32> = (0..20_000).choose_multiple(&mut thread_rng(), 100_000);
+    let vals: Vec<u32> = (0..20_000).choose_multiple(&mut rng(), 100_000);
     runner.bench_function("bench_vint_rand", move |_| {
         let mut out = 0u64;
         for val in vals.iter().cloned() {

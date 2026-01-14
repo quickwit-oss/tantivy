@@ -304,10 +304,10 @@ mod tests {
         let mut writer: IndexWriter =
             index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         writer.set_merge_policy(Box::new(NoMergePolicy));
         for _ in 0..3_000 {
-            let term_freq = rng.gen_range(1..10000);
+            let term_freq = rng.random_range(1..10000);
             let words: Vec<&str> = std::iter::repeat_n("bbbb", term_freq).collect();
             let text = words.join(" ");
             writer.add_document(doc!(text_field=>text))?;
