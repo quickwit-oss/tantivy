@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::Ipv6Addr;
 
-use columnar::{Column, ColumnType, ColumnarReader, DynamicColumn};
+use columnar::{Column, ColumnType, DynamicColumn};
 use common::json_path_writer::JSON_PATH_SEGMENT_SEP_STR;
 use common::DateTime;
 use regex::Regex;
@@ -18,6 +18,7 @@ use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::{AggregationError, BucketId};
 use crate::collector::sort_key::ReverseComparator;
 use crate::collector::TopNComputer;
+use crate::fastfield::FastFieldReaders;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal, TantivyError};
 
@@ -200,7 +201,7 @@ impl TopHitsAggregationReq {
     /// Validate and resolve field retrieval parameters
     pub fn validate_and_resolve_field_names(
         &mut self,
-        reader: &ColumnarReader,
+        reader: &FastFieldReaders,
     ) -> crate::Result<()> {
         if self._source.is_some() {
             use_doc_value_fields_err("_source")?;
@@ -226,19 +227,18 @@ impl TopHitsAggregationReq {
             .iter()
             .map(|field| {
                 if !field.contains('*') {
-                    return reader
-                        .iter_columns()?
-                        .find(|(name, _)| &name.replace(JSON_PATH_SEGMENT_SEP_STR, ".") == field)
-                        .map(|_| vec![field.to_owned()])
-                        .ok_or_else(|| {
-                            TantivyError::SchemaError(format!(
-                                "Field '{field}' in docvalue_fields does not exist"
-                            ))
-                        });
+                    reader.resolve_field(field)?.ok_or_else(|| {
+                        TantivyError::SchemaError(format!(
+                            "Field '{field}' in docvalue_fields does not exist"
+                        ))
+                    })?;
+
+                    return Ok(vec![field.to_owned()]);
                 }
 
                 let pattern = globbed_string_to_regex(field)?;
                 let fields = reader
+                    .columnar()
                     .iter_columns()?
                     .map(|(name, _)| {
                         // normalize path from internal fast field repr
