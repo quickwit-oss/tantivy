@@ -221,7 +221,7 @@ impl TopHitsAggregationReq {
                 if !field.contains('*') {
                     return reader
                         .iter_columns()?
-                        .find(|(name, _)| name == field)
+                        .find(|(name, _)| &name.replace(JSON_PATH_SEGMENT_SEP_STR, ".") == field)
                         .map(|_| vec![field.to_owned()])
                         .ok_or_else(|| {
                             TantivyError::SchemaError(format!(
@@ -871,12 +871,12 @@ mod tests {
     fn test_aggregation_top_hits(merge_segments: bool) -> crate::Result<()> {
         let docs = vec![
             vec![
-                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb", "mixed": { "dyn_arr": [1, "2"] } }"#,
-                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd", "mixed": { "dyn_arr": [3, "4"] } }"#,
+                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb", "mixed": { "dyn_arr": [1, "2"], "dyn_str": "foo" } }"#,
+                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd", "mixed": { "dyn_arr": [3, "4"], "dyn_str": "bar" } }"#,
             ],
             vec![
-                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z", "mixed": { "dyn_arr": ["9", 8] } }"#,
-                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z", "mixed": { "dyn_arr": ["7", 6] } }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z", "mixed": { "dyn_arr": ["9", 8], "dyn_str": "baz" } }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z", "mixed": { "dyn_arr": ["7", 6], "dyn_str": "bor" } }"#,
             ],
         ];
 
@@ -894,6 +894,7 @@ mod tests {
                         "date",
                         "tex*",
                         "mixed.*",
+                        "mixed.dyn_str"
                     ],
                 }
             }
@@ -920,6 +921,7 @@ mod tests {
                             "text": [ "ccc" ],
                             "text2": [ "ddd" ],
                             "mixed.dyn_arr": [ 3, "4" ],
+                            "mixed.dyn_str": [ "bar" ],
                         }
                     },
                     {
@@ -929,6 +931,7 @@ mod tests {
                             "text": [ "aaa" ],
                             "text2": [ "bbb" ],
                             "mixed.dyn_arr": [ 6, "7" ],
+                            "mixed.dyn_str": [ "bor" ],
                         }
                     }
                 ]
