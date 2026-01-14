@@ -4,9 +4,9 @@ use crate::schema::IndexRecordOption;
 use crate::Score;
 
 mod block;
+mod skip;
 mod standard_postings_reader;
 mod standard_postings_serializer;
-mod skip;
 
 pub use standard_postings_reader::StandardPostingsReader;
 pub use standard_postings_serializer::StandardPostingsSerializer;

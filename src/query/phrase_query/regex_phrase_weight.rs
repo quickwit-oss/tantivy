@@ -4,6 +4,7 @@ use common::BitSet;
 use tantivy_fst::Regex;
 
 use super::PhraseScorer;
+use crate::codec::postings::PostingsReader as _;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::{LoadedPostings, Postings, SegmentPostings, TermInfo};

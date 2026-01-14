@@ -15,7 +15,7 @@ fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
     it.next().map(|first| it.fold(first, Score::max))
 }
 
-/// `BlockSegmentPostings` is a cursor iterating over blocks
+/// `StandardPostingsReader` is a cursor iterating over blocks
 /// of documents.
 ///
 /// # Warning
@@ -89,7 +89,7 @@ fn split_into_skips_and_postings(
 }
 
 impl StandardPostingsReader {
-    /// Opens a `BlockSegmentPostings`.
+    /// Opens a `StandardPostingsReader`.
     /// `doc_freq` is the number of documents in the posting list.
     /// `record_option` represents the amount of data available according to the schema.
     /// `requested_option` is the amount of data requested by the user.
@@ -150,7 +150,7 @@ impl PostingsReader for StandardPostingsReader {
     //
     // This is useful for enumerating through a list of terms,
     // and consuming the associated posting lists while avoiding
-    // reallocating a `BlockSegmentPostings`.
+    // reallocating a `StandardPostingsReader`.
     //
     // # Warning
     //
@@ -186,7 +186,7 @@ impl PostingsReader for StandardPostingsReader {
     /// returned by `.docs()` is empty.
     #[inline]
     fn docs(&self) -> &[DocId] {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.doc_decoder.output_array()
     }
 
@@ -199,14 +199,14 @@ impl PostingsReader for StandardPostingsReader {
     /// Return the array of `term freq` in the block.
     #[inline]
     fn freqs(&self) -> &[u32] {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.freq_decoder.output_array()
     }
 
     /// Return the frequency at index `idx` of the block.
     #[inline]
     fn freq(&self, idx: usize) -> u32 {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.freq_decoder.output(idx)
     }
 
@@ -217,7 +217,7 @@ impl PostingsReader for StandardPostingsReader {
     /// of any number between 1 and `NUM_DOCS_PER_BLOCK - 1`
     #[inline]
     fn block_len(&self) -> usize {
-        debug_assert!(self.block_is_loaded());
+        debug_assert!(self.block_loaded);
         self.doc_decoder.output_len
     }
 
@@ -254,20 +254,6 @@ impl PostingsReader for StandardPostingsReader {
         self.block_loaded = false;
         self.block_max_score_cache = None;
         self.load_block();
-    }
-
-    /// Returns an empty segment postings object
-    fn empty() -> StandardPostingsReader {
-        StandardPostingsReader {
-            doc_decoder: BlockDecoder::with_val(TERMINATED),
-            block_loaded: true,
-            freq_decoder: BlockDecoder::with_val(1),
-            freq_reading_option: FreqReadingOption::NoFreq,
-            block_max_score_cache: None,
-            doc_freq: 0,
-            data: OwnedBytes::empty(),
-            skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
-        }
     }
 
     /// Returns the block_max_score for the current block.
@@ -308,15 +294,29 @@ impl PostingsReader for StandardPostingsReader {
         // We do not cache it however, so that it gets computed when once block is loaded.
         bm25_weight.max_score()
     }
+
+    fn box_clone(&self) -> Box<dyn PostingsReader> {
+        Box::new(self.clone())
+    }
 }
 
 impl StandardPostingsReader {
-    pub(crate) fn skip_reader(&self) -> &SkipReader {
-        &self.skip_reader
+    /// Returns an empty segment postings object
+    pub fn empty() -> StandardPostingsReader {
+        StandardPostingsReader {
+            doc_decoder: BlockDecoder::with_val(TERMINATED),
+            block_loaded: true,
+            freq_decoder: BlockDecoder::with_val(1),
+            freq_reading_option: FreqReadingOption::NoFreq,
+            block_max_score_cache: None,
+            doc_freq: 0,
+            data: OwnedBytes::empty(),
+            skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
+        }
     }
 
-    pub(crate) fn block_is_loaded(&self) -> bool {
-        self.block_loaded
+    pub(crate) fn skip_reader(&self) -> &SkipReader {
+        &self.skip_reader
     }
 
     /// Dangerous API! This calls seeks the next block on the skip list,
@@ -333,10 +333,10 @@ impl StandardPostingsReader {
     }
 
     pub(crate) fn load_block(&mut self) {
-        let offset = self.skip_reader.byte_offset();
-        if self.block_is_loaded() {
+        if self.block_loaded {
             return;
         }
+        let offset = self.skip_reader.byte_offset();
         match self.skip_reader.block_info() {
             BlockInfo::BitPacked {
                 doc_num_bits,
@@ -380,45 +380,6 @@ impl StandardPostingsReader {
             }
         }
         self.block_loaded = true;
-    }
-
-    /// Returns the block_max_score for the current block.
-    /// It does not require the block to be loaded. For instance, it is ok to call this method
-    /// after having called `.shallow_advance(..)`.
-    ///
-    /// See `TermScorer::block_max_score(..)` for more information.
-    pub fn block_max_score(
-        &mut self,
-        fieldnorm_reader: &FieldNormReader,
-        bm25_weight: &Bm25Weight,
-    ) -> Score {
-        if let Some(score) = self.block_max_score_cache {
-            return score;
-        }
-        if let Some(skip_reader_max_score) = self.skip_reader.block_max_score(bm25_weight) {
-            // if we are on a full block, the skip reader should have the block max information
-            // for us
-            self.block_max_score_cache = Some(skip_reader_max_score);
-            return skip_reader_max_score;
-        }
-        // this is the last block of the segment posting list.
-        // If it is actually loaded, we can compute block max manually.
-        if self.block_is_loaded() {
-            let docs = self.doc_decoder.output_array().iter().cloned();
-            let freqs = self.freq_decoder.output_array().iter().cloned();
-            let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
-                let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-                bm25_weight.score(fieldnorm_id, term_freq)
-            });
-            let block_max_score = max_score(bm25_scores).unwrap_or(0.0);
-            self.block_max_score_cache = Some(block_max_score);
-            return block_max_score;
-        }
-        // We do not have access to any good block max value. We return bm25_weight.max_score()
-        // as it is a valid upperbound.
-        //
-        // We do not cache it however, so that it gets computed when once block is loaded.
-        bm25_weight.max_score()
     }
 }
 

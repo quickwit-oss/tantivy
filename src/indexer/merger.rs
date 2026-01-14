@@ -7,6 +7,7 @@ use common::ReadOnlyBitSet;
 use itertools::Itertools;
 use measure_time::debug_time;
 
+use crate::codec::postings::PostingsReader as _;
 use crate::codec::{Codec, StandardCodec};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};

@@ -1,5 +1,6 @@
 use common::HasLen;
 
+use crate::codec::postings::PostingsReader;
 use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;

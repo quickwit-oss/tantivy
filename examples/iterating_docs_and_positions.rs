@@ -7,6 +7,7 @@
 // the list of documents containing a term, getting
 // its term frequency, and accessing its positions.
 
+use tantivy::codec::postings::PostingsReader as _;
 use tantivy::postings::Postings;
 // ---
 // Importing tantivy...

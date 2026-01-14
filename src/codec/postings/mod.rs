@@ -19,7 +19,7 @@ pub trait PostingsCodec {
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> Self::PostingsSerializer;
 
-    /// Opens a `BlockSegmentPostings`.
+    /// Opens a `PostingsReader`.
     /// `doc_freq` is the number of documents in the posting list.
     /// `record_option` represents the amount of data available according to the schema.
     /// `requested_option` is the amount of data requested by the user.
@@ -46,7 +46,9 @@ pub trait PostingsSerializer {
 
 // TODO docs
 // TODO Add blockwand trait
-pub trait PostingsReader: Sized {
+pub trait PostingsReader {
+    fn box_clone(&self) -> Box<dyn PostingsReader>;
+
     fn freq_reading_option(&self) -> FreqReadingOption;
 
     fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) -> io::Result<()>;
@@ -68,9 +70,6 @@ pub trait PostingsReader: Sized {
     fn position_offset(&self) -> u64;
 
     fn advance(&mut self);
-
-    // TODO Move to the codec and use the serializer.
-    fn empty() -> Self;
 
     fn block_max_score(
         &mut self,

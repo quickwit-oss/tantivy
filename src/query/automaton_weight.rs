@@ -5,6 +5,7 @@ use common::BitSet;
 use tantivy_fst::Automaton;
 
 use super::phrase_prefix_query::prefix_end;
+use crate::codec::postings::PostingsReader as _;
 use crate::index::SegmentReader;
 use crate::postings::TermInfo;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};

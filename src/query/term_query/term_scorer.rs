@@ -1,3 +1,4 @@
+use crate::codec::postings::PostingsReader as _;
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{FreqReadingOption, Postings, SegmentPostings};
