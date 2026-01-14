@@ -115,13 +115,17 @@ impl TopHitsAggReqData {
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct TopHitsAggregationReq {
-    sort: Vec<KeyOrder>,
-    size: usize,
-    from: Option<usize>,
+    /// The sort criteria to determine the top hits.
+    pub sort: Vec<KeyOrder>,
+    /// The number of top hits to return.
+    pub size: usize,
+    /// The number of top hits to skip.
+    pub from: Option<usize>,
 
+    /// The list of fast fields to retrieve for each document.
     #[serde(rename = "docvalue_fields")]
     #[serde(default)]
-    doc_value_fields: Vec<String>,
+    pub doc_value_fields: Vec<String>,
 
     // Not supported
     _source: Option<serde_json::Value>,
@@ -132,9 +136,12 @@ pub struct TopHitsAggregationReq {
     version: Option<serde_json::Value>,
 }
 
+/// A field and its associated sort order.
 #[derive(Debug, Clone, PartialEq, Default)]
-struct KeyOrder {
+pub struct KeyOrder {
+    /// The field name.
     field: String,
+    /// The sort order.
     order: Order,
 }
 
