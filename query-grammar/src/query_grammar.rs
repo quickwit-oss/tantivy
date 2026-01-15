@@ -234,7 +234,6 @@ fn term_or_phrase(inp: &str) -> IResult<&str, UserInputLeaf> {
                 delimiter,
                 slop,
                 prefix,
-                fuzzy: None,
             }
             .into()
         },
@@ -254,7 +253,6 @@ fn term_or_phrase_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> 
                         delimiter,
                         slop,
                         prefix,
-                        fuzzy: None,
                     }
                     .into(),
                 )

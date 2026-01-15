@@ -984,7 +984,6 @@ pub mod tests {
                 delimiter: crate::query_grammar::Delimiter::None,
                 slop: 0,
                 prefix: false,
-                fuzzy: None,
             };
             assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
         }
@@ -995,7 +994,6 @@ pub mod tests {
                 delimiter: crate::query_grammar::Delimiter::None,
                 slop: 0,
                 prefix: false,
-                fuzzy: None,
             };
             assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
         }
@@ -1006,7 +1004,6 @@ pub mod tests {
                 delimiter: crate::query_grammar::Delimiter::None,
                 slop: 0,
                 prefix: false,
-                fuzzy: None,
             };
             assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
         }
@@ -1017,7 +1014,6 @@ pub mod tests {
                 delimiter: crate::query_grammar::Delimiter::None,
                 slop: 0,
                 prefix: false,
-                fuzzy: None,
             };
             assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
         }
@@ -1028,7 +1024,6 @@ pub mod tests {
                 delimiter: crate::query_grammar::Delimiter::None,
                 slop: 0,
                 prefix: false,
-                fuzzy: None,
             };
             assert_eq!(get_doc_ids(user_input_literal), vec![DocAddress::new(0, 0)]);
         }
