@@ -3,10 +3,12 @@ use common::HasLen;
 use crate::codec::postings::PostingsReader;
 use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
+use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{BlockSegmentPostings, Postings};
-use crate::{DocId, TERMINATED};
+use crate::postings::{BlockSegmentPostings, FreqReadingOption, Postings};
+use crate::query::Bm25Weight;
+use crate::{DocId, Score, TERMINATED};
 
 /// `SegmentPostings` represents the inverted list or postings associated with
 /// a term in a `Segment`.
@@ -251,6 +253,29 @@ impl Postings for SegmentPostings {
                 *output_mut = cum;
             }
         }
+    }
+
+    fn supports_block_max(&self) -> bool {
+        true
+    }
+
+    fn seek_block(
+        &mut self,
+        target_doc: crate::DocId,
+        fieldnorm_reader: &FieldNormReader,
+        similarity_weight: &Bm25Weight,
+    ) -> Score {
+        self.block_cursor.seek_block(target_doc);
+        self.block_cursor
+            .block_max_score(&fieldnorm_reader, &similarity_weight)
+    }
+
+    fn last_doc_in_block(&self) -> crate::DocId {
+        self.block_cursor.skip_reader().last_doc_in_block()
+    }
+
+    fn freq_reading_option(&self) -> FreqReadingOption {
+        self.block_cursor.freq_reading_option()
     }
 }
 

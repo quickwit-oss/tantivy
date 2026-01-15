@@ -101,6 +101,19 @@ impl Postings for LoadedPostings {
             output.push(*pos + offset);
         }
     }
+
+    fn seek_block(
+        &mut self,
+        target_doc: crate::DocId,
+        fieldnorm_reader: &crate::fieldnorm::FieldNormReader,
+        similarity_weight: &crate::query::Bm25Weight,
+    ) -> crate::Score {
+        unimplemented!()
+    }
+
+    fn freq_reading_option(&self) -> super::FreqReadingOption {
+        super::FreqReadingOption::ReadFreq
+    }
 }
 
 #[cfg(test)]

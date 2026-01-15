@@ -7,28 +7,23 @@ use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};
 
 #[derive(Clone)]
-pub struct TermScorer {
-    postings: SegmentPostings,
+pub struct TermScorer<TPostings: Postings = SegmentPostings> {
+    postings: TPostings,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: Bm25Weight,
 }
 
-impl TermScorer {
+impl<TPostings: Postings> TermScorer<TPostings> {
     pub fn new(
-        postings: SegmentPostings,
+        postings: TPostings,
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
-    ) -> TermScorer {
+    ) -> TermScorer<TPostings> {
         TermScorer {
             postings,
             fieldnorm_reader,
             similarity_weight,
         }
-    }
-
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) -> Score {
-        self.postings.block_cursor.seek_block(target_doc);
-        self.block_max_score()
     }
 
     #[cfg(test)]
@@ -54,27 +49,7 @@ impl TermScorer {
 
     /// See `FreqReadingOption`.
     pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
-        self.postings.block_cursor.freq_reading_option()
-    }
-
-    /// Returns the maximum score for the current block.
-    ///
-    /// In some rare case, the result may not be exact. In this case a lower value is returned,
-    /// (and may lead us to return a lesser document).
-    ///
-    /// At index time, we store the (fieldnorm_id, term frequency) pair that maximizes the
-    /// score assuming the average fieldnorm computed on this segment.
-    ///
-    /// Though extremely rare, it is theoretically possible that the actual average fieldnorm
-    /// is different enough from the current segment average fieldnorm that the maximum over a
-    /// specific is achieved on a different document.
-    ///
-    /// (The result is on the other hand guaranteed to be correct if there is only one segment).
-    #[inline(always)]
-    fn block_max_score(&mut self) -> Score {
-        self.postings
-            .block_cursor
-            .block_max_score(&self.fieldnorm_reader, &self.similarity_weight)
+        self.postings.freq_reading_option()
     }
 
     pub fn term_freq(&self) -> u32 {
@@ -96,11 +71,16 @@ impl TermScorer {
     }
 
     pub fn last_doc_in_block(&self) -> DocId {
-        self.postings.block_cursor.skip_reader().last_doc_in_block()
+        self.postings.last_doc_in_block()
+    }
+
+    pub(crate) fn seek_block(&mut self, target_doc: DocId) -> Score {
+        self.postings
+            .seek_block(target_doc, &self.fieldnorm_reader, &self.similarity_weight)
     }
 }
 
-impl DocSet for TermScorer {
+impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
     #[inline]
     fn advance(&mut self) -> DocId {
         self.postings.advance()
@@ -282,8 +262,8 @@ mod tests {
             {
                 let mut term_scorer = term_weight.term_scorer_for_test(reader, 1.0)?.unwrap();
                 for d in docs {
-                    term_scorer.seek_block(d);
-                    block_max_scores_b.push(term_scorer.block_max_score());
+                    let block_max_score = term_scorer.seek_block(d);
+                    block_max_scores_b.push(block_max_score);
                 }
             }
             for (l, r) in block_max_scores

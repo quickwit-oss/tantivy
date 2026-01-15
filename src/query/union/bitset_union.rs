@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::docset::DocSet;
-use crate::postings::Postings;
+use crate::postings::{FreqReadingOption, Postings};
 use crate::query::BitSetDocSet;
 use crate::DocId;
 
@@ -44,6 +44,10 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
             }
         }
         term_freq
+    }
+
+    fn freq_reading_option(&self) -> FreqReadingOption {
+        FreqReadingOption::ReadFreq
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {

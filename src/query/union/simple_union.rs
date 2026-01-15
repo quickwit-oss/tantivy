@@ -1,5 +1,5 @@
 use crate::docset::{DocSet, TERMINATED};
-use crate::postings::Postings;
+use crate::postings::{FreqReadingOption, Postings};
 use crate::DocId;
 
 /// A `SimpleUnion` is a `DocSet` that is the union of multiple `DocSet`.
@@ -54,6 +54,10 @@ impl<TDocSet: Postings> Postings for SimpleUnion<TDocSet> {
             }
         }
         term_freq
+    }
+
+    fn freq_reading_option(&self) -> FreqReadingOption {
+        FreqReadingOption::ReadFreq
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
