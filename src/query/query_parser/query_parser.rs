@@ -2113,6 +2113,6 @@ mod test {
 
     #[test]
     pub fn test_exists() {
-        test_parse_query_to_logical_ast_helper("title:*", "exists:title", false);
+        test_parse_query_to_logical_ast_helper("title:*", "Exists(title)", false);
     }
 }
