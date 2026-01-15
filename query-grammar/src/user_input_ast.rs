@@ -136,6 +136,12 @@ pub struct UserInputLiteral {
     pub delimiter: Delimiter,
     pub slop: u32,
     pub prefix: bool,
+    /// Reserved for future use. Currently not used.
+    /// Fuzzy matching is now determined at query parse time based on slop and tokenization:
+    /// - If slop > 0 and tokenization produces a single term, it becomes a FuzzyTermQuery.
+    /// - If slop > 0 and tokenization produces multiple terms, it remains a PhraseQuery with slop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fuzzy: Option<u8>,
 }
 
 impl fmt::Debug for UserInputLiteral {
@@ -158,6 +164,7 @@ impl fmt::Debug for UserInputLiteral {
                 write!(formatter, "{}", self.phrase)?;
             }
         }
+        // Display slop (~N) for phrases
         if self.slop > 0 {
             write!(formatter, "~{}", self.slop)?;
         } else if self.prefix {
@@ -350,6 +357,7 @@ mod tests {
             delimiter: Delimiter::None,
             slop: 0,
             prefix: false,
+            fuzzy: None,
         };
         let ast = UserInputAst::Leaf(Box::new(UserInputLeaf::Literal(literal)));
         let json = serde_json::to_string(&ast).unwrap();
@@ -415,8 +423,7 @@ mod tests {
                         phrase: "hello".to_string(),
                         delimiter: Delimiter::None,
                         slop: 0,
-                        prefix: false,
-                    }))),
+                        prefix: false,                        fuzzy: None,                    }))),
                 ),
             ])),
             2.5.into(),
@@ -442,8 +449,7 @@ mod tests {
                     phrase: "hello".to_string(),
                     delimiter: Delimiter::None,
                     slop: 0,
-                    prefix: false,
-                }))),
+                    prefix: false,                    fuzzy: None,                }))),
             ),
         ]);
         let json = serde_json::to_string(&clause).unwrap();
