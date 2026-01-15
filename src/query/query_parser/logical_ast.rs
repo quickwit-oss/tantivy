@@ -162,7 +162,7 @@ impl fmt::Debug for LogicalLiteral {
                 ref pattern,
                 ref field,
             } => write!(formatter, "Regex({field:?}, {pattern:?})"),
-            LogicalLiteral::Exists { ref field } => write!(formatter, "exists:{field}"),
+            LogicalLiteral::Exists { ref field } => write!(formatter, "Exists({field})"),
         }
     }
 }
