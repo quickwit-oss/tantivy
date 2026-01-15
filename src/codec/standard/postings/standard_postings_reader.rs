@@ -543,7 +543,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
 
-        let mut block_segments;
+        let block_segments;
         {
             let term = Term::from_field_u64(int_field, 0u64);
             let inverted_index = segment_reader.inverted_index(int_field)?;
@@ -552,13 +552,6 @@ mod tests {
                 .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
         }
         assert_eq!(block_segments.docs(), &[0, 2, 4]);
-        {
-            let term = Term::from_field_u64(int_field, 1u64);
-            let inverted_index = segment_reader.inverted_index(int_field)?;
-            let term_info = inverted_index.get_term_info(&term)?.unwrap();
-            inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments)?;
-        }
-        assert_eq!(block_segments.docs(), &[1, 3, 5]);
         Ok(())
     }
 }

@@ -161,43 +161,6 @@ impl InvertedIndexReader {
         Ok(fields)
     }
 
-    /// Resets the block segment to another position of the postings
-    /// file.
-    ///
-    /// This is useful for enumerating through a list of terms,
-    /// and consuming the associated posting lists while avoiding
-    /// reallocating a [`BlockSegmentPostings`].
-    ///
-    /// # Warning
-    ///
-    /// This does not reset the positions list.
-    pub fn reset_block_postings_from_terminfo(
-        &self,
-        term_info: &TermInfo,
-        block_postings: &mut BlockSegmentPostings,
-    ) -> io::Result<()> {
-        let postings_slice = self
-            .postings_file_slice
-            .slice(term_info.postings_range.clone());
-        let postings_bytes = postings_slice.read_bytes()?;
-        block_postings.reset(term_info.doc_freq, postings_bytes)?;
-        Ok(())
-    }
-
-    /// Returns a block postings given a `Term`.
-    /// This method is for an advanced usage only.
-    ///
-    /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub fn read_block_postings(
-        &self,
-        term: &Term,
-        option: IndexRecordOption,
-    ) -> io::Result<Option<BlockSegmentPostings>> {
-        self.get_term_info(term)?
-            .map(move |term_info| self.read_block_postings_from_terminfo(&term_info, option))
-            .transpose()
-    }
-
     /// Returns a block postings given a `term_info`.
     /// This method is for an advanced usage only.
     ///
