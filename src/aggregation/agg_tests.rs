@@ -1440,6 +1440,7 @@ fn test_aggregation_on_json_object_mixed_numerical_segments() {
 #[test]
 fn test_aggregation_invalid_field_returns_error() {
     // Test that aggregations return an error when given an invalid field name
+    // with strict_field_validation enabled
     let index = get_test_index_2_segments(false).unwrap();
     let reader = index.reader().unwrap();
     let searcher = reader.searcher();
@@ -1455,7 +1456,9 @@ fn test_aggregation_invalid_field_returns_error() {
         }
     }"#;
     let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
-    let collector = get_collector(agg);
+    // Enable strict field validation
+    let context = crate::aggregation::AggContextParams::default().set_strict_field_validation(true);
+    let collector = AggregationCollector::from_aggs(agg, context);
     let result = searcher.search(&AllQuery, &collector);
 
     assert!(result.is_err());
@@ -1477,7 +1480,8 @@ fn test_aggregation_invalid_field_returns_error() {
         }
     }"#;
     let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
-    let collector = get_collector(agg);
+    let context = crate::aggregation::AggContextParams::default().set_strict_field_validation(true);
+    let collector = AggregationCollector::from_aggs(agg, context);
     let result = searcher.search(&AllQuery, &collector);
 
     assert!(result.is_err());
@@ -1498,7 +1502,8 @@ fn test_aggregation_invalid_field_returns_error() {
         }
     }"#;
     let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
-    let collector = get_collector(agg);
+    let context = crate::aggregation::AggContextParams::default().set_strict_field_validation(true);
+    let collector = AggregationCollector::from_aggs(agg, context);
     let result = searcher.search(&AllQuery, &collector);
 
     assert!(result.is_err());
@@ -1519,7 +1524,8 @@ fn test_aggregation_invalid_field_returns_error() {
         }
     }"#;
     let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
-    let collector = get_collector(agg);
+    let context = crate::aggregation::AggContextParams::default().set_strict_field_validation(true);
+    let collector = AggregationCollector::from_aggs(agg, context);
     let result = searcher.search(&AllQuery, &collector);
 
     assert!(result.is_err());
@@ -1545,7 +1551,8 @@ fn test_aggregation_invalid_field_returns_error() {
         }
     }"#;
     let agg: Aggregations = serde_json::from_str(agg_req_str).unwrap();
-    let collector = get_collector(agg);
+    let context = crate::aggregation::AggContextParams::default().set_strict_field_validation(true);
+    let collector = AggregationCollector::from_aggs(agg, context);
     let result = searcher.search(&AllQuery, &collector);
 
     assert!(result.is_err());
