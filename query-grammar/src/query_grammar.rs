@@ -1715,23 +1715,18 @@ mod test {
 
     #[test]
     fn test_slop() {
-        // Phrase slop tests - ~N after quoted phrase means slop
-        // "a b"~ without a number - strict parser fails, lenient parses ~ as separate term
         test_is_parse_err("\"a b\"~", "(*\"a b\" *~)");
         test_is_parse_err("foo:\"a b\"~", "(*\"foo\":\"a b\" *~)");
-        // "a b"~a - 'a' is not a valid slop number, ~a becomes separate term
         test_is_parse_err("\"a b\"~a", "(*\"a b\" *~a)");
         test_is_parse_err(
             "\"a b\"~100000000000000000",
             "(*\"a b\" *~100000000000000000)",
         );
-        // ~4 alone is parsed as a bare word (~ is not reserved)
         test_parse_query_to_ast_helper("\"a b\"^2 ~4", "(*(\"a b\")^2 *~4)");
         test_parse_query_to_ast_helper("\"a b\"~4^2", "(\"a b\"~4)^2");
-        // ~ inside quotes is still allowed
         test_parse_query_to_ast_helper("\"~Document\"", "\"~Document\"");
-        // ~ at start of unquoted word is valid (parsed as literal)
         test_parse_query_to_ast_helper("~Document", "~Document");
+        test_parse_query_to_ast_helper("a~2", "a~2");
         test_parse_query_to_ast_helper("\"a b\"~0", "\"a b\"");
         test_parse_query_to_ast_helper("\"a b\"~1", "\"a b\"~1");
         test_parse_query_to_ast_helper("\"a b\"~3", "\"a b\"~3");
