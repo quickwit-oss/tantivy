@@ -7,7 +7,7 @@ Tantivy 0.25
 - Fix TopDocs::order_by_string_fast_field for asc order [#2672](https://github.com/quickwit-oss/tantivy/pull/2672)(@stuhood @PSeitz)
 
 ## Features/Improvements
-- Add fuzzy query support via quoted phrase syntax `"term"~N`. When a quoted phrase tokenizes to a single term, `~N` is interpreted as Levenshtein distance (0-2) instead of phrase slop. Bare words with `~` remain literal for backward compatibility.
+- Add fuzzy query support via quoted phrase syntax `"term"~N`. When a quoted phrase tokenizes to a single term, `~N` is interpreted as Levenshtein distance (0-2) instead of phrase slop. Bare words with `~` remain literal for backward compatibility. [#2804](https://github.com/quickwit-oss/tantivy/pull/2804)(@xingtanzjr)
 - add docs/example and Vec<u32> values to sstable [#2660](https://github.com/quickwit-oss/tantivy/pull/2660)(@PSeitz)
 - Add string fast field support to `TopDocs`. [#2642](https://github.com/quickwit-oss/tantivy/pull/2642)(@stuhood)
 - update edition to 2024 [#2620](https://github.com/quickwit-oss/tantivy/pull/2620)(@PSeitz)
