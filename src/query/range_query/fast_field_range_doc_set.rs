@@ -61,7 +61,11 @@ pub(crate) struct RangeDocSet<T> {
 
 const DEFAULT_FETCH_HORIZON: u32 = 128;
 impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
-    pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
+    pub(crate) fn new(
+        value_range: RangeInclusive<T>,
+        column: Column<T>,
+        seek_first_doc: DocId,
+    ) -> Self {
         if *value_range.start() > column.max_value() || *value_range.end() < column.min_value() {
             return Self {
                 value_range,
@@ -77,7 +81,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
             value_range,
             column,
             loaded_docs: VecCursor::new(),
-            next_fetch_start: 0,
+            next_fetch_start: seek_first_doc,
             fetch_horizon: DEFAULT_FETCH_HORIZON,
             last_seek_pos_opt: None,
         };

@@ -79,14 +79,15 @@ impl SegmentPostings {
                 .close_term(docs.len() as u32, &mut buffer)
                 .expect("In memory Serialization should never fail.");
         }
-        let block_segment_postings = BlockSegmentPostings::open(
+        let (block_segment_postings, position_within_block) = BlockSegmentPostings::open(
             docs.len() as u32,
             FileSlice::from(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
+            0u32,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None)
+        SegmentPostings::from_block_postings(block_segment_postings, None, position_within_block)
     }
 
     /// Helper functions to create `SegmentPostings` for tests.
@@ -126,28 +127,29 @@ impl SegmentPostings {
         postings_serializer
             .close_term(doc_and_tfs.len() as u32, &mut buffer)
             .unwrap();
-        let block_segment_postings = BlockSegmentPostings::open(
+        let (block_segment_postings, position_within_block) = BlockSegmentPostings::open(
             doc_and_tfs.len() as u32,
             FileSlice::from(buffer),
             IndexRecordOption::WithFreqs,
             IndexRecordOption::WithFreqs,
+            0u32,
         )
         .unwrap();
-        SegmentPostings::from_block_postings(block_segment_postings, None)
+        SegmentPostings::from_block_postings(block_segment_postings, None, position_within_block)
     }
 
-    /// Reads a Segment postings from an &[u8]
-    ///
-    /// * `len` - number of document in the posting lists.
-    /// * `data` - data array. The complete data is not necessarily used.
-    /// * `freq_handler` - the freq handler is in charge of decoding frequencies and/or positions
+    /// Creates a Segment Postings from a
+    /// - `BlockSegmentPostings`,
+    /// - a position reader
+    /// - a target document to seek to
     pub(crate) fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
         position_reader: Option<PositionReader>,
+        position_within_block: usize,
     ) -> SegmentPostings {
         SegmentPostings {
             block_cursor: segment_block_postings,
-            cur: 0, // cursor within the block
+            cur: position_within_block,
             position_reader,
         }
     }

@@ -21,7 +21,12 @@ impl Query for AllQuery {
 pub struct AllWeight;
 
 impl Weight for AllWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        _seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
         let all_scorer = AllScorer::new(reader.max_doc());
         if boost != 1.0 {
             Ok(Box::new(BoostScorer::new(all_scorer, boost)))
@@ -141,7 +146,7 @@ mod tests {
         let weight = AllQuery.weight(EnableScoring::disabled_from_schema(&index.schema()))?;
         {
             let reader = searcher.segment_reader(0);
-            let mut scorer = weight.scorer(reader, 1.0)?;
+            let mut scorer = weight.scorer(reader, 1.0, 0)?;
             assert_eq!(scorer.doc(), 0u32);
             assert_eq!(scorer.advance(), 1u32);
             assert_eq!(scorer.doc(), 1u32);
@@ -149,7 +154,7 @@ mod tests {
         }
         {
             let reader = searcher.segment_reader(1);
-            let mut scorer = weight.scorer(reader, 1.0)?;
+            let mut scorer = weight.scorer(reader, 1.0, 0)?;
             assert_eq!(scorer.doc(), 0u32);
             assert_eq!(scorer.advance(), TERMINATED);
         }
@@ -164,12 +169,12 @@ mod tests {
         let weight = AllQuery.weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
         let reader = searcher.segment_reader(0);
         {
-            let mut scorer = weight.scorer(reader, 2.0)?;
+            let mut scorer = weight.scorer(reader, 2.0, 0)?;
             assert_eq!(scorer.doc(), 0u32);
             assert_eq!(scorer.score(), 2.0);
         }
         {
-            let mut scorer = weight.scorer(reader, 1.5)?;
+            let mut scorer = weight.scorer(reader, 1.5, 0)?;
             assert_eq!(scorer.doc(), 0u32);
             assert_eq!(scorer.score(), 1.5);
         }

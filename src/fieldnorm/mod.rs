@@ -113,7 +113,7 @@ mod tests {
             IndexRecordOption::WithFreqs,
         );
         let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
-        let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
+        let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32, 0)?;
         assert_eq!(scorer.doc(), 0);
         assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
         assert_eq!(scorer.advance(), 1);
@@ -142,7 +142,7 @@ mod tests {
             IndexRecordOption::WithFreqs,
         );
         let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
-        let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
+        let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32, 0)?;
         assert_eq!(scorer.doc(), 0);
         assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
         assert_eq!(scorer.advance(), 1);

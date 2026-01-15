@@ -42,10 +42,11 @@ impl PhrasePrefixWeight {
         Ok(FieldNormReader::constant(reader.max_doc(), 1))
     }
 
-    pub(crate) fn phrase_scorer(
+    pub(crate) fn prefix_phrase_scorer(
         &self,
         reader: &SegmentReader,
         boost: Score,
+        seek_doc: DocId,
     ) -> crate::Result<Option<PhrasePrefixScorer<SegmentPostings>>> {
         let similarity_weight_opt = self
             .similarity_weight_opt
@@ -54,14 +55,16 @@ impl PhrasePrefixWeight {
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let mut term_postings_list = Vec::new();
         for &(offset, ref term) in &self.phrase_terms {
-            if let Some(postings) = reader
-                .inverted_index(term.field())?
-                .read_postings(term, IndexRecordOption::WithFreqsAndPositions)?
-            {
-                term_postings_list.push((offset, postings));
-            } else {
+            let inverted_index = reader.inverted_index(term.field())?;
+            let Some(term_info) = inverted_index.get_term_info(term)? else {
                 return Ok(None);
-            }
+            };
+            let postings = inverted_index.read_postings_from_terminfo(
+                &term_info,
+                IndexRecordOption::WithFreqsAndPositions,
+                seek_doc,
+            )?;
+            term_postings_list.push((offset, postings));
         }
 
         let inv_index = reader.inverted_index(self.prefix.1.field())?;
@@ -114,8 +117,13 @@ impl PhrasePrefixWeight {
 }
 
 impl Weight for PhrasePrefixWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        if let Some(scorer) = self.phrase_scorer(reader, boost)? {
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
+        if let Some(scorer) = self.prefix_phrase_scorer(reader, boost, seek_doc)? {
             Ok(Box::new(scorer))
         } else {
             Ok(Box::new(EmptyScorer))
@@ -123,7 +131,7 @@ impl Weight for PhrasePrefixWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader, 1.0)?;
+        let scorer_opt = self.prefix_phrase_scorer(reader, 1.0, doc)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
         }
@@ -139,6 +147,10 @@ impl Weight for PhrasePrefixWeight {
             explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
         }
         Ok(explanation)
+    }
+
+    fn intersection_priority(&self) -> u32 {
+        50u32
     }
 }
 
@@ -187,7 +199,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .prefix_phrase_scorer(searcher.segment_reader(0u32), 1.0, 0u32)?
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
@@ -214,7 +226,7 @@ mod tests {
             .unwrap()
             .unwrap();
         let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .prefix_phrase_scorer(searcher.segment_reader(0u32), 1.0, 0u32)?
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
@@ -238,7 +250,7 @@ mod tests {
             .unwrap()
             .is_none());
         let weight = phrase_query.weight(enable_scoring).unwrap();
-        let mut phrase_scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+        let mut phrase_scorer = weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.advance(), 2);
         assert_eq!(phrase_scorer.doc(), 2);
@@ -259,7 +271,7 @@ mod tests {
         ]);
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let weight = phrase_query.weight(enable_scoring).unwrap();
-        let mut phrase_scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+        let mut phrase_scorer = weight.scorer(searcher.segment_reader(0u32), 1.0, 0)?;
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())
     }

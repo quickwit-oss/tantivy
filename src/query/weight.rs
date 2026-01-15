@@ -68,15 +68,28 @@ pub trait Weight: Send + Sync + 'static {
     ///
     /// `boost` is a multiplier to apply to the score.
     ///
+    /// As an optimization, the scorer can be positioned on any document below `seek_doc`
+    /// matching the request.
+    /// If there are no such document, it should match the first document matching the request;
+    /// (or TERMINATED if no documents match).
+    ///
+    /// Entirely ignoring that parameter and positionning the Scorer on the first document
+    /// is always correct.
+    ///
     /// See [`Query`](crate::query::Query).
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>>;
 
     /// Returns an [`Explanation`] for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
 
     /// Returns the number documents within the given [`SegmentReader`].
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        let mut scorer = self.scorer(reader, 1.0, 0)?;
         if let Some(alive_bitset) = reader.alive_bitset() {
             Ok(scorer.count(alive_bitset))
         } else {
@@ -91,7 +104,7 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        let mut scorer = self.scorer(reader, 1.0, 0)?;
         for_each_scorer(scorer.as_mut(), callback);
         Ok(())
     }
@@ -103,7 +116,7 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
-        let mut docset = self.scorer(reader, 1.0)?;
+        let mut docset = self.scorer(reader, 1.0, 0)?;
 
         let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
         for_each_docset_buffered(&mut docset, &mut buffer, callback);
@@ -126,8 +139,18 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        let mut scorer = self.scorer(reader, 1.0, 0)?;
         for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
         Ok(())
+    }
+
+    /// Returns a priority number used to sort weights when running an
+    /// intersection.
+    ///
+    /// Tweaking this value only impacts performance.
+    /// A higher priority means that the `.scorer()` will be more likely to be evaluated
+    /// after the sibling weights, and be passed a higher `seek_doc` value as a result.
+    fn intersection_priority(&self) -> u32 {
+        20u32
     }
 }

@@ -26,12 +26,23 @@ impl Query for EmptyQuery {
 /// It is useful for tests and handling edge cases.
 pub struct EmptyWeight;
 impl Weight for EmptyWeight {
-    fn scorer(&self, _reader: &SegmentReader, _boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(
+        &self,
+        _reader: &SegmentReader,
+        _boost: Score,
+        _seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
         Ok(Box::new(EmptyScorer))
     }
 
     fn explain(&self, _reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         Err(does_not_match(doc))
+    }
+
+    /// Returns a priority number used to sort weights when running an
+    /// intersection.
+    fn intersection_priority(&self) -> u32 {
+        0u32
     }
 }
 
