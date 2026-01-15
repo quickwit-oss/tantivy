@@ -792,7 +792,7 @@ pub struct IntermediateRangeBucketEntry {
     /// The number of documents in the bucket.
     pub doc_count: u64,
     /// The sub_aggregation in this bucket.
-    pub sub_aggregation: IntermediateAggregationResults,
+    pub sub_aggregation_res: IntermediateAggregationResults,
     /// The from range of the bucket. Equals `f64::MIN` when `None`.
     pub from: Option<f64>,
     /// The to range of the bucket. Equals `f64::MAX` when `None`.
@@ -811,7 +811,7 @@ impl IntermediateRangeBucketEntry {
             key: self.key.into(),
             doc_count: self.doc_count,
             sub_aggregation: self
-                .sub_aggregation
+                .sub_aggregation_res
                 .into_final_result_internal(req, limits)?,
             to: self.to,
             from: self.from,
@@ -857,7 +857,8 @@ impl MergeFruits for IntermediateTermBucketEntry {
 impl MergeFruits for IntermediateRangeBucketEntry {
     fn merge_fruits(&mut self, other: IntermediateRangeBucketEntry) -> crate::Result<()> {
         self.doc_count += other.doc_count;
-        self.sub_aggregation.merge_fruits(other.sub_aggregation)?;
+        self.sub_aggregation_res
+            .merge_fruits(other.sub_aggregation_res)?;
         Ok(())
     }
 }
@@ -887,7 +888,7 @@ mod tests {
                 IntermediateRangeBucketEntry {
                     key: IntermediateKey::Str(key.to_string()),
                     doc_count: *doc_count,
-                    sub_aggregation: Default::default(),
+                    sub_aggregation_res: Default::default(),
                     from: None,
                     to: None,
                 },
@@ -920,7 +921,7 @@ mod tests {
                     doc_count: *doc_count,
                     from: None,
                     to: None,
-                    sub_aggregation: get_sub_test_tree(&[(
+                    sub_aggregation_res: get_sub_test_tree(&[(
                         sub_aggregation_key.to_string(),
                         *sub_aggregation_count,
                     )]),

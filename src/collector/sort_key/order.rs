@@ -1,10 +1,69 @@
 use std::cmp::Ordering;
 
+use columnar::MonotonicallyMappableToU64;
 use serde::{Deserialize, Serialize};
 
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
-use crate::schema::Schema;
+use crate::schema::{OwnedValue, Schema};
 use crate::{DocId, Order, Score};
+
+fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+    match (lhs, rhs) {
+        (OwnedValue::Null, OwnedValue::Null) => Ordering::Equal,
+        (OwnedValue::Null, _) => {
+            if NULLS_FIRST {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        }
+        (_, OwnedValue::Null) => {
+            if NULLS_FIRST {
+                Ordering::Greater
+            } else {
+                Ordering::Less
+            }
+        }
+        (OwnedValue::Str(a), OwnedValue::Str(b)) => a.cmp(b),
+        (OwnedValue::PreTokStr(a), OwnedValue::PreTokStr(b)) => a.cmp(b),
+        (OwnedValue::U64(a), OwnedValue::U64(b)) => a.cmp(b),
+        (OwnedValue::I64(a), OwnedValue::I64(b)) => a.cmp(b),
+        (OwnedValue::F64(a), OwnedValue::F64(b)) => a.to_u64().cmp(&b.to_u64()),
+        (OwnedValue::Bool(a), OwnedValue::Bool(b)) => a.cmp(b),
+        (OwnedValue::Date(a), OwnedValue::Date(b)) => a.cmp(b),
+        (OwnedValue::Facet(a), OwnedValue::Facet(b)) => a.cmp(b),
+        (OwnedValue::Bytes(a), OwnedValue::Bytes(b)) => a.cmp(b),
+        (OwnedValue::IpAddr(a), OwnedValue::IpAddr(b)) => a.cmp(b),
+        (OwnedValue::U64(a), OwnedValue::I64(b)) => {
+            if *b < 0 {
+                Ordering::Greater
+            } else {
+                a.cmp(&(*b as u64))
+            }
+        }
+        (OwnedValue::I64(a), OwnedValue::U64(b)) => {
+            if *a < 0 {
+                Ordering::Less
+            } else {
+                (*a as u64).cmp(b)
+            }
+        }
+        (OwnedValue::U64(a), OwnedValue::F64(b)) => (*a as f64).to_u64().cmp(&b.to_u64()),
+        (OwnedValue::F64(a), OwnedValue::U64(b)) => a.to_u64().cmp(&(*b as f64).to_u64()),
+        (OwnedValue::I64(a), OwnedValue::F64(b)) => (*a as f64).to_u64().cmp(&b.to_u64()),
+        (OwnedValue::F64(a), OwnedValue::I64(b)) => a.to_u64().cmp(&(*b as f64).to_u64()),
+        (a, b) => {
+            let ord = a.discriminant_value().cmp(&b.discriminant_value());
+            // If the discriminant is equal, it's because a new type was added, but hasn't been
+            // included in this `match` statement.
+            assert!(
+                ord != Ordering::Equal,
+                "Unimplemented comparison for type of {a:?}, {b:?}"
+            );
+            ord
+        }
+    }
+}
 
 /// Comparator trait defining the order in which documents should be ordered.
 pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
@@ -12,25 +71,46 @@ pub trait Comparator<T>: Send + Sync + std::fmt::Debug + Default {
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering;
 }
 
-/// With the natural comparator, the top k collector will return
-/// the top documents in decreasing order.
+/// Compare values naturally (e.g. 1 < 2).
+///
+/// When used with `TopDocs`, which reverses the order, this results in a
+/// "Descending" sort (Greatest values first).
+///
+/// `None` (or Null for `OwnedValue`) values are considered to be smaller than any other value,
+/// and will therefore appear last in a descending sort (e.g. `[Some(20), Some(10), None]`).
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct NaturalComparator;
 
 impl<T: PartialOrd> Comparator<T> for NaturalComparator {
     #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
-        lhs.partial_cmp(rhs).unwrap()
+        lhs.partial_cmp(rhs).unwrap_or(Ordering::Equal)
     }
 }
 
-/// Sorts document in reverse order.
+/// A (partial) implementation of comparison for OwnedValue.
 ///
-/// If the sort key is None, it will considered as the lowest value, and will therefore appear
-/// first.
+/// Intended for use within columns of homogenous types, and so will panic for OwnedValues with
+/// mismatched types. The one exception is Null, for which we do define all comparisons.
+impl Comparator<OwnedValue> for NaturalComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+        compare_owned_value::</* NULLS_FIRST= */ true>(lhs, rhs)
+    }
+}
+
+/// Compare values in reverse (e.g. 2 < 1).
+///
+/// When used with `TopDocs`, which reverses the order, this results in an
+/// "Ascending" sort (Smallest values first).
+///
+/// `None` is considered smaller than `Some` in the underlying comparator, but because the
+/// comparison is reversed, `None` is effectively treated as the lowest value in the resulting
+/// Ascending sort (e.g. `[None, Some(10), Some(20)]`).
 ///
 /// The ReverseComparator does not necessarily imply that the sort order is reversed compared
-/// to the NaturalComparator. In presence of a tie, both version will retain the higher doc ids.
+/// to the NaturalComparator. In presence of a tie on the sort key, documents will always be
+/// sorted by ascending `DocId`/`DocAddress` in TopN results, regardless of the sort key's order.
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct ReverseComparator;
 
@@ -43,11 +123,15 @@ where NaturalComparator: Comparator<T>
     }
 }
 
-/// Sorts document in reverse order, but considers None as having the lowest value.
+/// Compare values in reverse, but treating `None` as lower than `Some`.
+///
+/// When used with `TopDocs`, which reverses the order, this results in an
+/// "Ascending" sort (Smallest values first), but with `None` values appearing last
+/// (e.g. `[Some(10), Some(20), None]`).
 ///
 /// This is usually what is wanted when sorting by a field in an ascending order.
-/// For instance, in a e-commerce website, if I sort by price ascending, I most likely want the
-/// cheapest items first, and the items without a price at last.
+/// For instance, in an e-commerce website, if sorting by price ascending,
+/// the cheapest items would appear first, and items without a price would appear last.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct ReverseNoneIsLowerComparator;
 
@@ -107,6 +191,84 @@ impl Comparator<String> for ReverseNoneIsLowerComparator {
     }
 }
 
+impl Comparator<OwnedValue> for ReverseNoneIsLowerComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+        compare_owned_value::</* NULLS_FIRST= */ false>(rhs, lhs)
+    }
+}
+
+/// Compare values naturally, but treating `None` as higher than `Some`.
+///
+/// When used with `TopDocs`, which reverses the order, this results in a
+/// "Descending" sort (Greatest values first), but with `None` values appearing first
+/// (e.g. `[None, Some(20), Some(10)]`).
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
+pub struct NaturalNoneIsHigherComparator;
+
+impl<T> Comparator<Option<T>> for NaturalNoneIsHigherComparator
+where NaturalComparator: Comparator<T>
+{
+    #[inline(always)]
+    fn compare(&self, lhs_opt: &Option<T>, rhs_opt: &Option<T>) -> Ordering {
+        match (lhs_opt, rhs_opt) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Greater,
+            (Some(_), None) => Ordering::Less,
+            (Some(lhs), Some(rhs)) => NaturalComparator.compare(lhs, rhs),
+        }
+    }
+}
+
+impl Comparator<u32> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &u32, rhs: &u32) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<u64> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &u64, rhs: &u64) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<f64> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &f64, rhs: &f64) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<f32> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &f32, rhs: &f32) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<i64> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &i64, rhs: &i64) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<String> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &String, rhs: &String) -> Ordering {
+        NaturalComparator.compare(lhs, rhs)
+    }
+}
+
+impl Comparator<OwnedValue> for NaturalNoneIsHigherComparator {
+    #[inline(always)]
+    fn compare(&self, lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
+        compare_owned_value::</* NULLS_FIRST= */ false>(lhs, rhs)
+    }
+}
+
 /// An enum representing the different sort orders.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub enum ComparatorEnum {
@@ -115,8 +277,10 @@ pub enum ComparatorEnum {
     Natural,
     /// Reverse order (See [ReverseComparator])
     Reverse,
-    /// Reverse order by treating None as the lowest value.(See [ReverseNoneLowerComparator])
+    /// Reverse order by treating None as the lowest value. (See [ReverseNoneLowerComparator])
     ReverseNoneLower,
+    /// Natural order but treating None as the highest value. (See [NaturalNoneIsHigherComparator])
+    NaturalNoneHigher,
 }
 
 impl From<Order> for ComparatorEnum {
@@ -133,6 +297,7 @@ where
     ReverseNoneIsLowerComparator: Comparator<T>,
     NaturalComparator: Comparator<T>,
     ReverseComparator: Comparator<T>,
+    NaturalNoneIsHigherComparator: Comparator<T>,
 {
     #[inline(always)]
     fn compare(&self, lhs: &T, rhs: &T) -> Ordering {
@@ -140,6 +305,7 @@ where
             ComparatorEnum::Natural => NaturalComparator.compare(lhs, rhs),
             ComparatorEnum::Reverse => ReverseComparator.compare(lhs, rhs),
             ComparatorEnum::ReverseNoneLower => ReverseNoneIsLowerComparator.compare(lhs, rhs),
+            ComparatorEnum::NaturalNoneHigher => NaturalNoneIsHigherComparator.compare(lhs, rhs),
         }
     }
 }
@@ -322,11 +488,12 @@ impl<TSegmentSortKeyComputer, TSegmentSortKey, TComparator> SegmentSortKeyComput
     for SegmentSortKeyComputerWithComparator<TSegmentSortKeyComputer, TComparator>
 where
     TSegmentSortKeyComputer: SegmentSortKeyComputer<SegmentSortKey = TSegmentSortKey>,
-    TSegmentSortKey: PartialOrd + Clone + 'static + Sync + Send,
+    TSegmentSortKey: Clone + 'static + Sync + Send,
     TComparator: Comparator<TSegmentSortKey> + 'static + Sync + Send,
 {
     type SortKey = TSegmentSortKeyComputer::SortKey;
     type SegmentSortKey = TSegmentSortKey;
+    type SegmentComparator = TComparator;
 
     fn segment_sort_key(&mut self, doc: DocId, score: Score) -> Self::SegmentSortKey {
         self.segment_sort_key_computer.segment_sort_key(doc, score)
@@ -344,5 +511,57 @@ where
     fn convert_segment_sort_key(&self, sort_key: Self::SegmentSortKey) -> Self::SortKey {
         self.segment_sort_key_computer
             .convert_segment_sort_key(sort_key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::OwnedValue;
+
+    #[test]
+    fn test_natural_none_is_higher() {
+        let comp = NaturalNoneIsHigherComparator;
+        let null = None;
+        let v1 = Some(1_u64);
+        let v2 = Some(2_u64);
+
+        // NaturalNoneIsGreaterComparator logic:
+        // 1. Delegates to NaturalComparator for non-nulls.
+        // NaturalComparator compare(2, 1) -> 2.cmp(1) -> Greater.
+        assert_eq!(comp.compare(&v2, &v1), Ordering::Greater);
+
+        // 2. Treats None (Null) as Greater than any value.
+        // compare(None, Some(2)) should be Greater.
+        assert_eq!(comp.compare(&null, &v2), Ordering::Greater);
+
+        // compare(Some(1), None) should be Less.
+        assert_eq!(comp.compare(&v1, &null), Ordering::Less);
+
+        // compare(None, None) should be Equal.
+        assert_eq!(comp.compare(&null, &null), Ordering::Equal);
+    }
+
+    #[test]
+    fn test_mixed_ownedvalue_compare() {
+        let u = OwnedValue::U64(10);
+        let i = OwnedValue::I64(10);
+        let f = OwnedValue::F64(10.0);
+
+        let nc = NaturalComparator;
+        assert_eq!(nc.compare(&u, &i), Ordering::Equal);
+        assert_eq!(nc.compare(&u, &f), Ordering::Equal);
+        assert_eq!(nc.compare(&i, &f), Ordering::Equal);
+
+        let u2 = OwnedValue::U64(11);
+        assert_eq!(nc.compare(&u2, &f), Ordering::Greater);
+
+        let s = OwnedValue::Str("a".to_string());
+        // Str < U64
+        assert_eq!(nc.compare(&s, &u), Ordering::Less);
+        // Str < I64
+        assert_eq!(nc.compare(&s, &i), Ordering::Less);
+        // Str < F64
+        assert_eq!(nc.compare(&s, &f), Ordering::Less);
     }
 }

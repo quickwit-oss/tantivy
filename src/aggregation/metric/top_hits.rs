@@ -15,12 +15,11 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
-use crate::aggregation::AggregationError;
+use crate::aggregation::{AggregationError, BucketId};
 use crate::collector::sort_key::ReverseComparator;
 use crate::collector::TopNComputer;
 use crate::schema::OwnedValue;
 use crate::{DocAddress, DocId, SegmentOrdinal};
-// duplicate import removed; already imported above
 
 /// Contains all information required by the TopHitsSegmentCollector to perform the
 /// top_hits aggregation on a segment.
@@ -472,7 +471,10 @@ impl TopHitsTopNComputer {
     /// Create a new TopHitsCollector
     pub fn new(req: &TopHitsAggregationReq) -> Self {
         Self {
-            top_n: TopNComputer::new(req.size + req.from.unwrap_or(0)),
+            top_n: TopNComputer::new_with_comparator(
+                req.size + req.from.unwrap_or(0),
+                ReverseComparator,
+            ),
             req: req.clone(),
         }
     }
@@ -518,7 +520,8 @@ impl TopHitsTopNComputer {
 pub(crate) struct TopHitsSegmentCollector {
     segment_ordinal: SegmentOrdinal,
     accessor_idx: usize,
-    top_n: TopNComputer<Vec<DocValueAndOrder>, DocAddress, ReverseComparator>,
+    buckets: Vec<TopNComputer<Vec<DocValueAndOrder>, DocAddress, ReverseComparator>>,
+    num_hits: usize,
 }
 
 impl TopHitsSegmentCollector {
@@ -527,19 +530,29 @@ impl TopHitsSegmentCollector {
         accessor_idx: usize,
         segment_ordinal: SegmentOrdinal,
     ) -> Self {
+        let num_hits = req.size + req.from.unwrap_or(0);
         Self {
-            top_n: TopNComputer::new(req.size + req.from.unwrap_or(0)),
+            num_hits,
             segment_ordinal,
             accessor_idx,
+            buckets: vec![TopNComputer::new_with_comparator(num_hits, ReverseComparator); 1],
         }
     }
-    fn into_top_hits_collector(
-        self,
+    fn get_top_hits_computer(
+        &mut self,
+        parent_bucket_id: BucketId,
         value_accessors: &HashMap<String, Vec<DynamicColumn>>,
         req: &TopHitsAggregationReq,
     ) -> TopHitsTopNComputer {
+        if parent_bucket_id as usize >= self.buckets.len() {
+            return TopHitsTopNComputer::new(req);
+        }
+        let top_n = std::mem::replace(
+            &mut self.buckets[parent_bucket_id as usize],
+            TopNComputer::new(0),
+        );
         let mut top_hits_computer = TopHitsTopNComputer::new(req);
-        let top_results = self.top_n.into_vec();
+        let top_results = top_n.into_vec();
 
         for res in top_results {
             let doc_value_fields = req.get_document_field_data(value_accessors, res.doc.doc_id);
@@ -554,54 +567,24 @@ impl TopHitsSegmentCollector {
 
         top_hits_computer
     }
-
-    /// TODO add a specialized variant for a single sort field
-    fn collect_with(
-        &mut self,
-        doc_id: crate::DocId,
-        req: &TopHitsAggregationReq,
-        accessors: &[(Column<u64>, ColumnType)],
-    ) -> crate::Result<()> {
-        let sorts: Vec<DocValueAndOrder> = req
-            .sort
-            .iter()
-            .enumerate()
-            .map(|(idx, KeyOrder { order, .. })| {
-                let order = *order;
-                let value = accessors
-                    .get(idx)
-                    .expect("could not find field in accessors")
-                    .0
-                    .values_for_doc(doc_id)
-                    .next();
-                DocValueAndOrder { value, order }
-            })
-            .collect();
-
-        self.top_n.push(
-            sorts,
-            DocAddress {
-                segment_ord: self.segment_ordinal,
-                doc_id,
-            },
-        );
-        Ok(())
-    }
 }
 
 impl SegmentAggregationCollector for TopHitsSegmentCollector {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut crate::aggregation::intermediate_agg_result::IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
         let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
 
         let value_accessors = &req_data.value_accessors;
 
-        let intermediate_result = IntermediateMetricResult::TopHits(
-            self.into_top_hits_collector(value_accessors, &req_data.req),
-        );
+        let intermediate_result = IntermediateMetricResult::TopHits(self.get_top_hits_computer(
+            parent_bucket_id,
+            value_accessors,
+            &req_data.req,
+        ));
         results.push(
             req_data.name.to_string(),
             IntermediateAggregationResult::Metric(intermediate_result),
@@ -611,24 +594,54 @@ impl SegmentAggregationCollector for TopHitsSegmentCollector {
     /// TODO: Consider a caching layer to reduce the call overhead
     fn collect(
         &mut self,
-        doc_id: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
-        self.collect_with(doc_id, &req_data.req, &req_data.accessors)?;
-        Ok(())
-    }
-
-    fn collect_block(
-        &mut self,
+        parent_bucket_id: BucketId,
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
+        let top_n = &mut self.buckets[parent_bucket_id as usize];
         let req_data = agg_data.get_top_hits_req_data(self.accessor_idx);
-        // TODO: Consider getting fields with the column block accessor.
-        for doc in docs {
-            self.collect_with(*doc, &req_data.req, &req_data.accessors)?;
+        let req = &req_data.req;
+        let accessors = &req_data.accessors;
+        for &doc_id in docs {
+            // TODO: this is terrible, a new vec is allocated for every doc
+            // We can fetch blocks instead
+            // We don't need to store the order for every value
+            let sorts: Vec<DocValueAndOrder> = req
+                .sort
+                .iter()
+                .enumerate()
+                .map(|(idx, KeyOrder { order, .. })| {
+                    let order = *order;
+                    let value = accessors
+                        .get(idx)
+                        .expect("could not find field in accessors")
+                        .0
+                        .values_for_doc(doc_id)
+                        .next();
+                    DocValueAndOrder { value, order }
+                })
+                .collect();
+
+            top_n.push(
+                sorts,
+                DocAddress {
+                    segment_ord: self.segment_ordinal,
+                    doc_id,
+                },
+            );
         }
+        Ok(())
+    }
+
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        self.buckets.resize(
+            (max_bucket as usize) + 1,
+            TopNComputer::new_with_comparator(self.num_hits, ReverseComparator),
+        );
         Ok(())
     }
 }
@@ -746,7 +759,7 @@ mod tests {
                     ],
                     "from": 0,
                 }
-        }
+            }
         }))
         .unwrap();
 
@@ -875,7 +888,7 @@ mod tests {
                         "mixed.*",
                     ],
                 }
-        }
+            }
         }))?;
 
         let collector = AggregationCollector::from_aggs(d, Default::default());

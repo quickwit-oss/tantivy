@@ -81,6 +81,7 @@ impl<TPostings: Postings> DocSet for PhraseKind<TPostings> {
 }
 
 impl<TPostings: Postings> Scorer for PhraseKind<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         match self {
             PhraseKind::SinglePrefix { positions, .. } => {
@@ -193,6 +194,14 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        if self.phrase_scorer.seek_into_the_danger_zone(target) {
+            self.matches_prefix()
+        } else {
+            false
+        }
+    }
+
     fn doc(&self) -> DocId {
         self.phrase_scorer.doc()
     }
@@ -207,6 +216,7 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
 }
 
 impl<TPostings: Postings> Scorer for PhrasePrefixScorer<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         // TODO modify score??
         self.phrase_scorer.score()

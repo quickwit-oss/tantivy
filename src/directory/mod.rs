@@ -5,7 +5,6 @@ mod mmap_directory;
 
 mod directory;
 mod directory_lock;
-mod file_watcher;
 pub mod footer;
 mod managed_directory;
 mod ram_directory;

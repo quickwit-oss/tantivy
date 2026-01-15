@@ -55,29 +55,29 @@ fn build_shared_indices(num_docs: usize, p_a: f32, p_b: f32, p_c: f32) -> (Bench
     {
         let mut writer = index.writer_with_num_threads(1, 500_000_000).unwrap();
         for _ in 0..num_docs {
-            let has_a = rng.gen_bool(p_a as f64);
-            let has_b = rng.gen_bool(p_b as f64);
-            let has_c = rng.gen_bool(p_c as f64);
-            let score = rng.gen_range(0u64..100u64);
-            let score2 = rng.gen_range(0u64..100_000u64);
+            let has_a = rng.random_bool(p_a as f64);
+            let has_b = rng.random_bool(p_b as f64);
+            let has_c = rng.random_bool(p_c as f64);
+            let score = rng.random_range(0u64..100u64);
+            let score2 = rng.random_range(0u64..100_000u64);
             let mut title_tokens: Vec<&str> = Vec::new();
             let mut body_tokens: Vec<&str> = Vec::new();
             if has_a {
-                if rng.gen_bool(0.1) {
+                if rng.random_bool(0.1) {
                     title_tokens.push("a");
                 } else {
                     body_tokens.push("a");
                 }
             }
             if has_b {
-                if rng.gen_bool(0.1) {
+                if rng.random_bool(0.1) {
                     title_tokens.push("b");
                 } else {
                     body_tokens.push("b");
                 }
             }
             if has_c {
-                if rng.gen_bool(0.1) {
+                if rng.random_bool(0.1) {
                     title_tokens.push("c");
                 } else {
                     body_tokens.push("c");

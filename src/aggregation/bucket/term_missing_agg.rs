@@ -5,11 +5,13 @@ use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::bucket::term_agg::TermsAggregation;
+use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardCachedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateKey, IntermediateTermBucketEntry, IntermediateTermBucketResult,
 };
-use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
+use crate::aggregation::BucketId;
 
 /// Special aggregation to handle missing values for term aggregations.
 /// This missing aggregation will check multiple columns for existence.
@@ -35,41 +37,55 @@ impl MissingTermAggReqData {
     }
 }
 
-/// The specialized missing term aggregation.
 #[derive(Default, Debug, Clone)]
-pub struct TermMissingAgg {
+struct MissingCount {
     missing_count: u32,
+    bucket_id: BucketId,
+}
+
+/// The specialized missing term aggregation.
+#[derive(Default, Debug)]
+pub struct TermMissingAgg {
     accessor_idx: usize,
-    sub_agg: Option<Box<dyn SegmentAggregationCollector>>,
+    sub_agg: Option<HighCardCachedSubAggs>,
+    /// Idx = parent bucket id, Value = missing count for that bucket
+    missing_count_per_bucket: Vec<MissingCount>,
+    bucket_id_provider: BucketIdProvider,
 }
 impl TermMissingAgg {
     pub(crate) fn new(
-        req_data: &mut AggregationsSegmentCtx,
+        agg_data: &mut AggregationsSegmentCtx,
         node: &AggRefNode,
     ) -> crate::Result<Self> {
         let has_sub_aggregations = !node.children.is_empty();
         let accessor_idx = node.idx_in_req_data;
         let sub_agg = if has_sub_aggregations {
-            let sub_aggregation = build_segment_agg_collectors(req_data, &node.children)?;
+            let sub_aggregation = build_segment_agg_collectors(agg_data, &node.children)?;
             Some(sub_aggregation)
         } else {
             None
         };
 
+        let sub_agg = sub_agg.map(CachedSubAggs::new);
+        let bucket_id_provider = BucketIdProvider::default();
+
         Ok(Self {
             accessor_idx,
             sub_agg,
-            ..Default::default()
+            missing_count_per_bucket: Vec::new(),
+            bucket_id_provider,
         })
     }
 }
 
 impl SegmentAggregationCollector for TermMissingAgg {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
+        self.prepare_max_bucket(parent_bucket_id, agg_data)?;
         let req_data = agg_data.get_missing_term_req_data(self.accessor_idx);
         let term_agg = &req_data.req;
         let missing = term_agg
@@ -80,13 +96,16 @@ impl SegmentAggregationCollector for TermMissingAgg {
         let mut entries: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> =
             Default::default();
 
+        let missing_count = &self.missing_count_per_bucket[parent_bucket_id as usize];
         let mut missing_entry = IntermediateTermBucketEntry {
-            doc_count: self.missing_count,
+            doc_count: missing_count.missing_count,
             sub_aggregation: Default::default(),
         };
-        if let Some(sub_agg) = self.sub_agg {
+        if let Some(sub_agg) = &mut self.sub_agg {
             let mut res = IntermediateAggregationResults::default();
-            sub_agg.add_intermediate_aggregation_result(agg_data, &mut res)?;
+            sub_agg
+                .get_sub_agg_collector()
+                .add_intermediate_aggregation_result(agg_data, &mut res, missing_count.bucket_id)?;
             missing_entry.sub_aggregation = res;
         }
         entries.insert(missing.into(), missing_entry);
@@ -109,30 +128,52 @@ impl SegmentAggregationCollector for TermMissingAgg {
 
     fn collect(
         &mut self,
-        doc: crate::DocId,
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
+        let bucket = &mut self.missing_count_per_bucket[parent_bucket_id as usize];
         let req_data = agg_data.get_missing_term_req_data(self.accessor_idx);
-        let has_value = req_data
-            .accessors
-            .iter()
-            .any(|(acc, _)| acc.index.has_value(doc));
-        if !has_value {
-            self.missing_count += 1;
-            if let Some(sub_agg) = self.sub_agg.as_mut() {
-                sub_agg.collect(doc, agg_data)?;
+
+        for doc in docs {
+            let doc = *doc;
+            let has_value = req_data
+                .accessors
+                .iter()
+                .any(|(acc, _)| acc.index.has_value(doc));
+            if !has_value {
+                bucket.missing_count += 1;
+
+                if let Some(sub_agg) = self.sub_agg.as_mut() {
+                    sub_agg.push(bucket.bucket_id, doc);
+                }
             }
+        }
+
+        if let Some(sub_agg) = self.sub_agg.as_mut() {
+            sub_agg.check_flush_local(agg_data)?;
         }
         Ok(())
     }
 
-    fn collect_block(
+    fn prepare_max_bucket(
         &mut self,
-        docs: &[crate::DocId],
-        agg_data: &mut AggregationsSegmentCtx,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        for doc in docs {
-            self.collect(*doc, agg_data)?;
+        while self.missing_count_per_bucket.len() <= max_bucket as usize {
+            let bucket_id = self.bucket_id_provider.next_bucket_id();
+            self.missing_count_per_bucket.push(MissingCount {
+                missing_count: 0,
+                bucket_id,
+            });
+        }
+        Ok(())
+    }
+
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
+        if let Some(sub_agg) = self.sub_agg.as_mut() {
+            sub_agg.flush(agg_data)?;
         }
         Ok(())
     }

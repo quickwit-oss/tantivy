@@ -311,7 +311,7 @@ mod tests {
         #![proptest_config(ProptestConfig::with_cases(50))]
         #[test]
         fn test_phrase_regex_with_random_strings(mut random_strings in proptest::collection::vec("[c-z ]{0,10}", 1..100), num_occurrences in 1..150_usize) {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
 
             // Insert "aaa ccc" the specified number of times into the list
             for _ in 0..num_occurrences {

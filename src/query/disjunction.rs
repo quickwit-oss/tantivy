@@ -62,6 +62,16 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
         self.current_doc = doc_id;
         doc_id
     }
+    fn seek(&mut self, target: DocId) -> DocId {
+        let doc_id = self.scorer.seek(target);
+        self.current_doc = doc_id;
+        doc_id
+    }
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        let found = self.scorer.seek_into_the_danger_zone(target);
+        self.current_doc = self.scorer.doc();
+        found
+    }
 
     fn doc(&self) -> DocId {
         self.current_doc
@@ -163,6 +173,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
     for Disjunction<TScorer, TScoreCombiner>
 {
+    #[inline]
     fn score(&mut self) -> Score {
         self.current_score
     }
@@ -297,6 +308,7 @@ mod tests {
     }
 
     impl Scorer for DummyScorer {
+        #[inline]
         fn score(&mut self) -> Score {
             self.foo.get(self.cursor).map(|x| x.1).unwrap_or(0.0)
         }

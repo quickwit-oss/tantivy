@@ -382,8 +382,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 PostingsWithOffset::new(postings, (max_offset - offset) as u32)
             })
             .collect::<Vec<_>>();
+        let intersection_docset = Intersection::new(postings_with_offsets, num_docs);
         let mut scorer = PhraseScorer {
-            intersection_docset: Intersection::new(postings_with_offsets, num_docs),
+            intersection_docset,
             num_terms: num_docsets,
             left_positions: Vec::with_capacity(100),
             right_positions: Vec::with_capacity(100),
@@ -529,25 +530,40 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         self.advance()
     }
 
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        debug_assert!(target >= self.doc());
+        if self.intersection_docset.seek_into_the_danger_zone(target) && self.phrase_match() {
+            return true;
+        }
+        false
+    }
+
     fn doc(&self) -> DocId {
         self.intersection_docset.doc()
     }
 
     fn size_hint(&self) -> u32 {
-        self.intersection_docset.size_hint()
+        // We adjust the intersection estimate, since actual phrase hits are much lower than where
+        // the all appear.
+        // The estimate should depend on average field length, e.g. if the field is really short
+        // a phrase hit is more likely
+        self.intersection_docset.size_hint() / (10 * self.num_terms as u32)
     }
 
     /// Returns a best-effort hint of the
     /// cost to drive the docset.
     fn cost(&self) -> u64 {
-        // Evaluating phrase matches is generally more expensive than simple term matches,
-        // as it requires loading and comparing positions. Use a conservative multiplier
-        // based on the number of terms.
+        // While determing a potential hit is cheap for phrases, evaluating an actual hit is
+        // expensive since it requires to load positions for a doc and check if they are next to
+        // each other.
+        // So the cost estimation would be the number of times we need to check if a doc is a hit *
+        // 10 * self.num_terms.
         self.intersection_docset.size_hint() as u64 * 10 * self.num_terms as u64
     }
 }
 
 impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);

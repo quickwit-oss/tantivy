@@ -29,6 +29,7 @@ impl ScoreCombiner for DoNothingCombiner {
 
     fn clear(&mut self) {}
 
+    #[inline]
     fn score(&self) -> Score {
         1.0
     }
@@ -49,6 +50,7 @@ impl ScoreCombiner for SumCombiner {
         self.score = 0.0;
     }
 
+    #[inline]
     fn score(&self) -> Score {
         self.score
     }
@@ -86,6 +88,7 @@ impl ScoreCombiner for DisjunctionMaxCombiner {
         self.sum = 0.0;
     }
 
+    #[inline]
     fn score(&self) -> Score {
         self.max + (self.sum - self.max) * self.tie_breaker
     }
