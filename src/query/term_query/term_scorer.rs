@@ -26,8 +26,9 @@ impl TermScorer {
         }
     }
 
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
+    pub(crate) fn seek_block(&mut self, target_doc: DocId) -> Score {
         self.postings.block_cursor.seek_block(target_doc);
+        self.block_max_score()
     }
 
     #[cfg(test)]
@@ -69,7 +70,8 @@ impl TermScorer {
     /// specific is achieved on a different document.
     ///
     /// (The result is on the other hand guaranteed to be correct if there is only one segment).
-    pub fn block_max_score(&mut self) -> Score {
+    #[inline(always)]
+    fn block_max_score(&mut self) -> Score {
         self.postings
             .block_cursor
             .block_max_score(&self.fieldnorm_reader, &self.similarity_weight)

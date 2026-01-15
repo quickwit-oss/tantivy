@@ -166,10 +166,7 @@ pub fn block_wand(
 
         let block_max_score_upperbound: Score = scorers[..pivot_len]
             .iter_mut()
-            .map(|scorer| {
-                scorer.seek_block(pivot_doc);
-                scorer.block_max_score()
-            })
+            .map(|scorer| scorer.seek_block(pivot_doc))
             .sum();
 
         // Beware after shallow advance, skip readers can be in advance compared to
@@ -225,16 +222,17 @@ pub fn block_wand_single_scorer(
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
     let mut doc = scorer.doc();
+    let mut block_max_score = scorer.seek_block(doc);
     loop {
         // We position the scorer on a block that can reach
         // the threshold.
-        while scorer.block_max_score() < threshold {
+        while block_max_score < threshold {
             let last_doc_in_block = scorer.last_doc_in_block();
             if last_doc_in_block == TERMINATED {
                 return;
             }
             doc = last_doc_in_block + 1;
-            scorer.seek_block(doc);
+            block_max_score = scorer.seek_block(doc);
         }
         // Seek will effectively load that block.
         doc = scorer.seek(doc);
@@ -256,7 +254,7 @@ pub fn block_wand_single_scorer(
             }
         }
         doc += 1;
-        scorer.seek_block(doc);
+        block_max_score = scorer.seek_block(doc);
     }
 }
 
