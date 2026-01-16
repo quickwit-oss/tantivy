@@ -115,6 +115,54 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
     fast_field_names
 }
 
+/// Validates that all fields referenced in the aggregation request exist in the schema
+/// and are configured as fast fields.
+///
+/// This is a convenience function for upfront validation before executing aggregations.
+/// Returns an error if any field doesn't exist or is not a fast field.
+///
+/// # Example
+/// ```
+/// use tantivy::aggregation::agg_req::{Aggregations, validate_aggregation_fields};
+/// use tantivy::Index;
+///
+/// # fn example(index: &Index, agg_req: Aggregations) -> tantivy::Result<()> {
+/// let reader = index.reader()?;
+/// let searcher = reader.searcher();
+///
+/// // Validate fields before executing
+/// for segment_reader in searcher.segment_readers() {
+///     validate_aggregation_fields(&agg_req, segment_reader)?;
+/// }
+/// # Ok(())
+/// # }
+/// ```
+pub fn validate_aggregation_fields(
+    aggs: &Aggregations,
+    reader: &crate::SegmentReader,
+) -> crate::Result<()> {
+    let field_names = get_fast_field_names(aggs);
+    let schema = reader.schema();
+
+    for field_name in field_names {
+        // Check if the field is either directly in the schema or could be part of a json field
+        // present in the schema, and verify it's a fast field.
+        if let Some((field, _path)) = schema.find_field(&field_name) {
+            let field_type = schema.get_field_entry(field).field_type();
+            if !field_type.is_fast() {
+                return Err(crate::TantivyError::SchemaError(format!(
+                    "Field '{}' is not a fast field. Aggregations require fast fields.",
+                    field_name
+                )));
+            }
+        } else {
+            return Err(crate::TantivyError::FieldNotFound(field_name));
+        }
+    }
+
+    Ok(())
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// All aggregation types.
 pub enum AggregationVariants {
