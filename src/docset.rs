@@ -108,7 +108,7 @@ pub trait DocSet: Send {
         buffer.len()
     }
 
-    // comment on the size of the bitset
+    /// TODO comment on the size of the bitset
     fn fill_bitset(&mut self, bitset: &mut BitSet) {
         let mut doc = self.doc();
         while doc != TERMINATED {

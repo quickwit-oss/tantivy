@@ -3,7 +3,7 @@ use std::io;
 use common::OwnedBytes;
 
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::FreqReadingOption;
+use crate::postings::{FreqReadingOption, Postings};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
@@ -11,6 +11,7 @@ use crate::{DocId, Score};
 pub trait PostingsCodec {
     type PostingsSerializer: PostingsSerializer;
     type PostingsReader: PostingsReader;
+    type Postings: Postings;
 
     fn new_serializer(
         &self,
@@ -32,6 +33,13 @@ pub trait PostingsCodec {
         record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
     ) -> std::io::Result<Self::PostingsReader>;
+
+    fn load_postings(&self,
+                doc_freq: u32,
+                postings_data: OwnedBytes,
+                record_option: IndexRecordOption,
+                requested_option: IndexRecordOption,
+                positions_data: Option<OwnedBytes>) -> io::Result<Self::Postings>;
 }
 
 pub trait PostingsSerializer {

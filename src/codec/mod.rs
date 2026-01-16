@@ -3,10 +3,11 @@ pub mod standard;
 
 use std::borrow::Cow;
 
+use common::OwnedBytes;
 use serde::{Deserialize, Serialize};
 pub use standard::StandardCodec;
 
-use crate::codec::postings::PostingsCodec;
+use crate::{codec::postings::PostingsCodec, postings::Postings, schema::IndexRecordOption};
 
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     type PostingsCodec: PostingsCodec;
@@ -18,6 +19,7 @@ pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
 
     fn postings_codec(&self) -> &Self::PostingsCodec;
 }
+
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CodecConfiguration {
@@ -50,4 +52,28 @@ impl Default for CodecConfiguration {
     fn default() -> Self {
         CodecConfiguration::from_codec(&StandardCodec)
     }
+}
+
+pub trait CodecPostingsLoader {
+    fn load_postings_type_erased(&self,
+        doc_freq: u32,
+        postings_data: OwnedBytes,
+        record_option: IndexRecordOption,
+        requested_option: IndexRecordOption,
+        positions_data: Option<OwnedBytes>,
+    ) -> crate::Result<Box<dyn Postings>>;
+}
+
+impl<TPostingsCodec: PostingsCodec> CodecPostingsLoader for TPostingsCodec {
+    fn load_postings_type_erased(&self,
+            doc_freq: u32,
+            postings_data: OwnedBytes,
+            record_option: IndexRecordOption,
+            requested_option: IndexRecordOption,
+            positions_data: Option<OwnedBytes>,
+        ) -> crate::Result<Box<dyn Postings>> {
+            let postings: <Self as PostingsCodec>::Postings = self.load_postings(doc_freq, postings_data, record_option, requested_option, positions_data)?;
+            let boxed_postings: Box<dyn Postings> = Box::new(postings);
+            Ok(boxed_postings)
+     }
 }
