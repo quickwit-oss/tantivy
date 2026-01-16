@@ -11,7 +11,6 @@ use itertools::Itertools;
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::codec::postings::PostingsCodec;
-use crate::codec::standard::postings::StandardPostingsCodec;
 use crate::codec::{ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
