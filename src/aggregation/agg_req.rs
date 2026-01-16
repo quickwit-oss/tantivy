@@ -124,9 +124,21 @@ pub fn get_fast_field_names(aggs: &Aggregations) -> HashSet<String> {
 /// # Example
 /// ```
 /// use tantivy::aggregation::agg_req::{Aggregations, validate_aggregation_fields};
+/// use tantivy::schema::{Schema, FAST};
 /// use tantivy::Index;
 ///
-/// # fn example(index: &Index, agg_req: Aggregations) -> tantivy::Result<()> {
+/// # fn main() -> tantivy::Result<()> {
+/// // Create a simple index
+/// let mut schema_builder = Schema::builder();
+/// schema_builder.add_f64_field("price", FAST);
+/// let schema = schema_builder.build();
+/// let index = Index::create_in_ram(schema);
+///
+/// // Parse aggregation request
+/// let agg_req: Aggregations = serde_json::from_str(r#"{
+///     "avg_price": { "avg": { "field": "price" } }
+/// }"#)?;
+///
 /// let reader = index.reader()?;
 /// let searcher = reader.searcher();
 ///
