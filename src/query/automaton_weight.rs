@@ -5,13 +5,12 @@ use common::BitSet;
 use tantivy_fst::Automaton;
 
 use super::phrase_prefix_query::prefix_end;
-use crate::codec::postings::PostingsReader as _;
 use crate::index::SegmentReader;
 use crate::postings::TermInfo;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::{DocId, Score, TantivyError};
+use crate::{DocId, DocSet, Score, TantivyError};
 
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A> {
@@ -93,18 +92,9 @@ where
         let mut term_stream = self.automaton_stream(term_dict)?;
         while term_stream.advance() {
             let term_info = term_stream.value();
-            let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-            loop {
-                let docs = block_segment_postings.docs();
-                if docs.is_empty() {
-                    break;
-                }
-                for &doc in docs {
-                    doc_bitset.insert(doc);
-                }
-                block_segment_postings.advance();
-            }
+            let mut block_segment_postings =
+                inverted_index.read_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+            block_segment_postings.fill_bitset(&mut doc_bitset);
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
         let const_scorer = ConstScorer::new(doc_bitset, boost);

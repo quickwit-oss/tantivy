@@ -12,7 +12,7 @@ use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 use crate::codec::postings::PostingsReader as _;
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
-use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
+use crate::postings::{BlockSegmentPostings, Postings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 

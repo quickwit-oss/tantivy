@@ -1,4 +1,4 @@
-use common::HasLen;
+use common::{BitSet, HasLen};
 
 use crate::codec::postings::PostingsReader;
 use crate::docset::DocSet;
@@ -200,6 +200,19 @@ impl DocSet for SegmentPostings {
 
     fn size_hint(&self) -> u32 {
         self.len() as u32
+    }
+
+    fn fill_bitset(&mut self, bitset: &mut BitSet) {
+        loop {
+            let docs = self.block_cursor.docs();
+            if docs.is_empty() {
+                break;
+            }
+            for &doc in docs {
+                bitset.insert(doc);
+            }
+            self.block_cursor.advance();
+        }
     }
 }
 

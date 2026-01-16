@@ -12,7 +12,7 @@ use crate::query::range_query::is_type_valid_for_fastfield_range_query;
 use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::{DocId, Score};
+use crate::{DocId, DocSet, Score};
 
 /// `RangeQuery` matches all documents that have at least one term within a defined range.
 ///
@@ -229,18 +229,9 @@ impl Weight for InvertedIndexRangeWeight {
             }
             processed_count += 1;
             let term_info = term_range.value();
-            let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-            loop {
-                let docs = block_segment_postings.docs();
-                if docs.is_empty() {
-                    break;
-                }
-                for &doc in block_segment_postings.docs() {
-                    doc_bitset.insert(doc);
-                }
-                block_segment_postings.advance();
-            }
+            let mut postings =
+                inverted_index.read_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
+            postings.fill_bitset(&mut doc_bitset);
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
         Ok(Box::new(ConstScorer::new(doc_bitset, boost)))
