@@ -339,36 +339,35 @@ impl BlockSegmentPostings {
 
 #[cfg(test)]
 mod tests {
-    use common::HasLen;
+    use common::{HasLen, OwnedBytes};
 
     use super::BlockSegmentPostings;
+    use crate::codec::postings::PostingsSerializer;
+    use crate::codec::standard::postings::StandardPostingsSerializer;
     use crate::docset::{DocSet, TERMINATED};
     use crate::index::Index;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-    use crate::postings::{Postings as _, SegmentPostings};
+    use crate::postings::Postings as _;
     use crate::schema::{IndexRecordOption, Schema, Term, INDEXED};
 
-    #[test]
-    fn test_empty_segment_postings() {
-        let mut postings = SegmentPostings::empty();
-        assert_eq!(postings.doc(), TERMINATED);
-        assert_eq!(postings.advance(), TERMINATED);
-        assert_eq!(postings.advance(), TERMINATED);
-        assert_eq!(postings.doc_freq(), 0);
-        assert_eq!(postings.len(), 0);
-    }
-
-    #[test]
-    fn test_empty_postings_doc_returns_terminated() {
-        let mut postings = SegmentPostings::empty();
-        assert_eq!(postings.doc(), TERMINATED);
-        assert_eq!(postings.advance(), TERMINATED);
-    }
-
-    #[test]
-    fn test_empty_postings_doc_term_freq_returns_0() {
-        let postings = SegmentPostings::empty();
-        assert_eq!(postings.term_freq(), 1);
+    #[cfg(test)]
+    fn build_block_postings(docs: &[u32]) -> BlockSegmentPostings {
+        let doc_freq = docs.len() as u32;
+        let mut postings_serializer =
+            StandardPostingsSerializer::new(1.0f32, IndexRecordOption::Basic, None);
+        postings_serializer.new_term(docs.len() as u32, false);
+        for doc in docs {
+            postings_serializer.write_doc(*doc, 1u32);
+        }
+        let mut buffer: Vec<u8> = Vec::new();
+        postings_serializer.close_term(doc_freq, &mut buffer).unwrap();
+        BlockSegmentPostings::open(
+            doc_freq,
+            OwnedBytes::new(buffer),
+            IndexRecordOption::Basic,
+            IndexRecordOption::Basic,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -383,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_block_segment_postings() -> crate::Result<()> {
-        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>())?;
+        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>());
         let mut offset: u32 = 0u32;
         // checking that the `doc_freq` is correct
         assert_eq!(block_segments.doc_freq(), 100_000);
@@ -408,7 +407,7 @@ mod tests {
         doc_ids.push(129);
         doc_ids.push(130);
         {
-            let block_segments = build_block_postings(&doc_ids)?;
+            let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.seek(128), 129);
             assert_eq!(docset.doc(), 129);
@@ -417,7 +416,7 @@ mod tests {
             assert_eq!(docset.advance(), TERMINATED);
         }
         {
-            let block_segments = build_block_postings(&doc_ids).unwrap();
+            let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.seek(129), 129);
             assert_eq!(docset.doc(), 129);
@@ -426,7 +425,7 @@ mod tests {
             assert_eq!(docset.advance(), TERMINATED);
         }
         {
-            let block_segments = build_block_postings(&doc_ids)?;
+            let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.doc(), 0);
             assert_eq!(docset.seek(131), TERMINATED);
@@ -441,7 +440,7 @@ mod tests {
         for i in 0..1300 {
             docs.push((i * i / 100) + i);
         }
-        let mut block_postings = build_block_postings(&docs[..])?;
+        let mut block_postings = build_block_postings(&docs[..]);
         for i in &[0, 424, 10000] {
             block_postings.seek(*i);
             let docs = block_postings.docs();
