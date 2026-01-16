@@ -24,7 +24,7 @@ mod reqopt_scorer;
 mod scorer;
 mod set_query;
 mod size_hint;
-mod term_query;
+pub(crate) mod term_query;
 mod union;
 mod weight;
 

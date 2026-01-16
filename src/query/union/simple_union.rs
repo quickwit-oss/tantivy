@@ -45,6 +45,15 @@ impl<TDocSet: DocSet> SimpleUnion<TDocSet> {
 }
 
 impl<TDocSet: Postings> Postings for SimpleUnion<TDocSet> {
+    fn new_term_scorer(
+        self: Box<Self>,
+        fieldnorm_reader: crate::fieldnorm::FieldNormReader,
+        similarity_weight: crate::query::Bm25Weight,
+    ) -> Box<dyn crate::query::Scorer> {
+        use crate::query::term_query::TermScorer;
+        Box::new(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
+    }
+
     fn term_freq(&self) -> u32 {
         let mut term_freq = 0;
         for docset in &self.docsets {

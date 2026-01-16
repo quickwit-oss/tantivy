@@ -2,7 +2,7 @@ use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::FreqReadingOption;
 use crate::query::{Bm25Weight, Scorer};
-use crate::{DocId, Score};
+use crate::Score;
 
 /// Postings (also called inverted list)
 ///
@@ -15,7 +15,11 @@ use crate::{DocId, Score};
 /// but other implementations mocking `SegmentPostings` exist,
 /// for merging segments or for testing.
 pub trait Postings: DocSet + 'static {
-    fn new_term_scorer(self: Box<Self>, fieldnorm_reader: &FieldNormReader, similarity_weight: &Bm25Weight) -> Box<dyn Scorer>;
+    fn new_term_scorer(
+        self: Box<Self>,
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+    ) -> Box<dyn Scorer>;
 
     /// The number of times the term appears in the document.
     fn term_freq(&self) -> u32;
@@ -38,11 +42,13 @@ pub trait Postings: DocSet + 'static {
         self.positions_with_offset(0u32, output);
     }
 
+    fn freq_reading_option(&self) -> FreqReadingOption;
+
+    // TODO see if we can put that in a lift to PostingsWithBlockMax trait.
     // supports Block-Wand
     fn supports_block_max(&self) -> bool {
         false
     }
-
     // TODO document
     // Only allowed for block max.
     fn seek_block(
@@ -59,11 +65,17 @@ pub trait Postings: DocSet + 'static {
     fn last_doc_in_block(&self) -> crate::DocId {
         unimplemented!()
     }
-
-    fn freq_reading_option(&self) -> FreqReadingOption;
 }
 
 impl Postings for Box<dyn Postings> {
+    fn new_term_scorer(
+        self: Box<Self>,
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+    ) -> Box<dyn Scorer> {
+        (*self).new_term_scorer(fieldnorm_reader, similarity_weight)
+    }
+
     fn term_freq(&self) -> u32 {
         (**self).term_freq()
     }

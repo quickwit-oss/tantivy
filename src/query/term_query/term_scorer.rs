@@ -26,27 +26,6 @@ impl<TPostings: Postings> TermScorer<TPostings> {
         }
     }
 
-    #[cfg(test)]
-    pub fn create_for_test(
-        doc_and_tfs: &[(DocId, u32)],
-        fieldnorms: &[u32],
-        similarity_weight: Bm25Weight,
-    ) -> TermScorer {
-        assert!(!doc_and_tfs.is_empty());
-        assert!(
-            doc_and_tfs
-                .iter()
-                .map(|(doc, _tf)| *doc)
-                .max()
-                .unwrap_or(0u32)
-                < fieldnorms.len() as u32
-        );
-        let segment_postings =
-            SegmentPostings::create_from_docs_and_tfs(doc_and_tfs, Some(fieldnorms));
-        let fieldnorm_reader = FieldNormReader::for_test(fieldnorms);
-        TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight)
-    }
-
     /// See `FreqReadingOption`.
     pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
         self.postings.freq_reading_option()
@@ -80,6 +59,29 @@ impl<TPostings: Postings> TermScorer<TPostings> {
     }
 }
 
+impl TermScorer {
+    #[cfg(test)]
+    pub fn create_for_test(
+        doc_and_tfs: &[(DocId, u32)],
+        fieldnorms: &[u32],
+        similarity_weight: Bm25Weight,
+    ) -> TermScorer {
+        assert!(!doc_and_tfs.is_empty());
+        assert!(
+            doc_and_tfs
+                .iter()
+                .map(|(doc, _tf)| *doc)
+                .max()
+                .unwrap_or(0u32)
+                < fieldnorms.len() as u32
+        );
+        let segment_postings: SegmentPostings =
+            SegmentPostings::create_from_docs_and_tfs(doc_and_tfs, Some(fieldnorms));
+        let fieldnorm_reader = FieldNormReader::for_test(fieldnorms);
+        TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight)
+    }
+}
+
 impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
     #[inline]
     fn advance(&mut self) -> DocId {
@@ -101,7 +103,7 @@ impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
     }
 }
 
-impl Scorer for TermScorer {
+impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
     #[inline]
     fn score(&mut self) -> Score {
         let fieldnorm_id = self.fieldnorm_id();
@@ -137,7 +139,7 @@ mod tests {
         crate::assert_nearly_equals!(max_scorer, 1.3990127);
         assert_eq!(term_scorer.doc(), 2);
         assert_eq!(term_scorer.term_freq(), 3);
-        assert_nearly_equals!(term_scorer.block_max_score(), 1.3676447);
+        assert_nearly_equals!(term_scorer.seek_block(2), 1.3676447);
         assert_nearly_equals!(term_scorer.score(), 1.0892314);
         assert_eq!(term_scorer.advance(), 3);
         assert_eq!(term_scorer.doc(), 3);
@@ -200,7 +202,7 @@ mod tests {
 
          let docs: Vec<DocId> = (0..term_doc_freq).map(|doc| doc as DocId).collect();
          for block in docs.chunks(COMPRESSION_BLOCK_SIZE) {
-             let block_max_score: Score = term_scorer.block_max_score();
+             let block_max_score: Score = term_scorer.seek_block(0);
              let mut block_max_score_computed: Score = 0.0;
              for &doc in block {
                 assert_eq!(term_scorer.doc(), doc);
@@ -228,14 +230,12 @@ mod tests {
         let fieldnorms: Vec<u32> = std::iter::repeat_n(20u32, 300).collect();
         let bm25_weight = Bm25Weight::for_one_term(10, 129, 20.0);
         let mut docs = TermScorer::create_for_test(&doc_tfs[..], &fieldnorms[..], bm25_weight);
-        assert_nearly_equals!(docs.block_max_score(), 2.5161593);
-        docs.seek_block(135);
-        assert_nearly_equals!(docs.block_max_score(), 3.4597192);
-        docs.seek_block(256);
+        assert_nearly_equals!(docs.seek_block(0), 2.5161593);
+        assert_nearly_equals!(docs.seek_block(135), 3.4597192);
         // the block is not loaded yet.
-        assert_nearly_equals!(docs.block_max_score(), 5.2971773);
+        assert_nearly_equals!(docs.seek_block(256), 5.2971773);
         assert_eq!(256, docs.seek(256));
-        assert_nearly_equals!(docs.block_max_score(), 3.9539647);
+        assert_nearly_equals!(docs.seek_block(256), 3.9539647);
     }
 
     fn test_block_wand_aux(term_query: &TermQuery, searcher: &Searcher) -> crate::Result<()> {

@@ -88,6 +88,15 @@ impl DocSet for LoadedPostings {
     }
 }
 impl Postings for LoadedPostings {
+    fn new_term_scorer(
+        self: Box<Self>,
+        fieldnorm_reader: crate::fieldnorm::FieldNormReader,
+        similarity_weight: crate::query::Bm25Weight,
+    ) -> Box<dyn crate::query::Scorer> {
+        use crate::query::term_query::TermScorer;
+        Box::new(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
+    }
+
     fn term_freq(&self) -> u32 {
         let start = self.position_offsets[self.cursor] as usize;
         let end = self.position_offsets[self.cursor + 1] as usize;

@@ -303,6 +303,7 @@ mod tests {
 
     use proptest::prelude::*;
 
+    use crate::postings::SegmentPostings;
     use crate::query::score_combiner::SumCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::{Bm25Weight, BufferedUnionScorer, Scorer};
