@@ -1,4 +1,5 @@
 use std::io;
+use std::sync::Arc;
 
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount};
@@ -9,7 +10,9 @@ use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
-use crate::codec::postings::PostingsReader as _;
+use crate::codec::postings::PostingsCodec;
+use crate::codec::standard::postings::StandardPostingsCodec;
+use crate::codec::{ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, Postings, SegmentPostings, TermInfo};
@@ -34,6 +37,7 @@ pub struct InvertedIndexReader {
     positions_file_slice: FileSlice,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
+    codec: Arc<dyn ObjectSafeCodec>,
 }
 
 /// Object that records the amount of space used by a field in an inverted index.
@@ -69,6 +73,7 @@ impl InvertedIndexReader {
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
         record_option: IndexRecordOption,
+        codec: Arc<dyn ObjectSafeCodec>,
     ) -> io::Result<InvertedIndexReader> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
         let total_num_tokens = u64::deserialize(&mut total_num_tokens_slice.read_bytes()?)?;
@@ -78,6 +83,7 @@ impl InvertedIndexReader {
             positions_file_slice,
             record_option,
             total_num_tokens,
+            codec,
         })
     }
 
@@ -90,6 +96,7 @@ impl InvertedIndexReader {
             positions_file_slice: FileSlice::empty(),
             record_option,
             total_num_tokens: 0u64,
+            codec: Arc::new(StandardCodec),
         }
     }
 

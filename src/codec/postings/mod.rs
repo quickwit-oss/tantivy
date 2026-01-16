@@ -8,7 +8,7 @@ use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
-pub trait PostingsCodec {
+pub trait PostingsCodec: Send + Sync + 'static {
     type PostingsSerializer: PostingsSerializer;
     type PostingsReader: PostingsReader;
     type Postings: Postings;
@@ -34,12 +34,14 @@ pub trait PostingsCodec {
         requested_option: IndexRecordOption,
     ) -> std::io::Result<Self::PostingsReader>;
 
-    fn load_postings(&self,
-                doc_freq: u32,
-                postings_data: OwnedBytes,
-                record_option: IndexRecordOption,
-                requested_option: IndexRecordOption,
-                positions_data: Option<OwnedBytes>) -> io::Result<Self::Postings>;
+    fn load_postings(
+        &self,
+        doc_freq: u32,
+        postings_data: OwnedBytes,
+        record_option: IndexRecordOption,
+        requested_option: IndexRecordOption,
+        positions_data: Option<OwnedBytes>,
+    ) -> io::Result<Self::Postings>;
 }
 
 pub trait PostingsSerializer {

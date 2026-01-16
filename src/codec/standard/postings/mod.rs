@@ -40,22 +40,19 @@ impl PostingsCodec for StandardPostingsCodec {
         StandardPostingsReader::open(doc_freq, data, record_option, requested_option)
     }
 
-    fn load_postings(&self,
-                doc_freq: u32,
-                postings_data: common::OwnedBytes,
-                record_option: IndexRecordOption,
-                requested_option: IndexRecordOption,
-                positions_data_opt: Option<common::OwnedBytes>) -> io::Result<Self::Postings> {
+    fn load_postings(
+        &self,
+        doc_freq: u32,
+        postings_data: common::OwnedBytes,
+        record_option: IndexRecordOption,
+        requested_option: IndexRecordOption,
+        positions_data_opt: Option<common::OwnedBytes>,
+    ) -> io::Result<Self::Postings> {
         // Rationalize record_option/requested_option.
         let record_option = requested_option.downgrade(record_option);
-        let block_segment_postings = StandardPostingsReader::open(
-            doc_freq,
-            postings_data,
-            record_option,
-            requested_option,
-        )?;
-        let position_reader =
-            positions_data_opt.map(PositionReader::open).transpose()?;
+        let block_segment_postings =
+            StandardPostingsReader::open(doc_freq, postings_data, record_option, requested_option)?;
+        let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
         Ok(SegmentPostings::from_block_postings(
             block_segment_postings,
             position_reader,
