@@ -3,7 +3,7 @@ use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::FreqReadingOption;
 use crate::query::{Bm25Weight, Scorer};
-use crate::{Score, TERMINATED};
+use crate::Score;
 
 /// Postings (also called inverted list)
 ///

@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::RefCell;
 
 use crate::docset::DocSet;

@@ -107,6 +107,7 @@ impl Weight for PhraseWeight {
 mod tests {
     use super::super::tests::create_index;
     use crate::docset::TERMINATED;
+    use crate::query::phrase_query::PhraseScorer;
     use crate::query::{EnableScoring, PhraseQuery};
     use crate::{DocSet, Term};
 
@@ -122,9 +123,11 @@ mod tests {
         ]);
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.phrase_weight(enable_scoring).unwrap();
-        let mut phrase_scorer = phrase_weight
+        let mut phrase_scorer_boxed = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
+        let phrase_scorer: &mut PhraseScorer =
+            phrase_scorer_boxed.downcast_mut::<PhraseScorer>().unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
         assert_eq!(phrase_scorer.advance(), 2);

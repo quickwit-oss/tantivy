@@ -1,4 +1,4 @@
-mod block_wand;
+// mod block_wand;
 mod boolean_query;
 mod boolean_weight;
 

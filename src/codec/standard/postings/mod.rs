@@ -14,6 +14,7 @@ mod segment_postings;
 mod skip;
 mod standard_postings_serializer;
 
+pub use segment_postings::SegmentPostings as StandardPostings;
 pub use standard_postings_serializer::StandardPostingsSerializer;
 
 pub struct StandardPostingsCodec;

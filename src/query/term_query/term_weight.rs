@@ -170,12 +170,15 @@ impl TermWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> crate::Result<Option<Box<dyn Scorer>>> {
-        let scorer = self.specialized_scorer(reader, boost)?;
-        Ok(match scorer {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(scorer),
+    ) -> Option<TermScorer> {
+        let mut scorer = self.specialized_scorer(reader, boost).unwrap();
+        match scorer {
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => {
+                let term_scorer = scorer.downcast::<TermScorer>().ok()?;
+                Some(*term_scorer)
+            }
             _ => None,
-        })
+        }
     }
 
     fn specialized_scorer(

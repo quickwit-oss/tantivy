@@ -28,6 +28,7 @@ pub(crate) use self::postings_writer::{
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub use self::term_info::TermInfo;
 
+// TODO internalize in codec
 #[expect(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub enum FreqReadingOption {
@@ -276,11 +277,11 @@ pub(crate) mod tests {
             }
             {
                 let term_a = Term::from_field_text(text_field, "a");
-                let mut postings_a = segment_reader
+                let mut postings_a: Box<dyn Postings> = segment_reader
                     .inverted_index(term_a.field())?
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)?
                     .unwrap();
-                assert_eq!(postings_a.len(), 1000);
+                assert_eq!(postings_a.doc_freq(), 1000);
                 assert_eq!(postings_a.doc(), 0);
                 assert_eq!(postings_a.term_freq(), 6);
                 postings_a.positions(&mut positions);
@@ -303,7 +304,7 @@ pub(crate) mod tests {
                     .inverted_index(term_e.field())?
                     .read_postings(&term_e, IndexRecordOption::WithFreqsAndPositions)?
                     .unwrap();
-                assert_eq!(postings_e.len(), 1000 - 2);
+                assert_eq!(postings_e.doc_freq(), 1000 - 2);
                 for i in 2u32..1000u32 {
                     assert_eq!(postings_e.term_freq(), i);
                     postings_e.positions(&mut positions);

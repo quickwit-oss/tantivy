@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;

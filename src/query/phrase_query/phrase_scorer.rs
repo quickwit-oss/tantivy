@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+use crate::codec::standard::postings::StandardPostings;
 use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
@@ -43,7 +44,7 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
     }
 }
 
-pub struct PhraseScorer<TPostings: Postings> {
+pub struct PhraseScorer<TPostings: Postings = StandardPostings> {
     intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
     num_terms: usize,
     left_positions: Vec<u32>,

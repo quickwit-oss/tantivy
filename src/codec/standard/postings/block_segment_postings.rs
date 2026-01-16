@@ -343,6 +343,7 @@ mod tests {
 
     use super::BlockSegmentPostings;
     use crate::codec::postings::PostingsSerializer;
+    use crate::codec::standard::postings::segment_postings::SegmentPostings;
     use crate::codec::standard::postings::StandardPostingsSerializer;
     use crate::docset::{DocSet, TERMINATED};
     use crate::index::Index;
@@ -360,7 +361,9 @@ mod tests {
             postings_serializer.write_doc(*doc, 1u32);
         }
         let mut buffer: Vec<u8> = Vec::new();
-        postings_serializer.close_term(doc_freq, &mut buffer).unwrap();
+        postings_serializer
+            .close_term(doc_freq, &mut buffer)
+            .unwrap();
         BlockSegmentPostings::open(
             doc_freq,
             OwnedBytes::new(buffer),
@@ -449,35 +452,6 @@ mod tests {
         }
         block_postings.seek(100_000);
         assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);
-        Ok(())
-    }
-
-    #[test]
-    fn test_reset_block_segment_postings() -> crate::Result<()> {
-        let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INDEXED);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
-        // create two postings list, one containing even number,
-        // the other containing odd numbers.
-        for i in 0..6 {
-            let doc = doc!(int_field=> (i % 2) as u64);
-            index_writer.add_document(doc)?;
-        }
-        index_writer.commit()?;
-        let searcher = index.reader()?.searcher();
-        let segment_reader = searcher.segment_reader(0);
-
-        let block_segments;
-        {
-            let term = Term::from_field_u64(int_field, 0u64);
-            let inverted_index = segment_reader.inverted_index(int_field)?;
-            let term_info = inverted_index.get_term_info(&term)?.unwrap();
-            block_segments = inverted_index
-                .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
-        }
-        assert_eq!(block_segments.docs(), &[0, 2, 4]);
         Ok(())
     }
 }

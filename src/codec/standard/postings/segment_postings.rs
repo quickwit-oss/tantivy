@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use common::{BitSet, HasLen};
 
 use super::BlockSegmentPostings;
@@ -289,13 +291,15 @@ mod tests {
     use super::SegmentPostings;
     use crate::docset::{DocSet, TERMINATED};
     use crate::fastfield::AliveBitSet;
-    use crate::postings::postings::Postings;
+    use crate::postings::Postings;
 
     #[test]
     fn test_empty_segment_postings() {
         let mut postings = SegmentPostings::empty();
+        assert_eq!(postings.doc(), TERMINATED);
         assert_eq!(postings.advance(), TERMINATED);
         assert_eq!(postings.advance(), TERMINATED);
+        assert_eq!(postings.doc_freq(), 0);
         assert_eq!(postings.len(), 0);
     }
 

@@ -85,11 +85,7 @@ impl PostingsSerializer for StandardPostingsSerializer {
         }
     }
 
-    fn close_term(
-        &mut self,
-        doc_freq: u32,
-        output_write: &mut impl io::Write,
-    ) -> io::Result<()> {
+    fn close_term(&mut self, doc_freq: u32, output_write: &mut impl io::Write) -> io::Result<()> {
         if !self.block.is_empty() {
             // we have doc ids waiting to be written
             // this happens when the number of doc ids is
