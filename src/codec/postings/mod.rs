@@ -10,7 +10,6 @@ use crate::{DocId, Score};
 
 pub trait PostingsCodec: Send + Sync + 'static {
     type PostingsSerializer: PostingsSerializer;
-    type PostingsReader: PostingsReader;
     type Postings: Postings;
 
     fn new_serializer(
@@ -38,38 +37,4 @@ pub trait PostingsSerializer {
     fn close_term(&mut self, doc_freq: u32, wrt: &mut impl io::Write) -> io::Result<()>;
 
     fn clear(&mut self);
-}
-
-// TODO docs
-// TODO Add blockwand trait
-pub trait PostingsReader {
-    fn box_clone(&self) -> Box<dyn PostingsReader>;
-
-    fn freq_reading_option(&self) -> FreqReadingOption;
-
-    fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) -> io::Result<()>;
-
-    fn doc_freq(&self) -> u32;
-
-    fn docs(&self) -> &[DocId];
-
-    fn doc(&self, idx: usize) -> u32;
-
-    fn freqs(&self) -> &[u32];
-
-    fn freq(&self, idx: usize) -> u32;
-
-    fn block_len(&self) -> usize;
-
-    fn seek(&mut self, target_doc: DocId) -> usize;
-
-    fn position_offset(&self) -> u64;
-
-    fn advance(&mut self);
-
-    fn block_max_score(
-        &mut self,
-        fieldnorm_reader: &FieldNormReader,
-        bm25_weight: &Bm25Weight,
-    ) -> Score;
 }

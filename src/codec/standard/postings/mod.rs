@@ -1,6 +1,7 @@
 use std::io;
 
 use crate::codec::postings::PostingsCodec;
+use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
 use crate::codec::standard::postings::segment_postings::SegmentPostings;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
@@ -8,19 +9,17 @@ use crate::schema::IndexRecordOption;
 use crate::Score;
 
 mod block;
+mod block_segment_postings;
 mod segment_postings;
 mod skip;
-mod standard_postings_reader;
 mod standard_postings_serializer;
 
-pub use standard_postings_reader::StandardPostingsReader;
 pub use standard_postings_serializer::StandardPostingsSerializer;
 
 pub struct StandardPostingsCodec;
 
 impl PostingsCodec for StandardPostingsCodec {
     type PostingsSerializer = StandardPostingsSerializer;
-    type PostingsReader = StandardPostingsReader;
     type Postings = SegmentPostings;
 
     fn new_serializer(
@@ -43,7 +42,7 @@ impl PostingsCodec for StandardPostingsCodec {
         // Rationalize record_option/requested_option.
         let record_option = requested_option.downgrade(record_option);
         let block_segment_postings =
-            StandardPostingsReader::open(doc_freq, postings_data, record_option, requested_option)?;
+            BlockSegmentPostings::open(doc_freq, postings_data, record_option, requested_option)?;
         let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
         Ok(SegmentPostings::from_block_postings(
             block_segment_postings,

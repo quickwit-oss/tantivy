@@ -1,17 +1,13 @@
 use common::{BitSet, HasLen};
 
-use crate::codec::postings::PostingsReader;
-use crate::codec::standard::postings::StandardPostingsReader;
+use super::BlockSegmentPostings;
 use crate::docset::DocSet;
-use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::{FreqReadingOption, Postings};
 use crate::query::Bm25Weight;
 use crate::{DocId, Score, TERMINATED};
-
-type BlockSegmentPostings = StandardPostingsReader;
 
 /// `SegmentPostings` represents the inverted list or postings associated with
 /// a term in a `Segment`.
@@ -20,7 +16,7 @@ type BlockSegmentPostings = StandardPostingsReader;
 /// Positions on the other hand, are optionally entirely decoded upfront.
 #[derive(Clone)]
 pub struct SegmentPostings {
-    pub(crate) block_cursor: StandardPostingsReader,
+    pub(crate) block_cursor: BlockSegmentPostings,
     cur: usize,
     position_reader: Option<PositionReader>,
 }
@@ -29,7 +25,7 @@ impl SegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> Self {
         SegmentPostings {
-            block_cursor: StandardPostingsReader::empty(),
+            block_cursor: BlockSegmentPostings::empty(),
             cur: 0,
             position_reader: None,
         }

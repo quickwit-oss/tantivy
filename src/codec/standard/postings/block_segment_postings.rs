@@ -2,11 +2,10 @@ use std::io;
 
 use common::{OwnedBytes, VInt};
 
-use crate::codec::postings::PostingsReader;
 use crate::codec::standard::postings::skip::{BlockInfo, SkipReader};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder as _, COMPRESSION_BLOCK_SIZE};
-use crate::postings::{FreqReadingOption, Postings};
+use crate::postings::FreqReadingOption;
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
@@ -15,15 +14,10 @@ fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
     it.next().map(|first| it.fold(first, Score::max))
 }
 
-/// `StandardPostingsReader` is a cursor iterating over blocks
+/// `BlockSegmentPostings` is a cursor iterating over blocks
 /// of documents.
-///
-/// # Warning
-///
-/// While it is useful for some very specific high-performance
-/// use cases, you should prefer using `SegmentPostings` for most usage.
 #[derive(Clone)]
-pub struct StandardPostingsReader {
+pub(crate) struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
     block_loaded: bool,
     freq_decoder: BlockDecoder,
@@ -88,7 +82,7 @@ fn split_into_skips_and_postings(
     Ok((Some(skip_data), postings_data))
 }
 
-impl StandardPostingsReader {
+impl BlockSegmentPostings {
     /// Opens a `StandardPostingsReader`.
     /// `doc_freq` is the number of documents in the posting list.
     /// `record_option` represents the amount of data available according to the schema.
@@ -100,7 +94,7 @@ impl StandardPostingsReader {
         bytes: OwnedBytes,
         mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
-    ) -> io::Result<StandardPostingsReader> {
+    ) -> io::Result<BlockSegmentPostings> {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
         let skip_reader = match skip_data_opt {
             Some(skip_data) => {
@@ -125,7 +119,7 @@ impl StandardPostingsReader {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let mut block_segment_postings = StandardPostingsReader {
+        let mut block_segment_postings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             block_loaded: false,
             freq_decoder: BlockDecoder::with_val(1),
@@ -140,35 +134,9 @@ impl StandardPostingsReader {
     }
 }
 
-impl PostingsReader for StandardPostingsReader {
-    fn freq_reading_option(&self) -> FreqReadingOption {
+impl BlockSegmentPostings {
+    pub fn freq_reading_option(&self) -> FreqReadingOption {
         self.freq_reading_option
-    }
-
-    // Resets the block segment postings on another position
-    // in the postings file.
-    //
-    // This is useful for enumerating through a list of terms,
-    // and consuming the associated posting lists while avoiding
-    // reallocating a `StandardPostingsReader`.
-    //
-    // # Warning
-    //
-    // This does not reset the positions list.
-    fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) -> io::Result<()> {
-        let (skip_data_opt, postings_data) =
-            split_into_skips_and_postings(doc_freq, postings_data)?;
-        self.data = postings_data;
-        self.block_max_score_cache = None;
-        self.block_loaded = false;
-        if let Some(skip_data) = skip_data_opt {
-            self.skip_reader.reset(skip_data, doc_freq);
-        } else {
-            self.skip_reader.reset(OwnedBytes::empty(), doc_freq);
-        }
-        self.doc_freq = doc_freq;
-        self.load_block();
-        Ok(())
     }
 
     /// Returns the overall number of documents in the block postings.
@@ -176,7 +144,7 @@ impl PostingsReader for StandardPostingsReader {
     ///
     /// This `doc_freq` is simply the sum of the length of all of the blocks
     /// length, and it does not take in account deleted documents.
-    fn doc_freq(&self) -> u32 {
+    pub fn doc_freq(&self) -> u32 {
         self.doc_freq
     }
 
@@ -185,47 +153,37 @@ impl PostingsReader for StandardPostingsReader {
     /// Before the first call to `.advance()`, the block
     /// returned by `.docs()` is empty.
     #[inline]
-    fn docs(&self) -> &[DocId] {
+    pub fn docs(&self) -> &[DocId] {
         debug_assert!(self.block_loaded);
         self.doc_decoder.output_array()
     }
 
     /// Return the document at index `idx` of the block.
     #[inline]
-    fn doc(&self, idx: usize) -> u32 {
+    pub fn doc(&self, idx: usize) -> u32 {
+        debug_assert!(self.block_loaded);
         self.doc_decoder.output(idx)
     }
 
     /// Return the array of `term freq` in the block.
     #[inline]
-    fn freqs(&self) -> &[u32] {
+    pub fn freqs(&self) -> &[u32] {
         debug_assert!(self.block_loaded);
         self.freq_decoder.output_array()
     }
 
     /// Return the frequency at index `idx` of the block.
     #[inline]
-    fn freq(&self, idx: usize) -> u32 {
+    pub fn freq(&self, idx: usize) -> u32 {
         debug_assert!(self.block_loaded);
         self.freq_decoder.output(idx)
-    }
-
-    /// Returns the length of the current block.
-    ///
-    /// All blocks have a length of `NUM_DOCS_PER_BLOCK`,
-    /// except the last block that may have a length
-    /// of any number between 1 and `NUM_DOCS_PER_BLOCK - 1`
-    #[inline]
-    fn block_len(&self) -> usize {
-        debug_assert!(self.block_loaded);
-        self.doc_decoder.output_len
     }
 
     /// Position on a block that may contains `target_doc`.
     ///
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
-    fn seek(&mut self, target_doc: DocId) -> usize {
+    pub fn seek(&mut self, target_doc: DocId) -> usize {
         // Move to the block that might contain our document.
         self.seek_block(target_doc);
         self.load_block();
@@ -244,12 +202,12 @@ impl PostingsReader for StandardPostingsReader {
         doc
     }
 
-    fn position_offset(&self) -> u64 {
+    pub fn position_offset(&self) -> u64 {
         self.skip_reader.position_offset()
     }
 
     /// Advance to the next block.
-    fn advance(&mut self) {
+    pub fn advance(&mut self) {
         self.skip_reader.advance();
         self.block_loaded = false;
         self.block_max_score_cache = None;
@@ -261,7 +219,7 @@ impl PostingsReader for StandardPostingsReader {
     /// after having called `.shallow_advance(..)`.
     ///
     /// See `TermScorer::block_max_score(..)` for more information.
-    fn block_max_score(
+    pub fn block_max_score(
         &mut self,
         fieldnorm_reader: &FieldNormReader,
         bm25_weight: &Bm25Weight,
@@ -294,16 +252,12 @@ impl PostingsReader for StandardPostingsReader {
         // We do not cache it however, so that it gets computed when once block is loaded.
         bm25_weight.max_score()
     }
-
-    fn box_clone(&self) -> Box<dyn PostingsReader> {
-        Box::new(self.clone())
-    }
 }
 
-impl StandardPostingsReader {
+impl BlockSegmentPostings {
     /// Returns an empty segment postings object
-    pub fn empty() -> StandardPostingsReader {
-        StandardPostingsReader {
+    pub fn empty() -> BlockSegmentPostings {
+        BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             block_loaded: true,
             freq_decoder: BlockDecoder::with_val(1),
@@ -387,7 +341,7 @@ impl StandardPostingsReader {
 mod tests {
     use common::HasLen;
 
-    use super::StandardPostingsReader;
+    use super::BlockSegmentPostings;
     use crate::docset::{DocSet, TERMINATED};
     use crate::index::Index;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
@@ -419,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_empty_block_segment_postings() {
-        let mut postings = StandardPostingsReader::empty();
+        let mut postings = BlockSegmentPostings::empty();
         assert!(postings.docs().is_empty());
         assert_eq!(postings.doc_freq(), 0);
         postings.advance();
