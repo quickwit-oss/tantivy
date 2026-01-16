@@ -2,6 +2,7 @@ pub mod postings;
 pub mod standard;
 
 use std::borrow::Cow;
+use std::io;
 
 use common::OwnedBytes;
 use serde::{Deserialize, Serialize};
@@ -63,7 +64,7 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
         positions_data: Option<OwnedBytes>,
-    ) -> crate::Result<Box<dyn Postings>>;
+    ) -> io::Result<Box<dyn Postings>>;
 }
 
 impl<TCodec: Codec> ObjectSafeCodec for TCodec {
@@ -74,7 +75,7 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
         positions_data: Option<OwnedBytes>,
-    ) -> crate::Result<Box<dyn Postings>> {
+    ) -> io::Result<Box<dyn Postings>> {
         let postings: <<Self as Codec>::PostingsCodec as PostingsCodec>::Postings =
             self.postings_codec().load_postings(
                 doc_freq,

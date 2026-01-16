@@ -1,7 +1,6 @@
 use super::PhraseScorer;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
-use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::{EmptyScorer, Explanation, Scorer, Weight};
@@ -43,13 +42,14 @@ impl PhraseWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> crate::Result<Option<PhraseScorer<SegmentPostings>>> {
+    ) -> crate::Result<Option<Box<dyn Scorer>>> {
         let similarity_weight_opt = self
             .similarity_weight_opt
             .as_ref()
             .map(|similarity_weight| similarity_weight.boost_by(boost));
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let mut term_postings_list = Vec::new();
+        // TODO make it specialized
         for &(offset, ref term) in &self.phrase_terms {
             if let Some(postings) = reader
                 .inverted_index(term.field())?
@@ -60,12 +60,12 @@ impl PhraseWeight {
                 return Ok(None);
             }
         }
-        Ok(Some(PhraseScorer::new(
+        Ok(Some(Box::new(PhraseScorer::new(
             term_postings_list,
             similarity_weight_opt,
             fieldnorm_reader,
             self.slop,
-        )))
+        ))))
     }
 
     pub fn slop(&mut self, slop: u32) {
@@ -76,29 +76,30 @@ impl PhraseWeight {
 impl Weight for PhraseWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
-            Ok(Box::new(scorer))
+            Ok(scorer)
         } else {
             Ok(Box::new(EmptyScorer))
         }
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader, 1.0)?;
-        if scorer_opt.is_none() {
-            return Err(does_not_match(doc));
-        }
-        let mut scorer = scorer_opt.unwrap();
-        if scorer.seek(doc) != doc {
-            return Err(does_not_match(doc));
-        }
-        let fieldnorm_reader = self.fieldnorm_reader(reader)?;
-        let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-        let phrase_count = scorer.phrase_count();
-        let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
-        if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
-            explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
-        }
-        Ok(explanation)
+        todo!();
+        // let scorer_opt = self.phrase_scorer(reader, 1.0)?;
+        // if scorer_opt.is_none() {
+        //     return Err(does_not_match(doc));
+        // }
+        // let mut scorer = scorer_opt.unwrap();
+        // if scorer.seek(doc) != doc {
+        //     return Err(does_not_match(doc));
+        // }
+        // let fieldnorm_reader = self.fieldnorm_reader(reader)?;
+        // let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
+        // let phrase_count = scorer.phrase_count();
+        // let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
+        // if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
+        //     explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
+        // }
+        // Ok(explanation)
     }
 }
 

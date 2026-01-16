@@ -4,10 +4,9 @@ use common::BitSet;
 use tantivy_fst::Regex;
 
 use super::PhraseScorer;
-use crate::codec::postings::PostingsReader as _;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
-use crate::postings::{LoadedPostings, Postings, SegmentPostings, TermInfo};
+use crate::postings::{LoadedPostings, Postings, TermInfo};
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::union::{BitSetPostingUnion, SimpleUnion};
@@ -180,7 +179,7 @@ impl RegexPhraseWeight {
         // - Bucket 1: Terms appearing in 0.1% to 1% of documents
         // - Bucket 2: Terms appearing in 1% to 10% of documents
         // - Bucket 3: Terms appearing in more than 10% of documents
-        let mut buckets: Vec<(BitSet, Vec<SegmentPostings>)> = (0..4)
+        let mut buckets: Vec<(BitSet, Vec<Box<dyn Postings>>)> = (0..4)
             .map(|_| (BitSet::with_max_value(max_doc), Vec::new()))
             .collect();
 

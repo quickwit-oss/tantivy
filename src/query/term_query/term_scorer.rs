@@ -1,13 +1,16 @@
-use crate::codec::postings::PostingsReader as _;
+use crate::codec::postings::PostingsCodec;
+use crate::codec::{Codec, StandardCodec};
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::{FreqReadingOption, Postings, SegmentPostings};
+use crate::postings::{FreqReadingOption, Postings};
 use crate::query::bm25::Bm25Weight;
 use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};
 
 #[derive(Clone)]
-pub struct TermScorer<TPostings: Postings = SegmentPostings> {
+pub struct TermScorer<
+    TPostings: Postings = <<StandardCodec as Codec>::PostingsCodec as PostingsCodec>::Postings,
+> {
     postings: TPostings,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: Bm25Weight,

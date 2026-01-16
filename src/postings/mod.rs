@@ -13,7 +13,6 @@ mod per_field_postings_writer;
 mod postings;
 mod postings_writer;
 mod recorder;
-mod segment_postings;
 mod serializer;
 mod term_info;
 
@@ -26,10 +25,8 @@ pub use self::postings::Postings;
 pub(crate) use self::postings_writer::{
     serialize_postings, IndexingPosition, PostingsWriter, PostingsWriterEnum,
 };
-pub use self::segment_postings::SegmentPostings;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub use self::term_info::TermInfo;
-pub use crate::codec::standard::postings::StandardPostingsReader as BlockSegmentPostings;
 
 #[expect(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]

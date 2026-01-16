@@ -1,5 +1,8 @@
 use crate::docset::{DocSet, TERMINATED};
-use crate::postings::{Postings, SegmentPostings};
+use crate::fieldnorm::FieldNormReader;
+use crate::postings::Postings;
+use crate::query::term_query::TermScorer;
+use crate::query::{Bm25Weight, Scorer};
 use crate::DocId;
 
 /// `LoadedPostings` is a `DocSet` and `Postings` implementation.
@@ -22,19 +25,27 @@ pub struct LoadedPostings {
 }
 
 impl LoadedPostings {
+    fn new_term_scorer(
+        self: Box<Self>,
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+    ) -> Box<dyn Scorer> {
+        Box::new(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
+    }
+
     /// Creates a new `LoadedPostings` from a `SegmentPostings`.
     ///
     /// It will also preload positions, if positions are available in the SegmentPostings.
-    pub fn load(segment_postings: &mut SegmentPostings) -> LoadedPostings {
-        let num_docs = segment_postings.doc_freq() as usize;
+    pub fn load(postings: &mut Box<dyn Postings>) -> LoadedPostings {
+        let num_docs = postings.doc_freq() as usize;
         let mut doc_ids = Vec::with_capacity(num_docs);
         let mut positions = Vec::with_capacity(num_docs);
         let mut position_offsets = Vec::with_capacity(num_docs);
-        while segment_postings.doc() != TERMINATED {
+        while postings.doc() != TERMINATED {
             position_offsets.push(positions.len() as u32);
-            doc_ids.push(segment_postings.doc());
-            segment_postings.append_positions_with_offset(0, &mut positions);
-            segment_postings.advance();
+            doc_ids.push(postings.doc());
+            postings.append_positions_with_offset(0, &mut positions);
+            postings.advance();
         }
         position_offsets.push(positions.len() as u32);
         LoadedPostings {
@@ -90,10 +101,9 @@ impl DocSet for LoadedPostings {
 impl Postings for LoadedPostings {
     fn new_term_scorer(
         self: Box<Self>,
-        fieldnorm_reader: crate::fieldnorm::FieldNormReader,
-        similarity_weight: crate::query::Bm25Weight,
-    ) -> Box<dyn crate::query::Scorer> {
-        use crate::query::term_query::TermScorer;
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+    ) -> Box<dyn Scorer> {
         Box::new(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
     }
 
@@ -109,15 +119,6 @@ impl Postings for LoadedPostings {
         for pos in &self.positions[start..end] {
             output.push(*pos + offset);
         }
-    }
-
-    fn seek_block(
-        &mut self,
-        target_doc: crate::DocId,
-        fieldnorm_reader: &crate::fieldnorm::FieldNormReader,
-        similarity_weight: &crate::query::Bm25Weight,
-    ) -> crate::Score {
-        unimplemented!()
     }
 
     fn freq_reading_option(&self) -> super::FreqReadingOption {

@@ -7,7 +7,6 @@ use common::ReadOnlyBitSet;
 use itertools::Itertools;
 use measure_time::debug_time;
 
-use crate::codec::postings::PostingsReader as _;
 use crate::codec::{Codec, StandardCodec};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
@@ -17,7 +16,7 @@ use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, 
 use crate::index::{Segment, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
-use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
+use crate::postings::{FreqReadingOption, InvertedIndexSerializer, Postings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
@@ -363,7 +362,7 @@ impl<C: Codec> IndexMerger<C> {
                          indexed. Have you modified the schema?",
         );
 
-        let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
+        let mut segment_postings_containing_the_term: Vec<(usize, Box<dyn Postings>)> = vec![];
 
         while merged_terms.advance() {
             segment_postings_containing_the_term.clear();
@@ -403,11 +402,10 @@ impl<C: Codec> IndexMerger<C> {
             assert!(!segment_postings_containing_the_term.is_empty());
 
             let has_term_freq = {
-                let has_term_freq = !segment_postings_containing_the_term[0]
+                let has_term_freq = segment_postings_containing_the_term[0]
                     .1
-                    .block_cursor
-                    .freqs()
-                    .is_empty();
+                    .freq_reading_option()
+                    == FreqReadingOption::ReadFreq;
                 for (_, postings) in &segment_postings_containing_the_term[1..] {
                     // This may look at a strange way to test whether we have term freq or not.
                     // With JSON object, the schema is not sufficient to know whether a term
@@ -423,7 +421,7 @@ impl<C: Codec> IndexMerger<C> {
                     //
                     // Overall the reliable way to know if we have actual frequencies loaded or not
                     // is to check whether the actual decoded array is empty or not.
-                    if has_term_freq == postings.block_cursor.freqs().is_empty() {
+                    if postings.freq_reading_option() != FreqReadingOption::ReadFreq {
                         return Err(DataCorruption::comment_only(
                             "Term freqs are inconsistent across segments",
                         )

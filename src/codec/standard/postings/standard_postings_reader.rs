@@ -481,51 +481,50 @@ mod tests {
         Ok(())
     }
 
-
-        #[test]
-        fn test_block_segment_postings_seek() -> crate::Result<()> {
-            let mut docs = vec![0];
-            for i in 0..1300 {
-                docs.push((i * i / 100) + i);
-            }
-            let mut block_postings = build_block_postings(&docs[..])?;
-            for i in &[0, 424, 10000] {
-                block_postings.seek(*i);
-                let docs = block_postings.docs();
-                assert!(docs[0] <= *i);
-                assert!(docs.last().cloned().unwrap_or(0u32) >= *i);
-            }
-            block_postings.seek(100_000);
-            assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);
-            Ok(())
+    #[test]
+    fn test_block_segment_postings_seek() -> crate::Result<()> {
+        let mut docs = vec![0];
+        for i in 0..1300 {
+            docs.push((i * i / 100) + i);
         }
-
-        #[test]
-        fn test_reset_block_segment_postings() -> crate::Result<()> {
-            let mut schema_builder = Schema::builder();
-            let int_field = schema_builder.add_u64_field("id", INDEXED);
-            let schema = schema_builder.build();
-            let index = Index::create_in_ram(schema);
-            let mut index_writer = index.writer_for_tests()?;
-            // create two postings list, one containing even number,
-            // the other containing odd numbers.
-            for i in 0..6 {
-                let doc = doc!(int_field=> (i % 2) as u64);
-                index_writer.add_document(doc)?;
-            }
-            index_writer.commit()?;
-            let searcher = index.reader()?.searcher();
-            let segment_reader = searcher.segment_reader(0);
-
-            let block_segments;
-            {
-                let term = Term::from_field_u64(int_field, 0u64);
-                let inverted_index = segment_reader.inverted_index(int_field)?;
-                let term_info = inverted_index.get_term_info(&term)?.unwrap();
-                block_segments = inverted_index
-                    .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
-            }
-            assert_eq!(block_segments.docs(), &[0, 2, 4]);
-            Ok(())
+        let mut block_postings = build_block_postings(&docs[..])?;
+        for i in &[0, 424, 10000] {
+            block_postings.seek(*i);
+            let docs = block_postings.docs();
+            assert!(docs[0] <= *i);
+            assert!(docs.last().cloned().unwrap_or(0u32) >= *i);
         }
+        block_postings.seek(100_000);
+        assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    fn test_reset_block_segment_postings() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let int_field = schema_builder.add_u64_field("id", INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        // create two postings list, one containing even number,
+        // the other containing odd numbers.
+        for i in 0..6 {
+            let doc = doc!(int_field=> (i % 2) as u64);
+            index_writer.add_document(doc)?;
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let block_segments;
+        {
+            let term = Term::from_field_u64(int_field, 0u64);
+            let inverted_index = segment_reader.inverted_index(int_field)?;
+            let term_info = inverted_index.get_term_info(&term)?.unwrap();
+            block_segments = inverted_index
+                .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
+        }
+        assert_eq!(block_segments.docs(), &[0, 2, 4]);
+        Ok(())
+    }
 }

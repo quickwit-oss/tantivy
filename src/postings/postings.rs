@@ -1,8 +1,9 @@
 use crate::docset::DocSet;
+use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::FreqReadingOption;
 use crate::query::{Bm25Weight, Scorer};
-use crate::Score;
+use crate::{Score, TERMINATED};
 
 /// Postings (also called inverted list)
 ///
@@ -19,10 +20,37 @@ pub trait Postings: DocSet + 'static {
         self: Box<Self>,
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
-    ) -> Box<dyn Scorer>;
+    ) -> Box<dyn Scorer> {
+        // let self_dyn: Box<dyn Postings>  = self;
+        todo!();
+    }
 
     /// The number of times the term appears in the document.
     fn term_freq(&self) -> u32;
+
+    fn doc_freq(&self) -> u32 {
+        todo!();
+    }
+
+    /// Compute the number of non-deleted documents.
+    ///
+    /// This method will clone and scan through the posting lists.
+    /// (this is a rather expensive operation).
+    fn doc_freq_given_deletes(&self, alive_bitset: &AliveBitSet) -> u32 {
+        todo!();
+        // let mut docset = self.clone();
+        // let mut doc_freq = 0;
+        // loop {
+        //     let doc = docset.doc();
+        //     if doc == TERMINATED {
+        //         return doc_freq;
+        //     }
+        //     if alive_bitset.is_alive(doc) {
+        //         doc_freq += 1u32;
+        //     }
+        //     docset.advance();
+        // }
+    }
 
     /// Returns the positions offsetted with a given value.
     /// It is not necessary to clear the `output` before calling this method.

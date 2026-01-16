@@ -10,11 +10,9 @@ use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
-use crate::codec::postings::PostingsCodec;
 use crate::codec::{ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
-use crate::positions::PositionReader;
-use crate::postings::{BlockSegmentPostings, Postings, SegmentPostings, TermInfo};
+use crate::postings::{Postings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
@@ -167,26 +165,26 @@ impl InvertedIndexReader {
         Ok(fields)
     }
 
-    /// Returns a block postings given a `term_info`.
-    /// This method is for an advanced usage only.
-    ///
-    /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub fn read_block_postings_from_terminfo(
-        &self,
-        term_info: &TermInfo,
-        requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
-        let postings_data = self
-            .postings_file_slice
-            .slice(term_info.postings_range.clone())
-            .read_bytes()?;
-        BlockSegmentPostings::open(
-            term_info.doc_freq,
-            postings_data,
-            self.record_option,
-            requested_option,
-        )
-    }
+    // /// Returns a block postings given a `term_info`.
+    // /// This method is for an advanced usage only.
+    // ///
+    // /// Most users should prefer using [`Self::read_postings()`] instead.
+    // pub fn read_block_postings_from_terminfo(
+    //     &self,
+    //     term_info: &TermInfo,
+    //     requested_option: IndexRecordOption,
+    // ) -> io::Result<BlockSegmentPostings> {
+    //     let postings_data = self
+    //         .postings_file_slice
+    //         .slice(term_info.postings_range.clone())
+    //         .read_bytes()?;
+    //     BlockSegmentPostings::open(
+    //         term_info.doc_freq,
+    //         postings_data,
+    //         self.record_option,
+    //         requested_option,
+    //     )
+    // }
 
     /// Returns a posting object given a `term_info`.
     /// This method is for an advanced usage only.
@@ -196,25 +194,32 @@ impl InvertedIndexReader {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-    ) -> io::Result<SegmentPostings> {
+    ) -> io::Result<Box<dyn Postings>> {
         let option = option.downgrade(self.record_option);
 
-        let block_postings = self.read_block_postings_from_terminfo(term_info, option)?;
-        let position_reader = {
+        let postings_data = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone())
+            .read_bytes()?;
+        let positions_data = {
             if option.has_positions() {
                 let positions_data = self
                     .positions_file_slice
-                    .read_bytes_slice(term_info.positions_range.clone())?;
-                let position_reader = PositionReader::open(positions_data)?;
-                Some(position_reader)
+                    .slice(term_info.positions_range.clone())
+                    .read_bytes()?;
+                Some(positions_data)
             } else {
                 None
             }
         };
-        Ok(SegmentPostings::from_block_postings(
-            block_postings,
-            position_reader,
-        ))
+        let postings = self.codec.load_postings_type_erased(
+            term_info.doc_freq,
+            postings_data,
+            self.record_option,
+            option,
+            positions_data,
+        )?;
+        Ok(postings)
     }
 
     /// Returns the total number of tokens recorded for all documents
@@ -237,7 +242,7 @@ impl InvertedIndexReader {
         &self,
         term: &Term,
         option: IndexRecordOption,
-    ) -> io::Result<Option<SegmentPostings>> {
+    ) -> io::Result<Option<Box<dyn Postings>>> {
         self.get_term_info(term)?
             .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
             .transpose()

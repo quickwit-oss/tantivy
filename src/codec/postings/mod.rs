@@ -20,20 +20,6 @@ pub trait PostingsCodec: Send + Sync + 'static {
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> Self::PostingsSerializer;
 
-    /// Opens a `PostingsReader`.
-    /// `doc_freq` is the number of documents in the posting list.
-    /// `record_option` represents the amount of data available according to the schema.
-    /// `requested_option` is the amount of data requested by the user.
-    /// If for instance, we do not request for term frequencies, this function will not decompress
-    /// term frequency blocks.
-    // TODO simplify prototype (record_option + requested_option)
-    fn open(
-        doc_freq: u32,
-        data: common::OwnedBytes,
-        record_option: IndexRecordOption,
-        requested_option: IndexRecordOption,
-    ) -> std::io::Result<Self::PostingsReader>;
-
     fn load_postings(
         &self,
         doc_freq: u32,

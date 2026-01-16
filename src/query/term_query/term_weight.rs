@@ -2,7 +2,7 @@ use super::term_scorer::TermScorer;
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
-use crate::postings::SegmentPostings;
+use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
@@ -18,7 +18,7 @@ pub struct TermWeight {
 }
 
 enum TermOrEmptyOrAllScorer {
-    TermScorer(Box<TermScorer>),
+    TermScorer(Box<dyn Scorer>),
     Empty,
     AllMatch(AllScorer),
 }
@@ -39,18 +39,19 @@ impl Weight for TermWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        match self.specialized_scorer(reader, 1.0)? {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
-                if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
-                    return Err(does_not_match(doc));
-                }
-                let mut explanation = term_scorer.explain();
-                explanation.add_context(format!("Term={:?}", self.term,));
-                Ok(explanation)
-            }
-            TermOrEmptyOrAllScorer::Empty => Err(does_not_match(doc)),
-            TermOrEmptyOrAllScorer::AllMatch(_) => AllWeight.explain(reader, doc),
-        }
+        todo!();
+        // match self.specialized_scorer(reader, 1.0)? {
+        //     TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+        //         if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
+        //             return Err(does_not_match(doc));
+        //         }
+        //         let mut explanation = term_scorer.explain();
+        //         explanation.add_context(format!("Term={:?}", self.term,));
+        //         Ok(explanation)
+        //     }
+        //     TermOrEmptyOrAllScorer::Empty => Err(does_not_match(doc)),
+        //     TermOrEmptyOrAllScorer::AllMatch(_) => AllWeight.explain(reader, doc),
+        // }
     }
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
@@ -124,11 +125,12 @@ impl Weight for TermWeight {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
             TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
-                crate::query::boolean_query::block_wand_single_scorer(
-                    *term_scorer,
-                    threshold,
-                    callback,
-                );
+                todo!();
+                // crate::query::boolean_query::block_wand_single_scorer(
+                //     *term_scorer,
+                //     threshold,
+                //     callback,
+                // );
             }
             TermOrEmptyOrAllScorer::Empty => {}
             TermOrEmptyOrAllScorer::AllMatch(_) => {
@@ -168,10 +170,10 @@ impl TermWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> crate::Result<Option<TermScorer>> {
+    ) -> crate::Result<Option<Box<dyn Scorer>>> {
         let scorer = self.specialized_scorer(reader, boost)?;
         Ok(match scorer {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(*scorer),
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(scorer),
             _ => None,
         })
     }
@@ -196,14 +198,14 @@ impl TermWeight {
             )));
         }
 
-        let segment_postings: SegmentPostings =
+        let segment_postings: Box<dyn Postings> =
             inverted_index.read_postings_from_terminfo(&term_info, self.index_record_option)?;
 
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);
-        Ok(TermOrEmptyOrAllScorer::TermScorer(Box::new(
-            TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight),
-        )))
+        Ok(TermOrEmptyOrAllScorer::TermScorer(
+            segment_postings.new_term_scorer(fieldnorm_reader, similarity_weight),
+        ))
     }
 
     fn fieldnorm_reader(&self, segment_reader: &SegmentReader) -> crate::Result<FieldNormReader> {

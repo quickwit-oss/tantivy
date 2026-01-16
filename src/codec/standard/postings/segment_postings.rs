@@ -1,14 +1,17 @@
 use common::{BitSet, HasLen};
 
 use crate::codec::postings::PostingsReader;
+use crate::codec::standard::postings::StandardPostingsReader;
 use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{BlockSegmentPostings, FreqReadingOption, Postings};
+use crate::postings::{FreqReadingOption, Postings};
 use crate::query::Bm25Weight;
 use crate::{DocId, Score, TERMINATED};
+
+type BlockSegmentPostings = StandardPostingsReader;
 
 /// `SegmentPostings` represents the inverted list or postings associated with
 /// a term in a `Segment`.
@@ -17,7 +20,7 @@ use crate::{DocId, Score, TERMINATED};
 /// Positions on the other hand, are optionally entirely decoded upfront.
 #[derive(Clone)]
 pub struct SegmentPostings {
-    pub(crate) block_cursor: BlockSegmentPostings,
+    pub(crate) block_cursor: StandardPostingsReader,
     cur: usize,
     position_reader: Option<PositionReader>,
 }
@@ -26,35 +29,10 @@ impl SegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> Self {
         SegmentPostings {
-            block_cursor: BlockSegmentPostings::empty(),
+            block_cursor: StandardPostingsReader::empty(),
             cur: 0,
             position_reader: None,
         }
-    }
-
-    /// Compute the number of non-deleted documents.
-    ///
-    /// This method will clone and scan through the posting lists.
-    /// (this is a rather expensive operation).
-    pub fn doc_freq_given_deletes(&self, alive_bitset: &AliveBitSet) -> u32 {
-        let mut docset = self.clone();
-        let mut doc_freq = 0;
-        loop {
-            let doc = docset.doc();
-            if doc == TERMINATED {
-                return doc_freq;
-            }
-            if alive_bitset.is_alive(doc) {
-                doc_freq += 1u32;
-            }
-            docset.advance();
-        }
-    }
-
-    /// Returns the overall number of documents in the block postings.
-    /// It does not take in account whether documents are deleted or not.
-    pub fn doc_freq(&self) -> u32 {
-        self.block_cursor.doc_freq()
     }
 
     /// Creates a segment postings object with the given documents
@@ -251,6 +229,12 @@ impl Postings for SegmentPostings {
             "Have you forgotten to call `.advance()` at least once before calling `.term_freq()`."
         );
         self.block_cursor.freq(self.cur)
+    }
+
+    /// Returns the overall number of documents in the block postings.
+    /// It does not take in account whether documents are deleted or not.
+    fn doc_freq(&self) -> u32 {
+        self.block_cursor.doc_freq()
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
