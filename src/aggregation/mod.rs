@@ -180,35 +180,18 @@ pub type BucketId = u32;
 /// This struct holds shared resources needed during aggregation execution:
 /// - `limits`: Memory and bucket limits for the aggregation
 /// - `tokenizers`: TokenizerManager for parsing query strings in filter aggregations
-/// - `strict_field_validation`: Whether to enforce strict field validation (default: false)
 #[derive(Clone, Default)]
 pub struct AggContextParams {
     /// Aggregation limits (memory and bucket count)
     pub limits: AggregationLimitsGuard,
     /// Tokenizer manager for query string parsing
     pub tokenizers: TokenizerManager,
-    /// If true, aggregations will return an error when a field doesn't exist in the schema.
-    /// If false (default), aggregations will return empty results for non-existent fields.
-    ///
-    /// Set to false for use cases where schema can change over time (e.g., Quickwit splits).
-    /// Set to true to catch typos and configuration errors early.
-    pub strict_field_validation: bool,
 }
 
 impl AggContextParams {
     /// Create new aggregation context parameters
     pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
-        Self {
-            limits,
-            tokenizers,
-            strict_field_validation: false,
-        }
-    }
-
-    /// Enable or disable strict field validation
-    pub fn set_strict_field_validation(mut self, strict: bool) -> Self {
-        self.strict_field_validation = strict;
-        self
+        Self { limits, tokenizers }
     }
 }
 

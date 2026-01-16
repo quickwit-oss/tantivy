@@ -578,7 +578,6 @@ fn build_nodes(
                 reader,
                 &range_req.field,
                 Some(get_numeric_or_date_column_types()),
-                data.context.strict_field_validation,
             )?;
             let idx_in_req_data = data.push_range_req_data(RangeAggReqData {
                 accessor,
@@ -599,7 +598,6 @@ fn build_nodes(
                 reader,
                 &histo_req.field,
                 Some(get_numeric_or_date_column_types()),
-                data.context.strict_field_validation,
             )?;
             let idx_in_req_data = data.push_histogram_req_data(HistogramAggReqData {
                 accessor,
@@ -621,12 +619,8 @@ fn build_nodes(
             }])
         }
         DateHistogram(date_req) => {
-            let (accessor, field_type) = get_ff_reader(
-                reader,
-                &date_req.field,
-                Some(&[ColumnType::DateTime]),
-                data.context.strict_field_validation,
-            )?;
+            let (accessor, field_type) =
+                get_ff_reader(reader, &date_req.field, Some(&[ColumnType::DateTime]))?;
             // Convert to histogram request, normalize to ns precision
             let mut histo_req = date_req.to_histogram_req()?;
             histo_req.normalize_date_time();
@@ -709,12 +703,7 @@ fn build_nodes(
                     ))
                 }
             };
-            let (accessor, field_type) = get_ff_reader(
-                reader,
-                field,
-                allowed_column_types,
-                data.context.strict_field_validation,
-            )?;
+            let (accessor, field_type) = get_ff_reader(reader, field, allowed_column_types)?;
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
                 accessor,
                 field_type,
@@ -741,7 +730,6 @@ fn build_nodes(
                 reader,
                 percentiles_req.field_name(),
                 Some(get_numeric_or_date_column_types()),
-                data.context.strict_field_validation,
             )?;
             let idx_in_req_data = data.push_metric_req_data(MetricAggReqData {
                 accessor,
@@ -770,14 +758,7 @@ fn build_nodes(
             let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
                 .field_names()
                 .iter()
-                .map(|field| {
-                    get_ff_reader(
-                        reader,
-                        field,
-                        Some(get_numeric_or_date_column_types()),
-                        data.context.strict_field_validation,
-                    )
-                })
+                .map(|field| get_ff_reader(reader, field, Some(get_numeric_or_date_column_types())))
                 .collect::<crate::Result<_>>()?;
 
             let value_accessors = top_hits
@@ -900,7 +881,6 @@ fn get_term_agg_accessors(
     reader: &SegmentReader,
     field_name: &str,
     missing: &Option<Key>,
-    strict_validation: bool,
 ) -> crate::Result<Vec<(Column<u64>, ColumnType)>> {
     let allowed_column_types = [
         ColumnType::I64,
@@ -928,7 +908,6 @@ fn get_term_agg_accessors(
         field_name,
         Some(&allowed_column_types),
         fallback_type,
-        strict_validation,
     )?;
 
     Ok(column_and_types)
@@ -963,12 +942,7 @@ fn build_terms_or_cardinality_nodes(
 
     let str_dict_column = reader.fast_fields().str(field_name)?;
 
-    let column_and_types = get_term_agg_accessors(
-        reader,
-        field_name,
-        missing,
-        data.context.strict_field_validation,
-    )?;
+    let column_and_types = get_term_agg_accessors(reader, field_name, missing)?;
 
     // Special handling when missing + multi column or incompatible type on text/date.
     let missing_and_more_than_one_col = column_and_types.len() > 1 && missing.is_some();
@@ -990,15 +964,9 @@ fn build_terms_or_cardinality_nodes(
                 Key::U64(_) => ColumnType::U64,
             })
             .unwrap_or(ColumnType::U64);
-        let all_accessors = get_all_ff_reader_or_empty(
-            reader,
-            field_name,
-            None,
-            fallback_type,
-            data.context.strict_field_validation,
-        )?
-        .into_iter()
-        .collect::<Vec<_>>();
+        let all_accessors = get_all_ff_reader_or_empty(reader, field_name, None, fallback_type)?
+            .into_iter()
+            .collect::<Vec<_>>();
         // This case only happens when we have term aggregation, or we fail
         let req = req.as_terms().cloned().ok_or_else(|| {
             crate::TantivyError::InvalidArgument(
@@ -1197,7 +1165,7 @@ mod tests {
             "avg": {"field": "score"}
         }));
         let terms_string_with_child = agg_from_json(json!({
-            "terms": {"field": "text"},
+            "terms": {"field": "string_id"},
             "aggs": {
                 "histo": {"histogram": {"field": "score", "interval": 10.0}}
             }
