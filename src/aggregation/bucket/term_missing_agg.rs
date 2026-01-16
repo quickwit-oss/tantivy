@@ -296,7 +296,6 @@ mod tests {
     fn terms_aggregation_missing_mult_seg_empty() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let score = schema_builder.add_f64_field("score", FAST);
-        schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
@@ -344,7 +343,6 @@ mod tests {
     fn terms_aggregation_missing_single_seg_empty() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let score = schema_builder.add_f64_field("score", FAST);
-        schema_builder.add_json_field("json", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();

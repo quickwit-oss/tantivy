@@ -55,56 +55,22 @@ pub(crate) fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
     ]
 }
 
-/// Validates that a field exists in the schema and is configured as a fast field.
-///
-/// Returns an error if:
-/// - The field doesn't exist in the schema
-/// - The field exists but is not a fast field
-fn validate_field_for_agg(reader: &SegmentReader, field_name: &str) -> crate::Result<()> {
-    let schema = reader.schema();
-    // Here we check two things:
-    // - the field is either directly in the schema or could be part of a json field present in the
-    //   schema.
-    // - the field (or the json field holding it) is a fast field.
-    if let Some((field, _path)) = schema.find_field(field_name) {
-        let field_type = schema.get_field_entry(field).field_type();
-        if !field_type.is_fast() {
-            return Err(crate::TantivyError::SchemaError(format!(
-                "Field '{}' is not a fast field. Aggregations require fast fields.",
-                field_name
-            )));
-        }
-        Ok(())
-    } else {
-        Err(crate::TantivyError::FieldNotFound(field_name.to_string()))
-    }
-}
-
-/// Get fast field reader or return an error if the field doesn't exist (when strict validation is
-/// enabled).
+/// Get fast field reader or empty as default.
 pub(crate) fn get_ff_reader(
     reader: &SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
-    strict_validation: bool,
 ) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
     let ff_fields = reader.fast_fields();
-    let ff_field_with_type = ff_fields.u64_lenient_for_type(allowed_column_types, field_name)?;
-
-    if let Some(field_with_type) = ff_field_with_type {
-        return Ok(field_with_type);
-    }
-
-    if strict_validation {
-        validate_field_for_agg(reader, field_name)?;
-    }
-
-    // Field exists in schema and is a fast field, but has no values in this segment
-    // OR strict validation is disabled - return an empty column
-    Ok((
-        Column::build_empty_column(reader.num_docs()),
-        ColumnType::U64,
-    ))
+    let ff_field_with_type = ff_fields
+        .u64_lenient_for_type(allowed_column_types, field_name)?
+        .unwrap_or_else(|| {
+            (
+                Column::build_empty_column(reader.num_docs()),
+                ColumnType::U64,
+            )
+        });
+    Ok(ff_field_with_type)
 }
 
 pub(crate) fn get_dynamic_columns(
@@ -123,26 +89,16 @@ pub(crate) fn get_dynamic_columns(
 /// Get all fast field reader or empty as default.
 ///
 /// Is guaranteed to return at least one column.
-/// Returns an error if the field doesn't exist in the schema or is not a fast field (when strict
-/// validation is enabled).
 pub(crate) fn get_all_ff_reader_or_empty(
     reader: &SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
     fallback_type: ColumnType,
-    strict_validation: bool,
 ) -> crate::Result<Vec<(columnar::Column<u64>, ColumnType)>> {
     let ff_fields = reader.fast_fields();
     let mut ff_field_with_type =
         ff_fields.u64_lenient_for_type_all(allowed_column_types, field_name)?;
-
     if ff_field_with_type.is_empty() {
-        if strict_validation {
-            validate_field_for_agg(reader, field_name)?;
-        }
-
-        // Field exists in schema and is a fast field, but has no values in this segment
-        // OR strict validation is disabled - return an empty column
         ff_field_with_type.push((Column::build_empty_column(reader.num_docs()), fallback_type));
     }
     Ok(ff_field_with_type)
