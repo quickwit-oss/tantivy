@@ -1,96 +1,151 @@
 //! XOR delta compression for f64 polygon coordinates.
 //!
-//! Lossless compression for floating-point lat/lon coordinates using XOR delta encoding on IEEE
-//! 754 bit patterns with variable-length integer encoding. Designed for per-polygon random access
-//! in the document store, where each polygon compresses independently without requiring sequential
-//! decompression.
+//! Lossless compression for floating-point coordinates using XOR delta encoding on IEEE
+//! 754 bit patterns with bit packing. Designed for per-geometry random access in the document
+//! store, where each geometry compresses independently without requiring sequential decompression.
+//! Additionally used to store per-geometry edge and point storage in the index referenced by
+//! quadtree cells.
 //!
 //! Spatially local coordinates share most high-order bits. A municipal boundary spanning 1km has
 //! consecutive vertices typically within 100-500 meters, meaning their f64 bit patterns share
-//! 30-40 bits. XOR reveals these common bits as zeros, which varint encoding then compresses
-//! efficiently.
+//! 30-40 bits. XOR reveals these common bits as zeros, which bit-pack efficiently with minimal
+//! bit-width.
 //!
-//! The format stores the first coordinate as raw 8 bytes, then XOR deltas between consecutive
-//! coordinates encoded as variable-length integers. When compression produces larger output than
-//! the raw input (random data, compression-hostile patterns), the function automatically falls
-//! back to storing coordinates as uncompressed 8-byte values.
-//!
-//! Unlike delta.rs which uses arithmetic deltas for i32 spatial coordinates in the block kd-tree,
-//! this module operates on f64 bit patterns directly to preserve exact floating-point values for
-//! returning to users.
-use std::io::Read;
-
-use common::VInt;
+//! Unlike delta.rs which uses arithmetic deltas for integers, this module operates on f64 bit
+//! patterns directly to preserve exact floating-point values.
 
 /// Compresses f64 coordinates using XOR delta encoding with automatic raw fallback.
 ///
-/// Stores the first coordinate as raw bits, then computes XOR between consecutive coordinate bit
-/// patterns and encodes as variable-length integers. If the compressed output would be larger than
-/// raw storage (8 bytes per coordinate), automatically falls back to raw encoding.
+/// First pass computes XOR deltas between consecutive coordinates to find the maximum, which
+/// determines the bit width needed. Second pass writes a header (1 byte bit width + 8 bytes first
+/// coordinate) followed by bit-packed XOR deltas. If the compressed output would be larger than
+/// raw storage (8 bytes per coordinate) or if the delta is too large to allow for a 7 bit
+/// remainder, it falls back to raw encoding.
 ///
 /// Returns a byte vector that can be decompressed with `decompress_f64()` to recover exact
 /// original values.
 pub fn compress_f64(values: &[f64]) -> Vec<u8> {
+    // Subsequent code assumes a first element.
     if values.is_empty() {
         return Vec::new();
     }
-    let mut output: Vec<u8> = Vec::new();
-    let mut previous: u64 = f64_to_le(values[0]);
-    output.extend_from_slice(&previous.to_le_bytes());
+
+    // Compute max XOR delta
+    let mut max_xor: u64 = 0;
+    let mut previous = values[0].to_bits();
     for &value in &values[1..] {
         let bits = value.to_bits();
         let xor = bits ^ previous;
-        VInt(xor).serialize_into_vec(&mut output);
-        previous = bits
+        max_xor = max_xor.max(xor);
+        previous = bits;
     }
-    if output.len() >= values.len() * 8 {
-        let mut output = Vec::with_capacity(values.len() * 8);
+
+    // Bits needed for delta.
+    let bits = if max_xor == 0 {
+        0
+    } else {
+        64 - max_xor.leading_zeros() as u8
+    };
+
+    // Determine if compression will indeed compress.
+    let count = values.len();
+    let compressed_size = 9 + ((count - 1) * bits as usize).div_ceil(8);
+    let raw_size = count * 8;
+
+    // Return the uncompressed array if we do not have enough room to buffer seven bits. Return the
+    // uncompressed array if compression buys us nothing.
+    if bits > 57 || compressed_size >= raw_size {
+        let mut output = Vec::with_capacity(raw_size);
         for &value in values {
-            output.extend_from_slice(&f64_to_le(value).to_le_bytes());
+            output.extend_from_slice(&value.to_le_bytes());
         }
         return output;
     }
+
+    // Header: bit width (1 byte) + first value (8 bytes).
+    let mut output = Vec::with_capacity(compressed_size);
+    output.push(bits);
+    output.extend_from_slice(&values[0].to_le_bytes());
+
+    // Bit-packing of the XOR deltas.
+    let mut buffer: u64 = 0;
+    let mut buffer_bits: u32 = 0;
+    let mut previous = values[0].to_bits();
+
+    for &value in &values[1..] {
+        let current = value.to_bits();
+        let xor = current ^ previous;
+
+        // Shift buffer left, add new bits.
+        buffer = (buffer << bits) | xor;
+        buffer_bits += bits as u32;
+
+        // Flush complete bytes.
+        while buffer_bits >= 8 {
+            buffer_bits -= 8;
+            output.push((buffer >> buffer_bits) as u8);
+        }
+
+        previous = current;
+    }
+
+    // Flush remaining bits left-aligned.
+    if buffer_bits > 0 {
+        output.push((buffer << (8 - buffer_bits)) as u8);
+    }
+
     output
-}
-
-fn f64_to_le(value: f64) -> u64 {
-    u64::from_le_bytes(value.to_le_bytes())
-}
-
-fn f64_from_le(value: u64) -> f64 {
-    f64::from_le_bytes(value.to_le_bytes())
 }
 
 /// Decompresses f64 coordinates from XOR delta or raw encoding.
 ///
-/// Detects compression format by byte length - if `bytes.len() == count * 8`, data is raw and
-/// copied directly. Otherwise, reads first coordinate from 8 bytes, then XOR deltas as varints,
-/// reconstructing the original sequence.
+/// If the byte length is equal to the uncompressed size, then the data is raw and copied directly.
+/// Otherwise, reads the delta size from the first byte, the first coordinate from next 8 bytes,
+/// then unpacks bit-packed XOR deltas reconstructing the original sequence. A value in the
+/// sequence is derived by applying the XOR delta to the value preceding it.
 ///
 /// Returns exact f64 values that were passed to `compress_f64()`.
-pub fn decompress_f64(mut bytes: &[u8], count: usize) -> Vec<f64> {
+pub fn decompress_f64(bytes: &[u8], count: usize) -> Vec<f64> {
+    // Check for raw encoding, read raw values.
     let mut values = Vec::with_capacity(count);
     if bytes.len() == count * 8 {
         for i in 0..count {
-            let bits = u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap());
-            values.push(f64_from_le(bits));
+            values.push(f64::from_le_bytes(
+                bytes[i * 8..(i + 1) * 8].try_into().unwrap(),
+            ));
         }
         return values;
     }
-    let mut cursor: &mut &[u8] = &mut bytes;
 
-    // Read first value (raw 8 bytes)
-    let mut first_bytes = [0u8; 8];
-    cursor.read_exact(&mut first_bytes).unwrap();
-    let mut previous = u64::from_le_bytes(first_bytes);
-    values.push(f64::from_bits(previous));
+    // Read header as unsigned integer for use with XOR.
+    let bits = bytes[0] as u32;
+    let first = u64::from_le_bytes(bytes[1..9].try_into().unwrap());
 
-    // Read remaining values as VInt XORs
-    while values.len() < count {
-        let xor = VInt::deserialize_u64(&mut cursor).unwrap();
-        let bits = previous ^ xor;
-        values.push(f64::from_bits(bits));
-        previous = bits;
+    // Convert unisgned integer bits to float.
+    values.push(f64::from_bits(first));
+
+    // Unpack bit-packed XOR deltas
+    let mut buffer: u64 = 0;
+    let mut buffer_bits: u32 = 0;
+    let mut offset = 9;
+    let mut previous = first;
+    let mask = (1u64 << bits) - 1;
+
+    for _ in 1..count {
+        // Refill buffer.
+        while buffer_bits < bits && offset < bytes.len() {
+            buffer = (buffer << 8) | bytes[offset] as u64;
+            buffer_bits += 8;
+            offset += 1;
+        }
+
+        // Extract delta.
+        buffer_bits -= bits;
+        let xor = (buffer >> buffer_bits) & mask;
+
+        let current = previous ^ xor;
+        values.push(f64::from_bits(current));
+        previous = current;
     }
 
     values
@@ -100,18 +155,25 @@ pub fn decompress_f64(mut bytes: &[u8], count: usize) -> Vec<f64> {
 mod test {
     use super::*;
 
+    // Compression ratio of 1.43 on small municipal polygons (12 vertices). Per FCBench (VLDB
+    // 2024), this exceeds the median lossless floating-point compression ratio of 1.16 and matches
+    // Gorilla/Chimp XOR-delta methods. Block-based methods (bitshuffle+zstd) achieve 1.4-1.5x on
+    // comparable low-entropy spatial data, but require sequential decompression. Nothing
+    // scientific about this observation, just a sanity check that we are, at first glance, on the
+    // right track.
     #[test]
     fn test_compress_spatial_locality() {
-        // Small town polygon - longitude only.
-        let longitudes = vec![
-            40.7580, 40.7581, 40.7582, 40.7583, 40.7584, 40.7585, 40.7586, 40.7587,
+        // Latitudes from a small town polygon. Hosmer, South Dakota.
+        let latitudes = vec![
+            45.577697, 45.571457, 45.571461, 45.571584, 45.571615, 45.57168, 45.57883, 45.586076,
+            45.585926, 45.585953, 45.57873, 45.577697,
         ];
-        let bytes = compress_f64(&longitudes);
-        // Should compress well - XOR deltas will be small
-        assert_eq!(bytes.len(), 46);
+        let bytes = compress_f64(&latitudes);
+        // Uncompressed is 96.
+        assert_eq!(bytes.len(), 67);
         // Should decompress to exact original values
-        let decompressed = decompress_f64(&bytes, longitudes.len());
-        assert_eq!(longitudes, decompressed);
+        let decompressed = decompress_f64(&bytes, latitudes.len());
+        assert_eq!(latitudes, decompressed);
     }
     #[test]
     fn test_fallback_to_raw() {
