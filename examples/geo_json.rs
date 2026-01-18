@@ -1,4 +1,3 @@
-use geo_types::Point;
 use tantivy::collector::TopDocs;
 use tantivy::query::SpatialQuery;
 use tantivy::schema::{Schema, Value, SPATIAL, STORED, TEXT};
@@ -52,7 +51,7 @@ fn main() -> tantivy::Result<()> {
         ],
         tantivy::query::SpatialQueryType::Intersects,
     );
-    let hits = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
+    let hits = searcher.search(&query, &TopDocs::with_limit(10))?;
     for (_score, doc_address) in &hits {
         let retrieved_doc: TantivyDocument = searcher.doc(*doc_address)?;
         if let Some(field_value) = retrieved_doc.get_first(field) {
