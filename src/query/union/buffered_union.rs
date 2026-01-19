@@ -1,6 +1,6 @@
 use common::TinySet;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekIntoTheDangerZoneResult, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
@@ -225,25 +225,30 @@ where
         }
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
         if self.is_in_horizon(target) {
             // Our value is within the buffered horizon and the docset may already have been
             // processed and removed, so we need to use seek, which uses the regular advance.
-            self.seek(target) == target
+            if self.seek(target) == target {
+                SeekIntoTheDangerZoneResult::Found
+            } else {
+                SeekIntoTheDangerZoneResult::NewTarget(self.doc())
+            }
         } else {
             // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
             // of the underlying docsets
-            let is_hit = self
-                .docsets
-                .iter_mut()
-                .any(|docset| docset.seek_into_the_danger_zone(target));
+            let is_hit = self.docsets.iter_mut().any(|docset| {
+                docset.seek_into_the_danger_zone(target) == SeekIntoTheDangerZoneResult::Found
+            });
 
             // The API requires the DocSet to be in a valid state when `seek_into_the_danger_zone`
             // returns true.
             if is_hit {
                 self.seek(target);
+                SeekIntoTheDangerZoneResult::Found
+            } else {
+                SeekIntoTheDangerZoneResult::NewTarget(target)
             }
-            is_hit
         }
     }
 

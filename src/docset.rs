@@ -60,7 +60,7 @@ pub trait DocSet: Send {
     /// ## API Behaviour
     /// If `seek_into_the_danger_zone` is returning true, a call to `doc()` has to return target.
     /// If `seek_into_the_danger_zone` is returning false, a call to `doc()` may return any doc
-    /// between the last doc that matched and target or a doc that is a valid next hit after
+    /// greater than the last doc that matched and target or a doc that is a valid next hit after
     /// target. The DocSet is considered to be in an invalid state until
     /// `seek_into_the_danger_zone` returns true again.
     ///
@@ -70,12 +70,16 @@ pub trait DocSet: Send {
     ///
     /// # Warning
     /// This is an advanced API used by intersection. The API contract is tricky, avoid using it.
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
         let current_doc = self.doc();
         if current_doc < target {
             self.seek(target);
         }
-        self.doc() == target
+        if self.doc() == target {
+            SeekIntoTheDangerZoneResult::Found
+        } else {
+            SeekIntoTheDangerZoneResult::NewTarget(self.doc())
+        }
     }
 
     /// Fills a given mutable buffer with the next doc ids from the
@@ -166,6 +170,12 @@ pub trait DocSet: Send {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeekIntoTheDangerZoneResult {
+    Found,
+    NewTarget(DocId),
+}
+
 impl DocSet for &mut dyn DocSet {
     fn advance(&mut self) -> u32 {
         (**self).advance()
@@ -175,7 +185,7 @@ impl DocSet for &mut dyn DocSet {
         (**self).seek(target)
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
         (**self).seek_into_the_danger_zone(target)
     }
 
@@ -211,7 +221,7 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.seek(target)
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_into_the_danger_zone(&mut self, target: DocId) -> SeekIntoTheDangerZoneResult {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.seek_into_the_danger_zone(target)
     }
