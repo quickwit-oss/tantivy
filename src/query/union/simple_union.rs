@@ -1,7 +1,5 @@
-use std::any::Any;
-
 use crate::docset::{DocSet, TERMINATED};
-use crate::postings::{FreqReadingOption, Postings};
+use crate::postings::Postings;
 use crate::DocId;
 
 /// A `SimpleUnion` is a `DocSet` that is the union of multiple `DocSet`.

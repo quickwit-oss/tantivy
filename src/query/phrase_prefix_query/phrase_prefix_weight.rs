@@ -3,10 +3,9 @@ use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
-use crate::query::explanation::does_not_match;
 use crate::query::{EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::{IndexRecordOption, Term};
-use crate::{DocId, DocSet, Score};
+use crate::{DocId, Score};
 
 pub struct PhrasePrefixWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -123,7 +122,7 @@ impl Weight for PhrasePrefixWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, _reader: &SegmentReader, _doc: DocId) -> crate::Result<Explanation> {
         todo!();
         // let scorer_opt = self.phrase_scorer(reader, 1.0)?;
         // if scorer_opt.is_none() {

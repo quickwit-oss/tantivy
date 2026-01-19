@@ -4,7 +4,6 @@ pub mod standard;
 use std::borrow::Cow;
 use std::io;
 
-use common::OwnedBytes;
 use serde::{Deserialize, Serialize};
 pub use standard::StandardCodec;
 

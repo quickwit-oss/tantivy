@@ -1,9 +1,5 @@
-use downcast_rs::impl_downcast;
-
 use crate::docset::DocSet;
-use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::FreqReadingOption;
 use crate::query::{Bm25Weight, Scorer};
 use crate::Score;
 
@@ -20,8 +16,8 @@ use crate::Score;
 pub trait Postings: DocSet + 'static {
     fn new_term_scorer(
         self: Box<Self>,
-        fieldnorm_reader: FieldNormReader,
-        similarity_weight: Bm25Weight,
+        _fieldnorm_reader: FieldNormReader,
+        _similarity_weight: Bm25Weight,
     ) -> Box<dyn Scorer> {
         // let self_dyn: Box<dyn Postings>  = self;
         todo!();
@@ -64,9 +60,9 @@ pub trait Postings: DocSet + 'static {
     // Only allowed for block max.
     fn seek_block(
         &mut self,
-        target_doc: crate::DocId,
-        fieldnorm_reader: &FieldNormReader,
-        similarity_weight: &Bm25Weight,
+        _target_doc: crate::DocId,
+        _fieldnorm_reader: &FieldNormReader,
+        _similarity_weight: &Bm25Weight,
     ) -> Score {
         unimplemented!()
     }

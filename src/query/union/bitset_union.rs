@@ -1,8 +1,7 @@
-use std::any::Any;
 use std::cell::RefCell;
 
 use crate::docset::DocSet;
-use crate::postings::{FreqReadingOption, Postings};
+use crate::postings::Postings;
 use crate::query::BitSetDocSet;
 use crate::DocId;
 

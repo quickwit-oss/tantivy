@@ -1,12 +1,10 @@
-use super::term_scorer::TermScorer;
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
-use crate::query::explanation::does_not_match;
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
-use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{AllScorer, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TantivyError, Term};
 
@@ -38,7 +36,7 @@ impl Weight for TermWeight {
         Ok(self.specialized_scorer(reader, boost)?.into_boxed_scorer())
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, _reader: &SegmentReader, _doc: DocId) -> crate::Result<Explanation> {
         todo!();
         // match self.specialized_scorer(reader, 1.0)? {
         //     TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
@@ -118,13 +116,13 @@ impl Weight for TermWeight {
     /// important optimization (e.g. BlockWAND for union).
     fn for_each_pruning(
         &self,
-        threshold: Score,
+        _threshold: Score,
         reader: &SegmentReader,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
+        _callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
-            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(_term_scorer) => {
                 todo!();
                 // crate::query::boolean_query::block_wand_single_scorer(
                 //     *term_scorer,

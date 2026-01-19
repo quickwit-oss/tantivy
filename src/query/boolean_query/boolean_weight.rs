@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::index::SegmentReader;
-use crate::postings::FreqReadingOption;
 use crate::query::disjunction::Disjunction;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
@@ -523,7 +522,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     ) -> crate::Result<()> {
         let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
         match scorer {
-            SpecializedScorer::TermUnion(term_scorers) => {
+            SpecializedScorer::TermUnion(_term_scorers) => {
                 // super::block_wand(term_scorers, threshold, callback);
                 todo!();
             }

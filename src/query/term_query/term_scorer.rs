@@ -2,7 +2,7 @@ use crate::codec::postings::PostingsCodec;
 use crate::codec::{Codec, StandardCodec};
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::{FreqReadingOption, Postings};
+use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};

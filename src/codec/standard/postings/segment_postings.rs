@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use common::{BitSet, HasLen};
 
 use super::BlockSegmentPostings;
@@ -9,7 +7,7 @@ use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::{FreqReadingOption, Postings};
 use crate::query::Bm25Weight;
-use crate::{DocId, Score, TERMINATED};
+use crate::{DocId, Score};
 
 /// `SegmentPostings` represents the inverted list or postings associated with
 /// a term in a `Segment`.

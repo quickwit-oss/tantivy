@@ -142,23 +142,6 @@ impl SkipReader {
         skip_reader
     }
 
-    pub fn reset(&mut self, data: OwnedBytes, doc_freq: u32) {
-        self.last_doc_in_block = if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
-            0
-        } else {
-            TERMINATED
-        };
-        self.last_doc_in_previous_block = 0u32;
-        self.owned_read = data;
-        self.block_info = BlockInfo::VInt { num_docs: doc_freq };
-        self.byte_offset = 0;
-        self.remaining_docs = doc_freq;
-        self.position_offset = 0u64;
-        if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
-            self.read_block_info();
-        }
-    }
-
     // Returns the block max score for this block if available.
     //
     // The block max score is available for all full bitpacked block,
