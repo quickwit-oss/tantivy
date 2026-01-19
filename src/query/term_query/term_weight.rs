@@ -1,7 +1,6 @@
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
-use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
 use crate::query::{AllScorer, EmptyScorer, Explanation, Scorer, Weight};

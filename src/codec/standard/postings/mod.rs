@@ -2,7 +2,7 @@ use std::io;
 
 use crate::codec::postings::PostingsCodec;
 use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
-use crate::codec::standard::postings::segment_postings::SegmentPostings;
+pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::schema::IndexRecordOption;

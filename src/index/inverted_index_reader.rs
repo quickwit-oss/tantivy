@@ -196,7 +196,7 @@ impl InvertedIndexReader {
             fieldnorm_reader,
             similarity_weight,
         )?;
-        Ok(Box::new(term_scorer))
+        Ok(term_scorer)
     }
 
     pub fn read_postings_from_terminfo_specialized<C: Codec>(
