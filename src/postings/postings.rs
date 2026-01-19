@@ -28,6 +28,7 @@ pub trait Postings: DocSet + 'static {
     /// The number of times the term appears in the document.
     fn term_freq(&self) -> u32;
 
+    /// Returns, if available, the number of documents containing the term in the segment.
     fn doc_freq(&self) -> u32 {
         todo!();
     }
@@ -131,5 +132,9 @@ impl Postings for Box<dyn Postings> {
 
     fn freq_reading_option(&self) -> FreqReadingOption {
         (**self).freq_reading_option()
+    }
+
+    fn doc_freq(&self) -> u32 {
+        (**self).doc_freq()
     }
 }

@@ -126,6 +126,10 @@ impl Postings for LoadedPostings {
     fn freq_reading_option(&self) -> super::FreqReadingOption {
         super::FreqReadingOption::ReadFreq
     }
+
+    fn doc_freq(&self) -> u32 {
+        self.doc_ids.len() as u32
+    }
 }
 
 #[cfg(test)]
