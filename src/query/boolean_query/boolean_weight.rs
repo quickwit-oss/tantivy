@@ -12,7 +12,7 @@ use crate::query::{
     intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
     RequiredOptionalScorer, Scorer, Weight,
 };
-use crate::{DocId, Score};
+use crate::{DocId, Score, TERMINATED};
 
 enum SpecializedScorer {
     TermUnion(Vec<TermScorer>),
@@ -156,6 +156,19 @@ fn effective_should_scorer_for_union<TScoreCombiner: ScoreCombiner>(
     }
 }
 
+fn create_scorer(
+    weight: &dyn Weight,
+    reader: &SegmentReader,
+    boost: Score,
+    target_doc: DocId,
+) -> crate::Result<Box<dyn Scorer>> {
+    if target_doc >= reader.max_doc() {
+        Ok(Box::new(EmptyScorer))
+    } else {
+        weight.scorer(reader, boost, target_doc)
+    }
+}
+
 enum ShouldScorersCombinationMethod {
     // Should scorers are irrelevant.
     Ignored,
@@ -207,10 +220,29 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         &self,
         reader: &SegmentReader,
         boost: Score,
+        mut seek_first_doc: DocId,
     ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
-        for (occur, subweight) in &self.weights {
-            let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
+        let (mut must_weights, other_weights): (Vec<(Occur, _)>, Vec<(Occur, _)>) = self
+            .weights
+            .iter()
+            .map(|(occur, weight)| (*occur, weight))
+            .partition(|(occur, _weight)| *occur == Occur::Must);
+        // We start by must weights in order to get the best "seek_first_doc" so that we
+        // can skip the first few documents of the other scorers.
+        must_weights.sort_by_key(|weight| weight.1.intersection_priority());
+        for (_, must_sub_weight) in must_weights {
+            let sub_scorer: Box<dyn Scorer> =
+                create_scorer(must_sub_weight.as_ref(), reader, boost, seek_first_doc)?;
+            seek_first_doc = seek_first_doc.max(sub_scorer.doc());
+            per_occur_scorers
+                .entry(Occur::Must)
+                .or_default()
+                .push(sub_scorer);
+        }
+        for (occur, sub_weight) in &other_weights {
+            let sub_scorer: Box<dyn Scorer> =
+                create_scorer(sub_weight.as_ref(), reader, boost, seek_first_doc)?;
             per_occur_scorers
                 .entry(*occur)
                 .or_default()
@@ -224,9 +256,10 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         reader: &SegmentReader,
         boost: Score,
         score_combiner_fn: impl Fn() -> TComplexScoreCombiner,
+        seek_doc: u32,
     ) -> crate::Result<SpecializedScorer> {
         let num_docs = reader.num_docs();
-        let mut per_occur_scorers = self.per_occur_scorers(reader, boost)?;
+        let mut per_occur_scorers = self.per_occur_scorers(reader, boost, seek_doc)?;
 
         // Indicate how should clauses are combined with must clauses.
         let mut must_scorers: Vec<Box<dyn Scorer>> =
@@ -407,7 +440,7 @@ fn remove_and_count_all_and_empty_scorers(
         if scorer.is::<AllScorer>() {
             counts.num_all_scorers += 1;
             false
-        } else if scorer.is::<EmptyScorer>() {
+        } else if scorer.doc() == TERMINATED {
             counts.num_empty_scorers += 1;
             false
         } else {
@@ -418,7 +451,12 @@ fn remove_and_count_all_and_empty_scorers(
 }
 
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
         let num_docs = reader.num_docs();
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
@@ -427,15 +465,15 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
             if occur == Occur::MustNot {
                 Ok(Box::new(EmptyScorer))
             } else {
-                weight.scorer(reader, boost)
+                weight.scorer(reader, boost, seek_doc)
             }
         } else if self.scoring_enabled {
-            self.complex_scorer(reader, boost, &self.score_combiner_fn)
+            self.complex_scorer(reader, boost, &self.score_combiner_fn, seek_doc)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, &self.score_combiner_fn, num_docs)
                 })
         } else {
-            self.complex_scorer(reader, boost, DoNothingCombiner::default)
+            self.complex_scorer(reader, boost, DoNothingCombiner::default, seek_doc)
                 .map(|specialized_scorer| {
                     into_box_scorer(specialized_scorer, DoNothingCombiner::default, num_docs)
                 })
@@ -443,7 +481,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        let mut scorer = self.scorer(reader, 1.0, 0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
@@ -467,7 +505,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
+        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn, 0)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
                 let mut union_scorer = BufferedUnionScorer::build(
@@ -489,7 +527,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
+        let scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner, 0u32)?;
         let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
 
         match scorer {
@@ -524,7 +562,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
+        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn, 0u32)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
                 super::block_wand(term_scorers, threshold, callback);

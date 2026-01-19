@@ -99,7 +99,8 @@ impl BlockSegmentPostings {
         data: FileSlice,
         mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
-    ) -> io::Result<BlockSegmentPostings> {
+        seek_doc: DocId,
+    ) -> io::Result<(BlockSegmentPostings, usize)> {
         let bytes = data.read_bytes()?;
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
         let skip_reader = match skip_data_opt {
@@ -125,7 +126,7 @@ impl BlockSegmentPostings {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let mut block_segment_postings = BlockSegmentPostings {
+        let mut block_segment_postings: BlockSegmentPostings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             block_loaded: false,
             freq_decoder: BlockDecoder::with_val(1),
@@ -135,8 +136,13 @@ impl BlockSegmentPostings {
             data: postings_data,
             skip_reader,
         };
-        block_segment_postings.load_block();
-        Ok(block_segment_postings)
+        let inner_pos = if seek_doc == 0 {
+            block_segment_postings.load_block();
+            0
+        } else {
+            block_segment_postings.seek(seek_doc)
+        };
+        Ok((block_segment_postings, inner_pos))
     }
 
     /// Returns the block_max_score for the current block.
@@ -258,7 +264,9 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_len
     }
 
-    /// Position on a block that may contains `target_doc`.
+    /// Position on a block that may contains `target_doc`, and returns the
+    /// position of the first document greater than or equal to `target_doc`
+    /// within that block.
     ///
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
@@ -453,7 +461,7 @@ mod tests {
         doc_ids.push(130);
         {
             let block_segments = build_block_postings(&doc_ids)?;
-            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None, 0);
             assert_eq!(docset.seek(128), 129);
             assert_eq!(docset.doc(), 129);
             assert_eq!(docset.advance(), 130);
@@ -461,8 +469,8 @@ mod tests {
             assert_eq!(docset.advance(), TERMINATED);
         }
         {
-            let block_segments = build_block_postings(&doc_ids).unwrap();
-            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            let block_segments = build_block_postings(&doc_ids)?;
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None, 0);
             assert_eq!(docset.seek(129), 129);
             assert_eq!(docset.doc(), 129);
             assert_eq!(docset.advance(), 130);
@@ -471,7 +479,7 @@ mod tests {
         }
         {
             let block_segments = build_block_postings(&doc_ids)?;
-            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None, 0);
             assert_eq!(docset.doc(), 0);
             assert_eq!(docset.seek(131), TERMINATED);
             assert_eq!(docset.doc(), TERMINATED);

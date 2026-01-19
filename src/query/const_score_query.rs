@@ -63,13 +63,18 @@ impl ConstWeight {
 }
 
 impl Weight for ConstWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let inner_scorer = self.weight.scorer(reader, boost)?;
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
+        let inner_scorer = self.weight.scorer(reader, boost, seek_doc)?;
         Ok(Box::new(ConstScorer::new(inner_scorer, boost * self.score)))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0)?;
+        let mut scorer = self.scorer(reader, 1.0, 0)?;
         if scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
                 "Document #({doc}) does not match"
@@ -83,6 +88,10 @@ impl Weight for ConstWeight {
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         self.weight.count(reader)
+    }
+
+    fn intersection_priority(&self) -> u32 {
+        self.weight.intersection_priority()
     }
 }
 

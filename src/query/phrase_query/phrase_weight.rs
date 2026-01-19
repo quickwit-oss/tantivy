@@ -43,6 +43,7 @@ impl PhraseWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
+        seek_doc: DocId,
     ) -> crate::Result<Option<PhraseScorer<SegmentPostings>>> {
         let similarity_weight_opt = self
             .similarity_weight_opt
@@ -51,14 +52,16 @@ impl PhraseWeight {
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let mut term_postings_list = Vec::new();
         for &(offset, ref term) in &self.phrase_terms {
-            if let Some(postings) = reader
-                .inverted_index(term.field())?
-                .read_postings(term, IndexRecordOption::WithFreqsAndPositions)?
-            {
-                term_postings_list.push((offset, postings));
-            } else {
+            let inverted_index = reader.inverted_index(term.field())?;
+            let Some(term_info) = inverted_index.get_term_info(term)? else {
                 return Ok(None);
-            }
+            };
+            let postings = inverted_index.read_postings_from_terminfo(
+                &term_info,
+                IndexRecordOption::WithFreqsAndPositions,
+                seek_doc,
+            )?;
+            term_postings_list.push((offset, postings));
         }
         Ok(Some(PhraseScorer::new(
             term_postings_list,
@@ -74,8 +77,13 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        if let Some(scorer) = self.phrase_scorer(reader, boost)? {
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
+        if let Some(scorer) = self.phrase_scorer(reader, boost, seek_doc)? {
             Ok(Box::new(scorer))
         } else {
             Ok(Box::new(EmptyScorer))
@@ -83,12 +91,12 @@ impl Weight for PhraseWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader, 1.0)?;
+        let scorer_opt = self.phrase_scorer(reader, 1.0, doc)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
         }
         let mut scorer = scorer_opt.unwrap();
-        if scorer.seek(doc) != doc {
+        if scorer.doc() != doc {
             return Err(does_not_match(doc));
         }
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
@@ -99,6 +107,10 @@ impl Weight for PhraseWeight {
             explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
         }
         Ok(explanation)
+    }
+
+    fn intersection_priority(&self) -> u32 {
+        40u32
     }
 }
 
@@ -122,7 +134,7 @@ mod tests {
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.phrase_weight(enable_scoring).unwrap();
         let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0, 0)?
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);

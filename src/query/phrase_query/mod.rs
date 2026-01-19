@@ -84,7 +84,7 @@ pub(crate) mod tests {
         let phrase_query = PhraseQuery::new(terms);
         let phrase_weight =
             phrase_query.phrase_weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
-        let mut phrase_scorer = phrase_weight.scorer(searcher.segment_reader(0), 1.0)?;
+        let mut phrase_scorer = phrase_weight.scorer(searcher.segment_reader(0), 1.0, 0)?;
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())
@@ -344,6 +344,43 @@ pub(crate) mod tests {
     }
 
     #[test]
+    pub fn test_phrase_weight_seek_doc() -> crate::Result<()> {
+        // Create an index with documents where the phrase "a b" appears in some of them.
+        // Documents: 0: "c d", 1: "a b", 2: "e f", 3: "a b c", 4: "g h", 5: "a b", 6: "i j"
+        let index = create_index(&["c d", "a b", "e f", "a b c", "g h", "a b", "i j"])?;
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b"),
+        ]);
+        let phrase_weight =
+            phrase_query.phrase_weight(EnableScoring::disabled_from_schema(searcher.schema()))?;
+
+        // Helper function to collect all docs from a scorer created with a given seek_doc
+        let docs_when_seeking_from = |seek_from: DocId| {
+            let scorer = phrase_weight
+                .scorer(segment_reader, 1.0f32, seek_from)
+                .unwrap();
+            crate::docset::docset_to_doc_vec(scorer)
+        };
+
+        // Documents with "a b": 1, 3, 5
+        assert_eq!(docs_when_seeking_from(0), vec![1, 3, 5]);
+        assert_eq!(docs_when_seeking_from(1), vec![1, 3, 5]);
+        assert_eq!(docs_when_seeking_from(2), vec![3, 5]);
+        assert_eq!(docs_when_seeking_from(3), vec![3, 5]);
+        assert_eq!(docs_when_seeking_from(4), vec![5]);
+        assert_eq!(docs_when_seeking_from(5), vec![5]);
+        assert_eq!(docs_when_seeking_from(6), Vec::<DocId>::new());
+        assert_eq!(docs_when_seeking_from(7), Vec::<DocId>::new());
+
+        Ok(())
+    }
+
+    #[test]
     pub fn test_phrase_query_on_json() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let json_field = schema_builder.add_json_field("json", TEXT);
@@ -373,7 +410,7 @@ pub(crate) mod tests {
                 .weight(EnableScoring::disabled_from_schema(searcher.schema()))
                 .unwrap();
             let mut phrase_scorer = phrase_weight
-                .scorer(searcher.segment_reader(0), 1.0f32)
+                .scorer(searcher.segment_reader(0), 1.0f32, 0)
                 .unwrap();
             let mut docs = Vec::new();
             loop {

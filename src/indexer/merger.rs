@@ -367,8 +367,11 @@ impl IndexMerger {
             for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
                 let inverted_index: &InvertedIndexReader = &field_readers[segment_ord];
-                let segment_postings = inverted_index
-                    .read_postings_from_terminfo(&term_info, segment_postings_option)?;
+                let segment_postings = inverted_index.read_postings_from_terminfo(
+                    &term_info,
+                    segment_postings_option,
+                    0u32,
+                )?;
                 let alive_bitset_opt = segment_reader.alive_bitset();
                 let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
                     segment_postings.doc_freq_given_deletes(alive_bitset)

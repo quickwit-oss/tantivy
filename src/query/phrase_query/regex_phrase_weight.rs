@@ -195,8 +195,11 @@ impl RegexPhraseWeight {
         const SPARSE_TERM_DOC_THRESHOLD: u32 = 100;
 
         for term_info in term_infos {
-            let mut term_posting = inverted_index
-                .read_postings_from_terminfo(term_info, IndexRecordOption::WithFreqsAndPositions)?;
+            let mut term_posting = inverted_index.read_postings_from_terminfo(
+                term_info,
+                IndexRecordOption::WithFreqsAndPositions,
+                0u32,
+            )?;
             let num_docs = term_posting.doc_freq();
 
             if num_docs < SPARSE_TERM_DOC_THRESHOLD {
@@ -269,7 +272,12 @@ impl RegexPhraseWeight {
 }
 
 impl Weight for RegexPhraseWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+        _seek_doc: DocId,
+    ) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
         } else {
