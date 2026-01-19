@@ -1,11 +1,12 @@
 use common::{BitSet, HasLen};
 
 use super::BlockSegmentPostings;
+use crate::codec::standard::postings::FreqReadingOption;
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{FreqReadingOption, Postings};
+use crate::postings::Postings;
 use crate::query::Bm25Weight;
 use crate::{DocId, Score};
 
@@ -288,7 +289,6 @@ mod tests {
 
     use super::SegmentPostings;
     use crate::docset::{DocSet, TERMINATED};
-    use crate::fastfield::AliveBitSet;
     use crate::postings::Postings;
 
     #[test]

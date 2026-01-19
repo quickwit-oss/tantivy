@@ -3,9 +3,9 @@ use std::io;
 use common::{OwnedBytes, VInt};
 
 use crate::codec::standard::postings::skip::{BlockInfo, SkipReader};
+use crate::codec::standard::postings::FreqReadingOption;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder as _, COMPRESSION_BLOCK_SIZE};
-use crate::postings::FreqReadingOption;
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};

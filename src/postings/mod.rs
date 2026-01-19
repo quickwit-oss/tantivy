@@ -28,15 +28,6 @@ pub(crate) use self::postings_writer::{
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub use self::term_info::TermInfo;
 
-// TODO internalize in codec
-#[expect(clippy::enum_variant_names)]
-#[derive(Debug, PartialEq, Clone, Copy, Eq)]
-pub enum FreqReadingOption {
-    NoFreq,
-    SkipFreq,
-    ReadFreq,
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use std::mem;

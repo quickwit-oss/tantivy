@@ -19,6 +19,14 @@ pub use standard_postings_serializer::StandardPostingsSerializer;
 
 pub struct StandardPostingsCodec;
 
+#[expect(clippy::enum_variant_names)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq)]
+pub(crate) enum FreqReadingOption {
+    NoFreq,
+    SkipFreq,
+    ReadFreq,
+}
+
 impl PostingsCodec for StandardPostingsCodec {
     type PostingsSerializer = StandardPostingsSerializer;
     type Postings = SegmentPostings;
