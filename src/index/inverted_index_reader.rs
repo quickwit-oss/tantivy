@@ -13,7 +13,10 @@ use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 use crate::codec::postings::PostingsCodec;
 use crate::codec::{Codec, ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
+use crate::fieldnorm::{self, FieldNormReader};
 use crate::postings::{Postings, TermInfo};
+use crate::query::term_query::TermScorer;
+use crate::query::{Bm25Weight, Scorer};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
@@ -166,26 +169,35 @@ impl InvertedIndexReader {
         Ok(fields)
     }
 
-    // /// Returns a block postings given a `term_info`.
-    // /// This method is for an advanced usage only.
-    // ///
-    // /// Most users should prefer using [`Self::read_postings()`] instead.
-    // pub fn read_block_postings_from_terminfo(
-    //     &self,
-    //     term_info: &TermInfo,
-    //     requested_option: IndexRecordOption,
-    // ) -> io::Result<BlockSegmentPostings> {
-    //     let postings_data = self
-    //         .postings_file_slice
-    //         .slice(term_info.postings_range.clone())
-    //         .read_bytes()?;
-    //     BlockSegmentPostings::open(
-    //         term_info.doc_freq,
-    //         postings_data,
-    //         self.record_option,
-    //         requested_option,
-    //     )
-    // }
+    pub(crate) fn new_term_scorer_specialized<C: Codec>(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+        codec: &C,
+    ) -> io::Result<TermScorer<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings>> {
+        let postings = self.read_postings_from_terminfo_specialized(term_info, option, codec)?;
+        let term_scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
+        Ok(term_scorer)
+    }
+
+    pub fn new_term_scorer(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+    ) -> io::Result<Box<dyn Scorer>> {
+        let term_scorer = self.codec.load_term_scorer_type_erased(
+            term_info,
+            option,
+            &self,
+            fieldnorm_reader,
+            similarity_weight,
+        )?;
+        Ok(Box::new(term_scorer))
+    }
 
     pub fn read_postings_from_terminfo_specialized<C: Codec>(
         &self,

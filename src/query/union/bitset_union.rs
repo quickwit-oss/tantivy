@@ -31,15 +31,6 @@ impl<TDocSet: DocSet> BitSetPostingUnion<TDocSet> {
 }
 
 impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
-    fn new_term_scorer(
-        self: Box<Self>,
-        fieldnorm_reader: crate::fieldnorm::FieldNormReader,
-        similarity_weight: crate::query::Bm25Weight,
-    ) -> Box<dyn crate::query::Scorer> {
-        use crate::query::term_query::TermScorer;
-        Box::new(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
-    }
-
     fn term_freq(&self) -> u32 {
         let curr_doc = self.bitset.doc();
         let mut term_freq = 0;

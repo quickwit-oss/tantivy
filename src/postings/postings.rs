@@ -14,15 +14,6 @@ use crate::Score;
 /// but other implementations mocking `SegmentPostings` exist,
 /// for merging segments or for testing.
 pub trait Postings: DocSet + 'static {
-    fn new_term_scorer(
-        self: Box<Self>,
-        _fieldnorm_reader: FieldNormReader,
-        _similarity_weight: Bm25Weight,
-    ) -> Box<dyn Scorer> {
-        // let self_dyn: Box<dyn Postings>  = self;
-        todo!();
-    }
-
     /// The number of times the term appears in the document.
     fn term_freq(&self) -> u32;
 
@@ -75,14 +66,6 @@ pub trait Postings: DocSet + 'static {
 }
 
 impl Postings for Box<dyn Postings> {
-    fn new_term_scorer(
-        self: Box<Self>,
-        fieldnorm_reader: FieldNormReader,
-        similarity_weight: Bm25Weight,
-    ) -> Box<dyn Scorer> {
-        (*self).new_term_scorer(fieldnorm_reader, similarity_weight)
-    }
-
     fn term_freq(&self) -> u32 {
         (**self).term_freq()
     }

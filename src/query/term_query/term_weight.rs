@@ -36,7 +36,7 @@ impl Weight for TermWeight {
         Ok(self.specialized_scorer(reader, boost)?.into_boxed_scorer())
     }
 
-    fn explain(&self, _reader: &SegmentReader, _doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         todo!();
         // match self.specialized_scorer(reader, 1.0)? {
         //     TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
@@ -116,13 +116,13 @@ impl Weight for TermWeight {
     /// important optimization (e.g. BlockWAND for union).
     fn for_each_pruning(
         &self,
-        _threshold: Score,
+        threshold: Score,
         reader: &SegmentReader,
-        _callback: &mut dyn FnMut(DocId, Score) -> Score,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
-            TermOrEmptyOrAllScorer::TermScorer(_term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
                 todo!();
                 // crate::query::boolean_query::block_wand_single_scorer(
                 //     *term_scorer,
@@ -168,11 +168,11 @@ impl TermWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> Option<TermScorer> {
+    ) -> Option<super::TermScorer> {
         let mut scorer = self.specialized_scorer(reader, boost).unwrap();
         match scorer {
             TermOrEmptyOrAllScorer::TermScorer(scorer) => {
-                let term_scorer = scorer.downcast::<TermScorer>().ok()?;
+                let term_scorer = scorer.downcast::<super::TermScorer>().ok()?;
                 Some(*term_scorer)
             }
             _ => None,
@@ -199,14 +199,16 @@ impl TermWeight {
             )));
         }
 
-        let segment_postings: Box<dyn Postings> =
-            inverted_index.read_postings_from_terminfo(&term_info, self.index_record_option)?;
-
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);
-        Ok(TermOrEmptyOrAllScorer::TermScorer(
-            segment_postings.new_term_scorer(fieldnorm_reader, similarity_weight),
-        ))
+        let term_scorer = inverted_index.new_term_scorer(
+            &term_info,
+            self.index_record_option,
+            fieldnorm_reader,
+            similarity_weight,
+        )?;
+
+        Ok(TermOrEmptyOrAllScorer::TermScorer(term_scorer))
     }
 
     fn fieldnorm_reader(&self, segment_reader: &SegmentReader) -> crate::Result<FieldNormReader> {

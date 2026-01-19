@@ -99,14 +99,6 @@ impl DocSet for LoadedPostings {
     }
 }
 impl Postings for LoadedPostings {
-    fn new_term_scorer(
-        self: Box<Self>,
-        fieldnorm_reader: FieldNormReader,
-        similarity_weight: Bm25Weight,
-    ) -> Box<dyn Scorer> {
-        Box::new(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
-    }
-
     fn term_freq(&self) -> u32 {
         let start = self.position_offsets[self.cursor] as usize;
         let end = self.position_offsets[self.cursor + 1] as usize;

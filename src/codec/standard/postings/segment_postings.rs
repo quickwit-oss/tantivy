@@ -198,22 +198,13 @@ impl HasLen for SegmentPostings {
 }
 
 impl Postings for SegmentPostings {
-    fn new_term_scorer(
-        self: Box<Self>,
-        fieldnorm_reader: FieldNormReader,
-        similarity_weight: Bm25Weight,
-    ) -> Box<dyn crate::query::Scorer> {
-        use crate::query::term_query::TermScorer;
-        Box::new(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
-    }
-
     /// Returns the frequency associated with the current document.
     /// If the schema is set up so that no frequency have been encoded,
     /// this method should always return 1.
     ///
     /// # Panics
     ///
-    /// Will panics if called without having called advance before.
+    /// Will panics if called without having cagled advance before.
     fn term_freq(&self) -> u32 {
         debug_assert!(
             // Here we do not use the len of `freqs()`
