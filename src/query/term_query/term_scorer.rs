@@ -30,8 +30,8 @@ impl<TPostings: Postings> TermScorer<TPostings> {
     }
 
     /// See `FreqReadingOption`.
-    pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
-        self.postings.freq_reading_option()
+    pub(crate) fn has_freq(&self) -> bool {
+        self.postings.has_freq()
     }
 
     pub fn term_freq(&self) -> u32 {

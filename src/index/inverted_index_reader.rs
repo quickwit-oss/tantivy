@@ -2,7 +2,7 @@ use std::io;
 use std::sync::Arc;
 
 use common::json_path_writer::JSON_END_OF_PATH;
-use common::{BinarySerializable, ByteCount};
+use common::{BinarySerializable, ByteCount, OwnedBytes};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
@@ -10,7 +10,8 @@ use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
-use crate::codec::{ObjectSafeCodec, StandardCodec};
+use crate::codec::postings::PostingsCodec;
+use crate::codec::{Codec, ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
 use crate::postings::{Postings, TermInfo};
 use crate::schema::{IndexRecordOption, Term, Type};
@@ -186,6 +187,37 @@ impl InvertedIndexReader {
     //     )
     // }
 
+    pub fn read_postings_from_terminfo_specialized<C: Codec>(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        codec: &C,
+    ) -> io::Result<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings> {
+        let option = option.downgrade(self.record_option);
+        let postings_data = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone())
+            .read_bytes()?;
+        let positions_data: Option<OwnedBytes> = if option.has_positions() {
+            let positions_data = self
+                .positions_file_slice
+                .slice(term_info.positions_range.clone())
+                .read_bytes()?;
+            Some(positions_data)
+        } else {
+            None
+        };
+        let postings: <<C as Codec>::PostingsCodec as PostingsCodec>::Postings =
+            codec.postings_codec().load_postings(
+                term_info.doc_freq,
+                postings_data,
+                self.record_option,
+                option,
+                positions_data,
+            )?;
+        Ok(postings)
+    }
+
     /// Returns a posting object given a `term_info`.
     /// This method is for an advanced usage only.
     ///
@@ -195,31 +227,8 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<Box<dyn Postings>> {
-        let option = option.downgrade(self.record_option);
-
-        let postings_data = self
-            .postings_file_slice
-            .slice(term_info.postings_range.clone())
-            .read_bytes()?;
-        let positions_data = {
-            if option.has_positions() {
-                let positions_data = self
-                    .positions_file_slice
-                    .slice(term_info.positions_range.clone())
-                    .read_bytes()?;
-                Some(positions_data)
-            } else {
-                None
-            }
-        };
-        let postings = self.codec.load_postings_type_erased(
-            term_info.doc_freq,
-            postings_data,
-            self.record_option,
-            option,
-            positions_data,
-        )?;
-        Ok(postings)
+        self.codec
+            .load_postings_type_erased(term_info, option, self)
     }
 
     /// Returns the total number of tokens recorded for all documents

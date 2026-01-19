@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 pub use standard::StandardCodec;
 
 use crate::codec::postings::PostingsCodec;
-use crate::postings::Postings;
+use crate::postings::{Postings, TermInfo};
 use crate::schema::IndexRecordOption;
+use crate::InvertedIndexReader;
 
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     type PostingsCodec: PostingsCodec;
@@ -59,32 +60,21 @@ impl Default for CodecConfiguration {
 pub trait ObjectSafeCodec: 'static + Send + Sync {
     fn load_postings_type_erased(
         &self,
-        doc_freq: u32,
-        postings_data: OwnedBytes,
-        record_option: IndexRecordOption,
-        requested_option: IndexRecordOption,
-        positions_data: Option<OwnedBytes>,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        inverted_index_reader: &InvertedIndexReader,
     ) -> io::Result<Box<dyn Postings>>;
 }
 
 impl<TCodec: Codec> ObjectSafeCodec for TCodec {
     fn load_postings_type_erased(
         &self,
-        doc_freq: u32,
-        postings_data: OwnedBytes,
-        record_option: IndexRecordOption,
-        requested_option: IndexRecordOption,
-        positions_data: Option<OwnedBytes>,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        inverted_index_reader: &InvertedIndexReader,
     ) -> io::Result<Box<dyn Postings>> {
-        let postings: <<Self as Codec>::PostingsCodec as PostingsCodec>::Postings =
-            self.postings_codec().load_postings(
-                doc_freq,
-                postings_data,
-                record_option,
-                requested_option,
-                positions_data,
-            )?;
-        let boxed_postings: Box<dyn Postings> = Box::new(postings);
-        Ok(boxed_postings)
+        let postings = inverted_index_reader
+            .read_postings_from_terminfo_specialized(term_info, option, self)?;
+        Ok(Box::new(postings))
     }
 }

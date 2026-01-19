@@ -3,14 +3,13 @@ use std::io;
 use common::OwnedBytes;
 
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::{FreqReadingOption, Postings};
-use crate::query::Bm25Weight;
+use crate::postings::Postings;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
 pub trait PostingsCodec: Send + Sync + 'static {
     type PostingsSerializer: PostingsSerializer;
-    type Postings: Postings;
+    type Postings: Postings + Clone;
 
     fn new_serializer(
         &self,

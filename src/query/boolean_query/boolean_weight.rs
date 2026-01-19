@@ -60,10 +60,7 @@ where
                 .into_iter()
                 .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
-            if scorers
-                .iter()
-                .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
-            {
+            if scorers.iter().all(|scorer| scorer.has_freq()) {
                 // Block wand is only available if we read frequencies.
                 return SpecializedScorer::TermUnion(scorers);
             } else {

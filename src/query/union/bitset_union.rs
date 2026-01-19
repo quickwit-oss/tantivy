@@ -56,8 +56,8 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
         term_freq
     }
 
-    fn freq_reading_option(&self) -> FreqReadingOption {
-        FreqReadingOption::ReadFreq
+    fn has_freq(&self) -> bool {
+        true
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {

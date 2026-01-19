@@ -278,8 +278,8 @@ impl Postings for SegmentPostings {
         self.block_cursor.skip_reader().last_doc_in_block()
     }
 
-    fn freq_reading_option(&self) -> FreqReadingOption {
-        self.block_cursor.freq_reading_option()
+    fn has_freq(&self) -> bool {
+        self.block_cursor.freq_reading_option() == FreqReadingOption::ReadFreq
     }
 }
 
@@ -314,16 +314,5 @@ mod tests {
     fn test_empty_postings_doc_term_freq_returns_0() {
         let postings = SegmentPostings::empty();
         assert_eq!(postings.term_freq(), 1);
-    }
-
-    #[test]
-    fn test_doc_freq() {
-        let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
-        assert_eq!(docs.doc_freq(), 3);
-        let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
-        assert_eq!(docs.doc_freq_given_deletes(&alive_bitset), 2);
-        let all_deleted =
-            AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
-        assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
     }
 }

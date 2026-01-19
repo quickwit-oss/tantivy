@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
@@ -123,8 +121,8 @@ impl Postings for LoadedPostings {
         }
     }
 
-    fn freq_reading_option(&self) -> super::FreqReadingOption {
-        super::FreqReadingOption::ReadFreq
+    fn has_freq(&self) -> bool {
+        true
     }
 
     fn doc_freq(&self) -> u32 {

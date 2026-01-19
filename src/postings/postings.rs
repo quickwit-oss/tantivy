@@ -1,3 +1,5 @@
+use downcast_rs::impl_downcast;
+
 use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::FieldNormReader;
@@ -33,26 +35,6 @@ pub trait Postings: DocSet + 'static {
         todo!();
     }
 
-    /// Compute the number of non-deleted documents.
-    ///
-    /// This method will clone and scan through the posting lists.
-    /// (this is a rather expensive operation).
-    fn doc_freq_given_deletes(&self, alive_bitset: &AliveBitSet) -> u32 {
-        todo!();
-        // let mut docset = self.clone();
-        // let mut doc_freq = 0;
-        // loop {
-        //     let doc = docset.doc();
-        //     if doc == TERMINATED {
-        //         return doc_freq;
-        //     }
-        //     if alive_bitset.is_alive(doc) {
-        //         doc_freq += 1u32;
-        //     }
-        //     docset.advance();
-        // }
-    }
-
     /// Returns the positions offsetted with a given value.
     /// It is not necessary to clear the `output` before calling this method.
     /// The output vector will be resized to the `term_freq`.
@@ -71,7 +53,7 @@ pub trait Postings: DocSet + 'static {
         self.positions_with_offset(0u32, output);
     }
 
-    fn freq_reading_option(&self) -> FreqReadingOption;
+    fn has_freq(&self) -> bool;
 
     // TODO see if we can put that in a lift to PostingsWithBlockMax trait.
     // supports Block-Wand
@@ -130,8 +112,8 @@ impl Postings for Box<dyn Postings> {
         (**self).last_doc_in_block()
     }
 
-    fn freq_reading_option(&self) -> FreqReadingOption {
-        (**self).freq_reading_option()
+    fn has_freq(&self) -> bool {
+        (**self).has_freq()
     }
 
     fn doc_freq(&self) -> u32 {
