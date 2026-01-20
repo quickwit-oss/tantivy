@@ -7,8 +7,8 @@ use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
 use crate::query::{
-    intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
-    RequiredOptionalScorer, Scorer, Weight,
+    box_scorer, intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude,
+    Explanation, Occur, RequiredOptionalScorer, Scorer, Weight,
 };
 use crate::{DocId, Score};
 
@@ -25,7 +25,7 @@ where
     if scorers.len() == 1 {
         return scorers.into_iter().next().unwrap(); // Safe unwrap.
     }
-    Box::new(Disjunction::new(
+    box_scorer(Disjunction::new(
         scorers,
         score_combiner,
         minimum_match_required,
@@ -42,9 +42,9 @@ where
     TScoreCombiner: ScoreCombiner,
 {
     match scorers.len() {
-        0 => Box::new(EmptyScorer),
-        1 => Box::new(scorers.into_iter().next().unwrap()),
-        _ => Box::new(BufferedUnionScorer::build(
+        0 => box_scorer(EmptyScorer),
+        1 => scorers.into_iter().next().unwrap(),
+        _ => box_scorer(BufferedUnionScorer::build(
             scorers,
             score_combiner_fn,
             num_docs,
@@ -65,7 +65,7 @@ fn effective_must_scorer(
     if must_scorers.is_empty() {
         if removed_all_scorer_count > 0 {
             // Had AllScorer(s) only - all docs match
-            Some(Box::new(AllScorer::new(max_doc)))
+            Some(box_scorer(AllScorer::new(max_doc)))
         } else {
             // No MUST constraint at all
             None
@@ -94,15 +94,15 @@ fn effective_should_scorer_for_union<TScoreCombiner: ScoreCombiner>(
         if scoring_enabled {
             // Need to union to get score contributions from both
             let all_scorers: Vec<Box<dyn Scorer>> =
-                vec![should_scorer, Box::new(AllScorer::new(max_doc))];
-            Box::new(BufferedUnionScorer::build(
+                vec![should_scorer, box_scorer(AllScorer::new(max_doc))];
+            box_scorer(BufferedUnionScorer::build(
                 all_scorers,
                 score_combiner_fn,
                 num_docs,
             ))
         } else {
             // Scoring disabled - AllScorer alone is sufficient
-            Box::new(AllScorer::new(max_doc))
+            box_scorer(AllScorer::new(max_doc))
         }
     } else {
         should_scorer
@@ -187,7 +187,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         let must_special_scorer_counts = remove_and_count_all_and_empty_scorers(&mut must_scorers);
 
         if must_special_scorer_counts.num_empty_scorers > 0 {
-            return Ok(Box::new(EmptyScorer));
+            return Ok(box_scorer(EmptyScorer));
         }
 
         let mut should_scorers = per_occur_scorers.remove(&Occur::Should).unwrap_or_default();
@@ -202,7 +202,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 
         if exclude_special_scorer_counts.num_all_scorers > 0 {
             // We exclude all documents at one point.
-            return Ok(Box::new(EmptyScorer));
+            return Ok(box_scorer(EmptyScorer));
         }
 
         let effective_minimum_number_should_match = self
@@ -214,7 +214,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             if effective_minimum_number_should_match > num_of_should_scorers {
                 // We don't have enough scorers to satisfy the minimum number of should matches.
                 // The request will match no documents.
-                return Ok(Box::new(EmptyScorer));
+                return Ok(box_scorer(EmptyScorer));
             }
             match effective_minimum_number_should_match {
                 0 if num_of_should_scorers == 0 => ShouldScorersCombinationMethod::Ignored,
@@ -262,7 +262,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     reader.max_doc(),
                     num_docs,
                 )
-                .unwrap_or_else(|| Box::new(EmptyScorer));
+                .unwrap_or_else(|| box_scorer(EmptyScorer));
                 boxed_scorer
             }
             (ShouldScorersCombinationMethod::Optional(should_scorer), must_scorers) => {
@@ -288,7 +288,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     Some(must_scorer) => {
                         // Has MUST constraint: SHOULD only affects scoring.
                         if self.scoring_enabled {
-                            Box::new(RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
+                            box_scorer(RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
                                 must_scorer,
                                 should_scorer,
                             ))
@@ -319,7 +319,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             }
         };
         if let Some(exclude_scorer) = exclude_scorer_opt {
-            Ok(Box::new(Exclude::new(include_scorer, exclude_scorer)))
+            Ok(box_scorer(Exclude::new(include_scorer, exclude_scorer)))
         } else {
             Ok(include_scorer)
         }
@@ -353,11 +353,11 @@ fn remove_and_count_all_and_empty_scorers(
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
-            Ok(Box::new(EmptyScorer))
+            Ok(box_scorer(EmptyScorer))
         } else if self.weights.len() == 1 {
             let &(occur, ref weight) = &self.weights[0];
             if occur == Occur::MustNot {
-                Ok(Box::new(EmptyScorer))
+                Ok(box_scorer(EmptyScorer))
             } else {
                 weight.scorer(reader, boost)
             }

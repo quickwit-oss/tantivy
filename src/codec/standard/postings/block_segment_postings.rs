@@ -338,17 +338,15 @@ impl BlockSegmentPostings {
 
 #[cfg(test)]
 mod tests {
-    use common::{HasLen, OwnedBytes};
+    use common::OwnedBytes;
 
     use super::BlockSegmentPostings;
     use crate::codec::postings::PostingsSerializer;
     use crate::codec::standard::postings::segment_postings::SegmentPostings;
     use crate::codec::standard::postings::StandardPostingsSerializer;
     use crate::docset::{DocSet, TERMINATED};
-    use crate::index::Index;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-    use crate::postings::Postings as _;
-    use crate::schema::{IndexRecordOption, Schema, Term, INDEXED};
+    use crate::schema::IndexRecordOption;
 
     #[cfg(test)]
     fn build_block_postings(docs: &[u32]) -> BlockSegmentPostings {

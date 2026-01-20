@@ -10,7 +10,7 @@ pub use standard::StandardCodec;
 use crate::codec::postings::PostingsCodec;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
-use crate::query::{Bm25Weight, Scorer};
+use crate::query::{box_scorer, Bm25Weight, Scorer};
 use crate::schema::IndexRecordOption;
 use crate::InvertedIndexReader;
 
@@ -74,6 +74,15 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
     ) -> io::Result<Box<dyn Scorer>>;
+
+    fn new_phrase_scorer_type_erased(
+        &self,
+        term_infos: &[(usize, TermInfo)],
+        similarity_weight: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        inverted_index_reader: &InvertedIndexReader,
+    ) -> io::Result<Box<dyn Scorer>>;
 }
 
 impl<TCodec: Codec> ObjectSafeCodec for TCodec {
@@ -103,6 +112,24 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
             similarity_weight,
             self,
         )?;
-        Ok(Box::new(scorer))
+        Ok(box_scorer(scorer))
+    }
+
+    fn new_phrase_scorer_type_erased(
+        &self,
+        term_infos: &[(usize, TermInfo)],
+        similarity_weight: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        inverted_index_reader: &InvertedIndexReader,
+    ) -> io::Result<Box<dyn Scorer>> {
+        let scorer = inverted_index_reader.new_phrase_scorer_type_specialized(
+            term_infos,
+            similarity_weight,
+            fieldnorm_reader,
+            slop,
+            self,
+        )?;
+        Ok(box_scorer(scorer))
     }
 }

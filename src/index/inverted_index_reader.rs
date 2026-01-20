@@ -16,7 +16,7 @@ use crate::directory::FileSlice;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::term_query::TermScorer;
-use crate::query::{Bm25Weight, Scorer};
+use crate::query::{Bm25Weight, PhraseScorer, Scorer};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
@@ -180,6 +180,35 @@ impl InvertedIndexReader {
         let postings = self.read_postings_from_terminfo_specialized(term_info, option, codec)?;
         let term_scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
         Ok(term_scorer)
+    }
+
+    pub(crate) fn new_phrase_scorer_type_specialized<C: Codec>(
+        &self,
+        term_infos: &[(usize, TermInfo)],
+        similarity_weight_opt: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+        codec: &C,
+    ) -> io::Result<PhraseScorer<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings>> {
+        let mut offset_and_term_postings: Vec<(
+            usize,
+            <<C as Codec>::PostingsCodec as PostingsCodec>::Postings,
+        )> = Vec::with_capacity(term_infos.len());
+        for (offset, term_info) in term_infos {
+            let postings = self.read_postings_from_terminfo_specialized(
+                term_info,
+                IndexRecordOption::WithFreqsAndPositions,
+                codec,
+            )?;
+            offset_and_term_postings.push((*offset, postings));
+        }
+        let phrase_scorer = PhraseScorer::new(
+            offset_and_term_postings,
+            similarity_weight_opt,
+            fieldnorm_reader,
+            slop,
+        );
+        Ok(phrase_scorer)
     }
 
     pub fn new_term_scorer(

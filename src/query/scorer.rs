@@ -1,5 +1,5 @@
 use std::mem::{transmute_copy, ManuallyDrop};
-use std::ops::DerefMut;
+use std::ops::{Deref as _, DerefMut};
 
 use downcast_rs::impl_downcast;
 

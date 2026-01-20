@@ -1,6 +1,7 @@
 use super::PhraseScorer;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
+use crate::postings::TermInfo;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::{box_scorer, EmptyScorer, Explanation, Scorer, Weight};
@@ -47,27 +48,46 @@ impl PhraseWeight {
             .as_ref()
             .map(|similarity_weight| similarity_weight.boost_by(boost));
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
-        let mut term_postings_list = Vec::new();
+
+        if self.phrase_terms.is_empty() {
+            return Ok(None);
+        }
+        let field = self.phrase_terms[0].1.field();
+
+        if !self
+            .phrase_terms
+            .iter()
+            .all(|(_offset, term)| term.field() == field)
+        {
+            return Err(crate::TantivyError::InvalidArgument(
+                "All terms in a phrase query must belong to the same field".to_string(),
+            ));
+        }
+
+        let inverted_index_reader = reader.inverted_index(field)?;
+
+        let mut term_infos: Vec<(usize, TermInfo)> = Vec::with_capacity(self.phrase_terms.len());
+
         // TODO make it specialized
         for &(offset, ref term) in &self.phrase_terms {
-            if let Some(postings) = reader
-                .inverted_index(term.field())?
-                .read_postings(term, IndexRecordOption::WithFreqsAndPositions)?
-            {
-                term_postings_list.push((offset, postings));
-            } else {
+            let Some(term_info) = inverted_index_reader.get_term_info(&term)? else {
                 return Ok(None);
-            }
+            };
+            term_infos.push((offset, term_info));
         }
-        Ok(Some(box_scorer(PhraseScorer::new(
-            term_postings_list,
+
+        let scorer = reader.codec.new_phrase_scorer_type_erased(
+            &term_infos[..],
             similarity_weight_opt,
             fieldnorm_reader,
             self.slop,
-        ))))
+            &*inverted_index_reader,
+        )?;
+
+        Ok(Some(scorer))
     }
 
-    pub fn slop(&mut self, slop: u32) {
+    pub fn set_slop(&mut self, slop: u32) {
         self.slop = slop;
     }
 }
@@ -98,7 +118,6 @@ impl Weight for PhraseWeight {
 mod tests {
     use super::super::tests::create_index;
     use crate::docset::TERMINATED;
-    use crate::postings::Postings;
     use crate::query::phrase_query::PhraseScorer;
     use crate::query::{EnableScoring, PhraseQuery, Scorer};
     use crate::{DocSet, Term};
@@ -118,10 +137,8 @@ mod tests {
         let phrase_scorer_boxed: Box<dyn Scorer> = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
-        let mut phrase_scorer: Box<PhraseScorer<Box<dyn Postings>>> = phrase_scorer_boxed
-            .downcast::<PhraseScorer<Box<dyn Postings>>>()
-            .ok()
-            .unwrap();
+        let mut phrase_scorer: Box<PhraseScorer> =
+            phrase_scorer_boxed.downcast::<PhraseScorer>().ok().unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
         assert_eq!(phrase_scorer.advance(), 2);
