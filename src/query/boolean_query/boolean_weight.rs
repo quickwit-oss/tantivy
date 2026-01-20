@@ -353,11 +353,11 @@ fn remove_and_count_all_and_empty_scorers(
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
-            Ok(box_scorer(EmptyScorer))
+            Ok(Box::new(EmptyScorer))
         } else if self.weights.len() == 1 {
             let &(occur, ref weight) = &self.weights[0];
             if occur == Occur::MustNot {
-                Ok(box_scorer(EmptyScorer))
+                Ok(Box::new(EmptyScorer))
             } else {
                 weight.scorer(reader, boost)
             }

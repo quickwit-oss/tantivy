@@ -46,6 +46,8 @@ pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     /// hit the same doc within the buffered window.
     scores: Box<[TScoreCombiner; HORIZON as usize]>,
     /// Start doc ID (inclusive) of the current sliding window.
+    /// None if the window is not loaded yet. This is true for a freshly created
+    /// BufferedUnionScorer.
     window_start_doc: DocId,
     /// Current doc ID of the union.
     doc: DocId,
@@ -87,25 +89,51 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         score_combiner_fn: impl FnOnce() -> TScoreCombiner,
         num_docs: u32,
     ) -> BufferedUnionScorer<TScorer, TScoreCombiner> {
-        let non_empty_docsets: Vec<TScorer> = docsets
+        let score_combiner = score_combiner_fn();
+        let mut non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
             .filter(|docset| docset.doc() != TERMINATED)
             .collect();
-        let mut union = BufferedUnionScorer {
+
+        let first_doc: DocId = non_empty_docsets
+            .iter()
+            .map(|docset| docset.doc())
+            .min()
+            .unwrap_or(TERMINATED);
+        let mut score_combiner_cloned = score_combiner.clone();
+        let mut i = 0;
+        while i < non_empty_docsets.len() {
+            let should_remove_docset: bool = {
+                let non_empty_docset = &mut non_empty_docsets[i];
+                if non_empty_docset.doc() != first_doc {
+                    false
+                } else {
+                    score_combiner_cloned.update(non_empty_docset);
+                    if non_empty_docsets[i].advance() == TERMINATED {
+                        true
+                    } else {
+                        false
+                    }
+                }
+            };
+            if should_remove_docset {
+                non_empty_docsets.swap_remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        let first_score: Score = score_combiner_cloned.score();
+        let union = BufferedUnionScorer {
             docsets: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
-            scores: Box::new([score_combiner_fn(); HORIZON as usize]),
+            scores: Box::new([score_combiner; HORIZON as usize]),
             bucket_idx: HORIZON_NUM_TINYBITSETS,
-            window_start_doc: 0,
-            doc: 0,
-            score: 0.0,
+            // That way we will be detected as outside the window,
+            window_start_doc: u32::MAX - HORIZON,
+            doc: first_doc,
+            score: first_score,
             num_docs,
         };
-        if union.refill() {
-            union.advance();
-        } else {
-            union.doc = TERMINATED;
-        }
         union
     }
 
@@ -146,6 +174,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
 
     fn is_in_horizon(&self, target: DocId) -> bool {
         // wrapping_sub, because target may be < window_start_doc
+        // in particular during initialization.
         let gap = target.wrapping_sub(self.window_start_doc);
         gap < HORIZON
     }
@@ -175,11 +204,10 @@ where
         if self.doc >= target {
             return self.doc;
         }
-        let gap = target - self.window_start_doc;
-        if gap < HORIZON {
+        if self.is_in_horizon(target) {
             // Our value is within the buffered horizon.
-
             // Skipping to corresponding bucket.
+            let gap = target.wrapping_sub(self.window_start_doc);
             let new_bucket_idx = gap as usize / 64;
             for obsolete_tinyset in &mut self.bitsets[self.bucket_idx..new_bucket_idx] {
                 obsolete_tinyset.clear();
@@ -198,9 +226,7 @@ where
             doc
         } else {
             // clear the buffered info.
-            for obsolete_tinyset in self.bitsets.iter_mut() {
-                *obsolete_tinyset = TinySet::empty();
-            }
+            self.bitsets.fill(TinySet::empty());
             for score_combiner in self.scores.iter_mut() {
                 score_combiner.clear();
             }
