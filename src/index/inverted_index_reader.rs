@@ -13,7 +13,7 @@ use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 use crate::codec::postings::PostingsCodec;
 use crate::codec::{Codec, ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
-use crate::fieldnorm::{self, FieldNormReader};
+use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::term_query::TermScorer;
 use crate::query::{Bm25Weight, Scorer};

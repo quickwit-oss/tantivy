@@ -1,7 +1,6 @@
 use common::{BitSet, HasLen};
 
 use super::BlockSegmentPostings;
-use crate::codec::standard::postings::FreqReadingOption;
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;

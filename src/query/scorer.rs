@@ -1,3 +1,4 @@
+use std::mem::{ManuallyDrop, transmute_copy};
 use std::ops::DerefMut;
 
 use downcast_rs::impl_downcast;
@@ -37,6 +38,19 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
         let score = self.score();
         let name = std::any::type_name_of_val(self);
         Explanation::new(name, score)
+    }
+}
+
+/// Boxes a scorer. Prefer this to Box::new as it avoids double boxing
+/// when TScorer is already a Box<dyn Scorer>.
+pub fn box_scorer<TScorer: Scorer>(scorer: TScorer) -> Box<dyn Scorer> {
+    if std::any::TypeId::of::<TScorer>() == std::any::TypeId::of::<Box<dyn Scorer>>() {
+        unsafe {
+            let forget_me = ManuallyDrop::new(scorer);
+            transmute_copy::<TScorer, Box<dyn Scorer>>(&forget_me)
+        }
+    } else {
+        Box::new(scorer)
     }
 }
 
