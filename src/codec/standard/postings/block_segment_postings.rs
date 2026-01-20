@@ -161,7 +161,6 @@ impl BlockSegmentPostings {
     /// Return the document at index `idx` of the block.
     #[inline]
     pub fn doc(&self, idx: usize) -> u32 {
-        debug_assert!(self.block_loaded);
         self.doc_decoder.output(idx)
     }
 

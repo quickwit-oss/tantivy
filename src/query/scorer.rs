@@ -3,6 +3,7 @@ use std::ops::DerefMut;
 use downcast_rs::impl_downcast;
 
 use crate::docset::DocSet;
+use crate::query::Explanation;
 use crate::{DocId, Score, TERMINATED};
 
 /// Scored set of documents matching a query within a specific segment.
@@ -30,6 +31,12 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) {
         for_each_pruning_scorer_default_impl(self, threshold, callback);
+    }
+
+    fn explain(&mut self) -> Explanation {
+        let score = self.score();
+        let name = std::any::type_name_of_val(self);
+        Explanation::new(name, score)
     }
 }
 

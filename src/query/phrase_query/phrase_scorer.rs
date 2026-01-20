@@ -5,7 +5,7 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
-use crate::query::{Intersection, Scorer};
+use crate::query::{Explanation, Intersection, Scorer};
 use crate::{DocId, Score};
 
 struct PostingsWithOffset<TPostings> {
@@ -573,6 +573,17 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
         } else {
             1.0f32
         }
+    }
+
+    fn explain(&mut self) -> Explanation {
+        let doc = self.doc();
+        let phrase_count = self.phrase_count();
+        let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+        let mut explanation = Explanation::new("Phrase Scorer", self.score());
+        if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
+            explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
+        }
+        explanation
     }
 }
 

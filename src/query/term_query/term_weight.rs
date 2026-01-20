@@ -2,8 +2,10 @@ use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::query::bm25::Bm25Weight;
+use crate::query::explanation::does_not_match;
+use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
-use crate::query::{AllScorer, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TantivyError, Term};
 
@@ -36,19 +38,19 @@ impl Weight for TermWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        todo!();
-        // match self.specialized_scorer(reader, 1.0)? {
-        //     TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
-        //         if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
-        //             return Err(does_not_match(doc));
-        //         }
-        //         let mut explanation = term_scorer.explain();
-        //         explanation.add_context(format!("Term={:?}", self.term,));
-        //         Ok(explanation)
-        //     }
-        //     TermOrEmptyOrAllScorer::Empty => Err(does_not_match(doc)),
-        //     TermOrEmptyOrAllScorer::AllMatch(_) => AllWeight.explain(reader, doc),
-        // }
+        match self.specialized_scorer(reader, 1.0)? {
+            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+                if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
+                    return Err(does_not_match(doc));
+                }
+                let mut term_scorer = term_scorer.downcast::<TermScorer>().ok().unwrap();
+                let mut explanation = term_scorer.explain();
+                explanation.add_context(format!("Term={:?}", self.term,));
+                Ok(explanation)
+            }
+            TermOrEmptyOrAllScorer::Empty => Err(does_not_match(doc)),
+            TermOrEmptyOrAllScorer::AllMatch(_) => AllWeight.explain(reader, doc),
+        }
     }
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {

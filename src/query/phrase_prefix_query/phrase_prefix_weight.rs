@@ -149,6 +149,8 @@ mod tests {
     use crate::codec::StandardCodec;
     use crate::docset::TERMINATED;
     use crate::index::Index;
+    use crate::postings::Postings;
+    use crate::query::phrase_prefix_query::PhrasePrefixScorer;
     use crate::query::phrase_query::PhraseScorer;
     use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
     use crate::schema::{Schema, TEXT};
@@ -193,7 +195,7 @@ mod tests {
         let mut phrase_scorer_boxed = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
-        let phrase_scorer: &mut PhraseScorer<StandardPostings> =
+        let phrase_scorer: &mut PhrasePrefixScorer<Box<dyn Postings>> =
             phrase_scorer_boxed.as_any_mut().downcast_mut().unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
@@ -222,7 +224,9 @@ mod tests {
         let mut phrase_scorer_boxed = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
-        let phrase_scorer = phrase_scorer_boxed.downcast_mut::<PhraseScorer>().unwrap();
+        let phrase_scorer = phrase_scorer_boxed
+            .downcast_mut::<PhrasePrefixScorer<Box<dyn Postings>>>()
+            .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
         assert_eq!(phrase_scorer.advance(), 2);

@@ -82,23 +82,15 @@ impl Weight for PhraseWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        todo!();
-        // let scorer_opt = self.phrase_scorer(reader, 1.0)?;
-        // if scorer_opt.is_none() {
-        //     return Err(does_not_match(doc));
-        // }
-        // let mut scorer = scorer_opt.unwrap();
-        // if scorer.seek(doc) != doc {
-        //     return Err(does_not_match(doc));
-        // }
-        // let fieldnorm_reader = self.fieldnorm_reader(reader)?;
-        // let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-        // let phrase_count = scorer.phrase_count();
-        // let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
-        // if let Some(similarity_weight) = self.similarity_weight_opt.as_ref() {
-        //     explanation.add_detail(similarity_weight.explain(fieldnorm_id, phrase_count));
-        // }
-        // Ok(explanation)
+        let scorer_opt = self.phrase_scorer(reader, 1.0)?;
+        if scorer_opt.is_none() {
+            return Err(does_not_match(doc));
+        }
+        let mut scorer = scorer_opt.unwrap();
+        if scorer.seek(doc) != doc {
+            return Err(does_not_match(doc));
+        }
+        Ok(scorer.explain())
     }
 }
 
@@ -106,8 +98,9 @@ impl Weight for PhraseWeight {
 mod tests {
     use super::super::tests::create_index;
     use crate::docset::TERMINATED;
+    use crate::postings::Postings;
     use crate::query::phrase_query::PhraseScorer;
-    use crate::query::{EnableScoring, PhraseQuery};
+    use crate::query::{EnableScoring, PhraseQuery, Scorer};
     use crate::{DocSet, Term};
 
     #[test]
@@ -122,11 +115,13 @@ mod tests {
         ]);
         let enable_scoring = EnableScoring::enabled_from_searcher(&searcher);
         let phrase_weight = phrase_query.phrase_weight(enable_scoring).unwrap();
-        let mut phrase_scorer_boxed = phrase_weight
+        let phrase_scorer_boxed: Box<dyn Scorer> = phrase_weight
             .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
-        let phrase_scorer: &mut PhraseScorer =
-            phrase_scorer_boxed.downcast_mut::<PhraseScorer>().unwrap();
+        let mut phrase_scorer: Box<PhraseScorer<Box<dyn Postings>>> = phrase_scorer_boxed
+            .downcast::<PhraseScorer<Box<dyn Postings>>>()
+            .ok()
+            .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
         assert_eq!(phrase_scorer.advance(), 2);

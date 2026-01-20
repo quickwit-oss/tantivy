@@ -42,12 +42,6 @@ impl<TPostings: Postings> TermScorer<TPostings> {
         self.fieldnorm_reader.fieldnorm_id(self.doc())
     }
 
-    pub fn explain(&self) -> Explanation {
-        let fieldnorm_id = self.fieldnorm_id();
-        let term_freq = self.term_freq();
-        self.similarity_weight.explain(fieldnorm_id, term_freq)
-    }
-
     pub fn max_score(&self) -> Score {
         self.similarity_weight.max_score()
     }
@@ -116,6 +110,12 @@ impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
         let term_freq = self.term_freq();
         self.similarity_weight.score(fieldnorm_id, term_freq)
     }
+
+    fn explain(&mut self) -> Explanation {
+        let fieldnorm_id = self.fieldnorm_id();
+        let term_freq = self.term_freq();
+        self.similarity_weight.explain(fieldnorm_id, term_freq)
+    }
 }
 
 #[cfg(test)]
@@ -160,9 +160,9 @@ mod tests {
     }
 
     #[test]
-    fn test_term_scorer_shallow_advance() -> crate::Result<()> {
+    fn test_term_scorer_shallow_advance() {
         let bm25_weight = Bm25Weight::for_one_term(300, 1024, 10.0);
-        let mut doc_and_tfs = vec![];
+        let mut doc_and_tfs = Vec::new();
         for i in 0u32..300u32 {
             let doc = i * 10;
             doc_and_tfs.push((doc, 1u32 + doc % 3u32));
@@ -174,7 +174,6 @@ mod tests {
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1289);
         assert_eq!(term_scorer.doc(), 1290);
-        Ok(())
     }
 
     proptest! {
