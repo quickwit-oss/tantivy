@@ -49,7 +49,7 @@ pub struct SegmentReader {
     alive_bitset_opt: Option<AliveBitSet>,
     schema: Schema,
 
-    codec: Arc<dyn ObjectSafeCodec>,
+    pub(crate) codec: Arc<dyn ObjectSafeCodec>,
 }
 
 impl SegmentReader {

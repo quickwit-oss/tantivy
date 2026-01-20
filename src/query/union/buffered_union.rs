@@ -110,22 +110,21 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
     }
 
     fn refill(&mut self) -> bool {
-        if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
-            // Reset the sliding window to start at the smallest doc
-            // across all scorers and prebuffer within the horizon.
-            self.window_start_doc = min_doc;
-            self.bucket_idx = 0;
-            self.doc = min_doc;
-            refill(
-                &mut self.docsets,
-                &mut self.bitsets,
-                &mut self.scores,
-                min_doc,
-            );
-            true
-        } else {
-            false
-        }
+        let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() else {
+            return false;
+        };
+        // Reset the sliding window to start at the smallest doc
+        // across all scorers and prebuffer within the horizon.
+        self.window_start_doc = min_doc;
+        self.bucket_idx = 0;
+        self.doc = min_doc;
+        refill(
+            &mut self.docsets,
+            &mut self.bitsets,
+            &mut self.scores,
+            min_doc,
+        );
+        true
     }
 
     #[inline]

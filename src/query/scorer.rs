@@ -3,7 +3,7 @@ use std::ops::DerefMut;
 use downcast_rs::impl_downcast;
 
 use crate::docset::DocSet;
-use crate::Score;
+use crate::{DocId, Score, TERMINATED};
 
 /// Scored set of documents matching a query within a specific segment.
 ///
@@ -13,6 +13,24 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
     ///
     /// This method will perform a bit of computation and is not cached.
     fn score(&mut self) -> Score;
+
+    /// Calls `callback` with all of the `(doc, score)` for which score
+    /// is exceeding a given threshold.
+    ///
+    /// This method is useful for the TopDocs collector.
+    /// For all docsets, the blanket implementation has the benefit
+    /// of prefiltering (doc, score) pairs, avoiding the
+    /// virtual dispatch cost.
+    ///
+    /// More importantly, it makes it possible for scorers to implement
+    /// important optimization (e.g. BlockWAND for union).
+    fn for_each_pruning(
+        &mut self,
+        threshold: Score,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) {
+        for_each_pruning_scorer_default_impl(self, threshold, callback);
+    }
 }
 
 impl_downcast!(Scorer);
@@ -21,5 +39,30 @@ impl Scorer for Box<dyn Scorer> {
     #[inline]
     fn score(&mut self) -> Score {
         self.deref_mut().score()
+    }
+}
+
+/// Calls `callback` with all of the `(doc, score)` for which score
+/// is exceeding a given threshold.
+///
+/// This method is useful for the [`TopDocs`](crate::collector::TopDocs) collector.
+/// For all docsets, the blanket implementation has the benefit
+/// of prefiltering (doc, score) pairs, avoiding the
+/// virtual dispatch cost.
+///
+/// More importantly, it makes it possible for scorers to implement
+/// important optimization (e.g. BlockWAND for union).
+pub(crate) fn for_each_pruning_scorer_default_impl<TScorer: Scorer + ?Sized>(
+    scorer: &mut TScorer,
+    mut threshold: Score,
+    callback: &mut dyn FnMut(DocId, Score) -> Score,
+) {
+    let mut doc = scorer.doc();
+    while doc != TERMINATED {
+        let score = scorer.score();
+        if score > threshold {
+            threshold = callback(doc, score);
+        }
+        doc = scorer.advance();
     }
 }

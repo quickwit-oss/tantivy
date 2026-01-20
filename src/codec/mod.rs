@@ -9,10 +9,11 @@ pub use standard::StandardCodec;
 
 use crate::codec::postings::PostingsCodec;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::{Postings, TermInfo};
+use crate::postings::{Postings, PostingsWithBlockMax, TermInfo};
+use crate::query::term_query::TermScorer;
 use crate::query::{Bm25Weight, Scorer};
 use crate::schema::IndexRecordOption;
-use crate::InvertedIndexReader;
+use crate::{DocId, InvertedIndexReader, Score, SegmentReader};
 
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     type PostingsCodec: PostingsCodec;

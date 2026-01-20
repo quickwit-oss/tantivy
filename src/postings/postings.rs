@@ -1,6 +1,6 @@
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::query::{Bm25Weight, Scorer};
+use crate::query::Bm25Weight;
 use crate::Score;
 
 /// Postings (also called inverted list)
@@ -41,28 +41,6 @@ pub trait Postings: DocSet + 'static {
     }
 
     fn has_freq(&self) -> bool;
-
-    // TODO see if we can put that in a lift to PostingsWithBlockMax trait.
-    // supports Block-Wand
-    fn supports_block_max(&self) -> bool {
-        false
-    }
-    // TODO document
-    // Only allowed for block max.
-    fn seek_block(
-        &mut self,
-        _target_doc: crate::DocId,
-        _fieldnorm_reader: &FieldNormReader,
-        _similarity_weight: &Bm25Weight,
-    ) -> Score {
-        unimplemented!()
-    }
-
-    // TODO
-    // Only allowed for block max.
-    fn last_doc_in_block(&self) -> crate::DocId {
-        unimplemented!()
-    }
 }
 
 impl Postings for Box<dyn Postings> {
@@ -74,10 +52,45 @@ impl Postings for Box<dyn Postings> {
         (**self).append_positions_with_offset(offset, output);
     }
 
-    fn supports_block_max(&self) -> bool {
-        (**self).supports_block_max()
+    fn has_freq(&self) -> bool {
+        (**self).has_freq()
     }
 
+    fn doc_freq(&self) -> u32 {
+        (**self).doc_freq()
+    }
+}
+
+impl Postings for Box<dyn PostingsWithBlockMax> {
+    fn term_freq(&self) -> u32 {
+        (**self).term_freq()
+    }
+
+    fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
+        (**self).append_positions_with_offset(offset, output);
+    }
+
+    fn has_freq(&self) -> bool {
+        (**self).has_freq()
+    }
+
+    fn doc_freq(&self) -> u32 {
+        (**self).doc_freq()
+    }
+}
+
+pub trait PostingsWithBlockMax: Postings {
+    fn seek_block(
+        &mut self,
+        target_doc: crate::DocId,
+        fieldnorm_reader: &FieldNormReader,
+        similarity_weight: &Bm25Weight,
+    ) -> Score;
+
+    fn last_doc_in_block(&self) -> crate::DocId;
+}
+
+impl PostingsWithBlockMax for Box<dyn PostingsWithBlockMax> {
     fn seek_block(
         &mut self,
         target_doc: crate::DocId,
@@ -89,13 +102,5 @@ impl Postings for Box<dyn Postings> {
 
     fn last_doc_in_block(&self) -> crate::DocId {
         (**self).last_doc_in_block()
-    }
-
-    fn has_freq(&self) -> bool {
-        (**self).has_freq()
-    }
-
-    fn doc_freq(&self) -> u32 {
-        (**self).doc_freq()
     }
 }

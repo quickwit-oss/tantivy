@@ -2,7 +2,7 @@ use crate::codec::postings::PostingsCodec;
 use crate::codec::{Codec, StandardCodec};
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::Postings;
+use crate::postings::{Postings, PostingsWithBlockMax};
 use crate::query::bm25::Bm25Weight;
 use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};
@@ -51,8 +51,10 @@ impl<TPostings: Postings> TermScorer<TPostings> {
     pub fn max_score(&self) -> Score {
         self.similarity_weight.max_score()
     }
+}
 
-    pub fn last_doc_in_block(&self) -> DocId {
+impl<TPostingsWithBlockMax: PostingsWithBlockMax> TermScorer<TPostingsWithBlockMax> {
+    pub(crate) fn last_doc_in_block(&self) -> DocId {
         self.postings.last_doc_in_block()
     }
 

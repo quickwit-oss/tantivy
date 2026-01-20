@@ -6,7 +6,7 @@ use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::Postings;
+use crate::postings::{Postings, PostingsWithBlockMax};
 use crate::query::Bm25Weight;
 use crate::{DocId, Score};
 
@@ -249,10 +249,12 @@ impl Postings for SegmentPostings {
         }
     }
 
-    fn supports_block_max(&self) -> bool {
-        true
+    fn has_freq(&self) -> bool {
+        !self.block_cursor.freqs().is_empty()
     }
+}
 
+impl PostingsWithBlockMax for SegmentPostings {
     fn seek_block(
         &mut self,
         target_doc: crate::DocId,
@@ -266,10 +268,6 @@ impl Postings for SegmentPostings {
 
     fn last_doc_in_block(&self) -> crate::DocId {
         self.block_cursor.skip_reader().last_doc_in_block()
-    }
-
-    fn has_freq(&self) -> bool {
-        self.block_cursor.freq_reading_option() == FreqReadingOption::ReadFreq
     }
 }
 
