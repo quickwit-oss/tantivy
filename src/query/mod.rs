@@ -38,7 +38,6 @@ pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
 pub use self::bm25::{Bm25StatisticsProvider, Bm25Weight};
-pub(crate) use self::boolean_query::{block_wand, block_wand_single_scorer};
 pub use self::boolean_query::{BooleanQuery, BooleanWeight};
 pub use self::boost_query::{BoostQuery, BoostWeight};
 pub use self::const_score_query::{ConstScoreQuery, ConstScorer};

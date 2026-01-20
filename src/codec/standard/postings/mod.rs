@@ -1,5 +1,6 @@
 use std::io;
 
+use crate::codec::postings::block_wand::block_wand;
 use crate::codec::postings::PostingsCodec;
 use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
 pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
@@ -61,7 +62,7 @@ impl PostingsCodec for StandardPostingsCodec {
         ))
     }
 
-    fn try_for_each_pruning(
+    fn try_accelerated_for_each_pruning(
         mut threshold: Score,
         scorer: Box<dyn Scorer>,
         callback: &mut dyn FnMut(crate::DocId, Score) -> Score,
@@ -92,7 +93,7 @@ impl PostingsCodec for StandardPostingsCodec {
                 )
             })
             .collect();
-        crate::query::block_wand(scorers, threshold, callback);
+        block_wand(scorers, threshold, callback);
         Ok(())
     }
 }

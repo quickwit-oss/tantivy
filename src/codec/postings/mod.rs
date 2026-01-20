@@ -1,5 +1,6 @@
 use std::io;
 
+pub mod block_wand;
 use common::OwnedBytes;
 
 use crate::fieldnorm::FieldNormReader;
@@ -28,10 +29,10 @@ pub trait PostingsCodec: Send + Sync + 'static {
         positions_data: Option<OwnedBytes>,
     ) -> io::Result<Self::Postings>;
 
-    fn try_for_each_pruning(
-        threshold: Score,
+    fn try_accelerated_for_each_pruning(
+        _threshold: Score,
         scorer: Box<dyn Scorer>,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
+        _callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> Result<(), Box<dyn Scorer>> {
         Err(scorer)
     }

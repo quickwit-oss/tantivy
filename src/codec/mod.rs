@@ -147,6 +147,8 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         scorer: Box<dyn Scorer>,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> Result<(), Box<dyn Scorer>> {
-        <TCodec as Codec>::PostingsCodec::try_for_each_pruning(threshold, scorer, callback)
+        <TCodec as Codec>::PostingsCodec::try_accelerated_for_each_pruning(
+            threshold, scorer, callback,
+        )
     }
 }
