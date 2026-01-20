@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_block_segment_postings_seek() -> crate::Result<()> {
-        let mut docs = vec![0];
+        let mut docs = Vec::new();
         for i in 0..1300 {
             docs.push((i * i / 100) + i);
         }
