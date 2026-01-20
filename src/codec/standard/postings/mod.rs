@@ -49,7 +49,7 @@ impl PostingsCodec for StandardPostingsCodec {
         positions_data_opt: Option<common::OwnedBytes>,
     ) -> io::Result<Self::Postings> {
         // Rationalize record_option/requested_option.
-        let record_option = requested_option.downgrade(record_option);
+        let requested_option = requested_option.downgrade(record_option);
         let block_segment_postings =
             BlockSegmentPostings::open(doc_freq, postings_data, record_option, requested_option)?;
         let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
