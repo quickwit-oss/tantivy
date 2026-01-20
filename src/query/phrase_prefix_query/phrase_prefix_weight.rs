@@ -145,13 +145,10 @@ impl Weight for PhrasePrefixWeight {
 
 #[cfg(test)]
 mod tests {
-    use crate::codec::standard::postings::StandardPostings;
-    use crate::codec::StandardCodec;
     use crate::docset::TERMINATED;
     use crate::index::Index;
     use crate::postings::Postings;
     use crate::query::phrase_prefix_query::PhrasePrefixScorer;
-    use crate::query::phrase_query::PhraseScorer;
     use crate::query::{EnableScoring, PhrasePrefixQuery, Query};
     use crate::schema::{Schema, TEXT};
     use crate::{DocSet, IndexWriter, Term};

@@ -4,6 +4,7 @@ use common::OwnedBytes;
 
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
+use crate::query::Scorer;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
@@ -26,6 +27,14 @@ pub trait PostingsCodec: Send + Sync + 'static {
         requested_option: IndexRecordOption,
         positions_data: Option<OwnedBytes>,
     ) -> io::Result<Self::Postings>;
+
+    fn try_for_each_pruning(
+        threshold: Score,
+        scorer: Box<dyn Scorer>,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> Result<(), Box<dyn Scorer>> {
+        Err(scorer)
+    }
 }
 
 pub trait PostingsSerializer {

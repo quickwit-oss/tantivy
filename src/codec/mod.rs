@@ -12,7 +12,7 @@ use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::{box_scorer, Bm25Weight, Scorer};
 use crate::schema::IndexRecordOption;
-use crate::InvertedIndexReader;
+use crate::{DocId, InvertedIndexReader, Score};
 
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     type PostingsCodec: PostingsCodec;
@@ -20,6 +20,7 @@ pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     const NAME: &'static str;
 
     fn from_json_props(json_value: &serde_json::Value) -> crate::Result<Self>;
+
     fn to_json_props(&self) -> serde_json::Value;
 
     fn postings_codec(&self) -> &Self::PostingsCodec;
@@ -83,6 +84,13 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         slop: u32,
         inverted_index_reader: &InvertedIndexReader,
     ) -> io::Result<Box<dyn Scorer>>;
+
+    fn try_for_each_pruning(
+        &self,
+        threshold: Score,
+        scorer: Box<dyn Scorer>,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> Result<(), Box<dyn Scorer>>;
 }
 
 impl<TCodec: Codec> ObjectSafeCodec for TCodec {
@@ -131,5 +139,14 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
             self,
         )?;
         Ok(box_scorer(scorer))
+    }
+
+    fn try_for_each_pruning(
+        &self,
+        threshold: Score,
+        scorer: Box<dyn Scorer>,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> Result<(), Box<dyn Scorer>> {
+        <TCodec as Codec>::PostingsCodec::try_for_each_pruning(threshold, scorer, callback)
     }
 }

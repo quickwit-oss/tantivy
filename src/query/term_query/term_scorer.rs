@@ -122,16 +122,10 @@ impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
 mod tests {
     use proptest::prelude::*;
 
-    use crate::index::SegmentId;
-    use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
-    use crate::merge_policy::NoMergePolicy;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::term_query::TermScorer;
-    use crate::query::{Bm25Weight, EnableScoring, Scorer, TermQuery};
-    use crate::schema::{IndexRecordOption, Schema, TEXT};
-    use crate::{
-        assert_nearly_equals, DocId, DocSet, Index, IndexWriter, Score, Searcher, Term, TERMINATED,
-    };
+    use crate::query::{Bm25Weight, Scorer};
+    use crate::{assert_nearly_equals, DocId, DocSet, Score, TERMINATED};
 
     #[test]
     fn test_term_scorer_max_score() -> crate::Result<()> {

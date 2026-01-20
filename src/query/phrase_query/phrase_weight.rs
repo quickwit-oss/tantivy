@@ -1,11 +1,10 @@
-use super::PhraseScorer;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::postings::TermInfo;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::{box_scorer, EmptyScorer, Explanation, Scorer, Weight};
-use crate::schema::{IndexRecordOption, Term};
+use crate::schema::Term;
 use crate::{DocId, DocSet, Score};
 
 pub struct PhraseWeight {

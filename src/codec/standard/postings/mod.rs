@@ -5,8 +5,10 @@ use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostin
 pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
+use crate::query::term_query::TermScorer;
+use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
 use crate::schema::IndexRecordOption;
-use crate::Score;
+use crate::{DocSet as _, Score, TERMINATED};
 
 mod block;
 mod block_segment_postings;
@@ -57,5 +59,40 @@ impl PostingsCodec for StandardPostingsCodec {
             block_segment_postings,
             position_reader,
         ))
+    }
+
+    fn try_for_each_pruning(
+        mut threshold: Score,
+        scorer: Box<dyn Scorer>,
+        callback: &mut dyn FnMut(crate::DocId, Score) -> Score,
+    ) -> Result<(), Box<dyn Scorer>> {
+        let mut union_scorer =
+            scorer.downcast::<BufferedUnionScorer<Box<dyn Scorer>, SumCombiner>>()?;
+        if !union_scorer
+            .scorers()
+            .iter()
+            .all(|scorer| scorer.is::<TermScorer<Self::Postings>>())
+        {
+            return Err(union_scorer);
+        }
+        let doc = union_scorer.doc();
+        if doc == TERMINATED {
+            return Ok(());
+        }
+        let score = union_scorer.score();
+        if score > threshold {
+            threshold = callback(doc, score);
+        }
+        let boxed_scorers: Vec<Box<dyn Scorer>> = union_scorer.into_scorers();
+        let scorers: Vec<TermScorer<Self::Postings>> = boxed_scorers
+            .into_iter()
+            .map(|scorer| {
+                *scorer.downcast::<TermScorer<Self::Postings>>().ok().expect(
+                    "Downcast failed despite the fact we already checked the type was correct",
+                )
+            })
+            .collect();
+        crate::query::block_wand(scorers, threshold, callback);
+        Ok(())
     }
 }

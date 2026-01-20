@@ -31,7 +31,7 @@ where P: FnMut(&mut T) -> bool {
 /// Creates a `DocSet` that iterate through the union of two or more `DocSet`s.
 pub struct BufferedUnionScorer<TScorer, TScoreCombiner = DoNothingCombiner> {
     /// Active scorers (already filtered of `TERMINATED`).
-    docsets: Vec<TScorer>,
+    scorers: Vec<TScorer>,
     /// Sliding window presence map for upcoming docs.
     ///
     /// There are `HORIZON_NUM_TINYBITSETS` buckets, each covering
@@ -83,6 +83,14 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer, TScoreCombiner> {
+    pub fn into_scorers(self) -> Vec<TScorer> {
+        self.scorers
+    }
+
+    pub fn scorers(&self) -> &[TScorer] {
+        &self.scorers[..]
+    }
+
     /// num_docs is the number of documents in the segment.
     pub(crate) fn build(
         docsets: Vec<TScorer>,
@@ -124,7 +132,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         }
         let first_score: Score = score_combiner_cloned.score();
         let union = BufferedUnionScorer {
-            docsets: non_empty_docsets,
+            scorers: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
             scores: Box::new([score_combiner; HORIZON as usize]),
             bucket_idx: HORIZON_NUM_TINYBITSETS,
@@ -138,7 +146,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
     }
 
     fn refill(&mut self) -> bool {
-        let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() else {
+        let Some(min_doc) = self.scorers.iter().map(DocSet::doc).min() else {
             return false;
         };
         // Reset the sliding window to start at the smallest doc
@@ -147,7 +155,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         self.bucket_idx = 0;
         self.doc = min_doc;
         refill(
-            &mut self.docsets,
+            &mut self.scorers,
             &mut self.bitsets,
             &mut self.scores,
             min_doc,
@@ -233,7 +241,7 @@ where
 
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
-            unordered_drain_filter(&mut self.docsets, |docset| {
+            unordered_drain_filter(&mut self.scorers, |docset| {
                 if docset.doc() < target {
                     docset.seek(target);
                 }
@@ -259,7 +267,7 @@ where
             // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
             // of the underlying docsets
             let is_hit = self
-                .docsets
+                .scorers
                 .iter_mut()
                 .any(|docset| docset.seek_into_the_danger_zone(target));
 
@@ -278,11 +286,11 @@ where
     }
 
     fn size_hint(&self) -> u32 {
-        estimate_union(self.docsets.iter().map(DocSet::size_hint), self.num_docs)
+        estimate_union(self.scorers.iter().map(DocSet::size_hint), self.num_docs)
     }
 
     fn cost(&self) -> u64 {
-        self.docsets.iter().map(|docset| docset.cost()).sum()
+        self.scorers.iter().map(|docset| docset.cost()).sum()
     }
 
     // TODO Also implement `count` with deletes efficiently.

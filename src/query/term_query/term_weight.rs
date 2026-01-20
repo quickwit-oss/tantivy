@@ -166,7 +166,7 @@ impl TermWeight {
         reader: &SegmentReader,
         boost: Score,
     ) -> Option<super::TermScorer> {
-        let mut scorer = self.specialized_scorer(reader, boost).unwrap();
+        let scorer = self.specialized_scorer(reader, boost).unwrap();
         match scorer {
             TermOrEmptyOrAllScorer::TermScorer(scorer) => {
                 let term_scorer = scorer.downcast::<super::TermScorer>().ok()?;

@@ -1,5 +1,5 @@
 use std::mem::{transmute_copy, ManuallyDrop};
-use std::ops::{Deref as _, DerefMut};
+use std::ops::DerefMut;
 
 use downcast_rs::impl_downcast;
 
@@ -60,6 +60,14 @@ impl Scorer for Box<dyn Scorer> {
     #[inline]
     fn score(&mut self) -> Score {
         self.deref_mut().score()
+    }
+
+    fn for_each_pruning(
+        &mut self,
+        threshold: Score,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) {
+        self.deref_mut().for_each_pruning(threshold, callback);
     }
 }
 

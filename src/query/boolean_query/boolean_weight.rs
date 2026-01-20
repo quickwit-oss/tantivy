@@ -425,8 +425,13 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let mut scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
-        scorer.for_each_pruning(threshold, callback);
+        let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
+        if let Err(mut scorer) = reader
+            .codec
+            .try_for_each_pruning(threshold, scorer, callback)
+        {
+            scorer.for_each_pruning(threshold, callback);
+        }
         Ok(())
     }
 }

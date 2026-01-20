@@ -4,7 +4,6 @@ mod block_search;
 
 pub(crate) use self::block_search::branchless_binary_search;
 
-// mod block_segment_postings;
 pub(crate) mod compression;
 mod indexing_context;
 mod json_postings_writer;
