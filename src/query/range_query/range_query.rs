@@ -8,7 +8,9 @@ use super::range_query_fastfield::FastFieldRangeWeight;
 use crate::index::SegmentReader;
 use crate::query::explanation::does_not_match;
 use crate::query::range_query::is_type_valid_for_fastfield_range_query;
-use crate::query::{BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::query::{
+    box_scorer, BitSetDocSet, ConstScorer, EnableScoring, Explanation, Query, Scorer, Weight,
+};
 use crate::schema::{Field, IndexRecordOption, Term, Type};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, DocSet, Score};
@@ -233,7 +235,7 @@ impl Weight for InvertedIndexRangeWeight {
             postings.fill_bitset(&mut doc_bitset);
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
-        Ok(Box::new(ConstScorer::new(doc_bitset, boost)))
+        Ok(box_scorer(ConstScorer::new(doc_bitset, boost)))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {

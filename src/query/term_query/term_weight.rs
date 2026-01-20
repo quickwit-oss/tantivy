@@ -5,7 +5,7 @@ use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
-use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{box_scorer, AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TantivyError, Term};
 
@@ -26,8 +26,8 @@ impl TermOrEmptyOrAllScorer {
     pub fn into_boxed_scorer(self) -> Box<dyn Scorer> {
         match self {
             TermOrEmptyOrAllScorer::TermScorer(scorer) => scorer,
-            TermOrEmptyOrAllScorer::Empty => Box::new(EmptyScorer),
-            TermOrEmptyOrAllScorer::AllMatch(scorer) => Box::new(scorer),
+            TermOrEmptyOrAllScorer::Empty => box_scorer(EmptyScorer),
+            TermOrEmptyOrAllScorer::AllMatch(scorer) => box_scorer(scorer),
         }
     }
 }

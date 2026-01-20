@@ -3,7 +3,7 @@ use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
-use crate::query::{EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{box_scorer, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::{IndexRecordOption, Term};
 use crate::{DocId, DocSet, Score};
 
@@ -59,7 +59,7 @@ impl PhraseWeight {
                 return Ok(None);
             }
         }
-        Ok(Some(Box::new(PhraseScorer::new(
+        Ok(Some(box_scorer(PhraseScorer::new(
             term_postings_list,
             similarity_weight_opt,
             fieldnorm_reader,
@@ -77,7 +77,7 @@ impl Weight for PhraseWeight {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(scorer)
         } else {
-            Ok(Box::new(EmptyScorer))
+            Ok(box_scorer(EmptyScorer))
         }
     }
 

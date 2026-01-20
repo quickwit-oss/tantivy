@@ -1,4 +1,4 @@
-use std::mem::{ManuallyDrop, transmute_copy};
+use std::mem::{transmute_copy, ManuallyDrop};
 use std::ops::DerefMut;
 
 use downcast_rs::impl_downcast;
