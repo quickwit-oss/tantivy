@@ -60,6 +60,17 @@ impl<TDocSet: Postings> Postings for SimpleUnion<TDocSet> {
         true
     }
 
+    fn doc_freq(&self) -> u32 {
+        let mut doc_freq = 0;
+        for docset in &self.docsets {
+            let doc = docset.doc();
+            if doc == self.doc {
+                doc_freq += docset.doc_freq();
+            }
+        }
+        doc_freq
+    }
+
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         for docset in &mut self.docsets {
             let doc = docset.doc();

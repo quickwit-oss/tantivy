@@ -18,9 +18,7 @@ pub trait Postings: DocSet + 'static {
     fn term_freq(&self) -> u32;
 
     /// Returns, if available, the number of documents containing the term in the segment.
-    fn doc_freq(&self) -> u32 {
-        todo!();
-    }
+    fn doc_freq(&self) -> u32;
 
     /// Returns the positions offsetted with a given value.
     /// It is not necessary to clear the `output` before calling this method.

@@ -153,10 +153,6 @@ impl<TPostings: Postings> PhrasePrefixScorer<TPostings> {
         phrase_prefix_scorer
     }
 
-    pub fn phrase_count(&self) -> u32 {
-        self.phrase_count
-    }
-
     fn matches_prefix(&mut self) -> bool {
         let mut count = 0;
         let current_doc = self.doc();

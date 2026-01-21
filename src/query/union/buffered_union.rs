@@ -83,10 +83,12 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
 }
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer, TScoreCombiner> {
+    /// Returns the underlying scorers in the union.
     pub fn into_scorers(self) -> Vec<TScorer> {
         self.scorers
     }
 
+    /// Accessor for the underlying scorers in the union.
     pub fn scorers(&self) -> &[TScorer] {
         &self.scorers[..]
     }

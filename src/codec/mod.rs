@@ -1,4 +1,7 @@
+/// Codec specific to postings data.
 pub mod postings;
+
+/// Standard tantivy codec. This is the codec you use by default.
 pub mod standard;
 
 use std::borrow::Cow;
@@ -14,6 +17,9 @@ use crate::query::{box_scorer, Bm25Weight, Scorer};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, InvertedIndexReader, Score};
 
+/// Codecs describes how data is layed out on disk.
+///
+/// For the moment, only postings codec can be custom.
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     type PostingsCodec: PostingsCodec;
 

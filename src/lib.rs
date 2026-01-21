@@ -166,6 +166,8 @@ mod functional_test;
 
 #[macro_use]
 mod macros;
+
+/// Tantivy codecs describes how data is layed out on disk.
 pub mod codec;
 mod future_result;
 

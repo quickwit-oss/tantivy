@@ -16,6 +16,9 @@ pub struct BitSetPostingUnion<TDocSet> {
     docsets: RefCell<Vec<TDocSet>>,
     /// The already unionized BitSet of the docsets
     bitset: BitSetDocSet,
+    /// The total number of documents in the union (regardless of the position we are in the
+    /// bitset).
+    doc_freq: u32,
 }
 
 impl<TDocSet: DocSet> BitSetPostingUnion<TDocSet> {
@@ -23,9 +26,11 @@ impl<TDocSet: DocSet> BitSetPostingUnion<TDocSet> {
         docsets: Vec<TDocSet>,
         bitset: BitSetDocSet,
     ) -> BitSetPostingUnion<TDocSet> {
+        let doc_freq = bitset.doc_freq();
         BitSetPostingUnion {
             docsets: RefCell::new(docsets),
             bitset,
+            doc_freq,
         }
     }
 }
@@ -67,6 +72,10 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
         );
         output.sort_unstable();
         output.dedup();
+    }
+
+    fn doc_freq(&self) -> u32 {
+        self.doc_freq
     }
 }
 
