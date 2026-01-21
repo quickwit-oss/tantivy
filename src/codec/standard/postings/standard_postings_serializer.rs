@@ -53,7 +53,7 @@ impl StandardPostingsSerializer {
 
 impl PostingsSerializer for StandardPostingsSerializer {
     fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool) {
-        self.bm25_weight = None;
+        self.clear();
 
         self.term_has_freq = self.mode.has_freq() && record_term_freq;
         if !self.term_has_freq {
@@ -119,14 +119,15 @@ impl PostingsSerializer for StandardPostingsSerializer {
         self.bm25_weight = None;
         Ok(())
     }
-
-    fn clear(&mut self) {
-        self.block.clear();
-        self.last_doc_id_encoded = 0;
-    }
 }
 
 impl StandardPostingsSerializer {
+    fn clear(&mut self) {
+        self.bm25_weight = None;
+        self.block.clear();
+        self.last_doc_id_encoded = 0;
+    }
+
     fn write_block(&mut self) {
         {
             // encode the doc ids

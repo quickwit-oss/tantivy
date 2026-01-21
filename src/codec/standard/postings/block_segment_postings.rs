@@ -135,10 +135,6 @@ impl BlockSegmentPostings {
 }
 
 impl BlockSegmentPostings {
-    pub fn freq_reading_option(&self) -> FreqReadingOption {
-        self.freq_reading_option
-    }
-
     /// Returns the overall number of documents in the block postings.
     /// It does not take in account whether documents are deleted or not.
     ///

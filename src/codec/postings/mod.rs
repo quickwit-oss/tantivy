@@ -93,6 +93,4 @@ pub trait PostingsSerializer {
 
     /// Closes the current term and writes the postings list associated.
     fn close_term(&mut self, doc_freq: u32, wrt: &mut impl io::Write) -> io::Result<()>;
-
-    // fn clear(&mut self);
 }

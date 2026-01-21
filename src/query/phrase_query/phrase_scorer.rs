@@ -403,6 +403,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         scorer
     }
 
+    /// Returns the number of phrases identified in the current matching doc.
     pub fn phrase_count(&self) -> u32 {
         self.phrase_count
     }

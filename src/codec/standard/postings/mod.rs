@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::codec::postings::block_wand::block_wand;
+use crate::codec::postings::block_wand::{block_wand, block_wand_single_scorer};
 use crate::codec::postings::PostingsCodec;
 use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
 pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
@@ -65,9 +65,16 @@ impl PostingsCodec for StandardPostingsCodec {
 
     fn try_accelerated_for_each_pruning(
         mut threshold: Score,
-        scorer: Box<dyn Scorer>,
+        mut scorer: Box<dyn Scorer>,
         callback: &mut dyn FnMut(crate::DocId, Score) -> Score,
     ) -> Result<(), Box<dyn Scorer>> {
+        scorer = match scorer.downcast::<TermScorer<Self::Postings>>() {
+            Ok(term_scorer) => {
+                block_wand_single_scorer(*term_scorer, threshold, callback);
+                return Ok(());
+            }
+            Err(scorer) => scorer,
+        };
         let mut union_scorer =
             scorer.downcast::<BufferedUnionScorer<Box<dyn Scorer>, SumCombiner>>()?;
         if !union_scorer

@@ -1,8 +1,5 @@
 use crate::docset::{DocSet, TERMINATED};
-use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
-use crate::query::term_query::TermScorer;
-use crate::query::{box_scorer, Bm25Weight, Scorer};
 use crate::DocId;
 
 /// `LoadedPostings` is a `DocSet` and `Postings` implementation.
@@ -25,14 +22,6 @@ pub struct LoadedPostings {
 }
 
 impl LoadedPostings {
-    fn new_term_scorer(
-        self: Box<Self>,
-        fieldnorm_reader: FieldNormReader,
-        similarity_weight: Bm25Weight,
-    ) -> Box<dyn Scorer> {
-        box_scorer(TermScorer::new(*self, fieldnorm_reader, similarity_weight))
-    }
-
     /// Creates a new `LoadedPostings` from a `SegmentPostings`.
     ///
     /// It will also preload positions, if positions are available in the SegmentPostings.

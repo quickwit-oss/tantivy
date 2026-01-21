@@ -147,9 +147,10 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         scorer: Box<dyn Scorer>,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) {
-        let accerelerated_foreach_pruning_res = <TCodec as Codec>::PostingsCodec::try_accelerated_for_each_pruning(
-                        threshold, scorer, callback,
-        );
+        let accerelerated_foreach_pruning_res =
+            <TCodec as Codec>::PostingsCodec::try_accelerated_for_each_pruning(
+                threshold, scorer, callback,
+            );
         if let Err(mut scorer) = accerelerated_foreach_pruning_res {
             // No acceleration available. We need to do things manually.
             scorer.for_each_pruning(threshold, callback);

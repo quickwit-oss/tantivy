@@ -1,4 +1,3 @@
-use crate::codec::postings::block_wand::block_wand_single_scorer;
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
@@ -125,11 +124,9 @@ impl Weight for TermWeight {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
             TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
-                reader.codec.for_each_pruning(
-                    threshold,
-                    term_scorer,
-                    callback
-                );
+                reader
+                    .codec
+                    .for_each_pruning(threshold, term_scorer, callback);
             }
             TermOrEmptyOrAllScorer::Empty => {}
             TermOrEmptyOrAllScorer::AllMatch(_) => {
