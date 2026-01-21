@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::postings::PostingsWithBlockMax;
+use crate::postings::{Postings, PostingsWithBlockMax};
 use crate::query::term_query::TermScorer;
 use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};
@@ -225,7 +225,7 @@ pub fn block_wand<TPostings: PostingsWithBlockMax>(
 ///   - On a block, advance until the end and execute `callback` when the doc score is greater or
 ///     equal to the `threshold`.
 pub fn block_wand_single_scorer(
-    mut scorer: TermScorer,
+    mut scorer: TermScorer<impl PostingsWithBlockMax>,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {

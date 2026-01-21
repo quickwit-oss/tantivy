@@ -20,6 +20,7 @@ mod standard_postings_serializer;
 pub use segment_postings::SegmentPostings as StandardPostings;
 pub use standard_postings_serializer::StandardPostingsSerializer;
 
+/// The default postings codec for tantivy.
 pub struct StandardPostingsCodec;
 
 #[expect(clippy::enum_variant_names)]
