@@ -5,7 +5,7 @@ use common::OwnedBytes;
 
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
-use crate::query::Scorer;
+use crate::query::{Bm25Weight, Scorer};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
@@ -93,4 +93,15 @@ pub trait PostingsSerializer {
 
     /// Closes the current term and writes the postings list associated.
     fn close_term(&mut self, doc_freq: u32, wrt: &mut impl io::Write) -> io::Result<()>;
+}
+
+pub trait PostingsWithBlockMax: Postings {
+    fn seek_block(
+        &mut self,
+        target_doc: crate::DocId,
+        fieldnorm_reader: &FieldNormReader,
+        similarity_weight: &Bm25Weight,
+    ) -> Score;
+
+    fn last_doc_in_block(&self) -> crate::DocId;
 }

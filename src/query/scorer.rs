@@ -34,6 +34,7 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
         for_each_pruning_scorer_default_impl(self, threshold, callback);
     }
 
+    /// Returns an explanation for the score of the current document.
     fn explain(&mut self) -> Explanation {
         let score = self.score();
         let name = std::any::type_name_of_val(self);

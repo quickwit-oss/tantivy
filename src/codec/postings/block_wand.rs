@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::postings::PostingsWithBlockMax;
+use crate::codec::postings::PostingsWithBlockMax;
 use crate::query::term_query::TermScorer;
 use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};

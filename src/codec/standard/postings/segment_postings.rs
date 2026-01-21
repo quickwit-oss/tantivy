@@ -1,11 +1,12 @@
 use common::{BitSet, HasLen};
 
 use super::BlockSegmentPostings;
+use crate::codec::postings::PostingsWithBlockMax;
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{Postings, PostingsWithBlockMax};
+use crate::postings::{DocFreq, Postings};
 use crate::query::Bm25Weight;
 use crate::{DocId, Score};
 
@@ -220,8 +221,9 @@ impl Postings for SegmentPostings {
 
     /// Returns the overall number of documents in the block postings.
     /// It does not take in account whether documents are deleted or not.
-    fn doc_freq(&self) -> u32 {
-        self.block_cursor.doc_freq()
+    #[inline(always)]
+    fn doc_freq(&self) -> DocFreq {
+        DocFreq::Exact(self.block_cursor.doc_freq())
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
@@ -285,7 +287,7 @@ mod tests {
         assert_eq!(postings.doc(), TERMINATED);
         assert_eq!(postings.advance(), TERMINATED);
         assert_eq!(postings.advance(), TERMINATED);
-        assert_eq!(postings.doc_freq(), 0);
+        assert_eq!(postings.doc_freq(), crate::postings::DocFreq::Exact(0));
         assert_eq!(postings.len(), 0);
     }
 

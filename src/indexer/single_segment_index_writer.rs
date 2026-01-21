@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::codec::{CodecConfiguration, StandardCodec};
+use crate::codec::StandardCodec;
+use crate::index::CodecConfiguration;
 use crate::indexer::operation::AddOperation;
 use crate::indexer::segment_updater::save_metas;
 use crate::indexer::SegmentWriter;

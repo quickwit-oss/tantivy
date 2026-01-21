@@ -1,7 +1,24 @@
 use crate::docset::DocSet;
-use crate::fieldnorm::FieldNormReader;
-use crate::query::Bm25Weight;
-use crate::Score;
+
+/// Result of the doc_freq method.
+///
+/// Postings can inform us that the document frequency is approximate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocFreq {
+    /// The document frequency is approximate.
+    Approximate(u32),
+    /// The document frequency is exact.
+    Exact(u32),
+}
+
+impl From<DocFreq> for u32 {
+    fn from(doc_freq: DocFreq) -> Self {
+        match doc_freq {
+            DocFreq::Approximate(approximate_doc_freq) => approximate_doc_freq,
+            DocFreq::Exact(doc_freq) => doc_freq,
+        }
+    }
+}
 
 /// Postings (also called inverted list)
 ///
@@ -17,8 +34,8 @@ pub trait Postings: DocSet + 'static {
     /// The number of times the term appears in the document.
     fn term_freq(&self) -> u32;
 
-    /// Returns, if available, the number of documents containing the term in the segment.
-    fn doc_freq(&self) -> u32;
+    /// Returns the number of documents containing the term in the segment.
+    fn doc_freq(&self) -> DocFreq;
 
     /// Returns the positions offsetted with a given value.
     /// It is not necessary to clear the `output` before calling this method.
@@ -54,51 +71,7 @@ impl Postings for Box<dyn Postings> {
         (**self).has_freq()
     }
 
-    fn doc_freq(&self) -> u32 {
+    fn doc_freq(&self) -> DocFreq {
         (**self).doc_freq()
-    }
-}
-
-impl Postings for Box<dyn PostingsWithBlockMax> {
-    fn term_freq(&self) -> u32 {
-        (**self).term_freq()
-    }
-
-    fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
-        (**self).append_positions_with_offset(offset, output);
-    }
-
-    fn has_freq(&self) -> bool {
-        (**self).has_freq()
-    }
-
-    fn doc_freq(&self) -> u32 {
-        (**self).doc_freq()
-    }
-}
-
-pub trait PostingsWithBlockMax: Postings {
-    fn seek_block(
-        &mut self,
-        target_doc: crate::DocId,
-        fieldnorm_reader: &FieldNormReader,
-        similarity_weight: &Bm25Weight,
-    ) -> Score;
-
-    fn last_doc_in_block(&self) -> crate::DocId;
-}
-
-impl PostingsWithBlockMax for Box<dyn PostingsWithBlockMax> {
-    fn seek_block(
-        &mut self,
-        target_doc: crate::DocId,
-        fieldnorm_reader: &FieldNormReader,
-        similarity_weight: &Bm25Weight,
-    ) -> Score {
-        (**self).seek_block(target_doc, fieldnorm_reader, similarity_weight)
-    }
-
-    fn last_doc_in_block(&self) -> crate::DocId {
-        (**self).last_doc_in_block()
     }
 }

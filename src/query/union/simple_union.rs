@@ -1,5 +1,5 @@
 use crate::docset::{DocSet, TERMINATED};
-use crate::postings::Postings;
+use crate::postings::{DocFreq, Postings};
 use crate::DocId;
 
 /// A `SimpleUnion` is a `DocSet` that is the union of multiple `DocSet`.
@@ -60,15 +60,16 @@ impl<TDocSet: Postings> Postings for SimpleUnion<TDocSet> {
         true
     }
 
-    fn doc_freq(&self) -> u32 {
-        let mut doc_freq = 0;
-        for docset in &self.docsets {
-            let doc = docset.doc();
-            if doc == self.doc {
-                doc_freq += docset.doc_freq();
-            }
-        }
-        doc_freq
+    /// We do not know the actual document frequency, so we return
+    /// the maximum document frequency of the docsets.
+    fn doc_freq(&self) -> DocFreq {
+        let approximate_doc_freq = self
+            .docsets
+            .iter()
+            .map(|docset| u32::from(docset.doc_freq()))
+            .max()
+            .unwrap_or(0u32);
+        DocFreq::Approximate(approximate_doc_freq)
     }
 
     fn append_positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {

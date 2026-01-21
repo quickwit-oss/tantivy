@@ -4,7 +4,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::fastfield::AliveBitSet;
     use crate::index::Index;
-    use crate::postings::Postings;
+    use crate::postings::{DocFreq, Postings};
     use crate::query::QueryParser;
     use crate::schema::{
         self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
@@ -130,7 +130,7 @@ mod tests {
                     &StandardCodec,
                 )
                 .unwrap();
-            assert_eq!(postings.doc_freq(), 2);
+            assert_eq!(postings.doc_freq(), DocFreq::Exact(2));
             let fallback_bitset = AliveBitSet::for_test_from_deleted_docs(&[0], 100);
             assert_eq!(
                 crate::indexer::merger::doc_freq_given_deletes(
@@ -141,7 +141,7 @@ mod tests {
             );
 
             assert_eq!(postings.term_freq(), 1);
-            let mut output = vec![];
+            let mut output = Vec::new();
             postings.positions(&mut output);
             assert_eq!(output, vec![1]);
             postings.advance();

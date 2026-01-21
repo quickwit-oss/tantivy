@@ -86,6 +86,7 @@ impl PhraseWeight {
         Ok(Some(scorer))
     }
 
+    /// Sets the slop for the given PhraseWeight.
     pub fn set_slop(&mut self, slop: u32) {
         self.slop = slop;
     }

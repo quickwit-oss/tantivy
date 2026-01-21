@@ -4,10 +4,8 @@ pub mod postings;
 /// Standard tantivy codec. This is the codec you use by default.
 pub mod standard;
 
-use std::borrow::Cow;
 use std::io;
 
-use serde::{Deserialize, Serialize};
 pub use standard::StandardCodec;
 
 use crate::codec::postings::PostingsCodec;
@@ -21,48 +19,20 @@ use crate::{DocId, InvertedIndexReader, Score};
 ///
 /// For the moment, only postings codec can be custom.
 pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
+    /// The specific postings type used by this codec.
     type PostingsCodec: PostingsCodec;
 
+    /// Name of the codec. It should be unique to your codec.
     const NAME: &'static str;
 
+    /// Load codec based on the codec configuration.
     fn from_json_props(json_value: &serde_json::Value) -> crate::Result<Self>;
 
+    /// Get codec configuration.
     fn to_json_props(&self) -> serde_json::Value;
 
+    /// Returns the postings codec.
     fn postings_codec(&self) -> &Self::PostingsCodec;
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct CodecConfiguration {
-    name: Cow<'static, str>,
-    #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
-    props: serde_json::Value,
-}
-
-impl CodecConfiguration {
-    pub fn from_codec<C: Codec>(codec: &C) -> Self {
-        CodecConfiguration {
-            name: Cow::Borrowed(C::NAME),
-            props: codec.to_json_props(),
-        }
-    }
-
-    pub fn to_codec<C: Codec>(&self) -> crate::Result<C> {
-        if self.name != C::NAME {
-            return Err(crate::TantivyError::InvalidArgument(format!(
-                "Codec name mismatch: expected {}, got {}",
-                C::NAME,
-                self.name
-            )));
-        }
-        C::from_json_props(&self.props)
-    }
-}
-
-impl Default for CodecConfiguration {
-    fn default() -> Self {
-        CodecConfiguration::from_codec(&StandardCodec)
-    }
 }
 
 pub trait ObjectSafeCodec: 'static + Send + Sync {
@@ -162,4 +132,15 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
             scorer.for_each_pruning(threshold, callback);
         }
     }
+}
+
+pub trait PostingsWithBlockMax: Postings {
+    fn seek_block(
+        &mut self,
+        target_doc: crate::DocId,
+        fieldnorm_reader: &FieldNormReader,
+        similarity_weight: &Bm25Weight,
+    ) -> Score;
+
+    fn last_doc_in_block(&self) -> crate::DocId;
 }

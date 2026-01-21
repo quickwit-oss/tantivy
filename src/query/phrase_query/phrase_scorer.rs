@@ -59,7 +59,7 @@ pub struct PhraseScorer<TPostings: Postings = StandardPostings> {
 }
 
 /// Returns true if and only if the two sorted arrays contain a common element
-fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
+pub(crate) fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     let mut left_index = 0;
     let mut right_index = 0;
     while left_index < left.len() && right_index < right.len() {
@@ -80,7 +80,7 @@ fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     false
 }
 
-pub(crate) fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+fn intersection_count(left: &[u32], right: &[u32]) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;

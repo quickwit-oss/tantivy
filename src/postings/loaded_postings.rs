@@ -1,5 +1,5 @@
 use crate::docset::{DocSet, TERMINATED};
-use crate::postings::Postings;
+use crate::postings::{DocFreq, Postings};
 use crate::DocId;
 
 /// `LoadedPostings` is a `DocSet` and `Postings` implementation.
@@ -26,7 +26,7 @@ impl LoadedPostings {
     ///
     /// It will also preload positions, if positions are available in the SegmentPostings.
     pub fn load(postings: &mut Box<dyn Postings>) -> LoadedPostings {
-        let num_docs = postings.doc_freq() as usize;
+        let num_docs: usize = u32::from(postings.doc_freq()) as usize;
         let mut doc_ids = Vec::with_capacity(num_docs);
         let mut positions = Vec::with_capacity(num_docs);
         let mut position_offsets = Vec::with_capacity(num_docs);
@@ -106,8 +106,8 @@ impl Postings for LoadedPostings {
         true
     }
 
-    fn doc_freq(&self) -> u32 {
-        self.doc_ids.len() as u32
+    fn doc_freq(&self) -> DocFreq {
+        DocFreq::Exact(self.doc_ids.len() as u32)
     }
 }
 

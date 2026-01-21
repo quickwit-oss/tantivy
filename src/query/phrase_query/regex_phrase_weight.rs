@@ -190,7 +190,7 @@ impl RegexPhraseWeight {
         for term_info in term_infos {
             let mut term_posting = inverted_index
                 .read_postings_from_terminfo(term_info, IndexRecordOption::WithFreqsAndPositions)?;
-            let num_docs = term_posting.doc_freq();
+            let num_docs = u32::from(term_posting.doc_freq());
 
             if num_docs < SPARSE_TERM_DOC_THRESHOLD {
                 let current_bucket = &mut sparse_buckets[0];

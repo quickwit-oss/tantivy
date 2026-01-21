@@ -211,6 +211,7 @@ impl InvertedIndexReader {
         Ok(phrase_scorer)
     }
 
+    /// Build a new term scorer.
     pub fn new_term_scorer(
         &self,
         term_info: &TermInfo,
@@ -228,6 +229,9 @@ impl InvertedIndexReader {
         Ok(term_scorer)
     }
 
+    /// Returns a postings object specific with a concrete type.
+    ///
+    /// This requires you to provied the actual codec.
     pub fn read_postings_from_terminfo_specialized<C: Codec>(
         &self,
         term_info: &TermInfo,

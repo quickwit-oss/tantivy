@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::docset::DocSet;
-use crate::postings::Postings;
+use crate::postings::{DocFreq, Postings};
 use crate::query::BitSetDocSet;
 use crate::DocId;
 
@@ -74,8 +74,8 @@ impl<TDocSet: Postings> Postings for BitSetPostingUnion<TDocSet> {
         output.dedup();
     }
 
-    fn doc_freq(&self) -> u32 {
-        self.doc_freq
+    fn doc_freq(&self) -> DocFreq {
+        DocFreq::Exact(self.doc_freq)
     }
 }
 

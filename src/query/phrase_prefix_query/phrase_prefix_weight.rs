@@ -195,10 +195,8 @@ mod tests {
         let phrase_scorer: &mut PhrasePrefixScorer<Box<dyn Postings>> =
             phrase_scorer_boxed.as_any_mut().downcast_mut().unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
-        assert_eq!(phrase_scorer.phrase_count(), 2);
         assert_eq!(phrase_scorer.advance(), 2);
         assert_eq!(phrase_scorer.doc(), 2);
-        assert_eq!(phrase_scorer.phrase_count(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())
     }
@@ -225,10 +223,8 @@ mod tests {
             .downcast_mut::<PhrasePrefixScorer<Box<dyn Postings>>>()
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
-        assert_eq!(phrase_scorer.phrase_count(), 2);
         assert_eq!(phrase_scorer.advance(), 2);
         assert_eq!(phrase_scorer.doc(), 2);
-        assert_eq!(phrase_scorer.phrase_count(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())
     }

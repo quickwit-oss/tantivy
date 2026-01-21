@@ -25,9 +25,9 @@ impl BitSetDocSet {
         self.cursor_tinybitset = self.docs.tinyset(bucket_addr);
     }
 
-    // Returns the number of documents in the bitset.
-    //
-    // This call is not free: it will bitcount the number of bits in the bitset.
+    /// Returns the number of documents in the bitset.
+    ///
+    /// This call is not free: it will bitcount the number of bits in the bitset.
     pub fn doc_freq(&self) -> u32 {
         self.docs.len() as u32
     }

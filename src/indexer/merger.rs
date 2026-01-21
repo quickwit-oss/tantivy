@@ -387,7 +387,11 @@ impl<C: Codec> IndexMerger<C> {
                 let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
                     doc_freq_given_deletes(&mut postings, alive_bitset)
                 } else {
-                    postings.doc_freq()
+                    // We do not an exact document frequency here.
+                    match postings.doc_freq() {
+                        crate::postings::DocFreq::Approximate(_) => exact_doc_freq(&postings),
+                        crate::postings::DocFreq::Exact(doc_freq) => doc_freq,
+                    }
                 };
                 if doc_freq > 0u32 {
                     total_doc_freq += doc_freq;
@@ -585,6 +589,21 @@ pub(crate) fn doc_freq_given_deletes<P: Postings + Clone>(
     }
 }
 
+/// If the postings is not able to inform us of the document frequency,
+/// we just scan through it.
+pub(crate) fn exact_doc_freq<P: Postings + Clone>(postings: &P) -> u32 {
+    let mut docset = postings.clone();
+    let mut doc_freq = 0;
+    loop {
+        let doc = docset.doc();
+        if doc == TERMINATED {
+            return doc_freq;
+        }
+        doc_freq += 1u32;
+        docset.advance();
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -602,7 +621,7 @@ mod tests {
     use crate::fastfield::AliveBitSet;
     use crate::index::{Index, SegmentId};
     use crate::indexer::NoMergePolicy;
-    use crate::postings::Postings as _;
+    use crate::postings::{DocFreq, Postings as _};
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::{
         Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
@@ -1620,7 +1639,7 @@ mod tests {
     fn test_doc_freq_given_delete() {
         let docs =
             <StandardPostingsCodec as PostingsCodec>::Postings::create_from_docs(&[0, 2, 10]);
-        assert_eq!(docs.doc_freq(), 3);
+        assert_eq!(docs.doc_freq(), DocFreq::Exact(3));
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
         assert_eq!(super::doc_freq_given_deletes(&docs, &alive_bitset), 2);
         let all_deleted =

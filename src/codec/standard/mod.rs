@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::codec::standard::postings::StandardPostingsCodec;
 use crate::codec::Codec;
 
-/// Tantivy's default postings codec
+/// Tantivy's default postings codec.
 pub mod postings;
 
 /// Tantivy's default codec.
