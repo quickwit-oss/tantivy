@@ -47,9 +47,13 @@ impl<TPostingsWithBlockMax: PostingsWithBlockMax> TermScorer<TPostingsWithBlockM
         self.postings.last_doc_in_block()
     }
 
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) -> Score {
+    /// Advances the term scorer to the block containing target_doc and returns
+    /// an upperbound for the score all of the documents in the block.
+    /// (BlockMax). This score is not guaranteed to be the
+    /// effective maximum score of the block.
+    pub(crate) fn seek_block_max(&mut self, target_doc: DocId) -> Score {
         self.postings
-            .seek_block(target_doc, &self.fieldnorm_reader, &self.similarity_weight)
+            .seek_block_max(target_doc, &self.similarity_weight)
     }
 }
 
@@ -134,7 +138,7 @@ mod tests {
         crate::assert_nearly_equals!(max_scorer, 1.3990127);
         assert_eq!(term_scorer.doc(), 2);
         assert_eq!(term_scorer.term_freq(), 3);
-        assert_nearly_equals!(term_scorer.seek_block(2), 1.3676447);
+        assert_nearly_equals!(term_scorer.seek_block_max(2), 1.3676447);
         assert_nearly_equals!(term_scorer.score(), 1.0892314);
         assert_eq!(term_scorer.advance(), 3);
         assert_eq!(term_scorer.doc(), 3);
@@ -159,7 +163,7 @@ mod tests {
         let fieldnorms: Vec<u32> = std::iter::repeat_n(10u32, 3_000).collect();
         let mut term_scorer = TermScorer::create_for_test(&doc_and_tfs, &fieldnorms, bm25_weight);
         assert_eq!(term_scorer.doc(), 0u32);
-        term_scorer.seek_block(1289);
+        term_scorer.seek_block_max(1289);
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1289);
         assert_eq!(term_scorer.doc(), 1290);
@@ -196,7 +200,7 @@ mod tests {
 
          let docs: Vec<DocId> = (0..term_doc_freq).map(|doc| doc as DocId).collect();
          for block in docs.chunks(COMPRESSION_BLOCK_SIZE) {
-             let block_max_score: Score = term_scorer.seek_block(0);
+             let block_max_score: Score = term_scorer.seek_block_max(0);
              let mut block_max_score_computed: Score = 0.0;
              for &doc in block {
                 assert_eq!(term_scorer.doc(), doc);

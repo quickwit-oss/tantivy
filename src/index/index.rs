@@ -275,7 +275,6 @@ impl<Codec: crate::codec::Codec> IndexBuilder<Codec> {
 
     fn create_avoid_monomorphization(self, dir: Box<dyn Directory>) -> crate::Result<Index<Codec>> {
         self.validate()?;
-        let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
         let codec: CodecConfiguration = CodecConfiguration::from_codec(&self.codec);
         save_new_metas(
@@ -420,7 +419,7 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
             tokenizers: self.tokenizers.clone(),
             fast_field_tokenizers: self.fast_field_tokenizers.clone(),
             inventory: self.inventory.clone(),
-            codec: StandardCodec::default(),
+            codec: StandardCodec,
         }
     }
 

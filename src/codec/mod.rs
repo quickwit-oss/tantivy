@@ -35,7 +35,15 @@ pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     fn postings_codec(&self) -> &Self::PostingsCodec;
 }
 
+/// Object-safe codec is a Codec that can be used in a trait object.
+///
+/// The point of it is to offer a way to use a codec without a proliferation of generics.
 pub trait ObjectSafeCodec: 'static + Send + Sync {
+    /// Loads a type-erased Postings object for the given term.
+    ///
+    /// If the schema used to build the index did not provide enough
+    /// information to match the requested `option`, a Postings is still
+    /// returned in a best-effort manner.
     fn load_postings_type_erased(
         &self,
         term_info: &TermInfo,
@@ -43,6 +51,14 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         inverted_index_reader: &InvertedIndexReader,
     ) -> io::Result<Box<dyn Postings>>;
 
+    /// Loads a type-erased TermScorer object for the given term.
+    ///
+    /// If the schema used to build the index did not provide enough
+    /// information to match the requested `option`, a TermScorer is still
+    /// returned in a best-effort manner.
+    ///
+    /// The point of this contraption is that the return TermScorer is backed,
+    /// not by Box<dyn Postings> but by the codec's concrete Postings type.
     fn load_term_scorer_type_erased(
         &self,
         term_info: &TermInfo,
@@ -52,6 +68,14 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         similarity_weight: Bm25Weight,
     ) -> io::Result<Box<dyn Scorer>>;
 
+    /// Loads a type-erased PhraseScorer object for the given term.
+    ///
+    /// If the schema used to build the index did not provide enough
+    /// information to match the requested `option`, a TermScorer is still
+    /// returned in a best-effort manner.
+    ///
+    /// The point of this contraption is that the return PhraseScorer is backed,
+    /// not by Box<dyn Postings> but by the codec's concrete Postings type.
     fn new_phrase_scorer_type_erased(
         &self,
         term_infos: &[(usize, TermInfo)],
@@ -61,6 +85,16 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         inverted_index_reader: &InvertedIndexReader,
     ) -> io::Result<Box<dyn Scorer>>;
 
+    /// Performs a for_each_pruning operation on the given scorer.
+    ///
+    /// The function will go through matching documents and call the callback
+    /// function for all docs with a score exceeding the threshold.
+    ///
+    /// The function itself will return a larger threshold value,
+    /// meant to update the threshold value.
+    ///
+    /// If the codec and the scorer allow it, this function can rely on
+    /// optimizations like the block-max wand.
     fn for_each_pruning(
         &self,
         threshold: Score,
@@ -132,15 +166,4 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
             scorer.for_each_pruning(threshold, callback);
         }
     }
-}
-
-pub trait PostingsWithBlockMax: Postings {
-    fn seek_block(
-        &mut self,
-        target_doc: crate::DocId,
-        fieldnorm_reader: &FieldNormReader,
-        similarity_weight: &Bm25Weight,
-    ) -> Score;
-
-    fn last_doc_in_block(&self) -> crate::DocId;
 }

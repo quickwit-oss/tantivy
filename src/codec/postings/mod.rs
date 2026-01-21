@@ -1,5 +1,6 @@
 use std::io;
 
+/// Block-max WAND algorithm.
 pub mod block_wand;
 use common::OwnedBytes;
 
@@ -9,10 +10,12 @@ use crate::query::{Bm25Weight, Scorer};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
+/// Postings codec.
 pub trait PostingsCodec: Send + Sync + 'static {
+    /// Serializer type for the postings codec.
     type PostingsSerializer: PostingsSerializer;
+    /// Postings type for the postings codec.
     type Postings: Postings + Clone;
-
     /// Creates a new postings serializer.
     fn new_serializer(
         &self,
@@ -44,9 +47,13 @@ pub trait PostingsCodec: Send + Sync + 'static {
     /// If your codec supports different ways to accelerate `for_each_pruning` that's
     /// where you should implement it.
     ///
-    /// In particular, if your codec supports BlockMax, you just need to have your
+    /// Returning `Err(scorer)` without mutating the scorer nor calling the callback function,
+    /// is never "wrong". It just leaves the responsability to the caller to call a fallback
+    /// implementation on the scorer.
+    ///
+    /// If your codec supports BlockMax-Wand, you just need to have your
     /// postings implement `PostingsWithBlockMax` and copy what is done in the StandardPostings
-    /// codec.
+    /// codec to enable it.
     fn try_accelerated_for_each_pruning(
         _threshold: Score,
         scorer: Box<dyn Scorer>,
@@ -95,13 +102,18 @@ pub trait PostingsSerializer {
     fn close_term(&mut self, doc_freq: u32, wrt: &mut impl io::Write) -> io::Result<()>;
 }
 
+/// A light complement interface to Postings to allow block-max wand acceleration.
 pub trait PostingsWithBlockMax: Postings {
-    fn seek_block(
-        &mut self,
-        target_doc: crate::DocId,
-        fieldnorm_reader: &FieldNormReader,
-        similarity_weight: &Bm25Weight,
-    ) -> Score;
+    /// Moves the postings to the block containign `target_doc` and returns
+    /// an upperbound of the score for documents in the block.
+    ///
+    /// `Warning`: Calling this method may leave the postings in an invalid state.
+    /// callers are required to call seek before calling any other of the
+    /// `Postings` method (like doc / advance etc.).
+    fn seek_block_max(&mut self, target_doc: crate::DocId, similarity_weight: &Bm25Weight)
+        -> Score;
 
+    /// Returns the last document in the current block (or Terminated if this
+    /// is the last block).
     fn last_doc_in_block(&self) -> crate::DocId;
 }

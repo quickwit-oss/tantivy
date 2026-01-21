@@ -174,7 +174,7 @@ pub fn block_wand<TPostings: PostingsWithBlockMax>(
 
         let block_max_score_upperbound: Score = scorers[..pivot_len]
             .iter_mut()
-            .map(|scorer| scorer.seek_block(pivot_doc))
+            .map(|scorer| scorer.seek_block_max(pivot_doc))
             .sum();
 
         // Beware after shallow advance, skip readers can be in advance compared to
@@ -230,7 +230,7 @@ pub fn block_wand_single_scorer(
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
     let mut doc = scorer.doc();
-    let mut block_max_score = scorer.seek_block(doc);
+    let mut block_max_score = scorer.seek_block_max(doc);
     loop {
         // We position the scorer on a block that can reach
         // the threshold.
@@ -240,7 +240,7 @@ pub fn block_wand_single_scorer(
                 return;
             }
             doc = last_doc_in_block + 1;
-            block_max_score = scorer.seek_block(doc);
+            block_max_score = scorer.seek_block_max(doc);
         }
         // Seek will effectively load that block.
         doc = scorer.seek(doc);
@@ -262,7 +262,7 @@ pub fn block_wand_single_scorer(
             }
         }
         doc += 1;
-        block_max_score = scorer.seek_block(doc);
+        block_max_score = scorer.seek_block_max(doc);
     }
 }
 

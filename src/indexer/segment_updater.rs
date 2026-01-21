@@ -14,7 +14,9 @@ use crate::codec::Codec;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
-use crate::index::{CodecConfiguration, Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta};
+use crate::index::{
+    CodecConfiguration, Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta,
+};
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;

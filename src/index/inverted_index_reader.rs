@@ -222,7 +222,7 @@ impl InvertedIndexReader {
         let term_scorer = self.codec.load_term_scorer_type_erased(
             term_info,
             option,
-            &self,
+            self,
             fieldnorm_reader,
             similarity_weight,
         )?;

@@ -3,7 +3,6 @@ use common::{BitSet, HasLen};
 use super::BlockSegmentPostings;
 use crate::codec::postings::PostingsWithBlockMax;
 use crate::docset::DocSet;
-use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::{DocFreq, Postings};
@@ -256,15 +255,13 @@ impl Postings for SegmentPostings {
 }
 
 impl PostingsWithBlockMax for SegmentPostings {
-    fn seek_block(
+    fn seek_block_max(
         &mut self,
         target_doc: crate::DocId,
-        fieldnorm_reader: &FieldNormReader,
         similarity_weight: &Bm25Weight,
     ) -> Score {
-        self.block_cursor.seek_block(target_doc);
-        self.block_cursor
-            .block_max_score(&fieldnorm_reader, &similarity_weight)
+        self.block_cursor.seek_block_without_loading(target_doc);
+        self.block_cursor.block_max_score(similarity_weight)
     }
 
     fn last_doc_in_block(&self) -> crate::DocId {

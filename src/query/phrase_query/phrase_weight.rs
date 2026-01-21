@@ -69,7 +69,7 @@ impl PhraseWeight {
 
         // TODO make it specialized
         for &(offset, ref term) in &self.phrase_terms {
-            let Some(term_info) = inverted_index_reader.get_term_info(&term)? else {
+            let Some(term_info) = inverted_index_reader.get_term_info(term)? else {
                 return Ok(None);
             };
             term_infos.push((offset, term_info));
@@ -80,7 +80,7 @@ impl PhraseWeight {
             similarity_weight_opt,
             fieldnorm_reader,
             self.slop,
-            &*inverted_index_reader,
+            &inverted_index_reader,
         )?;
 
         Ok(Some(scorer))

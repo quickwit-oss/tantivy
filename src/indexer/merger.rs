@@ -378,14 +378,14 @@ impl<C: Codec> IndexMerger<C> {
             for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
                 let inverted_index: &InvertedIndexReader = &field_readers[segment_ord];
-                let mut postings = inverted_index.read_postings_from_terminfo_specialized(
+                let postings = inverted_index.read_postings_from_terminfo_specialized(
                     &term_info,
                     segment_postings_option,
                     &self.codec,
                 )?;
                 let alive_bitset_opt = segment_reader.alive_bitset();
                 let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
-                    doc_freq_given_deletes(&mut postings, alive_bitset)
+                    doc_freq_given_deletes(&postings, alive_bitset)
                 } else {
                     // We do not an exact document frequency here.
                     match postings.doc_freq() {
@@ -1576,7 +1576,7 @@ mod tests {
             .term_scorer_for_test(searcher.segment_reader(0u32), 1.0)
             .unwrap();
         assert_eq!(term_scorer.doc(), 0);
-        assert_nearly_equals!(term_scorer.seek_block(0), 0.0079681855);
+        assert_nearly_equals!(term_scorer.seek_block_max(0), 0.0079681855);
         assert_nearly_equals!(term_scorer.score(), 0.0079681855);
         for _ in 0..81 {
             writer.add_document(doc!(text=>"hello happy tax payer"))?;
@@ -1595,7 +1595,7 @@ mod tests {
             // there.
             for doc in segment_reader.doc_ids_alive() {
                 assert_eq!(term_scorer.doc(), doc);
-                assert_nearly_equals!(term_scorer.seek_block(doc), 0.003478312);
+                assert_nearly_equals!(term_scorer.seek_block_max(doc), 0.003478312);
                 assert_nearly_equals!(term_scorer.score(), 0.003478312);
                 term_scorer.advance();
             }
@@ -1620,7 +1620,7 @@ mod tests {
         // the difference compared to before is intrinsic to the bm25 formula. no worries there.
         for doc in segment_reader.doc_ids_alive() {
             assert_eq!(term_scorer.doc(), doc);
-            assert_nearly_equals!(term_scorer.seek_block(doc), 0.003478312);
+            assert_nearly_equals!(term_scorer.seek_block_max(doc), 0.003478312);
             assert_nearly_equals!(term_scorer.score(), 0.003478312);
             term_scorer.advance();
         }

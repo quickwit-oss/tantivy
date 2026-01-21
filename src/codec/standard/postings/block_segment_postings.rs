@@ -4,15 +4,10 @@ use common::{OwnedBytes, VInt};
 
 use crate::codec::standard::postings::skip::{BlockInfo, SkipReader};
 use crate::codec::standard::postings::FreqReadingOption;
-use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder as _, COMPRESSION_BLOCK_SIZE};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
-
-fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
-    it.next().map(|first| it.fold(first, Score::max))
-}
 
 /// `BlockSegmentPostings` is a cursor iterating over blocks
 /// of documents.
@@ -180,7 +175,7 @@ impl BlockSegmentPostings {
     /// or be the last an incomplete VInt block.
     pub fn seek(&mut self, target_doc: DocId) -> usize {
         // Move to the block that might contain our document.
-        self.seek_block(target_doc);
+        self.seek_block_without_loading(target_doc);
         self.load_block();
 
         // At this point we are on the block that might contain our document.
@@ -214,11 +209,7 @@ impl BlockSegmentPostings {
     /// after having called `.shallow_advance(..)`.
     ///
     /// See `TermScorer::block_max_score(..)` for more information.
-    pub fn block_max_score(
-        &mut self,
-        fieldnorm_reader: &FieldNormReader,
-        bm25_weight: &Bm25Weight,
-    ) -> Score {
+    pub fn block_max_score(&mut self, bm25_weight: &Bm25Weight) -> Score {
         if let Some(score) = self.block_max_score_cache {
             return score;
         }
@@ -228,21 +219,9 @@ impl BlockSegmentPostings {
             self.block_max_score_cache = Some(skip_reader_max_score);
             return skip_reader_max_score;
         }
-        // this is the last block of the segment posting list.
-        // If it is actually loaded, we can compute block max manually.
-        if self.block_loaded {
-            let docs = self.doc_decoder.output_array().iter().cloned();
-            let freqs = self.freq_decoder.output_array().iter().cloned();
-            let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
-                let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-                bm25_weight.score(fieldnorm_id, term_freq)
-            });
-            let block_max_score = max_score(bm25_scores).unwrap_or(0.0);
-            self.block_max_score_cache = Some(block_max_score);
-            return block_max_score;
-        }
-        // We do not have access to any good block max value. We return bm25_weight.max_score()
-        // as it is a valid upperbound.
+        // We do not have access to any good block max value.
+        // It happens if this is the last block.
+        // We return bm25_weight.max_score() as it is a valid upperbound.
         //
         // We do not cache it however, so that it gets computed when once block is loaded.
         bm25_weight.max_score()
@@ -274,7 +253,7 @@ impl BlockSegmentPostings {
     /// `.load_block()` needs to be called manually afterwards.
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
+    pub(crate) fn seek_block_without_loading(&mut self, target_doc: DocId) {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
             self.block_loaded = false;

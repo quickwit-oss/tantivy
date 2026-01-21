@@ -55,6 +55,14 @@ pub trait Postings: DocSet + 'static {
         self.positions_with_offset(0u32, output);
     }
 
+    /// Returns true if the term_frequency is available.
+    ///
+    /// This is a tricky question, because on JSON fields, it is possible
+    /// for a text term to have term freq, whereas a number term in the field has none.
+    ///
+    /// This function returns whether the actual term has term frequencies or not.
+    /// In this above JSON field example, `has_freq` should return true for the
+    /// earlier and false for the latter.
     fn has_freq(&self) -> bool;
 }
 

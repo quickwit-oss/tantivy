@@ -110,7 +110,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
             .map(|docset| docset.doc())
             .min()
             .unwrap_or(TERMINATED);
-        let mut score_combiner_cloned = score_combiner.clone();
+        let mut score_combiner_cloned = score_combiner;
         let mut i = 0;
         while i < non_empty_docsets.len() {
             let should_remove_docset: bool = {
@@ -119,11 +119,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
                     false
                 } else {
                     score_combiner_cloned.update(non_empty_docset);
-                    if non_empty_docsets[i].advance() == TERMINATED {
-                        true
-                    } else {
-                        false
-                    }
+                    non_empty_docsets[i].advance() == TERMINATED
                 }
             };
             if should_remove_docset {
@@ -133,7 +129,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
             }
         }
         let first_score: Score = score_combiner_cloned.score();
-        let union = BufferedUnionScorer {
+        BufferedUnionScorer {
             scorers: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
             scores: Box::new([score_combiner; HORIZON as usize]),
@@ -143,8 +139,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
             doc: first_doc,
             score: first_score,
             num_docs,
-        };
-        union
+        }
     }
 
     fn refill(&mut self) -> bool {
