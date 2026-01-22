@@ -304,6 +304,42 @@ mod tests {
         assert_eq!(intersection.doc(), TERMINATED);
     }
 
+    #[test]
+    #[ignore]
+    fn test_intersection_termination() {
+        use crate::query::score_combiner::DoNothingCombiner;
+        use crate::query::{BufferedUnionScorer, ConstScorer, VecDocSet};
+
+        let a1 = ConstScorer::new(VecDocSet::from(vec![0, 10000]), 1.0);
+        let a2 = ConstScorer::new(VecDocSet::from(vec![0, 10000]), 1.0);
+
+        let mut b_scorers = vec![];
+        for _ in 0..2 {
+            // Union matches 0 and 10000.
+            b_scorers.push(ConstScorer::new(VecDocSet::from(vec![0, 10000]), 1.0));
+        }
+        let union = BufferedUnionScorer::build(b_scorers, || DoNothingCombiner::default(), 30000);
+
+        // Mismatching scorer: matches 0 and 20000. Cost 100 to ensure it is last.
+        let mut m_docs = vec![0, 20000];
+        for i in 30000..30100 {
+            m_docs.push(i);
+        }
+        let m = ConstScorer::new(VecDocSet::from(m_docs), 1.0);
+
+        // Costs: A1=2, A2=2, Union=4, M=102.
+        // Sorted: A1, A2, Union, M.
+        // Left=A1, Right=A2, Others=[Union, M].
+        let mut intersection = crate::query::intersect_scorers(
+            vec![Box::new(a1), Box::new(a2), Box::new(union), Box::new(m)],
+            40000,
+        );
+
+        while intersection.doc() != TERMINATED {
+            intersection.advance();
+        }
+    }
+
     // Strategy to generate sorted and deduplicated vectors of u32 document IDs
     fn sorted_deduped_vec(max_val: u32, max_size: usize) -> impl Strategy<Value = Vec<u32>> {
         prop::collection::vec(0..max_val, 0..max_size).prop_map(|mut vec| {
