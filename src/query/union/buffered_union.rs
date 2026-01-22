@@ -231,6 +231,10 @@ where
             // processed and removed, so we need to use seek, which uses the regular advance.
             self.seek(target) == target
         } else {
+            if target == TERMINATED {
+                self.seek(TERMINATED);
+                return true;
+            }
             // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
             // of the underlying docsets
             let is_hit = self

@@ -254,6 +254,28 @@ mod tests {
             vec![1, 2, 3, 7, 8, 9, 99, 100, 101, 500, 20000],
         );
     }
+
+    #[test]
+    fn test_buffered_union_seek_into_danger_zone_terminated() {
+        let scorer1 = ConstScorer::new(VecDocSet::from(vec![1, 2]), 1.0);
+        let scorer2 = ConstScorer::new(VecDocSet::from(vec![2, 3]), 1.0);
+
+        let mut union_scorer = BufferedUnionScorer::build(
+            vec![scorer1, scorer2],
+            || DoNothingCombiner::default(),
+            100,
+        );
+
+        // Advance to end
+        while union_scorer.doc() != TERMINATED {
+            union_scorer.advance();
+        }
+
+        assert_eq!(union_scorer.doc(), TERMINATED);
+
+        // This should return true
+        assert!(union_scorer.seek_into_the_danger_zone(TERMINATED));
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]

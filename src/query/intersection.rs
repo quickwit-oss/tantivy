@@ -305,7 +305,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_intersection_termination() {
         use crate::query::score_combiner::DoNothingCombiner;
         use crate::query::{BufferedUnionScorer, ConstScorer, VecDocSet};
