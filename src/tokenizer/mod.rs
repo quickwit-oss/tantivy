@@ -169,10 +169,9 @@ pub const MAX_TOKEN_LEN: usize = u16::MAX as usize - 5;
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{
-        Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, TextAnalyzer, Token,
-        TokenizerManager,
-    };
+    #[cfg(feature = "stemmer")]
+    use super::{Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, TextAnalyzer};
+    use super::{Token, TokenizerManager};
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
@@ -212,6 +211,7 @@ pub(crate) mod tests {
         assert!(tokenizer_manager.get("en_doesnotexist").is_none());
     }
 
+    #[cfg(feature = "stemmer")]
     #[test]
     fn test_en_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
@@ -233,8 +233,9 @@ pub(crate) mod tests {
         assert_token(&tokens[3], 3, "payer", 17, 22);
     }
 
+    #[cfg(feature = "stemmer")]
     #[test]
-    fn test_pl_tokenizer() {
+    fn test_pl_stemmer() {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "pl_stem",
@@ -262,8 +263,9 @@ pub(crate) mod tests {
         assert_token(&tokens[2], 2, "podatnik", 22, 31);
     }
 
+    #[cfg(feature = "stemmer")]
     #[test]
-    fn test_non_en_tokenizer() {
+    fn test_non_en_stemmer() {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
