@@ -6,7 +6,6 @@ use crate::query::explanation::does_not_match;
 use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
 use crate::schema::Field;
 use crate::spatial::bkd::{search_contains, search_intersects, search_within, Segment};
-use crate::spatial::point::GeoPoint;
 use crate::spatial::writer::as_point_i32;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
@@ -31,7 +30,7 @@ pub struct SpatialQuery {
 
 impl SpatialQuery {
     /// HUSH
-    pub fn new(field: Field, bounds: [GeoPoint; 2], query_type: SpatialQueryType) -> Self {
+    pub fn new(field: Field, bounds: [[f64; 2]; 2], query_type: SpatialQueryType) -> Self {
         SpatialQuery {
             field,
             bounds: [as_point_i32(bounds[0]), as_point_i32(bounds[1])],

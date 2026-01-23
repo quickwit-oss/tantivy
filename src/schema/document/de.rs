@@ -23,6 +23,7 @@ use super::{OwnedValue, Value};
 use crate::schema::document::type_codes;
 use crate::schema::{Facet, Field};
 use crate::spatial::geometry::Geometry;
+use crate::spatial::plane::Plane;
 use crate::store::DocStoreVersion;
 use crate::tokenizer::PreTokenizedString;
 
@@ -131,7 +132,7 @@ pub trait ValueDeserializer<'de> {
     fn deserialize_pre_tokenized_string(self) -> Result<PreTokenizedString, DeserializeError>;
 
     /// HUSH
-    fn deserialize_geometry(self) -> Result<Geometry, DeserializeError>;
+    fn deserialize_geometry(self) -> Result<Geometry<Plane>, DeserializeError>;
 
     /// Attempts to deserialize the value using a given visitor.
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>
@@ -254,7 +255,7 @@ pub trait ValueVisitor {
 
     #[inline]
     /// Called when the deserializer visits a geometry value.
-    fn visit_geometry(&self, _val: Geometry) -> Result<Self::Value, DeserializeError> {
+    fn visit_geometry(&self, _val: Geometry<Plane>) -> Result<Self::Value, DeserializeError> {
         Err(DeserializeError::UnsupportedType(ValueType::Geometry))
     }
 
@@ -508,9 +509,10 @@ where R: Read
             .map_err(DeserializeError::from)
     }
 
-    fn deserialize_geometry(self) -> Result<Geometry, DeserializeError> {
+    fn deserialize_geometry(self) -> Result<Geometry<Plane>, DeserializeError> {
         self.validate_type(ValueType::Geometry)?;
-        <Geometry as BinarySerializable>::deserialize(self.reader).map_err(DeserializeError::from)
+        <Geometry<Plane> as BinarySerializable>::deserialize(self.reader)
+            .map_err(DeserializeError::from)
     }
 
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, DeserializeError>

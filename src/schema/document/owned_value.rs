@@ -16,6 +16,7 @@ use crate::schema::document::{
 };
 use crate::schema::Facet;
 use crate::spatial::geometry::Geometry;
+use crate::spatial::plane::Plane;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 
@@ -51,7 +52,7 @@ pub enum OwnedValue {
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
     /// A GeoRust multi-polygon.
-    Geometry(Geometry),
+    Geometry(Geometry<Plane>),
 }
 
 impl AsRef<OwnedValue> for OwnedValue {
@@ -142,7 +143,10 @@ impl ValueDeserialize for OwnedValue {
                 Ok(OwnedValue::PreTokStr(val))
             }
 
-            fn visit_geometry(&self, val: Geometry) -> Result<Self::Value, DeserializeError> {
+            fn visit_geometry(
+                &self,
+                val: Geometry<Plane>,
+            ) -> Result<Self::Value, DeserializeError> {
                 Ok(OwnedValue::Geometry(val))
             }
 

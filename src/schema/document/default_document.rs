@@ -14,6 +14,7 @@ use crate::schema::document::{
 use crate::schema::field_type::ValueParsingError;
 use crate::schema::{Facet, Field, NamedFieldDocument, OwnedValue, Schema};
 use crate::spatial::geometry::Geometry;
+use crate::spatial::plane::Plane;
 use crate::tokenizer::PreTokenizedString;
 
 #[repr(C, packed)]
@@ -468,7 +469,7 @@ impl<'a> CompactDocValue<'a> {
                 .map(Into::into),
             ValueType::Geometry => self
                 .container
-                .read_from::<Geometry>(addr)
+                .read_from::<Geometry<Plane>>(addr)
                 .map(Into::into)
                 .map(ReferenceValueLeaf::Geometry)
                 .map(Into::into),

@@ -4,6 +4,7 @@ use std::net::Ipv6Addr;
 use common::DateTime;
 
 use crate::spatial::geometry::Geometry;
+use crate::spatial::plane::Plane;
 use crate::tokenizer::PreTokenizedString;
 
 /// A single field value.
@@ -112,7 +113,7 @@ pub trait Value<'a>: Send + Sync + Debug {
 
     #[inline]
     /// HUSH
-    fn as_geometry(&self) -> Option<Box<Geometry>> {
+    fn as_geometry(&self) -> Option<Box<Geometry<Plane>>> {
         self.as_leaf().and_then(|leaf| leaf.into_geometry())
     }
 }
@@ -144,7 +145,7 @@ pub enum ReferenceValueLeaf<'a> {
     /// Pre-tokenized str type,
     PreTokStr(Box<PreTokenizedString>),
     /// HUSH
-    Geometry(Box<Geometry>),
+    Geometry(Box<Geometry<Plane>>),
 }
 
 impl From<u64> for ReferenceValueLeaf<'_> {
@@ -346,7 +347,7 @@ impl<'a> ReferenceValueLeaf<'a> {
 
     #[inline]
     /// HUSH
-    pub fn into_geometry(self) -> Option<Box<Geometry>> {
+    pub fn into_geometry(self) -> Option<Box<Geometry<Plane>>> {
         if let Self::Geometry(val) = self {
             Some(val)
         } else {
@@ -473,7 +474,7 @@ where V: Value<'a>
 
     #[inline]
     /// HUSH
-    pub fn into_geometry(self) -> Option<Box<Geometry>> {
+    pub fn into_geometry(self) -> Option<Box<Geometry<Plane>>> {
         self.into_leaf().and_then(|leaf| leaf.into_geometry())
     }
 }

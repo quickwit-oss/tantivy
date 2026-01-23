@@ -7,7 +7,7 @@ use i_triangle::int::triangulatable::IntTriangulatable;
 
 use crate::schema::Field;
 use crate::spatial::geometry::Geometry;
-use crate::spatial::point::GeoPoint;
+use crate::spatial::plane::Plane;
 use crate::spatial::serializer::SpatialSerializer;
 use crate::spatial::triangle::{delaunay_to_triangles, Triangle};
 use crate::DocId;
@@ -20,7 +20,7 @@ pub struct SpatialWriter {
 
 impl SpatialWriter {
     /// HUST
-    pub fn add_geometry(&mut self, doc_id: DocId, field: Field, geometry: Geometry) {
+    pub fn add_geometry(&mut self, doc_id: DocId, field: Field, geometry: Geometry<Plane>) {
         let triangles = &mut self.triangles_by_field.entry(field).or_default();
         match geometry {
             Geometry::Point(point) => {
@@ -83,19 +83,19 @@ impl Default for SpatialWriter {
 }
 
 /// Convert a point of `(longitude, latitude)` to a integer point.
-pub fn as_point_i32(point: GeoPoint) -> (i32, i32) {
+pub fn as_point_i32(point: [f64; 2]) -> (i32, i32) {
     (
-        (point.lon / (360.0 / (1i64 << 32) as f64)).floor() as i32,
-        (point.lat / (180.0 / (1i64 << 32) as f64)).floor() as i32,
+        (point[0] / (360.0 / (1i64 << 32) as f64)).floor() as i32,
+        (point[1] / (180.0 / (1i64 << 32) as f64)).floor() as i32,
     )
 }
 
-fn append_point(triangles: &mut Vec<Triangle>, doc_id: DocId, point: GeoPoint) {
+fn append_point(triangles: &mut Vec<Triangle>, doc_id: DocId, point: [f64; 2]) {
     let point = as_point_i32(point);
     triangles.push(Triangle::from_point(doc_id, point.0, point.1));
 }
 
-fn append_line_string(triangles: &mut Vec<Triangle>, doc_id: DocId, line_string: Vec<GeoPoint>) {
+fn append_line_string(triangles: &mut Vec<Triangle>, doc_id: DocId, line_string: Vec<[f64; 2]>) {
     let mut previous = as_point_i32(line_string[0]);
     for point in line_string.into_iter().skip(1) {
         let point = as_point_i32(point);
@@ -106,7 +106,7 @@ fn append_line_string(triangles: &mut Vec<Triangle>, doc_id: DocId, line_string:
     }
 }
 
-fn append_ring(i_polygon: &mut Vec<Vec<IntPoint>>, ring: &[GeoPoint]) {
+fn append_ring(i_polygon: &mut Vec<Vec<IntPoint>>, ring: &[[f64; 2]]) {
     let mut i_ring = Vec::with_capacity(ring.len() + 1);
     for &point in ring {
         let point = as_point_i32(point);
@@ -115,7 +115,7 @@ fn append_ring(i_polygon: &mut Vec<Vec<IntPoint>>, ring: &[GeoPoint]) {
     i_polygon.push(i_ring);
 }
 
-fn append_polygon(triangles: &mut Vec<Triangle>, doc_id: DocId, polygon: &[Vec<GeoPoint>]) {
+fn append_polygon(triangles: &mut Vec<Triangle>, doc_id: DocId, polygon: &[Vec<[f64; 2]>]) {
     let mut i_polygon: Vec<Vec<IntPoint>> = Vec::new();
     for ring in polygon {
         append_ring(&mut i_polygon, ring);
