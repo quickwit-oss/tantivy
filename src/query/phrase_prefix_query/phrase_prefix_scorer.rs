@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
@@ -194,11 +194,16 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        if self.phrase_scorer.seek_into_the_danger_zone(target) {
-            self.matches_prefix()
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        let seek_res = self.phrase_scorer.seek_danger(target);
+        if seek_res != SeekDangerResult::Found {
+            return seek_res;
+        }
+        // The intersection matched. Now let's see if we match the prefix.
+        if self.matches_prefix() {
+            SeekDangerResult::Found
         } else {
-            false
+            SeekDangerResult::SeekLowerBound(target + 1)
         }
     }
 

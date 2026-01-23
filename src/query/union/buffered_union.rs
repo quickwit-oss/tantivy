@@ -1,6 +1,6 @@
 use common::TinySet;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
@@ -225,29 +225,47 @@ where
         }
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        if target >= TERMINATED {
+            return SeekDangerResult::SeekLowerBound(TERMINATED);
+        }
         if self.is_in_horizon(target) {
             // Our value is within the buffered horizon and the docset may already have been
             // processed and removed, so we need to use seek, which uses the regular advance.
-            self.seek(target) == target
-        } else {
-            if target == TERMINATED {
-                self.seek(TERMINATED);
-                return true;
-            }
-            // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
-            // of the underlying docsets
-            let is_hit = self
-                .docsets
-                .iter_mut()
-                .any(|docset| docset.seek_into_the_danger_zone(target));
+            let seek_doc = self.seek(target);
+            if seek_doc == target {
+                return SeekDangerResult::Found;
+            } else {
+                return SeekDangerResult::SeekLowerBound(seek_doc);
+            };
+        }
 
-            // The API requires the DocSet to be in a valid state when `seek_into_the_danger_zone`
-            // returns true.
-            if is_hit {
-                self.seek(target);
+        // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
+        // of the underlying docsets
+        let mut is_hit = false;
+        let mut min_new_target = TERMINATED;
+
+        for docset in self.docsets.iter_mut() {
+            match docset.seek_danger(target) {
+                SeekDangerResult::Found => {
+                    is_hit = true;
+                    break;
+                }
+                SeekDangerResult::SeekLowerBound(new_target) => {
+                    min_new_target = min_new_target.min(new_target);
+                }
             }
-            is_hit
+        }
+
+        // The API requires the DocSet to be in a valid state when `seek_into_the_danger_zone`
+        // returns Found.
+        if is_hit {
+            // The doc is found. Let's make sure we position the union on the target
+            // to bring it back to a valid state.
+            self.seek(target);
+            SeekDangerResult::Found
+        } else {
+            SeekDangerResult::SeekLowerBound(min_new_target)
         }
     }
 

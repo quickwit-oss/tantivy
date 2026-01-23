@@ -14,7 +14,7 @@ mod tests {
     use common::BitSet;
 
     use super::{SimpleUnion, *};
-    use crate::docset::{DocSet, TERMINATED};
+    use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::union::bitset_union::BitSetPostingUnion;
@@ -260,11 +260,8 @@ mod tests {
         let scorer1 = ConstScorer::new(VecDocSet::from(vec![1, 2]), 1.0);
         let scorer2 = ConstScorer::new(VecDocSet::from(vec![2, 3]), 1.0);
 
-        let mut union_scorer = BufferedUnionScorer::build(
-            vec![scorer1, scorer2],
-            || DoNothingCombiner::default(),
-            100,
-        );
+        let mut union_scorer =
+            BufferedUnionScorer::build(vec![scorer1, scorer2], DoNothingCombiner::default, 100);
 
         // Advance to end
         while union_scorer.doc() != TERMINATED {
@@ -273,8 +270,10 @@ mod tests {
 
         assert_eq!(union_scorer.doc(), TERMINATED);
 
-        // This should return true
-        assert!(union_scorer.seek_into_the_danger_zone(TERMINATED));
+        assert_eq!(
+            union_scorer.seek_danger(TERMINATED),
+            SeekDangerResult::SeekLowerBound(TERMINATED)
+        );
     }
 }
 

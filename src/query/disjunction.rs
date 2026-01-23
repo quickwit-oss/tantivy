@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use crate::docset::SeekDangerResult;
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{ScoreCombiner, Scorer};
 use crate::{DocId, DocSet, Score, TERMINATED};
@@ -67,10 +68,12 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
         self.current_doc = doc_id;
         doc_id
     }
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        let found = self.scorer.seek_into_the_danger_zone(target);
-        self.current_doc = self.scorer.doc();
-        found
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        let result = self.scorer.seek_danger(target);
+        if result == SeekDangerResult::Found {
+            self.current_doc = target;
+        }
+        result
     }
 
     fn doc(&self) -> DocId {
