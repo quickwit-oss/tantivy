@@ -51,31 +51,55 @@ pub trait DocSet: Send {
         doc
     }
 
-    /// Seeks to the target if possible and returns true if the target is in the DocSet.
+    /// !!!Dragons ahead!!!
+    /// In spirit, this is an approximate and dangerous version of `seek`.
+    ///
+    /// It can leave the DocSet in an `invalid` state and might return a
+    /// lower bound of what the result of Seek would have been.
+    ///
+    ///
+    /// More accurately it returns either:
+    /// - Found if the target is in the docset. In that case, the DocSet is left in a valid state.
+    /// - SeekLowerBound(seek_lower_bound) if the target is not in the docset. In that case, The
+    ///   DocSet can be the left in a invalid state. The DocSet should then only receives call to
+    ///   `seek_danger(..)` until it returns `Found`, and get back to a valid state.
+    ///
+    /// `seek_lower_bound` can be any `DocId` (in the docset or not) as long as it is in
+    /// `(target .. seek_result]` where `seek_result` is the first document in the docset greater
+    /// than to `target`.
+    ///
+    /// `seek_danger` may return `SeekLowerBound(TERMINATED)`.
+    ///
+    /// Calling `seek_danger` with TERMINATED as a target is allowed,
+    /// and should always return NewTarget(TERMINATED) or anything larger as TERMINATED is NOT in
+    /// the DocSet.
     ///
     /// DocSets that already have an efficient `seek` method don't need to implement
-    /// `seek_into_the_danger_zone`. All wrapper DocSets should forward
-    /// `seek_into_the_danger_zone` to the underlying DocSet.
+    /// `seek_danger`.
     ///
-    /// ## API Behaviour
-    /// If `seek_into_the_danger_zone` is returning true, a call to `doc()` has to return target.
-    /// If `seek_into_the_danger_zone` is returning false, a call to `doc()` may return any doc
-    /// between the last doc that matched and target or a doc that is a valid next hit after
-    /// target. The DocSet is considered to be in an invalid state until
-    /// `seek_into_the_danger_zone` returns true again.
-    ///
-    /// `target` needs to be equal or larger than `doc` when in a valid state.
-    ///
-    /// Consecutive calls are not allowed to have decreasing `target` values.
-    ///
-    /// # Warning
-    /// This is an advanced API used by intersection. The API contract is tricky, avoid using it.
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        let current_doc = self.doc();
-        if current_doc < target {
-            self.seek(target);
+    /// Consecutive calls to seek_danger are guaranteed to have strictly increasing `target`
+    /// values.
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        if target >= TERMINATED {
+            debug_assert!(target == TERMINATED);
+            // No need to advance.
+            return SeekDangerResult::SeekLowerBound(target);
         }
-        self.doc() == target
+
+        // The default implementation does not include any
+        // `danger zone` behavior.
+        //
+        // It does not leave the scorer in an invalid state.
+        // For this reason, we can safely call `self.doc()`.
+        let mut doc = self.doc();
+        if doc < target {
+            doc = self.seek(target);
+        }
+        if doc == target {
+            SeekDangerResult::Found
+        } else {
+            SeekDangerResult::SeekLowerBound(self.doc())
+        }
     }
 
     /// Fills a given mutable buffer with the next doc ids from the
@@ -166,6 +190,17 @@ pub trait DocSet: Send {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SeekDangerResult {
+    /// The target was found in the DocSet.
+    Found,
+    /// The target was not found in the DocSet.
+    /// We return a range in which the value could be.
+    /// The given target can be any DocId, that is <= than the first document
+    /// in the docset after the target.
+    SeekLowerBound(DocId),
+}
+
 impl DocSet for &mut dyn DocSet {
     fn advance(&mut self) -> u32 {
         (**self).advance()
@@ -175,8 +210,8 @@ impl DocSet for &mut dyn DocSet {
         (**self).seek(target)
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
-        (**self).seek_into_the_danger_zone(target)
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        (**self).seek_danger(target)
     }
 
     fn doc(&self) -> u32 {
@@ -211,9 +246,9 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.seek(target)
     }
 
-    fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
         let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.seek_into_the_danger_zone(target)
+        unboxed.seek_danger(target)
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
