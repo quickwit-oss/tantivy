@@ -71,6 +71,16 @@ pub trait DocSet: Send {
     /// # Warning
     /// This is an advanced API used by intersection. The API contract is tricky, avoid using it.
     fn seek_into_the_danger_zone(&mut self, target: DocId) -> bool {
+        if target >= TERMINATED {
+            debug_assert!(target == TERMINATED);
+            // No need to advance.
+            return false;
+        }
+        // The default implementation does not include any
+        // `danger zone` behavior.
+        //
+        // It does not leave the scorer in an invalid state.
+        // For this reason, we can safely call `self.doc()`.
         let current_doc = self.doc();
         if current_doc < target {
             self.seek(target);
