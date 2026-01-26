@@ -65,8 +65,8 @@ pub trait DocSet: Send {
     ///   `seek_danger(..)` until it returns `Found`, and get back to a valid state.
     ///
     /// `seek_lower_bound` can be any `DocId` (in the docset or not) as long as it is in
-    /// `(target .. seek_result]` where `seek_result` is the first document in the docset greater
-    /// than to `target`.
+    /// `(target .. seek_result] U {TERMINATED}` where `seek_result` is the first document in the
+    /// docset greater than to `target`.
     ///
     /// `seek_danger` may return `SeekLowerBound(TERMINATED)`.
     ///
@@ -98,7 +98,7 @@ pub trait DocSet: Send {
         if doc == target {
             SeekDangerResult::Found
         } else {
-            SeekDangerResult::SeekLowerBound(self.doc())
+            SeekDangerResult::SeekLowerBound(doc)
         }
     }
 

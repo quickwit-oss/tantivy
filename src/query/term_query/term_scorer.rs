@@ -105,6 +105,7 @@ impl DocSet for TermScorer {
 
     #[inline]
     fn seek(&mut self, target: DocId) -> DocId {
+        debug_assert!(target >= self.doc());
         self.postings.seek(target)
     }
 
