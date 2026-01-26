@@ -501,8 +501,7 @@ impl SegmentUpdater {
             Ok(segment_entries) => segment_entries,
             Err(err) => {
                 warn!(
-                    "Starting the merge failed for the following reason. This is not fatal. {}",
-                    err
+                    "Starting the merge failed for the following reason. This is not fatal. {err}"
                 );
                 return err.into();
             }
@@ -1053,8 +1052,9 @@ mod tests {
                 let query = QueryParser::for_index(&index, vec![text_field])
                     .parse_query(term)
                     .unwrap();
-                let top_docs: Vec<(f32, DocAddress)> =
-                    searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+                let top_docs: Vec<(f32, DocAddress)> = searcher
+                    .search(&query, &TopDocs::with_limit(3).order_by_score())
+                    .unwrap();
 
                 top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>()
             };

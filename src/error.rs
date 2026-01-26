@@ -104,7 +104,7 @@ pub enum TantivyError {
     #[error("{0:?}")]
     IncompatibleIndex(Incompatibility),
     /// An internal error occurred. This is are internal states that should not be reached.
-    /// e.g. a datastructure is incorrectly inititalized.
+    /// e.g. a datastructure is incorrectly initialized.
     #[error("Internal error: '{0}'")]
     InternalError(String),
     #[error("Deserialize error: {0}")]

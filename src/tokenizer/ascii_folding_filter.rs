@@ -1561,7 +1561,6 @@ fn to_ascii(text: &str, output: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use std::iter;
 
     use super::to_ascii;
     use crate::tokenizer::{AsciiFoldingFilter, RawTokenizer, SimpleTokenizer, TextAnalyzer};
@@ -1605,35 +1604,35 @@ mod tests {
                    Ò Ó Ô Õ Ö Ø Œ Þ Ù Ú Û Ü Ý Ÿ à á â ã ä å æ ç è é ê ë ì í î ï ĳ
                    ð ñ ò ó ô õ ö ø œ ß þ ù ú û ü ý ÿ ﬁ ﬂ";
         let mut vec: Vec<&str> = vec!["Des", "mot", "cles", "A", "LA", "CHAINE"];
-        vec.extend(iter::repeat("A").take(6));
-        vec.extend(iter::repeat("AE").take(1));
-        vec.extend(iter::repeat("C").take(1));
-        vec.extend(iter::repeat("E").take(4));
-        vec.extend(iter::repeat("I").take(4));
-        vec.extend(iter::repeat("IJ").take(1));
-        vec.extend(iter::repeat("D").take(1));
-        vec.extend(iter::repeat("N").take(1));
-        vec.extend(iter::repeat("O").take(6));
-        vec.extend(iter::repeat("OE").take(1));
-        vec.extend(iter::repeat("TH").take(1));
-        vec.extend(iter::repeat("U").take(4));
-        vec.extend(iter::repeat("Y").take(2));
-        vec.extend(iter::repeat("a").take(6));
-        vec.extend(iter::repeat("ae").take(1));
-        vec.extend(iter::repeat("c").take(1));
-        vec.extend(iter::repeat("e").take(4));
-        vec.extend(iter::repeat("i").take(4));
-        vec.extend(iter::repeat("ij").take(1));
-        vec.extend(iter::repeat("d").take(1));
-        vec.extend(iter::repeat("n").take(1));
-        vec.extend(iter::repeat("o").take(6));
-        vec.extend(iter::repeat("oe").take(1));
-        vec.extend(iter::repeat("ss").take(1));
-        vec.extend(iter::repeat("th").take(1));
-        vec.extend(iter::repeat("u").take(4));
-        vec.extend(iter::repeat("y").take(2));
-        vec.extend(iter::repeat("fi").take(1));
-        vec.extend(iter::repeat("fl").take(1));
+        vec.extend(std::iter::repeat_n("A", 6));
+        vec.extend(std::iter::repeat_n("AE", 1));
+        vec.extend(std::iter::repeat_n("C", 1));
+        vec.extend(std::iter::repeat_n("E", 4));
+        vec.extend(std::iter::repeat_n("I", 4));
+        vec.extend(std::iter::repeat_n("IJ", 1));
+        vec.extend(std::iter::repeat_n("D", 1));
+        vec.extend(std::iter::repeat_n("N", 1));
+        vec.extend(std::iter::repeat_n("O", 6));
+        vec.extend(std::iter::repeat_n("OE", 1));
+        vec.extend(std::iter::repeat_n("TH", 1));
+        vec.extend(std::iter::repeat_n("U", 4));
+        vec.extend(std::iter::repeat_n("Y", 2));
+        vec.extend(std::iter::repeat_n("a", 6));
+        vec.extend(std::iter::repeat_n("ae", 1));
+        vec.extend(std::iter::repeat_n("c", 1));
+        vec.extend(std::iter::repeat_n("e", 4));
+        vec.extend(std::iter::repeat_n("i", 4));
+        vec.extend(std::iter::repeat_n("ij", 1));
+        vec.extend(std::iter::repeat_n("d", 1));
+        vec.extend(std::iter::repeat_n("n", 1));
+        vec.extend(std::iter::repeat_n("o", 6));
+        vec.extend(std::iter::repeat_n("oe", 1));
+        vec.extend(std::iter::repeat_n("ss", 1));
+        vec.extend(std::iter::repeat_n("th", 1));
+        vec.extend(std::iter::repeat_n("u", 4));
+        vec.extend(std::iter::repeat_n("y", 2));
+        vec.extend(std::iter::repeat_n("fi", 1));
+        vec.extend(std::iter::repeat_n("fl", 1));
         assert_eq!(folding_helper(latin1_string), vec);
     }
 

@@ -399,7 +399,7 @@ fn is_empty_after_merge(
                     ColumnIndex::Empty { .. } => true,
                     ColumnIndex::Full => alive_bitset.len() == 0,
                     ColumnIndex::Optional(optional_index) => {
-                        for doc in optional_index.iter_docs() {
+                        for doc in optional_index.iter_non_null_docs() {
                             if alive_bitset.contains(doc) {
                                 return false;
                             }

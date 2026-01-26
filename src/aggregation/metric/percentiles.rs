@@ -3,15 +3,13 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
-};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
-use crate::{DocId, TantivyError};
+use crate::TantivyError;
 
 /// # Percentiles
 ///
@@ -112,7 +110,8 @@ impl PercentilesAggregationReq {
         &self.field
     }
 
-    fn validate(&self) -> crate::Result<()> {
+    /// Validates the request parameters.
+    pub fn validate(&self) -> crate::Result<()> {
         if let Some(percents) = self.percents.as_ref() {
             let all_in_range = percents
                 .iter()
@@ -131,12 +130,16 @@ impl PercentilesAggregationReq {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct SegmentPercentilesCollector {
-    field_type: ColumnType,
-    pub(crate) percentiles: PercentilesCollector,
+    pub(crate) buckets: Vec<PercentilesCollector>,
     pub(crate) accessor_idx: usize,
-    missing: Option<u64>,
+    /// The type of the field.
+    pub field_type: ColumnType,
+    /// The missing value normalized to the internal u64 representation of the field type.
+    pub missing_u64: Option<u64>,
+    /// The column accessor to access the fast field values.
+    pub accessor: Column<u64>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -232,43 +235,17 @@ impl PercentilesCollector {
 
 impl SegmentPercentilesCollector {
     pub fn from_req_and_validate(
-        req: &PercentilesAggregationReq,
         field_type: ColumnType,
+        missing_u64: Option<u64>,
+        accessor: Column<u64>,
         accessor_idx: usize,
-    ) -> crate::Result<Self> {
-        req.validate()?;
-        let missing = req
-            .missing
-            .and_then(|val| f64_to_fastfield_u64(val, &field_type));
-
-        Ok(Self {
+    ) -> Self {
+        Self {
+            buckets: Vec::with_capacity(64),
             field_type,
-            percentiles: PercentilesCollector::new(),
+            missing_u64,
+            accessor,
             accessor_idx,
-            missing,
-        })
-    }
-    #[inline]
-    pub(crate) fn collect_block_with_field(
-        &mut self,
-        docs: &[DocId],
-        agg_accessor: &mut AggregationWithAccessor,
-    ) {
-        if let Some(missing) = self.missing.as_ref() {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &agg_accessor.accessor,
-                *missing,
-            );
-        } else {
-            agg_accessor
-                .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
-        }
-
-        for val in agg_accessor.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, &self.field_type);
-            self.percentiles.collect(val1);
         }
     }
 }
@@ -276,12 +253,18 @@ impl SegmentPercentilesCollector {
 impl SegmentAggregationCollector for SegmentPercentilesCollector {
     #[inline]
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
-        let intermediate_metric_result = IntermediateMetricResult::Percentiles(self.percentiles);
+        let name = agg_data.get_metric_req_data(self.accessor_idx).name.clone();
+        self.prepare_max_bucket(parent_bucket_id, agg_data)?;
+        // Swap collector with an empty one to avoid cloning
+        let percentiles_collector = std::mem::take(&mut self.buckets[parent_bucket_id as usize]);
+
+        let intermediate_metric_result =
+            IntermediateMetricResult::Percentiles(percentiles_collector);
 
         results.push(
             name,
@@ -294,40 +277,33 @@ impl SegmentAggregationCollector for SegmentPercentilesCollector {
     #[inline]
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
+        let percentiles = &mut self.buckets[parent_bucket_id as usize];
+        agg_data.column_block_accessor.fetch_block_with_missing(
+            docs,
+            &self.accessor,
+            self.missing_u64,
+        );
 
-        if let Some(missing) = self.missing {
-            let mut has_val = false;
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.percentiles.collect(val1);
-                has_val = true;
-            }
-            if !has_val {
-                self.percentiles
-                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
-            }
-        } else {
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.percentiles.collect(val1);
-            }
+        for val in agg_data.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64(val, self.field_type);
+            percentiles.collect(val1);
         }
 
         Ok(())
     }
 
-    #[inline]
-    fn collect_block(
+    fn prepare_max_bucket(
         &mut self,
-        docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        self.collect_block_with_field(docs, field);
+        while self.buckets.len() <= max_bucket as usize {
+            self.buckets.push(PercentilesCollector::new());
+        }
         Ok(())
     }
 }

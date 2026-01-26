@@ -26,12 +26,14 @@
 //! let _agg_req: Aggregations = serde_json::from_str(elasticsearch_compatible_json_req).unwrap();
 //! ```
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::bucket::{
-    DateHistogramAggregationReq, HistogramAggregation, RangeAggregation, TermsAggregation,
+    DateHistogramAggregationReq, FilterAggregation, HistogramAggregation, RangeAggregation,
+    TermsAggregation,
 };
 use super::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
@@ -43,7 +45,7 @@ use super::metric::{
 /// defined names. It is also used in buckets aggregations to define sub-aggregations.
 ///
 /// The key is the user defined name of the aggregation.
-pub type Aggregations = HashMap<String, Aggregation>;
+pub type Aggregations = FxHashMap<String, Aggregation>;
 
 /// Aggregation request.
 ///
@@ -129,6 +131,9 @@ pub enum AggregationVariants {
     /// Put data into buckets of terms.
     #[serde(rename = "terms")]
     Terms(TermsAggregation),
+    /// Filter documents into a single bucket.
+    #[serde(rename = "filter")]
+    Filter(FilterAggregation),
 
     // Metric aggregation types
     /// Computes the average of the extracted values.
@@ -174,6 +179,7 @@ impl AggregationVariants {
             AggregationVariants::Range(range) => vec![range.field.as_str()],
             AggregationVariants::Histogram(histogram) => vec![histogram.field.as_str()],
             AggregationVariants::DateHistogram(histogram) => vec![histogram.field.as_str()],
+            AggregationVariants::Filter(filter) => filter.get_fast_field_names(),
             AggregationVariants::Average(avg) => vec![avg.field_name()],
             AggregationVariants::Count(count) => vec![count.field_name()],
             AggregationVariants::Max(max) => vec![max.field_name()],
@@ -208,13 +214,6 @@ impl AggregationVariants {
             _ => None,
         }
     }
-    pub(crate) fn as_top_hits(&self) -> Option<&TopHitsAggregationReq> {
-        match &self {
-            AggregationVariants::TopHits(top_hits) => Some(top_hits),
-            _ => None,
-        }
-    }
-
     pub(crate) fn as_percentile(&self) -> Option<&PercentilesAggregationReq> {
         match &self {
             AggregationVariants::Percentiles(percentile_req) => Some(percentile_req),

@@ -1,7 +1,9 @@
+use columnar::NumericalValue;
 use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
 use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
+use crate::indexer::indexing_term::IndexingTerm;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{Type, DATE_TIME_PRECISION_INDEXED};
@@ -76,7 +78,7 @@ fn index_json_object<'a, V: Value<'a>>(
     doc: DocId,
     json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
@@ -106,17 +108,17 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    let set_path_id = |term_buffer: &mut Term, unordered_id: u32| {
+    let set_path_id = |term_buffer: &mut IndexingTerm, unordered_id: u32| {
         term_buffer.truncate_value_bytes(0);
         term_buffer.append_bytes(&unordered_id.to_be_bytes());
     };
-    let set_type = |term_buffer: &mut Term, typ: Type| {
+    let set_type = |term_buffer: &mut IndexingTerm, typ: Type| {
         term_buffer.append_bytes(&[typ.to_code()]);
     };
 
@@ -152,7 +154,7 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
                 if let Ok(i64_val) = val.try_into() {
                     term_buffer.append_type_and_fast_value::<i64>(i64_val);
                 } else {
-                    term_buffer.append_type_and_fast_value(val);
+                    term_buffer.append_type_and_fast_value::<u64>(val);
                 }
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
@@ -166,12 +168,30 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::F64(val) => {
+                if !val.is_finite() {
+                    return;
+                };
                 set_path_id(
                     term_buffer,
                     ctx.path_to_unordered_id
                         .get_or_allocate_unordered_id(json_path_writer.as_str()),
                 );
-                term_buffer.append_type_and_fast_value(val);
+                // Normalize here is important.
+                // In the inverted index, we coerce all numerical values to their canonical
+                // representation.
+                //
+                // (We do the same thing on the query side)
+                match NumericalValue::F64(val).normalize() {
+                    NumericalValue::I64(val_i64) => {
+                        term_buffer.append_type_and_fast_value::<i64>(val_i64);
+                    }
+                    NumericalValue::U64(val_u64) => {
+                        term_buffer.append_type_and_fast_value::<u64>(val_u64);
+                    }
+                    NumericalValue::F64(val_f64) => {
+                        term_buffer.append_type_and_fast_value::<f64>(val_f64);
+                    }
+                }
                 postings_writer.subscribe(doc, 0u32, term_buffer, ctx);
             }
             ReferenceValueLeaf::Bool(val) => {
@@ -244,8 +264,8 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
 ///
 /// The term must be json + JSON path.
 pub fn convert_to_fast_value_and_append_to_json_term(
-    mut term: Term,
-    phrase: &str,
+    term: &Term,
+    text: &str,
     truncate_date_for_search: bool,
 ) -> Option<Term> {
     assert_eq!(
@@ -257,31 +277,50 @@ pub fn convert_to_fast_value_and_append_to_json_term(
         0,
         "JSON value bytes should be empty"
     );
-    if let Ok(dt) = OffsetDateTime::parse(phrase, &Rfc3339) {
-        let mut dt = DateTime::from_utc(dt.to_offset(UtcOffset::UTC));
-        if truncate_date_for_search {
-            dt = dt.truncate(DATE_TIME_PRECISION_INDEXED);
+    try_convert_to_datetime_and_append_to_json_term(term, text, truncate_date_for_search)
+        .or_else(|| try_convert_to_number_and_append_to_json_term(term, text))
+        .or_else(|| try_convert_to_bool_and_append_to_json_term_typed(term, text))
+}
+
+fn try_convert_to_datetime_and_append_to_json_term(
+    term: &Term,
+    text: &str,
+    truncate_date_for_search: bool,
+) -> Option<Term> {
+    let dt = OffsetDateTime::parse(text, &Rfc3339).ok()?;
+    let mut dt = DateTime::from_utc(dt.to_offset(UtcOffset::UTC));
+    if truncate_date_for_search {
+        dt = dt.truncate(DATE_TIME_PRECISION_INDEXED);
+    }
+    let mut term_clone = term.clone();
+    term_clone.append_type_and_fast_value(dt);
+    Some(term_clone)
+}
+
+fn try_convert_to_number_and_append_to_json_term(term: &Term, text: &str) -> Option<Term> {
+    let numerical_value: NumericalValue = str::parse::<NumericalValue>(text).ok()?;
+    let mut term_clone = term.clone();
+    // Parse is actually returning normalized values already today, but let's not
+    // not rely on that hidden contract.
+    match numerical_value.normalize() {
+        NumericalValue::I64(i64_value) => {
+            term_clone.append_type_and_fast_value::<i64>(i64_value);
         }
-        term.append_type_and_fast_value(dt);
-        return Some(term);
+        NumericalValue::U64(u64_value) => {
+            term_clone.append_type_and_fast_value::<u64>(u64_value);
+        }
+        NumericalValue::F64(f64_value) => {
+            term_clone.append_type_and_fast_value::<f64>(f64_value);
+        }
     }
-    if let Ok(i64_val) = str::parse::<i64>(phrase) {
-        term.append_type_and_fast_value(i64_val);
-        return Some(term);
-    }
-    if let Ok(u64_val) = str::parse::<u64>(phrase) {
-        term.append_type_and_fast_value(u64_val);
-        return Some(term);
-    }
-    if let Ok(f64_val) = str::parse::<f64>(phrase) {
-        term.append_type_and_fast_value(f64_val);
-        return Some(term);
-    }
-    if let Ok(bool_val) = str::parse::<bool>(phrase) {
-        term.append_type_and_fast_value(bool_val);
-        return Some(term);
-    }
-    None
+    Some(term_clone)
+}
+
+fn try_convert_to_bool_and_append_to_json_term_typed(term: &Term, text: &str) -> Option<Term> {
+    let val = str::parse::<bool>(text).ok()?;
+    let mut term_clone = term.clone();
+    term_clone.append_type_and_fast_value(val);
+    Some(term_clone)
 }
 
 /// Splits a json path supplied to the query parser in such a way that
@@ -370,7 +409,7 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_str("red");
 
-        assert_eq!(term.serialized_term(), b"\x00\x00\x00\x01jcolor\x00sred")
+        assert_eq!(term.serialized_value_bytes(), b"color\x00sred".to_vec())
     }
 
     #[test]
@@ -380,8 +419,8 @@ mod tests {
         term.append_type_and_fast_value(-4i64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc"
+            term.serialized_value_bytes(),
+            b"color\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc".to_vec()
         )
     }
 
@@ -392,8 +431,8 @@ mod tests {
         term.append_type_and_fast_value(4u64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00u\x00\x00\x00\x00\x00\x00\x00\x04"
+            term.serialized_value_bytes(),
+            b"color\x00u\x00\x00\x00\x00\x00\x00\x00\x04".to_vec()
         )
     }
 
@@ -403,8 +442,8 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(4.0f64);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00f\xc0\x10\x00\x00\x00\x00\x00\x00"
+            term.serialized_value_bytes(),
+            b"color\x00f\xc0\x10\x00\x00\x00\x00\x00\x00".to_vec()
         )
     }
 
@@ -414,8 +453,8 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(true);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
+            term.serialized_value_bytes(),
+            b"color\x00o\x00\x00\x00\x00\x00\x00\x00\x01".to_vec()
         )
     }
 

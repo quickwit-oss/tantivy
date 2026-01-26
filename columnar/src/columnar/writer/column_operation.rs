@@ -256,7 +256,7 @@ impl SymbolValue for UnorderedId {
 
 fn compute_num_bytes_for_u64(val: u64) -> usize {
     let msb = (64u32 - val.leading_zeros()) as usize;
-    (msb + 7) / 8
+    msb.div_ceil(8)
 }
 
 fn encode_zig_zag(n: i64) -> u64 {

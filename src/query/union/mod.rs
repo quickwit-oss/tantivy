@@ -14,7 +14,7 @@ mod tests {
     use common::BitSet;
 
     use super::{SimpleUnion, *};
-    use crate::docset::{DocSet, TERMINATED};
+    use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::union::bitset_union::BitSetPostingUnion;
@@ -27,11 +27,17 @@ mod tests {
         docs_list.iter().cloned().map(VecDocSet::from)
     }
     fn union_from_docs_list(docs_list: &[Vec<DocId>]) -> Box<dyn DocSet> {
+        let max_doc = docs_list
+            .iter()
+            .flat_map(|docs| docs.iter().copied())
+            .max()
+            .unwrap_or(0);
         Box::new(BufferedUnionScorer::build(
             vec_doc_set_from_docs_list(docs_list)
                 .map(|docset| ConstScorer::new(docset, 1.0))
                 .collect::<Vec<ConstScorer<VecDocSet>>>(),
             DoNothingCombiner::default,
+            max_doc,
         ))
     }
 
@@ -248,6 +254,27 @@ mod tests {
             vec![1, 2, 3, 7, 8, 9, 99, 100, 101, 500, 20000],
         );
     }
+
+    #[test]
+    fn test_buffered_union_seek_into_danger_zone_terminated() {
+        let scorer1 = ConstScorer::new(VecDocSet::from(vec![1, 2]), 1.0);
+        let scorer2 = ConstScorer::new(VecDocSet::from(vec![2, 3]), 1.0);
+
+        let mut union_scorer =
+            BufferedUnionScorer::build(vec![scorer1, scorer2], DoNothingCombiner::default, 100);
+
+        // Advance to end
+        while union_scorer.doc() != TERMINATED {
+            union_scorer.advance();
+        }
+
+        assert_eq!(union_scorer.doc(), TERMINATED);
+
+        assert_eq!(
+            union_scorer.seek_danger(TERMINATED),
+            SeekDangerResult::SeekLowerBound(TERMINATED)
+        );
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
@@ -273,6 +300,7 @@ mod bench {
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
                 DoNothingCombiner::default,
+                100_000,
             );
             while v.doc() != TERMINATED {
                 v.advance();
@@ -294,6 +322,7 @@ mod bench {
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
                 DoNothingCombiner::default,
+                100_000,
             );
             while v.doc() != TERMINATED {
                 v.advance();

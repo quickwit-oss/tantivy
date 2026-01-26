@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
+use crate::docset::{SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fastfield::AliveBitSet;
 use crate::query::{EnableScoring, Explanation, Query, Scorer, Weight};
 use crate::{DocId, DocSet, Score, SegmentReader, Term};
@@ -104,6 +104,9 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
     fn seek(&mut self, target: DocId) -> DocId {
         self.underlying.seek(target)
     }
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        self.underlying.seek_danger(target)
+    }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
         self.underlying.fill_buffer(buffer)
@@ -117,6 +120,10 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
         self.underlying.size_hint()
     }
 
+    fn cost(&self) -> u64 {
+        self.underlying.cost()
+    }
+
     fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
         self.underlying.count(alive_bitset)
     }
@@ -127,6 +134,7 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
 }
 
 impl<S: Scorer> Scorer for BoostScorer<S> {
+    #[inline]
     fn score(&mut self) -> Score {
         self.underlying.score() * self.boost
     }

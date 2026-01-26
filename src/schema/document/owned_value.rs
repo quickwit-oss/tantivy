@@ -60,6 +60,32 @@ impl AsRef<OwnedValue> for OwnedValue {
     }
 }
 
+impl OwnedValue {
+    /// Returns a u8 discriminant value for the `OwnedValue` variant.
+    ///
+    /// This can be used to sort `OwnedValue` instances by their type.
+    pub fn discriminant_value(&self) -> u8 {
+        match self {
+            OwnedValue::Null => 0,
+            OwnedValue::Str(_) => 1,
+            OwnedValue::PreTokStr(_) => 2,
+            // It is key to make sure U64, I64, F64 are grouped together in there, otherwise we
+            // might be breaking transivity.
+            OwnedValue::U64(_) => 3,
+            OwnedValue::I64(_) => 4,
+            OwnedValue::F64(_) => 5,
+            OwnedValue::Bool(_) => 6,
+            OwnedValue::Date(_) => 7,
+            OwnedValue::Facet(_) => 8,
+            OwnedValue::Bytes(_) => 9,
+            OwnedValue::Array(_) => 10,
+            OwnedValue::Object(_) => 11,
+            OwnedValue::IpAddr(_) => 12,
+            OwnedValue::U128(_) => 13,
+        }
+    }
+}
+
 impl<'a> Value<'a> for &'a OwnedValue {
     type ArrayIter = std::slice::Iter<'a, OwnedValue>;
     type ObjectIter = ObjectMapIter<'a>;

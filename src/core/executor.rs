@@ -48,7 +48,15 @@ impl Executor {
         F: Sized + Sync + Fn(A) -> crate::Result<R>,
     {
         match self {
-            Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),
+            Executor::SingleThread => {
+                // Avoid `collect`, since the stacktrace is blown up by it, which makes profiling
+                // harder.
+                let mut result = Vec::with_capacity(args.size_hint().0);
+                for arg in args {
+                    result.push(f(arg)?);
+                }
+                Ok(result)
+            }
             Executor::ThreadPool(pool) => {
                 let args: Vec<A> = args.collect();
                 let num_fruits = args.len();
@@ -65,8 +73,7 @@ impl Executor {
                                 if let Err(err) = fruit_sender_ref.send((idx, fruit)) {
                                     error!(
                                         "Failed to send search task. It probably means all search \
-                                         threads have panicked. {:?}",
-                                        err
+                                         threads have panicked. {err:?}"
                                     );
                                 }
                             });

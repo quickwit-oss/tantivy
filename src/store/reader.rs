@@ -52,7 +52,7 @@ impl BinarySerializable for DocStoreVersion {
             v => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("Invalid doc store version {}", v),
+                    format!("Invalid doc store version {v}"),
                 ))
             }
         })
@@ -320,7 +320,9 @@ impl StoreReader {
                     doc_pos = 0;
                 }
 
-                let alive = alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
+                let alive = alive_bitset
+                    .map(|bitset| bitset.is_alive(doc_id))
+                    .unwrap_or(true);
                 let res = if alive {
                     Some((curr_block.clone(), doc_pos))
                 } else {
@@ -463,7 +465,7 @@ mod tests {
         let directory = RamDirectory::create();
         let path = Path::new("store");
         let writer = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(writer, 500, Compressor::default(), BLOCK_SIZE, true);
+        let schema = write_lorem_ipsum_store(writer, 500, Compressor::None, BLOCK_SIZE, true);
         let title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
@@ -497,7 +499,7 @@ mod tests {
         assert_eq!(store.cache_stats().cache_hits, 1);
         assert_eq!(store.cache_stats().cache_misses, 2);
 
-        assert_eq!(store.cache.peek_lru(), Some(11207));
+        assert_eq!(store.cache.peek_lru(), Some(232206));
 
         Ok(())
     }

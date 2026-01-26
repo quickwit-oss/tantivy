@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
@@ -368,6 +368,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         slop: u32,
         offset: usize,
     ) -> PhraseScorer<TPostings> {
+        let num_docs = fieldnorm_reader.num_docs();
         let max_offset = term_postings_with_offset
             .iter()
             .map(|&(offset, _)| offset)
@@ -381,8 +382,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 PostingsWithOffset::new(postings, (max_offset - offset) as u32)
             })
             .collect::<Vec<_>>();
+        let intersection_docset = Intersection::new(postings_with_offsets, num_docs);
         let mut scorer = PhraseScorer {
-            intersection_docset: Intersection::new(postings_with_offsets),
+            intersection_docset,
             num_terms: num_docsets,
             left_positions: Vec::with_capacity(100),
             right_positions: Vec::with_capacity(100),
@@ -528,16 +530,46 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         self.advance()
     }
 
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        debug_assert!(target >= self.doc());
+        let seek_res = self.intersection_docset.seek_danger(target);
+        if seek_res != SeekDangerResult::Found {
+            return seek_res;
+        }
+        // The intersection matched. Now let's see if we match the phrase.
+        if self.phrase_match() {
+            SeekDangerResult::Found
+        } else {
+            SeekDangerResult::SeekLowerBound(target + 1)
+        }
+    }
+
     fn doc(&self) -> DocId {
         self.intersection_docset.doc()
     }
 
     fn size_hint(&self) -> u32 {
-        self.intersection_docset.size_hint()
+        // We adjust the intersection estimate, since actual phrase hits are much lower than where
+        // the all appear.
+        // The estimate should depend on average field length, e.g. if the field is really short
+        // a phrase hit is more likely
+        self.intersection_docset.size_hint() / (10 * self.num_terms as u32)
+    }
+
+    /// Returns a best-effort hint of the
+    /// cost to drive the docset.
+    fn cost(&self) -> u64 {
+        // While determing a potential hit is cheap for phrases, evaluating an actual hit is
+        // expensive since it requires to load positions for a doc and check if they are next to
+        // each other.
+        // So the cost estimation would be the number of times we need to check if a doc is a hit *
+        // 10 * self.num_terms.
+        self.intersection_docset.size_hint() as u64 * 10 * self.num_terms as u64
     }
 }
 
 impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);

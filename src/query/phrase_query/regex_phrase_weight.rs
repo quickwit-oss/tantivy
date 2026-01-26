@@ -81,8 +81,7 @@ impl RegexPhraseWeight {
             num_terms += term_infos.len();
             if num_terms > self.max_expansions as usize {
                 return Err(crate::TantivyError::InvalidArgument(format!(
-                    "Phrase query exceeded max expansions {}",
-                    num_terms
+                    "Phrase query exceeded max expansions {num_terms}"
                 )));
             }
             let union = Self::get_union_from_term_infos(&term_infos, reader, &inverted_index)?;
@@ -312,7 +311,7 @@ mod tests {
         #![proptest_config(ProptestConfig::with_cases(50))]
         #[test]
         fn test_phrase_regex_with_random_strings(mut random_strings in proptest::collection::vec("[c-z ]{0,10}", 1..100), num_occurrences in 1..150_usize) {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
 
             // Insert "aaa ccc" the specified number of times into the list
             for _ in 0..num_occurrences {

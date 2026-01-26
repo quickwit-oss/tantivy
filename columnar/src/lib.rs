@@ -17,14 +17,9 @@
 //!       column.
 //!     - [column_values]: Stores the values of a column in a dense format.
 
-#![cfg_attr(all(feature = "unstable", test), feature(test))]
-
 #[cfg(test)]
 #[macro_use]
 extern crate more_asserts;
-
-#[cfg(all(test, feature = "unstable"))]
-extern crate test;
 
 use std::fmt::Display;
 use std::io;
@@ -53,7 +48,7 @@ pub use columnar::{
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 
-pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
+pub use self::dynamic_column::{ColumnSpaceUsage, DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 pub type DocId = u32;

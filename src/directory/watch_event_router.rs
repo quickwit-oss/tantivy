@@ -90,10 +90,7 @@ impl WatchCallbackList {
                 let _ = sender.send(Ok(()));
             });
         if let Err(err) = spawn_res {
-            error!(
-                "Failed to spawn thread to call watch callbacks. Cause: {:?}",
-                err
-            );
+            error!("Failed to spawn thread to call watch callbacks. Cause: {err:?}");
         }
         result
     }

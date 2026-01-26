@@ -242,6 +242,3 @@ impl<T: Copy + PartialOrd + Debug + 'static> ColumnValues<T> for Arc<dyn ColumnV
             .get_row_ids_for_value_range(range, doc_id_range, positions)
     }
 }
-
-#[cfg(all(test, feature = "unstable"))]
-mod bench;

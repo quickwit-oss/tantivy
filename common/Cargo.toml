@@ -1,6 +1,6 @@
 [package]
 name = "tantivy-common"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["Paul Masurel <paul@quickwit.io>", "Pascal Seitz <pascal@quickwit.io>"]
 license = "MIT"
 edition = "2024"
@@ -21,5 +21,5 @@ serde = { version = "1.0.136", features = ["derive"] }
 [dev-dependencies]
 binggan = "0.14.0"
 proptest = "1.0.0"
-rand = "0.8.4"
+rand = "0.9"
 

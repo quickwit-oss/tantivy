@@ -2,15 +2,440 @@ use serde_json::Value;
 
 use crate::aggregation::agg_req::{Aggregation, Aggregations};
 use crate::aggregation::agg_result::AggregationResults;
-use crate::aggregation::buf_collector::DOC_BLOCK_SIZE;
 use crate::aggregation::collector::AggregationCollector;
 use crate::aggregation::intermediate_agg_result::IntermediateAggregationResults;
-use crate::aggregation::segment_agg_result::AggregationLimitsGuard;
 use crate::aggregation::tests::{get_test_index_2_segments, get_test_index_from_values_and_terms};
 use crate::aggregation::DistributedAggregationCollector;
+use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::query::{AllQuery, TermQuery};
 use crate::schema::{IndexRecordOption, Schema, FAST};
 use crate::{Index, IndexWriter, Term};
+
+// The following tests ensure that each bucket aggregation type correctly functions as a
+// sub-aggregation of another bucket aggregation in two scenarios:
+// 1) The parent has more buckets than the child sub-aggregation
+// 2) The child sub-aggregation has more buckets than the parent
+//
+// These scenarios exercise the bucket id mapping and sub-aggregation routing logic.
+
+#[test]
+fn test_terms_as_subagg_parent_more_vs_child_more() -> crate::Result<()> {
+    let index = get_test_index_2_segments(false)?;
+
+    // Case A: parent has more buckets than child
+    // Parent: range with 4 buckets
+    // Child: terms on text -> 2 buckets
+    let agg_parent_more: Aggregations = serde_json::from_value(json!({
+        "parent_range": {
+            "range": {
+                "field": "score",
+                "ranges": [
+                    {"to": 3.0},
+                    {"from": 3.0, "to": 7.0},
+                    {"from": 7.0, "to": 20.0},
+                    {"from": 20.0}
+                ]
+            },
+            "aggs": {
+                "child_terms": {"terms": {"field": "text", "order": {"_key": "asc"}}}
+            }
+        }
+    }))
+    .unwrap();
+
+    let res = crate::aggregation::tests::exec_request(agg_parent_more, &index)?;
+    // Exact expected structure and counts
+    assert_eq!(
+        res["parent_range"]["buckets"],
+        json!([
+            {
+                "key": "*-3",
+                "doc_count": 1,
+                "to": 3.0,
+                "child_terms": {
+                    "buckets": [
+                        {"doc_count": 1, "key": "cool"}
+                    ],
+                    "sum_other_doc_count": 0
+                }
+            },
+            {
+                "key": "3-7",
+                "doc_count": 3,
+                "from": 3.0,
+                "to": 7.0,
+                "child_terms": {
+                    "buckets": [
+                        {"doc_count": 2, "key": "cool"},
+                        {"doc_count": 1, "key": "nohit"}
+                    ],
+                    "sum_other_doc_count": 0
+                }
+            },
+            {
+                "key": "7-20",
+                "doc_count": 3,
+                "from": 7.0,
+                "to": 20.0,
+                "child_terms": {
+                    "buckets": [
+                        {"doc_count": 3, "key": "cool"}
+                    ],
+                    "sum_other_doc_count": 0
+                }
+            },
+            {
+                "key": "20-*",
+                "doc_count": 2,
+                "from": 20.0,
+                "child_terms": {
+                    "buckets": [
+                        {"doc_count": 1, "key": "cool"},
+                        {"doc_count": 1, "key": "nohit"}
+                    ],
+                    "sum_other_doc_count": 0
+                }
+            }
+        ])
+    );
+
+    // Case B: child has more buckets than parent
+    // Parent: histogram on score with large interval -> 1 bucket
+    // Child: terms on text -> 2 buckets (cool/nohit)
+    let agg_child_more: Aggregations = serde_json::from_value(json!({
+        "parent_hist": {
+            "histogram": {"field": "score", "interval": 100.0},
+            "aggs": {
+                "child_terms": {"terms": {"field": "text", "order": {"_key": "asc"}}}
+            }
+        }
+    }))
+    .unwrap();
+
+    let res = crate::aggregation::tests::exec_request(agg_child_more, &index)?;
+    assert_eq!(
+        res["parent_hist"],
+        json!({
+            "buckets": [
+                {
+                    "key": 0.0,
+                    "doc_count": 9,
+                    "child_terms": {
+                        "buckets": [
+                            {"doc_count": 7, "key": "cool"},
+                            {"doc_count": 2, "key": "nohit"}
+                        ],
+                        "sum_other_doc_count": 0
+                    }
+                }
+            ]
+        })
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_range_as_subagg_parent_more_vs_child_more() -> crate::Result<()> {
+    let index = get_test_index_2_segments(false)?;
+
+    // Case A: parent has more buckets than child
+    // Parent: range with 5 buckets
+    // Child: coarse range with 3 buckets
+    let agg_parent_more: Aggregations = serde_json::from_value(json!({
+        "parent_range": {
+            "range": {
+                "field": "score",
+                "ranges": [
+                    {"to": 3.0},
+                    {"from": 3.0, "to": 7.0},
+                    {"from": 7.0, "to": 11.0},
+                    {"from": 11.0, "to": 20.0},
+                    {"from": 20.0}
+                ]
+            },
+            "aggs": {
+                "child_range": {
+                    "range": {
+                        "field": "score",
+                        "ranges": [
+                            {"to": 3.0},
+                            {"from": 3.0, "to": 20.0}
+                        ]
+                    }
+                }
+            }
+        }
+    }))
+    .unwrap();
+    let res = crate::aggregation::tests::exec_request(agg_parent_more, &index)?;
+    assert_eq!(
+        res["parent_range"]["buckets"],
+        json!([
+            {"key": "*-3", "doc_count": 1, "to": 3.0,
+                "child_range": {"buckets": [
+                    {"key": "*-3", "doc_count": 1, "to": 3.0},
+                    {"key": "3-20", "doc_count": 0, "from": 3.0, "to": 20.0},
+                    {"key": "20-*", "doc_count": 0, "from": 20.0}
+                ]}
+            },
+            {"key": "3-7", "doc_count": 3, "from": 3.0, "to": 7.0,
+                "child_range": {"buckets": [
+                    {"key": "*-3", "doc_count": 0, "to": 3.0},
+                    {"key": "3-20", "doc_count": 3, "from": 3.0, "to": 20.0},
+                    {"key": "20-*", "doc_count": 0, "from": 20.0}
+                ]}
+            },
+            {"key": "7-11", "doc_count": 1, "from": 7.0, "to": 11.0,
+                "child_range": {"buckets": [
+                    {"key": "*-3", "doc_count": 0, "to": 3.0},
+                    {"key": "3-20", "doc_count": 1, "from": 3.0, "to": 20.0},
+                    {"key": "20-*", "doc_count": 0, "from": 20.0}
+                ]}
+            },
+            {"key": "11-20", "doc_count": 2, "from": 11.0, "to": 20.0,
+                "child_range": {"buckets": [
+                    {"key": "*-3", "doc_count": 0, "to": 3.0},
+                    {"key": "3-20", "doc_count": 2, "from": 3.0, "to": 20.0},
+                    {"key": "20-*", "doc_count": 0, "from": 20.0}
+                ]}
+            },
+            {"key": "20-*", "doc_count": 2, "from": 20.0,
+                "child_range": {"buckets": [
+                    {"key": "*-3", "doc_count": 0, "to": 3.0},
+                    {"key": "3-20", "doc_count": 0, "from": 3.0, "to": 20.0},
+                    {"key": "20-*", "doc_count": 2, "from": 20.0}
+                ]}
+            }
+        ])
+    );
+
+    // Case B: child has more buckets than parent
+    // Parent: terms on text (2 buckets)
+    // Child: range with 4 buckets
+    let agg_child_more: Aggregations = serde_json::from_value(json!({
+        "parent_terms": {
+            "terms": {"field": "text"},
+            "aggs": {
+                "child_range": {
+                    "range": {
+                        "field": "score",
+                        "ranges": [
+                            {"to": 3.0},
+                            {"from": 3.0, "to": 7.0},
+                            {"from": 7.0, "to": 20.0}
+                        ]
+                    }
+                }
+            }
+        }
+    }))
+    .unwrap();
+    let res = crate::aggregation::tests::exec_request(agg_child_more, &index)?;
+
+    assert_eq!(
+        res["parent_terms"],
+        json!({
+            "buckets": [
+                {
+                    "key": "cool",
+                    "doc_count": 7,
+                    "child_range": {
+                        "buckets": [
+                            {"key": "*-3", "doc_count": 1, "to": 3.0},
+                            {"key": "3-7", "doc_count": 2, "from": 3.0, "to": 7.0},
+                            {"key": "7-20", "doc_count": 3, "from": 7.0, "to": 20.0},
+                            {"key": "20-*", "doc_count": 1, "from": 20.0}
+                        ]
+                    }
+                },
+                {
+                    "key": "nohit",
+                    "doc_count": 2,
+                    "child_range": {
+                        "buckets": [
+                            {"key": "*-3", "doc_count": 0, "to": 3.0},
+                            {"key": "3-7", "doc_count": 1, "from": 3.0, "to": 7.0},
+                            {"key": "7-20", "doc_count": 0, "from": 7.0, "to": 20.0},
+                            {"key": "20-*", "doc_count": 1, "from": 20.0}
+                        ]
+                    }
+                }
+            ],
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0
+        })
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_histogram_as_subagg_parent_more_vs_child_more() -> crate::Result<()> {
+    let index = get_test_index_2_segments(false)?;
+
+    // Case A: parent has more buckets than child
+    // Parent: range with several ranges
+    // Child: histogram with large interval (single bucket per parent)
+    let agg_parent_more: Aggregations = serde_json::from_value(json!({
+        "parent_range": {
+            "range": {
+                "field": "score",
+                "ranges": [
+                    {"to": 3.0},
+                    {"from": 3.0, "to": 7.0},
+                    {"from": 7.0, "to": 11.0},
+                    {"from": 11.0, "to": 20.0},
+                    {"from": 20.0}
+                ]
+            },
+            "aggs": {
+                "child_hist": {"histogram": {"field": "score", "interval": 100.0}}
+            }
+        }
+    }))
+    .unwrap();
+    let res = crate::aggregation::tests::exec_request(agg_parent_more, &index)?;
+    assert_eq!(
+        res["parent_range"]["buckets"],
+        json!([
+            {"key": "*-3", "doc_count": 1, "to": 3.0,
+                "child_hist": {"buckets": [ {"key": 0.0, "doc_count": 1} ]}
+            },
+            {"key": "3-7", "doc_count": 3, "from": 3.0, "to": 7.0,
+                "child_hist": {"buckets": [ {"key": 0.0, "doc_count": 3} ]}
+            },
+            {"key": "7-11", "doc_count": 1, "from": 7.0, "to": 11.0,
+                "child_hist": {"buckets": [ {"key": 0.0, "doc_count": 1} ]}
+            },
+            {"key": "11-20", "doc_count": 2, "from": 11.0, "to": 20.0,
+                "child_hist": {"buckets": [ {"key": 0.0, "doc_count": 2} ]}
+            },
+            {"key": "20-*", "doc_count": 2, "from": 20.0,
+                "child_hist": {"buckets": [ {"key": 0.0, "doc_count": 2} ]}
+            }
+        ])
+    );
+
+    // Case B: child has more buckets than parent
+    // Parent: terms on text -> 2 buckets
+    // Child: histogram with small interval -> multiple buckets including empties
+    let agg_child_more: Aggregations = serde_json::from_value(json!({
+        "parent_terms": {
+            "terms": {"field": "text"},
+            "aggs": {
+                "child_hist": {"histogram": {"field": "score", "interval": 10.0}}
+            }
+        }
+    }))
+    .unwrap();
+    let res = crate::aggregation::tests::exec_request(agg_child_more, &index)?;
+    assert_eq!(
+        res["parent_terms"],
+        json!({
+            "buckets": [
+                {
+                    "key": "cool",
+                    "doc_count": 7,
+                    "child_hist": {
+                        "buckets": [
+                            {"key": 0.0, "doc_count": 4},
+                            {"key": 10.0, "doc_count": 2},
+                            {"key": 20.0, "doc_count": 0},
+                            {"key": 30.0, "doc_count": 0},
+                            {"key": 40.0, "doc_count": 1}
+                        ]
+                    }
+                },
+                {
+                    "key": "nohit",
+                    "doc_count": 2,
+                    "child_hist": {
+                        "buckets": [
+                            {"key": 0.0, "doc_count": 1},
+                            {"key": 10.0, "doc_count": 0},
+                            {"key": 20.0, "doc_count": 0},
+                            {"key": 30.0, "doc_count": 0},
+                            {"key": 40.0, "doc_count": 1}
+                        ]
+                    }
+                }
+            ],
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0
+        })
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_date_histogram_as_subagg_parent_more_vs_child_more() -> crate::Result<()> {
+    let index = get_test_index_2_segments(false)?;
+
+    // Case A: parent has more buckets than child
+    // Parent: range with several buckets
+    // Child: date_histogram with 30d -> single bucket per parent
+    let agg_parent_more: Aggregations = serde_json::from_value(json!({
+        "parent_range": {
+            "range": {
+                "field": "score",
+                "ranges": [
+                    {"to": 3.0},
+                    {"from": 3.0, "to": 7.0},
+                    {"from": 7.0, "to": 11.0},
+                    {"from": 11.0, "to": 20.0},
+                    {"from": 20.0}
+                ]
+            },
+            "aggs": {
+                "child_date_hist": {"date_histogram": {"field": "date", "fixed_interval": "30d"}}
+            }
+        }
+    }))
+    .unwrap();
+    let res = crate::aggregation::tests::exec_request(agg_parent_more, &index)?;
+    let buckets = res["parent_range"]["buckets"].as_array().unwrap();
+    // Verify each parent bucket has exactly one child date bucket with matching doc_count
+    for bucket in buckets {
+        let parent_count = bucket["doc_count"].as_u64().unwrap();
+        let child_buckets = bucket["child_date_hist"]["buckets"].as_array().unwrap();
+        assert_eq!(child_buckets.len(), 1);
+        assert_eq!(child_buckets[0]["doc_count"], parent_count);
+    }
+
+    // Case B: child has more buckets than parent
+    // Parent: terms on text (2 buckets)
+    // Child: date_histogram with 1d -> multiple buckets
+    let agg_child_more: Aggregations = serde_json::from_value(json!({
+        "parent_terms": {
+            "terms": {"field": "text"},
+            "aggs": {
+                "child_date_hist": {"date_histogram": {"field": "date", "fixed_interval": "1d"}}
+            }
+        }
+    }))
+    .unwrap();
+    let res = crate::aggregation::tests::exec_request(agg_child_more, &index)?;
+    let buckets = res["parent_terms"]["buckets"].as_array().unwrap();
+
+    // cool bucket
+    assert_eq!(buckets[0]["key"], "cool");
+    let cool_buckets = buckets[0]["child_date_hist"]["buckets"].as_array().unwrap();
+    assert_eq!(cool_buckets.len(), 3);
+    assert_eq!(cool_buckets[0]["doc_count"], 1); // day 0
+    assert_eq!(cool_buckets[1]["doc_count"], 4); // day 1
+    assert_eq!(cool_buckets[2]["doc_count"], 2); // day 2
+
+    // nohit bucket
+    assert_eq!(buckets[1]["key"], "nohit");
+    let nohit_buckets = buckets[1]["child_date_hist"]["buckets"].as_array().unwrap();
+    assert_eq!(nohit_buckets.len(), 2);
+    assert_eq!(nohit_buckets[0]["doc_count"], 1); // day 1
+    assert_eq!(nohit_buckets[1]["doc_count"], 1); // day 2
+
+    Ok(())
+}
 
 fn get_avg_req(field_name: &str) -> Aggregation {
     serde_json::from_value(json!({
@@ -26,6 +451,10 @@ fn get_collector(agg_req: Aggregations) -> AggregationCollector {
 }
 
 // *** EVERY BUCKET-TYPE SHOULD BE TESTED HERE ***
+// Note: The flushng part of these  tests are outdated, since the buffering change after converting
+// the collection into one collector per request instead of per bucket.
+//
+// However they are useful as they test a complex aggregation requests.
 fn test_aggregation_flushing(
     merge_segments: bool,
     use_distributed_collector: bool,
@@ -38,8 +467,9 @@ fn test_aggregation_flushing(
 
     let reader = index.reader()?;
 
-    assert_eq!(DOC_BLOCK_SIZE, 64);
-    // In the tree we cache Documents of DOC_BLOCK_SIZE, before passing them down as one block.
+    assert_eq!(COLLECT_BLOCK_BUFFER_LEN, 64);
+    // In the tree we cache documents of COLLECT_BLOCK_BUFFER_LEN before passing them down as one
+    // block.
     //
     // Build a request so that on the first level we have one full cache, which is then flushed.
     // The same cache should have some residue docs at the end, which are flushed (Range 0-70)
@@ -128,10 +558,8 @@ fn test_aggregation_flushing(
             .unwrap();
 
     let agg_res: AggregationResults = if use_distributed_collector {
-        let collector = DistributedAggregationCollector::from_aggs(
-            agg_req.clone(),
-            AggregationLimitsGuard::default(),
-        );
+        let collector =
+            DistributedAggregationCollector::from_aggs(agg_req.clone(), Default::default());
 
         let searcher = reader.searcher();
         let intermediate_agg_result = searcher.search(&AllQuery, &collector).unwrap();

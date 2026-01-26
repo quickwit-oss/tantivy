@@ -1,7 +1,8 @@
 use binggan::plugins::PeakMemAllocPlugin;
 use binggan::{black_box, InputGroup, PeakMemAlloc, INSTRUMENTED_SYSTEM};
-use rand::prelude::SliceRandom;
+use rand::distr::weighted::WeightedIndex;
 use rand::rngs::StdRng;
+use rand::seq::IndexedRandom;
 use rand::{Rng, SeedableRng};
 use rand_distr::Distribution;
 use serde_json::json;
@@ -53,25 +54,40 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, stats_f64);
     register!(group, extendedstats_f64);
     register!(group, percentiles_f64);
-    register!(group, terms_few);
-    register!(group, terms_many);
+    register!(group, terms_7);
+    register!(group, terms_all_unique);
+    register!(group, terms_150_000);
     register!(group, terms_many_top_1000);
     register!(group, terms_many_order_by_term);
     register!(group, terms_many_with_top_hits);
+    register!(group, terms_all_unique_with_avg_sub_agg);
     register!(group, terms_many_with_avg_sub_agg);
+    register!(group, terms_status_with_avg_sub_agg);
+    register!(group, terms_status_with_histogram);
+    register!(group, terms_zipf_1000);
+    register!(group, terms_zipf_1000_with_histogram);
+    register!(group, terms_zipf_1000_with_avg_sub_agg);
+
     register!(group, terms_many_json_mixed_type_with_avg_sub_agg);
 
     register!(group, cardinality_agg);
-    register!(group, terms_few_with_cardinality_agg);
+    register!(group, terms_status_with_cardinality_agg);
 
     register!(group, range_agg);
     register!(group, range_agg_with_avg_sub_agg);
-    register!(group, range_agg_with_term_agg_few);
+    register!(group, range_agg_with_term_agg_status);
     register!(group, range_agg_with_term_agg_many);
     register!(group, histogram);
     register!(group, histogram_hard_bounds);
     register!(group, histogram_with_avg_sub_agg);
+    register!(group, histogram_with_term_agg_status);
     register!(group, avg_and_range_with_avg_sub_agg);
+
+    // Filter aggregation benchmarks
+    register!(group, filter_agg_all_query_count_agg);
+    register!(group, filter_agg_term_query_count_agg);
+    register!(group, filter_agg_all_query_with_sub_aggs);
+    register!(group, filter_agg_term_query_with_sub_aggs);
 
     group.run();
 }
@@ -123,12 +139,12 @@ fn extendedstats_f64(index: &Index) {
 }
 fn percentiles_f64(index: &Index) {
     let agg_req = json!({
-      "mypercentiles": {
-        "percentiles": {
-          "field": "score_f64",
-          "percents": [ 95, 99, 99.9 ]
+        "mypercentiles": {
+            "percentiles": {
+                "field": "score_f64",
+                "percents": [ 95, 99, 99.9 ]
+            }
         }
-      }
     });
     execute_agg(index, agg_req);
 }
@@ -143,10 +159,10 @@ fn cardinality_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
-fn terms_few_with_cardinality_agg(index: &Index) {
+fn terms_status_with_cardinality_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
-            "terms": { "field": "text_few_terms" },
+            "terms": { "field": "text_few_terms_status" },
             "aggs": {
                 "cardinality": {
                     "cardinality": {
@@ -159,13 +175,20 @@ fn terms_few_with_cardinality_agg(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn terms_few(index: &Index) {
+fn terms_7(index: &Index) {
     let agg_req = json!({
-        "my_texts": { "terms": { "field": "text_few_terms" } },
+        "my_texts": { "terms": { "field": "text_few_terms_status" } },
     });
     execute_agg(index, agg_req);
 }
-fn terms_many(index: &Index) {
+fn terms_all_unique(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "terms": { "field": "text_all_unique_terms" } },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_150_000(index: &Index) {
     let agg_req = json!({
         "my_texts": { "terms": { "field": "text_many_terms" } },
     });
@@ -213,6 +236,72 @@ fn terms_many_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+fn terms_all_unique_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_all_unique_terms" },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+fn terms_status_with_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "histo": {"histogram": { "field": "score_f64", "interval": 10 }}
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_zipf_1000_with_histogram(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_1000_terms_zipf" },
+            "aggs": {
+                "histo": {"histogram": { "field": "score_f64", "interval": 10 }}
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_status_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_zipf_1000_with_avg_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_1000_terms_zipf" },
+            "aggs": {
+                "average_f64": { "avg": { "field": "score_f64" } }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_zipf_1000(index: &Index) {
+    let agg_req = json!({
+        "my_texts": { "terms": { "field": "text_1000_terms_zipf" } },
+    });
+    execute_agg(index, agg_req);
+}
+
 fn terms_many_json_mixed_type_with_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
@@ -268,7 +357,7 @@ fn range_agg_with_avg_sub_agg(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn range_agg_with_term_agg_few(index: &Index) {
+fn range_agg_with_term_agg_status(index: &Index) {
     let agg_req = json!({
         "rangef64": {
             "range": {
@@ -283,7 +372,7 @@ fn range_agg_with_term_agg_few(index: &Index) {
                 ]
             },
             "aggs": {
-                "my_texts": { "terms": { "field": "text_few_terms" } },
+                "my_texts": { "terms": { "field": "text_few_terms_status" } },
             }
         },
     });
@@ -339,6 +428,17 @@ fn histogram_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+fn histogram_with_term_agg_status(index: &Index) {
+    let agg_req = json!({
+        "rangef64": {
+            "histogram": { "field": "score_f64", "interval": 10 },
+            "aggs": {
+                "my_texts": { "terms": { "field": "text_few_terms_status" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
 fn avg_and_range_with_avg_sub_agg(index: &Index) {
     let agg_req = json!({
         "rangef64": {
@@ -378,6 +478,13 @@ fn get_collector(agg_req: Aggregations) -> AggregationCollector {
 }
 
 fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
+    // Flag to use existing index
+    let reuse_index = std::env::var("REUSE_AGG_BENCH_INDEX").is_ok();
+    if reuse_index && std::path::Path::new("agg_bench").exists() {
+        return Index::open_in_dir("agg_bench");
+    }
+    // crreate dir
+    std::fs::create_dir_all("agg_bench")?;
     let mut schema_builder = Schema::builder();
     let text_fieldtype = tantivy::schema::TextOptions::default()
         .set_indexing_options(
@@ -386,20 +493,47 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         .set_stored();
     let text_field = schema_builder.add_text_field("text", text_fieldtype);
     let json_field = schema_builder.add_json_field("json", FAST);
+    let text_field_all_unique_terms =
+        schema_builder.add_text_field("text_all_unique_terms", STRING | FAST);
     let text_field_many_terms = schema_builder.add_text_field("text_many_terms", STRING | FAST);
-    let text_field_few_terms = schema_builder.add_text_field("text_few_terms", STRING | FAST);
+    let text_field_few_terms_status =
+        schema_builder.add_text_field("text_few_terms_status", STRING | FAST);
+    let text_field_1000_terms_zipf =
+        schema_builder.add_text_field("text_1000_terms_zipf", STRING | FAST);
     let score_fieldtype = tantivy::schema::NumericOptions::default().set_fast();
     let score_field = schema_builder.add_u64_field("score", score_fieldtype.clone());
     let score_field_f64 = schema_builder.add_f64_field("score_f64", score_fieldtype.clone());
     let score_field_i64 = schema_builder.add_i64_field("score_i64", score_fieldtype);
-    let index = Index::create_from_tempdir(schema_builder.build())?;
-    let few_terms_data = ["INFO", "ERROR", "WARN", "DEBUG"];
+    // use tmp dir
+    let index = if reuse_index {
+        Index::create_in_dir("agg_bench", schema_builder.build())?
+    } else {
+        Index::create_from_tempdir(schema_builder.build())?
+    };
+    // Approximate log proportions
+    let status_field_data = [
+        ("INFO", 8000),
+        ("ERROR", 300),
+        ("WARN", 1200),
+        ("DEBUG", 500),
+        ("OK", 500),
+        ("CRITICAL", 20),
+        ("EMERGENCY", 1),
+    ];
+    let log_level_distribution =
+        WeightedIndex::new(status_field_data.iter().map(|item| item.1)).unwrap();
 
     let lg_norm = rand_distr::LogNormal::new(2.996f64, 0.979f64).unwrap();
 
     let many_terms_data = (0..150_000)
         .map(|num| format!("author{num}"))
         .collect::<Vec<_>>();
+
+    // Prepare 1000 unique terms sampled using a Zipf distribution.
+    // Exponent ~1.1 approximates top-20 terms covering around ~20%.
+    let terms_1000: Vec<String> = (1..=1000).map(|i| format!("term_{i}")).collect();
+    let zipf_1000 = rand_distr::Zipf::new(1000.0, 1.1f64).unwrap();
+
     {
         let mut rng = StdRng::from_seed([1u8; 32]);
         let mut index_writer = index.writer_with_num_threads(1, 200_000_000)?;
@@ -409,15 +543,25 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             index_writer.add_document(doc!())?;
         }
         if cardinality == Cardinality::Multivalued {
+            let log_level_sample_a = status_field_data[log_level_distribution.sample(&mut rng)].0;
+            let log_level_sample_b = status_field_data[log_level_distribution.sample(&mut rng)].0;
+            let idx_a = zipf_1000.sample(&mut rng) as usize - 1;
+            let idx_b = zipf_1000.sample(&mut rng) as usize - 1;
+            let term_1000_a = &terms_1000[idx_a];
+            let term_1000_b = &terms_1000[idx_b];
             index_writer.add_document(doc!(
                 json_field => json!({"mixed_type": 10.0}),
                 json_field => json!({"mixed_type": 10.0}),
                 text_field => "cool",
                 text_field => "cool",
+                text_field_all_unique_terms => "cool",
+                text_field_all_unique_terms => "coolo",
                 text_field_many_terms => "cool",
                 text_field_many_terms => "cool",
-                text_field_few_terms => "cool",
-                text_field_few_terms => "cool",
+                text_field_few_terms_status => log_level_sample_a,
+                text_field_few_terms_status => log_level_sample_b,
+                text_field_1000_terms_zipf => term_1000_a.as_str(),
+                text_field_1000_terms_zipf => term_1000_b.as_str(),
                 score_field => 1u64,
                 score_field => 1u64,
                 score_field_f64 => lg_norm.sample(&mut rng),
@@ -432,8 +576,8 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
         }
         let _val_max = 1_000_000.0;
         for _ in 0..doc_with_value {
-            let val: f64 = rng.gen_range(0.0..1_000_000.0);
-            let json = if rng.gen_bool(0.1) {
+            let val: f64 = rng.random_range(0.0..1_000_000.0);
+            let json = if rng.random_bool(0.1) {
                 // 10% are numeric values
                 json!({ "mixed_type": val })
             } else {
@@ -442,8 +586,10 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
             index_writer.add_document(doc!(
                 text_field => "cool",
                 json_field => json,
+                text_field_all_unique_terms => format!("unique_term_{}", rng.random::<u64>()),
                 text_field_many_terms => many_terms_data.choose(&mut rng).unwrap().to_string(),
-                text_field_few_terms => few_terms_data.choose(&mut rng).unwrap().to_string(),
+                text_field_few_terms_status => status_field_data[log_level_distribution.sample(&mut rng)].0,
+                text_field_1000_terms_zipf => terms_1000[zipf_1000.sample(&mut rng) as usize - 1].as_str(),
                 score_field => val as u64,
                 score_field_f64 => lg_norm.sample(&mut rng),
                 score_field_i64 => val as i64,
@@ -459,4 +605,62 @@ fn get_test_index_bench(cardinality: Cardinality) -> tantivy::Result<Index> {
     }
 
     Ok(index)
+}
+
+// Filter aggregation benchmarks
+
+fn filter_agg_all_query_count_agg(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "*",
+            "aggs": {
+                "count": { "value_count": { "field": "score" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn filter_agg_term_query_count_agg(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "text:cool",
+            "aggs": {
+                "count": { "value_count": { "field": "score" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn filter_agg_all_query_with_sub_aggs(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "*",
+            "aggs": {
+                "avg_score": { "avg": { "field": "score" } },
+                "stats_score": { "stats": { "field": "score_f64" } },
+                "terms_text": {
+                    "terms": { "field": "text_few_terms_status" }
+                }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn filter_agg_term_query_with_sub_aggs(index: &Index) {
+    let agg_req = json!({
+        "filtered": {
+            "filter": "text:cool",
+            "aggs": {
+                "avg_score": { "avg": { "field": "score" } },
+                "stats_score": { "stats": { "field": "score_f64" } },
+                "terms_text": {
+                    "terms": { "field": "text_few_terms_status" }
+                }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
 }

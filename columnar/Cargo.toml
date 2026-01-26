@@ -1,6 +1,6 @@
 [package]
 name = "tantivy-columnar"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 license = "MIT"
 homepage = "https://github.com/quickwit-oss/tantivy"
@@ -12,17 +12,17 @@ categories = ["database-implementations", "data-structures", "compression"]
 itertools = "0.14.0"
 fastdivide = "0.4.0"
 
-stacker = { version= "0.5", path = "../stacker", package="tantivy-stacker"}
-sstable = { version= "0.5", path = "../sstable", package = "tantivy-sstable" }
-common = { version= "0.9", path = "../common", package = "tantivy-common" }
-tantivy-bitpacker = { version= "0.8", path = "../bitpacker/" }
+stacker = { version= "0.6", path = "../stacker", package="tantivy-stacker"}
+sstable = { version= "0.6", path = "../sstable", package = "tantivy-sstable" }
+common = { version= "0.10", path = "../common", package = "tantivy-common" }
+tantivy-bitpacker = { version= "0.9", path = "../bitpacker/" }
 serde = "1.0.152"
 downcast-rs = "2.0.1"
 
 [dev-dependencies]
 proptest = "1"
 more-asserts = "0.3.1"
-rand = "0.8"
+rand = "0.9"
 binggan = "0.14.0"
 
 [[bench]]
@@ -33,6 +33,29 @@ harness = false
 name = "bench_access"
 harness = false
 
+[[bench]]
+name = "bench_first_vals"
+harness = false
+
+[[bench]]
+name = "bench_values_u64"
+harness = false
+
+[[bench]]
+name = "bench_values_u128"
+harness = false
+
+[[bench]]
+name = "bench_create_column_values"
+harness = false
+
+[[bench]]
+name = "bench_column_values_get"
+harness = false
+
+[[bench]]
+name = "bench_optional_index"
+harness = false
+
 [features]
-unstable = []
 zstd-compression = ["sstable/zstd-compression"]

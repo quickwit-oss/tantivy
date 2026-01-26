@@ -6,8 +6,8 @@ use std::net::Ipv6Addr;
 use std::ops::{Bound, RangeInclusive};
 
 use columnar::{
-    Column, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64, NumericalType,
-    StrColumn,
+    Cardinality, Column, ColumnType, MonotonicallyMappableToU128, MonotonicallyMappableToU64,
+    NumericalType, StrColumn,
 };
 use common::bounds::{BoundsRange, TransformBound};
 
@@ -177,8 +177,7 @@ impl Weight for FastFieldRangeWeight {
         } else {
             assert!(
                 maps_to_u64_fastfield(field_type.value_type()),
-                "{:?}",
-                field_type
+                "{field_type:?}"
             );
 
             let bounds = self.bounds.map_bound_res(|term| {
@@ -193,8 +192,7 @@ impl Weight for FastFieldRangeWeight {
                     val.to_u64()
                 } else {
                     return Err(TantivyError::InvalidArgument(format!(
-                        "Expected term with u64, i64, f64 or date, but got {:?}",
-                        term
+                        "Expected term with u64, i64, f64 or date, but got {term:?}"
                     )));
                 };
                 Ok(val)
@@ -254,16 +252,13 @@ fn search_on_json_numerical_field(
     else {
         return Ok(Box::new(EmptyScorer));
     };
-    let actual_column_type: NumericalType = col_type.numerical_type().unwrap_or_else(|| {
-        panic!(
-            "internal error: couldn't cast to numerical_type: {:?}",
-            col_type
-        )
-    });
+    let actual_column_type: NumericalType = col_type
+        .numerical_type()
+        .unwrap_or_else(|| panic!("internal error: couldn't cast to numerical_type: {col_type:?}"));
 
     let bounds = match typ.numerical_type().unwrap() {
         NumericalType::I64 => {
-            let bounds = bounds.map_bound(|term| (term.as_i64().unwrap()));
+            let bounds = bounds.map_bound(|term| term.as_i64().unwrap());
             match actual_column_type {
                 NumericalType::I64 => bounds.map_bound(|&term| term.to_u64()),
                 NumericalType::U64 => {
@@ -287,7 +282,7 @@ fn search_on_json_numerical_field(
             }
         }
         NumericalType::U64 => {
-            let bounds = bounds.map_bound(|term| (term.as_u64().unwrap()));
+            let bounds = bounds.map_bound(|term| term.as_u64().unwrap());
             match actual_column_type {
                 NumericalType::U64 => bounds.map_bound(|&term| term.to_u64()),
                 NumericalType::I64 => {
@@ -311,7 +306,7 @@ fn search_on_json_numerical_field(
             }
         }
         NumericalType::F64 => {
-            let bounds = bounds.map_bound(|term| (term.as_f64().unwrap()));
+            let bounds = bounds.map_bound(|term| term.as_f64().unwrap());
             match actual_column_type {
                 NumericalType::U64 => transform_from_f64_bounds::<u64>(&bounds),
                 NumericalType::I64 => transform_from_f64_bounds::<i64>(&bounds),
@@ -402,6 +397,8 @@ fn search_on_u64_ff(
     boost: Score,
     bounds: BoundsRange<u64>,
 ) -> crate::Result<Box<dyn Scorer>> {
+    let col_min_value = column.min_value();
+    let col_max_value = column.max_value();
     #[expect(clippy::reversed_empty_ranges)]
     let value_range = bound_to_value_range(
         &bounds.lower_bound,
@@ -413,6 +410,22 @@ fn search_on_u64_ff(
     if value_range.is_empty() {
         return Ok(Box::new(EmptyScorer));
     }
+    if col_min_value >= *value_range.start() && col_max_value <= *value_range.end() {
+        // all values in the column are within the range.
+        if column.index.get_cardinality() == Cardinality::Full {
+            if boost != 1.0f32 {
+                return Ok(Box::new(ConstScorer::new(
+                    AllScorer::new(column.num_docs()),
+                    boost,
+                )));
+            } else {
+                return Ok(Box::new(AllScorer::new(column.num_docs())));
+            }
+        } else {
+            // TODO Make it a field presence request for that specific column
+        }
+    }
+
     let docset = RangeDocSet::new(value_range, column);
     Ok(Box::new(ConstScorer::new(docset, boost)))
 }
@@ -478,7 +491,7 @@ mod tests {
     use common::DateTime;
     use proptest::prelude::*;
     use rand::rngs::StdRng;
-    use rand::seq::SliceRandom;
+    use rand::seq::IndexedRandom;
     use rand::SeedableRng;
     use time::format_description::well_known::Rfc3339;
     use time::OffsetDateTime;
@@ -514,7 +527,9 @@ mod tests {
 
         let test_query = |query, num_hits| {
             let query = query_parser.parse_query(query).unwrap();
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10).order_by_score())
+                .unwrap();
             assert_eq!(top_docs.len(), num_hits);
         };
 
@@ -600,7 +615,9 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![date_field]);
         let test_query = |query, num_hits| {
             let query = query_parser.parse_query(query).unwrap();
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10).order_by_score())
+                .unwrap();
             assert_eq!(top_docs.len(), num_hits);
         };
 
@@ -980,7 +997,9 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![json_field]);
         let test_query = |query, num_hits| {
             let query = query_parser.parse_query(query).unwrap();
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10).order_by_score())
+                .unwrap();
             assert_eq!(top_docs.len(), num_hits);
         };
 
@@ -1058,7 +1077,7 @@ mod tests {
     fn doc_from_id_1(id: u64) -> Doc {
         let id = id * 1000;
         Doc {
-            id_name: format!("id_name{:010}", id),
+            id_name: format!("id_name{id:010}"),
             id,
         }
     }
@@ -1242,7 +1261,7 @@ mod tests {
 
         let field_path = |field: &str| {
             if json {
-                format!("json.{}", field)
+                format!("json.{field}")
             } else {
                 field.to_string()
             }
@@ -1577,451 +1596,5 @@ pub(crate) mod ip_range_tests {
         }
 
         Ok(())
-    }
-}
-
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
-    use test::Bencher;
-
-    use super::tests::*;
-    use super::*;
-    use crate::collector::Count;
-    use crate::query::QueryParser;
-    use crate::Index;
-
-    fn get_index_0_to_100() -> Index {
-        let mut rng = StdRng::from_seed([1u8; 32]);
-        let num_vals = 100_000;
-        let docs: Vec<_> = (0..num_vals)
-            .map(|_i| {
-                let id_name = if rng.gen_bool(0.01) {
-                    "veryfew".to_string() // 1%
-                } else if rng.gen_bool(0.1) {
-                    "few".to_string() // 9%
-                } else {
-                    "many".to_string() // 90%
-                };
-                Doc {
-                    id_name,
-                    id: rng.gen_range(0..100),
-                }
-            })
-            .collect();
-
-        create_index_from_docs(&docs, false)
-    }
-
-    fn get_90_percent() -> RangeInclusive<u64> {
-        0..=90
-    }
-
-    fn get_10_percent() -> RangeInclusive<u64> {
-        0..=10
-    }
-
-    fn get_1_percent() -> RangeInclusive<u64> {
-        10..=10
-    }
-
-    fn execute_query(
-        field: &str,
-        id_range: RangeInclusive<u64>,
-        suffix: &str,
-        index: &Index,
-    ) -> usize {
-        let gen_query_inclusive = |from: &u64, to: &u64| {
-            format!(
-                "{}:[{} TO {}] {}",
-                field,
-                &from.to_string(),
-                &to.to_string(),
-                suffix
-            )
-        };
-
-        let query = gen_query_inclusive(id_range.start(), id_range.end());
-        let query_from_text = |text: &str| {
-            QueryParser::for_index(index, vec![])
-                .parse_query(text)
-                .unwrap()
-        };
-        let query = query_from_text(&query);
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        searcher.search(&query, &(Count)).unwrap()
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_90_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_10_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_1_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_10_percent_intersect_with_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_10_percent(), "AND id_name:few", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent_intersect_with_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_1_percent(), "AND id_name:few", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent_intersect_with_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_1_percent(), "AND id_name:many", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent_intersect_with_1_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_1_percent(), "AND id_name:veryfew", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_10_percent_intersect_with_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_10_percent(), "AND id_name:many", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent_intersect_with_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_90_percent(), "AND id_name:many", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent_intersect_with_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_90_percent(), "AND id_name:few", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent_intersect_with_1_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("id", get_90_percent(), "AND id_name:veryfew", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_90_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_10_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_1_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_10_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_10_percent(), "AND id_name:few", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_1_percent(), "AND id_name:few", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_1_percent(), "AND id_name:many", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_1_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_1_percent(), "AND id_name:veryfew", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_10_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_10_percent(), "AND id_name:many", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_90_percent(), "AND id_name:many", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_90_percent(), "AND id_name:few", &index));
-    }
-
-    #[bench]
-    fn bench_id_range_hit_90_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ids", get_90_percent(), "AND id_name:veryfew", &index));
-    }
-}
-
-#[cfg(all(test, feature = "unstable"))]
-mod bench_ip {
-
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
-    use test::Bencher;
-
-    use super::ip_range_tests::*;
-    use super::*;
-    use crate::collector::Count;
-    use crate::query::QueryParser;
-    use crate::Index;
-
-    fn get_index_0_to_100() -> Index {
-        let mut rng = StdRng::from_seed([1u8; 32]);
-        let num_vals = 100_000;
-        let docs: Vec<_> = (0..num_vals)
-            .map(|_i| {
-                let id = if rng.gen_bool(0.01) {
-                    "veryfew".to_string() // 1%
-                } else if rng.gen_bool(0.1) {
-                    "few".to_string() // 9%
-                } else {
-                    "many".to_string() // 90%
-                };
-                Doc {
-                    id,
-                    // Multiply by 1000, so that we create many buckets in the compact space
-                    // The benches depend on this range to select n-percent of elements with the
-                    // methods below.
-                    ip: Ipv6Addr::from_u128(rng.gen_range(0..100) * 1000),
-                }
-            })
-            .collect();
-
-        create_index_from_ip_docs(&docs)
-    }
-
-    fn get_90_percent() -> RangeInclusive<Ipv6Addr> {
-        let start = Ipv6Addr::from_u128(0);
-        let end = Ipv6Addr::from_u128(90 * 1000);
-        start..=end
-    }
-
-    fn get_10_percent() -> RangeInclusive<Ipv6Addr> {
-        let start = Ipv6Addr::from_u128(0);
-        let end = Ipv6Addr::from_u128(10 * 1000);
-        start..=end
-    }
-
-    fn get_1_percent() -> RangeInclusive<Ipv6Addr> {
-        let start = Ipv6Addr::from_u128(10 * 1000);
-        let end = Ipv6Addr::from_u128(10 * 1000);
-        start..=end
-    }
-
-    fn execute_query(
-        field: &str,
-        ip_range: RangeInclusive<Ipv6Addr>,
-        suffix: &str,
-        index: &Index,
-    ) -> usize {
-        let gen_query_inclusive = |from: &Ipv6Addr, to: &Ipv6Addr| {
-            format!(
-                "{}:[{} TO {}] {}",
-                field,
-                &from.to_string(),
-                &to.to_string(),
-                suffix
-            )
-        };
-
-        let query = gen_query_inclusive(ip_range.start(), ip_range.end());
-        let query_from_text = |text: &str| {
-            QueryParser::for_index(index, vec![])
-                .parse_query(text)
-                .unwrap()
-        };
-        let query = query_from_text(&query);
-        let reader = index.reader().unwrap();
-        let searcher = reader.searcher();
-        searcher.search(&query, &(Count)).unwrap()
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_90_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_10_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_1_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_10_percent_intersect_with_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_10_percent(), "AND id:few", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent_intersect_with_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_1_percent(), "AND id:few", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent_intersect_with_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_1_percent(), "AND id:many", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent_intersect_with_1_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_1_percent(), "AND id:veryfew", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_10_percent_intersect_with_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_10_percent(), "AND id:many", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent_intersect_with_90_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_90_percent(), "AND id:many", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent_intersect_with_10_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_90_percent(), "AND id:few", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent_intersect_with_1_percent(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ip", get_90_percent(), "AND id:veryfew", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_90_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_10_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_1_percent(), "", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_10_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_10_percent(), "AND id:few", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_1_percent(), "AND id:few", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-        bench.iter(|| execute_query("ips", get_1_percent(), "AND id:many", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_1_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_1_percent(), "AND id:veryfew", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_10_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_10_percent(), "AND id:many", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent_intersect_with_90_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_90_percent(), "AND id:many", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent_intersect_with_10_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_90_percent(), "AND id:few", &index));
-    }
-
-    #[bench]
-    fn bench_ip_range_hit_90_percent_intersect_with_1_percent_multi(bench: &mut Bencher) {
-        let index = get_index_0_to_100();
-
-        bench.iter(|| execute_query("ips", get_90_percent(), "AND id:veryfew", &index));
     }
 }

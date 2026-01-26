@@ -19,7 +19,7 @@ fn main() {
 
     let mut add_card = |card1: Card| {
         inputs.push((
-            format!("{card1}"),
+            card1.to_string(),
             generate_columnar_and_open(card1, NUM_DOCS),
         ));
     };
@@ -50,6 +50,7 @@ fn bench_group(mut runner: InputGroup<Column>) {
         let mut buffer = vec![None; BLOCK_SIZE];
         for i in (0..NUM_DOCS).step_by(BLOCK_SIZE) {
             // fill docs
+            #[allow(clippy::needless_range_loop)]
             for idx in 0..BLOCK_SIZE {
                 docs[idx] = idx as u32 + i;
             }

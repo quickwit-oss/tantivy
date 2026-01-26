@@ -52,7 +52,7 @@ pub trait ColumnCodecEstimator<T = u64>: 'static {
     ) -> io::Result<()>;
 }
 
-/// A column codec describes a colunm serialization format.
+/// A column codec describes a column serialization format.
 pub trait ColumnCodec<T: PartialOrd = u64> {
     /// Specialized `ColumnValues` type.
     type ColumnValues: ColumnValues<T> + 'static;

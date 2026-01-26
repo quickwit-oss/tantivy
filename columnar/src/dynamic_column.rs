@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use common::file_slice::FileSlice;
-use common::{ByteCount, DateTime, HasLen, OwnedBytes};
+use common::{ByteCount, DateTime, OwnedBytes};
+use serde::{Deserialize, Serialize};
 
 use crate::column::{BytesColumn, Column, StrColumn};
 use crate::column_values::{StrictlyMonotonicFn, monotonic_map_column};
@@ -333,10 +334,89 @@ impl DynamicColumnHandle {
     }
 
     pub fn num_bytes(&self) -> ByteCount {
-        self.file_slice.len().into()
+        self.file_slice.num_bytes()
+    }
+
+    /// Legacy helper returning the column space usage.
+    pub fn column_and_dictionary_num_bytes(&self) -> io::Result<ColumnSpaceUsage> {
+        self.space_usage()
+    }
+
+    /// Return the space usage of the column, optionally broken down by dictionary and column
+    /// values.
+    ///
+    /// For dictionary encoded columns (strings and bytes), this splits the total footprint into
+    /// the dictionary and the remaining column data (including index and values).
+    /// For all other column types, the dictionary size is `None` and the column size
+    /// equals the total bytes.
+    pub fn space_usage(&self) -> io::Result<ColumnSpaceUsage> {
+        let total_num_bytes = self.num_bytes();
+        let dynamic_column = self.open()?;
+        let dictionary_num_bytes = match &dynamic_column {
+            DynamicColumn::Bytes(bytes_column) => bytes_column.dictionary().num_bytes(),
+            DynamicColumn::Str(str_column) => str_column.dictionary().num_bytes(),
+            _ => {
+                return Ok(ColumnSpaceUsage::new(self.num_bytes(), None));
+            }
+        };
+        assert!(dictionary_num_bytes <= total_num_bytes);
+        let column_num_bytes =
+            ByteCount::from(total_num_bytes.get_bytes() - dictionary_num_bytes.get_bytes());
+        Ok(ColumnSpaceUsage::new(
+            column_num_bytes,
+            Some(dictionary_num_bytes),
+        ))
     }
 
     pub fn column_type(&self) -> ColumnType {
         self.column_type
+    }
+}
+
+/// Represents space usage of a column.
+///
+/// `column_num_bytes` tracks the column payload (index, values and footer).
+/// For dictionary encoded columns, `dictionary_num_bytes` captures the dictionary footprint.
+/// [`ColumnSpaceUsage::total_num_bytes`] returns the sum of both parts.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ColumnSpaceUsage {
+    column_num_bytes: ByteCount,
+    dictionary_num_bytes: Option<ByteCount>,
+}
+
+impl ColumnSpaceUsage {
+    pub(crate) fn new(
+        column_num_bytes: ByteCount,
+        dictionary_num_bytes: Option<ByteCount>,
+    ) -> Self {
+        ColumnSpaceUsage {
+            column_num_bytes,
+            dictionary_num_bytes,
+        }
+    }
+
+    pub fn column_num_bytes(&self) -> ByteCount {
+        self.column_num_bytes
+    }
+
+    pub fn dictionary_num_bytes(&self) -> Option<ByteCount> {
+        self.dictionary_num_bytes
+    }
+
+    pub fn total_num_bytes(&self) -> ByteCount {
+        self.column_num_bytes + self.dictionary_num_bytes.unwrap_or_default()
+    }
+
+    /// Merge two space usage values by summing their components.
+    pub fn merge(&self, other: &ColumnSpaceUsage) -> ColumnSpaceUsage {
+        let dictionary_num_bytes = match (self.dictionary_num_bytes, other.dictionary_num_bytes) {
+            (Some(lhs), Some(rhs)) => Some(lhs + rhs),
+            (Some(val), None) | (None, Some(val)) => Some(val),
+            (None, None) => None,
+        };
+        ColumnSpaceUsage {
+            column_num_bytes: self.column_num_bytes + other.column_num_bytes,
+            dictionary_num_bytes,
+        }
     }
 }

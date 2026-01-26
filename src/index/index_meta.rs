@@ -13,9 +13,9 @@ use crate::store::Compressor;
 use crate::{Inventory, Opstamp, TrackedObject};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct DeleteMeta {
+pub struct DeleteMeta {
     num_deleted_docs: u32,
-    opstamp: Opstamp,
+    pub opstamp: Opstamp,
 }
 
 #[derive(Clone, Default)]
@@ -213,7 +213,7 @@ impl SegmentMeta {
 struct InnerSegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,
-    deletes: Option<DeleteMeta>,
+    pub deletes: Option<DeleteMeta>,
     /// If you want to avoid the SegmentComponent::TempStore file to be covered by
     /// garbage collection and deleted, set this to true. This is used during merge.
     #[serde(skip)]
@@ -276,13 +276,14 @@ impl Default for IndexSettings {
 }
 
 /// The order to sort by
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Order {
     /// Ascending Order
     Asc,
     /// Descending Order
     Desc,
 }
+
 impl Order {
     /// return if the Order is ascending
     pub fn is_asc(&self) -> bool {
@@ -403,7 +404,10 @@ mod tests {
             schema_builder.build()
         };
         let index_metas = IndexMeta {
-            index_settings: IndexSettings::default(),
+            index_settings: IndexSettings {
+                docstore_compression: Compressor::None,
+                ..Default::default()
+            },
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -412,7 +416,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"docstore_compression":"lz4","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -493,6 +497,8 @@ mod tests {
     #[test]
     #[cfg(feature = "lz4-compression")]
     fn test_index_settings_default() {
+        use crate::store::Compressor;
+
         let mut index_settings = IndexSettings::default();
         assert_eq!(
             index_settings,

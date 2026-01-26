@@ -4,7 +4,7 @@ use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::{branchless_binary_search, BlockSegmentPostings, Postings};
+use crate::postings::{BlockSegmentPostings, Postings};
 use crate::{DocId, TERMINATED};
 
 /// `SegmentPostings` represents the inverted list or postings associated with
@@ -70,13 +70,13 @@ impl SegmentPostings {
         let mut buffer = Vec::new();
         {
             let mut postings_serializer =
-                PostingsSerializer::new(&mut buffer, 0.0, IndexRecordOption::Basic, None);
+                PostingsSerializer::new(0.0, IndexRecordOption::Basic, None);
             postings_serializer.new_term(docs.len() as u32, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
             }
             postings_serializer
-                .close_term(docs.len() as u32)
+                .close_term(docs.len() as u32, &mut buffer)
                 .expect("In memory Serialization should never fail.");
         }
         let block_segment_postings = BlockSegmentPostings::open(
@@ -115,7 +115,6 @@ impl SegmentPostings {
             })
             .unwrap_or(0.0);
         let mut postings_serializer = PostingsSerializer::new(
-            &mut buffer,
             average_field_norm,
             IndexRecordOption::WithFreqs,
             fieldnorm_reader,
@@ -125,7 +124,7 @@ impl SegmentPostings {
             postings_serializer.write_doc(doc, tf);
         }
         postings_serializer
-            .close_term(doc_and_tfs.len() as u32)
+            .close_term(doc_and_tfs.len() as u32, &mut buffer)
             .unwrap();
         let block_segment_postings = BlockSegmentPostings::open(
             doc_and_tfs.len() as u32,
@@ -175,26 +174,11 @@ impl DocSet for SegmentPostings {
             return self.doc();
         }
 
-        self.block_cursor.seek(target);
-
-        // At this point we are on the block, that might contain our document.
-        let output = self.block_cursor.full_block();
-        self.cur = branchless_binary_search(output, target);
-
-        // The last block is not full and padded with the value TERMINATED,
-        // so that we are guaranteed to have at least doc in the block (a real one or the padding)
-        // that is greater or equal to the target.
-        debug_assert!(self.cur < COMPRESSION_BLOCK_SIZE);
-
-        // `doc` is now the first element >= `target`
-
-        // If all docs are smaller than target the current block should be incomplemented and padded
-        // with the value `TERMINATED`.
-        //
-        // After the search, the cursor should point to the first value of TERMINATED.
-        let doc = output[self.cur];
+        // Delegate block-local search to BlockSegmentPostings::seek, which returns
+        // the in-block index of the first doc >= target.
+        self.cur = self.block_cursor.seek(target);
+        let doc = self.doc();
         debug_assert!(doc >= target);
-        debug_assert_eq!(doc, self.doc());
         doc
     }
 

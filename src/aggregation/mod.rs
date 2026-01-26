@@ -127,12 +127,13 @@
 //! [`AggregationResults`](agg_result::AggregationResults) via the
 //! [`into_final_result`](intermediate_agg_result::IntermediateAggregationResults::into_final_result) method.
 
+mod accessor_helpers;
+mod agg_data;
 mod agg_limits;
 pub mod agg_req;
-mod agg_req_with_accessor;
 pub mod agg_result;
 pub mod bucket;
-mod buf_collector;
+pub(crate) mod cached_sub_aggs;
 mod collector;
 mod date;
 mod error;
@@ -140,7 +141,6 @@ pub mod intermediate_agg_result;
 pub mod metric;
 
 mod segment_agg_result;
-use std::collections::HashMap;
 use std::fmt::Display;
 
 #[cfg(test)]
@@ -159,6 +159,41 @@ pub use error::AggregationError;
 use itertools::Itertools;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::tokenizer::TokenizerManager;
+
+/// A bucket id is a dense identifier for a bucket within an aggregation.
+/// It is used to index into a Vec that hold per-bucket data.
+///
+/// For example, in a terms aggregation, each unique term will be assigned a incremental BucketId.
+/// This BucketId will be forwarded to sub-aggregations to identify the parent bucket.
+///
+/// This allows to have a single AggregationCollector instance per aggregation,
+/// that can handle multiple buckets efficiently.
+///
+/// The API to call sub-aggregations is therefore a &[(BucketId, &[DocId])].
+/// For that we'll need a buffer. One Vec per bucket aggregation is needed.
+pub type BucketId = u32;
+
+/// Context parameters for aggregation execution
+///
+/// This struct holds shared resources needed during aggregation execution:
+/// - `limits`: Memory and bucket limits for the aggregation
+/// - `tokenizers`: TokenizerManager for parsing query strings in filter aggregations
+#[derive(Clone, Default)]
+pub struct AggContextParams {
+    /// Aggregation limits (memory and bucket count)
+    pub limits: AggregationLimitsGuard,
+    /// Tokenizer manager for query string parsing
+    pub tokenizers: TokenizerManager,
+}
+
+impl AggContextParams {
+    /// Create new aggregation context parameters
+    pub fn new(limits: AggregationLimitsGuard, tokenizers: TokenizerManager) -> Self {
+        Self { limits, tokenizers }
+    }
+}
 
 fn parse_str_into_f64<E: de::Error>(value: &str) -> Result<f64, E> {
     let parsed = value
@@ -257,80 +292,6 @@ where D: Deserializer<'de> {
     deserializer.deserialize_any(StringOrFloatVisitor)
 }
 
-/// Represents an associative array `(key => values)` in a very efficient manner.
-#[derive(PartialEq, Serialize, Deserialize)]
-pub(crate) struct VecWithNames<T> {
-    pub(crate) values: Vec<T>,
-    keys: Vec<String>,
-}
-
-impl<T: Clone> Clone for VecWithNames<T> {
-    fn clone(&self) -> Self {
-        Self {
-            values: self.values.clone(),
-            keys: self.keys.clone(),
-        }
-    }
-}
-
-impl<T> Default for VecWithNames<T> {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
-            keys: Default::default(),
-        }
-    }
-}
-
-impl<T: std::fmt::Debug> std::fmt::Debug for VecWithNames<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_map().entries(self.iter()).finish()
-    }
-}
-
-impl<T> From<HashMap<String, T>> for VecWithNames<T> {
-    fn from(map: HashMap<String, T>) -> Self {
-        VecWithNames::from_entries(map.into_iter().collect_vec())
-    }
-}
-
-impl<T> VecWithNames<T> {
-    fn from_entries(mut entries: Vec<(String, T)>) -> Self {
-        // Sort to ensure order of elements match across multiple instances
-        entries.sort_by(|left, right| left.0.cmp(&right.0));
-        let mut data = Vec::with_capacity(entries.len());
-        let mut data_names = Vec::with_capacity(entries.len());
-        for entry in entries {
-            data_names.push(entry.0);
-            data.push(entry.1);
-        }
-        VecWithNames {
-            values: data,
-            keys: data_names,
-        }
-    }
-    fn iter(&self) -> impl Iterator<Item = (&str, &T)> + '_ {
-        self.keys().zip(self.values.iter())
-    }
-    fn keys(&self) -> impl Iterator<Item = &str> + '_ {
-        self.keys.iter().map(|key| key.as_str())
-    }
-    fn values_mut(&mut self) -> impl Iterator<Item = &mut T> + '_ {
-        self.values.iter_mut()
-    }
-    fn is_empty(&self) -> bool {
-        self.keys.is_empty()
-    }
-    fn len(&self) -> usize {
-        self.keys.len()
-    }
-    fn get(&self, name: &str) -> Option<&T> {
-        self.keys()
-            .position(|key| key == name)
-            .map(|pos| &self.values[pos])
-    }
-}
-
 /// The serialized key is used in a `HashMap`.
 pub type SerializedKey = String;
 
@@ -387,19 +348,37 @@ impl Display for Key {
     }
 }
 
+pub(crate) fn convert_to_f64<const COLUMN_TYPE_ID: u8>(val: u64) -> f64 {
+    if COLUMN_TYPE_ID == ColumnType::U64 as u8 {
+        val as f64
+    } else if COLUMN_TYPE_ID == ColumnType::I64 as u8
+        || COLUMN_TYPE_ID == ColumnType::DateTime as u8
+    {
+        i64::from_u64(val) as f64
+    } else if COLUMN_TYPE_ID == ColumnType::F64 as u8 {
+        f64::from_u64(val)
+    } else if COLUMN_TYPE_ID == ColumnType::Bool as u8 {
+        val as f64
+    } else {
+        panic!(
+            "ColumnType ID {} cannot be converted to f64 metric",
+            COLUMN_TYPE_ID
+        )
+    }
+}
+
 /// Inverse of `to_fastfield_u64`. Used to convert to `f64` for metrics.
 ///
 /// # Panics
 /// Only `u64`, `f64`, `date`, and `i64` are supported.
-pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: &ColumnType) -> f64 {
+pub(crate) fn f64_from_fastfield_u64(val: u64, field_type: ColumnType) -> f64 {
     match field_type {
-        ColumnType::U64 => val as f64,
-        ColumnType::I64 | ColumnType::DateTime => i64::from_u64(val) as f64,
-        ColumnType::F64 => f64::from_u64(val),
-        ColumnType::Bool => val as f64,
-        _ => {
-            panic!("unexpected type {field_type:?}. This should not happen")
-        }
+        ColumnType::U64 => convert_to_f64::<{ ColumnType::U64 as u8 }>(val),
+        ColumnType::I64 => convert_to_f64::<{ ColumnType::I64 as u8 }>(val),
+        ColumnType::F64 => convert_to_f64::<{ ColumnType::F64 as u8 }>(val),
+        ColumnType::Bool => convert_to_f64::<{ ColumnType::Bool as u8 }>(val),
+        ColumnType::DateTime => convert_to_f64::<{ ColumnType::DateTime as u8 }>(val),
+        _ => panic!("unexpected type {field_type:?}. This should not happen"),
     }
 }
 
@@ -464,7 +443,10 @@ mod tests {
         query: Option<(&str, &str)>,
         limits: AggregationLimitsGuard,
     ) -> crate::Result<Value> {
-        let collector = AggregationCollector::from_aggs(agg_req, limits);
+        let collector = AggregationCollector::from_aggs(
+            agg_req,
+            AggContextParams::new(limits, index.tokenizers().clone()),
+        );
 
         let reader = index.reader()?;
         let searcher = reader.searcher();

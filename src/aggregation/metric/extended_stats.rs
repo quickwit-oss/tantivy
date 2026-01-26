@@ -4,15 +4,13 @@ use std::mem;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
-};
+use crate::aggregation::agg_data::AggregationsSegmentCtx;
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateMetricResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
-use crate::{DocId, TantivyError};
+use crate::TantivyError;
 
 /// A multi-value metric aggregation that computes a collection of extended statistics
 /// on numeric values that are extracted
@@ -63,7 +61,7 @@ impl ExtendedStatsAggregation {
 
 /// Extended stats contains a collection of statistics
 /// they extends stats adding variance, standard deviation
-/// and bound informations
+/// and bound information
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExtendedStats {
     /// The number of documents.
@@ -319,51 +317,28 @@ impl IntermediateExtendedStats {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct SegmentExtendedStatsCollector {
+    name: String,
     missing: Option<u64>,
     field_type: ColumnType,
-    pub(crate) extended_stats: IntermediateExtendedStats,
-    pub(crate) accessor_idx: usize,
-    val_cache: Vec<u64>,
+    accessor: columnar::Column<u64>,
+    buckets: Vec<IntermediateExtendedStats>,
+    sigma: Option<f64>,
 }
 
 impl SegmentExtendedStatsCollector {
-    pub fn from_req(
-        field_type: ColumnType,
-        sigma: Option<f64>,
-        accessor_idx: usize,
-        missing: Option<f64>,
-    ) -> Self {
-        let missing = missing.and_then(|val| f64_to_fastfield_u64(val, &field_type));
+    pub fn from_req(req: &MetricAggReqData, sigma: Option<f64>) -> Self {
+        let missing = req
+            .missing
+            .and_then(|val| f64_to_fastfield_u64(val, &req.field_type));
         Self {
-            field_type,
-            extended_stats: IntermediateExtendedStats::with_sigma(sigma),
-            accessor_idx,
+            name: req.name.clone(),
+            field_type: req.field_type,
+            accessor: req.accessor.clone(),
             missing,
-            val_cache: Default::default(),
-        }
-    }
-    #[inline]
-    pub(crate) fn collect_block_with_field(
-        &mut self,
-        docs: &[DocId],
-        agg_accessor: &mut AggregationWithAccessor,
-    ) {
-        if let Some(missing) = self.missing.as_ref() {
-            agg_accessor.column_block_accessor.fetch_block_with_missing(
-                docs,
-                &agg_accessor.accessor,
-                *missing,
-            );
-        } else {
-            agg_accessor
-                .column_block_accessor
-                .fetch_block(docs, &agg_accessor.accessor);
-        }
-        for val in agg_accessor.column_block_accessor.iter_vals() {
-            let val1 = f64_from_fastfield_u64(val, &self.field_type);
-            self.extended_stats.collect(val1);
+            buckets: vec![IntermediateExtendedStats::with_sigma(sigma); 16],
+            sigma,
         }
     }
 }
@@ -371,15 +346,18 @@ impl SegmentExtendedStatsCollector {
 impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     #[inline]
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
+        let name = self.name.clone();
+        self.prepare_max_bucket(parent_bucket_id, agg_data)?;
+        let extended_stats = std::mem::take(&mut self.buckets[parent_bucket_id as usize]);
         results.push(
             name,
             IntermediateAggregationResult::Metric(IntermediateMetricResult::ExtendedStats(
-                self.extended_stats,
+                extended_stats,
             )),
         )?;
 
@@ -389,39 +367,36 @@ impl SegmentAggregationCollector for SegmentExtendedStatsCollector {
     #[inline]
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        parent_bucket_id: BucketId,
+        docs: &[crate::DocId],
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let field = &agg_with_accessor.aggs.values[self.accessor_idx].accessor;
-        if let Some(missing) = self.missing {
-            let mut has_val = false;
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.extended_stats.collect(val1);
-                has_val = true;
-            }
-            if !has_val {
-                self.extended_stats
-                    .collect(f64_from_fastfield_u64(missing, &self.field_type));
-            }
-        } else {
-            for val in field.values_for_doc(doc) {
-                let val1 = f64_from_fastfield_u64(val, &self.field_type);
-                self.extended_stats.collect(val1);
-            }
+        let mut extended_stats = self.buckets[parent_bucket_id as usize].clone();
+
+        agg_data
+            .column_block_accessor
+            .fetch_block_with_missing(docs, &self.accessor, self.missing);
+        for val in agg_data.column_block_accessor.iter_vals() {
+            let val1 = f64_from_fastfield_u64(val, self.field_type);
+            extended_stats.collect(val1);
         }
+
+        // store back
+        self.buckets[parent_bucket_id as usize] = extended_stats;
 
         Ok(())
     }
 
-    #[inline]
-    fn collect_block(
+    fn prepare_max_bucket(
         &mut self,
-        docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let field = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-        self.collect_block_with_field(docs, field);
+        if self.buckets.len() <= max_bucket as usize {
+            self.buckets.resize_with(max_bucket as usize + 1, || {
+                IntermediateExtendedStats::with_sigma(self.sigma)
+            });
+        }
         Ok(())
     }
 }

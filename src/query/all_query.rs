@@ -23,7 +23,11 @@ pub struct AllWeight;
 impl Weight for AllWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let all_scorer = AllScorer::new(reader.max_doc());
-        Ok(Box::new(BoostScorer::new(all_scorer, boost)))
+        if boost != 1.0 {
+            Ok(Box::new(BoostScorer::new(all_scorer, boost)))
+        } else {
+            Ok(Box::new(all_scorer))
+        }
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
@@ -55,6 +59,15 @@ impl DocSet for AllScorer {
             return TERMINATED;
         }
         self.doc += 1;
+        self.doc
+    }
+
+    fn seek(&mut self, target: DocId) -> DocId {
+        debug_assert!(target >= self.doc);
+        self.doc = target;
+        if self.doc >= self.max_doc {
+            self.doc = TERMINATED;
+        }
         self.doc
     }
 
@@ -92,6 +105,7 @@ impl DocSet for AllScorer {
 }
 
 impl Scorer for AllScorer {
+    #[inline]
     fn score(&mut self) -> Score {
         1.0
     }
