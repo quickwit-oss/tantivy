@@ -1,28 +1,19 @@
 use std::io;
 
-use common::VInt;
+use common::{OwnedBytes, VInt};
 
-use crate::directory::{FileSlice, OwnedBytes};
+use crate::codec::standard::postings::skip::{BlockInfo, SkipReader};
+use crate::codec::standard::postings::FreqReadingOption;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
-use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
+use crate::postings::compression::{BlockDecoder, VIntDecoder as _, COMPRESSION_BLOCK_SIZE};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
-fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
-    it.next().map(|first| it.fold(first, Score::max))
-}
-
 /// `BlockSegmentPostings` is a cursor iterating over blocks
 /// of documents.
-///
-/// # Warning
-///
-/// While it is useful for some very specific high-performance
-/// use cases, you should prefer using `SegmentPostings` for most usage.
 #[derive(Clone)]
-pub struct BlockSegmentPostings {
+pub(crate) struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
     block_loaded: bool,
     freq_decoder: BlockDecoder,
@@ -88,7 +79,7 @@ fn split_into_skips_and_postings(
 }
 
 impl BlockSegmentPostings {
-    /// Opens a `BlockSegmentPostings`.
+    /// Opens a `StandardPostingsReader`.
     /// `doc_freq` is the number of documents in the posting list.
     /// `record_option` represents the amount of data available according to the schema.
     /// `requested_option` is the amount of data requested by the user.
@@ -96,11 +87,10 @@ impl BlockSegmentPostings {
     /// term frequency blocks.
     pub(crate) fn open(
         doc_freq: u32,
-        data: FileSlice,
+        bytes: OwnedBytes,
         mut record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
-        let bytes = data.read_bytes()?;
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, bytes)?;
         let skip_reader = match skip_data_opt {
             Some(skip_data) => {
@@ -138,6 +128,86 @@ impl BlockSegmentPostings {
         block_segment_postings.load_block();
         Ok(block_segment_postings)
     }
+}
+
+fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
+    it.next().map(|first| it.fold(first, Score::max))
+}
+
+impl BlockSegmentPostings {
+    /// Returns the overall number of documents in the block postings.
+    /// It does not take in account whether documents are deleted or not.
+    ///
+    /// This `doc_freq` is simply the sum of the length of all of the blocks
+    /// length, and it does not take in account deleted documents.
+    pub fn doc_freq(&self) -> u32 {
+        self.doc_freq
+    }
+
+    /// Returns the array of docs in the current block.
+    ///
+    /// Before the first call to `.advance()`, the block
+    /// returned by `.docs()` is empty.
+    #[inline]
+    pub fn docs(&self) -> &[DocId] {
+        debug_assert!(self.block_loaded);
+        self.doc_decoder.output_array()
+    }
+
+    /// Return the document at index `idx` of the block.
+    #[inline]
+    pub fn doc(&self, idx: usize) -> u32 {
+        self.doc_decoder.output(idx)
+    }
+
+    /// Return the array of `term freq` in the block.
+    #[inline]
+    pub fn freqs(&self) -> &[u32] {
+        debug_assert!(self.block_loaded);
+        self.freq_decoder.output_array()
+    }
+
+    /// Return the frequency at index `idx` of the block.
+    #[inline]
+    pub fn freq(&self, idx: usize) -> u32 {
+        debug_assert!(self.block_loaded);
+        self.freq_decoder.output(idx)
+    }
+
+    /// Position on a block that may contains `target_doc`.
+    ///
+    /// If all docs are smaller than target, the block loaded may be empty,
+    /// or be the last an incomplete VInt block.
+    pub fn seek(&mut self, target_doc: DocId) -> usize {
+        // Move to the block that might contain our document.
+        self.seek_block_without_loading(target_doc);
+        self.load_block();
+
+        // At this point we are on the block that might contain our document.
+        let doc = self.doc_decoder.seek_within_block(target_doc);
+
+        // The last block is not full and padded with TERMINATED,
+        // so we are guaranteed to have at least one value (real or padding)
+        // that is >= target_doc.
+        debug_assert!(doc < COMPRESSION_BLOCK_SIZE);
+
+        // `doc` is now the first element >= `target_doc`.
+        // If all docs are smaller than target, the current block is incomplete and padded
+        // with TERMINATED. After the search, the cursor points to the first TERMINATED.
+        doc
+    }
+
+    pub fn position_offset(&self) -> u64 {
+        self.skip_reader.position_offset()
+    }
+
+    /// Advance to the next block.
+    pub fn advance(&mut self) {
+        self.skip_reader.advance();
+        self.block_loaded = false;
+        self.block_max_score_cache = None;
+        self.load_block();
+    }
 
     /// Returns the block_max_score for the current block.
     /// It does not require the block to be loaded. For instance, it is ok to call this method
@@ -160,7 +230,7 @@ impl BlockSegmentPostings {
         }
         // this is the last block of the segment posting list.
         // If it is actually loaded, we can compute block max manually.
-        if self.block_is_loaded() {
+        if self.block_loaded {
             let docs = self.doc_decoder.output_array().iter().cloned();
             let freqs = self.freq_decoder.output_array().iter().cloned();
             let bm25_scores = docs.zip(freqs).map(|(doc, term_freq)| {
@@ -177,112 +247,25 @@ impl BlockSegmentPostings {
         // We do not cache it however, so that it gets computed when once block is loaded.
         bm25_weight.max_score()
     }
+}
 
-    pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
-        self.freq_reading_option
-    }
-
-    // Resets the block segment postings on another position
-    // in the postings file.
-    //
-    // This is useful for enumerating through a list of terms,
-    // and consuming the associated posting lists while avoiding
-    // reallocating a `BlockSegmentPostings`.
-    //
-    // # Warning
-    //
-    // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) -> io::Result<()> {
-        let (skip_data_opt, postings_data) =
-            split_into_skips_and_postings(doc_freq, postings_data)?;
-        self.data = postings_data;
-        self.block_max_score_cache = None;
-        self.block_loaded = false;
-        if let Some(skip_data) = skip_data_opt {
-            self.skip_reader.reset(skip_data, doc_freq);
-        } else {
-            self.skip_reader.reset(OwnedBytes::empty(), doc_freq);
+impl BlockSegmentPostings {
+    /// Returns an empty segment postings object
+    pub fn empty() -> BlockSegmentPostings {
+        BlockSegmentPostings {
+            doc_decoder: BlockDecoder::with_val(TERMINATED),
+            block_loaded: true,
+            freq_decoder: BlockDecoder::with_val(1),
+            freq_reading_option: FreqReadingOption::NoFreq,
+            block_max_score_cache: None,
+            doc_freq: 0,
+            data: OwnedBytes::empty(),
+            skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
         }
-        self.doc_freq = doc_freq;
-        self.load_block();
-        Ok(())
     }
 
-    /// Returns the overall number of documents in the block postings.
-    /// It does not take in account whether documents are deleted or not.
-    ///
-    /// This `doc_freq` is simply the sum of the length of all of the blocks
-    /// length, and it does not take in account deleted documents.
-    pub fn doc_freq(&self) -> u32 {
-        self.doc_freq
-    }
-
-    /// Returns the array of docs in the current block.
-    ///
-    /// Before the first call to `.advance()`, the block
-    /// returned by `.docs()` is empty.
-    #[inline]
-    pub fn docs(&self) -> &[DocId] {
-        debug_assert!(self.block_is_loaded());
-        self.doc_decoder.output_array()
-    }
-
-    /// Return the document at index `idx` of the block.
-    #[inline]
-    pub fn doc(&self, idx: usize) -> u32 {
-        self.doc_decoder.output(idx)
-    }
-
-    /// Return the array of `term freq` in the block.
-    #[inline]
-    pub fn freqs(&self) -> &[u32] {
-        debug_assert!(self.block_is_loaded());
-        self.freq_decoder.output_array()
-    }
-
-    /// Return the frequency at index `idx` of the block.
-    #[inline]
-    pub fn freq(&self, idx: usize) -> u32 {
-        debug_assert!(self.block_is_loaded());
-        self.freq_decoder.output(idx)
-    }
-
-    /// Returns the length of the current block.
-    ///
-    /// All blocks have a length of `NUM_DOCS_PER_BLOCK`,
-    /// except the last block that may have a length
-    /// of any number between 1 and `NUM_DOCS_PER_BLOCK - 1`
-    #[inline]
-    pub fn block_len(&self) -> usize {
-        debug_assert!(self.block_is_loaded());
-        self.doc_decoder.output_len
-    }
-
-    /// Position on a block that may contains `target_doc`.
-    ///
-    /// If all docs are smaller than target, the block loaded may be empty,
-    /// or be the last an incomplete VInt block.
-    pub fn seek(&mut self, target_doc: DocId) -> usize {
-        // Move to the block that might contain our document.
-        self.seek_block(target_doc);
-        self.load_block();
-
-        // At this point we are on the block that might contain our document.
-        let doc = self.doc_decoder.seek_within_block(target_doc);
-
-        // The last block is not full and padded with TERMINATED,
-        // so we are guaranteed to have at least one value (real or padding)
-        // that is >= target_doc.
-        debug_assert!(doc < COMPRESSION_BLOCK_SIZE);
-
-        // `doc` is now the first element >= `target_doc`.
-        // If all docs are smaller than target, the current block is incomplete and padded
-        // with TERMINATED. After the search, the cursor points to the first TERMINATED.
-        doc
-    }
-
-    pub(crate) fn position_offset(&self) -> u64 {
-        self.skip_reader.position_offset()
+    pub(crate) fn skip_reader(&self) -> &SkipReader {
+        &self.skip_reader
     }
 
     /// Dangerous API! This calls seeks the next block on the skip list,
@@ -291,19 +274,15 @@ impl BlockSegmentPostings {
     /// `.load_block()` needs to be called manually afterwards.
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
+    pub(crate) fn seek_block_without_loading(&mut self, target_doc: DocId) {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
             self.block_loaded = false;
         }
     }
 
-    pub(crate) fn block_is_loaded(&self) -> bool {
-        self.block_loaded
-    }
-
     pub(crate) fn load_block(&mut self) {
-        if self.block_is_loaded() {
+        if self.block_loaded {
             return;
         }
         let offset = self.skip_reader.byte_offset();
@@ -351,68 +330,40 @@ impl BlockSegmentPostings {
         }
         self.block_loaded = true;
     }
-
-    /// Advance to the next block.
-    pub fn advance(&mut self) {
-        self.skip_reader.advance();
-        self.block_loaded = false;
-        self.block_max_score_cache = None;
-        self.load_block();
-    }
-
-    /// Returns an empty segment postings object
-    pub fn empty() -> BlockSegmentPostings {
-        BlockSegmentPostings {
-            doc_decoder: BlockDecoder::with_val(TERMINATED),
-            block_loaded: true,
-            freq_decoder: BlockDecoder::with_val(1),
-            freq_reading_option: FreqReadingOption::NoFreq,
-            block_max_score_cache: None,
-            doc_freq: 0,
-            data: OwnedBytes::empty(),
-            skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
-        }
-    }
-
-    pub(crate) fn skip_reader(&self) -> &SkipReader {
-        &self.skip_reader
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use common::HasLen;
+    use common::OwnedBytes;
 
     use super::BlockSegmentPostings;
+    use crate::codec::postings::PostingsSerializer;
+    use crate::codec::standard::postings::segment_postings::SegmentPostings;
+    use crate::codec::standard::postings::StandardPostingsSerializer;
     use crate::docset::{DocSet, TERMINATED};
-    use crate::index::Index;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-    use crate::postings::postings::Postings;
-    use crate::postings::SegmentPostings;
-    use crate::schema::{IndexRecordOption, Schema, Term, INDEXED};
-    use crate::DocId;
+    use crate::schema::IndexRecordOption;
 
-    #[test]
-    fn test_empty_segment_postings() {
-        let mut postings = SegmentPostings::empty();
-        assert_eq!(postings.doc(), TERMINATED);
-        assert_eq!(postings.advance(), TERMINATED);
-        assert_eq!(postings.advance(), TERMINATED);
-        assert_eq!(postings.doc_freq(), 0);
-        assert_eq!(postings.len(), 0);
-    }
-
-    #[test]
-    fn test_empty_postings_doc_returns_terminated() {
-        let mut postings = SegmentPostings::empty();
-        assert_eq!(postings.doc(), TERMINATED);
-        assert_eq!(postings.advance(), TERMINATED);
-    }
-
-    #[test]
-    fn test_empty_postings_doc_term_freq_returns_0() {
-        let postings = SegmentPostings::empty();
-        assert_eq!(postings.term_freq(), 1);
+    #[cfg(test)]
+    fn build_block_postings(docs: &[u32]) -> BlockSegmentPostings {
+        let doc_freq = docs.len() as u32;
+        let mut postings_serializer =
+            StandardPostingsSerializer::new(1.0f32, IndexRecordOption::Basic, None);
+        postings_serializer.new_term(docs.len() as u32, false);
+        for doc in docs {
+            postings_serializer.write_doc(*doc, 1u32);
+        }
+        let mut buffer: Vec<u8> = Vec::new();
+        postings_serializer
+            .close_term(doc_freq, &mut buffer)
+            .unwrap();
+        BlockSegmentPostings::open(
+            doc_freq,
+            OwnedBytes::new(buffer),
+            IndexRecordOption::Basic,
+            IndexRecordOption::Basic,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -427,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_block_segment_postings() -> crate::Result<()> {
-        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>())?;
+        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>());
         let mut offset: u32 = 0u32;
         // checking that the `doc_freq` is correct
         assert_eq!(block_segments.doc_freq(), 100_000);
@@ -452,7 +403,7 @@ mod tests {
         doc_ids.push(129);
         doc_ids.push(130);
         {
-            let block_segments = build_block_postings(&doc_ids)?;
+            let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.seek(128), 129);
             assert_eq!(docset.doc(), 129);
@@ -461,7 +412,7 @@ mod tests {
             assert_eq!(docset.advance(), TERMINATED);
         }
         {
-            let block_segments = build_block_postings(&doc_ids).unwrap();
+            let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.seek(129), 129);
             assert_eq!(docset.doc(), 129);
@@ -470,7 +421,7 @@ mod tests {
             assert_eq!(docset.advance(), TERMINATED);
         }
         {
-            let block_segments = build_block_postings(&doc_ids)?;
+            let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.doc(), 0);
             assert_eq!(docset.seek(131), TERMINATED);
@@ -479,38 +430,13 @@ mod tests {
         Ok(())
     }
 
-    fn build_block_postings(docs: &[DocId]) -> crate::Result<BlockSegmentPostings> {
-        let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INDEXED);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
-        let mut last_doc = 0u32;
-        for &doc in docs {
-            for _ in last_doc..doc {
-                index_writer.add_document(doc!(int_field=>1u64))?;
-            }
-            index_writer.add_document(doc!(int_field=>0u64))?;
-            last_doc = doc + 1;
-        }
-        index_writer.commit()?;
-        let searcher = index.reader()?.searcher();
-        let segment_reader = searcher.segment_reader(0);
-        let inverted_index = segment_reader.inverted_index(int_field).unwrap();
-        let term = Term::from_field_u64(int_field, 0u64);
-        let term_info = inverted_index.get_term_info(&term)?.unwrap();
-        let block_postings = inverted_index
-            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
-        Ok(block_postings)
-    }
-
     #[test]
     fn test_block_segment_postings_seek() -> crate::Result<()> {
-        let mut docs = vec![0];
+        let mut docs = Vec::new();
         for i in 0..1300 {
             docs.push((i * i / 100) + i);
         }
-        let mut block_postings = build_block_postings(&docs[..])?;
+        let mut block_postings = build_block_postings(&docs[..]);
         for i in &[0, 424, 10000] {
             block_postings.seek(*i);
             let docs = block_postings.docs();
@@ -519,42 +445,6 @@ mod tests {
         }
         block_postings.seek(100_000);
         assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);
-        Ok(())
-    }
-
-    #[test]
-    fn test_reset_block_segment_postings() -> crate::Result<()> {
-        let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INDEXED);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
-        // create two postings list, one containing even number,
-        // the other containing odd numbers.
-        for i in 0..6 {
-            let doc = doc!(int_field=> (i % 2) as u64);
-            index_writer.add_document(doc)?;
-        }
-        index_writer.commit()?;
-        let searcher = index.reader()?.searcher();
-        let segment_reader = searcher.segment_reader(0);
-
-        let mut block_segments;
-        {
-            let term = Term::from_field_u64(int_field, 0u64);
-            let inverted_index = segment_reader.inverted_index(int_field)?;
-            let term_info = inverted_index.get_term_info(&term)?.unwrap();
-            block_segments = inverted_index
-                .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
-        }
-        assert_eq!(block_segments.docs(), &[0, 2, 4]);
-        {
-            let term = Term::from_field_u64(int_field, 1u64);
-            let inverted_index = segment_reader.inverted_index(int_field)?;
-            let term_info = inverted_index.get_term_info(&term)?.unwrap();
-            inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments)?;
-        }
-        assert_eq!(block_segments.docs(), &[1, 3, 5]);
         Ok(())
     }
 }

@@ -8,17 +8,17 @@ use crate::store::StoreWriter;
 
 /// Segment serializer is in charge of laying out on disk
 /// the data accumulated and sorted by the `SegmentWriter`.
-pub struct SegmentSerializer {
-    segment: Segment,
+pub struct SegmentSerializer<C: crate::codec::Codec> {
+    segment: Segment<C>,
     pub(crate) store_writer: StoreWriter,
     fast_field_write: WritePtr,
     fieldnorms_serializer: Option<FieldNormsSerializer>,
-    postings_serializer: InvertedIndexSerializer,
+    postings_serializer: InvertedIndexSerializer<C>,
 }
 
-impl SegmentSerializer {
+impl<C: crate::codec::Codec> SegmentSerializer<C> {
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(mut segment: Segment) -> crate::Result<SegmentSerializer> {
+    pub fn for_segment(mut segment: Segment<C>) -> crate::Result<SegmentSerializer<C>> {
         let settings = segment.index().settings().clone();
         let store_writer = {
             let store_write = segment.open_write(SegmentComponent::Store)?;
@@ -50,12 +50,12 @@ impl SegmentSerializer {
         self.store_writer.mem_usage()
     }
 
-    pub fn segment(&self) -> &Segment {
+    pub fn segment(&self) -> &Segment<C> {
         &self.segment
     }
 
     /// Accessor to the `PostingsSerializer`.
-    pub fn get_postings_serializer(&mut self) -> &mut InvertedIndexSerializer {
+    pub fn get_postings_serializer(&mut self) -> &mut InvertedIndexSerializer<C> {
         &mut self.postings_serializer
     }
 
