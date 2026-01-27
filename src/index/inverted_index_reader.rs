@@ -1,4 +1,9 @@
+#[cfg(feature = "quickwit")]
+use std::future::Future;
 use std::io;
+#[cfg(feature = "quickwit")]
+use std::pin::Pin;
+use std::sync::Arc;
 
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount};
@@ -27,7 +32,102 @@ use crate::termdict::TermDictionary;
 ///
 /// `InvertedIndexReader` are created by calling
 /// [`SegmentReader::inverted_index()`](crate::SegmentReader::inverted_index).
-pub struct InvertedIndexReader {
+pub trait InvertedIndexReader: Send + Sync {
+    /// Returns the term info associated with the term.
+    fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>>;
+
+    /// Return the term dictionary datastructure.
+    fn terms(&self) -> &TermDictionary;
+
+    /// Return the fields and types encoded in the dictionary in lexicographic order.
+    /// Only valid on JSON fields.
+    ///
+    /// Notice: This requires a full scan and therefore **very expensive**.
+    /// TODO: Move to sstable to use the index.
+    #[doc(hidden)]
+    fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>>;
+
+    /// Returns a block postings given a `Term`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most users should prefer using [`Self::read_postings()`] instead.
+    fn read_block_postings(
+        &self,
+        term: &Term,
+        option: IndexRecordOption,
+    ) -> io::Result<Option<BlockSegmentPostings>>;
+
+    /// Returns a block postings given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most users should prefer using [`Self::read_postings()`] instead.
+    fn read_block_postings_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+        requested_option: IndexRecordOption,
+    ) -> io::Result<BlockSegmentPostings>;
+
+    /// Returns a posting object given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most users should prefer using [`Self::read_postings()`] instead.
+    fn read_postings_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<SegmentPostings>;
+
+    /// Returns the total number of tokens recorded for all documents
+    /// (including deleted documents).
+    fn total_num_tokens(&self) -> u64;
+
+    /// Returns the segment postings associated with the term, and with the given option,
+    /// or `None` if the term has never been encountered and indexed.
+    fn read_postings(
+        &self,
+        term: &Term,
+        option: IndexRecordOption,
+    ) -> io::Result<Option<SegmentPostings>>;
+
+    /// Returns the number of documents containing the term.
+    fn doc_freq(&self, term: &Term) -> io::Result<u32>;
+
+    /// Returns the number of documents containing the term asynchronously.
+    #[cfg(feature = "quickwit")]
+    fn doc_freq_async<'a>(&'a self, term: &'a Term) -> BoxFuture<'a, io::Result<u32>>;
+
+    /// Warmup a block postings given a `Term`.
+    /// This method is for an advanced usage only.
+    ///
+    /// returns a boolean, whether the term was found in the dictionary
+    #[cfg(feature = "quickwit")]
+    fn warm_postings<'a>(
+        &'a self,
+        term: &'a Term,
+        with_positions: bool,
+    ) -> BoxFuture<'a, io::Result<bool>>;
+
+    /// Warmup the block postings for all terms.
+    /// This method is for an advanced usage only.
+    ///
+    /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] or
+    /// [`Self::warm_postings`] instead.
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_full<'a>(&'a self, with_positions: bool) -> BoxFuture<'a, io::Result<()>>;
+}
+
+/// Convenient alias for an atomically reference counted inverted index reader handle.
+pub type ArcInvertedIndexReader = Arc<dyn InvertedIndexReader>;
+
+#[cfg(feature = "quickwit")]
+/// Boxed future used by async inverted index reader methods.
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+/// The tantivy inverted index reader is in charge of accessing
+/// the inverted index associated with a specific field.
+///
+/// This is the default implementation of [`InvertedIndexReader`].
+pub struct TantivyInvertedIndexReader {
     termdict: TermDictionary,
     postings_file_slice: FileSlice,
     positions_file_slice: FileSlice,
@@ -36,11 +136,16 @@ pub struct InvertedIndexReader {
 }
 
 /// Object that records the amount of space used by a field in an inverted index.
-pub(crate) struct InvertedIndexFieldSpace {
+pub struct InvertedIndexFieldSpace {
+    /// The JSON field name (without the parent field).
     pub field_name: String,
+    /// The field type encoded in the term dictionary.
     pub field_type: Type,
+    /// Total postings size for this field.
     pub postings_size: ByteCount,
+    /// Total positions size for this field.
     pub positions_size: ByteCount,
+    /// Number of terms for this field.
     pub num_terms: u64,
 }
 
@@ -62,16 +167,16 @@ impl InvertedIndexFieldSpace {
     }
 }
 
-impl InvertedIndexReader {
+impl TantivyInvertedIndexReader {
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
         record_option: IndexRecordOption,
-    ) -> io::Result<InvertedIndexReader> {
+    ) -> io::Result<TantivyInvertedIndexReader> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
         let total_num_tokens = u64::deserialize(&mut total_num_tokens_slice.read_bytes()?)?;
-        Ok(InvertedIndexReader {
+        Ok(TantivyInvertedIndexReader {
             termdict,
             postings_file_slice: postings_body,
             positions_file_slice,
@@ -82,8 +187,8 @@ impl InvertedIndexReader {
 
     /// Creates an empty `InvertedIndexReader` object, which
     /// contains no terms at all.
-    pub fn empty(record_option: IndexRecordOption) -> InvertedIndexReader {
-        InvertedIndexReader {
+    pub fn empty(record_option: IndexRecordOption) -> TantivyInvertedIndexReader {
+        TantivyInvertedIndexReader {
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
             positions_file_slice: FileSlice::empty(),
@@ -158,29 +263,6 @@ impl InvertedIndexReader {
         fields.extend(current_field_opt.take());
 
         Ok(fields)
-    }
-
-    /// Resets the block segment to another position of the postings
-    /// file.
-    ///
-    /// This is useful for enumerating through a list of terms,
-    /// and consuming the associated posting lists while avoiding
-    /// reallocating a [`BlockSegmentPostings`].
-    ///
-    /// # Warning
-    ///
-    /// This does not reset the positions list.
-    pub fn reset_block_postings_from_terminfo(
-        &self,
-        term_info: &TermInfo,
-        block_postings: &mut BlockSegmentPostings,
-    ) -> io::Result<()> {
-        let postings_slice = self
-            .postings_file_slice
-            .slice(term_info.postings_range.clone());
-        let postings_bytes = postings_slice.read_bytes()?;
-        block_postings.reset(term_info.doc_freq, postings_bytes)?;
-        Ok(())
     }
 
     /// Returns a block postings given a `Term`.
@@ -282,7 +364,7 @@ impl InvertedIndexReader {
 }
 
 #[cfg(feature = "quickwit")]
-impl InvertedIndexReader {
+impl TantivyInvertedIndexReader {
     pub(crate) async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
         self.termdict.get_async(term.serialized_value_bytes()).await
     }
@@ -490,5 +572,86 @@ impl InvertedIndexReader {
             .await?
             .map(|term_info| term_info.doc_freq)
             .unwrap_or(0u32))
+    }
+}
+
+impl InvertedIndexReader for TantivyInvertedIndexReader {
+    fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
+        TantivyInvertedIndexReader::get_term_info(self, term)
+    }
+
+    fn terms(&self) -> &TermDictionary {
+        TantivyInvertedIndexReader::terms(self)
+    }
+
+    fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>> {
+        TantivyInvertedIndexReader::list_encoded_json_fields(self)
+    }
+
+    fn read_block_postings(
+        &self,
+        term: &Term,
+        option: IndexRecordOption,
+    ) -> io::Result<Option<BlockSegmentPostings>> {
+        TantivyInvertedIndexReader::read_block_postings(self, term, option)
+    }
+
+    fn read_block_postings_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+        requested_option: IndexRecordOption,
+    ) -> io::Result<BlockSegmentPostings> {
+        TantivyInvertedIndexReader::read_block_postings_from_terminfo(
+            self,
+            term_info,
+            requested_option,
+        )
+    }
+
+    fn read_postings_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<SegmentPostings> {
+        TantivyInvertedIndexReader::read_postings_from_terminfo(self, term_info, option)
+    }
+
+    fn total_num_tokens(&self) -> u64 {
+        TantivyInvertedIndexReader::total_num_tokens(self)
+    }
+
+    fn read_postings(
+        &self,
+        term: &Term,
+        option: IndexRecordOption,
+    ) -> io::Result<Option<SegmentPostings>> {
+        TantivyInvertedIndexReader::read_postings(self, term, option)
+    }
+
+    fn doc_freq(&self, term: &Term) -> io::Result<u32> {
+        TantivyInvertedIndexReader::doc_freq(self, term)
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn doc_freq_async<'a>(&'a self, term: &'a Term) -> BoxFuture<'a, io::Result<u32>> {
+        Box::pin(async move { TantivyInvertedIndexReader::doc_freq_async(self, term).await })
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn warm_postings<'a>(
+        &'a self,
+        term: &'a Term,
+        with_positions: bool,
+    ) -> BoxFuture<'a, io::Result<bool>> {
+        Box::pin(async move {
+            TantivyInvertedIndexReader::warm_postings(self, term, with_positions).await
+        })
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_full<'a>(&'a self, with_positions: bool) -> BoxFuture<'a, io::Result<()>> {
+        Box::pin(async move {
+            TantivyInvertedIndexReader::warm_postings_full(self, with_positions).await
+        })
     }
 }

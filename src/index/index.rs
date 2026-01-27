@@ -14,7 +14,7 @@ use crate::directory::error::OpenReadError;
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
-use crate::index::{IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory};
+use crate::index::{IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory, SegmentReader};
 use crate::indexer::index_writer::{
     IndexWriterOptions, MAX_NUM_THREAD, MEMORY_BUDGET_NUM_BYTES_MIN,
 };
@@ -24,7 +24,7 @@ use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::SegmentReader;
+use crate::TantivySegmentReader;
 
 fn load_metas(
     directory: &dyn Directory,
@@ -492,7 +492,7 @@ impl Index {
         let segments = self.searchable_segments()?;
         let fields_metadata: Vec<Vec<FieldMetadata>> = segments
             .into_iter()
-            .map(|segment| SegmentReader::open(&segment)?.fields_metadata())
+            .map(|segment| TantivySegmentReader::open(&segment)?.fields_metadata())
             .collect::<Result<_, _>>()?;
         Ok(merge_field_meta_data(fields_metadata))
     }

@@ -52,7 +52,7 @@ impl FastFieldRangeWeight {
 }
 
 impl Weight for FastFieldRangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         // Check if both bounds are Bound::Unbounded
         if self.bounds.is_unbounded() {
             return Ok(Box::new(AllScorer::new(reader.max_doc())));
@@ -219,7 +219,7 @@ impl Weight for FastFieldRangeWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
@@ -236,7 +236,7 @@ impl Weight for FastFieldRangeWeight {
 ///
 /// Convert into fast field value space and search.
 fn search_on_json_numerical_field(
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     field_name: &str,
     typ: Type,
     bounds: BoundsRange<ValueBytes<Vec<u8>>>,

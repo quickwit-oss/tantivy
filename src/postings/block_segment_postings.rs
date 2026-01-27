@@ -182,32 +182,6 @@ impl BlockSegmentPostings {
         self.freq_reading_option
     }
 
-    // Resets the block segment postings on another position
-    // in the postings file.
-    //
-    // This is useful for enumerating through a list of terms,
-    // and consuming the associated posting lists while avoiding
-    // reallocating a `BlockSegmentPostings`.
-    //
-    // # Warning
-    //
-    // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) -> io::Result<()> {
-        let (skip_data_opt, postings_data) =
-            split_into_skips_and_postings(doc_freq, postings_data)?;
-        self.data = postings_data;
-        self.block_max_score_cache = None;
-        self.block_loaded = false;
-        if let Some(skip_data) = skip_data_opt {
-            self.skip_reader.reset(skip_data, doc_freq);
-        } else {
-            self.skip_reader.reset(OwnedBytes::empty(), doc_freq);
-        }
-        self.doc_freq = doc_freq;
-        self.load_block();
-        Ok(())
-    }
-
     /// Returns the overall number of documents in the block postings.
     /// It does not take in account whether documents are deleted or not.
     ///
@@ -519,42 +493,6 @@ mod tests {
         }
         block_postings.seek(100_000);
         assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);
-        Ok(())
-    }
-
-    #[test]
-    fn test_reset_block_segment_postings() -> crate::Result<()> {
-        let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INDEXED);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests()?;
-        // create two postings list, one containing even number,
-        // the other containing odd numbers.
-        for i in 0..6 {
-            let doc = doc!(int_field=> (i % 2) as u64);
-            index_writer.add_document(doc)?;
-        }
-        index_writer.commit()?;
-        let searcher = index.reader()?.searcher();
-        let segment_reader = searcher.segment_reader(0);
-
-        let mut block_segments;
-        {
-            let term = Term::from_field_u64(int_field, 0u64);
-            let inverted_index = segment_reader.inverted_index(int_field)?;
-            let term_info = inverted_index.get_term_info(&term)?.unwrap();
-            block_segments = inverted_index
-                .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
-        }
-        assert_eq!(block_segments.docs(), &[0, 2, 4]);
-        {
-            let term = Term::from_field_u64(int_field, 1u64);
-            let inverted_index = segment_reader.inverted_index(int_field)?;
-            let term_info = inverted_index.get_term_info(&term)?.unwrap();
-            inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments)?;
-        }
-        assert_eq!(block_segments.docs(), &[1, 3, 5]);
         Ok(())
     }
 }

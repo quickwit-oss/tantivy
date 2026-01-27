@@ -69,13 +69,13 @@ pub trait Weight: Send + Sync + 'static {
     /// `boost` is a multiplier to apply to the score.
     ///
     /// See [`Query`](crate::query::Query).
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
 
     /// Returns an [`Explanation`] for the given document.
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation>;
 
     /// Returns the number documents within the given [`SegmentReader`].
-    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+    fn count(&self, reader: &dyn SegmentReader) -> crate::Result<u32> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if let Some(alive_bitset) = reader.alive_bitset() {
             Ok(scorer.count(alive_bitset))
@@ -88,7 +88,7 @@ pub trait Weight: Send + Sync + 'static {
     /// `DocSet` and push the scored documents to the collector.
     fn for_each(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         let mut scorer = self.scorer(reader, 1.0)?;
@@ -100,7 +100,7 @@ pub trait Weight: Send + Sync + 'static {
     /// `DocSet` and push the scored documents to the collector.
     fn for_each_no_score(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         let mut docset = self.scorer(reader, 1.0)?;
@@ -123,7 +123,7 @@ pub trait Weight: Send + Sync + 'static {
     fn for_each_pruning(
         &self,
         threshold: Score,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let mut scorer = self.scorer(reader, 1.0)?;

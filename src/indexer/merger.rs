@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use columnar::{
     ColumnType, ColumnarReader, MergeRowOrder, RowAddr, ShuffleMergeOrder, StackMergeOrder,
 };
@@ -12,14 +10,14 @@ use crate::docset::{DocSet, TERMINATED};
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, FieldNormsWriter};
-use crate::index::{Segment, SegmentComponent, SegmentReader};
+use crate::index::{Segment, SegmentComponent, SegmentReader, TantivySegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
-use crate::{DocAddress, DocId, InvertedIndexReader};
+use crate::{ArcInvertedIndexReader, DocAddress, DocId};
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
 ///
@@ -27,7 +25,7 @@ use crate::{DocAddress, DocId, InvertedIndexReader};
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
 fn estimate_total_num_tokens_in_single_segment(
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     field: Field,
 ) -> crate::Result<u64> {
     // There are no deletes. We can simply use the exact value saved into the posting list.
@@ -68,7 +66,7 @@ fn estimate_total_num_tokens_in_single_segment(
     Ok((segment_num_tokens as f64 * ratio) as u64)
 }
 
-fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
+fn estimate_total_num_tokens(readers: &[TantivySegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_num_tokens: u64 = 0;
     for reader in readers {
         total_num_tokens += estimate_total_num_tokens_in_single_segment(reader, field)?;
@@ -78,7 +76,7 @@ fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::
 
 pub struct IndexMerger {
     schema: Schema,
-    pub(crate) readers: Vec<SegmentReader>,
+    pub(crate) readers: Vec<TantivySegmentReader>,
     max_doc: u32,
 }
 
@@ -170,8 +168,10 @@ impl IndexMerger {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
-                let reader =
-                    SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;
+                let reader = TantivySegmentReader::open_with_custom_alive_set(
+                    segment,
+                    new_alive_bitset_opt,
+                )?;
                 readers.push(reader);
             }
         }
@@ -204,8 +204,20 @@ impl IndexMerger {
             let fieldnorms_readers: Vec<FieldNormReader> = self
                 .readers
                 .iter()
-                .map(|reader| reader.get_fieldnorms_reader(field))
-                .collect::<Result<_, _>>()?;
+                .map(|reader| {
+                    reader
+                        .fieldnorms_readers()
+                        .get_field(field)?
+                        .ok_or_else(|| {
+                            let field_name = self.schema.get_field_name(field);
+                            let err_msg = format!(
+                                "Field norm not found for field {field_name:?}. Was the field set \
+                                 to record norm during indexing?"
+                            );
+                            crate::TantivyError::SchemaError(err_msg)
+                        })
+                })
+                .collect::<crate::Result<_>>()?;
             for old_doc_addr in doc_id_mapping.iter_old_doc_addrs() {
                 let fieldnorms_reader = &fieldnorms_readers[old_doc_addr.segment_ord as usize];
                 let fieldnorm_id = fieldnorms_reader.fieldnorm_id(old_doc_addr.doc_id);
@@ -262,7 +274,7 @@ impl IndexMerger {
                 }),
         );
 
-        let has_deletes: bool = self.readers.iter().any(SegmentReader::has_deletes);
+        let has_deletes: bool = self.readers.iter().any(|reader| reader.has_deletes());
         let mapping_type = if has_deletes {
             MappingType::StackedWithDeletes
         } else {
@@ -297,7 +309,7 @@ impl IndexMerger {
 
         let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
 
-        let field_readers: Vec<Arc<InvertedIndexReader>> = self
+        let field_readers: Vec<ArcInvertedIndexReader> = self
             .readers
             .iter()
             .map(|reader| reader.inverted_index(indexed_field))
@@ -366,7 +378,7 @@ impl IndexMerger {
             // Let's compute the list of non-empty posting lists
             for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
-                let inverted_index: &InvertedIndexReader = &field_readers[segment_ord];
+                let inverted_index = field_readers[segment_ord].as_ref();
                 let segment_postings = inverted_index
                     .read_postings_from_terminfo(&term_info, segment_postings_option)?;
                 let alive_bitset_opt = segment_reader.alive_bitset();
@@ -1534,7 +1546,7 @@ mod tests {
         for segment_reader in searcher.segment_readers() {
             let mut term_scorer = term_query
                 .specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?
-                .term_scorer_for_test(segment_reader, 1.0)?
+                .term_scorer_for_test(segment_reader.as_ref(), 1.0)?
                 .unwrap();
             // the difference compared to before is intrinsic to the bm25 formula. no worries
             // there.

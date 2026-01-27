@@ -1,6 +1,6 @@
 use crate::collector::sort_key::NaturalComparator;
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer, TopNComputer};
-use crate::{DocAddress, DocId, Score};
+use crate::{DocAddress, DocId, Score, SegmentReader};
 
 /// Sort by similarity score.
 #[derive(Clone, Debug, Copy)]
@@ -19,7 +19,7 @@ impl SortKeyComputer for SortBySimilarityScore {
 
     fn segment_sort_key_computer(
         &self,
-        _segment_reader: &crate::SegmentReader,
+        _segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok(SortBySimilarityScore)
     }
@@ -29,7 +29,7 @@ impl SortKeyComputer for SortBySimilarityScore {
         &self,
         k: usize,
         weight: &dyn crate::query::Weight,
-        reader: &crate::SegmentReader,
+        reader: &dyn SegmentReader,
         segment_ord: u32,
     ) -> crate::Result<Vec<(Self::SortKey, DocAddress)>> {
         let mut top_n: TopNComputer<Score, DocId, Self::Comparator> =

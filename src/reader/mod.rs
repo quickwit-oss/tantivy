@@ -10,7 +10,7 @@ use self::warming::WarmingState;
 use crate::core::searcher::{SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
 use crate::store::DOCSTORE_CACHE_CAPACITY;
-use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
+use crate::{ArcSegmentReader, Index, Inventory, Searcher, TantivySegmentReader, TrackedObject};
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -189,19 +189,22 @@ impl InnerIndexReader {
     ///
     /// This function acquires a lock to prevent GC from removing files
     /// as we are opening our index.
-    fn open_segment_readers(index: &Index) -> crate::Result<Vec<SegmentReader>> {
+    fn open_segment_readers(index: &Index) -> crate::Result<Vec<ArcSegmentReader>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
         let _meta_lock = index.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = index.searchable_segments()?;
         let segment_readers = searchable_segments
             .iter()
-            .map(SegmentReader::open)
+            .map(|segment| {
+                TantivySegmentReader::open(segment)
+                    .map(|reader| Arc::new(reader) as ArcSegmentReader)
+            })
             .collect::<crate::Result<_>>()?;
         Ok(segment_readers)
     }
 
     fn track_segment_readers_in_inventory(
-        segment_readers: &[SegmentReader],
+        segment_readers: &[ArcSegmentReader],
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
     ) -> TrackedObject<SearcherGeneration> {

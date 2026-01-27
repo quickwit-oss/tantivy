@@ -6,7 +6,7 @@ use crate::collector::sort_key::{
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::schema::OwnedValue;
-use crate::{DateTime, DocId, Score};
+use crate::{DateTime, DocId, Score, SegmentReader};
 
 /// Sort by the boxed / OwnedValue representation of either a fast field, or of the score.
 ///
@@ -86,7 +86,7 @@ impl SortKeyComputer for SortByErasedType {
 
     fn segment_sort_key_computer(
         &self,
-        segment_reader: &crate::SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let inner: Box<dyn ErasedSegmentSortKeyComputer> = match self {
             Self::Field(column_name) => {
