@@ -9,12 +9,17 @@ use crate::directory::CompositeFile;
 use crate::schema::Field;
 use crate::space_usage::PerFieldSpaceUsage;
 
+/// Per-field spatial index readers for a segment.
+///
+/// Provides access to the spatial index data stored in a segment's composite file. Each field with
+/// spatial indexing enabled has its own SpatialReader.
 #[derive(Clone)]
 pub struct SpatialReaders {
     data: Arc<CompositeFile>,
 }
 
 impl SpatialReaders {
+    /// Returns an empty SpatialReaders for segments with no spatial fields.
     pub fn empty() -> SpatialReaders {
         SpatialReaders {
             data: Arc::new(CompositeFile::empty()),

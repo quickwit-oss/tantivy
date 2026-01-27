@@ -10,10 +10,13 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+/// HUSH
 pub struct SpatialIndex {}
 
+/// Manages a map of index implementations keyed on a user specified index type name.
 #[derive(Clone)]
 pub struct SpatialIndexManager {
+    /// A map of spatial index implementations.
     pub indices: Arc<RwLock<HashMap<String, SpatialIndex>>>,
 }
 

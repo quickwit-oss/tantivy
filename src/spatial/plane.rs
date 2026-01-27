@@ -1,5 +1,8 @@
+//! Implementation of a planar surface.
+
 use crate::spatial::surface::Surface;
 
+/// Implementation of a planar surface.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Plane;
 
