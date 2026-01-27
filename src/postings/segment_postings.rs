@@ -168,8 +168,16 @@ impl DocSet for SegmentPostings {
         self.doc()
     }
 
+    #[inline]
     fn seek(&mut self, target: DocId) -> DocId {
         debug_assert!(self.doc() <= target);
+        if self.doc() >= target {
+            return self.doc();
+        }
+
+        // As an optimization, if the block is already loaded, we can
+        // cheaply check the next doc.
+        self.cur = (self.cur + 1).min(COMPRESSION_BLOCK_SIZE - 1);
         if self.doc() >= target {
             return self.doc();
         }

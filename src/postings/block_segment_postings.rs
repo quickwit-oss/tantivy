@@ -303,10 +303,10 @@ impl BlockSegmentPostings {
     }
 
     pub(crate) fn load_block(&mut self) {
-        let offset = self.skip_reader.byte_offset();
         if self.block_is_loaded() {
             return;
         }
+        let offset = self.skip_reader.byte_offset();
         match self.skip_reader.block_info() {
             BlockInfo::BitPacked {
                 doc_num_bits,

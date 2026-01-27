@@ -84,6 +84,14 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
         docsets.sort_by_key(|docset| docset.cost());
         go_to_first_doc(&mut docsets);
         let left = docsets.remove(0);
+        debug_assert!({
+            let doc = left.doc();
+            if doc == TERMINATED {
+                true
+            } else {
+                docsets.iter().all(|docset| docset.doc() == doc)
+            }
+        });
         let right = docsets.remove(0);
         Intersection {
             left,
@@ -112,30 +120,24 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
         // Invariant:
         // - candidate is always <= to the next document in the intersection.
         // - candidate strictly increases at every occurence of the loop.
-        let mut candidate = 0;
+        let mut candidate = left.doc() + 1;
 
         // Termination: candidate strictly increases.
         'outer: while candidate < TERMINATED {
             // As we enter the loop, we should always have candidate < next_doc.
 
-            // This step always increases candidate.
-            //
-            // TODO: Think about which value would make sense here
-            // It depends on the DocSet implementation, when a seek would outweigh an advance.
-            candidate = if candidate > left.doc().wrapping_add(100) {
-                left.seek(candidate)
-            } else {
-                left.advance()
-            };
+            candidate = left.seek(candidate);
 
             // Left is positionned on `candidate`.
             debug_assert_eq!(left.doc(), candidate);
 
             if let SeekDangerResult::SeekLowerBound(seek_lower_bound) = right.seek_danger(candidate)
             {
-                // The max is technically useless but it makes the invariant
-                // easier to proofread.
-                debug_assert!(seek_lower_bound >= candidate);
+                debug_assert!(
+                    seek_lower_bound == TERMINATED || seek_lower_bound > candidate,
+                    "seek_lower_bound {seek_lower_bound} must be greater than candidate \
+                     {candidate}"
+                );
                 candidate = seek_lower_bound;
                 continue;
             }
@@ -148,7 +150,11 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                     other.seek_danger(candidate)
                 {
                     // One of the scorer does not match, let's restart at the top of the loop.
-                    debug_assert!(seek_lower_bound >= candidate);
+                    debug_assert!(
+                        seek_lower_bound == TERMINATED || seek_lower_bound > candidate,
+                        "seek_lower_bound {seek_lower_bound} must be greater than candidate \
+                         {candidate}"
+                    );
                     candidate = seek_lower_bound;
                     continue 'outer;
                 }
@@ -238,9 +244,12 @@ mod tests {
     use proptest::prelude::*;
 
     use super::Intersection;
+    use crate::collector::Count;
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
-    use crate::query::VecDocSet;
+    use crate::query::{QueryParser, VecDocSet};
+    use crate::schema::{Schema, TEXT};
+    use crate::Index;
 
     #[test]
     fn test_intersection() {
@@ -410,5 +419,30 @@ mod tests {
             }
             assert_eq!(intersection.doc(), TERMINATED);
         }
+    }
+
+    #[test]
+    fn test_bug_2811_intersection_candidate_should_increase() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(text_field=>"hello happy tax"))
+            .unwrap();
+        writer.add_document(doc!(text_field=>"hello")).unwrap();
+        writer.add_document(doc!(text_field=>"hello")).unwrap();
+        writer.add_document(doc!(text_field=>"happy tax")).unwrap();
+
+        writer.commit().unwrap();
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let query = query_parser
+            .parse_query(r#"+text:hello +text:"happy tax""#)
+            .unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let c = searcher.search(&*query, &Count).unwrap();
+        assert_eq!(c, 1);
     }
 }
