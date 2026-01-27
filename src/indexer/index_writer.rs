@@ -218,7 +218,7 @@ fn index_documents<D: Document>(
     let alive_bitset_opt = apply_deletes(&segment_with_max_doc, &mut delete_cursor, &doc_opstamps)?;
 
     let meta = segment_with_max_doc.meta().clone();
-    meta.untrack_temp_docstore();
+
     // update segment_updater inventory to remove tempstore
     let segment_entry = SegmentEntry::new(meta, delete_cursor, alive_bitset_opt);
     segment_updater.schedule_add_segment(segment_entry).wait()?;
