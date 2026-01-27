@@ -1327,7 +1327,10 @@ mod test {
         test_parse_query_to_ast_helper("(<=42)", "{\"*\" TO \"42\"]");
         test_parse_query_to_ast_helper("(<=42 )", "{\"*\" TO \"42\"]");
         test_parse_query_to_ast_helper("(age:>5)", "\"age\":{\"5\" TO \"*\"}");
-        test_parse_query_to_ast_helper("(title:bar AND age:>12)", "(+\"title\":bar +\"age\":{\"12\" TO \"*\"})");
+        test_parse_query_to_ast_helper(
+            "(title:bar AND age:>12)",
+            "(+\"title\":bar +\"age\":{\"12\" TO \"*\"})",
+        );
     }
 
     #[test]
