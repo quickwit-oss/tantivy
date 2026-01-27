@@ -124,7 +124,6 @@ impl SegmentSpaceUsage {
             FieldNorms => PerField(self.fieldnorms().clone()),
             Terms => PerField(self.termdict().clone()),
             SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
-            SegmentComponent::TempStore => ComponentSpaceUsage::Store(self.store().clone()),
             Delete => Basic(self.deletes()),
         }
     }
