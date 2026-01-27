@@ -295,7 +295,7 @@ impl<C: Codec> IndexMerger<C> {
         &self,
         indexed_field: Field,
         _field_type: &FieldType,
-        serializer: &mut InvertedIndexSerializer<C>,
+        serializer: &mut InvertedIndexSerializer,
         fieldnorm_reader: Option<FieldNormReader>,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
@@ -481,7 +481,7 @@ impl<C: Codec> IndexMerger<C> {
 
     fn write_postings(
         &self,
-        serializer: &mut InvertedIndexSerializer<C>,
+        serializer: &mut InvertedIndexSerializer,
         fieldnorm_readers: FieldNormReaders,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {

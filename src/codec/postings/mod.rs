@@ -10,19 +10,10 @@ use crate::query::{Bm25Weight, Scorer};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score};
 
-/// Postings codec.
+/// Postings codec (read path).
 pub trait PostingsCodec: Send + Sync + 'static {
-    /// Serializer type for the postings codec.
-    type PostingsSerializer: PostingsSerializer;
     /// Postings type for the postings codec.
     type Postings: Postings + Clone;
-    /// Creates a new postings serializer.
-    fn new_serializer(
-        &self,
-        avg_fieldnorm: Score,
-        mode: IndexRecordOption,
-        fieldnorm_reader: Option<FieldNormReader>,
-    ) -> Self::PostingsSerializer;
 
     /// Loads postings
     ///
@@ -61,45 +52,6 @@ pub trait PostingsCodec: Send + Sync + 'static {
     ) -> Result<(), Box<dyn Scorer>> {
         Err(scorer)
     }
-}
-
-/// A postings serializer is a listener that is in charge of serializing postings
-///
-/// IO is done only once per postings, once all of the data has been received.
-/// A serializer will therefore contain internal buffers.
-///
-/// A serializer is created once and recycled for all postings.
-///
-/// Clients should use PostingsSerializer as follows.
-/// ```rust,no_run
-/// // First postings list
-/// serializer.new_term(2, true);
-/// serializer.write_doc(2, 1);
-/// serializer.write_doc(6, 2);
-/// serializer.close_term(3);
-/// serializer.clear();
-/// // Second postings list
-/// serializer.new_term(1, true);
-/// serializer.write_doc(3, 1);
-/// serializer.close_term(3);
-/// ```
-pub trait PostingsSerializer {
-    /// The term_doc_freq here is the number of documents
-    /// in the postings lists.
-    ///
-    /// It can be used to compute the idf that will be used for the
-    /// blockmax parameters.
-    ///
-    /// If not available (e.g. if we do not collect `term_frequencies`
-    /// blockwand is disabled), the term_doc_freq passed will be set 0.
-    fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool);
-
-    /// Records a new document id for the current term.
-    /// The serializer may ignore it.
-    fn write_doc(&mut self, doc_id: DocId, term_freq: u32);
-
-    /// Closes the current term and writes the postings list associated.
-    fn close_term(&mut self, doc_freq: u32, wrt: &mut impl io::Write) -> io::Result<()>;
 }
 
 /// A light complement interface to Postings to allow block-max wand acceleration.

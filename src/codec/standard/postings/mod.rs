@@ -4,21 +4,16 @@ use crate::codec::postings::block_wand::{block_wand, block_wand_single_scorer};
 use crate::codec::postings::PostingsCodec;
 use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
 pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
-use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionReader;
 use crate::query::term_query::TermScorer;
 use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
 use crate::schema::IndexRecordOption;
 use crate::{DocSet as _, Score, TERMINATED};
 
-mod block;
 mod block_segment_postings;
 mod segment_postings;
-mod skip;
-mod standard_postings_serializer;
 
 pub use segment_postings::SegmentPostings as StandardPostings;
-pub use standard_postings_serializer::StandardPostingsSerializer;
 
 /// The default postings codec for tantivy.
 pub struct StandardPostingsCodec;
@@ -32,17 +27,7 @@ pub(crate) enum FreqReadingOption {
 }
 
 impl PostingsCodec for StandardPostingsCodec {
-    type PostingsSerializer = StandardPostingsSerializer;
     type Postings = SegmentPostings;
-
-    fn new_serializer(
-        &self,
-        avg_fieldnorm: Score,
-        mode: IndexRecordOption,
-        fieldnorm_reader: Option<FieldNormReader>,
-    ) -> Self::PostingsSerializer {
-        StandardPostingsSerializer::new(avg_fieldnorm, mode, fieldnorm_reader)
-    }
 
     fn load_postings(
         &self,
@@ -111,12 +96,12 @@ mod tests {
     use common::OwnedBytes;
 
     use super::*;
-    use crate::codec::postings::PostingsSerializer as _;
+    use crate::postings::serializer::PostingsSerializer;
     use crate::postings::Postings as _;
 
     fn test_segment_postings_tf_aux(num_docs: u32, include_term_freq: bool) -> SegmentPostings {
         let mut postings_serializer =
-            StandardPostingsCodec.new_serializer(1.0f32, IndexRecordOption::WithFreqs, None);
+            PostingsSerializer::new(1.0f32, IndexRecordOption::WithFreqs, None);
         let mut buffer = Vec::new();
         postings_serializer.new_term(num_docs, include_term_freq);
         for i in 0..num_docs {

@@ -12,7 +12,8 @@ mod per_field_postings_writer;
 mod postings;
 mod postings_writer;
 mod recorder;
-mod serializer;
+pub(crate) mod serializer;
+pub(crate) mod skip;
 mod term_info;
 
 pub(crate) use loaded_postings::LoadedPostings;

@@ -2,10 +2,10 @@ use std::io;
 
 use common::{OwnedBytes, VInt};
 
-use crate::codec::standard::postings::skip::{BlockInfo, SkipReader};
 use crate::codec::standard::postings::FreqReadingOption;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder as _, COMPRESSION_BLOCK_SIZE};
+use crate::postings::skip::{BlockInfo, SkipReader};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
@@ -337,18 +337,17 @@ mod tests {
     use common::OwnedBytes;
 
     use super::BlockSegmentPostings;
-    use crate::codec::postings::PostingsSerializer;
     use crate::codec::standard::postings::segment_postings::SegmentPostings;
-    use crate::codec::standard::postings::StandardPostingsSerializer;
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
+    use crate::postings::serializer::PostingsSerializer;
     use crate::schema::IndexRecordOption;
 
     #[cfg(test)]
     fn build_block_postings(docs: &[u32]) -> BlockSegmentPostings {
         let doc_freq = docs.len() as u32;
         let mut postings_serializer =
-            StandardPostingsSerializer::new(1.0f32, IndexRecordOption::Basic, None);
+            PostingsSerializer::new(1.0f32, IndexRecordOption::Basic, None);
         postings_serializer.new_term(docs.len() as u32, false);
         for doc in docs {
             postings_serializer.write_doc(*doc, 1u32);

@@ -1,7 +1,6 @@
 use common::read_u32_vint;
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
-use crate::codec::Codec;
 use crate::postings::FieldSerializer;
 use crate::DocId;
 
@@ -68,10 +67,10 @@ pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
     /// Close the document. It will help record the term frequency.
     fn close_doc(&mut self, arena: &mut MemoryArena);
     /// Pushes the postings information to the serializer.
-    fn serialize<C: Codec>(
+    fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<C>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     );
     /// Returns the number of document containing this term.
@@ -111,10 +110,10 @@ impl Recorder for DocIdRecorder {
     #[inline]
     fn close_doc(&mut self, _arena: &mut MemoryArena) {}
 
-    fn serialize<C: Codec>(
+    fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<C>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     ) {
         let buffer = buffer_lender.lend_u8();
@@ -179,10 +178,10 @@ impl Recorder for TermFrequencyRecorder {
         self.current_tf = 0;
     }
 
-    fn serialize<C: Codec>(
+    fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<C>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     ) {
         let buffer = buffer_lender.lend_u8();
@@ -236,10 +235,10 @@ impl Recorder for TfAndPositionRecorder {
         self.stack.writer(arena).write_u32_vint(POSITION_END);
     }
 
-    fn serialize<C: Codec>(
+    fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<C>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     ) {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
