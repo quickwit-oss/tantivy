@@ -49,6 +49,8 @@ pub enum OwnedValue {
     Object(Vec<(String, Self)>),
     /// IpV6 Address. Internally there is no IpV4, it needs to be converted to `Ipv6Addr`.
     IpAddr(Ipv6Addr),
+    /// U128
+    U128(u128),
 }
 
 impl AsRef<OwnedValue> for OwnedValue {
@@ -79,6 +81,7 @@ impl OwnedValue {
             OwnedValue::Array(_) => 10,
             OwnedValue::Object(_) => 11,
             OwnedValue::IpAddr(_) => 12,
+            OwnedValue::U128(_) => 13,
         }
     }
 }
@@ -102,6 +105,7 @@ impl<'a> Value<'a> for &'a OwnedValue {
             OwnedValue::IpAddr(val) => ReferenceValueLeaf::IpAddr(*val).into(),
             OwnedValue::Array(array) => ReferenceValue::Array(array.iter()),
             OwnedValue::Object(object) => ReferenceValue::Object(ObjectMapIter(object.iter())),
+            OwnedValue::U128(val) => ReferenceValueLeaf::U128(*val).into(),
         }
     }
 }
@@ -223,6 +227,7 @@ impl serde::Serialize for OwnedValue {
                 }
             }
             OwnedValue::Array(ref array) => array.serialize(serializer),
+            OwnedValue::U128(ref u128) => u128.serialize(serializer),
         }
     }
 }
@@ -310,6 +315,7 @@ impl<'a, V: Value<'a>> From<ReferenceValue<'a, V>> for OwnedValue {
                 ReferenceValueLeaf::IpAddr(val) => OwnedValue::IpAddr(val),
                 ReferenceValueLeaf::Bool(val) => OwnedValue::Bool(val),
                 ReferenceValueLeaf::PreTokStr(val) => OwnedValue::PreTokStr(*val.clone()),
+                ReferenceValueLeaf::U128(u128) => OwnedValue::U128(u128),
             },
             ReferenceValue::Array(val) => {
                 OwnedValue::Array(val.map(|v| v.as_value().into()).collect())
