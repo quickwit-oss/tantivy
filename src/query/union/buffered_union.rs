@@ -17,7 +17,9 @@ const HORIZON: u32 = 64u32 * 64u32;
 //
 // Elements are dropped and not yielded.
 fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
-where P: FnMut(&mut T) -> bool {
+where
+    P: FnMut(&mut T) -> bool,
+{
     let mut i = 0;
     while i < v.len() {
         if predicate(&mut v[i]) {
@@ -275,7 +277,7 @@ where
         let mut is_hit = false;
         let mut min_new_target = TERMINATED;
 
-        for docset in self.docsets.iter_mut() {
+        for docset in self.scorers.iter_mut() {
             match docset.seek_danger(target) {
                 SeekDangerResult::Found => {
                     is_hit = true;

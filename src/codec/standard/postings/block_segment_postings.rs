@@ -282,7 +282,7 @@ impl BlockSegmentPostings {
     }
 
     pub(crate) fn load_block(&mut self) {
-        if self.block_is_loaded() {
+        if self.block_loaded {
             return;
         }
         let offset = self.skip_reader.byte_offset();

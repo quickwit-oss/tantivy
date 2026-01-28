@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::ops::{Deref as _, DerefMut as _};
 
 use common::BitSet;
