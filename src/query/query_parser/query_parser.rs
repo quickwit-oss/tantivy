@@ -2068,6 +2068,16 @@ mod test {
             format!("Regex(Field(0), {:#?})", expected_regex).as_str(),
             false,
         );
+        let expected_regex2 = tantivy_fst::Regex::new(r".*a").unwrap();
+        test_parse_query_to_logical_ast_helper(
+            "title:(/.*b/ OR /.*a/)",
+            format!(
+                "(Regex(Field(0), {:#?}) Regex(Field(0), {:#?}))",
+                expected_regex, expected_regex2
+            )
+            .as_str(),
+            false,
+        );
 
         // Invalid field
         let err = parse_query_to_logical_ast("float:/.*b/", false).unwrap_err();
