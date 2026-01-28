@@ -70,6 +70,9 @@ hyperloglogplus = { version = "0.4.1", features = ["const-loop"] }
 futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
+num-bigint = "0.4"
+num-rational = "0.4"
+num-traits = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
