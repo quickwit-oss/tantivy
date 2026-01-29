@@ -14,6 +14,7 @@
 //! https://docs.s2cell.aliddell.com/en/stable/s2_concepts.html
 
 pub mod bkd;
+pub mod cell_index;
 pub mod containment;
 pub mod crossings;
 pub mod delta;
