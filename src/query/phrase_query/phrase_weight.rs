@@ -79,7 +79,7 @@ impl PhraseWeight {
             similarity_weight_opt,
             fieldnorm_reader,
             self.slop,
-            &inverted_index_reader,
+            inverted_index_reader.as_ref(),
         )?;
 
         Ok(Some(scorer))

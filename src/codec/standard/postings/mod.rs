@@ -61,14 +61,7 @@ impl PostingsCodec for StandardPostingsCodec {
             Err(scorer) => scorer,
         };
         let mut union_scorer =
-            scorer.downcast::<BufferedUnionScorer<Box<dyn Scorer>, SumCombiner>>()?;
-        if !union_scorer
-            .scorers()
-            .iter()
-            .all(|scorer| scorer.is::<TermScorer<Self::Postings>>())
-        {
-            return Err(union_scorer);
-        }
+            scorer.downcast::<BufferedUnionScorer<TermScorer<Self::Postings>, SumCombiner>>()?;
         let doc = union_scorer.doc();
         if doc == TERMINATED {
             return Ok(());
@@ -77,15 +70,7 @@ impl PostingsCodec for StandardPostingsCodec {
         if score > threshold {
             threshold = callback(doc, score);
         }
-        let boxed_scorers: Vec<Box<dyn Scorer>> = union_scorer.into_scorers();
-        let scorers: Vec<TermScorer<Self::Postings>> = boxed_scorers
-            .into_iter()
-            .map(|scorer| {
-                *scorer.downcast::<TermScorer<Self::Postings>>().ok().expect(
-                    "Downcast failed despite the fact we already checked the type was correct",
-                )
-            })
-            .collect();
+        let scorers: Vec<TermScorer<Self::Postings>> = union_scorer.into_scorers();
         block_wand(scorers, threshold, callback);
         Ok(())
     }

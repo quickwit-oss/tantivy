@@ -228,7 +228,7 @@ pub use crate::core::{json_utils, Executor, Searcher, SearcherGeneration};
 pub use crate::directory::Directory;
 pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader, Order, Segment,
-    SegmentMeta, SegmentReader,
+    SegmentMeta, SegmentReader, TantivyInvertedIndexReader,
 };
 pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::schema::{Document, TantivyDocument, Term};

@@ -1,4 +1,8 @@
+#[cfg(feature = "quickwit")]
+use std::future::Future;
 use std::io;
+#[cfg(feature = "quickwit")]
+use std::pin::Pin;
 use std::sync::Arc;
 
 use common::json_path_writer::JSON_END_OF_PATH;
@@ -10,29 +14,104 @@ use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
-use crate::codec::postings::PostingsCodec;
-use crate::codec::{Codec, ObjectSafeCodec, StandardCodec};
+use crate::codec::{ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
-use crate::query::term_query::TermScorer;
-use crate::query::{Bm25Weight, PhraseScorer, Scorer};
+use crate::query::{Bm25Weight, Scorer};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
+/// Postings data returned by [`InvertedIndexReader::read_postings_data`].
+pub struct PostingsData {
+    /// Raw postings bytes for the term.
+    pub postings_data: OwnedBytes,
+    /// Raw positions bytes for the term, if positions are available.
+    pub positions_data: Option<OwnedBytes>,
+    /// Record option of the indexed field.
+    pub record_option: IndexRecordOption,
+    /// Effective record option after downgrading to the indexed field capability.
+    pub effective_option: IndexRecordOption,
+}
+
+/// Trait defining the contract for inverted index readers.
+pub trait InvertedIndexReader: Send + Sync {
+    /// Returns the term info associated with the term.
+    fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>>;
+
+    /// Return the term dictionary datastructure.
+    fn terms(&self) -> &TermDictionary;
+
+    /// Return the fields and types encoded in the dictionary in lexicographic order.
+    /// Only valid on JSON fields.
+    ///
+    /// Notice: This requires a full scan and therefore **very expensive**.
+    fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>>;
+
+    /// Read postings bytes and metadata for a given term.
+    fn read_postings_data(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<PostingsData>;
+
+    /// Build a new term scorer.
+    fn new_term_scorer(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        fieldnorm_reader: FieldNormReader,
+        similarity_weight: Bm25Weight,
+    ) -> io::Result<Box<dyn Scorer>>;
+
+    /// Returns a posting object given a `term_info`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most users should prefer using [`Self::read_postings()`] instead.
+    fn read_postings_from_terminfo(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<Box<dyn Postings>>;
+
+    /// Returns the total number of tokens recorded for all documents
+    /// (including deleted documents).
+    fn total_num_tokens(&self) -> u64;
+
+    /// Returns the segment postings associated with the term, and with the given option,
+    /// or `None` if the term has never been encountered and indexed.
+    fn read_postings(
+        &self,
+        term: &Term,
+        option: IndexRecordOption,
+    ) -> io::Result<Option<Box<dyn Postings>>>;
+
+    /// Returns the number of documents containing the term.
+    fn doc_freq(&self, term: &Term) -> io::Result<u32>;
+
+    /// Returns the number of documents containing the term asynchronously.
+    #[cfg(feature = "quickwit")]
+    fn doc_freq_async<'a>(
+        &'a self,
+        term: &'a Term,
+    ) -> Pin<Box<dyn Future<Output = io::Result<u32>> + Send + 'a>>;
+}
+
+/// Tantivy's default inverted index reader implementation.
+///
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated with a specific field.
 ///
 /// # Note
 ///
 /// It is safe to delete the segment associated with
-/// an `InvertedIndexReader`. As long as it is open,
+/// an `InvertedIndexReader` implementation. As long as it is open,
 /// the [`FileSlice`] it is relying on should
 /// stay available.
 ///
-/// `InvertedIndexReader` are created by calling
+/// `TantivyInvertedIndexReader` instances are created by calling
 /// [`SegmentReader::inverted_index()`](crate::SegmentReader::inverted_index).
-pub struct InvertedIndexReader {
+pub struct TantivyInvertedIndexReader {
     termdict: TermDictionary,
     postings_file_slice: FileSlice,
     positions_file_slice: FileSlice,
@@ -42,11 +121,16 @@ pub struct InvertedIndexReader {
 }
 
 /// Object that records the amount of space used by a field in an inverted index.
-pub(crate) struct InvertedIndexFieldSpace {
+pub struct InvertedIndexFieldSpace {
+    /// Field name as encoded in the term dictionary.
     pub field_name: String,
+    /// Value type for the encoded field.
     pub field_type: Type,
+    /// Total bytes used by postings for this field.
     pub postings_size: ByteCount,
+    /// Total bytes used by positions for this field.
     pub positions_size: ByteCount,
+    /// Number of terms in the field.
     pub num_terms: u64,
 }
 
@@ -68,17 +152,17 @@ impl InvertedIndexFieldSpace {
     }
 }
 
-impl InvertedIndexReader {
+impl TantivyInvertedIndexReader {
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
         record_option: IndexRecordOption,
         codec: Arc<dyn ObjectSafeCodec>,
-    ) -> io::Result<InvertedIndexReader> {
+    ) -> io::Result<TantivyInvertedIndexReader> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
         let total_num_tokens = u64::deserialize(&mut total_num_tokens_slice.read_bytes()?)?;
-        Ok(InvertedIndexReader {
+        Ok(TantivyInvertedIndexReader {
             termdict,
             postings_file_slice: postings_body,
             positions_file_slice,
@@ -88,10 +172,10 @@ impl InvertedIndexReader {
         })
     }
 
-    /// Creates an empty `InvertedIndexReader` object, which
+    /// Creates an empty `TantivyInvertedIndexReader` object, which
     /// contains no terms at all.
-    pub fn empty(record_option: IndexRecordOption) -> InvertedIndexReader {
-        InvertedIndexReader {
+    pub fn empty(record_option: IndexRecordOption) -> TantivyInvertedIndexReader {
+        TantivyInvertedIndexReader {
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
             positions_file_slice: FileSlice::empty(),
@@ -100,23 +184,18 @@ impl InvertedIndexReader {
             codec: Arc::new(StandardCodec),
         }
     }
+}
 
-    /// Returns the term info associated with the term.
-    pub fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
+impl InvertedIndexReader for TantivyInvertedIndexReader {
+    fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
         self.termdict.get(term.serialized_value_bytes())
     }
 
-    /// Return the term dictionary datastructure.
-    pub fn terms(&self) -> &TermDictionary {
+    fn terms(&self) -> &TermDictionary {
         &self.termdict
     }
 
-    /// Return the fields and types encoded in the dictionary in lexicographic order.
-    /// Only valid on JSON fields.
-    ///
-    /// Notice: This requires a full scan and therefore **very expensive**.
-    /// TODO: Move to sstable to use the index.
-    pub(crate) fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>> {
+    fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>> {
         let mut stream = self.termdict.stream()?;
         let mut fields: Vec<InvertedIndexFieldSpace> = Vec::new();
 
@@ -169,50 +248,34 @@ impl InvertedIndexReader {
         Ok(fields)
     }
 
-    pub(crate) fn new_term_scorer_specialized<C: Codec>(
+    fn read_postings_data(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-        fieldnorm_reader: FieldNormReader,
-        similarity_weight: Bm25Weight,
-        codec: &C,
-    ) -> io::Result<TermScorer<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings>> {
-        let postings = self.read_postings_from_terminfo_specialized(term_info, option, codec)?;
-        let term_scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
-        Ok(term_scorer)
+    ) -> io::Result<PostingsData> {
+        let effective_option = option.downgrade(self.record_option);
+        let postings_data = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone())
+            .read_bytes()?;
+        let positions_data: Option<OwnedBytes> = if effective_option.has_positions() {
+            let positions_data = self
+                .positions_file_slice
+                .slice(term_info.positions_range.clone())
+                .read_bytes()?;
+            Some(positions_data)
+        } else {
+            None
+        };
+        Ok(PostingsData {
+            postings_data,
+            positions_data,
+            record_option: self.record_option,
+            effective_option,
+        })
     }
 
-    pub(crate) fn new_phrase_scorer_type_specialized<C: Codec>(
-        &self,
-        term_infos: &[(usize, TermInfo)],
-        similarity_weight_opt: Option<Bm25Weight>,
-        fieldnorm_reader: FieldNormReader,
-        slop: u32,
-        codec: &C,
-    ) -> io::Result<PhraseScorer<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings>> {
-        let mut offset_and_term_postings: Vec<(
-            usize,
-            <<C as Codec>::PostingsCodec as PostingsCodec>::Postings,
-        )> = Vec::with_capacity(term_infos.len());
-        for (offset, term_info) in term_infos {
-            let postings = self.read_postings_from_terminfo_specialized(
-                term_info,
-                IndexRecordOption::WithFreqsAndPositions,
-                codec,
-            )?;
-            offset_and_term_postings.push((*offset, postings));
-        }
-        let phrase_scorer = PhraseScorer::new(
-            offset_and_term_postings,
-            similarity_weight_opt,
-            fieldnorm_reader,
-            slop,
-        );
-        Ok(phrase_scorer)
-    }
-
-    /// Build a new term scorer.
-    pub fn new_term_scorer(
+    fn new_term_scorer(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
@@ -229,45 +292,7 @@ impl InvertedIndexReader {
         Ok(term_scorer)
     }
 
-    /// Returns a postings object specific with a concrete type.
-    ///
-    /// This requires you to provied the actual codec.
-    pub fn read_postings_from_terminfo_specialized<C: Codec>(
-        &self,
-        term_info: &TermInfo,
-        option: IndexRecordOption,
-        codec: &C,
-    ) -> io::Result<<<C as Codec>::PostingsCodec as PostingsCodec>::Postings> {
-        let option = option.downgrade(self.record_option);
-        let postings_data = self
-            .postings_file_slice
-            .slice(term_info.postings_range.clone())
-            .read_bytes()?;
-        let positions_data: Option<OwnedBytes> = if option.has_positions() {
-            let positions_data = self
-                .positions_file_slice
-                .slice(term_info.positions_range.clone())
-                .read_bytes()?;
-            Some(positions_data)
-        } else {
-            None
-        };
-        let postings: <<C as Codec>::PostingsCodec as PostingsCodec>::Postings =
-            codec.postings_codec().load_postings(
-                term_info.doc_freq,
-                postings_data,
-                self.record_option,
-                option,
-                positions_data,
-            )?;
-        Ok(postings)
-    }
-
-    /// Returns a posting object given a `term_info`.
-    /// This method is for an advanced usage only.
-    ///
-    /// Most users should prefer using [`Self::read_postings()`] instead.
-    pub fn read_postings_from_terminfo(
+    fn read_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
@@ -276,23 +301,11 @@ impl InvertedIndexReader {
             .load_postings_type_erased(term_info, option, self)
     }
 
-    /// Returns the total number of tokens recorded for all documents
-    /// (including deleted documents).
-    pub fn total_num_tokens(&self) -> u64 {
+    fn total_num_tokens(&self) -> u64 {
         self.total_num_tokens
     }
 
-    /// Returns the segment postings associated with the term, and with the given option,
-    /// or `None` if the term has never been encountered and indexed.
-    ///
-    /// If the field was not indexed with the indexing options that cover
-    /// the requested options, the returned [`SegmentPostings`] the method does not fail
-    /// and returns a `SegmentPostings` with as much information as possible.
-    ///
-    /// For instance, requesting [`IndexRecordOption::WithFreqs`] for a
-    /// [`TextOptions`](crate::schema::TextOptions) that does not index position
-    /// will return a [`SegmentPostings`] with `DocId`s and frequencies.
-    pub fn read_postings(
+    fn read_postings(
         &self,
         term: &Term,
         option: IndexRecordOption,
@@ -302,17 +315,30 @@ impl InvertedIndexReader {
             .transpose()
     }
 
-    /// Returns the number of documents containing the term.
-    pub fn doc_freq(&self, term: &Term) -> io::Result<u32> {
+    fn doc_freq(&self, term: &Term) -> io::Result<u32> {
         Ok(self
             .get_term_info(term)?
             .map(|term_info| term_info.doc_freq)
             .unwrap_or(0u32))
     }
+
+    #[cfg(feature = "quickwit")]
+    fn doc_freq_async<'a>(
+        &'a self,
+        term: &'a Term,
+    ) -> Pin<Box<dyn Future<Output = io::Result<u32>> + Send + 'a>> {
+        Box::pin(async move {
+            Ok(self
+                .get_term_info_async(term)
+                .await?
+                .map(|term_info| term_info.doc_freq)
+                .unwrap_or(0u32))
+        })
+    }
 }
 
 #[cfg(feature = "quickwit")]
-impl InvertedIndexReader {
+impl TantivyInvertedIndexReader {
     pub(crate) async fn get_term_info_async(&self, term: &Term) -> io::Result<Option<TermInfo>> {
         self.termdict.get_async(term.serialized_value_bytes()).await
     }
@@ -511,14 +537,5 @@ impl InvertedIndexReader {
             self.positions_file_slice.read_bytes_async().await?;
         }
         Ok(())
-    }
-
-    /// Returns the number of documents containing the term asynchronously.
-    pub async fn doc_freq_async(&self, term: &Term) -> io::Result<u32> {
-        Ok(self
-            .get_term_info_async(term)
-            .await?
-            .map(|term_info| term_info.doc_freq)
-            .unwrap_or(0u32))
     }
 }

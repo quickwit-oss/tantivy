@@ -86,7 +86,8 @@ impl RegexPhraseWeight {
                     "Phrase query exceeded max expansions {num_terms}"
                 )));
             }
-            let union = Self::get_union_from_term_infos(&term_infos, reader, &inverted_index)?;
+            let union =
+                Self::get_union_from_term_infos(&term_infos, reader, inverted_index.as_ref())?;
 
             posting_lists.push((offset, union));
         }
@@ -101,7 +102,7 @@ impl RegexPhraseWeight {
 
     /// Add all docs of the term to the docset
     fn add_to_bitset(
-        inverted_index: &InvertedIndexReader,
+        inverted_index: &dyn InvertedIndexReader,
         term_info: &TermInfo,
         doc_bitset: &mut BitSet,
     ) -> crate::Result<()> {
@@ -168,7 +169,7 @@ impl RegexPhraseWeight {
     pub(crate) fn get_union_from_term_infos(
         term_infos: &[TermInfo],
         reader: &SegmentReader,
-        inverted_index: &InvertedIndexReader,
+        inverted_index: &dyn InvertedIndexReader,
     ) -> crate::Result<UnionType> {
         let max_doc = reader.max_doc();
 

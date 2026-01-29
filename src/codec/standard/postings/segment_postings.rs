@@ -264,6 +264,7 @@ impl Postings for SegmentPostings {
 }
 
 impl PostingsWithBlockMax for SegmentPostings {
+    #[inline]
     fn seek_block_max(
         &mut self,
         target_doc: crate::DocId,
@@ -275,6 +276,7 @@ impl PostingsWithBlockMax for SegmentPostings {
             .block_max_score(fieldnorm_reader, similarity_weight)
     }
 
+    #[inline]
     fn last_doc_in_block(&self) -> crate::DocId {
         self.block_cursor.skip_reader().last_doc_in_block()
     }

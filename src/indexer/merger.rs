@@ -305,7 +305,7 @@ impl<C: Codec> IndexMerger<C> {
 
         let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
 
-        let field_readers: Vec<Arc<InvertedIndexReader>> = self
+        let field_readers: Vec<Arc<dyn InvertedIndexReader>> = self
             .readers
             .iter()
             .map(|reader| reader.inverted_index(indexed_field))
@@ -377,11 +377,15 @@ impl<C: Codec> IndexMerger<C> {
             // Let's compute the list of non-empty posting lists
             for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
-                let inverted_index: &InvertedIndexReader = &field_readers[segment_ord];
-                let postings = inverted_index.read_postings_from_terminfo_specialized(
-                    &term_info,
-                    segment_postings_option,
-                    &self.codec,
+                let inverted_index = &field_readers[segment_ord];
+                let postings_data =
+                    inverted_index.read_postings_data(&term_info, segment_postings_option)?;
+                let postings = self.codec.postings_codec().load_postings(
+                    term_info.doc_freq,
+                    postings_data.postings_data,
+                    postings_data.record_option,
+                    postings_data.effective_option,
+                    postings_data.positions_data,
                 )?;
                 let alive_bitset_opt = segment_reader.alive_bitset();
                 let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {

@@ -61,9 +61,7 @@ where
                 None
             };
             if let Some(combiner) = combiner_opt {
-                let scorer =
-                    codec.build_union_scorer_with_sum_combiner(scorers, num_docs, combiner);
-                scorer
+                codec.build_union_scorer_with_sum_combiner(scorers, num_docs, combiner)
             } else {
                 box_scorer(BufferedUnionScorer::build(
                     scorers,

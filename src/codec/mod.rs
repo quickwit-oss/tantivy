@@ -13,7 +13,9 @@ use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::term_query::TermScorer;
-use crate::query::{box_scorer, Bm25Weight, BufferedUnionScorer, Scorer, SumCombiner};
+use crate::query::{
+    box_scorer, Bm25Weight, BufferedUnionScorer, PhraseScorer, Scorer, SumCombiner,
+};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, InvertedIndexReader, Score};
 
@@ -51,7 +53,7 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-        inverted_index_reader: &InvertedIndexReader,
+        inverted_index_reader: &dyn InvertedIndexReader,
     ) -> io::Result<Box<dyn Postings>>;
 
     /// Loads a type-erased TermScorer object for the given term.
@@ -66,7 +68,7 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-        inverted_index_reader: &InvertedIndexReader,
+        inverted_index_reader: &dyn InvertedIndexReader,
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
     ) -> io::Result<Box<dyn Scorer>>;
@@ -85,7 +87,7 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         similarity_weight: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
         slop: u32,
-        inverted_index_reader: &InvertedIndexReader,
+        inverted_index_reader: &dyn InvertedIndexReader,
     ) -> io::Result<Box<dyn Scorer>>;
 
     /// Performs a for_each_pruning operation on the given scorer.
@@ -120,10 +122,16 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-        inverted_index_reader: &InvertedIndexReader,
+        inverted_index_reader: &dyn InvertedIndexReader,
     ) -> io::Result<Box<dyn Postings>> {
-        let postings = inverted_index_reader
-            .read_postings_from_terminfo_specialized(term_info, option, self)?;
+        let postings_data = inverted_index_reader.read_postings_data(term_info, option)?;
+        let postings = self.postings_codec().load_postings(
+            term_info.doc_freq,
+            postings_data.postings_data,
+            postings_data.record_option,
+            postings_data.effective_option,
+            postings_data.positions_data,
+        )?;
         Ok(Box::new(postings))
     }
 
@@ -131,17 +139,19 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-        inverted_index_reader: &InvertedIndexReader,
+        inverted_index_reader: &dyn InvertedIndexReader,
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
     ) -> io::Result<Box<dyn Scorer>> {
-        let scorer = inverted_index_reader.new_term_scorer_specialized(
-            term_info,
-            option,
-            fieldnorm_reader,
-            similarity_weight,
-            self,
+        let postings_data = inverted_index_reader.read_postings_data(term_info, option)?;
+        let postings = self.postings_codec().load_postings(
+            term_info.doc_freq,
+            postings_data.postings_data,
+            postings_data.record_option,
+            postings_data.effective_option,
+            postings_data.positions_data,
         )?;
+        let scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
         Ok(box_scorer(scorer))
     }
 
@@ -151,15 +161,30 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         similarity_weight: Option<Bm25Weight>,
         fieldnorm_reader: FieldNormReader,
         slop: u32,
-        inverted_index_reader: &InvertedIndexReader,
+        inverted_index_reader: &dyn InvertedIndexReader,
     ) -> io::Result<Box<dyn Scorer>> {
-        let scorer = inverted_index_reader.new_phrase_scorer_type_specialized(
-            term_infos,
+        let mut offset_and_term_postings: Vec<(
+            usize,
+            <<Self as Codec>::PostingsCodec as PostingsCodec>::Postings,
+        )> = Vec::with_capacity(term_infos.len());
+        for (offset, term_info) in term_infos {
+            let postings_data = inverted_index_reader
+                .read_postings_data(term_info, IndexRecordOption::WithFreqsAndPositions)?;
+            let postings = self.postings_codec().load_postings(
+                term_info.doc_freq,
+                postings_data.postings_data,
+                postings_data.record_option,
+                postings_data.effective_option,
+                postings_data.positions_data,
+            )?;
+            offset_and_term_postings.push((*offset, postings));
+        }
+        let scorer = PhraseScorer::new(
+            offset_and_term_postings,
             similarity_weight,
             fieldnorm_reader,
             slop,
-            self,
-        )?;
+        );
         Ok(box_scorer(scorer))
     }
 

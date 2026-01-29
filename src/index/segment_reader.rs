@@ -11,7 +11,9 @@ use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::index::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
+use crate::index::{
+    InvertedIndexReader, Segment, SegmentComponent, SegmentId, TantivyInvertedIndexReader,
+};
 use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
@@ -31,7 +33,7 @@ use crate::{DocId, Opstamp};
 /// as close to all of the memory data is mmapped.
 #[derive(Clone)]
 pub struct SegmentReader {
-    inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
+    inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<dyn InvertedIndexReader>>>>,
 
     segment_id: SegmentId,
     delete_opstamp: Option<Opstamp>,
@@ -218,17 +220,17 @@ impl SegmentReader {
 
     /// Returns a field reader associated with the field given in argument.
     /// If the field was not present in the index during indexing time,
-    /// the InvertedIndexReader is empty.
+    /// the `InvertedIndexReader` is empty.
     ///
     /// The field reader is in charge of iterating through the
     /// term dictionary associated with a specific field,
     /// and opening the posting list associated with any term.
     ///
-    /// If the field is not marked as index, a warning is logged and an empty `InvertedIndexReader`
-    /// is returned.
+    /// If the field is not marked as index, a warning is logged and an empty
+    /// `InvertedIndexReader` is returned.
     /// Similarly, if the field is marked as indexed but no term has been indexed for the given
     /// index, an empty `InvertedIndexReader` is returned (but no warning is logged).
-    pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
+    pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<dyn InvertedIndexReader>> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
             .read()
@@ -253,7 +255,9 @@ impl SegmentReader {
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
-            return Ok(Arc::new(InvertedIndexReader::empty(record_option)));
+            let inv_idx_reader: Arc<dyn InvertedIndexReader> =
+                Arc::new(TantivyInvertedIndexReader::empty(record_option));
+            return Ok(inv_idx_reader);
         }
 
         let record_option = record_option_opt.unwrap();
@@ -277,13 +281,14 @@ impl SegmentReader {
             DataCorruption::comment_only(error_msg)
         })?;
 
-        let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            TermDictionary::open(termdict_file)?,
-            postings_file,
-            positions_file,
-            record_option,
-            self.codec.clone(),
-        )?);
+        let inv_idx_reader: Arc<dyn InvertedIndexReader> =
+            Arc::new(TantivyInvertedIndexReader::new(
+                TermDictionary::open(termdict_file)?,
+                postings_file,
+                positions_file,
+                record_option,
+                self.codec.clone(),
+            )?);
 
         // by releasing the lock in between, we may end up opening the inverting index
         // twice, but this is fine.
