@@ -291,18 +291,6 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             }
         };
 
-        let exclude_scorer_opt: Option<Box<dyn Scorer>> = if exclude_scorers.is_empty() {
-            None
-        } else {
-            let exclude_specialized_scorer: SpecializedScorer =
-                scorer_union(exclude_scorers, DoNothingCombiner::default, num_docs);
-            Some(into_box_scorer(
-                exclude_specialized_scorer,
-                DoNothingCombiner::default,
-                num_docs,
-            ))
-        };
-
         let include_scorer = match (should_scorers, must_scorers) {
             (ShouldScorersCombinationMethod::Ignored, must_scorers) => {
                 // No SHOULD clauses (or they were absorbed into MUST).
@@ -380,15 +368,32 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                 }
             }
         };
-        if let Some(exclude_scorer) = exclude_scorer_opt {
-            let include_scorer_boxed =
-                into_box_scorer(include_scorer, &score_combiner_fn, num_docs);
+        if exclude_scorers.is_empty() {
+            return Ok(include_scorer);
+        }
+
+        let include_scorer_boxed = into_box_scorer(include_scorer, &score_combiner_fn, num_docs);
+        if exclude_scorers.len() == 1 {
+            let exclude_scorer = exclude_scorers.pop().unwrap();
+            if exclude_scorer.is::<TermScorer>() {
+                // Optimize for single term exclusion.
+                return Ok(SpecializedScorer::Other(Box::new(Exclude::new(
+                    include_scorer_boxed,
+                    *(exclude_scorer
+                        .downcast::<TermScorer>()
+                        .map_err(|_| ())
+                        .unwrap()),
+                ))));
+            }
             Ok(SpecializedScorer::Other(Box::new(Exclude::new(
                 include_scorer_boxed,
                 exclude_scorer,
             ))))
         } else {
-            Ok(include_scorer)
+            Ok(SpecializedScorer::Other(Box::new(Exclude::new(
+                include_scorer_boxed,
+                exclude_scorers,
+            ))))
         }
     }
 }
