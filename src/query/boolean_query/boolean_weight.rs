@@ -373,28 +373,18 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
         }
 
         let include_scorer_boxed = into_box_scorer(include_scorer, &score_combiner_fn, num_docs);
-        if exclude_scorers.len() == 1 {
+        let scorer: Box<dyn Scorer> = if exclude_scorers.len() == 1 {
             let exclude_scorer = exclude_scorers.pop().unwrap();
-            if exclude_scorer.is::<TermScorer>() {
-                // Optimize for single term exclusion.
-                return Ok(SpecializedScorer::Other(Box::new(Exclude::new(
-                    include_scorer_boxed,
-                    *(exclude_scorer
-                        .downcast::<TermScorer>()
-                        .map_err(|_| ())
-                        .unwrap()),
-                ))));
+            match exclude_scorer.downcast::<TermScorer>() {
+                // Cast to TermScorer succeeded
+                Ok(exclude_scorer) => Box::new(Exclude::new(include_scorer_boxed, *exclude_scorer)),
+                // We get back the original Box<dyn Scorer>
+                Err(exclude_scorer) => Box::new(Exclude::new(include_scorer_boxed, exclude_scorer)),
             }
-            Ok(SpecializedScorer::Other(Box::new(Exclude::new(
-                include_scorer_boxed,
-                exclude_scorer,
-            ))))
         } else {
-            Ok(SpecializedScorer::Other(Box::new(Exclude::new(
-                include_scorer_boxed,
-                exclude_scorers,
-            ))))
-        }
+            Box::new(Exclude::new(include_scorer_boxed, exclude_scorers))
+        };
+        Ok(SpecializedScorer::Other(scorer))
     }
 }
 
