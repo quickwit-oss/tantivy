@@ -103,7 +103,7 @@ impl BitUnpacker {
     #[inline]
     pub fn block_num(&self, idx: u32) -> BlockNumber {
         // Find the address in bits of the index.
-        let addr_in_bits = (idx * self.num_bits) as usize;
+        let addr_in_bits = (idx as usize) * (self.num_bits as usize);
 
         // Then round down to the nearest byte.
         let addr_in_bytes = addr_in_bits >> 3;
@@ -138,10 +138,11 @@ impl BitUnpacker {
     /// boundaries.
     #[inline]
     pub fn block_oblivious_range(&self, id_range: Range<u32>, data_len: usize) -> Range<usize> {
-        let start_in_bits = id_range.start * self.num_bits;
-        let start = (start_in_bits >> 3) as usize;
-        let end_in_bits = id_range.end * self.num_bits;
-        let end = (end_in_bits >> 3) as usize;
+        let start_in_bits = (id_range.start as usize) * (self.num_bits as usize);
+        let start = start_in_bits >> 3;
+        assert!(start <= data_len);
+        let end_in_bits = (id_range.end as usize) * (self.num_bits as usize);
+        let end = end_in_bits >> 3;
         // TODO: We fetch more than we need and then truncate.
         start..(std::cmp::min(end + 8, data_len))
     }
@@ -154,16 +155,16 @@ impl BitUnpacker {
     /// Get the value at the given idx, which must exist within the given subset of the data.
     #[inline]
     pub fn get_from_subset(&self, idx: u32, data_offset: usize, data: &[u8]) -> u64 {
-        let addr_in_bits = idx * self.num_bits;
-        let addr = (addr_in_bits >> 3) as usize - data_offset;
+        let addr_in_bits = (idx as usize) * (self.num_bits as usize);
+        let addr = (addr_in_bits >> 3) - data_offset;
         if addr + 8 > data.len() {
             if self.num_bits == 0 {
                 return 0;
             }
-            let bit_shift = addr_in_bits & 7;
+            let bit_shift = (addr_in_bits & 7) as u32;
             return self.get_slow_path(addr, bit_shift, data);
         }
-        let bit_shift = addr_in_bits & 7;
+        let bit_shift = (addr_in_bits & 7) as u32;
         let bytes: [u8; 8] = (&data[addr..addr + 8]).try_into().unwrap();
         let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
         let val_shifted = val_unshifted_unmasked >> bit_shift;
@@ -197,7 +198,7 @@ impl BitUnpacker {
 
         let end_idx = start_idx + output.len() as u32;
 
-        let end_bit_read = end_idx * self.num_bits;
+        let end_bit_read = (end_idx as usize) * (self.num_bits as usize);
         let end_byte_read = (end_bit_read + 7) / 8;
         assert!(
             end_byte_read as usize <= data_offset + data.len(),
@@ -237,7 +238,7 @@ impl BitUnpacker {
         get_batch_ramp(start_idx, &mut output[..entrance_ramp_len as usize]);
 
         // Highway
-        let mut offset = ((highway_start * self.num_bits) as usize / 8) - data_offset;
+        let mut offset = (((highway_start as usize) * (self.num_bits as usize)) / 8) - data_offset;
         let mut output_cursor = (highway_start - start_idx) as usize;
         for _ in 0..num_blocks {
             offset += BitPacker1x.decompress(
@@ -449,5 +450,23 @@ mod test {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_block_oblivious_range_overflow() {
+        let bitunpacker = BitUnpacker::new(64);
+        // Using IDs that would cause a 32-bit overflow:
+        // start_doc * 64 bits = 4,294,967,232 (< 2^32)
+        // end_doc * 64 bits = 4,294,967,360 (> 2^32)
+        let start_doc = 67_108_863;
+        let end_doc = 67_108_865;
+        let data_len = 1_000_000_000;
+        let range = bitunpacker.block_oblivious_range(start_doc..end_doc, data_len);
+        assert!(
+            range.start <= range.end,
+            "Range start ({}) must be <= end ({})",
+            range.start,
+            range.end
+        );
     }
 }
