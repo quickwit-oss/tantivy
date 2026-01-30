@@ -1,48 +1,71 @@
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::query::Scorer;
 use crate::{DocId, Score};
 
-#[inline]
-fn is_within<TDocSetExclude: DocSet>(docset: &mut TDocSetExclude, doc: DocId) -> bool {
-    docset.doc() <= doc && docset.seek(doc) == doc
-}
-
-/// Filters a given `DocSet` by removing the docs from a given `DocSet`.
+/// An exclusion set is a set of documents
+/// that should be excluded from a given DocSet.
 ///
-/// The excluding docset has no impact on scoring.
-pub struct Exclude<TDocSet, TDocSetExclude> {
-    underlying_docset: TDocSet,
-    excluding_docset: TDocSetExclude,
+/// It can be a single DocSet, or a Vec of DocSets.
+pub trait ExclusionSet: Send {
+    /// Returns `true` if the given `doc` is within the exclusion set.
+    fn is_within(&mut self, doc: DocId) -> bool;
 }
 
-impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
+impl<TDocSet: DocSet> ExclusionSet for TDocSet {
+    #[inline]
+    fn is_within(&mut self, doc: DocId) -> bool {
+        self.seek_danger(doc) == SeekDangerResult::Found
+    }
+}
+
+impl<TDocSet: DocSet> ExclusionSet for Vec<TDocSet> {
+    #[inline]
+    fn is_within(&mut self, doc: DocId) -> bool {
+        for docset in self.iter_mut() {
+            if docset.seek_danger(doc) == SeekDangerResult::Found {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// Filters a given `DocSet` by removing the docs from an exclusion set.
+///
+/// The excluding docsets have no impact on scoring.
+pub struct Exclude<TDocSet, TExclusionSet> {
+    underlying_docset: TDocSet,
+    exclusion_set: TExclusionSet,
+}
+
+impl<TDocSet, TExclusionSet> Exclude<TDocSet, TExclusionSet>
 where
     TDocSet: DocSet,
-    TDocSetExclude: DocSet,
+    TExclusionSet: ExclusionSet,
 {
     /// Creates a new `ExcludeScorer`
     pub fn new(
         mut underlying_docset: TDocSet,
-        mut excluding_docset: TDocSetExclude,
-    ) -> Exclude<TDocSet, TDocSetExclude> {
+        mut exclusion_set: TExclusionSet,
+    ) -> Exclude<TDocSet, TExclusionSet> {
         while underlying_docset.doc() != TERMINATED {
             let target = underlying_docset.doc();
-            if !is_within(&mut excluding_docset, target) {
+            if !exclusion_set.is_within(target) {
                 break;
             }
             underlying_docset.advance();
         }
         Exclude {
             underlying_docset,
-            excluding_docset,
+            exclusion_set,
         }
     }
 }
 
-impl<TDocSet, TDocSetExclude> DocSet for Exclude<TDocSet, TDocSetExclude>
+impl<TDocSet, TExclusionSet> DocSet for Exclude<TDocSet, TExclusionSet>
 where
     TDocSet: DocSet,
-    TDocSetExclude: DocSet,
+    TExclusionSet: ExclusionSet,
 {
     fn advance(&mut self) -> DocId {
         loop {
@@ -50,7 +73,7 @@ where
             if candidate == TERMINATED {
                 return TERMINATED;
             }
-            if !is_within(&mut self.excluding_docset, candidate) {
+            if !self.exclusion_set.is_within(candidate) {
                 return candidate;
             }
         }
@@ -61,7 +84,7 @@ where
         if candidate == TERMINATED {
             return TERMINATED;
         }
-        if !is_within(&mut self.excluding_docset, candidate) {
+        if !self.exclusion_set.is_within(candidate) {
             return candidate;
         }
         self.advance()
@@ -79,10 +102,10 @@ where
     }
 }
 
-impl<TScorer, TDocSetExclude> Scorer for Exclude<TScorer, TDocSetExclude>
+impl<TScorer, TExclusionSet> Scorer for Exclude<TScorer, TExclusionSet>
 where
     TScorer: Scorer,
-    TDocSetExclude: DocSet + 'static,
+    TExclusionSet: ExclusionSet + 'static,
 {
     #[inline]
     fn score(&mut self) -> Score {
@@ -118,7 +141,7 @@ mod tests {
             || {
                 Box::new(Exclude::new(
                     VecDocSet::from(vec![1, 2, 5, 8, 10, 15, 24]),
-                    VecDocSet::from(vec![1, 2, 3, 10, 16, 24]),
+                    vec![VecDocSet::from(vec![1, 2, 3, 10, 16, 24])],
                 ))
             },
             vec![5, 8, 10, 15, 24],
@@ -134,7 +157,7 @@ mod tests {
             || {
                 Box::new(Exclude::new(
                     VecDocSet::from(sample_include.clone()),
-                    VecDocSet::from(sample_exclude.clone()),
+                    vec![VecDocSet::from(sample_exclude.clone())],
                 ))
             },
             sample_skip,
