@@ -820,7 +820,7 @@ impl IntermediateRangeBucketEntry {
         };
 
         // If we have a date type on the histogram buckets, we add the `key_as_string` field as
-        // rfc339
+        // rfc3339
         if column_type == Some(ColumnType::DateTime) {
             if let Some(val) = range_bucket_entry.to {
                 let key_as_string = format_date(val as i64)?;
