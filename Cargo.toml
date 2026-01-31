@@ -198,4 +198,7 @@ harness = false
 name = "merge_segments"
 harness = false
 
+[[bench]]
+name = "regex_all_terms"
+harness = false
 

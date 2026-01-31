@@ -207,7 +207,7 @@ fn main() {
     let mut runner = BenchRunner::new();
     for scenario in scenarios {
         let mut group = runner.new_group();
-        group.set_name(format!("merge_segments — {}", scenario.label));
+        group.set_name(format!("merge_segments inv_index — {}", scenario.label));
         let segments = scenario.segments.clone();
         let settings = scenario.settings.clone();
         group.register("merge", move |_| {
