@@ -1,3 +1,4 @@
+use std::io;
 use std::sync::Arc;
 
 use columnar::{
@@ -380,13 +381,13 @@ impl<C: Codec> IndexMerger<C> {
                 let inverted_index = &field_readers[segment_ord];
                 let postings_data =
                     inverted_index.read_postings_data(&term_info, segment_postings_option)?;
-                let postings = self.codec.postings_codec().load_postings(
-                    term_info.doc_freq,
-                    postings_data.postings_data,
-                    postings_data.record_option,
-                    postings_data.effective_option,
-                    postings_data.positions_data,
-                )?;
+                let postings_data = *postings_data
+                    .downcast::<<C::PostingsCodec as PostingsCodec>::PostingsData>()
+                    .map_err(|_| io::Error::other("Postings data type does not match codec"))?;
+                let postings = self
+                    .codec
+                    .postings_codec()
+                    .load_postings(term_info.doc_freq, postings_data)?;
                 let alive_bitset_opt = segment_reader.alive_bitset();
                 let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
                     doc_freq_given_deletes(&postings, alive_bitset)

@@ -1,12 +1,13 @@
 use std::io;
 
 use crate::codec::postings::block_wand::{block_wand, block_wand_single_scorer};
-use crate::codec::postings::PostingsCodec;
+use crate::codec::postings::{PostingsCodec, RawPostingsData};
 use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
 pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
 use crate::positions::PositionReader;
 use crate::query::term_query::TermScorer;
 use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
+#[cfg(test)]
 use crate::schema::IndexRecordOption;
 use crate::{DocSet as _, Score, TERMINATED};
 
@@ -28,17 +29,24 @@ pub(crate) enum FreqReadingOption {
 
 impl PostingsCodec for StandardPostingsCodec {
     type Postings = SegmentPostings;
+    type PostingsData = RawPostingsData;
+
+    fn postings_data_from_raw(&self, data: RawPostingsData) -> io::Result<Self::PostingsData> {
+        Ok(data)
+    }
 
     fn load_postings(
         &self,
         doc_freq: u32,
-        postings_data: common::OwnedBytes,
-        record_option: IndexRecordOption,
-        requested_option: IndexRecordOption,
-        positions_data_opt: Option<common::OwnedBytes>,
+        postings_data: RawPostingsData,
     ) -> io::Result<Self::Postings> {
-        // Rationalize record_option/requested_option.
-        let requested_option = requested_option.downgrade(record_option);
+        let RawPostingsData {
+            postings_data,
+            positions_data: positions_data_opt,
+            record_option,
+            effective_option,
+        } = postings_data;
+        let requested_option = effective_option;
         let block_segment_postings =
             BlockSegmentPostings::open(doc_freq, postings_data, record_option, requested_option)?;
         let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
@@ -98,10 +106,12 @@ mod tests {
         StandardPostingsCodec
             .load_postings(
                 num_docs,
-                OwnedBytes::new(buffer),
-                IndexRecordOption::WithFreqs,
-                IndexRecordOption::WithFreqs,
-                None,
+                RawPostingsData {
+                    postings_data: OwnedBytes::new(buffer),
+                    positions_data: None,
+                    record_option: IndexRecordOption::WithFreqs,
+                    effective_option: IndexRecordOption::WithFreqs,
+                },
             )
             .unwrap()
     }

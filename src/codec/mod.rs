@@ -4,11 +4,12 @@ pub mod postings;
 /// Standard tantivy codec. This is the codec you use by default.
 pub mod standard;
 
+use std::any::Any;
 use std::io;
 
 pub use standard::StandardCodec;
 
-use crate::codec::postings::PostingsCodec;
+use crate::codec::postings::{PostingsCodec, RawPostingsData};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::score_combiner::DoNothingCombiner;
@@ -115,6 +116,12 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         num_docs: DocId,
         score_combiner_type: SumOrDoNothingCombiner,
     ) -> Box<dyn Scorer>;
+
+    /// Builds a type-erased codec-specific postings data payload from raw bytes.
+    fn postings_data_from_raw_type_erased(
+        &self,
+        data: RawPostingsData,
+    ) -> io::Result<Box<dyn Any + Send + Sync>>;
 }
 
 impl<TCodec: Codec> ObjectSafeCodec for TCodec {
@@ -125,13 +132,10 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         inverted_index_reader: &dyn InvertedIndexReader,
     ) -> io::Result<Box<dyn Postings>> {
         let postings_data = inverted_index_reader.read_postings_data(term_info, option)?;
-        let postings = self.postings_codec().load_postings(
-            term_info.doc_freq,
-            postings_data.postings_data,
-            postings_data.record_option,
-            postings_data.effective_option,
-            postings_data.positions_data,
-        )?;
+        let postings_data = downcast_postings_data::<Self>(postings_data)?;
+        let postings = self
+            .postings_codec()
+            .load_postings(term_info.doc_freq, postings_data)?;
         Ok(Box::new(postings))
     }
 
@@ -144,13 +148,10 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         similarity_weight: Bm25Weight,
     ) -> io::Result<Box<dyn Scorer>> {
         let postings_data = inverted_index_reader.read_postings_data(term_info, option)?;
-        let postings = self.postings_codec().load_postings(
-            term_info.doc_freq,
-            postings_data.postings_data,
-            postings_data.record_option,
-            postings_data.effective_option,
-            postings_data.positions_data,
-        )?;
+        let postings_data = downcast_postings_data::<Self>(postings_data)?;
+        let postings = self
+            .postings_codec()
+            .load_postings(term_info.doc_freq, postings_data)?;
         let scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
         Ok(box_scorer(scorer))
     }
@@ -170,13 +171,10 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
         for (offset, term_info) in term_infos {
             let postings_data = inverted_index_reader
                 .read_postings_data(term_info, IndexRecordOption::WithFreqsAndPositions)?;
-            let postings = self.postings_codec().load_postings(
-                term_info.doc_freq,
-                postings_data.postings_data,
-                postings_data.record_option,
-                postings_data.effective_option,
-                postings_data.positions_data,
-            )?;
+            let postings_data = downcast_postings_data::<Self>(postings_data)?;
+            let postings = self
+                .postings_codec()
+                .load_postings(term_info.doc_freq, postings_data)?;
             offset_and_term_postings.push((*offset, postings));
         }
         let scorer = PhraseScorer::new(
@@ -242,6 +240,23 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
             scorer.for_each_pruning(threshold, callback);
         }
     }
+
+    fn postings_data_from_raw_type_erased(
+        &self,
+        data: RawPostingsData,
+    ) -> io::Result<Box<dyn Any + Send + Sync>> {
+        let postings_data = self.postings_codec().postings_data_from_raw(data)?;
+        Ok(Box::new(postings_data))
+    }
+}
+
+fn downcast_postings_data<TCodec: Codec>(
+    postings_data: Box<dyn Any + Send + Sync>,
+) -> io::Result<<TCodec::PostingsCodec as PostingsCodec>::PostingsData> {
+    postings_data
+        .downcast::<<TCodec::PostingsCodec as PostingsCodec>::PostingsData>()
+        .map(|boxed| *boxed)
+        .map_err(|_| io::Error::other("Postings data type does not match codec"))
 }
 
 /// SumCombiner or DoNothingCombiner

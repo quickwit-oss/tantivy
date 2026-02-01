@@ -14,11 +14,17 @@ use crate::{DocId, Score};
 pub trait PostingsCodec: Send + Sync + 'static {
     /// Postings type for the postings codec.
     type Postings: Postings + Clone;
+    /// Codec-specific postings data payload.
+    type PostingsData: Send + Sync + 'static;
+
+    /// Builds codec-specific postings data from raw bytes.
+    fn postings_data_from_raw(&self, data: RawPostingsData) -> io::Result<Self::PostingsData>;
 
     /// Loads postings
     ///
     /// Record option is the option that was passed at indexing time.
     /// Requested option is the option that is requested.
+    /// These are expected to be carried by the codec-specific postings data.
     ///
     /// For instance, we may have term_freq in the posting list
     /// but we can skip decompressing as we read the posting list.
@@ -29,10 +35,7 @@ pub trait PostingsCodec: Send + Sync + 'static {
     fn load_postings(
         &self,
         doc_freq: u32,
-        postings_data: OwnedBytes,
-        record_option: IndexRecordOption,
-        requested_option: IndexRecordOption,
-        positions_data: Option<OwnedBytes>,
+        postings_data: Self::PostingsData,
     ) -> io::Result<Self::Postings>;
 
     /// If your codec supports different ways to accelerate `for_each_pruning` that's
@@ -52,6 +55,19 @@ pub trait PostingsCodec: Send + Sync + 'static {
     ) -> Result<(), Box<dyn Scorer>> {
         Err(scorer)
     }
+}
+
+/// Raw postings bytes and metadata read from storage.
+#[derive(Debug, Clone)]
+pub struct RawPostingsData {
+    /// Raw postings bytes for the term.
+    pub postings_data: OwnedBytes,
+    /// Raw positions bytes for the term, if positions are available.
+    pub positions_data: Option<OwnedBytes>,
+    /// Record option of the indexed field.
+    pub record_option: IndexRecordOption,
+    /// Effective record option after downgrading to the indexed field capability.
+    pub effective_option: IndexRecordOption,
 }
 
 /// A light complement interface to Postings to allow block-max wand acceleration.

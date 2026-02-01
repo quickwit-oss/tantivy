@@ -1,3 +1,4 @@
+use std::any::Any;
 #[cfg(feature = "quickwit")]
 use std::future::Future;
 use std::io;
@@ -14,6 +15,7 @@ use itertools::Itertools;
 #[cfg(feature = "quickwit")]
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
+use crate::codec::postings::RawPostingsData;
 use crate::codec::{ObjectSafeCodec, StandardCodec};
 use crate::directory::FileSlice;
 use crate::fieldnorm::FieldNormReader;
@@ -22,22 +24,12 @@ use crate::query::{Bm25Weight, Scorer};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
-/// Postings data returned by [`InvertedIndexReader::read_postings_data`].
-pub struct PostingsData {
-    /// Raw postings bytes for the term.
-    pub postings_data: OwnedBytes,
-    /// Raw positions bytes for the term, if positions are available.
-    pub positions_data: Option<OwnedBytes>,
-    /// Record option of the indexed field.
-    pub record_option: IndexRecordOption,
-    /// Effective record option after downgrading to the indexed field capability.
-    pub effective_option: IndexRecordOption,
-}
-
 /// Trait defining the contract for inverted index readers.
 pub trait InvertedIndexReader: Send + Sync {
     /// Returns the term info associated with the term.
-    fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>>;
+    fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
+        self.terms().get(term.serialized_value_bytes())
+    }
 
     /// Return the term dictionary datastructure.
     fn terms(&self) -> &TermDictionary;
@@ -47,13 +39,6 @@ pub trait InvertedIndexReader: Send + Sync {
     ///
     /// Notice: This requires a full scan and therefore **very expensive**.
     fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>>;
-
-    /// Read postings bytes and metadata for a given term.
-    fn read_postings_data(
-        &self,
-        term_info: &TermInfo,
-        option: IndexRecordOption,
-    ) -> io::Result<PostingsData>;
 
     /// Build a new term scorer.
     fn new_term_scorer(
@@ -78,13 +63,27 @@ pub trait InvertedIndexReader: Send + Sync {
     /// (including deleted documents).
     fn total_num_tokens(&self) -> u64;
 
+    /// Read codec-specific postings data for a given term.
+    ///
+    /// The returned data is type-erased and is expected to be downcasted to the
+    /// codec's `PostingsData` type by the caller.
+    fn read_postings_data(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<Box<dyn Any + Send + Sync>>;
+
     /// Returns the segment postings associated with the term, and with the given option,
     /// or `None` if the term has never been encountered and indexed.
     fn read_postings(
         &self,
         term: &Term,
         option: IndexRecordOption,
-    ) -> io::Result<Option<Box<dyn Postings>>>;
+    ) -> io::Result<Option<Box<dyn Postings>>> {
+        self.get_term_info(term)?
+            .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
+            .transpose()
+    }
 
     /// Returns the number of documents containing the term.
     fn doc_freq(&self, term: &Term) -> io::Result<u32>;
@@ -187,10 +186,6 @@ impl TantivyInvertedIndexReader {
 }
 
 impl InvertedIndexReader for TantivyInvertedIndexReader {
-    fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
-        self.termdict.get(term.serialized_value_bytes())
-    }
-
     fn terms(&self) -> &TermDictionary {
         &self.termdict
     }
@@ -252,7 +247,7 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-    ) -> io::Result<PostingsData> {
+    ) -> io::Result<Box<dyn Any + Send + Sync>> {
         let effective_option = option.downgrade(self.record_option);
         let postings_data = self
             .postings_file_slice
@@ -267,12 +262,13 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         } else {
             None
         };
-        Ok(PostingsData {
-            postings_data,
-            positions_data,
-            record_option: self.record_option,
-            effective_option,
-        })
+        self.codec
+            .postings_data_from_raw_type_erased(RawPostingsData {
+                postings_data,
+                positions_data,
+                record_option: self.record_option,
+                effective_option,
+            })
     }
 
     fn new_term_scorer(

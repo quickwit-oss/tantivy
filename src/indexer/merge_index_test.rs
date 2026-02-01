@@ -127,15 +127,12 @@ mod tests {
             let postings_data = inverted_index
                 .read_postings_data(&term_info, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
+            let postings_data = *postings_data
+                .downcast::<crate::codec::postings::RawPostingsData>()
+                .unwrap();
             let postings = StandardCodec
                 .postings_codec()
-                .load_postings(
-                    term_info.doc_freq,
-                    postings_data.postings_data,
-                    postings_data.record_option,
-                    postings_data.effective_option,
-                    postings_data.positions_data,
-                )
+                .load_postings(term_info.doc_freq, postings_data)
                 .unwrap();
             assert_eq!(postings.doc_freq(), DocFreq::Exact(2));
             let fallback_bitset = AliveBitSet::for_test_from_deleted_docs(&[0], 100);
