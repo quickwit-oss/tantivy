@@ -193,3 +193,12 @@ harness = false
 [[bench]]
 name = "str_search_and_get"
 harness = false
+
+[[bench]]
+name = "merge_segments"
+harness = false
+
+[[bench]]
+name = "regex_all_terms"
+harness = false
+
