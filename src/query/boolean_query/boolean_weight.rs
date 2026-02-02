@@ -6,6 +6,7 @@ use crate::index::SegmentReader;
 use crate::query::disjunction::Disjunction;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use crate::query::term_query::TermScorer;
 use crate::query::weight::for_each_docset_buffered;
 use crate::query::{
     box_scorer, intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude,
@@ -337,19 +338,18 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
             return Ok(include_scorer);
         }
 
-        let include_scorer_boxed = into_box_scorer(include_scorer, &score_combiner_fn, num_docs);
         let scorer: Box<dyn Scorer> = if exclude_scorers.len() == 1 {
             let exclude_scorer = exclude_scorers.pop().unwrap();
             match exclude_scorer.downcast::<TermScorer>() {
                 // Cast to TermScorer succeeded
-                Ok(exclude_scorer) => Box::new(Exclude::new(include_scorer_boxed, *exclude_scorer)),
+                Ok(exclude_scorer) => Box::new(Exclude::new(include_scorer, *exclude_scorer)),
                 // We get back the original Box<dyn Scorer>
-                Err(exclude_scorer) => Box::new(Exclude::new(include_scorer_boxed, exclude_scorer)),
+                Err(exclude_scorer) => Box::new(Exclude::new(include_scorer, exclude_scorer)),
             }
         } else {
-            Box::new(Exclude::new(include_scorer_boxed, exclude_scorers))
+            Box::new(Exclude::new(include_scorer, exclude_scorers))
         };
-        Ok(SpecializedScorer::Other(scorer))
+        Ok(scorer)
     }
 }
 
