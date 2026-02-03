@@ -1,5 +1,7 @@
 /// Block-max WAND algorithm.
 pub mod block_wand;
+use std::io;
+
 use common::OwnedBytes;
 
 use crate::fieldnorm::FieldNormReader;
@@ -12,6 +14,13 @@ use crate::{DocId, Score};
 pub trait PostingsCodec: Send + Sync + 'static {
     /// Postings type for the postings codec.
     type Postings: Postings + Clone;
+
+    /// Load postings from raw bytes and metadata.
+    fn load_postings(
+        &self,
+        doc_freq: u32,
+        postings_data: RawPostingsData,
+    ) -> io::Result<Self::Postings>;
 
     /// If your codec supports different ways to accelerate `for_each_pruning` that's
     /// where you should implement it.

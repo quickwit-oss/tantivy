@@ -92,9 +92,11 @@ where
         let mut term_stream = self.automaton_stream(term_dict)?;
         while term_stream.advance() {
             let term_info = term_stream.value();
-            let mut block_segment_postings =
-                inverted_index.read_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-            block_segment_postings.fill_bitset(&mut doc_bitset);
+            inverted_index.fill_bitset_for_term(
+                term_info,
+                IndexRecordOption::Basic,
+                &mut doc_bitset,
+            )?;
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
         let const_scorer = ConstScorer::new(doc_bitset, boost);

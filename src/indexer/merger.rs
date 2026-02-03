@@ -9,6 +9,7 @@ use common::ReadOnlyBitSet;
 use itertools::Itertools;
 use measure_time::debug_time;
 
+use crate::codec::postings::PostingsCodec;
 use crate::codec::{Codec, StandardCodec};
 use crate::directory::WritePtr;
 use crate::docset::{DocSet, TERMINATED};
@@ -86,6 +87,7 @@ pub struct IndexMerger<C: Codec = StandardCodec> {
     schema: Schema,
     pub(crate) readers: Vec<Arc<dyn SegmentReader>>,
     max_doc: u32,
+    codec: C,
     phantom: PhantomData<C>,
 }
 
@@ -177,6 +179,7 @@ impl<C: Codec> IndexMerger<C> {
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
     ) -> crate::Result<IndexMerger<C>> {
         assert!(!segments.is_empty());
+        let codec = segments[0].index().codec().clone();
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
@@ -203,6 +206,7 @@ impl<C: Codec> IndexMerger<C> {
             schema,
             readers,
             max_doc,
+            codec,
             phantom: PhantomData,
         })
     }
@@ -370,8 +374,10 @@ impl<C: Codec> IndexMerger<C> {
                          indexed. Have you modified the schema?",
         );
 
-        let mut segment_postings_containing_the_term: Vec<(usize, Box<dyn Postings>)> =
-            Vec::with_capacity(self.readers.len());
+        let mut segment_postings_containing_the_term: Vec<(
+            usize,
+            <C::PostingsCodec as PostingsCodec>::Postings,
+        )> = Vec::with_capacity(self.readers.len());
 
         while merged_terms.advance() {
             segment_postings_containing_the_term.clear();
@@ -383,8 +389,9 @@ impl<C: Codec> IndexMerger<C> {
             for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
                 let inverted_index = &field_readers[segment_ord];
-                if let Some((doc_freq, postings)) = postings_for_merge(
+                if let Some((doc_freq, postings)) = postings_for_merge::<C>(
                     inverted_index.as_ref(),
+                    &self.codec,
                     &term_info,
                     segment_postings_option,
                     segment_reader.alive_bitset(),
@@ -566,10 +573,11 @@ impl<C: Codec> IndexMerger<C> {
 ///
 /// This method will clone and scan through the posting lists.
 /// (this is a rather expensive operation).
-pub(crate) fn doc_freq_given_deletes<P: Postings + ?Sized>(
-    postings: &mut P,
+pub(crate) fn doc_freq_given_deletes<P: Postings + Clone>(
+    postings: &P,
     alive_bitset: &AliveBitSet,
 ) -> u32 {
+    let mut postings = postings.clone();
     let mut doc_freq = 0;
     loop {
         let doc = postings.doc();
@@ -583,22 +591,33 @@ pub(crate) fn doc_freq_given_deletes<P: Postings + ?Sized>(
     }
 }
 
-fn postings_for_merge(
+fn read_postings_for_merge<C: Codec>(
     inverted_index: &dyn InvertedIndexReader,
+    codec: &C,
+    term_info: &TermInfo,
+    option: IndexRecordOption,
+) -> io::Result<<C::PostingsCodec as PostingsCodec>::Postings> {
+    let postings_data = inverted_index.read_raw_postings_data(term_info, option)?;
+    codec
+        .postings_codec()
+        .load_postings(term_info.doc_freq, postings_data)
+}
+
+fn postings_for_merge<C: Codec>(
+    inverted_index: &dyn InvertedIndexReader,
+    codec: &C,
     term_info: &TermInfo,
     option: IndexRecordOption,
     alive_bitset_opt: Option<&AliveBitSet>,
-) -> io::Result<Option<(u32, Box<dyn Postings>)>> {
-    let mut postings = inverted_index.read_postings_from_terminfo(term_info, option)?;
+) -> io::Result<Option<(u32, <C::PostingsCodec as PostingsCodec>::Postings)>> {
+    let postings = read_postings_for_merge(inverted_index, codec, term_info, option)?;
     let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
-        doc_freq_given_deletes(postings.as_mut(), alive_bitset)
+        doc_freq_given_deletes(&postings, alive_bitset)
     } else {
         // We do not need an exact document frequency here.
         match postings.doc_freq() {
             crate::postings::DocFreq::Exact(doc_freq) => doc_freq,
-            crate::postings::DocFreq::Approximate(_) => {
-                exact_doc_freq(postings.as_mut())
-            }
+            crate::postings::DocFreq::Approximate(_) => exact_doc_freq(&postings),
         }
     };
 
@@ -606,13 +625,13 @@ fn postings_for_merge(
         return Ok(None);
     }
 
-    let postings = inverted_index.read_postings_from_terminfo(term_info, option)?;
     Ok(Some((doc_freq, postings)))
 }
 
 /// If the postings is not able to inform us of the document frequency,
 /// we just scan through it.
-pub(crate) fn exact_doc_freq<P: Postings + ?Sized>(postings: &mut P) -> u32 {
+pub(crate) fn exact_doc_freq<P: Postings + Clone>(postings: &P) -> u32 {
+    let mut postings = postings.clone();
     let mut doc_freq = 0;
     loop {
         let doc = postings.doc();
@@ -1661,11 +1680,11 @@ mod tests {
             <StandardPostingsCodec as PostingsCodec>::Postings::create_from_docs(&[0, 2, 10]);
         assert_eq!(docs.doc_freq(), DocFreq::Exact(3));
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
-        assert_eq!(super::doc_freq_given_deletes(&mut docs, &alive_bitset), 2);
+        assert_eq!(super::doc_freq_given_deletes(&docs, &alive_bitset), 2);
         let all_deleted =
             AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
         let mut docs =
             <StandardPostingsCodec as PostingsCodec>::Postings::create_from_docs(&[0, 2, 10]);
-        assert_eq!(super::doc_freq_given_deletes(&mut docs, &all_deleted), 0);
+        assert_eq!(super::doc_freq_given_deletes(&docs, &all_deleted), 0);
     }
 }

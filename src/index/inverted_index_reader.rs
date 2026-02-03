@@ -5,7 +5,7 @@ use std::io;
 use std::pin::Pin;
 
 use common::json_path_writer::JSON_END_OF_PATH;
-use common::{BinarySerializable, ByteCount, OwnedBytes};
+use common::{BinarySerializable, BitSet, ByteCount, OwnedBytes};
 #[cfg(feature = "quickwit")]
 use futures_util::{FutureExt, StreamExt, TryStreamExt};
 #[cfg(feature = "quickwit")]
@@ -16,6 +16,7 @@ use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 use crate::codec::postings::RawPostingsData;
 use crate::codec::standard::postings::{load_postings_from_raw_data, SegmentPostings};
 use crate::directory::FileSlice;
+use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::term_query::TermScorer;
@@ -57,6 +58,27 @@ pub trait InvertedIndexReader: Send + Sync {
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<Box<dyn Postings>>;
+
+    /// Returns the raw postings bytes and metadata for a term.
+    fn read_raw_postings_data(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<RawPostingsData>;
+
+    /// Fills a bitset with documents containing the term.
+    ///
+    /// Implementers can override this to avoid boxing postings.
+    fn fill_bitset_for_term(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        doc_bitset: &mut BitSet,
+    ) -> io::Result<()> {
+        let mut postings = self.read_postings_from_terminfo(term_info, option)?;
+        postings.fill_bitset(doc_bitset);
+        Ok(())
+    }
 
     /// Builds a phrase scorer for the given term infos.
     fn new_phrase_scorer(
@@ -149,7 +171,7 @@ impl InvertedIndexFieldSpace {
 }
 
 impl TantivyInvertedIndexReader {
-    pub(crate) fn read_raw_postings_data(
+    pub(crate) fn read_raw_postings_data_inner(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
@@ -210,7 +232,7 @@ impl TantivyInvertedIndexReader {
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<SegmentPostings> {
-        let postings_data = self.read_raw_postings_data(term_info, option)?;
+        let postings_data = self.read_raw_postings_data_inner(term_info, option)?;
         load_postings_from_raw_data(term_info.doc_freq, postings_data)
     }
 }
@@ -292,6 +314,25 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
     ) -> io::Result<Box<dyn Postings>> {
         let postings = self.load_segment_postings(term_info, option)?;
         Ok(Box::new(postings))
+    }
+
+    fn read_raw_postings_data(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<RawPostingsData> {
+        self.read_raw_postings_data_inner(term_info, option)
+    }
+
+    fn fill_bitset_for_term(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+        doc_bitset: &mut BitSet,
+    ) -> io::Result<()> {
+        let mut postings = self.load_segment_postings(term_info, option)?;
+        postings.fill_bitset(doc_bitset);
+        Ok(())
     }
 
     fn new_phrase_scorer(

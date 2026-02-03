@@ -28,6 +28,14 @@ pub(crate) enum FreqReadingOption {
 impl PostingsCodec for StandardPostingsCodec {
     type Postings = SegmentPostings;
 
+    fn load_postings(
+        &self,
+        doc_freq: u32,
+        postings_data: RawPostingsData,
+    ) -> io::Result<Self::Postings> {
+        load_postings_from_raw_data(doc_freq, postings_data)
+    }
+
     fn try_accelerated_for_each_pruning(
         mut threshold: Score,
         mut scorer: Box<dyn Scorer>,

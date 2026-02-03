@@ -230,9 +230,11 @@ impl Weight for InvertedIndexRangeWeight {
             }
             processed_count += 1;
             let term_info = term_range.value();
-            let mut postings =
-                inverted_index.read_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-            postings.fill_bitset(&mut doc_bitset);
+            inverted_index.fill_bitset_for_term(
+                term_info,
+                IndexRecordOption::Basic,
+                &mut doc_bitset,
+            )?;
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
         Ok(box_scorer(ConstScorer::new(doc_bitset, boost)))
