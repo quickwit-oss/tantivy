@@ -178,6 +178,9 @@ fn format_percentile(percentile: f64) -> String {
 impl PercentilesCollector {
     /// Convert result into final result. This will query the quantils from the underlying quantil
     /// collector.
+    ///
+    /// The result includes both the computed percentile values and the raw DDSketch
+    /// for multi-step query merging.
     pub fn into_final_result(self, req: &PercentilesAggregationReq) -> PercentilesMetricResult {
         let percentiles: &[f64] = req
             .percents
@@ -210,7 +213,15 @@ impl PercentilesCollector {
                     .collect(),
             )
         };
-        PercentilesMetricResult { values }
+        PercentilesMetricResult {
+            values,
+            sketch: Some(self),
+        }
+    }
+
+    /// Returns a reference to the underlying DDSketch.
+    pub fn sketch(&self) -> &sketches_ddsketch::DDSketch {
+        &self.sketch
     }
 
     fn new() -> Self {

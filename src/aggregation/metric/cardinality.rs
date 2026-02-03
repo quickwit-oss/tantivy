@@ -340,7 +340,7 @@ impl PartialEq for CardinalityCollector {
 
 impl CardinalityCollector {
     /// Compute the final cardinality estimate.
-    pub fn finalize(self) -> Option<f64> {
+    pub fn finalize(&self) -> Option<f64> {
         Some(self.sketch.clone().count().trunc())
     }
 

@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use super::bucket::GetDocCount;
 use super::metric::{
-    AverageMetricResult, ExtendedStats, PercentilesMetricResult, SingleMetricResult, Stats,
-    TopHitsMetricResult,
+    AverageMetricResult, CardinalityMetricResult, ExtendedStats, PercentilesMetricResult,
+    SingleMetricResult, Stats, TopHitsMetricResult,
 };
 use super::{AggregationError, Key};
 use crate::TantivyError;
@@ -100,8 +100,8 @@ pub enum MetricResult {
     Percentiles(PercentilesMetricResult),
     /// Top hits metric result
     TopHits(TopHitsMetricResult),
-    /// Cardinality metric result
-    Cardinality(SingleMetricResult),
+    /// Cardinality metric result with HLL sketch for multi-step merging.
+    Cardinality(CardinalityMetricResult),
 }
 
 impl MetricResult {
@@ -120,7 +120,7 @@ impl MetricResult {
             MetricResult::TopHits(_) => Err(TantivyError::AggregationError(
                 AggregationError::InvalidRequest("top_hits can't be used to order".to_string()),
             )),
-            MetricResult::Cardinality(card) => Ok(card.value),
+            MetricResult::Cardinality(card) => Ok(card.value),  // CardinalityMetricResult.value
         }
     }
 }

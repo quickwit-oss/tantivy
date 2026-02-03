@@ -107,6 +107,27 @@ pub struct AverageMetricResult {
     pub count: u64,
 }
 
+/// Cardinality metric result with computed value and raw HLL sketch for multi-step merging.
+///
+/// The `value` field contains the computed cardinality estimate.
+/// The `sketch` field contains the serialized HyperLogLog++ sketch that can be used
+/// for merging results across multiple query steps.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CardinalityMetricResult {
+    /// The computed cardinality estimate.
+    pub value: Option<f64>,
+    /// The serialized HyperLogLog++ sketch for multi-step merging.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<CardinalityCollector>,
+}
+
+impl PartialEq for CardinalityMetricResult {
+    fn eq(&self, other: &Self) -> bool {
+        // Only compare values, not sketch (sketch comparison is complex)
+        self.value == other.value
+    }
+}
+
 /// This is the wrapper of percentile entries, which can be vector or hashmap
 /// depending on if it's keyed or not.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -125,13 +146,26 @@ pub struct PercentileValuesVecEntry {
     value: f64,
 }
 
-/// Single-metric aggregations use this common result structure.
+/// Percentiles metric result with computed values and raw sketch for multi-step merging.
 ///
-/// Main reason to wrap it in value is to match elasticsearch output structure.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// The `values` field contains the computed percentile values.
+/// The `sketch` field contains the serialized DDSketch that can be used for merging
+/// results across multiple query steps.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PercentilesMetricResult {
-    /// The result of the percentile metric.
+    /// The computed percentile values.
     pub values: PercentileValues,
+    /// The serialized DDSketch for multi-step merging.
+    /// This is the raw sketch data that can be deserialized and merged with other sketches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<PercentilesCollector>,
+}
+
+impl PartialEq for PercentilesMetricResult {
+    fn eq(&self, other: &Self) -> bool {
+        // Only compare values, not sketch (sketch comparison is complex)
+        self.values == other.values
+    }
 }
 
 /// The top_hits metric results entry
@@ -244,5 +278,72 @@ mod tests {
         assert_eq!(aggregations_res_json["price_avg"]["value"], 2.5);
         assert_eq!(aggregations_res_json["price_avg"]["sum"], 15.0);
         assert_eq!(aggregations_res_json["price_avg"]["count"], 6);
+    }
+
+    #[test]
+    fn test_percentiles_returns_sketch() {
+        let mut schema_builder = Schema::builder();
+        let field_options = NumericOptions::default().set_fast();
+        let field = schema_builder.add_f64_field("latency", field_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+
+        // Add documents with latency values
+        for i in 0..100 {
+            index_writer
+                .add_document(doc!(
+                    field => i as f64,
+                ))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+
+        let aggregations_json =
+            r#"{ "latency_percentiles": { "percentiles": { "field": "latency" } } }"#;
+        let aggregations: Aggregations = serde_json::from_str(aggregations_json).unwrap();
+        let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let aggregations_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+        let aggregations_res_json = serde_json::to_value(aggregations_res).unwrap();
+
+        // Verify percentile values are present
+        assert!(aggregations_res_json["latency_percentiles"]["values"].is_object());
+        // Verify sketch is present (serialized DDSketch)
+        assert!(aggregations_res_json["latency_percentiles"]["sketch"].is_object());
+    }
+
+    #[test]
+    fn test_cardinality_returns_sketch() {
+        let mut schema_builder = Schema::builder();
+        let field_options = NumericOptions::default().set_fast();
+        let field = schema_builder.add_u64_field("user_id", field_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+
+        // Add documents with some duplicate user_ids
+        for i in 0..50 {
+            index_writer
+                .add_document(doc!(
+                    field => (i % 10) as u64,  // 10 unique values
+                ))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+
+        let aggregations_json =
+            r#"{ "unique_users": { "cardinality": { "field": "user_id" } } }"#;
+        let aggregations: Aggregations = serde_json::from_str(aggregations_json).unwrap();
+        let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let aggregations_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+        let aggregations_res_json = serde_json::to_value(aggregations_res).unwrap();
+
+        // Verify cardinality value is present and approximately correct
+        let cardinality = aggregations_res_json["unique_users"]["value"].as_f64().unwrap();
+        assert!(cardinality >= 9.0 && cardinality <= 11.0); // HLL is approximate
+        // Verify sketch is present (serialized HyperLogLog++)
+        assert!(aggregations_res_json["unique_users"]["sketch"].is_object());
     }
 }

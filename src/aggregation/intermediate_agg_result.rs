@@ -19,9 +19,9 @@ use super::bucket::{
     GetDocCount, Order, OrderTarget, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    AverageMetricResult, IntermediateAverage, IntermediateCount, IntermediateExtendedStats,
-    IntermediateMax, IntermediateMin, IntermediateStats, IntermediateSum, PercentilesCollector,
-    TopHitsTopNComputer,
+    AverageMetricResult, CardinalityMetricResult, IntermediateAverage, IntermediateCount,
+    IntermediateExtendedStats, IntermediateMax, IntermediateMin, IntermediateStats, IntermediateSum,
+    PercentilesCollector, TopHitsTopNComputer,
 };
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
@@ -358,7 +358,11 @@ impl IntermediateMetricResult {
                 MetricResult::TopHits(top_hits.into_final_result())
             }
             IntermediateMetricResult::Cardinality(cardinality) => {
-                MetricResult::Cardinality(cardinality.finalize().into())
+                let value = cardinality.finalize();
+                MetricResult::Cardinality(CardinalityMetricResult {
+                    value,
+                    sketch: Some(cardinality),
+                })
             }
         }
     }
