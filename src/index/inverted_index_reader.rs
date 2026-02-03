@@ -14,7 +14,9 @@ use itertools::Itertools;
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::codec::postings::RawPostingsData;
-use crate::codec::standard::postings::{load_postings_from_raw_data, SegmentPostings};
+use crate::codec::standard::postings::{
+    fill_bitset_from_raw_data, load_postings_from_raw_data, SegmentPostings,
+};
 use crate::directory::FileSlice;
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
@@ -330,9 +332,8 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         option: IndexRecordOption,
         doc_bitset: &mut BitSet,
     ) -> io::Result<()> {
-        let mut postings = self.load_segment_postings(term_info, option)?;
-        postings.fill_bitset(doc_bitset);
-        Ok(())
+        let postings_data = self.read_raw_postings_data_inner(term_info, option)?;
+        fill_bitset_from_raw_data(term_info.doc_freq, postings_data, doc_bitset)
     }
 
     fn new_phrase_scorer(

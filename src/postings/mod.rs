@@ -249,7 +249,8 @@ pub(crate) mod tests {
             segment_writer.finalize()?;
         }
         {
-            let segment_reader = segment.index().codec().open_segment_reader(
+            let segment_reader = crate::codec::Codec::open_segment_reader(
+                segment.index().codec(),
                 segment.index().directory(),
                 segment.meta(),
                 segment.schema(),

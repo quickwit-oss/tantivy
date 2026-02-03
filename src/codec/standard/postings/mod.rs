@@ -1,5 +1,7 @@
 use std::io;
 
+use common::BitSet;
+
 use crate::codec::postings::block_wand::{block_wand, block_wand_single_scorer};
 use crate::codec::postings::{PostingsCodec, RawPostingsData};
 use crate::codec::standard::postings::block_segment_postings::BlockSegmentPostings;
@@ -81,6 +83,32 @@ pub(crate) fn load_postings_from_raw_data(
         block_segment_postings,
         position_reader,
     ))
+}
+
+pub(crate) fn fill_bitset_from_raw_data(
+    doc_freq: u32,
+    postings_data: RawPostingsData,
+    doc_bitset: &mut BitSet,
+) -> io::Result<()> {
+    let RawPostingsData {
+        postings_data,
+        record_option,
+        effective_option,
+        ..
+    } = postings_data;
+    let mut block_postings =
+        BlockSegmentPostings::open(doc_freq, postings_data, record_option, effective_option)?;
+    loop {
+        let docs = block_postings.docs();
+        if docs.is_empty() {
+            break;
+        }
+        for &doc in docs {
+            doc_bitset.insert(doc);
+        }
+        block_postings.advance();
+    }
+    Ok(())
 }
 
 #[cfg(test)]

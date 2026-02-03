@@ -37,6 +37,19 @@ pub trait Codec: Clone + std::fmt::Debug + Send + Sync + 'static {
     /// Returns the postings codec.
     fn postings_codec(&self) -> &Self::PostingsCodec;
 
+    /// Loads postings using the codec's concrete postings type.
+    fn load_postings_typed(
+        &self,
+        reader: &dyn crate::index::InvertedIndexReader,
+        term_info: &crate::postings::TermInfo,
+        option: crate::schema::IndexRecordOption,
+    ) -> std::io::Result<<Self::PostingsCodec as crate::codec::postings::PostingsCodec>::Postings>
+    {
+        let postings_data = reader.read_raw_postings_data(term_info, option)?;
+        self.postings_codec()
+            .load_postings(term_info.doc_freq, postings_data)
+    }
+
     /// Opens a segment reader using this codec.
     ///
     /// Override this if your codec uses a custom segment reader implementation.

@@ -597,10 +597,7 @@ fn read_postings_for_merge<C: Codec>(
     term_info: &TermInfo,
     option: IndexRecordOption,
 ) -> io::Result<<C::PostingsCodec as PostingsCodec>::Postings> {
-    let postings_data = inverted_index.read_raw_postings_data(term_info, option)?;
-    codec
-        .postings_codec()
-        .load_postings(term_info.doc_freq, postings_data)
+    codec.load_postings_typed(inverted_index, term_info, option)
 }
 
 fn postings_for_merge<C: Codec>(
@@ -1676,14 +1673,14 @@ mod tests {
 
     #[test]
     fn test_doc_freq_given_delete() {
-        let mut docs =
+        let docs =
             <StandardPostingsCodec as PostingsCodec>::Postings::create_from_docs(&[0, 2, 10]);
         assert_eq!(docs.doc_freq(), DocFreq::Exact(3));
         let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
         assert_eq!(super::doc_freq_given_deletes(&docs, &alive_bitset), 2);
         let all_deleted =
             AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
-        let mut docs =
+        let docs =
             <StandardPostingsCodec as PostingsCodec>::Postings::create_from_docs(&[0, 2, 10]);
         assert_eq!(super::doc_freq_given_deletes(&docs, &all_deleted), 0);
     }
