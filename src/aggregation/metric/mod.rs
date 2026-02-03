@@ -93,6 +93,20 @@ impl From<Option<f64>> for SingleMetricResult {
     }
 }
 
+/// Average metric result with intermediate data for merging.
+///
+/// Unlike [`SingleMetricResult`], this struct includes the raw `sum` and `count`
+/// values that can be used for multi-step query merging.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AverageMetricResult {
+    /// The computed average value. None if no documents matched.
+    pub value: Option<f64>,
+    /// The sum of all values (for multi-step merging).
+    pub sum: f64,
+    /// The count of all values (for multi-step merging).
+    pub count: u64,
+}
+
 /// This is the wrapper of percentile entries, which can be vector or hashmap
 /// depending on if it's keyed or not.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -197,5 +211,38 @@ mod tests {
         assert_eq!(aggregations_res_json["price_max"]["value"], 5.0);
         assert_eq!(aggregations_res_json["price_min"]["value"], 0.0);
         assert_eq!(aggregations_res_json["price_sum"]["value"], 15.0);
+    }
+
+    #[test]
+    fn test_average_returns_sum_and_count() {
+        let mut schema_builder = Schema::builder();
+        let field_options = NumericOptions::default().set_fast();
+        let field = schema_builder.add_f64_field("price", field_options);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+
+        // Add documents with values 0, 1, 2, 3, 4, 5
+        // sum = 15, count = 6, avg = 2.5
+        for i in 0..6 {
+            index_writer
+                .add_document(doc!(
+                    field => i as f64,
+                ))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+
+        let aggregations_json = r#"{ "price_avg": { "avg": { "field": "price" } } }"#;
+        let aggregations: Aggregations = serde_json::from_str(aggregations_json).unwrap();
+        let collector = AggregationCollector::from_aggs(aggregations, Default::default());
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let aggregations_res: AggregationResults = searcher.search(&AllQuery, &collector).unwrap();
+        let aggregations_res_json = serde_json::to_value(aggregations_res).unwrap();
+
+        // Verify all three fields are present and correct
+        assert_eq!(aggregations_res_json["price_avg"]["value"], 2.5);
+        assert_eq!(aggregations_res_json["price_avg"]["sum"], 15.0);
+        assert_eq!(aggregations_res_json["price_avg"]["count"], 6);
     }
 }

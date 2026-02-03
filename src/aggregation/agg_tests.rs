@@ -1359,10 +1359,10 @@ fn test_aggregation_on_json_object_mixed_types() {
         &serde_json::json!({
           "rangeagg": {
             "buckets": [
-              { "average_in_range": { "value": -20.5 }, "doc_count": 1, "key": "*-3", "to": 3.0 },
-              { "average_in_range": { "value": 10.0 }, "doc_count": 1, "from": 3.0, "key": "3-19", "to": 19.0 },
-              { "average_in_range": { "value": null }, "doc_count": 0, "from": 19.0, "key": "19-20", "to": 20.0 },
-              { "average_in_range": { "value": null }, "doc_count": 0, "from": 20.0, "key": "20-*" }
+              { "average_in_range": { "value": -20.5, "sum": -20.5, "count": 1 }, "doc_count": 1, "key": "*-3", "to": 3.0 },
+              { "average_in_range": { "value": 10.0, "sum": 10.0, "count": 1 }, "doc_count": 1, "from": 3.0, "key": "3-19", "to": 19.0 },
+              { "average_in_range": { "value": null, "sum": 0.0, "count": 0 }, "doc_count": 0, "from": 19.0, "key": "19-20", "to": 20.0 },
+              { "average_in_range": { "value": null, "sum": 0.0, "count": 0 }, "doc_count": 0, "from": 20.0, "key": "20-*" }
             ]
           },
           "termagg": {

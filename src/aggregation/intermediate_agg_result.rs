@@ -19,8 +19,9 @@ use super::bucket::{
     GetDocCount, Order, OrderTarget, RangeAggregation, TermsAggregation,
 };
 use super::metric::{
-    IntermediateAverage, IntermediateCount, IntermediateExtendedStats, IntermediateMax,
-    IntermediateMin, IntermediateStats, IntermediateSum, PercentilesCollector, TopHitsTopNComputer,
+    AverageMetricResult, IntermediateAverage, IntermediateCount, IntermediateExtendedStats,
+    IntermediateMax, IntermediateMin, IntermediateStats, IntermediateSum, PercentilesCollector,
+    TopHitsTopNComputer,
 };
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
@@ -325,7 +326,11 @@ impl IntermediateMetricResult {
     fn into_final_metric_result(self, req: &Aggregation) -> MetricResult {
         match self {
             IntermediateMetricResult::Average(intermediate_avg) => {
-                MetricResult::Average(intermediate_avg.finalize().into())
+                MetricResult::Average(AverageMetricResult {
+                    value: intermediate_avg.finalize(),
+                    sum: intermediate_avg.sum(),
+                    count: intermediate_avg.count(),
+                })
             }
             IntermediateMetricResult::Count(intermediate_count) => {
                 MetricResult::Count(intermediate_count.finalize().into())

@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use super::bucket::GetDocCount;
 use super::metric::{
-    ExtendedStats, PercentilesMetricResult, SingleMetricResult, Stats, TopHitsMetricResult,
+    AverageMetricResult, ExtendedStats, PercentilesMetricResult, SingleMetricResult, Stats,
+    TopHitsMetricResult,
 };
 use super::{AggregationError, Key};
 use crate::TantivyError;
@@ -81,8 +82,8 @@ impl AggregationResult {
 #[serde(untagged)]
 /// MetricResult
 pub enum MetricResult {
-    /// Average metric result.
-    Average(SingleMetricResult),
+    /// Average metric result with sum and count for multi-step merging.
+    Average(AverageMetricResult),
     /// Count metric result.
     Count(SingleMetricResult),
     /// Max metric result.

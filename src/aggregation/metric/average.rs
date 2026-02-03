@@ -63,6 +63,16 @@ impl IntermediateAverage {
     pub fn finalize(&self) -> Option<f64> {
         self.stats.finalize().avg
     }
+
+    /// Returns the sum of all collected values.
+    pub fn sum(&self) -> f64 {
+        self.stats.sum
+    }
+
+    /// Returns the count of all collected values.
+    pub fn count(&self) -> u64 {
+        self.stats.count
+    }
 }
 
 #[cfg(test)]

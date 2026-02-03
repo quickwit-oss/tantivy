@@ -838,7 +838,7 @@ mod tests {
         let expected = json!({
             "electronics": {
                 "doc_count": 2,
-                "avg_price": { "value": 899.0 }  // (999 + 799) / 2
+                "avg_price": { "value": 899.0, "sum": 1798.0, "count": 2 }  // (999 + 799) / 2
             }
         });
 
@@ -868,7 +868,7 @@ mod tests {
         let expected = json!({
             "furniture": {
                 "doc_count": 0,
-                "avg_price": { "value": null }
+                "avg_price": { "value": null, "sum": 0.0, "count": 0 }
             }
         });
 
@@ -904,7 +904,7 @@ mod tests {
         let expected = json!({
             "electronics": {
                 "doc_count": 2,
-                "avg_price": { "value": 899.0 }
+                "avg_price": { "value": 899.0, "sum": 1798.0, "count": 2 }
             },
             "in_stock": {
                 "doc_count": 3,  // apple, samsung, penguin
@@ -1000,7 +1000,7 @@ mod tests {
         let expected = json!({
             "premium_electronics": {
                 "doc_count": 1,  // Only apple (999) is >= 800 in tantivy's range semantics
-                "avg_rating": { "value": 4.5 }
+                "avg_rating": { "value": 4.5, "sum": 4.5, "count": 1 }
             }
         });
 
@@ -1032,7 +1032,7 @@ mod tests {
         let expected = json!({
             "in_stock": {
                 "doc_count": 3,  // apple, samsung, penguin
-                "avg_price": { "value": 607.67 }  // (999 + 799 + 25) / 3 ≈ 607.67
+                "avg_price": { "value": 607.67, "sum": 1823.0, "count": 3 }  // (999 + 799 + 25) / 3 ≈ 607.67
             },
             "out_of_stock": {
                 "doc_count": 1,  // nike
@@ -1183,7 +1183,7 @@ mod tests {
                 "doc_count": 4,
                 "electronics_branch": {
                     "doc_count": 2,
-                    "avg_price": { "value": 899.0 }
+                    "avg_price": { "value": 899.0, "sum": 1798.0, "count": 2 }
                 },
                 "in_stock_branch": {
                     "doc_count": 3,
@@ -1259,7 +1259,7 @@ mod tests {
                     "doc_count": 2,  // apple (999), samsung (799)
                     "electronics": {
                         "doc_count": 2,  // both are electronics
-                        "avg_rating": { "value": 4.35 }  // (4.5 + 4.2) / 2
+                        "avg_rating": { "value": 4.35, "sum": 8.7, "count": 2 }  // (4.5 + 4.2) / 2
                     },
                     "in_stock": {
                         "doc_count": 2,  // both are in stock
@@ -1321,12 +1321,12 @@ mod tests {
                         {
                             "key": "samsung",
                             "doc_count": 1,
-                            "avg_price": { "value": 799.0 }
+                            "avg_price": { "value": 799.0, "sum": 799.0, "count": 1 }
                         },
                         {
                             "key": "apple",
                             "doc_count": 1,
-                            "avg_price": { "value": 999.0 }
+                            "avg_price": { "value": 999.0, "sum": 999.0, "count": 1 }
                         }
                     ],
                     "sum_other_doc_count": 0,
@@ -1370,7 +1370,7 @@ mod tests {
                     "sum": 1798.0,
                     "avg": 899.0
                 },
-                "rating_avg": { "value": 4.35 },
+                "rating_avg": { "value": 4.35, "sum": 8.7, "count": 2 },
                 "count": { "value": 2.0 }
             }
         });
@@ -1411,7 +1411,7 @@ mod tests {
         let expected = json!({
             "electronics": {
                 "doc_count": 0,
-                "avg_price": { "value": null }
+                "avg_price": { "value": null, "sum": 0.0, "count": 0 }
             }
         });
 
@@ -1698,13 +1698,15 @@ mod tests {
         let filter_expected = json!({
             "electronics": {
                 "doc_count": 2,
-                "avg_price": { "value": 899.0 }
+                "avg_price": { "value": 899.0, "sum": 1798.0, "count": 2 }
             }
         });
 
         let separate_expected = json!({
             "result": {
-                "value": 899.0
+                "value": 899.0,
+                "sum": 1798.0,
+                "count": 2
             }
         });
 

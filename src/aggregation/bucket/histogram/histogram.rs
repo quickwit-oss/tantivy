@@ -1222,7 +1222,9 @@ mod tests {
             res["histogram"]["buckets"][0],
             json!({
                 "avg": {
-                    "value": Value::Null
+                    "value": Value::Null,
+                    "sum": 0.0,
+                    "count": 0
                 },
                 "doc_count": 0,
                 "key": 2.0,
