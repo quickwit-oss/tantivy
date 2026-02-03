@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use common::BitSet;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -402,7 +403,7 @@ pub struct FilterAggReqData {
     /// The filter aggregation
     pub req: FilterAggregation,
     /// The segment reader
-    pub segment_reader: SegmentReader,
+    pub segment_reader: Arc<dyn SegmentReader>,
     /// Document evaluator for the filter query (precomputed BitSet)
     /// This is built once when the request data is created
     pub evaluator: DocumentQueryEvaluator,
@@ -416,7 +417,7 @@ impl FilterAggReqData {
     pub(crate) fn get_memory_consumption(&self) -> usize {
         // Estimate: name + segment reader reference + bitset + buffer capacity
         self.name.len()
-        + std::mem::size_of::<SegmentReader>()
+        + std::mem::size_of::<Arc<dyn SegmentReader>>()
         + self.evaluator.bitset.len() / 8 // BitSet memory (bits to bytes)
         + self.matching_docs_buffer.capacity() * std::mem::size_of::<DocId>()
         + std::mem::size_of::<bool>()
@@ -438,7 +439,7 @@ impl DocumentQueryEvaluator {
     pub(crate) fn new(
         query: Box<dyn Query>,
         schema: Schema,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self> {
         let max_doc = segment_reader.max_doc();
 

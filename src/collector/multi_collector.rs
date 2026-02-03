@@ -24,7 +24,7 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     fn for_segment(
         &self,
         segment_local_id: u32,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
     ) -> crate::Result<Box<dyn BoxableSegmentCollector>> {
         let child = self.0.for_segment(segment_local_id, reader)?;
         Ok(Box::new(SegmentCollectorWrapper(child)))
@@ -209,7 +209,7 @@ impl Collector for MultiCollector<'_> {
     fn for_segment(
         &self,
         segment_local_id: SegmentOrdinal,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<MultiCollectorChild> {
         let children = self
             .collector_wrappers

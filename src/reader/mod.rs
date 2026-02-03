@@ -190,19 +190,26 @@ impl<C: Codec> InnerIndexReader<C> {
     ///
     /// This function acquires a lock to prevent GC from removing files
     /// as we are opening our index.
-    fn open_segment_readers(index: &Index<C>) -> crate::Result<Vec<SegmentReader>> {
+    fn open_segment_readers(index: &Index<C>) -> crate::Result<Vec<Arc<dyn SegmentReader>>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
         let _meta_lock = index.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = index.searchable_segments()?;
         let segment_readers = searchable_segments
             .iter()
-            .map(SegmentReader::open)
+            .map(|segment| {
+                segment.index().codec().open_segment_reader(
+                    segment.index().directory(),
+                    segment.meta(),
+                    segment.schema(),
+                    None,
+                )
+            })
             .collect::<crate::Result<_>>()?;
         Ok(segment_readers)
     }
 
     fn track_segment_readers_in_inventory(
-        segment_readers: &[SegmentReader],
+        segment_readers: &[Arc<dyn SegmentReader>],
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
     ) -> TrackedObject<SearcherGeneration> {

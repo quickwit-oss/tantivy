@@ -43,7 +43,7 @@ impl DynamicPriceColumn {
         }
     }
 
-    pub fn price_for_segment(&self, segment_reader: &SegmentReader) -> Option<Arc<Vec<Price>>> {
+    pub fn price_for_segment(&self, segment_reader: &dyn SegmentReader) -> Option<Arc<Vec<Price>>> {
         let segment_key = (segment_reader.segment_id(), segment_reader.delete_opstamp());
         self.price_cache.read().unwrap().get(&segment_key).cloned()
     }
@@ -157,7 +157,7 @@ fn main() -> tantivy::Result<()> {
     let query = query_parser.parse_query("cooking")?;
 
     let searcher = reader.searcher();
-    let score_by_price = move |segment_reader: &SegmentReader| {
+    let score_by_price = move |segment_reader: &dyn SegmentReader| {
         let price = price_dynamic_column
             .price_for_segment(segment_reader)
             .unwrap();

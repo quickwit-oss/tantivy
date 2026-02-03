@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::codec::postings::PostingsCodec;
-    use crate::codec::{Codec, StandardCodec};
     use crate::collector::TopDocs;
     use crate::fastfield::AliveBitSet;
     use crate::index::Index;
@@ -124,21 +122,14 @@ mod tests {
             let term_a = Term::from_field_text(my_text_field, "text");
             let inverted_index = segment_reader.inverted_index(my_text_field).unwrap();
             let term_info = inverted_index.get_term_info(&term_a).unwrap().unwrap();
-            let postings_data = inverted_index
-                .read_postings_data(&term_info, IndexRecordOption::WithFreqsAndPositions)
-                .unwrap();
-            let postings_data = *postings_data
-                .downcast::<crate::codec::postings::RawPostingsData>()
-                .unwrap();
-            let postings = StandardCodec
-                .postings_codec()
-                .load_postings(term_info.doc_freq, postings_data)
+            let mut postings = inverted_index
+                .read_postings_from_terminfo(&term_info, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
             assert_eq!(postings.doc_freq(), DocFreq::Exact(2));
             let fallback_bitset = AliveBitSet::for_test_from_deleted_docs(&[0], 100);
             assert_eq!(
                 crate::indexer::merger::doc_freq_given_deletes(
-                    &postings,
+                    postings.as_mut(),
                     segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2

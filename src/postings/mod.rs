@@ -36,7 +36,7 @@ pub(crate) mod tests {
     use super::{InvertedIndexSerializer, Postings};
     use crate::docset::{DocSet, TERMINATED};
     use crate::fieldnorm::FieldNormReader;
-    use crate::index::{Index, SegmentComponent, SegmentReader};
+    use crate::index::{Index, SegmentComponent};
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
     use crate::postings::DocFreq;
@@ -249,7 +249,12 @@ pub(crate) mod tests {
             segment_writer.finalize()?;
         }
         {
-            let segment_reader = SegmentReader::open(&segment)?;
+            let segment_reader = segment.index().codec().open_segment_reader(
+                segment.index().directory(),
+                segment.meta(),
+                segment.schema(),
+                None,
+            )?;
             {
                 let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);

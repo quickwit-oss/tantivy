@@ -252,7 +252,9 @@ mod tests {
             let mut block_max_scores_b = vec![];
             let mut docs = vec![];
             {
-                let mut term_scorer = term_weight.term_scorer_for_test(reader, 1.0).unwrap();
+                let mut term_scorer = term_weight
+                    .term_scorer_for_test(reader.as_ref(), 1.0)
+                    .unwrap();
                 while term_scorer.doc() != TERMINATED {
                     let mut score = term_scorer.score();
                     docs.push(term_scorer.doc());
@@ -266,7 +268,9 @@ mod tests {
                 }
             }
             {
-                let mut term_scorer = term_weight.term_scorer_for_test(reader, 1.0).unwrap();
+                let mut term_scorer = term_weight
+                    .term_scorer_for_test(reader.as_ref(), 1.0)
+                    .unwrap();
                 for d in docs {
                     let block_max_score = term_scorer.seek_block_max(d);
                     block_max_scores_b.push(block_max_score);

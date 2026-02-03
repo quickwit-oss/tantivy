@@ -1,10 +1,8 @@
-use std::any::Any;
 #[cfg(feature = "quickwit")]
 use std::future::Future;
 use std::io;
 #[cfg(feature = "quickwit")]
 use std::pin::Pin;
-use std::sync::Arc;
 
 use common::json_path_writer::JSON_END_OF_PATH;
 use common::{BinarySerializable, ByteCount, OwnedBytes};
@@ -16,11 +14,12 @@ use itertools::Itertools;
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::codec::postings::RawPostingsData;
-use crate::codec::ObjectSafeCodec;
+use crate::codec::standard::postings::{load_postings_from_raw_data, SegmentPostings};
 use crate::directory::FileSlice;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
-use crate::query::{Bm25Weight, Scorer};
+use crate::query::term_query::TermScorer;
+use crate::query::{box_scorer, Bm25Weight, PhraseScorer, Scorer};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
 
@@ -59,19 +58,18 @@ pub trait InvertedIndexReader: Send + Sync {
         option: IndexRecordOption,
     ) -> io::Result<Box<dyn Postings>>;
 
+    /// Builds a phrase scorer for the given term infos.
+    fn new_phrase_scorer(
+        &self,
+        term_infos: &[(usize, TermInfo)],
+        similarity_weight: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+    ) -> io::Result<Box<dyn Scorer>>;
+
     /// Returns the total number of tokens recorded for all documents
     /// (including deleted documents).
     fn total_num_tokens(&self) -> u64;
-
-    /// Read codec-specific postings data for a given term.
-    ///
-    /// The returned data is type-erased and is expected to be downcasted to the
-    /// codec's `PostingsData` type by the caller.
-    fn read_postings_data(
-        &self,
-        term_info: &TermInfo,
-        option: IndexRecordOption,
-    ) -> io::Result<Box<dyn Any + Send + Sync>>;
 
     /// Returns the segment postings associated with the term, and with the given option,
     /// or `None` if the term has never been encountered and indexed.
@@ -116,7 +114,6 @@ pub struct TantivyInvertedIndexReader {
     positions_file_slice: FileSlice,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
-    codec: Arc<dyn ObjectSafeCodec>,
 }
 
 /// Object that records the amount of space used by a field in an inverted index.
@@ -152,12 +149,38 @@ impl InvertedIndexFieldSpace {
 }
 
 impl TantivyInvertedIndexReader {
+    pub(crate) fn read_raw_postings_data(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<RawPostingsData> {
+        let effective_option = option.downgrade(self.record_option);
+        let postings_data = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone())
+            .read_bytes()?;
+        let positions_data: Option<OwnedBytes> = if effective_option.has_positions() {
+            let positions_data = self
+                .positions_file_slice
+                .slice(term_info.positions_range.clone())
+                .read_bytes()?;
+            Some(positions_data)
+        } else {
+            None
+        };
+        Ok(RawPostingsData {
+            postings_data,
+            positions_data,
+            record_option: self.record_option,
+            effective_option,
+        })
+    }
+
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
         record_option: IndexRecordOption,
-        codec: Arc<dyn ObjectSafeCodec>,
     ) -> io::Result<TantivyInvertedIndexReader> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
         let total_num_tokens = u64::deserialize(&mut total_num_tokens_slice.read_bytes()?)?;
@@ -167,24 +190,28 @@ impl TantivyInvertedIndexReader {
             positions_file_slice,
             record_option,
             total_num_tokens,
-            codec,
         })
     }
 
     /// Creates an empty `TantivyInvertedIndexReader` object, which
     /// contains no terms at all.
-    pub fn empty(
-        record_option: IndexRecordOption,
-        codec: Arc<dyn ObjectSafeCodec>,
-    ) -> TantivyInvertedIndexReader {
+    pub fn empty(record_option: IndexRecordOption) -> TantivyInvertedIndexReader {
         TantivyInvertedIndexReader {
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
             positions_file_slice: FileSlice::empty(),
             record_option,
             total_num_tokens: 0u64,
-            codec,
         }
+    }
+
+    fn load_segment_postings(
+        &self,
+        term_info: &TermInfo,
+        option: IndexRecordOption,
+    ) -> io::Result<SegmentPostings> {
+        let postings_data = self.read_raw_postings_data(term_info, option)?;
+        load_postings_from_raw_data(term_info.doc_freq, postings_data)
     }
 }
 
@@ -246,34 +273,6 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         Ok(fields)
     }
 
-    fn read_postings_data(
-        &self,
-        term_info: &TermInfo,
-        option: IndexRecordOption,
-    ) -> io::Result<Box<dyn Any + Send + Sync>> {
-        let effective_option = option.downgrade(self.record_option);
-        let postings_data = self
-            .postings_file_slice
-            .slice(term_info.postings_range.clone())
-            .read_bytes()?;
-        let positions_data: Option<OwnedBytes> = if effective_option.has_positions() {
-            let positions_data = self
-                .positions_file_slice
-                .slice(term_info.positions_range.clone())
-                .read_bytes()?;
-            Some(positions_data)
-        } else {
-            None
-        };
-        self.codec
-            .postings_data_from_raw_type_erased(RawPostingsData {
-                postings_data,
-                positions_data,
-                record_option: self.record_option,
-                effective_option,
-            })
-    }
-
     fn new_term_scorer(
         &self,
         term_info: &TermInfo,
@@ -281,14 +280,9 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
     ) -> io::Result<Box<dyn Scorer>> {
-        let term_scorer = self.codec.load_term_scorer_type_erased(
-            term_info,
-            option,
-            self,
-            fieldnorm_reader,
-            similarity_weight,
-        )?;
-        Ok(term_scorer)
+        let postings = self.load_segment_postings(term_info, option)?;
+        let term_scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
+        Ok(box_scorer(term_scorer))
     }
 
     fn read_postings_from_terminfo(
@@ -296,8 +290,31 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<Box<dyn Postings>> {
-        self.codec
-            .load_postings_type_erased(term_info, option, self)
+        let postings = self.load_segment_postings(term_info, option)?;
+        Ok(Box::new(postings))
+    }
+
+    fn new_phrase_scorer(
+        &self,
+        term_infos: &[(usize, TermInfo)],
+        similarity_weight: Option<Bm25Weight>,
+        fieldnorm_reader: FieldNormReader,
+        slop: u32,
+    ) -> io::Result<Box<dyn Scorer>> {
+        let mut offset_and_term_postings: Vec<(usize, SegmentPostings)> =
+            Vec::with_capacity(term_infos.len());
+        for (offset, term_info) in term_infos {
+            let postings =
+                self.load_segment_postings(term_info, IndexRecordOption::WithFreqsAndPositions)?;
+            offset_and_term_postings.push((*offset, postings));
+        }
+        let scorer = PhraseScorer::new(
+            offset_and_term_postings,
+            similarity_weight,
+            fieldnorm_reader,
+            slop,
+        );
+        Ok(box_scorer(scorer))
     }
 
     fn total_num_tokens(&self) -> u64 {

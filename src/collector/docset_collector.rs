@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::{Collector, SegmentCollector};
-use crate::{DocAddress, DocId, Score};
+use crate::{DocAddress, DocId, Score, SegmentReader};
 
 /// Collectors that returns the set of DocAddress that matches the query.
 ///
@@ -15,7 +15,7 @@ impl Collector for DocSetCollector {
     fn for_segment(
         &self,
         segment_local_id: crate::SegmentOrdinal,
-        _segment: &crate::SegmentReader,
+        _segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok(DocSetChildCollector {
             segment_local_id,

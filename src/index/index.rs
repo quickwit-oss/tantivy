@@ -26,7 +26,6 @@ use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::SegmentReader;
 
 fn load_metas(
     directory: &dyn Directory,
@@ -579,7 +578,15 @@ impl<Codec: crate::codec::Codec> Index<Codec> {
         let segments = self.searchable_segments()?;
         let fields_metadata: Vec<Vec<FieldMetadata>> = segments
             .into_iter()
-            .map(|segment| SegmentReader::open(&segment)?.fields_metadata())
+            .map(|segment| {
+                let segment_reader = segment.index().codec().open_segment_reader(
+                    segment.index().directory(),
+                    segment.meta(),
+                    segment.schema(),
+                    None,
+                )?;
+                segment_reader.fields_metadata()
+            })
             .collect::<Result<_, _>>()?;
         Ok(merge_field_meta_data(fields_metadata))
     }

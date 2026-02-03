@@ -1,5 +1,3 @@
-use std::io;
-
 /// Block-max WAND algorithm.
 pub mod block_wand;
 use common::OwnedBytes;
@@ -14,29 +12,6 @@ use crate::{DocId, Score};
 pub trait PostingsCodec: Send + Sync + 'static {
     /// Postings type for the postings codec.
     type Postings: Postings + Clone;
-    /// Codec-specific postings data payload.
-    type PostingsData: Send + Sync + 'static;
-
-    /// Builds codec-specific postings data from raw bytes.
-    fn postings_data_from_raw(&self, data: RawPostingsData) -> io::Result<Self::PostingsData>;
-
-    /// Loads postings
-    ///
-    /// Record option is the option that was passed at indexing time.
-    /// Requested option is the option that is requested.
-    /// These are expected to be carried by the codec-specific postings data.
-    ///
-    /// For instance, we may have term_freq in the posting list
-    /// but we can skip decompressing as we read the posting list.
-    ///
-    /// If record option does not support the requested option,
-    /// this method does NOT return an error and will in fact restrict
-    /// requested_option to what is available.
-    fn load_postings(
-        &self,
-        doc_freq: u32,
-        postings_data: Self::PostingsData,
-    ) -> io::Result<Self::Postings>;
 
     /// If your codec supports different ways to accelerate `for_each_pruning` that's
     /// where you should implement it.

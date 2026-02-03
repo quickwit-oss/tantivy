@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::schema::{OwnedValue, Schema};
-use crate::{DocId, Order, Score};
+use crate::{DocId, Order, Score, SegmentReader};
 
 fn compare_owned_value<const NULLS_FIRST: bool>(lhs: &OwnedValue, rhs: &OwnedValue) -> Ordering {
     match (lhs, rhs) {
@@ -430,7 +430,7 @@ where
 
     fn segment_sort_key_computer(
         &self,
-        segment_reader: &crate::SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let child = self.0.segment_sort_key_computer(segment_reader)?;
         Ok(SegmentSortKeyComputerWithComparator {
@@ -468,7 +468,7 @@ where
 
     fn segment_sort_key_computer(
         &self,
-        segment_reader: &crate::SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let child = self.0.segment_sort_key_computer(segment_reader)?;
         Ok(SegmentSortKeyComputerWithComparator {

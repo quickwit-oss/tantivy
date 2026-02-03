@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::codec::{ObjectSafeCodec, SumOrDoNothingCombiner};
+use crate::codec::SumOrDoNothingCombiner;
 use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
 use crate::index::SegmentReader;
 use crate::query::disjunction::Disjunction;
@@ -39,7 +39,7 @@ fn scorer_union<TScoreCombiner>(
     scorers: Vec<Box<dyn Scorer>>,
     score_combiner_fn: impl Fn() -> TScoreCombiner,
     num_docs: u32,
-    codec: &dyn ObjectSafeCodec,
+    reader: &dyn SegmentReader,
 ) -> Box<dyn Scorer>
 where
     TScoreCombiner: ScoreCombiner,
@@ -62,7 +62,7 @@ where
                 None
             };
             if let Some(combiner) = combiner_opt {
-                codec.build_union_scorer_with_sum_combiner(scorers, num_docs, combiner)
+                reader.build_union_scorer_with_sum_combiner(scorers, num_docs, combiner)
             } else {
                 box_scorer(BufferedUnionScorer::build(
                     scorers,
@@ -180,7 +180,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 
     fn per_occur_scorers(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
     ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
@@ -196,7 +196,7 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
 
     fn complex_scorer<TComplexScoreCombiner: ScoreCombiner>(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
         score_combiner_fn: impl Fn() -> TComplexScoreCombiner,
     ) -> crate::Result<Box<dyn Scorer>> {
@@ -244,13 +244,13 @@ impl<TScoreCombiner: ScoreCombiner> BooleanWeight<TScoreCombiner> {
                     should_scorers,
                     &score_combiner_fn,
                     num_docs,
-                    reader.codec(),
+                    reader,
                 )),
                 1 => ShouldScorersCombinationMethod::Required(scorer_union(
                     should_scorers,
                     &score_combiner_fn,
                     num_docs,
-                    reader.codec(),
+                    reader,
                 )),
                 n if num_of_should_scorers == n => {
                     // When num_of_should_scorers equals the number of should clauses,
@@ -378,7 +378,7 @@ fn remove_and_count_all_and_empty_scorers(
 }
 
 impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombiner> {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
         } else if self.weights.len() == 1 {
@@ -395,7 +395,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
@@ -417,7 +417,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
 
     fn for_each(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         let mut scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
@@ -427,7 +427,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
 
     fn for_each_no_score(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         let mut scorer = self.complex_scorer(reader, 1.0, || DoNothingCombiner)?;
@@ -449,11 +449,11 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
     fn for_each_pruning(
         &self,
         threshold: Score,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
-        reader.codec().for_each_pruning(threshold, scorer, callback);
+        reader.for_each_pruning(threshold, scorer, callback);
         Ok(())
     }
 }

@@ -95,7 +95,7 @@ pub struct IndexWriter<C: Codec = StandardCodec, D: Document = TantivyDocument> 
 
 fn compute_deleted_bitset(
     alive_bitset: &mut BitSet,
-    segment_reader: &SegmentReader,
+    segment_reader: &dyn SegmentReader,
     delete_cursor: &mut DeleteCursor,
     doc_opstamps: &DocToOpstampMapping,
     target_opstamp: Opstamp,
@@ -144,7 +144,12 @@ pub fn advance_deletes<C: Codec>(
         return Ok(());
     }
 
-    let segment_reader = SegmentReader::open(&segment)?;
+    let segment_reader = segment.index().codec().open_segment_reader(
+        segment.index().directory(),
+        segment.meta(),
+        segment.schema(),
+        None,
+    )?;
 
     let max_doc = segment_reader.max_doc();
     let mut alive_bitset: BitSet = match segment_entry.alive_bitset() {
@@ -156,7 +161,7 @@ pub fn advance_deletes<C: Codec>(
 
     compute_deleted_bitset(
         &mut alive_bitset,
-        &segment_reader,
+        segment_reader.as_ref(),
         segment_entry.delete_cursor(),
         &DocToOpstampMapping::None,
         target_opstamp,
@@ -244,14 +249,19 @@ fn apply_deletes<C: crate::codec::Codec>(
         .max()
         .expect("Empty DocOpstamp is forbidden");
 
-    let segment_reader = SegmentReader::open(segment)?;
+    let segment_reader = segment.index().codec().open_segment_reader(
+        segment.index().directory(),
+        segment.meta(),
+        segment.schema(),
+        None,
+    )?;
     let doc_to_opstamps = DocToOpstampMapping::WithMap(doc_opstamps);
 
     let max_doc = segment.meta().max_doc();
     let mut deleted_bitset = BitSet::with_max_value_and_full(max_doc);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
-        &segment_reader,
+        segment_reader.as_ref(),
         delete_cursor,
         &doc_to_opstamps,
         max_doc_opstamp,

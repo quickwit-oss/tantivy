@@ -393,7 +393,7 @@ impl TopDocs {
     /// // This is where we build our collector with our custom score.
     /// let top_docs_by_custom_score = TopDocs
     ///         ::with_limit(10)
-    ///          .tweak_score(move |segment_reader: &SegmentReader| {
+    ///          .tweak_score(move |segment_reader: &dyn SegmentReader| {
     ///             // The argument is a function that returns our scoring
     ///             // function.
     ///             //
@@ -442,7 +442,7 @@ pub struct TweakScoreFn<F>(F);
 
 impl<F, TTweakScoreSortKeyFn, TSortKey> SortKeyComputer for TweakScoreFn<F>
 where
-    F: 'static + Send + Sync + Fn(&SegmentReader) -> TTweakScoreSortKeyFn,
+    F: 'static + Send + Sync + Fn(&dyn SegmentReader) -> TTweakScoreSortKeyFn,
     TTweakScoreSortKeyFn: 'static + Fn(DocId, Score) -> TSortKey,
     TweakScoreSegmentSortKeyComputer<TTweakScoreSortKeyFn>:
         SegmentSortKeyComputer<SortKey = TSortKey, SegmentSortKey = TSortKey>,
@@ -458,7 +458,7 @@ where
 
     fn segment_sort_key_computer(
         &self,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok({
             TweakScoreSegmentSortKeyComputer {
@@ -1525,7 +1525,7 @@ mod tests {
         let text_query = query_parser.parse_query("droopy tax")?;
         let collector = TopDocs::with_limit(2)
             .and_offset(1)
-            .order_by(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
+            .order_by(move |_segment_reader: &dyn SegmentReader| move |doc: DocId| doc);
         let score_docs: Vec<(u32, DocAddress)> =
             index.reader()?.searcher().search(&text_query, &collector)?;
         assert_eq!(
@@ -1543,7 +1543,7 @@ mod tests {
         let text_query = query_parser.parse_query("droopy tax").unwrap();
         let collector = TopDocs::with_limit(2)
             .and_offset(1)
-            .order_by(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
+            .order_by(move |_segment_reader: &dyn SegmentReader| move |doc: DocId| doc);
         let score_docs: Vec<(u32, DocAddress)> = index
             .reader()
             .unwrap()

@@ -27,7 +27,7 @@ impl PhraseWeight {
         }
     }
 
-    fn fieldnorm_reader(&self, reader: &SegmentReader) -> crate::Result<FieldNormReader> {
+    fn fieldnorm_reader(&self, reader: &dyn SegmentReader) -> crate::Result<FieldNormReader> {
         let field = self.phrase_terms[0].1.field();
         if self.similarity_weight_opt.is_some() {
             if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(field)? {
@@ -39,7 +39,7 @@ impl PhraseWeight {
 
     pub(crate) fn phrase_scorer(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
     ) -> crate::Result<Option<Box<dyn Scorer>>> {
         let similarity_weight_opt = self
@@ -74,12 +74,11 @@ impl PhraseWeight {
             term_infos.push((offset, term_info));
         }
 
-        let scorer = reader.codec().new_phrase_scorer_type_erased(
+        let scorer = inverted_index_reader.new_phrase_scorer(
             &term_infos[..],
             similarity_weight_opt,
             fieldnorm_reader,
             self.slop,
-            inverted_index_reader.as_ref(),
         )?;
 
         Ok(Some(scorer))
@@ -92,7 +91,7 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(scorer)
         } else {
@@ -100,7 +99,7 @@ impl Weight for PhraseWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let scorer_opt = self.phrase_scorer(reader, 1.0)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));

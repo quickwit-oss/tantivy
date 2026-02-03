@@ -146,7 +146,7 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
         let weight = self.weight(EnableScoring::disabled_from_searcher(searcher))?;
         let mut result = 0;
         for reader in searcher.segment_readers() {
-            result += weight.count(reader)? as usize;
+            result += weight.count(reader.as_ref())? as usize;
         }
         Ok(result)
     }

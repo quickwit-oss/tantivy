@@ -7,8 +7,6 @@ pub use crate::codec::standard::postings::segment_postings::SegmentPostings;
 use crate::positions::PositionReader;
 use crate::query::term_query::TermScorer;
 use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
-#[cfg(test)]
-use crate::schema::IndexRecordOption;
 use crate::{DocSet as _, Score, TERMINATED};
 
 mod block_segment_postings;
@@ -29,32 +27,6 @@ pub(crate) enum FreqReadingOption {
 
 impl PostingsCodec for StandardPostingsCodec {
     type Postings = SegmentPostings;
-    type PostingsData = RawPostingsData;
-
-    fn postings_data_from_raw(&self, data: RawPostingsData) -> io::Result<Self::PostingsData> {
-        Ok(data)
-    }
-
-    fn load_postings(
-        &self,
-        doc_freq: u32,
-        postings_data: RawPostingsData,
-    ) -> io::Result<Self::Postings> {
-        let RawPostingsData {
-            postings_data,
-            positions_data: positions_data_opt,
-            record_option,
-            effective_option,
-        } = postings_data;
-        let requested_option = effective_option;
-        let block_segment_postings =
-            BlockSegmentPostings::open(doc_freq, postings_data, record_option, requested_option)?;
-        let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
-        Ok(SegmentPostings::from_block_postings(
-            block_segment_postings,
-            position_reader,
-        ))
-    }
 
     fn try_accelerated_for_each_pruning(
         mut threshold: Score,
@@ -83,6 +55,25 @@ impl PostingsCodec for StandardPostingsCodec {
         Ok(())
     }
 }
+pub(crate) fn load_postings_from_raw_data(
+    doc_freq: u32,
+    postings_data: RawPostingsData,
+) -> io::Result<SegmentPostings> {
+    let RawPostingsData {
+        postings_data,
+        positions_data: positions_data_opt,
+        record_option,
+        effective_option,
+    } = postings_data;
+    let requested_option = effective_option;
+    let block_segment_postings =
+        BlockSegmentPostings::open(doc_freq, postings_data, record_option, requested_option)?;
+    let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
+    Ok(SegmentPostings::from_block_postings(
+        block_segment_postings,
+        position_reader,
+    ))
+}
 
 #[cfg(test)]
 mod tests {
@@ -91,6 +82,7 @@ mod tests {
     use super::*;
     use crate::postings::serializer::PostingsSerializer;
     use crate::postings::Postings as _;
+    use crate::schema::IndexRecordOption;
 
     fn test_segment_postings_tf_aux(num_docs: u32, include_term_freq: bool) -> SegmentPostings {
         let mut postings_serializer =
@@ -103,17 +95,16 @@ mod tests {
         postings_serializer
             .close_term(num_docs, &mut buffer)
             .unwrap();
-        StandardPostingsCodec
-            .load_postings(
-                num_docs,
-                RawPostingsData {
-                    postings_data: OwnedBytes::new(buffer),
-                    positions_data: None,
-                    record_option: IndexRecordOption::WithFreqs,
-                    effective_option: IndexRecordOption::WithFreqs,
-                },
-            )
-            .unwrap()
+        load_postings_from_raw_data(
+            num_docs,
+            RawPostingsData {
+                postings_data: OwnedBytes::new(buffer),
+                positions_data: None,
+                record_option: IndexRecordOption::WithFreqs,
+                effective_option: IndexRecordOption::WithFreqs,
+            },
+        )
+        .unwrap()
     }
 
     #[test]
