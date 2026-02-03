@@ -16,7 +16,7 @@ use itertools::Itertools;
 use tantivy_fst::automaton::{AlwaysMatch, Automaton};
 
 use crate::codec::postings::RawPostingsData;
-use crate::codec::{ObjectSafeCodec, StandardCodec};
+use crate::codec::ObjectSafeCodec;
 use crate::directory::FileSlice;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
@@ -173,14 +173,17 @@ impl TantivyInvertedIndexReader {
 
     /// Creates an empty `TantivyInvertedIndexReader` object, which
     /// contains no terms at all.
-    pub fn empty(record_option: IndexRecordOption) -> TantivyInvertedIndexReader {
+    pub fn empty(
+        record_option: IndexRecordOption,
+        codec: Arc<dyn ObjectSafeCodec>,
+    ) -> TantivyInvertedIndexReader {
         TantivyInvertedIndexReader {
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
             positions_file_slice: FileSlice::empty(),
             record_option,
             total_num_tokens: 0u64,
-            codec: Arc::new(StandardCodec),
+            codec,
         }
     }
 }

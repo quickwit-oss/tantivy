@@ -6,10 +6,13 @@ pub mod standard;
 
 use std::any::Any;
 use std::io;
+use std::sync::Arc;
 
 pub use standard::StandardCodec;
 
 use crate::codec::postings::{PostingsCodec, RawPostingsData};
+use crate::directory::Directory;
+use crate::fastfield::AliveBitSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::score_combiner::DoNothingCombiner;
@@ -17,8 +20,8 @@ use crate::query::term_query::TermScorer;
 use crate::query::{
     box_scorer, Bm25Weight, BufferedUnionScorer, PhraseScorer, Scorer, SumCombiner,
 };
-use crate::schema::IndexRecordOption;
-use crate::{DocId, InvertedIndexReader, Score};
+use crate::schema::{IndexRecordOption, Schema};
+use crate::{DocId, InvertedIndexReader, Score, SegmentMeta, SegmentReader};
 
 /// Codecs describes how data is layed out on disk.
 ///
@@ -116,6 +119,15 @@ pub trait ObjectSafeCodec: 'static + Send + Sync {
         num_docs: DocId,
         score_combiner_type: SumOrDoNothingCombiner,
     ) -> Box<dyn Scorer>;
+
+    /// Opens a segment reader using this codec.
+    fn open_segment_reader(
+        self: Arc<Self>,
+        directory: &dyn Directory,
+        segment_meta: &SegmentMeta,
+        schema: Schema,
+        custom_bitset: Option<AliveBitSet>,
+    ) -> crate::Result<SegmentReader>;
 
     /// Builds a type-erased codec-specific postings data payload from raw bytes.
     fn postings_data_from_raw_type_erased(
@@ -239,6 +251,23 @@ impl<TCodec: Codec> ObjectSafeCodec for TCodec {
             // No acceleration available. We need to do things manually.
             scorer.for_each_pruning(threshold, callback);
         }
+    }
+
+    fn open_segment_reader(
+        self: Arc<Self>,
+        directory: &dyn Directory,
+        segment_meta: &SegmentMeta,
+        schema: Schema,
+        custom_bitset: Option<AliveBitSet>,
+    ) -> crate::Result<SegmentReader> {
+        let codec: Arc<dyn ObjectSafeCodec> = self;
+        SegmentReader::open_with_custom_alive_set_from_directory(
+            directory,
+            segment_meta,
+            schema,
+            codec,
+            custom_bitset,
+        )
     }
 
     fn postings_data_from_raw_type_erased(

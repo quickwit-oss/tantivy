@@ -7,12 +7,13 @@ use fnv::FnvHashMap;
 use itertools::Itertools;
 
 use crate::codec::ObjectSafeCodec;
-use crate::directory::{CompositeFile, FileSlice};
+use crate::directory::{CompositeFile, Directory, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
 use crate::index::{
-    InvertedIndexReader, Segment, SegmentComponent, SegmentId, TantivyInvertedIndexReader,
+    InvertedIndexReader, Segment, SegmentComponent, SegmentId, SegmentMeta,
+    TantivyInvertedIndexReader,
 };
 use crate::json_utils::json_path_sep_to_dot;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
@@ -159,33 +160,54 @@ impl SegmentReader {
         custom_bitset: Option<AliveBitSet>,
     ) -> crate::Result<SegmentReader> {
         let codec: Arc<dyn ObjectSafeCodec> = Arc::new(segment.index().codec().clone());
-        let termdict_file = segment.open_read(SegmentComponent::Terms)?;
+        codec.open_segment_reader(
+            segment.index().directory(),
+            segment.meta(),
+            segment.schema(),
+            custom_bitset,
+        )
+    }
+
+    pub(crate) fn open_with_custom_alive_set_from_directory(
+        directory: &dyn Directory,
+        segment_meta: &SegmentMeta,
+        schema: Schema,
+        codec: Arc<dyn ObjectSafeCodec>,
+        custom_bitset: Option<AliveBitSet>,
+    ) -> crate::Result<SegmentReader> {
+        let termdict_file =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::Terms))?;
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
-        let store_file = segment.open_read(SegmentComponent::Store)?;
+        let store_file =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::Store))?;
 
         crate::fail_point!("SegmentReader::open#middle");
 
-        let postings_file = segment.open_read(SegmentComponent::Postings)?;
+        let postings_file =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::Postings))?;
         let postings_composite = CompositeFile::open(&postings_file)?;
 
         let positions_composite = {
-            if let Ok(positions_file) = segment.open_read(SegmentComponent::Positions) {
+            if let Ok(positions_file) =
+                directory.open_read(&segment_meta.relative_path(SegmentComponent::Positions))
+            {
                 CompositeFile::open(&positions_file)?
             } else {
                 CompositeFile::empty()
             }
         };
 
-        let schema = segment.schema();
-
-        let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
+        let fast_fields_data =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::FastFields))?;
         let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
-        let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
+        let fieldnorm_data =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::FieldNorms))?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
-        let original_bitset = if segment.meta().has_deletes() {
-            let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
+        let original_bitset = if segment_meta.has_deletes() {
+            let alive_doc_file_slice =
+                directory.open_read(&segment_meta.relative_path(SegmentComponent::Delete))?;
             let alive_doc_data = alive_doc_file_slice.read_bytes()?;
             Some(AliveBitSet::open(alive_doc_data))
         } else {
@@ -194,7 +216,7 @@ impl SegmentReader {
 
         let alive_bitset_opt = intersect_alive_bitset(original_bitset, custom_bitset);
 
-        let max_doc = segment.meta().max_doc();
+        let max_doc = segment_meta.max_doc();
         let num_docs = alive_bitset_opt
             .as_ref()
             .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
@@ -208,8 +230,8 @@ impl SegmentReader {
             postings_composite,
             fast_fields_readers,
             fieldnorm_readers,
-            segment_id: segment.id(),
-            delete_opstamp: segment.meta().delete_opstamp(),
+            segment_id: segment_meta.id(),
+            delete_opstamp: segment_meta.delete_opstamp(),
             store_file,
             alive_bitset_opt,
             positions_composite,
@@ -255,8 +277,9 @@ impl SegmentReader {
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
-            let inv_idx_reader: Arc<dyn InvertedIndexReader> =
-                Arc::new(TantivyInvertedIndexReader::empty(record_option));
+            let inv_idx_reader: Arc<dyn InvertedIndexReader> = Arc::new(
+                TantivyInvertedIndexReader::empty(record_option, self.codec.clone()),
+            );
             return Ok(inv_idx_reader);
         }
 
