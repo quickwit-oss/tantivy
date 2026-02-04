@@ -331,8 +331,7 @@ mod tests {
         }
         index_writer.commit().unwrap();
 
-        let aggregations_json =
-            r#"{ "unique_users": { "cardinality": { "field": "user_id" } } }"#;
+        let aggregations_json = r#"{ "unique_users": { "cardinality": { "field": "user_id" } } }"#;
         let aggregations: Aggregations = serde_json::from_str(aggregations_json).unwrap();
         let collector = AggregationCollector::from_aggs(aggregations, Default::default());
         let reader = index.reader().unwrap();
@@ -341,9 +340,11 @@ mod tests {
         let aggregations_res_json = serde_json::to_value(aggregations_res).unwrap();
 
         // Verify cardinality value is present and approximately correct
-        let cardinality = aggregations_res_json["unique_users"]["value"].as_f64().unwrap();
+        let cardinality = aggregations_res_json["unique_users"]["value"]
+            .as_f64()
+            .unwrap();
         assert!(cardinality >= 9.0 && cardinality <= 11.0); // HLL is approximate
-        // Verify sketch is present (serialized HyperLogLog++)
+                                                            // Verify sketch is present (serialized HyperLogLog++)
         assert!(aggregations_res_json["unique_users"]["sketch"].is_object());
     }
 }

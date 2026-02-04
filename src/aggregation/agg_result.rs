@@ -120,7 +120,7 @@ impl MetricResult {
             MetricResult::TopHits(_) => Err(TantivyError::AggregationError(
                 AggregationError::InvalidRequest("top_hits can't be used to order".to_string()),
             )),
-            MetricResult::Cardinality(card) => Ok(card.value),  // CardinalityMetricResult.value
+            MetricResult::Cardinality(card) => Ok(card.value), // CardinalityMetricResult.value
         }
     }
 }

@@ -20,8 +20,8 @@ use super::bucket::{
 };
 use super::metric::{
     AverageMetricResult, CardinalityMetricResult, IntermediateAverage, IntermediateCount,
-    IntermediateExtendedStats, IntermediateMax, IntermediateMin, IntermediateStats, IntermediateSum,
-    PercentilesCollector, TopHitsTopNComputer,
+    IntermediateExtendedStats, IntermediateMax, IntermediateMin, IntermediateStats,
+    IntermediateSum, PercentilesCollector, TopHitsTopNComputer,
 };
 use super::segment_agg_result::AggregationLimitsGuard;
 use super::{format_date, AggregationError, Key, SerializedKey};
