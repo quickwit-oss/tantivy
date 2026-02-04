@@ -96,7 +96,7 @@ mod tests {
     };
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{LowerCaser, RawTokenizer, TextAnalyzer, TokenizerManager};
-    use crate::{Index, IndexWriter, SegmentReader};
+    use crate::{Index, IndexWriter};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();
@@ -430,7 +430,7 @@ mod tests {
             .searcher()
             .segment_readers()
             .iter()
-            .map(SegmentReader::segment_id)
+            .map(|segment_reader| segment_reader.segment_id())
             .collect();
         assert_eq!(segment_ids.len(), 2);
         index_writer.merge(&segment_ids[..]).wait().unwrap();

@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+use crate::codec::postings::PostingsWithBlockMax;
 use crate::query::term_query::TermScorer;
 use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};
@@ -13,8 +14,8 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 /// We always have `before_pivot_len` < `pivot_len`.
 ///
 /// `None` is returned if we establish that no document can exceed the threshold.
-fn find_pivot_doc(
-    term_scorers: &[TermScorerWithMaxScore],
+fn find_pivot_doc<TPostings: PostingsWithBlockMax>(
+    term_scorers: &[TermScorerWithMaxScore<TPostings>],
     threshold: Score,
 ) -> Option<(usize, usize, DocId)> {
     let mut max_score = 0.0;
@@ -46,8 +47,8 @@ fn find_pivot_doc(
 /// the next doc candidate defined by the min of `last_doc_in_block + 1` for
 /// scorer in scorers[..pivot_len] and `scorer.doc()` for scorer in scorers[pivot_len..].
 /// Note: before and after calling this method, scorers need to be sorted by their `.doc()`.
-fn block_max_was_too_low_advance_one_scorer(
-    scorers: &mut [TermScorerWithMaxScore],
+fn block_max_was_too_low_advance_one_scorer<TPostings: PostingsWithBlockMax>(
+    scorers: &mut [TermScorerWithMaxScore<TPostings>],
     pivot_len: usize,
 ) {
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
@@ -82,7 +83,10 @@ fn block_max_was_too_low_advance_one_scorer(
 // Given a list of term_scorers and a `ord` and assuming that `term_scorers[ord]` is sorted
 // except term_scorers[ord] that might be in advance compared to its ranks,
 // bubble up term_scorers[ord] in order to restore the ordering.
-fn restore_ordering(term_scorers: &mut [TermScorerWithMaxScore], ord: usize) {
+fn restore_ordering<TPostings: PostingsWithBlockMax>(
+    term_scorers: &mut [TermScorerWithMaxScore<TPostings>],
+    ord: usize,
+) {
     let doc = term_scorers[ord].doc();
     for i in ord + 1..term_scorers.len() {
         if term_scorers[i].doc() >= doc {
@@ -97,9 +101,10 @@ fn restore_ordering(term_scorers: &mut [TermScorerWithMaxScore], ord: usize) {
 // If this works, return true.
 // If this fails (ie: one of the term_scorer does not contain `pivot_doc` and seek goes past the
 // pivot), reorder the term_scorers to ensure the list is still sorted and returns `false`.
-// If a term_scorer reach TERMINATED in the process return false remove the term_scorer and return.
-fn align_scorers(
-    term_scorers: &mut Vec<TermScorerWithMaxScore>,
+// If a term_scorer reach TERMINATED in the process return false remove the term_scorer and
+// return.
+fn align_scorers<TPostings: PostingsWithBlockMax>(
+    term_scorers: &mut Vec<TermScorerWithMaxScore<TPostings>>,
     pivot_doc: DocId,
     before_pivot_len: usize,
 ) -> bool {
@@ -126,7 +131,10 @@ fn align_scorers(
 // Assumes terms_scorers[..pivot_len] are positioned on the same doc (pivot_doc).
 // Advance term_scorers[..pivot_len] and out of these removes the terminated scores.
 // Restores the ordering of term_scorers.
-fn advance_all_scorers_on_pivot(term_scorers: &mut Vec<TermScorerWithMaxScore>, pivot_len: usize) {
+fn advance_all_scorers_on_pivot<TPostings: PostingsWithBlockMax>(
+    term_scorers: &mut Vec<TermScorerWithMaxScore<TPostings>>,
+    pivot_len: usize,
+) {
     for term_scorer in &mut term_scorers[..pivot_len] {
         term_scorer.advance();
     }
@@ -145,12 +153,12 @@ fn advance_all_scorers_on_pivot(term_scorers: &mut Vec<TermScorerWithMaxScore>, 
 /// Implements the WAND (Weak AND) algorithm for dynamic pruning
 /// described in the paper "Faster Top-k Document Retrieval Using Block-Max Indexes".
 /// Link: <http://engineering.nyu.edu/~suel/papers/bmw.pdf>
-pub fn block_wand(
-    mut scorers: Vec<TermScorer>,
+pub fn block_wand<TPostings: PostingsWithBlockMax>(
+    mut scorers: Vec<TermScorer<TPostings>>,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
-    let mut scorers: Vec<TermScorerWithMaxScore> = scorers
+    let mut scorers: Vec<TermScorerWithMaxScore<TPostings>> = scorers
         .iter_mut()
         .map(TermScorerWithMaxScore::from)
         .collect();
@@ -166,10 +174,7 @@ pub fn block_wand(
 
         let block_max_score_upperbound: Score = scorers[..pivot_len]
             .iter_mut()
-            .map(|scorer| {
-                scorer.seek_block(pivot_doc);
-                scorer.block_max_score()
-            })
+            .map(|scorer| scorer.seek_block_max(pivot_doc))
             .sum();
 
         // Beware after shallow advance, skip readers can be in advance compared to
@@ -220,21 +225,22 @@ pub fn block_wand(
 ///   - On a block, advance until the end and execute `callback` when the doc score is greater or
 ///     equal to the `threshold`.
 pub fn block_wand_single_scorer(
-    mut scorer: TermScorer,
+    mut scorer: TermScorer<impl PostingsWithBlockMax>,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
     let mut doc = scorer.doc();
+    let mut block_max_score = scorer.seek_block_max(doc);
     loop {
         // We position the scorer on a block that can reach
         // the threshold.
-        while scorer.block_max_score() < threshold {
+        while block_max_score < threshold {
             let last_doc_in_block = scorer.last_doc_in_block();
             if last_doc_in_block == TERMINATED {
                 return;
             }
             doc = last_doc_in_block + 1;
-            scorer.seek_block(doc);
+            block_max_score = scorer.seek_block_max(doc);
         }
         // Seek will effectively load that block.
         doc = scorer.seek(doc);
@@ -256,31 +262,33 @@ pub fn block_wand_single_scorer(
             }
         }
         doc += 1;
-        scorer.seek_block(doc);
+        block_max_score = scorer.seek_block_max(doc);
     }
 }
 
-struct TermScorerWithMaxScore<'a> {
-    scorer: &'a mut TermScorer,
+struct TermScorerWithMaxScore<'a, TPostings: PostingsWithBlockMax> {
+    scorer: &'a mut TermScorer<TPostings>,
     max_score: Score,
 }
 
-impl<'a> From<&'a mut TermScorer> for TermScorerWithMaxScore<'a> {
-    fn from(scorer: &'a mut TermScorer) -> Self {
+impl<'a, TPostings: PostingsWithBlockMax> From<&'a mut TermScorer<TPostings>>
+    for TermScorerWithMaxScore<'a, TPostings>
+{
+    fn from(scorer: &'a mut TermScorer<TPostings>) -> Self {
         let max_score = scorer.max_score();
         TermScorerWithMaxScore { scorer, max_score }
     }
 }
 
-impl Deref for TermScorerWithMaxScore<'_> {
-    type Target = TermScorer;
+impl<TPostings: PostingsWithBlockMax> Deref for TermScorerWithMaxScore<'_, TPostings> {
+    type Target = TermScorer<TPostings>;
 
     fn deref(&self) -> &Self::Target {
         self.scorer
     }
 }
 
-impl DerefMut for TermScorerWithMaxScore<'_> {
+impl<TPostings: PostingsWithBlockMax> DerefMut for TermScorerWithMaxScore<'_, TPostings> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.scorer
     }

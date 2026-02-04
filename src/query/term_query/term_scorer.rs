@@ -1,23 +1,27 @@
+use crate::codec::postings::{PostingsCodec, PostingsWithBlockMax};
+use crate::codec::{Codec, StandardCodec};
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::{FreqReadingOption, Postings, SegmentPostings};
+use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};
 
 #[derive(Clone)]
-pub struct TermScorer {
-    postings: SegmentPostings,
+pub struct TermScorer<
+    TPostings: Postings = <<StandardCodec as Codec>::PostingsCodec as PostingsCodec>::Postings,
+> {
+    postings: TPostings,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: Bm25Weight,
 }
 
-impl TermScorer {
+impl<TPostings: Postings> TermScorer<TPostings> {
     pub fn new(
-        postings: SegmentPostings,
+        postings: TPostings,
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
-    ) -> TermScorer {
+    ) -> TermScorer<TPostings> {
         TermScorer {
             postings,
             fieldnorm_reader,
@@ -25,10 +29,35 @@ impl TermScorer {
         }
     }
 
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
-        self.postings.block_cursor.seek_block(target_doc);
+    pub fn term_freq(&self) -> u32 {
+        self.postings.term_freq()
     }
 
+    pub fn fieldnorm_id(&self) -> u8 {
+        self.fieldnorm_reader.fieldnorm_id(self.doc())
+    }
+
+    pub fn max_score(&self) -> Score {
+        self.similarity_weight.max_score()
+    }
+}
+
+impl<TPostingsWithBlockMax: PostingsWithBlockMax> TermScorer<TPostingsWithBlockMax> {
+    pub(crate) fn last_doc_in_block(&self) -> DocId {
+        self.postings.last_doc_in_block()
+    }
+
+    /// Advances the term scorer to the block containing target_doc and returns
+    /// an upperbound for the score all of the documents in the block.
+    /// (BlockMax). This score is not guaranteed to be the
+    /// effective maximum score of the block.
+    pub(crate) fn seek_block_max(&mut self, target_doc: DocId) -> Score {
+        self.postings
+            .seek_block_max(target_doc, &self.fieldnorm_reader, &self.similarity_weight)
+    }
+}
+
+impl TermScorer {
     #[cfg(test)]
     pub fn create_for_test(
         doc_and_tfs: &[(DocId, u32)],
@@ -44,60 +73,15 @@ impl TermScorer {
                 .unwrap_or(0u32)
                 < fieldnorms.len() as u32
         );
-        let segment_postings =
+        type SegmentPostings = <<StandardCodec as Codec>::PostingsCodec as PostingsCodec>::Postings;
+        let segment_postings: SegmentPostings =
             SegmentPostings::create_from_docs_and_tfs(doc_and_tfs, Some(fieldnorms));
         let fieldnorm_reader = FieldNormReader::for_test(fieldnorms);
         TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight)
     }
-
-    /// See `FreqReadingOption`.
-    pub(crate) fn freq_reading_option(&self) -> FreqReadingOption {
-        self.postings.block_cursor.freq_reading_option()
-    }
-
-    /// Returns the maximum score for the current block.
-    ///
-    /// In some rare case, the result may not be exact. In this case a lower value is returned,
-    /// (and may lead us to return a lesser document).
-    ///
-    /// At index time, we store the (fieldnorm_id, term frequency) pair that maximizes the
-    /// score assuming the average fieldnorm computed on this segment.
-    ///
-    /// Though extremely rare, it is theoretically possible that the actual average fieldnorm
-    /// is different enough from the current segment average fieldnorm that the maximum over a
-    /// specific is achieved on a different document.
-    ///
-    /// (The result is on the other hand guaranteed to be correct if there is only one segment).
-    pub fn block_max_score(&mut self) -> Score {
-        self.postings
-            .block_cursor
-            .block_max_score(&self.fieldnorm_reader, &self.similarity_weight)
-    }
-
-    pub fn term_freq(&self) -> u32 {
-        self.postings.term_freq()
-    }
-
-    pub fn fieldnorm_id(&self) -> u8 {
-        self.fieldnorm_reader.fieldnorm_id(self.doc())
-    }
-
-    pub fn explain(&self) -> Explanation {
-        let fieldnorm_id = self.fieldnorm_id();
-        let term_freq = self.term_freq();
-        self.similarity_weight.explain(fieldnorm_id, term_freq)
-    }
-
-    pub fn max_score(&self) -> Score {
-        self.similarity_weight.max_score()
-    }
-
-    pub fn last_doc_in_block(&self) -> DocId {
-        self.postings.block_cursor.skip_reader().last_doc_in_block()
-    }
 }
 
-impl DocSet for TermScorer {
+impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
     #[inline]
     fn advance(&mut self) -> DocId {
         self.postings.advance()
@@ -119,12 +103,18 @@ impl DocSet for TermScorer {
     }
 }
 
-impl Scorer for TermScorer {
+impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
     #[inline]
     fn score(&mut self) -> Score {
         let fieldnorm_id = self.fieldnorm_id();
         let term_freq = self.term_freq();
         self.similarity_weight.score(fieldnorm_id, term_freq)
+    }
+
+    fn explain(&mut self) -> Explanation {
+        let fieldnorm_id = self.fieldnorm_id();
+        let term_freq = self.term_freq();
+        self.similarity_weight.explain(fieldnorm_id, term_freq)
     }
 }
 
@@ -134,7 +124,7 @@ mod tests {
 
     use crate::index::SegmentId;
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
-    use crate::merge_policy::NoMergePolicy;
+    use crate::indexer::NoMergePolicy;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::term_query::TermScorer;
     use crate::query::{Bm25Weight, EnableScoring, Scorer, TermQuery};
@@ -155,7 +145,7 @@ mod tests {
         crate::assert_nearly_equals!(max_scorer, 1.3990127);
         assert_eq!(term_scorer.doc(), 2);
         assert_eq!(term_scorer.term_freq(), 3);
-        assert_nearly_equals!(term_scorer.block_max_score(), 1.3676447);
+        assert_nearly_equals!(term_scorer.seek_block_max(2), 1.3676447);
         assert_nearly_equals!(term_scorer.score(), 1.0892314);
         assert_eq!(term_scorer.advance(), 3);
         assert_eq!(term_scorer.doc(), 3);
@@ -170,9 +160,9 @@ mod tests {
     }
 
     #[test]
-    fn test_term_scorer_shallow_advance() -> crate::Result<()> {
+    fn test_term_scorer_shallow_advance() {
         let bm25_weight = Bm25Weight::for_one_term(300, 1024, 10.0);
-        let mut doc_and_tfs = vec![];
+        let mut doc_and_tfs = Vec::new();
         for i in 0u32..300u32 {
             let doc = i * 10;
             doc_and_tfs.push((doc, 1u32 + doc % 3u32));
@@ -180,11 +170,10 @@ mod tests {
         let fieldnorms: Vec<u32> = std::iter::repeat_n(10u32, 3_000).collect();
         let mut term_scorer = TermScorer::create_for_test(&doc_and_tfs, &fieldnorms, bm25_weight);
         assert_eq!(term_scorer.doc(), 0u32);
-        term_scorer.seek_block(1289);
+        term_scorer.seek_block_max(1289);
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1289);
         assert_eq!(term_scorer.doc(), 1290);
-        Ok(())
     }
 
     proptest! {
@@ -218,7 +207,7 @@ mod tests {
 
          let docs: Vec<DocId> = (0..term_doc_freq).map(|doc| doc as DocId).collect();
          for block in docs.chunks(COMPRESSION_BLOCK_SIZE) {
-             let block_max_score: Score = term_scorer.block_max_score();
+             let block_max_score: Score = term_scorer.seek_block_max(0);
              let mut block_max_score_computed: Score = 0.0;
              for &doc in block {
                 assert_eq!(term_scorer.doc(), doc);
@@ -246,25 +235,26 @@ mod tests {
         let fieldnorms: Vec<u32> = std::iter::repeat_n(20u32, 300).collect();
         let bm25_weight = Bm25Weight::for_one_term(10, 129, 20.0);
         let mut docs = TermScorer::create_for_test(&doc_tfs[..], &fieldnorms[..], bm25_weight);
-        assert_nearly_equals!(docs.block_max_score(), 2.5161593);
-        docs.seek_block(135);
-        assert_nearly_equals!(docs.block_max_score(), 3.4597192);
-        docs.seek_block(256);
+        assert_nearly_equals!(docs.seek_block_max(0), 2.5161593);
+        assert_nearly_equals!(docs.seek_block_max(135), 3.4597192);
         // the block is not loaded yet.
-        assert_nearly_equals!(docs.block_max_score(), 5.2971773);
+        assert_nearly_equals!(docs.seek_block_max(256), 5.2971773);
         assert_eq!(256, docs.seek(256));
-        assert_nearly_equals!(docs.block_max_score(), 3.9539647);
+        assert_nearly_equals!(docs.seek_block_max(256), 3.9539647);
     }
 
-    fn test_block_wand_aux(term_query: &TermQuery, searcher: &Searcher) -> crate::Result<()> {
-        let term_weight =
-            term_query.specialized_weight(EnableScoring::enabled_from_searcher(searcher))?;
+    fn test_block_wand_aux(term_query: &TermQuery, searcher: &Searcher) {
+        let term_weight = term_query
+            .specialized_weight(EnableScoring::enabled_from_searcher(searcher))
+            .unwrap();
         for reader in searcher.segment_readers() {
             let mut block_max_scores = vec![];
             let mut block_max_scores_b = vec![];
             let mut docs = vec![];
             {
-                let mut term_scorer = term_weight.term_scorer_for_test(reader, 1.0)?.unwrap();
+                let mut term_scorer = term_weight
+                    .term_scorer_for_test(reader.as_ref(), 1.0)
+                    .unwrap();
                 while term_scorer.doc() != TERMINATED {
                     let mut score = term_scorer.score();
                     docs.push(term_scorer.doc());
@@ -278,10 +268,12 @@ mod tests {
                 }
             }
             {
-                let mut term_scorer = term_weight.term_scorer_for_test(reader, 1.0)?.unwrap();
+                let mut term_scorer = term_weight
+                    .term_scorer_for_test(reader.as_ref(), 1.0)
+                    .unwrap();
                 for d in docs {
-                    term_scorer.seek_block(d);
-                    block_max_scores_b.push(term_scorer.block_max_score());
+                    let block_max_score = term_scorer.seek_block_max(d);
+                    block_max_scores_b.push(block_max_score);
                 }
             }
             for (l, r) in block_max_scores
@@ -292,18 +284,18 @@ mod tests {
                 assert_nearly_equals!(l, r);
             }
         }
-        Ok(())
     }
 
     #[ignore]
     #[test]
-    fn test_block_wand_long_test() -> crate::Result<()> {
+    fn test_block_wand_long_test() {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer: IndexWriter =
-            index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
+        let mut writer: IndexWriter = index
+            .writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)
+            .unwrap();
         use rand::Rng;
         let mut rng = rand::rng();
         writer.set_merge_policy(Box::new(NoMergePolicy));
@@ -311,15 +303,15 @@ mod tests {
             let term_freq = rng.random_range(1..10000);
             let words: Vec<&str> = std::iter::repeat_n("bbbb", term_freq).collect();
             let text = words.join(" ");
-            writer.add_document(doc!(text_field=>text))?;
+            writer.add_document(doc!(text_field=>text)).unwrap();
         }
-        writer.commit()?;
+        writer.commit().unwrap();
         let term_query = TermQuery::new(
             Term::from_field_text(text_field, "bbbb"),
             IndexRecordOption::WithFreqs,
         );
         let segment_ids: Vec<SegmentId>;
-        let reader = index.reader()?;
+        let reader = index.reader().unwrap();
         {
             let searcher = reader.searcher();
             segment_ids = searcher
@@ -327,15 +319,14 @@ mod tests {
                 .iter()
                 .map(|segment| segment.segment_id())
                 .collect();
-            test_block_wand_aux(&term_query, &searcher)?;
+            test_block_wand_aux(&term_query, &searcher);
         }
         writer.merge(&segment_ids[..]).wait().unwrap();
         {
-            reader.reload()?;
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
-            test_block_wand_aux(&term_query, &searcher)?;
+            test_block_wand_aux(&term_query, &searcher);
         }
-        Ok(())
     }
 }

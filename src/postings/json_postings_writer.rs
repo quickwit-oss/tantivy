@@ -22,12 +22,6 @@ pub(crate) struct JsonPostingsWriter<Rec: Recorder> {
     non_str_posting_writer: SpecializedPostingsWriter<DocIdRecorder>,
 }
 
-impl<Rec: Recorder> From<JsonPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
-    fn from(json_postings_writer: JsonPostingsWriter<Rec>) -> Box<dyn PostingsWriter> {
-        Box::new(json_postings_writer)
-    }
-}
-
 impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
     #[inline]
     fn subscribe(
