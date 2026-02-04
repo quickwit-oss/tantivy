@@ -223,6 +223,11 @@ impl FieldType {
         matches!(self, FieldType::Str(_))
     }
 
+    /// returns true if this is a bytes field
+    pub fn is_bytes(&self) -> bool {
+        matches!(self, FieldType::Bytes(_))
+    }
+
     /// returns true if this is an date field
     pub fn is_date(&self) -> bool {
         matches!(self, FieldType::Date(_))
