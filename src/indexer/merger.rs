@@ -458,6 +458,7 @@ impl IndexMerger {
                     doc = segment_postings.advance();
                 }
             }
+
             // closing the term.
             field_serializer.close_term()?;
         }
@@ -1578,5 +1579,126 @@ mod tests {
         // this is the first time I write a unit test for a constant.
         assert!(((super::MAX_DOC_LIMIT - 1) as i32) >= 0);
         assert!((super::MAX_DOC_LIMIT as i32) < 0);
+    }
+
+    #[test]
+    fn test_frequent_terms_preserved_during_merge() -> crate::Result<()> {
+        use crate::indexer::WordNgramConfig;
+        use crate::schema::*;
+        use crate::{Index, IndexWriter, ReloadPolicy};
+
+        // Create a schema with word ngram configuration
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default()
+                .set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_tokenizer("default")
+                        .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                        .set_word_ngrams(
+                            WordNgramConfig::with_set(
+                                crate::indexer::WordNgramSet::new()
+                                    .with_ngram_ff()
+                                    .with_ngram_fr(),
+                            )
+                            .with_frequent_threshold(0.5), // 50% threshold for testing
+                        ),
+                )
+                .set_stored(),
+        );
+        let schema = schema_builder.build();
+
+        // Create index and writer
+        let index = Index::create_in_ram(schema);
+        let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000)?;
+
+        // Add documents to first segment
+        // "common" will appear in many docs to be frequent
+        // Add 10 documents to first segment
+        for i in 0..10 {
+            writer.add_document(doc!(text_field => format!("common word doc{}", i)))?;
+        }
+        writer.commit()?;
+
+        // Add documents to second segment
+        // Add 10 more documents with "common" to second segment
+        for i in 10..20 {
+            writer.add_document(doc!(text_field => format!("common word doc{}", i)))?;
+        }
+        // Add one document with "rare"
+        writer.add_document(doc!(text_field => "rare word document"))?;
+        writer.commit()?;
+
+        // Verify we have 2 segments before merge
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 2);
+
+        // Note: We don't check if segments have frequent terms before merge
+        // because the tracking might need more documents or time to update.
+        // The key test is whether the merge recalculates them correctly.
+
+        // Perform merge
+        let segment_ids: Vec<_> = searcher
+            .segment_readers()
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect();
+        writer.merge(&segment_ids).wait()?;
+        writer.commit()?;
+
+        // Reload and verify merge
+        reader.reload()?;
+        let searcher = reader.searcher();
+        assert_eq!(
+            searcher.segment_readers().len(),
+            1,
+            "Should have 1 segment after merge"
+        );
+
+        // Verify FrequentTerms metadata exists in merged segment
+        let text_field_id = text_field.field_id();
+        let merged_segment = &searcher.segment_readers()[0];
+        let tracker = merged_segment
+            .get_frequent_terms(text_field_id)
+            .expect("Merged segment should have frequent terms metadata");
+
+        // Verify that "common" is marked as frequent (appears in all 20 documents)
+        // We need to compute the hash for "common"
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        "common".hash(&mut hasher);
+        let common_hash = hasher.finish();
+
+        assert!(
+            tracker.is_frequent(common_hash),
+            "Term 'common' should be frequent (appears in 20/21 = 95% of documents)"
+        );
+
+        // Verify that "rare" is NOT marked as frequent (appears in only 1 of 21 documents = ~5%)
+        let mut hasher = DefaultHasher::new();
+        "rare".hash(&mut hasher);
+        let rare_hash = hasher.finish();
+
+        assert!(
+            !tracker.is_frequent(rare_hash),
+            "Term 'rare' should NOT be frequent (appears in only ~5% of documents)"
+        );
+
+        // Verify stats
+        let (num_frequent, total_docs) = tracker.stats();
+        assert_eq!(total_docs, 21, "Should track 21 total documents (20 + 1)");
+        assert!(
+            num_frequent > 0,
+            "Should have at least one frequent term (common)"
+        );
+
+        Ok(())
     }
 }

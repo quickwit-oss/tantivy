@@ -47,6 +47,9 @@ pub struct SegmentReader {
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
     schema: Schema,
+    
+    /// Per-field frequent term trackers for ngram query optimization (computed lazily)
+    frequent_terms_cache: Arc<RwLock<HashMap<u32, Arc<crate::indexer::FrequentTermTracker>>>>,
 }
 
 impl SegmentReader {
@@ -204,7 +207,90 @@ impl SegmentReader {
             alive_bitset_opt,
             positions_composite,
             schema,
+            frequent_terms_cache: Arc::new(RwLock::new(HashMap::new())),
         })
+    }
+    
+    /// Get or compute the frequent term tracker for a specific field.
+    /// Computes lazily from term dictionary on first access and caches the result.
+    pub fn get_frequent_terms(&self, field_id: u32) -> Option<Arc<crate::indexer::FrequentTermTracker>> {
+        use crate::schema::FieldType;
+        
+        // Check cache first
+        {
+            let cache = self.frequent_terms_cache.read().expect("Lock poisoned");
+            if let Some(tracker) = cache.get(&field_id) {
+                return Some(Arc::clone(tracker));
+            }
+        }
+        
+        // Get field configuration
+        let field = Field::from_field_id(field_id);
+        
+        let field_entry = self.schema.get_field_entry(field);
+        let ngram_config = match field_entry.field_type() {
+            FieldType::Str(ref text_options) => text_options
+                .get_indexing_options()
+                .and_then(|indexing| indexing.word_ngrams()),
+            FieldType::JsonObject(ref json_options) => json_options
+                .get_text_indexing_options()
+                .and_then(|indexing| indexing.word_ngrams()),
+            _ => None,
+        }?;
+        
+        // Only compute for fields with ngrams enabled
+        if !ngram_config.is_enabled() || ngram_config.ngram_set.is_empty() {
+            return None;
+        }
+        
+        // Compute from term dictionary
+        let tracker = self.compute_frequent_terms_from_dict(field, ngram_config).ok()?;
+        
+        // Cache for future use
+        let tracker_arc = Arc::new(tracker);
+        self.frequent_terms_cache
+            .write()
+            .expect("Lock poisoned")
+            .insert(field_id, Arc::clone(&tracker_arc));
+        
+        Some(tracker_arc)
+    }
+    
+    /// Compute frequent terms by iterating through the term dictionary
+    fn compute_frequent_terms_from_dict(
+        &self,
+        field: Field,
+        ngram_config: &crate::indexer::WordNgramConfig,
+    ) -> crate::Result<crate::indexer::FrequentTermTracker> {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let inv_index = self.inverted_index(field)?;
+        let terms = inv_index.terms();
+        let mut term_stream = terms.stream()?;
+        
+        let mut term_doc_freq = HashMap::new();
+        
+        // Iterate through all terms and collect doc frequencies
+        while term_stream.advance() {
+            let term_bytes = term_stream.key();
+            let term_info = term_stream.value();
+            
+            // Hash the term the same way as during indexing
+            if let Ok(term_str) = std::str::from_utf8(term_bytes) {
+                let mut hasher = DefaultHasher::new();
+                term_str.hash(&mut hasher);
+                let term_hash = hasher.finish();
+                term_doc_freq.insert(term_hash, term_info.doc_freq);
+            }
+        }
+        
+        Ok(crate::indexer::FrequentTermTracker::from_term_frequencies(
+            term_doc_freq,
+            self.max_doc,
+            ngram_config.frequent_term_threshold,
+            ngram_config.max_frequent_terms,
+        ))
     }
 
     /// Returns a field reader associated with the field given in argument.

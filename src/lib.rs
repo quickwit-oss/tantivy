@@ -227,7 +227,9 @@ pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader, Order, Segment,
     SegmentMeta, SegmentReader,
 };
-pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
+pub use crate::indexer::{
+    FrequentTermTracker, IndexWriter, SingleSegmentIndexWriter, WordNgramConfig, WordNgramSet,
+};
 pub use crate::schema::{Document, TantivyDocument, Term};
 
 /// Index format version.

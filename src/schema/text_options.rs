@@ -4,6 +4,7 @@ use std::ops::BitOr;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{CoerceFlag, FastFlag};
+use crate::indexer::WordNgramConfig;
 use crate::schema::flags::{SchemaFlagList, StoredFlag};
 use crate::schema::IndexRecordOption;
 
@@ -194,7 +195,8 @@ impl TokenizerName {
 /// - The name of the `Tokenizer` that should be used to process the field.
 /// - Flag indicating, if fieldnorms should be stored (See [fieldnorm](crate::fieldnorm)). Defaults
 ///   to `true`.
-#[derive(Clone, PartialEq, Debug, Eq, Serialize, Deserialize)]
+/// - Optional word ngram indexing configuration for faster phrase search.
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     #[serde(default)]
     record: IndexRecordOption,
@@ -202,6 +204,9 @@ pub struct TextFieldIndexing {
     fieldnorms: bool,
     #[serde(default)]
     tokenizer: TokenizerName,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    word_ngrams: Option<WordNgramConfig>,
 }
 
 pub(crate) fn default_fieldnorms() -> bool {
@@ -214,6 +219,7 @@ impl Default for TextFieldIndexing {
             tokenizer: TokenizerName::default(),
             record: IndexRecordOption::default(),
             fieldnorms: default_fieldnorms(),
+            word_ngrams: None,
         }
     }
 }
@@ -253,6 +259,36 @@ impl TextFieldIndexing {
     }
 
     /// Returns the indexing options associated with this field.
+
+    /// Sets the word ngram indexing configuration for faster phrase search.
+    ///
+    /// When enabled, the indexer will create word-level ngrams based on term frequency,
+    /// which can significantly speed up phrase queries at the cost of increased index size.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tantivy::schema::{Schema, TextFieldIndexing, TEXT};
+    /// use tantivy::indexer::{WordNgramSet, WordNgramConfig};
+    ///
+    /// let mut schema_builder = Schema::builder();
+    /// let text_indexing = TextFieldIndexing::default()
+    ///     .set_word_ngrams(WordNgramConfig::new(
+    ///         WordNgramSet::NGRAM_FF | WordNgramSet::NGRAM_FFF
+    ///     ));
+    /// let text_field = schema_builder.add_text_field("body", 
+    ///     TEXT.clone().set_indexing_options(text_indexing));
+    /// ```
+    #[must_use]
+    pub fn set_word_ngrams(mut self, config: WordNgramConfig) -> TextFieldIndexing {
+        self.word_ngrams = Some(config);
+        self
+    }
+
+    /// Returns the word ngram configuration if set.
+    pub fn word_ngrams(&self) -> Option<&WordNgramConfig> {
+        self.word_ngrams.as_ref()
+    }
     ///
     /// See [`IndexRecordOption`] for more detail.
     pub fn index_option(&self) -> IndexRecordOption {
@@ -266,6 +302,7 @@ pub const STRING: TextOptions = TextOptions {
         tokenizer: TokenizerName::from_static(NO_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::Basic,
+        word_ngrams: None,
     }),
     stored: false,
     fast: FastFieldTextOptions::IsEnabled(false),
@@ -278,6 +315,7 @@ pub const TEXT: TextOptions = TextOptions {
         tokenizer: TokenizerName::from_static(DEFAULT_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::WithFreqsAndPositions,
+        word_ngrams: None,
     }),
     stored: false,
     coerce: false,

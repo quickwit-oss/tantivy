@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::Range;
@@ -7,6 +8,7 @@ use stacker::Addr;
 use crate::fieldnorm::FieldNormReaders;
 use crate::indexer::indexing_term::IndexingTerm;
 use crate::indexer::path_to_unordered_id::OrderedPathId;
+use crate::indexer::WordNgramConfig;
 use crate::postings::recorder::{BufferLender, Recorder};
 use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
@@ -165,10 +167,27 @@ pub(crate) trait PostingsWriter: Send + Sync {
 
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
-#[derive(Default)]
 pub(crate) struct SpecializedPostingsWriter<Rec: Recorder> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
+    /// Sliding window of recent term texts for ngram generation
+    term_window: VecDeque<String>,
+    /// Word ngram configuration if enabled
+    ngram_config: Option<WordNgramConfig>,
+    /// Reusable buffer for ngram construction (avoids repeated allocations)
+    ngram_buffer: String,
+}
+
+impl<Rec: Recorder> Default for SpecializedPostingsWriter<Rec> {
+    fn default() -> Self {
+        Self {
+            total_num_tokens: 0,
+            _recorder_type: PhantomData,
+            term_window: VecDeque::with_capacity(3),
+            ngram_config: None,
+            ngram_buffer: String::with_capacity(64),
+        }
+    }
 }
 
 impl<Rec: Recorder> From<SpecializedPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
@@ -180,6 +199,17 @@ impl<Rec: Recorder> From<SpecializedPostingsWriter<Rec>> for Box<dyn PostingsWri
 }
 
 impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
+    /// Create a new postings writer with optional ngram configuration
+    pub(crate) fn with_ngram_config(ngram_config: Option<WordNgramConfig>) -> Self {
+        Self {
+            total_num_tokens: 0,
+            _recorder_type: PhantomData,
+            term_window: VecDeque::with_capacity(3),
+            ngram_config,
+            ngram_buffer: String::with_capacity(64),
+        }
+    }
+
     #[inline]
     pub(crate) fn serialize_one_term(
         term: &[u8],
@@ -225,6 +255,100 @@ impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
                 recorder
             }
         });
+    }
+
+    fn index_text(
+        &mut self,
+        doc_id: DocId,
+        token_stream: &mut dyn TokenStream,
+        term_buffer: &mut IndexingTerm,
+        ctx: &mut IndexingContext,
+        indexing_position: &mut IndexingPosition,
+    ) {
+        let end_of_path_idx = term_buffer.len_bytes();
+        let mut num_tokens = 0;
+        let mut end_position = indexing_position.end_position;
+        
+        // Clear term window at the start of each field value
+        self.term_window.clear();
+        
+        // Extract config flags once outside the loop for better performance
+        let (should_gen_bigrams, should_gen_trigrams) = if let Some(ref config) = self.ngram_config {
+            (config.contains_bigrams(), config.contains_trigrams())
+        } else {
+            (false, false)
+        };
+        
+        token_stream.process(&mut |token: &Token| {
+            // We skip all tokens with a len greater than u16.
+            if token.text.len() > MAX_TOKEN_LEN {
+                warn!(
+                    "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
+                     MAX_TOKEN_LEN in the documentation for more information.",
+                    token.text.len(),
+                    MAX_TOKEN_LEN
+                );
+                return;
+            }
+            
+            // Index the original term
+            term_buffer.truncate_value_bytes(end_of_path_idx);
+            term_buffer.append_bytes(token.text.as_bytes());
+            let start_position = indexing_position.end_position + token.position as u32;
+            end_position = end_position.max(start_position + token.position_length as u32);
+            self.subscribe(doc_id, start_position, term_buffer, ctx);
+            num_tokens += 1;
+            
+            // Generate ngrams if configured
+            // Note: We generate ALL ngrams for configured types (FF, FR, RF, etc.) without
+            // filtering by actual frequency during indexing. Frequency-based selection happens
+            // at query time when the FrequentTermTracker data is available.
+            if should_gen_bigrams || should_gen_trigrams {
+                // Add current term to sliding window
+                self.term_window.push_back(token.text.to_string());
+                
+                // Keep window size at max 3 for trigrams
+                if self.term_window.len() > 3 {
+                    self.term_window.pop_front();
+                }
+                
+                let window_len = self.term_window.len();
+                
+                // Generate all bigrams if ANY bigram type (FF/FR/RF) is configured
+                if should_gen_bigrams && window_len >= 2 {
+                    // Use reusable buffer to avoid allocations
+                    self.ngram_buffer.clear();
+                    self.ngram_buffer.push_str(&self.term_window[window_len - 2]);
+                    self.ngram_buffer.push(' ');
+                    self.ngram_buffer.push_str(&self.term_window[window_len - 1]);
+                    
+                    term_buffer.truncate_value_bytes(end_of_path_idx);
+                    term_buffer.append_bytes(self.ngram_buffer.as_bytes());
+                    // Ngrams use position 0 (they represent a phrase, not a single word position)
+                    self.subscribe(doc_id, 0, term_buffer, ctx);
+                }
+                
+                // Generate trigrams (need at least 3 terms) - only if configured
+                if should_gen_trigrams && window_len >= 3 {
+                    // Use reusable buffer to avoid allocations
+                    self.ngram_buffer.clear();
+                    self.ngram_buffer.push_str(&self.term_window[window_len - 3]);
+                    self.ngram_buffer.push(' ');
+                    self.ngram_buffer.push_str(&self.term_window[window_len - 2]);
+                    self.ngram_buffer.push(' ');
+                    self.ngram_buffer.push_str(&self.term_window[window_len - 1]);
+                    
+                    term_buffer.truncate_value_bytes(end_of_path_idx);
+                    term_buffer.append_bytes(self.ngram_buffer.as_bytes());
+                    // Ngrams use position 0
+                    self.subscribe(doc_id, 0, term_buffer, ctx);
+                }
+            }
+        });
+
+        indexing_position.end_position = end_position + POSITION_GAP;
+        indexing_position.num_tokens += num_tokens;
+        term_buffer.truncate_value_bytes(end_of_path_idx);
     }
 
     fn serialize(

@@ -99,6 +99,7 @@ impl SegmentWriter {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        
         Ok(Self {
             max_doc: 0,
             ctx: IndexingContext::new(table_size),
@@ -124,6 +125,7 @@ impl SegmentWriter {
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+        
         remap_and_write(
             self.schema,
             &self.per_field_postings_writers,
@@ -134,7 +136,8 @@ impl SegmentWriter {
         )?;
         Ok(self.doc_opstamps)
     }
-
+    
+    /// Persist frequent terms metadata for ngram query optimization
     /// Returns an estimation of the current memory usage of the segment writer.
     /// If the mem usage exceeds the `memory_budget`, the segment be serialized.
     pub fn mem_usage(&self) -> usize {
@@ -193,6 +196,7 @@ impl SegmentWriter {
                 }
                 FieldType::Str(_) => {
                     let mut indexing_position = IndexingPosition::default();
+                    
                     for value in values {
                         let value = value.as_value();
 
@@ -215,6 +219,7 @@ impl SegmentWriter {
                             &mut indexing_position,
                         );
                     }
+                    
                     if field_entry.has_fieldnorms() {
                         self.fieldnorms_writer
                             .record(doc_id, field, indexing_position.num_tokens);
@@ -395,6 +400,7 @@ fn remap_and_write(
     mut serializer: SegmentSerializer,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
+    
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer)?;
     }

@@ -70,6 +70,9 @@ futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 typetag = "0.2.21"
+bitflags = "2.10.0"
+ahash = "0.8"
+parking_lot = "0.12"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
@@ -200,5 +203,9 @@ harness = false
 
 [[bench]]
 name = "regex_all_terms"
+harness = false
+
+[[bench]]
+name = "ngram_phrase_query"
 harness = false
 

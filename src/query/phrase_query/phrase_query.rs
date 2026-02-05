@@ -1,7 +1,9 @@
 use super::PhraseWeight;
 use crate::query::bm25::Bm25Weight;
+use crate::query::ngram_query_optimizer::NgramQueryOptimizer;
 use crate::query::{EnableScoring, Query, Weight};
 use crate::schema::{Field, IndexRecordOption, Term};
+use std::sync::Arc;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -137,6 +139,21 @@ impl Query for PhraseQuery {
     ///
     /// See [`Weight`].
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        // Try ngram optimization first
+        let schema = enable_scoring.schema();
+        let optimizer = NgramQueryOptimizer::new(Arc::new(schema.clone()));
+        
+        if let Some(optimized_query) = optimizer.optimize_phrase_query(
+            self.field,
+            &self.phrase_terms,
+            self.slop,
+            enable_scoring.searcher(),
+        ) {
+            // Use the optimized query (ngram-based)
+            return optimized_query.weight(enable_scoring);
+        }
+        
+        // Fall back to regular phrase query
         let phrase_weight = self.phrase_weight(enable_scoring)?;
         Ok(Box::new(phrase_weight))
     }

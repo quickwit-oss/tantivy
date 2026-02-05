@@ -11,6 +11,7 @@ pub(crate) mod path_to_unordered_id;
 pub(crate) mod doc_id_mapping;
 mod doc_opstamp_mapping;
 mod flat_map_with_buffer;
+mod frequent_terms;
 pub(crate) mod index_writer;
 pub(crate) mod index_writer_status;
 pub(crate) mod indexing_term;
@@ -29,10 +30,12 @@ pub(crate) mod segment_updater;
 pub(crate) mod segment_writer;
 pub(crate) mod single_segment_index_writer;
 mod stamper;
+mod word_ngram_config;
 
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
+pub use self::frequent_terms::FrequentTermTracker;
 pub use self::index_writer::{advance_deletes, IndexWriter, IndexWriterOptions};
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
@@ -44,6 +47,9 @@ pub(crate) use self::segment_serializer::SegmentSerializer;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
 pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
+pub use self::word_ngram_config::{
+    NgramType, WordNgramConfig, WordNgramConfigBuilder, WordNgramSet,
+};
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;
@@ -69,9 +75,13 @@ mod tests_mmap {
     use crate::aggregation::AggregationCollector;
     use crate::collector::{Count, TopDocs};
     use crate::index::FieldMetadata;
-    use crate::query::{AllQuery, QueryParser};
-    use crate::schema::{JsonObjectOptions, Schema, Type, FAST, INDEXED, STORED, TEXT};
-    use crate::{Index, IndexWriter, Term};
+    use crate::query::{AllQuery, PhrasePrefixQuery, PhraseQuery, QueryParser, TermQuery};
+    use crate::schema::{
+        IndexRecordOption, JsonObjectOptions, Schema, TextFieldIndexing, TextOptions, Type, FAST,
+        INDEXED, STORED, TEXT,
+    };
+    use crate::WordNgramConfig;
+    use crate::{Index, IndexWriter, Term, WordNgramSet};
 
     #[test]
     fn test_advance_delete_bug() -> crate::Result<()> {
@@ -692,5 +702,939 @@ mod tests_mmap {
                 field_name
             );
         }
+    }
+
+    #[test]
+    fn test_word_ngram_config_in_schema() {
+        let mut schema_builder = Schema::builder();
+
+        let text_indexing = TextFieldIndexing::default().set_word_ngrams(
+            WordNgramConfig::new(WordNgramSet::NGRAM_FF).with_frequent_threshold(0.5),
+        );
+
+        let _body =
+            schema_builder.add_text_field("body", TEXT.clone().set_indexing_options(text_indexing));
+
+        let schema = schema_builder.build();
+        let _index = Index::create_in_ram(schema);
+
+        // If we get here, the schema with word ngrams was created successfully
+        assert!(true);
+    }
+
+    #[test]
+    fn test_word_ngram_config_serialization() {
+        let config =
+            WordNgramConfig::with_set(WordNgramSet::new().with_ngram_ff().with_ngram_fff())
+                .with_frequent_threshold(0.02)
+                .with_max_frequent_terms(5000);
+
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: WordNgramConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn test_frequent_term_tracker() {
+        use crate::FrequentTermTracker;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        fn hash_str(s: &str) -> u64 {
+            let mut hasher = DefaultHasher::new();
+            s.hash(&mut hasher);
+            hasher.finish()
+        }
+
+        let tracker = FrequentTermTracker::new(0.5, 100);
+
+        // Add documents
+        tracker.record_document_terms(&[hash_str("the"), hash_str("a")]);
+        tracker.record_document_terms(&[hash_str("the"), hash_str("b")]);
+        tracker.record_document_terms(&[hash_str("the"), hash_str("c")]);
+        tracker.record_document_terms(&[hash_str("d"), hash_str("e")]);
+
+        tracker.update_frequent_set();
+
+        // "the" appears in 75% of documents, should be frequent
+        assert!(tracker.is_frequent(hash_str("the")));
+
+        // Other terms appear in <50% of documents
+        assert!(!tracker.is_frequent(hash_str("a")));
+        assert!(!tracker.is_frequent(hash_str("d")));
+    }
+
+    #[test]
+    fn test_ngram_set_flags() {
+        let set1 = WordNgramSet::new().with_ngram_ff();
+        let set2 = WordNgramSet::new().with_ngram_ff().with_ngram_fr();
+        let set3 = WordNgramSet::new().with_ngram_fff();
+
+        assert!(set1.contains(WordNgramSet::NGRAM_FF));
+        assert!(!set1.contains(WordNgramSet::NGRAM_FR));
+
+        assert!(set2.contains(WordNgramSet::NGRAM_FF));
+        assert!(set2.contains(WordNgramSet::NGRAM_FR));
+        assert!(!set2.contains(WordNgramSet::NGRAM_RF));
+
+        assert!(set3.contains(WordNgramSet::NGRAM_FFF));
+        assert!(!set3.contains(WordNgramSet::NGRAM_FF));
+    }
+
+    #[test]
+    fn test_text_field_indexing_with_ngrams() {
+        let config = WordNgramConfig::new(WordNgramSet::NGRAM_FF);
+        let indexing = TextFieldIndexing::default().set_word_ngrams(config.clone());
+
+        assert_eq!(indexing.word_ngrams(), Some(&config));
+    }
+
+    #[test]
+    fn test_empty_ngram_config() {
+        let config = WordNgramConfig::default();
+        assert!(!config.is_enabled());
+    }
+
+    #[test]
+    fn test_enabled_ngram_config() {
+        let config = WordNgramConfig::new(WordNgramSet::NGRAM_FF);
+        assert!(config.is_enabled());
+    }
+
+    #[test]
+    fn test_ngrams_are_indexed() -> crate::Result<()> {
+        // Create schema with ngram indexing enabled
+        let mut schema_builder = Schema::builder();
+
+        let text_indexing = TextFieldIndexing::default()
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+            .set_word_ngrams(WordNgramConfig::new(
+                WordNgramSet::NGRAM_FF | WordNgramSet::NGRAM_FFF,
+            ));
+
+        let text_field =
+            schema_builder.add_text_field("text", TEXT.clone().set_indexing_options(text_indexing));
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer(15_000_000)?;
+
+        // Index a document with text that will generate ngrams
+        index_writer.add_document(doc!(
+            text_field => "the quick brown fox jumps"
+        ))?;
+
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        // Verify that individual terms are indexed
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "quick"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs = searcher.search(&term_query, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(top_docs.len(), 1, "Individual term 'quick' should be found");
+
+        // Verify that bigrams are indexed
+        let bigram_query = TermQuery::new(
+            Term::from_field_text(text_field, "quick brown"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs = searcher.search(&bigram_query, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(top_docs.len(), 1, "Bigram 'quick brown' should be indexed");
+
+        // Verify another bigram
+        let bigram_query2 = TermQuery::new(
+            Term::from_field_text(text_field, "brown fox"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs =
+            searcher.search(&bigram_query2, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(top_docs.len(), 1, "Bigram 'brown fox' should be indexed");
+
+        // Verify that trigrams are indexed
+        let trigram_query = TermQuery::new(
+            Term::from_field_text(text_field, "quick brown fox"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs =
+            searcher.search(&trigram_query, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(
+            top_docs.len(),
+            1,
+            "Trigram 'quick brown fox' should be indexed"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ngrams_not_indexed_without_config() -> crate::Result<()> {
+        // Create schema WITHOUT ngram indexing
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer(15_000_000)?;
+
+        index_writer.add_document(doc!(
+            text_field => "the quick brown fox"
+        ))?;
+
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        // Individual terms should be found
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "quick"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs = searcher.search(&term_query, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(top_docs.len(), 1, "Individual term should be found");
+
+        // Bigrams should NOT be indexed
+        let bigram_query = TermQuery::new(
+            Term::from_field_text(text_field, "quick brown"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs = searcher.search(&bigram_query, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(
+            top_docs.len(),
+            0,
+            "Bigrams should not be indexed without config"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ngram_indexing_multiple_documents() -> crate::Result<()> {
+        // Create schema with ngram indexing
+        let mut schema_builder = Schema::builder();
+
+        let text_indexing = TextFieldIndexing::default()
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+            .set_word_ngrams(WordNgramConfig::new(WordNgramSet::NGRAM_FF));
+
+        let text_field =
+            schema_builder.add_text_field("text", TEXT.clone().set_indexing_options(text_indexing));
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer(15_000_000)?;
+
+        // Index multiple documents
+        index_writer.add_document(doc!(
+            text_field => "the quick brown fox"
+        ))?;
+
+        index_writer.add_document(doc!(
+            text_field => "a quick brown cat"
+        ))?;
+
+        index_writer.add_document(doc!(
+            text_field => "the slow brown turtle"
+        ))?;
+
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        // Search for a bigram that appears in 2 documents
+        let bigram_query = TermQuery::new(
+            Term::from_field_text(text_field, "quick brown"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs = searcher.search(&bigram_query, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(
+            top_docs.len(),
+            2,
+            "Bigram 'quick brown' should appear in 2 docs"
+        );
+
+        // Search for a bigram unique to one document
+        let bigram_query2 = TermQuery::new(
+            Term::from_field_text(text_field, "slow brown"),
+            IndexRecordOption::Basic,
+        );
+        let top_docs =
+            searcher.search(&bigram_query2, &TopDocs::with_limit(10).order_by_score())?;
+        assert_eq!(
+            top_docs.len(),
+            1,
+            "Bigram 'slow brown' should appear in 1 doc"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_frequency_aware_ngram_optimization() {
+        // Test that phrase queries work correctly with ngram-configured fields
+        let mut schema_builder = Schema::builder();
+
+        let ngram_set = WordNgramSet::new().with_ngram_ff();
+
+        let text_indexing = TextFieldIndexing::default()
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+            .set_word_ngrams(
+                WordNgramConfig::builder()
+                    .ngram_types(ngram_set)
+                    .frequent_threshold(0.2)
+                    .build(),
+            );
+
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(text_indexing),
+        );
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer(50_000_000).unwrap();
+
+        // Add docs with "the cat" phrase
+        writer
+            .add_document(doc!(text_field => "the cat sat"))
+            .unwrap();
+        writer
+            .add_document(doc!(text_field => "the dog ran"))
+            .unwrap();
+        writer
+            .add_document(doc!(text_field => "the cat played"))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // First verify individual terms work
+        let the_query = TermQuery::new(
+            Term::from_field_text(text_field, "the"),
+            IndexRecordOption::Basic,
+        );
+        let the_count = searcher.search(&the_query, &Count).unwrap();
+        assert_eq!(
+            the_count, 3,
+            "Found 'the' in {} docs (expected 3)",
+            the_count
+        );
+
+        let cat_query = TermQuery::new(
+            Term::from_field_text(text_field, "cat"),
+            IndexRecordOption::Basic,
+        );
+        let cat_count = searcher.search(&cat_query, &Count).unwrap();
+        assert_eq!(
+            cat_count, 2,
+            "Found 'cat' in {} docs (expected 2)",
+            cat_count
+        );
+
+        // Search for "the cat" phrase - should work via regular phrase query
+        let query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "the"),
+            Term::from_field_text(text_field, "cat"),
+        ]);
+
+        let count = searcher.search(&query, &Count).unwrap();
+        // Should find 2 docs: "the cat sat" and "the cat played"
+        assert_eq!(
+            count, 2,
+            "Expected 2 results for 'the cat' phrase, got {}",
+            count
+        );
+    }
+
+    #[test]
+    fn test_frequency_aware_trigrams() {
+        let mut schema_builder = Schema::builder();
+
+        let ngram_set = WordNgramSet::new()
+            .with_ngram_fff() // Index frequent-frequent-frequent trigrams
+            .with_ngram_rff(); // Index rare-frequent-frequent trigrams
+
+        let text_field_indexing = TextFieldIndexing::default()
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+            .set_word_ngrams(
+                WordNgramConfig::builder()
+                    .ngram_types(ngram_set)
+                    .frequent_threshold(0.3) // 30% threshold for test
+                    .build(),
+            );
+
+        let text_options = TextOptions::default()
+            .set_indexing_options(text_field_indexing)
+            .set_stored();
+
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer: IndexWriter = index.writer(50_000_000).unwrap();
+
+        // Index enough documents for frequency stats to build up
+        let base_docs = vec![
+            "the cat is sleeping now",
+            "the dog is barking loud",
+            "the bird is singing well",
+            "the fish is swimming fast",
+            "the mouse is running quick",
+            "the elephant walks slowly today",
+            "the giraffe eats leaves here",
+            "the zebra runs very fast",
+            "the lion sleeps all day",
+            "the tiger hunts at night", // 10th doc triggers update
+        ];
+
+        for doc_text in &base_docs {
+            let doc = doc!(text_field => *doc_text);
+            index_writer.add_document(doc).unwrap();
+        }
+
+        // Add more docs after frequency update
+        let more_docs = vec![
+            "the cat is sleeping", // Trigram "the cat is" should be indexed
+            "the dog is barking",
+        ];
+
+        for doc_text in &more_docs {
+            let doc = doc!(text_field => *doc_text);
+            index_writer.add_document(doc).unwrap();
+        }
+
+        index_writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Test 3-word phrase query
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "the"),
+            Term::from_field_text(text_field, "cat"),
+            Term::from_field_text(text_field, "is"),
+        ]);
+
+        let count = searcher.search(&phrase_query, &Count).unwrap();
+        eprintln!("Trigram search result count: {}", count);
+        // Trigram test is mainly to verify the infrastructure works.
+        // With small test corpus, trigrams may not be indexed due to frequency thresholds.
+        // The test passes if it completes without errors (infrastructure is working).
+        assert!(count == 2, "Trigram query should complete without error");
+    }
+
+    #[test]
+    fn test_multiple_ngram_types() {
+        // Test indexing with multiple ngram types (FF, FR, RF)
+        let mut schema_builder = Schema::builder();
+
+        let ngram_set = WordNgramSet::new()
+            .with_ngram_ff()
+            .with_ngram_fr()
+            .with_ngram_rf();
+
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                    .set_word_ngrams(
+                        WordNgramConfig::builder()
+                            .ngram_types(ngram_set)
+                            .frequent_threshold(0.5)
+                            .max_frequent_terms(100)
+                            .build(),
+                    ),
+            ),
+        );
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer(50_000_000).unwrap();
+
+        // Index documents to establish frequency patterns
+        for _ in 0..10 {
+            writer
+                .add_document(doc!(text_field => "the quick brown fox"))
+                .unwrap();
+        }
+
+        for i in 0..5 {
+            writer
+                .add_document(doc!(text_field => format!("the rare{} word", i)))
+                .unwrap();
+        }
+
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Test FF bigram
+        let ff_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "the"),
+            Term::from_field_text(text_field, "quick"),
+        ]);
+        let count = searcher.search(&ff_query, &Count).unwrap();
+        assert_eq!(count, 10, "FF bigram 'the quick' should match 10 docs");
+
+        // Test basic functionality
+        let basic_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "brown"),
+            Term::from_field_text(text_field, "fox"),
+        ]);
+        let count = searcher.search(&basic_query, &Count).unwrap();
+        assert_eq!(count, 10, "Phrase 'brown fox' should match 10 docs");
+    }
+
+    #[test]
+    fn test_ngram_with_slop() {
+        // Test that ngram optimization doesn't interfere with slop queries
+        let mut schema_builder = Schema::builder();
+
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                    .set_word_ngrams(
+                        WordNgramConfig::builder()
+                            .ngram_types(WordNgramSet::new().with_ngram_ff())
+                            .frequent_threshold(0.3)
+                            .build(),
+                    ),
+            ),
+        );
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer(50_000_000).unwrap();
+
+        writer
+            .add_document(doc!(text_field => "the cat sat on the mat"))
+            .unwrap();
+        writer
+            .add_document(doc!(text_field => "the dog sat on the floor"))
+            .unwrap();
+        writer
+            .add_document(doc!(text_field => "the very fat cat"))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Query with slop=1 should match "the very fat cat"
+        let query = PhraseQuery::new_with_offset_and_slop(
+            vec![
+                (0, Term::from_field_text(text_field, "the")),
+                (1, Term::from_field_text(text_field, "fat")),
+            ],
+            1,
+        );
+
+        let count = searcher.search(&query, &Count).unwrap();
+        assert_eq!(count, 1, "Slop query should find 'the very fat cat'");
+    }
+
+    #[test]
+    fn test_frequent_term_persistence() {
+        // Test that frequent terms are persisted and reloaded correctly
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let mut schema_builder = Schema::builder();
+
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                    .set_word_ngrams(
+                        WordNgramConfig::builder()
+                            .ngram_types(WordNgramSet::new().with_ngram_ff())
+                            .frequent_threshold(0.5)
+                            .max_frequent_terms(50)
+                            .build(),
+                    ),
+            ),
+        );
+
+        let schema = schema_builder.build();
+
+        // Create index and write documents
+        {
+            let index = Index::create_in_dir(&temp_dir, schema.clone()).unwrap();
+            let mut writer = index.writer(50_000_000).unwrap();
+
+            for _ in 0..20 {
+                writer
+                    .add_document(doc!(text_field => "the quick brown fox jumps"))
+                    .unwrap();
+            }
+
+            writer.commit().unwrap();
+        }
+
+        // Reopen index and verify phrase search still works
+        {
+            let index = Index::open_in_dir(&temp_dir).unwrap();
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+
+            let query = PhraseQuery::new(vec![
+                Term::from_field_text(text_field, "quick"),
+                Term::from_field_text(text_field, "brown"),
+            ]);
+
+            let count = searcher.search(&query, &Count).unwrap();
+            assert_eq!(count, 20, "Phrase query should work after reloading");
+        }
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        // Test edge cases: empty queries, single term, very long phrases
+        let mut schema_builder = Schema::builder();
+
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                    .set_word_ngrams(
+                        WordNgramConfig::builder()
+                            .ngram_types(WordNgramSet::new().with_ngram_ff().with_ngram_fff())
+                            .frequent_threshold(0.3)
+                            .build(),
+                    ),
+            ),
+        );
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer(50_000_000).unwrap();
+
+        // Long document with many terms
+        writer
+            .add_document(doc!(
+                text_field => "the quick brown fox jumps over the lazy dog and the cat watches"
+            ))
+            .unwrap();
+
+        // Short documents
+        writer.add_document(doc!(text_field => "cat")).unwrap();
+        writer
+            .add_document(doc!(text_field => "the dog runs"))
+            .unwrap();
+
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Long phrase query
+        let long_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "quick"),
+            Term::from_field_text(text_field, "brown"),
+            Term::from_field_text(text_field, "fox"),
+            Term::from_field_text(text_field, "jumps"),
+        ]);
+
+        let count = searcher.search(&long_query, &Count).unwrap();
+        assert_eq!(count, 1, "Long phrase query should match");
+
+        // Short phrase that appears in both first and third doc
+        let short_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "the"),
+            Term::from_field_text(text_field, "cat"),
+        ]);
+
+        let count = searcher.search(&short_query, &Count).unwrap();
+        assert_eq!(count, 1, "Short phrase 'the cat' should match 1 doc");
+    }
+
+    #[test]
+    fn test_max_frequent_terms_limit() {
+        // Test that max_frequent_terms limit is respected
+        let mut schema_builder = Schema::builder();
+
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                    .set_word_ngrams(
+                        WordNgramConfig::builder()
+                            .ngram_types(WordNgramSet::new().with_ngram_ff())
+                            .frequent_threshold(0.1)
+                            .max_frequent_terms(5) // Very small limit
+                            .build(),
+                    ),
+            ),
+        );
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer(50_000_000).unwrap();
+
+        // Index many different frequent terms
+        for i in 0..20 {
+            writer
+                .add_document(doc!(
+                    text_field => format!("word{} appears in every document", i)
+                ))
+                .unwrap();
+        }
+
+        for _ in 0..20 {
+            writer
+                .add_document(doc!(text_field => "common phrase here"))
+                .unwrap();
+        }
+
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Verify that phrase queries still work even with limited frequent term tracking
+        let query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "common"),
+            Term::from_field_text(text_field, "phrase"),
+        ]);
+
+        let count = searcher.search(&query, &Count).unwrap();
+        assert_eq!(
+            count, 20,
+            "Phrase query should work with max_frequent_terms limit"
+        );
+    }
+
+    #[test]
+    fn test_phrase_prefix_query_with_ngrams() {
+        // Test that phrase prefix queries work correctly on ngram-configured fields
+        // Note: Phrase prefix queries don't get ngram optimization (prefix makes it incompatible),
+        // but they should still work correctly via regular position matching
+        let mut schema_builder = Schema::builder();
+
+        let text_field = schema_builder.add_text_field(
+            "text",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                    .set_word_ngrams(
+                        WordNgramConfig::builder()
+                            .ngram_types(WordNgramSet::new().with_ngram_ff())
+                            .frequent_threshold(0.3)
+                            .build(),
+                    ),
+            ),
+        );
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut writer = index.writer(50_000_000).unwrap();
+
+        // Index documents with various phrases
+        writer
+            .add_document(doc!(text_field => "the quick brown fox"))
+            .unwrap();
+        writer
+            .add_document(doc!(text_field => "the quick red fox"))
+            .unwrap();
+        writer
+            .add_document(doc!(text_field => "the slow brown fox"))
+            .unwrap();
+        writer
+            .add_document(doc!(text_field => "a quick brown dog"))
+            .unwrap();
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Test phrase prefix: "the quick br*" should match "brown" in first two docs
+        let query = PhrasePrefixQuery::new(vec![
+            Term::from_field_text(text_field, "the"),
+            Term::from_field_text(text_field, "quick"),
+            Term::from_field_text(text_field, "br"), // prefix
+        ]);
+
+        let count = searcher.search(&query, &Count).unwrap();
+        assert_eq!(
+            count, 1,
+            "Phrase prefix 'the quick br*' should match 'the quick brown fox'"
+        );
+
+        // Test with single prefix term: "qui*" should match quick in 3 docs
+        let single_prefix_query =
+            PhrasePrefixQuery::new(vec![Term::from_field_text(text_field, "qui")]);
+
+        let count = searcher.search(&single_prefix_query, &Count).unwrap();
+        assert_eq!(count, 3, "Prefix 'qui*' should match 'quick' in 3 docs");
+
+        // Test longer phrase prefix
+        let long_query = PhrasePrefixQuery::new(vec![
+            Term::from_field_text(text_field, "the"),
+            Term::from_field_text(text_field, "quick"),
+            Term::from_field_text(text_field, "brown"),
+            Term::from_field_text(text_field, "f"), // matches "fox"
+        ]);
+
+        let count = searcher.search(&long_query, &Count).unwrap();
+        assert_eq!(count, 1, "Long phrase prefix should match correctly");
+    }
+
+    #[test]
+    fn test_word_ngram_indexing_pipeline() -> crate::Result<()> {
+        // Build schema with word ngram enabled
+        let mut schema_builder = Schema::builder();
+
+        let text_indexing = TextFieldIndexing::default().set_word_ngrams(
+            WordNgramConfig::with_set(
+                WordNgramSet::new()
+                    .with_ngram_ff() // Frequent-Frequent bigrams
+                    .with_ngram_fff(), // Frequent-Frequent-Frequent trigrams
+            )
+            .with_frequent_threshold(0.3) // Lower threshold for testing with small corpus
+            .with_max_frequent_terms(100),
+        );
+
+        let title = schema_builder
+            .add_text_field("title", TEXT.clone().set_indexing_options(text_indexing));
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        // Index some documents - use small memory budget for test
+        let mut index_writer: IndexWriter = index.writer(15_000_000)?;
+
+        // Add documents with repetitive phrases to make some terms frequent
+        for i in 0..10 {
+            index_writer.add_document(doc!(
+                title => format!("the quick brown fox jumps over the lazy dog {}", i)
+            ))?;
+        }
+
+        for i in 0..10 {
+            index_writer.add_document(doc!(
+                title => format!("the world is a beautiful place with the sun {}", i)
+            ))?;
+        }
+
+        for i in 0..10 {
+            index_writer.add_document(doc!(
+                title => format!("the cat sat on the mat in the house {}", i)
+            ))?;
+        }
+
+        index_writer.commit()?;
+
+        // Verify index was created successfully
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = &searcher.segment_readers()[0];
+
+        // Check that we have documents indexed
+        assert_eq!(segment_reader.num_docs(), 30);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_word_ngram_disabled_by_default() -> crate::Result<()> {
+        // Build schema WITHOUT word ngrams
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer: IndexWriter = index.writer(15_000_000)?;
+
+        index_writer.add_document(doc!(title => "the quick brown fox"))?;
+        index_writer.add_document(doc!(title => "jumps over the lazy dog"))?;
+
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_word_ngram_with_different_configurations() -> crate::Result<()> {
+        // Test with only FF bigrams
+        let mut schema_builder = Schema::builder();
+
+        let text_indexing = TextFieldIndexing::default().set_word_ngrams(
+            WordNgramConfig::with_set(WordNgramSet::new().with_ngram_ff())
+                .with_frequent_threshold(0.5),
+        );
+
+        let body =
+            schema_builder.add_text_field("body", TEXT.clone().set_indexing_options(text_indexing));
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer(15_000_000)?;
+
+        // Add documents
+        for _ in 0..20 {
+            index_writer.add_document(doc!(body => "the quick brown fox"))?;
+        }
+
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        assert_eq!(searcher.segment_readers()[0].num_docs(), 20);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_word_ngram_multiple_fields() -> crate::Result<()> {
+        // Test with ngrams on one field but not another
+        let mut schema_builder = Schema::builder();
+
+        let text_with_ngrams = TextFieldIndexing::default().set_word_ngrams(
+            WordNgramConfig::with_set(WordNgramSet::new().with_ngram_ff().with_ngram_fr()),
+        );
+
+        let title = schema_builder
+            .add_text_field("title", TEXT.clone().set_indexing_options(text_with_ngrams));
+
+        let body = schema_builder.add_text_field("body", TEXT);
+
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer: IndexWriter = index.writer(15_000_000)?;
+
+        index_writer.add_document(doc!(
+            title => "the quick brown fox",
+            body => "jumps over the lazy dog"
+        ))?;
+
+        index_writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        assert_eq!(searcher.segment_readers()[0].num_docs(), 1);
+
+        Ok(())
     }
 }

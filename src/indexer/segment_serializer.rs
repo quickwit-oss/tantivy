@@ -53,7 +53,7 @@ impl SegmentSerializer {
     pub fn segment(&self) -> &Segment {
         &self.segment
     }
-
+    
     /// Accessor to the `PostingsSerializer`.
     pub fn get_postings_serializer(&mut self) -> &mut InvertedIndexSerializer {
         &mut self.postings_serializer
