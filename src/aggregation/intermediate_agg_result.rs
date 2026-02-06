@@ -90,6 +90,19 @@ impl From<IntermediateKey> for Key {
 
 impl Eq for IntermediateKey {}
 
+impl std::fmt::Display for IntermediateKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntermediateKey::Str(val) => f.write_str(val),
+            IntermediateKey::F64(val) => f.write_str(&val.to_string()),
+            IntermediateKey::U64(val) => f.write_str(&val.to_string()),
+            IntermediateKey::I64(val) => f.write_str(&val.to_string()),
+            IntermediateKey::Bool(val) => f.write_str(&val.to_string()),
+            IntermediateKey::IpAddr(val) => f.write_str(&val.to_string()),
+        }
+    }
+}
+
 impl std::hash::Hash for IntermediateKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
@@ -105,6 +118,14 @@ impl std::hash::Hash for IntermediateKey {
 }
 
 impl IntermediateAggregationResults {
+    pub fn get(&self, key: &str) -> Option<&IntermediateAggregationResult> {
+        self.aggs_res.get(key)
+    }
+
+    pub fn remove(&mut self, key: &str) -> Option<IntermediateAggregationResult> {
+        self.aggs_res.remove(key)
+    }
+
     /// Add a result
     pub fn push(&mut self, key: String, value: IntermediateAggregationResult) -> crate::Result<()> {
         let entry = self.aggs_res.entry(key);
@@ -639,6 +660,18 @@ pub struct IntermediateTermBucketResult {
 }
 
 impl IntermediateTermBucketResult {
+    pub fn entries(&self) -> &FxHashMap<IntermediateKey, IntermediateTermBucketEntry> {
+        &self.entries
+    }
+
+    pub fn sum_other_doc_count(&self) -> u64 {
+        self.sum_other_doc_count
+    }
+
+    pub fn doc_count_error_upper_bound(&self) -> u64 {
+        self.doc_count_error_upper_bound
+    }
+
     pub(crate) fn into_final_result(
         self,
         req: &TermsAggregation,

@@ -110,6 +110,14 @@ impl Default for IntermediateStats {
 }
 
 impl IntermediateStats {
+    pub fn count(&self) -> u64 {
+        self.count
+    }
+
+    pub fn sum(&self) -> f64 {
+        self.sum
+    }
+
     /// Merges the other stats intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateStats) {
         self.count += other.count;
