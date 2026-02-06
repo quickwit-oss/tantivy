@@ -110,10 +110,12 @@ impl Default for IntermediateStats {
 }
 
 impl IntermediateStats {
+    /// Returns the number of values collected.
     pub fn count(&self) -> u64 {
         self.count
     }
 
+    /// Returns the sum of all values collected.
     pub fn sum(&self) -> f64 {
         self.sum
     }

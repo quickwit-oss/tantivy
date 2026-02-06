@@ -56,6 +56,7 @@ impl IntermediateAverage {
         Self { stats }
     }
 
+    /// Returns a reference to the underlying [`IntermediateStats`].
     pub fn stats(&self) -> &IntermediateStats {
         &self.stats
     }
