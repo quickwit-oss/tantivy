@@ -55,6 +55,12 @@ impl IntermediateAverage {
     pub(crate) fn from_stats(stats: IntermediateStats) -> Self {
         Self { stats }
     }
+
+    /// Returns a reference to the underlying intermediate stats.
+    pub fn stats(&self) -> &IntermediateStats {
+        &self.stats
+    }
+
     /// Merges the other intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateAverage) {
         self.stats.merge_fruits(other.stats);

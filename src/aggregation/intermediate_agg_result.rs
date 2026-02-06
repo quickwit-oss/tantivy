@@ -90,6 +90,19 @@ impl From<IntermediateKey> for Key {
 
 impl Eq for IntermediateKey {}
 
+impl std::fmt::Display for IntermediateKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntermediateKey::Str(val) => f.write_str(val),
+            IntermediateKey::F64(val) => write!(f, "{val}"),
+            IntermediateKey::U64(val) => write!(f, "{val}"),
+            IntermediateKey::I64(val) => write!(f, "{val}"),
+            IntermediateKey::Bool(val) => write!(f, "{val}"),
+            IntermediateKey::IpAddr(val) => write!(f, "{val}"),
+        }
+    }
+}
+
 impl std::hash::Hash for IntermediateKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
@@ -105,6 +118,21 @@ impl std::hash::Hash for IntermediateKey {
 }
 
 impl IntermediateAggregationResults {
+    /// Returns a reference to the intermediate result for the given aggregation key.
+    pub fn get(&self, key: &str) -> Option<&IntermediateAggregationResult> {
+        self.aggs_res.get(key)
+    }
+
+    /// Returns a mutable reference to the intermediate result for the given aggregation key.
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut IntermediateAggregationResult> {
+        self.aggs_res.get_mut(key)
+    }
+
+    /// Removes and returns the intermediate result for the given aggregation key.
+    pub fn remove(&mut self, key: &str) -> Option<IntermediateAggregationResult> {
+        self.aggs_res.remove(key)
+    }
+
     /// Add a result
     pub fn push(&mut self, key: String, value: IntermediateAggregationResult) -> crate::Result<()> {
         let entry = self.aggs_res.entry(key);
@@ -639,6 +667,21 @@ pub struct IntermediateTermBucketResult {
 }
 
 impl IntermediateTermBucketResult {
+    /// Returns a reference to the term bucket entries.
+    pub fn entries(&self) -> &FxHashMap<IntermediateKey, IntermediateTermBucketEntry> {
+        &self.entries
+    }
+
+    /// Returns the count of documents not included in the returned buckets.
+    pub fn sum_other_doc_count(&self) -> u64 {
+        self.sum_other_doc_count
+    }
+
+    /// Returns the upper bound of the document count error for each term.
+    pub fn doc_count_error_upper_bound(&self) -> u64 {
+        self.doc_count_error_upper_bound
+    }
+
     pub(crate) fn into_final_result(
         self,
         req: &TermsAggregation,
