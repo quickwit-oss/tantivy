@@ -155,6 +155,18 @@ impl SymbolValue for Ipv6Addr {
     }
 }
 
+impl SymbolValue for u128 {
+    fn serialize(self, buffer: &mut [u8]) -> u8 {
+        buffer[0..16].copy_from_slice(&self.to_be_bytes());
+        16
+    }
+
+    fn deserialize(bytes: &[u8]) -> Self {
+        let octets: [u8; 16] = bytes[0..16].try_into().unwrap();
+        u128::from_be_bytes(octets)
+    }
+}
+
 #[derive(Default)]
 struct MiniBuffer {
     pub bytes: [u8; 17],

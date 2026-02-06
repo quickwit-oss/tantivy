@@ -213,6 +213,7 @@ pub(crate) fn build_segment_stats_collector(
         ColumnType::Bytes => Ok(create_collector::<{ ColumnType::Bytes as u8 }>(req)),
         ColumnType::Str => Ok(create_collector::<{ ColumnType::Str as u8 }>(req)),
         ColumnType::IpAddr => Ok(create_collector::<{ ColumnType::IpAddr as u8 }>(req)),
+        ColumnType::U128 => Ok(create_collector::<{ ColumnType::U128 as u8 }>(req)),
     }
 }
 

@@ -38,6 +38,7 @@ pub(crate) enum ColumnTypeCategory {
     Bool,
     IpAddr,
     DateTime,
+    U128,
 }
 
 impl From<ColumnType> for ColumnTypeCategory {
@@ -51,6 +52,7 @@ impl From<ColumnType> for ColumnTypeCategory {
             ColumnType::Bool => ColumnTypeCategory::Bool,
             ColumnType::IpAddr => ColumnTypeCategory::IpAddr,
             ColumnType::DateTime => ColumnTypeCategory::DateTime,
+            ColumnType::U128 => ColumnTypeCategory::U128,
         }
     }
 }
@@ -123,7 +125,10 @@ fn dynamic_column_to_u64_monotonic(dynamic_column: DynamicColumn) -> Option<Colu
         DynamicColumn::U64(column) => Some(column.to_u64_monotonic()),
         DynamicColumn::F64(column) => Some(column.to_u64_monotonic()),
         DynamicColumn::DateTime(column) => Some(column.to_u64_monotonic()),
-        DynamicColumn::IpAddr(_) | DynamicColumn::Bytes(_) | DynamicColumn::Str(_) => None,
+        DynamicColumn::IpAddr(_)
+        | DynamicColumn::Bytes(_)
+        | DynamicColumn::Str(_)
+        | DynamicColumn::U128(_) => None,
     }
 }
 
@@ -173,6 +178,33 @@ fn merge_column(
             for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
                 if let Some(DynamicColumn::IpAddr(Column { index: idx, values })) =
                     dynamic_column_opt
+                {
+                    column_indexes.push(idx);
+                    column_values.push(Some(values));
+                } else {
+                    column_indexes.push(ColumnIndex::Empty {
+                        num_docs: num_docs_per_column[i],
+                    });
+                    column_values.push(None);
+                }
+            }
+
+            let merged_column_index =
+                crate::column_index::merge_column_index(&column_indexes[..], merge_row_order);
+            let merge_column_values = MergedColumnValues {
+                column_indexes: &column_indexes[..],
+                column_values: &column_values,
+                merge_row_order,
+            };
+
+            serialize_column_mappable_to_u128(merged_column_index, &merge_column_values, wrt)?;
+        }
+        ColumnType::U128 => {
+            let mut column_indexes: Vec<ColumnIndex> = Vec::with_capacity(columns_to_merge.len());
+            let mut column_values: Vec<Option<Arc<dyn ColumnValues<u128>>>> =
+                Vec::with_capacity(columns_to_merge.len());
+            for (i, dynamic_column_opt) in columns_to_merge.into_iter().enumerate() {
+                if let Some(DynamicColumn::U128(Column { index: idx, values })) = dynamic_column_opt
                 {
                     column_indexes.push(idx);
                     column_values.push(Some(values));
@@ -467,6 +499,7 @@ fn min_max_if_numerical(column: &DynamicColumn) -> Option<(NumericalValue, Numer
         DynamicColumn::F64(column) => Some((column.min_value().into(), column.max_value().into())),
         DynamicColumn::Bool(_)
         | DynamicColumn::IpAddr(_)
+        | DynamicColumn::U128(_)
         | DynamicColumn::DateTime(_)
         | DynamicColumn::Bytes(_)
         | DynamicColumn::Str(_) => None,

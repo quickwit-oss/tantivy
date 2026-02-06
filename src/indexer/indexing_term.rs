@@ -91,6 +91,11 @@ impl IndexingTerm {
         self.set_bytes(val.to_u128().to_be_bytes().as_ref());
     }
 
+    /// Sets a `u128` value in the term.
+    pub fn set_u128(&mut self, val: u128) {
+        self.set_bytes(val.to_be_bytes().as_ref());
+    }
+
     /// Sets the value of a `Bytes` field.
     pub fn set_bytes(&mut self, bytes: &[u8]) {
         self.truncate_value_bytes(0);

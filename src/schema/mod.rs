@@ -171,6 +171,7 @@ pub(crate) fn value_type_to_column_type(typ: Type) -> Option<ColumnType> {
         Type::Facet => Some(ColumnType::Str),
         Type::Bytes => Some(ColumnType::Bytes),
         Type::IpAddr => Some(ColumnType::IpAddr),
+        Type::U128 => Some(ColumnType::U128),
         Type::Json => None,
     }
 }

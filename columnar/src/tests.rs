@@ -252,6 +252,7 @@ enum ColumnValue {
     Bytes(&'static [u8]),
     Numerical(NumericalValue),
     IpAddr(Ipv6Addr),
+    U128(u128),
     Bool(bool),
     DateTime(DateTime),
 }
@@ -269,6 +270,7 @@ impl ColumnValue {
             ColumnValue::Bytes(_) => ColumnTypeCategory::Bytes,
             ColumnValue::Numerical(_) => ColumnTypeCategory::Numerical,
             ColumnValue::IpAddr(_) => ColumnTypeCategory::IpAddr,
+            ColumnValue::U128(_) => ColumnTypeCategory::U128,
             ColumnValue::Bool(_) => ColumnTypeCategory::Bool,
             ColumnValue::DateTime(_) => ColumnTypeCategory::DateTime,
         }
@@ -303,6 +305,7 @@ fn column_value_strategy() -> impl Strategy<Value = ColumnValue> {
             0,
             ip_addr_byte
         ))),
+        1 => any::<u128>().prop_map(|val| ColumnValue::U128(val)),
         1 => any::<bool>().prop_map(ColumnValue::Bool),
         1 => (679_723_993i64..1_679_723_995i64)
             .prop_map(|val| { ColumnValue::DateTime(DateTime::from_timestamp_secs(val)) })
@@ -352,6 +355,9 @@ fn build_columnar_with_mapping(docs: &[Vec<(&'static str, ColumnValue)>]) -> Col
                 }
                 ColumnValue::IpAddr(ip_addr) => {
                     columnar_writer.record_ip_addr(doc_id as u32, column_name, ip_addr);
+                }
+                ColumnValue::U128(u128) => {
+                    columnar_writer.record_u128(doc_id as u32, column_name, u128);
                 }
                 ColumnValue::Bool(bool_val) => {
                     columnar_writer.record_bool(doc_id as u32, column_name, bool_val);
@@ -506,6 +512,15 @@ impl AssertEqualToColumnValue for Ipv6Addr {
     }
 }
 
+impl AssertEqualToColumnValue for u128 {
+    fn assert_equal_to_column_value(&self, column_value: &ColumnValue) {
+        let ColumnValue::U128(val) = column_value else {
+            panic!()
+        };
+        assert_eq!(self, val);
+    }
+}
+
 impl<T: Coerce + PartialEq + Debug + Into<NumericalValue>> AssertEqualToColumnValue for T {
     fn assert_equal_to_column_value(&self, column_value: &ColumnValue) {
         let ColumnValue::Numerical(num) = column_value else {
@@ -616,6 +631,8 @@ proptest! {
                 DynamicColumn::F64(col) =>
                     assert_column_values(col, expected_col_values),
                 DynamicColumn::IpAddr(col) =>
+                    assert_column_values(col, expected_col_values),
+                DynamicColumn::U128(col) =>
                     assert_column_values(col, expected_col_values),
                 DynamicColumn::DateTime(col) =>
                     assert_column_values(col, expected_col_values),
