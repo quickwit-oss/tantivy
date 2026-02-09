@@ -128,6 +128,11 @@ impl IntermediateAggregationResults {
         self.aggs_res.remove(key)
     }
 
+    /// Returns an iterator over the keys in the intermediate aggregation results.
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.aggs_res.keys()
+    }
+
     /// Add a result
     pub fn push(&mut self, key: String, value: IntermediateAggregationResult) -> crate::Result<()> {
         let entry = self.aggs_res.entry(key);
