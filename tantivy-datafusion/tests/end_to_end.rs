@@ -7,7 +7,9 @@ use datafusion::prelude::*;
 use tantivy::query::TermQuery;
 use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
-use tantivy_datafusion::{full_text_udf, TantivyInvertedIndexProvider, TantivyTableProvider};
+use tantivy_datafusion::{
+    full_text_udf, TantivyDocumentProvider, TantivyInvertedIndexProvider, TantivyTableProvider,
+};
 
 fn plan_to_string(batches: &[RecordBatch]) -> String {
     let batch = collect_batches(batches);
@@ -652,4 +654,201 @@ CoalesceBatchesExec: target_batch_size=8192
         physical_plan, expected_physical_plan,
         "Physical plan mismatch.\n\nActual:\n{physical_plan}\n\nExpected:\n{expected_physical_plan}"
     );
+}
+
+// --- Document provider tests ---
+
+#[tokio::test]
+async fn test_document_fetch_basic() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx.register_table(
+        "d",
+        Arc::new(TantivyDocumentProvider::new(index)),
+    )
+    .unwrap();
+
+    let df = ctx
+        .sql(
+            "SELECT d._document \
+             FROM inv \
+             JOIN d ON d._doc_id = inv._doc_id AND d._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') \
+             ORDER BY d._doc_id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+
+    let docs = batch.column(0).as_string::<i32>();
+    for i in 0..2 {
+        let json: serde_json::Value = serde_json::from_str(docs.value(i)).unwrap();
+        assert!(json.get("id").is_some(), "document should contain 'id'");
+        assert!(
+            json.get("category").is_some(),
+            "document should contain 'category'"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_document_three_way_join() {
+    let index = create_test_index();
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx.register_table(
+        "f",
+        Arc::new(TantivyTableProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx.register_table(
+        "d",
+        Arc::new(TantivyDocumentProvider::new(index)),
+    )
+    .unwrap();
+
+    let df = ctx
+        .sql(
+            "SELECT f.id, f.price, d._document \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             JOIN d ON d._doc_id = f._doc_id AND d._segment_ord = f._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics = ids {1, 3}, price > 2.0 = ids {2, 3, 4, 5} → intersection = {3}
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+
+    let price = batch.column(1).as_primitive::<Float64Type>().value(0);
+    assert!((price - 3.5).abs() < 1e-10);
+
+    let doc_json: serde_json::Value =
+        serde_json::from_str(batch.column(2).as_string::<i32>().value(0)).unwrap();
+    assert_eq!(doc_json["id"][0], 3);
+    assert_eq!(doc_json["category"][0], "electronics");
+}
+
+#[tokio::test]
+async fn test_document_three_way_join_plan() {
+    let index = create_test_index();
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx.register_table(
+        "f",
+        Arc::new(TantivyTableProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx.register_table(
+        "d",
+        Arc::new(TantivyDocumentProvider::new(index)),
+    )
+    .unwrap();
+
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id, f.price, d._document \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             JOIN d ON d._doc_id = f._doc_id AND d._segment_ord = f._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // Full physical plan for the three-way join showing:
+    //
+    // - No RepartitionExec: all three providers declare
+    //   Hash([_doc_id, _segment_ord], 1) so the optimizer recognises them as
+    //   co-partitioned by segment — no shuffle needed.
+    //
+    // - Two CollectLeft HashJoinExecs chained:
+    //   1. inv (build) ⋈ f (probe) — DynamicFilter + price pushdown into f
+    //   2. result (build) ⋈ d (probe) — document provider is the probe side
+    //
+    // - DynamicFilter pushed into FastFieldDataSource from the first hash
+    //   join; DocumentDataSource declines dynamic filters (PushedDown::No)
+    //   since it's typically joined after filtering is done.
+    let expected_physical_plan = "\
+SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
+  CoalesceBatchesExec: target_batch_size=8192
+    HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@2, price@3, _document@6]
+      CoalesceBatchesExec: target_batch_size=8192
+        HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[_doc_id@2, _segment_ord@3, id@4, price@5]
+          CooperativeExec
+            DataSourceExec: InvertedIndexDataSource(segments=1, query=true)
+          CooperativeExec
+            DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[price@3 > 2, DynamicFilter [ empty ]])
+      CooperativeExec
+        DataSourceExec: DocumentDataSource(segments=1)";
+
+    let physical_plan: String = plan
+        .lines()
+        .skip_while(|line| !line.starts_with("SortExec"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(
+        physical_plan, expected_physical_plan,
+        "Physical plan mismatch.\n\nActual:\n{physical_plan}\n\nExpected:\n{expected_physical_plan}"
+    );
+}
+
+#[tokio::test]
+async fn test_document_standalone() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_table(
+        "docs",
+        Arc::new(TantivyDocumentProvider::new(index)),
+    )
+    .unwrap();
+
+    let df = ctx
+        .sql("SELECT _document FROM docs ORDER BY _doc_id LIMIT 3")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 3);
+
+    let docs = batch.column(0).as_string::<i32>();
+    for i in 0..3 {
+        let json: serde_json::Value = serde_json::from_str(docs.value(i)).unwrap();
+        assert!(json.is_object(), "each _document should be a JSON object");
+    }
 }
