@@ -10,15 +10,13 @@ use datafusion::datasource::TableProvider;
 use datafusion::datasource::TableType;
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
-use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::physical_plan::memory::LazyMemoryExec;
 use datafusion::physical_plan::ExecutionPlan;
 use parking_lot::RwLock;
-use tantivy::query::{BooleanQuery, EnableScoring, Query, QueryParser};
+use tantivy::query::{EnableScoring, Query};
 use tantivy::{DocId, Index};
 
 use crate::fast_field_reader::read_segment_fast_fields_to_batch;
-use crate::full_text_udf::extract_full_text_call;
 use crate::schema_mapping::tantivy_schema_to_arrow_from_index;
 
 /// A DataFusion table provider backed by a tantivy index.
@@ -81,27 +79,11 @@ impl TableProvider for TantivyTableProvider {
         TableType::Base
     }
 
-    fn supports_filters_pushdown(
-        &self,
-        filters: &[&Expr],
-    ) -> Result<Vec<TableProviderFilterPushDown>> {
-        Ok(filters
-            .iter()
-            .map(|f| {
-                if extract_full_text_call(f).is_some() {
-                    TableProviderFilterPushDown::Exact
-                } else {
-                    TableProviderFilterPushDown::Unsupported
-                }
-            })
-            .collect())
-    }
-
     async fn scan(
         &self,
         _state: &dyn Session,
         projection: Option<&Vec<usize>>,
-        filters: &[Expr],
+        _filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
@@ -115,33 +97,8 @@ impl TableProvider for TantivyTableProvider {
             None => self.arrow_schema.clone(),
         };
 
-        // Build query from pushed-down full_text() filters + any pre-set query
-        let mut queries: Vec<Box<dyn Query>> = Vec::new();
-        if let Some(q) = &self.query {
-            queries.push(q.box_clone());
-        }
-        let schema = self.index.schema();
-        for filter in filters {
-            if let Some((field_name, query_string)) = extract_full_text_call(filter) {
-                let field = schema.get_field(&field_name).map_err(|e| {
-                    DataFusionError::Plan(format!(
-                        "full_text: field '{field_name}' not found: {e}"
-                    ))
-                })?;
-                let parser = QueryParser::for_index(&self.index, vec![field]);
-                let parsed = parser.parse_query(&query_string).map_err(|e| {
-                    DataFusionError::Plan(format!(
-                        "full_text: failed to parse '{query_string}': {e}"
-                    ))
-                })?;
-                queries.push(parsed);
-            }
-        }
-        let combined_query: Option<Arc<dyn Query>> = match queries.len() {
-            0 => None,
-            1 => Some(Arc::from(queries.into_iter().next().unwrap())),
-            _ => Some(Arc::new(BooleanQuery::intersection(queries))),
-        };
+        let combined_query: Option<Arc<dyn Query>> =
+            self.query.as_ref().map(|q| Arc::from(q.box_clone()));
 
         let reader = self
             .index

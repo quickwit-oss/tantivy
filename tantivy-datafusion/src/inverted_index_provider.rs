@@ -2,142 +2,152 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use arrow::array::{Float32Array, RecordBatch, UInt32Array};
+use arrow::array::{new_null_array, RecordBatch, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::catalog::Session;
-use datafusion::catalog::TableFunctionImpl;
-use datafusion::common::{Result, ScalarValue};
+use datafusion::common::Result;
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
+use datafusion::logical_expr::TableProviderFilterPushDown;
 use datafusion::physical_plan::memory::LazyMemoryExec;
 use datafusion::physical_plan::ExecutionPlan;
 use parking_lot::RwLock;
-use tantivy::query::QueryParser;
-use tantivy::{Index, TERMINATED};
+use tantivy::query::{BooleanQuery, EnableScoring, QueryParser};
+use tantivy::schema::FieldType;
+use tantivy::Index;
 
-/// A DataFusion table function that runs a tantivy full-text query and returns
-/// matching `(_doc_id, _segment_ord, _score)` tuples.
+use crate::full_text_udf::extract_full_text_call;
+
+/// A DataFusion table provider backed by a tantivy inverted index.
+///
+/// Exposes `_doc_id` and `_segment_ord` columns (for joining with the fast
+/// field provider) plus one virtual Utf8 column per indexed text field.
+/// The text columns exist so the optimizer can push `full_text(inv.col, ...)`
+/// predicates down — they always return null when projected.
 ///
 /// Register with:
 /// ```ignore
-/// ctx.register_udtf("tantivy_search", Arc::new(TantivySearchFunction::new(index)));
+/// ctx.register_table("inverted_index", Arc::new(TantivyInvertedIndexProvider::new(index)));
 /// ```
 ///
-/// Then query:
+/// Then query via an explicit join:
 /// ```sql
-/// SELECT * FROM tantivy_search('field_name', 'query string')
+/// SELECT f.id, f.price
+/// FROM fast_fields f
+/// JOIN inverted_index inv
+///   ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord
+/// WHERE full_text(inv.category, 'electronics') AND f.price > 2.0
 /// ```
-pub struct TantivySearchFunction {
+pub struct TantivyInvertedIndexProvider {
     index: Index,
+    arrow_schema: SchemaRef,
 }
 
-impl TantivySearchFunction {
+impl TantivyInvertedIndexProvider {
     pub fn new(index: Index) -> Self {
-        Self { index }
-    }
-}
+        let schema = index.schema();
 
-impl fmt::Debug for TantivySearchFunction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TantivySearchFunction").finish()
-    }
-}
+        let mut fields: Vec<Field> = vec![
+            Field::new("_doc_id", DataType::UInt32, false),
+            Field::new("_segment_ord", DataType::UInt32, false),
+        ];
 
-impl TableFunctionImpl for TantivySearchFunction {
-    fn call(&self, args: &[Expr]) -> Result<Arc<dyn TableProvider>> {
-        if args.len() != 2 {
-            return Err(DataFusionError::Plan(
-                "tantivy_search requires 2 arguments: (field_name, query_string)".to_string(),
-            ));
+        // Add one Utf8 column per indexed text field
+        for (_field, field_entry) in schema.fields() {
+            if field_entry.is_indexed() {
+                if let FieldType::Str(_) = field_entry.field_type() {
+                    fields.push(Field::new(field_entry.name(), DataType::Utf8, true));
+                }
+            }
         }
 
-        let field_name = match &args[0] {
-            Expr::Literal(ScalarValue::Utf8(Some(s)), _) => s.clone(),
-            _ => {
-                return Err(DataFusionError::Plan(
-                    "tantivy_search first argument must be a string literal".to_string(),
-                ))
-            }
-        };
-
-        let query_string = match &args[1] {
-            Expr::Literal(ScalarValue::Utf8(Some(s)), _) => s.clone(),
-            _ => {
-                return Err(DataFusionError::Plan(
-                    "tantivy_search second argument must be a string literal".to_string(),
-                ))
-            }
-        };
-
-        let schema = self.index.schema();
-        let field = schema.get_field(&field_name).map_err(|e| {
-            DataFusionError::Plan(format!("field '{field_name}' not found in index: {e}"))
-        })?;
-
-        let parser = QueryParser::for_index(&self.index, vec![field]);
-        let query = parser.parse_query(&query_string).map_err(|e| {
-            DataFusionError::Plan(format!("failed to parse query '{query_string}': {e}"))
-        })?;
-
-        Ok(Arc::new(InvertedIndexResultProvider {
-            index: self.index.clone(),
-            query: Arc::from(query),
-        }))
+        let arrow_schema = Arc::new(Schema::new(fields));
+        Self { index, arrow_schema }
     }
 }
 
-fn inverted_index_schema() -> SchemaRef {
-    Arc::new(Schema::new(vec![
-        Field::new("_doc_id", DataType::UInt32, false),
-        Field::new("_segment_ord", DataType::UInt32, false),
-        Field::new("_score", DataType::Float32, false),
-    ]))
-}
-
-struct InvertedIndexResultProvider {
-    index: Index,
-    query: Arc<dyn tantivy::query::Query>,
-}
-
-impl fmt::Debug for InvertedIndexResultProvider {
+impl fmt::Debug for TantivyInvertedIndexProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("InvertedIndexResultProvider").finish()
+        f.debug_struct("TantivyInvertedIndexProvider")
+            .field("arrow_schema", &self.arrow_schema)
+            .finish()
     }
 }
 
 #[async_trait]
-impl TableProvider for InvertedIndexResultProvider {
+impl TableProvider for TantivyInvertedIndexProvider {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn schema(&self) -> SchemaRef {
-        inverted_index_schema()
+        self.arrow_schema.clone()
     }
 
     fn table_type(&self) -> TableType {
         TableType::Base
     }
 
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> Result<Vec<TableProviderFilterPushDown>> {
+        Ok(filters
+            .iter()
+            .map(|f| {
+                if extract_full_text_call(f).is_some() {
+                    TableProviderFilterPushDown::Exact
+                } else {
+                    TableProviderFilterPushDown::Unsupported
+                }
+            })
+            .collect())
+    }
+
     async fn scan(
         &self,
         _state: &dyn Session,
         projection: Option<&Vec<usize>>,
-        _filters: &[Expr],
+        filters: &[Expr],
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let full_schema = inverted_index_schema();
         let projected_schema = match projection {
             Some(indices) => {
                 let fields: Vec<_> = indices
                     .iter()
-                    .map(|&i| full_schema.field(i).clone())
+                    .map(|&i| self.arrow_schema.field(i).clone())
                     .collect();
                 Arc::new(Schema::new(fields))
             }
-            None => full_schema.clone(),
+            None => self.arrow_schema.clone(),
+        };
+
+        // Extract full_text() calls from pushed-down filters
+        let mut queries: Vec<Box<dyn tantivy::query::Query>> = Vec::new();
+        let schema = self.index.schema();
+        for filter in filters {
+            if let Some((field_name, query_string)) = extract_full_text_call(filter) {
+                let field = schema.get_field(&field_name).map_err(|e| {
+                    DataFusionError::Plan(format!(
+                        "full_text: field '{field_name}' not found: {e}"
+                    ))
+                })?;
+                let parser = QueryParser::for_index(&self.index, vec![field]);
+                let parsed = parser.parse_query(&query_string).map_err(|e| {
+                    DataFusionError::Plan(format!(
+                        "full_text: failed to parse '{query_string}': {e}"
+                    ))
+                })?;
+                queries.push(parsed);
+            }
+        }
+
+        let combined_query: Option<Arc<dyn tantivy::query::Query>> = match queries.len() {
+            0 => None,
+            1 => Some(Arc::from(queries.into_iter().next().unwrap())),
+            _ => Some(Arc::new(BooleanQuery::intersection(queries))),
         };
 
         let reader = self
@@ -153,8 +163,9 @@ impl TableProvider for InvertedIndexResultProvider {
                 let gen = InvertedIndexBatchGenerator {
                     index: self.index.clone(),
                     segment_idx: seg_idx,
-                    query: Arc::from(self.query.box_clone()),
+                    query: combined_query.as_ref().map(|q| Arc::from(q.box_clone())),
                     projection: projection.cloned(),
+                    full_schema: self.arrow_schema.clone(),
                     exhausted: false,
                 };
                 Arc::new(RwLock::new(gen))
@@ -172,8 +183,9 @@ impl TableProvider for InvertedIndexResultProvider {
 struct InvertedIndexBatchGenerator {
     index: Index,
     segment_idx: usize,
-    query: Arc<dyn tantivy::query::Query>,
+    query: Option<Arc<dyn tantivy::query::Query>>,
     projection: Option<Vec<usize>>,
+    full_schema: SchemaRef,
     exhausted: bool,
 }
 
@@ -214,51 +226,63 @@ impl datafusion::physical_plan::memory::LazyBatchGenerator for InvertedIndexBatc
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(self.segment_idx as u32);
 
-        let weight = self
-            .query
-            .weight(tantivy::query::EnableScoring::enabled_from_searcher(
-                &searcher,
-            ))
-            .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
-
-        let mut scorer = weight
-            .scorer(segment_reader, 1.0)
-            .map_err(|e| DataFusionError::Internal(format!("create scorer: {e}")))?;
-
-        let mut doc_ids = Vec::new();
-        let mut scores = Vec::new();
-
-        let mut doc = scorer.doc();
-        while doc != TERMINATED {
-            doc_ids.push(doc);
-            scores.push(scorer.score());
-            doc = scorer.advance();
-        }
+        let doc_ids: Vec<u32> = match &self.query {
+            Some(query) => {
+                // Run the query to get matching doc IDs (no scoring needed)
+                let tantivy_schema = self.index.schema();
+                let weight = query
+                    .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
+                    .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
+                let mut matching_docs = Vec::new();
+                weight
+                    .for_each_no_score(segment_reader, &mut |docs| {
+                        matching_docs.extend_from_slice(docs);
+                    })
+                    .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
+                matching_docs
+            }
+            None => {
+                // Full scan: return all alive doc IDs
+                let max_doc = segment_reader.max_doc();
+                let alive_bitset = segment_reader.alive_bitset();
+                (0..max_doc)
+                    .filter(|&doc_id| {
+                        alive_bitset
+                            .map_or(true, |bitset| bitset.is_alive(doc_id))
+                    })
+                    .collect()
+            }
+        };
 
         if doc_ids.is_empty() {
             return Ok(None);
         }
 
+        let num_docs = doc_ids.len();
         let seg_ord = self.segment_idx as u32;
-        let full_schema = inverted_index_schema();
 
-        // Build all three columns, then project
-        let all_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
+        // Build all columns: _doc_id, _segment_ord, then null arrays for text columns
+        let mut all_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
             Arc::new(UInt32Array::from(doc_ids)),
-            Arc::new(UInt32Array::from(vec![seg_ord; scores.len()])),
-            Arc::new(Float32Array::from(scores)),
+            Arc::new(UInt32Array::from(vec![seg_ord; num_docs])),
         ];
+
+        // Add null arrays for each virtual text column
+        for i in 2..self.full_schema.fields().len() {
+            let field = self.full_schema.field(i);
+            all_columns.push(new_null_array(field.data_type(), num_docs));
+        }
 
         let (projected_schema, projected_columns) = match &self.projection {
             Some(indices) => {
                 let fields: Vec<_> = indices
                     .iter()
-                    .map(|&i| full_schema.field(i).clone())
+                    .map(|&i| self.full_schema.field(i).clone())
                     .collect();
                 let cols: Vec<_> = indices.iter().map(|&i| all_columns[i].clone()).collect();
                 (Arc::new(Schema::new(fields)), cols)
             }
-            None => (full_schema, all_columns),
+            None => (self.full_schema.clone(), all_columns),
         };
 
         let batch = RecordBatch::try_new(projected_schema, projected_columns)

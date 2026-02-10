@@ -10,7 +10,7 @@ use datafusion::logical_expr::{Expr, ScalarFunctionArgs, ScalarUDF, Signature, V
 /// A marker UDF for full-text search predicates.
 ///
 /// `full_text(column, query_string)` returns Boolean and is meant to be
-/// pushed down into `TantivyTableProvider` via `supports_filters_pushdown`.
+/// pushed down into `TantivyInvertedIndexProvider` via `supports_filters_pushdown`.
 /// The first argument must be a column reference (not a string literal) so
 /// that DataFusion's optimizer recognizes it as a filter on that column and
 /// pushes it down to the table provider.

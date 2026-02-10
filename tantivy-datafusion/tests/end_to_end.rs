@@ -7,7 +7,7 @@ use datafusion::prelude::*;
 use tantivy::query::TermQuery;
 use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
-use tantivy_datafusion::{full_text_udf, TantivySearchFunction, TantivyTableProvider};
+use tantivy_datafusion::{full_text_udf, TantivyInvertedIndexProvider, TantivyTableProvider};
 
 fn create_test_index() -> Index {
     let mut builder = SchemaBuilder::new();
@@ -471,170 +471,26 @@ async fn test_limit_with_filter() {
     assert!(id > 2);
 }
 
-// --- Inverted index provider tests ---
+// --- full_text() UDF + inverted index join tests ---
 
 #[tokio::test]
-async fn test_inverted_index_basic() {
-    use arrow::datatypes::Float32Type;
-
-    let index = create_test_index();
-    let ctx = SessionContext::new();
-    ctx.register_udtf("tantivy_search", Arc::new(TantivySearchFunction::new(index)));
-
-    let df = ctx
-        .sql("SELECT * FROM tantivy_search('category', 'electronics')")
-        .await
-        .unwrap();
-    let batches = df.collect().await.unwrap();
-    let batch = collect_batches(&batches);
-
-    assert_eq!(batch.num_rows(), 2);
-    assert_eq!(batch.num_columns(), 3);
-
-    // Verify column names
-    let schema = batch.schema();
-    assert_eq!(schema.field(0).name(), "_doc_id");
-    assert_eq!(schema.field(1).name(), "_segment_ord");
-    assert_eq!(schema.field(2).name(), "_score");
-
-    // Verify types
-    let _doc_ids = batch.column(0).as_primitive::<arrow::datatypes::UInt32Type>();
-    let _seg_ords = batch.column(1).as_primitive::<arrow::datatypes::UInt32Type>();
-    let _scores = batch.column(2).as_primitive::<Float32Type>();
-}
-
-#[tokio::test]
-async fn test_inverted_index_no_matches() {
-    let index = create_test_index();
-    let ctx = SessionContext::new();
-    ctx.register_udtf("tantivy_search", Arc::new(TantivySearchFunction::new(index)));
-
-    let df = ctx
-        .sql("SELECT * FROM tantivy_search('category', 'nonexistent_term_xyz')")
-        .await
-        .unwrap();
-    let batches = df.collect().await.unwrap();
-
-    let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
-    assert_eq!(total_rows, 0);
-}
-
-#[tokio::test]
-async fn test_inverted_index_scores_are_positive() {
-    use arrow::datatypes::Float32Type;
-
-    let index = create_test_index();
-    let ctx = SessionContext::new();
-    ctx.register_udtf("tantivy_search", Arc::new(TantivySearchFunction::new(index)));
-
-    let df = ctx
-        .sql("SELECT _score FROM tantivy_search('category', 'electronics')")
-        .await
-        .unwrap();
-    let batches = df.collect().await.unwrap();
-    let batch = collect_batches(&batches);
-
-    let scores = batch.column(0).as_primitive::<Float32Type>();
-    for i in 0..scores.len() {
-        assert!(
-            scores.value(i) > 0.0,
-            "score at row {} should be positive, got {}",
-            i,
-            scores.value(i)
-        );
-    }
-}
-
-// --- Join tests: fast fields + inverted index ---
-
-#[tokio::test]
-async fn test_join_fast_fields_with_inverted_index() {
-    use arrow::datatypes::Float32Type;
-
-    let index = create_test_index();
-
-    let ctx = SessionContext::new();
-    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index.clone())))
-        .unwrap();
-    ctx.register_udtf(
-        "tantivy_search",
-        Arc::new(TantivySearchFunction::new(index)),
-    );
-
-    let df = ctx
-        .sql(
-            "SELECT t.id, t.price, s._score \
-             FROM t \
-             JOIN tantivy_search('category', 'electronics') s \
-             ON t._doc_id = s._doc_id AND t._segment_ord = s._segment_ord \
-             ORDER BY t.id",
-        )
-        .await
-        .unwrap();
-    let batches = df.collect().await.unwrap();
-    let batch = collect_batches(&batches);
-
-    // "electronics" matches docs with id=1 and id=3
-    assert_eq!(batch.num_rows(), 2);
-
-    let ids = batch.column(0).as_primitive::<UInt64Type>();
-    assert_eq!(ids.value(0), 1);
-    assert_eq!(ids.value(1), 3);
-
-    // price for id=1 is 1.5, for id=3 is 3.5
-    let prices = batch.column(1).as_primitive::<Float64Type>();
-    assert!((prices.value(0) - 1.5).abs() < 1e-10);
-    assert!((prices.value(1) - 3.5).abs() < 1e-10);
-
-    // scores should be present and positive
-    let scores = batch.column(2).as_primitive::<Float32Type>();
-    assert!(scores.value(0) > 0.0);
-    assert!(scores.value(1) > 0.0);
-}
-
-#[tokio::test]
-async fn test_join_with_additional_sql_filter() {
-    let index = create_test_index();
-
-    let ctx = SessionContext::new();
-    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index.clone())))
-        .unwrap();
-    ctx.register_udtf(
-        "tantivy_search",
-        Arc::new(TantivySearchFunction::new(index)),
-    );
-
-    // Full-text search for "electronics" (ids 1,3) + SQL filter price > 2.0 → only id=3
-    let df = ctx
-        .sql(
-            "SELECT t.id, t.price \
-             FROM t \
-             JOIN tantivy_search('category', 'electronics') s \
-             ON t._doc_id = s._doc_id AND t._segment_ord = s._segment_ord \
-             WHERE t.price > 2.0",
-        )
-        .await
-        .unwrap();
-    let batches = df.collect().await.unwrap();
-    let batch = collect_batches(&batches);
-
-    assert_eq!(batch.num_rows(), 1);
-    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
-    assert_eq!(id, 3);
-}
-
-// --- full_text() UDF pushdown tests ---
-
-#[tokio::test]
-async fn test_full_text_udf_basic() {
+async fn test_full_text_join_basic() {
     let index = create_test_index();
     let ctx = SessionContext::new();
     ctx.register_udf(full_text_udf());
-    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index)))
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
         .unwrap();
 
     let df = ctx
-        .sql("SELECT id FROM t WHERE full_text(category, 'electronics') ORDER BY id")
+        .sql(
+            "SELECT f.id \
+             FROM f \
+             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') \
+             ORDER BY f.id",
+        )
         .await
         .unwrap();
     let batches = df.collect().await.unwrap();
@@ -647,16 +503,23 @@ async fn test_full_text_udf_basic() {
 }
 
 #[tokio::test]
-async fn test_full_text_udf_with_sql_filter() {
+async fn test_full_text_join_with_sql_filter() {
     let index = create_test_index();
     let ctx = SessionContext::new();
     ctx.register_udf(full_text_udf());
-    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index)))
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
         .unwrap();
 
-    // full_text on inverted index + price filter on fast fields
     let df = ctx
-        .sql("SELECT id, price FROM t WHERE full_text(category, 'electronics') AND price > 2.0 ORDER BY id")
+        .sql(
+            "SELECT f.id, f.price \
+             FROM f \
+             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY f.id",
+        )
         .await
         .unwrap();
     let batches = df.collect().await.unwrap();
@@ -669,15 +532,48 @@ async fn test_full_text_udf_with_sql_filter() {
 }
 
 #[tokio::test]
-async fn test_full_text_udf_no_matches() {
+async fn test_full_text_join_no_matches() {
     let index = create_test_index();
     let ctx = SessionContext::new();
     ctx.register_udf(full_text_udf());
-    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index)))
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
         .unwrap();
 
     let df = ctx
-        .sql("SELECT id FROM t WHERE full_text(category, 'nonexistent_xyz')")
+        .sql(
+            "SELECT f.id \
+             FROM f \
+             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'nonexistent_xyz')",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+
+    let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+    assert_eq!(total_rows, 0);
+}
+
+#[tokio::test]
+async fn test_full_text_multiple_predicates() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    // "electronics" and "books" are disjoint sets → intersection = 0 rows
+    let df = ctx
+        .sql(
+            "SELECT f.id \
+             FROM f \
+             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND full_text(inv.category, 'books')",
+        )
         .await
         .unwrap();
     let batches = df.collect().await.unwrap();
