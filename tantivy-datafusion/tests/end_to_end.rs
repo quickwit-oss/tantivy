@@ -7,7 +7,7 @@ use datafusion::prelude::*;
 use tantivy::query::TermQuery;
 use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
-use tantivy_datafusion::TantivyTableProvider;
+use tantivy_datafusion::{TantivySearchFunction, TantivyTableProvider};
 
 fn create_test_index() -> Index {
     let mut builder = SchemaBuilder::new();
@@ -469,4 +469,78 @@ async fn test_limit_with_filter() {
     assert_eq!(batch.num_rows(), 1);
     let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
     assert!(id > 2);
+}
+
+// --- Inverted index provider tests ---
+
+#[tokio::test]
+async fn test_inverted_index_basic() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udtf("tantivy_search", Arc::new(TantivySearchFunction::new(index)));
+
+    let df = ctx
+        .sql("SELECT * FROM tantivy_search('category', 'electronics')")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+    assert_eq!(batch.num_columns(), 3);
+
+    // Verify column names
+    let schema = batch.schema();
+    assert_eq!(schema.field(0).name(), "_doc_id");
+    assert_eq!(schema.field(1).name(), "_segment_ord");
+    assert_eq!(schema.field(2).name(), "_score");
+
+    // Verify types
+    let _doc_ids = batch.column(0).as_primitive::<arrow::datatypes::UInt32Type>();
+    let _seg_ords = batch.column(1).as_primitive::<arrow::datatypes::UInt32Type>();
+    let _scores = batch.column(2).as_primitive::<Float32Type>();
+}
+
+#[tokio::test]
+async fn test_inverted_index_no_matches() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udtf("tantivy_search", Arc::new(TantivySearchFunction::new(index)));
+
+    let df = ctx
+        .sql("SELECT * FROM tantivy_search('category', 'nonexistent_term_xyz')")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+
+    let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+    assert_eq!(total_rows, 0);
+}
+
+#[tokio::test]
+async fn test_inverted_index_scores_are_positive() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udtf("tantivy_search", Arc::new(TantivySearchFunction::new(index)));
+
+    let df = ctx
+        .sql("SELECT _score FROM tantivy_search('category', 'electronics')")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    let scores = batch.column(0).as_primitive::<Float32Type>();
+    for i in 0..scores.len() {
+        assert!(
+            scores.value(i) > 0.0,
+            "score at row {} should be positive, got {}",
+            i,
+            scores.value(i)
+        );
+    }
 }
