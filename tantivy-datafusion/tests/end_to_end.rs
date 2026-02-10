@@ -3,7 +3,8 @@ use std::sync::Arc;
 use arrow::array::{AsArray, RecordBatch};
 use arrow::datatypes::{Float64Type, Int64Type, UInt64Type};
 use datafusion::prelude::*;
-use tantivy::schema::{SchemaBuilder, FAST, STORED, TEXT};
+use tantivy::query::TermQuery;
+use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
 use tantivy_datafusion::TantivyTableProvider;
 
@@ -173,4 +174,156 @@ async fn test_group_by() {
     assert_eq!(counts.value(1), 1);
     assert_eq!(categories.value(2), "electronics");
     assert_eq!(counts.value(2), 2);
+}
+
+// --- Filter pushdown tests ---
+
+fn get_test_field(index: &Index, name: &str) -> Field {
+    index.schema().get_field(name).unwrap()
+}
+
+#[tokio::test]
+async fn test_filter_pushdown_sql() {
+    // SQL WHERE clause should be pushed down to tantivy via supports_filters_pushdown
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    // id > 2 should push down as a RangeQuery
+    let df = ctx
+        .sql("SELECT id, score FROM test_index WHERE id > 2")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 3);
+    let mut ids: Vec<u64> = batch
+        .column(0)
+        .as_primitive::<UInt64Type>()
+        .iter()
+        .map(|v| v.unwrap())
+        .collect();
+    ids.sort();
+    assert_eq!(ids, vec![3, 4, 5]);
+}
+
+#[tokio::test]
+async fn test_filter_pushdown_equality() {
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    // active = true should push down as a TermQuery
+    let df = ctx
+        .sql("SELECT id FROM test_index WHERE active = true")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 3); // ids 1, 3, 5
+    let mut ids: Vec<u64> = batch
+        .column(0)
+        .as_primitive::<UInt64Type>()
+        .iter()
+        .map(|v| v.unwrap())
+        .collect();
+    ids.sort();
+    assert_eq!(ids, vec![1, 3, 5]);
+}
+
+#[tokio::test]
+async fn test_direct_tantivy_query() {
+    // Use new_with_query to pass a tantivy query directly — no Expr conversion
+    let index = create_test_index();
+    let category_field = get_test_field(&index, "category");
+
+    // TermQuery for "electronics" in the category field
+    let query = TermQuery::new(
+        Term::from_field_text(category_field, "electronics"),
+        IndexRecordOption::Basic,
+    );
+    let provider = TantivyTableProvider::new_with_query(index, Box::new(query));
+
+    let ctx = SessionContext::new();
+    let df = ctx.read_table(Arc::new(provider)).unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2); // ids 1 and 3
+    let id_col_idx = batch.schema().index_of("id").unwrap();
+    let mut ids: Vec<u64> = batch
+        .column(id_col_idx)
+        .as_primitive::<UInt64Type>()
+        .iter()
+        .map(|v| v.unwrap())
+        .collect();
+    ids.sort();
+    assert_eq!(ids, vec![1, 3]);
+}
+
+#[tokio::test]
+async fn test_combined_tantivy_query_and_sql_filter() {
+    // Direct tantivy query (category = "electronics") + SQL filter (id > 1)
+    let index = create_test_index();
+    let category_field = get_test_field(&index, "category");
+
+    let query = TermQuery::new(
+        Term::from_field_text(category_field, "electronics"),
+        IndexRecordOption::Basic,
+    );
+    let provider = TantivyTableProvider::new_with_query(index, Box::new(query));
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    // category = "electronics" gives ids {1, 3}, then id > 1 gives {3}
+    let df = ctx
+        .sql("SELECT id FROM test_index WHERE id > 1")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+}
+
+#[tokio::test]
+async fn test_filter_pushdown_compound() {
+    // Test AND/OR pushdown: id > 2 AND score < 45
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    let df = ctx
+        .sql("SELECT id FROM test_index WHERE id > 2 AND score < 45")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // id > 2 → {3, 4, 5}, score < 45 → {1(10), 2(20), 3(30), 4(40)}
+    // Intersection: {3, 4}
+    assert_eq!(batch.num_rows(), 2);
+    let mut ids: Vec<u64> = batch
+        .column(0)
+        .as_primitive::<UInt64Type>()
+        .iter()
+        .map(|v| v.unwrap())
+        .collect();
+    ids.sort();
+    assert_eq!(ids, vec![3, 4]);
 }

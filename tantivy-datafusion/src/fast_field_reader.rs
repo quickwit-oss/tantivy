@@ -12,26 +12,32 @@ use tantivy::index::SegmentReader;
 
 /// Reads fast fields from a single segment and produces an Arrow RecordBatch.
 ///
-/// Only alive (non-deleted) documents are included in the output.
+/// If `doc_ids` is `Some`, only those document IDs are read (already filtered by
+/// a tantivy query). If `None`, all alive (non-deleted) documents are read.
 /// Fields are read according to the projected Arrow schema.
 pub fn read_segment_fast_fields_to_batch(
     segment_reader: &SegmentReader,
     projected_schema: &SchemaRef,
+    doc_ids: Option<&[u32]>,
 ) -> Result<RecordBatch> {
     let fast_fields = segment_reader.fast_fields();
-    let max_doc = segment_reader.max_doc();
-    let alive_bitset = segment_reader.alive_bitset();
 
-    // Collect alive doc ids
-    let alive_docs: Vec<u32> = (0..max_doc)
-        .filter(|&doc_id| {
-            alive_bitset
-                .map(|bs| bs.is_alive(doc_id))
-                .unwrap_or(true)
-        })
-        .collect();
+    let docs: Vec<u32> = match doc_ids {
+        Some(ids) => ids.to_vec(),
+        None => {
+            let max_doc = segment_reader.max_doc();
+            let alive_bitset = segment_reader.alive_bitset();
+            (0..max_doc)
+                .filter(|&doc_id| {
+                    alive_bitset
+                        .map(|bs| bs.is_alive(doc_id))
+                        .unwrap_or(true)
+                })
+                .collect()
+        }
+    };
 
-    let num_alive = alive_docs.len();
+    let num_docs = docs.len();
     let mut columns: Vec<ArrayRef> = Vec::with_capacity(projected_schema.fields().len());
 
     for field in projected_schema.fields() {
@@ -41,8 +47,8 @@ pub fn read_segment_fast_fields_to_batch(
                 let col = fast_fields
                     .u64(name)
                     .map_err(|e| DataFusionError::Internal(format!("fast field u64 '{name}': {e}")))?;
-                let mut builder = UInt64Builder::with_capacity(num_alive);
-                for &doc_id in &alive_docs {
+                let mut builder = UInt64Builder::with_capacity(num_docs);
+                for &doc_id in &docs {
                     match col.first(doc_id) {
                         Some(v) => builder.append_value(v),
                         None => builder.append_null(),
@@ -54,8 +60,8 @@ pub fn read_segment_fast_fields_to_batch(
                 let col = fast_fields
                     .i64(name)
                     .map_err(|e| DataFusionError::Internal(format!("fast field i64 '{name}': {e}")))?;
-                let mut builder = Int64Builder::with_capacity(num_alive);
-                for &doc_id in &alive_docs {
+                let mut builder = Int64Builder::with_capacity(num_docs);
+                for &doc_id in &docs {
                     match col.first(doc_id) {
                         Some(v) => builder.append_value(v),
                         None => builder.append_null(),
@@ -67,8 +73,8 @@ pub fn read_segment_fast_fields_to_batch(
                 let col = fast_fields
                     .f64(name)
                     .map_err(|e| DataFusionError::Internal(format!("fast field f64 '{name}': {e}")))?;
-                let mut builder = Float64Builder::with_capacity(num_alive);
-                for &doc_id in &alive_docs {
+                let mut builder = Float64Builder::with_capacity(num_docs);
+                for &doc_id in &docs {
                     match col.first(doc_id) {
                         Some(v) => builder.append_value(v),
                         None => builder.append_null(),
@@ -80,8 +86,8 @@ pub fn read_segment_fast_fields_to_batch(
                 let col = fast_fields
                     .bool(name)
                     .map_err(|e| DataFusionError::Internal(format!("fast field bool '{name}': {e}")))?;
-                let mut builder = BooleanBuilder::with_capacity(num_alive);
-                for &doc_id in &alive_docs {
+                let mut builder = BooleanBuilder::with_capacity(num_docs);
+                for &doc_id in &docs {
                     match col.first(doc_id) {
                         Some(v) => builder.append_value(v),
                         None => builder.append_null(),
@@ -93,8 +99,8 @@ pub fn read_segment_fast_fields_to_batch(
                 let col = fast_fields
                     .date(name)
                     .map_err(|e| DataFusionError::Internal(format!("fast field date '{name}': {e}")))?;
-                let mut builder = TimestampMicrosecondBuilder::with_capacity(num_alive);
-                for &doc_id in &alive_docs {
+                let mut builder = TimestampMicrosecondBuilder::with_capacity(num_docs);
+                for &doc_id in &docs {
                     match col.first(doc_id) {
                         Some(dt) => builder.append_value(dt.into_timestamp_micros()),
                         None => builder.append_null(),
@@ -105,9 +111,9 @@ pub fn read_segment_fast_fields_to_batch(
             DataType::Utf8 => {
                 // Could be a Str fast field or IpAddr formatted as string
                 if let Ok(Some(str_col)) = fast_fields.str(name) {
-                    let mut builder = StringBuilder::with_capacity(num_alive, num_alive * 32);
+                    let mut builder = StringBuilder::with_capacity(num_docs, num_docs * 32);
                     let mut buf = String::new();
-                    for &doc_id in &alive_docs {
+                    for &doc_id in &docs {
                         let mut ord_iter = str_col.term_ords(doc_id);
                         if let Some(ord) = ord_iter.next() {
                             buf.clear();
@@ -122,8 +128,8 @@ pub fn read_segment_fast_fields_to_batch(
                     Arc::new(builder.finish())
                 } else if let Ok(col) = fast_fields.ip_addr(name) {
                     // IpAddr stored as Ipv6Addr, format to string
-                    let mut builder = StringBuilder::with_capacity(num_alive, num_alive * 40);
-                    for &doc_id in &alive_docs {
+                    let mut builder = StringBuilder::with_capacity(num_docs, num_docs * 40);
+                    for &doc_id in &docs {
                         match col.first(doc_id) {
                             Some(ip) => builder.append_value(ip.to_string()),
                             None => builder.append_null(),
@@ -143,9 +149,9 @@ pub fn read_segment_fast_fields_to_batch(
                     .ok_or_else(|| {
                         DataFusionError::Internal(format!("bytes fast field '{name}' not found"))
                     })?;
-                let mut builder = BinaryBuilder::with_capacity(num_alive, num_alive * 64);
+                let mut builder = BinaryBuilder::with_capacity(num_docs, num_docs * 64);
                 let mut buf = Vec::new();
-                for &doc_id in &alive_docs {
+                for &doc_id in &docs {
                     let mut ord_iter = bytes_col.term_ords(doc_id);
                     if let Some(ord) = ord_iter.next() {
                         buf.clear();
