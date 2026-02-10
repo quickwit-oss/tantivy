@@ -15,6 +15,7 @@ use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion_datasource::source::{DataSource, DataSourceExec};
+use datafusion_physical_expr::expressions::Column;
 use datafusion_physical_expr::{EquivalenceProperties, PhysicalExpr};
 use datafusion_physical_plan::filter_pushdown::{FilterPushdownPropagation, PushedDown};
 use datafusion_physical_plan::metrics::ExecutionPlanMetricsSet;
@@ -203,16 +204,26 @@ impl DataSource for FastFieldDataSource {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "FastFieldDataSource(segments={}, query={}, limit={:?}, pushed_filters={})",
+            "FastFieldDataSource(segments={}, query={}, limit={:?}",
             self.num_segments,
             self.query.is_some(),
             self.limit,
-            self.pushed_filters.len(),
-        )
+        )?;
+        if !self.pushed_filters.is_empty() {
+            write!(f, ", pushed_filters=[")?;
+            for (i, filter) in self.pushed_filters.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{filter}")?;
+            }
+            write!(f, "]")?;
+        }
+        write!(f, ")")
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(self.num_segments)
+        segment_hash_partitioning(&self.projected_schema, self.num_segments)
     }
 
     fn eq_properties(&self) -> EquivalenceProperties {
@@ -358,4 +369,32 @@ fn generate_and_filter_batch(
     }
 
     Ok(batch)
+}
+
+// ---------------------------------------------------------------------------
+// Shared partitioning helper
+// ---------------------------------------------------------------------------
+
+/// Declare `Hash([_doc_id, _segment_ord], num_segments)` when both columns
+/// are present in the projected schema. All tantivy-backed providers use
+/// this so the optimizer recognises them as co-partitioned and skips
+/// unnecessary shuffles in join plans.
+pub(crate) fn segment_hash_partitioning(
+    projected_schema: &SchemaRef,
+    num_segments: usize,
+) -> Partitioning {
+    if let (Ok(doc_id_idx), Ok(seg_ord_idx)) = (
+        projected_schema.index_of("_doc_id"),
+        projected_schema.index_of("_segment_ord"),
+    ) {
+        Partitioning::Hash(
+            vec![
+                Arc::new(Column::new("_doc_id", doc_id_idx)),
+                Arc::new(Column::new("_segment_ord", seg_ord_idx)),
+            ],
+            num_segments,
+        )
+    } else {
+        Partitioning::UnknownPartitioning(num_segments)
+    }
 }

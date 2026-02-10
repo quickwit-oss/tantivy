@@ -495,8 +495,8 @@ async fn test_full_text_join_basic() {
     let df = ctx
         .sql(
             "SELECT f.id \
-             FROM f \
-             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
              WHERE full_text(inv.category, 'electronics') \
              ORDER BY f.id",
         )
@@ -524,8 +524,8 @@ async fn test_full_text_join_with_sql_filter() {
     let df = ctx
         .sql(
             "SELECT f.id, f.price \
-             FROM f \
-             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
              WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
              ORDER BY f.id",
         )
@@ -553,8 +553,8 @@ async fn test_full_text_join_no_matches() {
     let df = ctx
         .sql(
             "SELECT f.id \
-             FROM f \
-             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
              WHERE full_text(inv.category, 'nonexistent_xyz')",
         )
         .await
@@ -579,8 +579,8 @@ async fn test_full_text_multiple_predicates() {
     let df = ctx
         .sql(
             "SELECT f.id \
-             FROM f \
-             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
              WHERE full_text(inv.category, 'electronics') AND full_text(inv.category, 'books')",
         )
         .await
@@ -594,20 +594,26 @@ async fn test_full_text_multiple_predicates() {
 #[tokio::test]
 async fn test_dynamic_filter_in_plan() {
     let index = create_test_index();
-    let ctx = SessionContext::new();
+
+    // Set target_partitions = num_segments (1) so the optimizer doesn't
+    // add RepartitionExec nodes to increase parallelism beyond segments.
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
     ctx.register_udf(full_text_udf());
     ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
         .unwrap();
     ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
         .unwrap();
 
-    // EXPLAIN the join query to inspect the physical plan
+    // EXPLAIN the join query — inv listed first so optimizer places the
+    // inverted index (small, filtered) on the build side and fast fields
+    // (large) on the probe side, enabling dynamic filter pushdown.
     let df = ctx
         .sql(
             "EXPLAIN \
              SELECT f.id \
-             FROM f \
-             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
              WHERE full_text(inv.category, 'electronics')",
         )
         .await
@@ -615,13 +621,35 @@ async fn test_dynamic_filter_in_plan() {
     let batches = df.collect().await.unwrap();
     let plan = plan_to_string(&batches);
 
-    // The fast field side should use DataSourceExec with our FastFieldDataSource
-    assert!(
-        plan.contains("DataSourceExec"),
-        "Expected DataSourceExec in plan, got:\n{plan}"
-    );
-    assert!(
-        plan.contains("FastFieldDataSource"),
-        "Expected FastFieldDataSource in plan, got:\n{plan}"
+    // Full physical plan showing:
+    //
+    // - No RepartitionExec: both sides declare Hash([_doc_id, _segment_ord], 1)
+    //   so the optimizer recognises them as co-partitioned by segment.
+    //   Each segment is joined locally — no shuffle needed.
+    //
+    // - inv (InvertedIndexDataSource) on the BUILD side (left child of HashJoinExec)
+    // - f (FastFieldDataSource) on the PROBE side (right child of HashJoinExec)
+    //
+    // - DynamicFilter pushed into FastFieldDataSource from the hash join.
+    //   At runtime, once the build side completes, the DynamicFilter is
+    //   populated with min/max bounds on (_doc_id, _segment_ord) from the
+    //   hash table, pruning non-matching rows on the probe side.
+    let expected_physical_plan = "\
+CoalesceBatchesExec: target_batch_size=8192
+  HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4]
+    CooperativeExec
+      DataSourceExec: InvertedIndexDataSource(segments=1, query=true)
+    CooperativeExec
+      DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+
+    let physical_plan: String = plan
+        .lines()
+        .skip_while(|line| !line.starts_with("CoalesceBatchesExec"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(
+        physical_plan, expected_physical_plan,
+        "Physical plan mismatch.\n\nActual:\n{physical_plan}\n\nExpected:\n{expected_physical_plan}"
     );
 }

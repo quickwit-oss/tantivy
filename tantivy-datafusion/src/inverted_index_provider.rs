@@ -6,19 +6,26 @@ use arrow::array::{new_null_array, RecordBatch, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::catalog::Session;
-use datafusion::common::Result;
+use datafusion::common::config::ConfigOptions;
+use datafusion::common::{Result, Statistics};
 use datafusion::datasource::{TableProvider, TableType};
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion::logical_expr::TableProviderFilterPushDown;
-use datafusion::physical_plan::memory::LazyMemoryExec;
 use datafusion::physical_plan::ExecutionPlan;
-use parking_lot::RwLock;
+use datafusion_datasource::source::{DataSource, DataSourceExec};
+use datafusion_physical_expr::EquivalenceProperties;
+use datafusion_physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion_physical_plan::projection::ProjectionExpr;
+use datafusion_physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion_physical_plan::{DisplayFormatType, Partitioning, SendableRecordBatchStream};
+use futures::stream;
 use tantivy::query::{BooleanQuery, EnableScoring, QueryParser};
 use tantivy::schema::FieldType;
 use tantivy::Index;
 
 use crate::full_text_udf::extract_full_text_call;
+use crate::table_provider::segment_hash_partitioning;
 
 /// A DataFusion table provider backed by a tantivy inverted index.
 ///
@@ -156,138 +163,204 @@ impl TableProvider for TantivyInvertedIndexProvider {
             .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
         let num_segments = reader.searcher().segment_readers().len();
 
-        let generators: Vec<
-            Arc<RwLock<dyn datafusion::physical_plan::memory::LazyBatchGenerator>>,
-        > = (0..num_segments)
-            .map(|seg_idx| {
-                let gen = InvertedIndexBatchGenerator {
-                    index: self.index.clone(),
-                    segment_idx: seg_idx,
-                    query: combined_query.as_ref().map(|q| Arc::from(q.box_clone())),
-                    projection: projection.cloned(),
-                    full_schema: self.arrow_schema.clone(),
-                    exhausted: false,
-                };
-                Arc::new(RwLock::new(gen))
-                    as Arc<RwLock<dyn datafusion::physical_plan::memory::LazyBatchGenerator>>
-            })
-            .collect();
-
-        Ok(Arc::new(LazyMemoryExec::try_new(
+        let data_source = InvertedIndexDataSource {
+            index: self.index.clone(),
+            full_schema: self.arrow_schema.clone(),
             projected_schema,
-            generators,
-        )?))
+            projection: projection.cloned(),
+            query: combined_query,
+            num_segments,
+        };
+        Ok(Arc::new(DataSourceExec::new(Arc::new(data_source))))
     }
 }
 
-struct InvertedIndexBatchGenerator {
+// ---------------------------------------------------------------------------
+// DataSource implementation
+// ---------------------------------------------------------------------------
+
+#[derive(Debug)]
+struct InvertedIndexDataSource {
     index: Index,
-    segment_idx: usize,
-    query: Option<Arc<dyn tantivy::query::Query>>,
-    projection: Option<Vec<usize>>,
     full_schema: SchemaRef,
-    exhausted: bool,
+    projected_schema: SchemaRef,
+    projection: Option<Vec<usize>>,
+    query: Option<Arc<dyn tantivy::query::Query>>,
+    num_segments: usize,
 }
 
-impl fmt::Debug for InvertedIndexBatchGenerator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("InvertedIndexBatchGenerator")
-            .field("segment_idx", &self.segment_idx)
-            .field("exhausted", &self.exhausted)
-            .finish()
+impl DataSource for InvertedIndexDataSource {
+    fn open(
+        &self,
+        partition: usize,
+        _context: Arc<datafusion::execution::TaskContext>,
+    ) -> Result<SendableRecordBatchStream> {
+        let index = self.index.clone();
+        let segment_idx = partition;
+        let query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
+        let projection = self.projection.clone();
+        let full_schema = self.full_schema.clone();
+
+        let schema = self.projected_schema.clone();
+        let stream = stream::once(async move {
+            generate_inverted_index_batch(
+                &index,
+                segment_idx,
+                query.as_ref(),
+                projection.as_deref(),
+                &full_schema,
+            )
+        });
+
+        Ok(Box::pin(RecordBatchStreamAdapter::new(schema, stream)))
     }
-}
 
-impl fmt::Display for InvertedIndexBatchGenerator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "InvertedIndexBatchGenerator(segment={})",
-            self.segment_idx
-        )
-    }
-}
-
-impl datafusion::physical_plan::memory::LazyBatchGenerator for InvertedIndexBatchGenerator {
     fn as_any(&self) -> &dyn Any {
         self
     }
 
-    fn generate_next_batch(&mut self) -> Result<Option<RecordBatch>> {
-        if self.exhausted {
-            return Ok(None);
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "InvertedIndexDataSource(segments={}, query={})",
+            self.num_segments,
+            self.query.is_some(),
+        )
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        segment_hash_partitioning(&self.projected_schema, self.num_segments)
+    }
+
+    fn eq_properties(&self) -> EquivalenceProperties {
+        EquivalenceProperties::new(self.projected_schema.clone())
+    }
+
+    fn partition_statistics(&self, _partition: Option<usize>) -> Result<Statistics> {
+        Ok(Statistics::new_unknown(&self.projected_schema))
+    }
+
+    fn with_fetch(&self, _limit: Option<usize>) -> Option<Arc<dyn DataSource>> {
+        None
+    }
+
+    fn fetch(&self) -> Option<usize> {
+        None
+    }
+
+    fn metrics(&self) -> ExecutionPlanMetricsSet {
+        ExecutionPlanMetricsSet::new()
+    }
+
+    fn try_swapping_with_projection(
+        &self,
+        _projection: &[ProjectionExpr],
+    ) -> Result<Option<Arc<dyn DataSource>>> {
+        Ok(None)
+    }
+
+    fn try_pushdown_filters(
+        &self,
+        filters: Vec<Arc<dyn datafusion_physical_expr::PhysicalExpr>>,
+        _config: &ConfigOptions,
+    ) -> Result<
+        datafusion_physical_plan::filter_pushdown::FilterPushdownPropagation<
+            Arc<dyn DataSource>,
+        >,
+    > {
+        // The inverted index doesn't apply dynamic filters — it's always
+        // the build side of the join. Return No for all filters.
+        Ok(
+            datafusion_physical_plan::filter_pushdown::FilterPushdownPropagation::with_parent_pushdown_result(
+                vec![datafusion_physical_plan::filter_pushdown::PushedDown::No; filters.len()],
+            ),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Batch generation
+// ---------------------------------------------------------------------------
+
+fn generate_inverted_index_batch(
+    index: &Index,
+    segment_idx: usize,
+    query: Option<&Arc<dyn tantivy::query::Query>>,
+    projection: Option<&[usize]>,
+    full_schema: &SchemaRef,
+) -> Result<RecordBatch> {
+    let reader = index
+        .reader()
+        .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
+    let searcher = reader.searcher();
+    let segment_reader = searcher.segment_reader(segment_idx as u32);
+
+    let doc_ids: Vec<u32> = match query {
+        Some(query) => {
+            let tantivy_schema = index.schema();
+            let weight = query
+                .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
+                .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
+            let mut matching_docs = Vec::new();
+            weight
+                .for_each_no_score(segment_reader, &mut |docs| {
+                    matching_docs.extend_from_slice(docs);
+                })
+                .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
+            matching_docs
         }
-        self.exhausted = true;
-
-        let reader = self
-            .index
-            .reader()
-            .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
-        let searcher = reader.searcher();
-        let segment_reader = searcher.segment_reader(self.segment_idx as u32);
-
-        let doc_ids: Vec<u32> = match &self.query {
-            Some(query) => {
-                // Run the query to get matching doc IDs (no scoring needed)
-                let tantivy_schema = self.index.schema();
-                let weight = query
-                    .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
-                    .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
-                let mut matching_docs = Vec::new();
-                weight
-                    .for_each_no_score(segment_reader, &mut |docs| {
-                        matching_docs.extend_from_slice(docs);
-                    })
-                    .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
-                matching_docs
-            }
-            None => {
-                // Full scan: return all alive doc IDs
-                let max_doc = segment_reader.max_doc();
-                let alive_bitset = segment_reader.alive_bitset();
-                (0..max_doc)
-                    .filter(|&doc_id| {
-                        alive_bitset
-                            .map_or(true, |bitset| bitset.is_alive(doc_id))
-                    })
-                    .collect()
-            }
-        };
-
-        if doc_ids.is_empty() {
-            return Ok(None);
+        None => {
+            let max_doc = segment_reader.max_doc();
+            let alive_bitset = segment_reader.alive_bitset();
+            (0..max_doc)
+                .filter(|&doc_id| {
+                    alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id))
+                })
+                .collect()
         }
+    };
 
-        let num_docs = doc_ids.len();
-        let seg_ord = self.segment_idx as u32;
-
-        // Build all columns: _doc_id, _segment_ord, then null arrays for text columns
-        let mut all_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
-            Arc::new(UInt32Array::from(doc_ids)),
-            Arc::new(UInt32Array::from(vec![seg_ord; num_docs])),
-        ];
-
-        // Add null arrays for each virtual text column
-        for i in 2..self.full_schema.fields().len() {
-            let field = self.full_schema.field(i);
-            all_columns.push(new_null_array(field.data_type(), num_docs));
-        }
-
-        let (projected_schema, projected_columns) = match &self.projection {
+    if doc_ids.is_empty() {
+        let projected_schema = match projection {
             Some(indices) => {
                 let fields: Vec<_> = indices
                     .iter()
-                    .map(|&i| self.full_schema.field(i).clone())
+                    .map(|&i| full_schema.field(i).clone())
                     .collect();
-                let cols: Vec<_> = indices.iter().map(|&i| all_columns[i].clone()).collect();
-                (Arc::new(Schema::new(fields)), cols)
+                Arc::new(Schema::new(fields))
             }
-            None => (self.full_schema.clone(), all_columns),
+            None => full_schema.clone(),
         };
-
-        let batch = RecordBatch::try_new(projected_schema, projected_columns)
-            .map_err(|e| DataFusionError::Internal(format!("build record batch: {e}")))?;
-
-        Ok(Some(batch))
+        return Ok(RecordBatch::new_empty(projected_schema));
     }
+
+    let num_docs = doc_ids.len();
+    let seg_ord = segment_idx as u32;
+
+    // Build all columns: _doc_id, _segment_ord, then null arrays for text columns
+    let mut all_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
+        Arc::new(UInt32Array::from(doc_ids)),
+        Arc::new(UInt32Array::from(vec![seg_ord; num_docs])),
+    ];
+
+    // Add null arrays for each virtual text column
+    for i in 2..full_schema.fields().len() {
+        let field = full_schema.field(i);
+        all_columns.push(new_null_array(field.data_type(), num_docs));
+    }
+
+    let (projected_schema, projected_columns) = match projection {
+        Some(indices) => {
+            let fields: Vec<_> = indices
+                .iter()
+                .map(|&i| full_schema.field(i).clone())
+                .collect();
+            let cols: Vec<_> = indices.iter().map(|&i| all_columns[i].clone()).collect();
+            (Arc::new(Schema::new(fields)), cols)
+        }
+        None => (full_schema.clone(), all_columns),
+    };
+
+    RecordBatch::try_new(projected_schema, projected_columns)
+        .map_err(|e| DataFusionError::Internal(format!("build record batch: {e}")))
 }
