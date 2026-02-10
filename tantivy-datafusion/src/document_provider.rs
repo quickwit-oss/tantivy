@@ -2,7 +2,8 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use arrow::array::{RecordBatch, StringBuilder, UInt32Array};
+use arrow::array::{AsArray, RecordBatch, StringBuilder, UInt32Array};
+use arrow::compute::filter_record_batch;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::catalog::Session;
@@ -13,7 +14,8 @@ use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion_datasource::source::{DataSource, DataSourceExec};
-use datafusion_physical_expr::EquivalenceProperties;
+use datafusion_physical_expr::{EquivalenceProperties, PhysicalExpr};
+use datafusion_physical_plan::filter_pushdown::{FilterPushdownPropagation, PushedDown};
 use datafusion_physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion_physical_plan::projection::ProjectionExpr;
 use datafusion_physical_plan::stream::RecordBatchStreamAdapter;
@@ -106,6 +108,7 @@ impl TableProvider for TantivyDocumentProvider {
             full_schema: self.arrow_schema.clone(),
             projection: projection.cloned(),
             num_segments,
+            pushed_filters: Vec::new(),
         };
         Ok(Arc::new(DataSourceExec::new(Arc::new(data_source))))
     }
@@ -122,6 +125,22 @@ struct DocumentDataSource {
     full_schema: SchemaRef,
     projection: Option<Vec<usize>>,
     num_segments: usize,
+    pushed_filters: Vec<Arc<dyn PhysicalExpr>>,
+}
+
+impl DocumentDataSource {
+    fn clone_with(&self, f: impl FnOnce(&mut Self)) -> Self {
+        let mut new = DocumentDataSource {
+            index: self.index.clone(),
+            schema: self.schema.clone(),
+            full_schema: self.full_schema.clone(),
+            projection: self.projection.clone(),
+            num_segments: self.num_segments,
+            pushed_filters: self.pushed_filters.clone(),
+        };
+        f(&mut new);
+        new
+    }
 }
 
 impl DataSource for DocumentDataSource {
@@ -134,10 +153,17 @@ impl DataSource for DocumentDataSource {
         let segment_idx = partition;
         let projection = self.projection.clone();
         let full_schema = self.full_schema.clone();
+        let pushed_filters = self.pushed_filters.clone();
 
         let schema = self.schema.clone();
         let stream = stream::once(async move {
-            generate_document_batch(&index, segment_idx, projection.as_deref(), &full_schema)
+            generate_document_batch(
+                &index,
+                segment_idx,
+                projection.as_deref(),
+                &full_schema,
+                &pushed_filters,
+            )
         });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(schema, stream)))
@@ -148,11 +174,18 @@ impl DataSource for DocumentDataSource {
     }
 
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "DocumentDataSource(segments={})",
-            self.num_segments,
-        )
+        write!(f, "DocumentDataSource(segments={}", self.num_segments)?;
+        if !self.pushed_filters.is_empty() {
+            write!(f, ", pushed_filters=[")?;
+            for (i, filter) in self.pushed_filters.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{filter}")?;
+            }
+            write!(f, "]")?;
+        }
+        write!(f, ")")
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -188,17 +221,16 @@ impl DataSource for DocumentDataSource {
 
     fn try_pushdown_filters(
         &self,
-        filters: Vec<Arc<dyn datafusion_physical_expr::PhysicalExpr>>,
+        filters: Vec<Arc<dyn PhysicalExpr>>,
         _config: &ConfigOptions,
-    ) -> Result<
-        datafusion_physical_plan::filter_pushdown::FilterPushdownPropagation<
-            Arc<dyn DataSource>,
-        >,
-    > {
+    ) -> Result<FilterPushdownPropagation<Arc<dyn DataSource>>> {
+        let results: Vec<PushedDown> = filters.iter().map(|_| PushedDown::Yes).collect();
+        let mut new_filters = self.pushed_filters.clone();
+        new_filters.extend(filters);
+        let updated = self.clone_with(|s| s.pushed_filters = new_filters);
         Ok(
-            datafusion_physical_plan::filter_pushdown::FilterPushdownPropagation::with_parent_pushdown_result(
-                vec![datafusion_physical_plan::filter_pushdown::PushedDown::No; filters.len()],
-            ),
+            FilterPushdownPropagation::with_parent_pushdown_result(results)
+                .with_updated_node(Arc::new(updated) as Arc<dyn DataSource>),
         )
     }
 }
@@ -212,7 +244,19 @@ fn generate_document_batch(
     segment_idx: usize,
     projection: Option<&[usize]>,
     full_schema: &SchemaRef,
+    pushed_filters: &[Arc<dyn PhysicalExpr>],
 ) -> Result<RecordBatch> {
+    let projected_schema = match projection {
+        Some(indices) => {
+            let fields: Vec<_> = indices
+                .iter()
+                .map(|&i| full_schema.field(i).clone())
+                .collect();
+            Arc::new(Schema::new(fields))
+        }
+        None => full_schema.clone(),
+    };
+
     let reader = index
         .reader()
         .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
@@ -228,31 +272,71 @@ fn generate_document_batch(
         .collect();
 
     if doc_ids.is_empty() {
-        let projected_schema = match projection {
-            Some(indices) => {
-                let fields: Vec<_> = indices
-                    .iter()
-                    .map(|&i| full_schema.field(i).clone())
-                    .collect();
-                Arc::new(Schema::new(fields))
-            }
-            None => full_schema.clone(),
-        };
         return Ok(RecordBatch::new_empty(projected_schema));
     }
+
+    // Phase 1: build address batch with _doc_id and _segment_ord for all alive docs.
+    let seg_ord = segment_idx as u32;
+    let address_schema = Arc::new(Schema::new(vec![
+        Field::new("_doc_id", DataType::UInt32, false),
+        Field::new("_segment_ord", DataType::UInt32, false),
+    ]));
+    let mut address_batch = RecordBatch::try_new(
+        address_schema,
+        vec![
+            Arc::new(UInt32Array::from(doc_ids.clone())),
+            Arc::new(UInt32Array::from(vec![seg_ord; doc_ids.len()])),
+        ],
+    )
+    .map_err(|e| DataFusionError::Internal(format!("build address batch: {e}")))?;
+
+    // Phase 2: apply pushed-down filters (e.g. dynamic join filters) against the
+    // address columns. DynamicFilterPhysicalExpr evaluates to Scalar(Boolean(true))
+    // before the build side completes → no-op.
+    for filter in pushed_filters {
+        if address_batch.num_rows() == 0 {
+            break;
+        }
+        let result = filter.evaluate(&address_batch)?;
+        let mask = match result {
+            datafusion::physical_plan::ColumnarValue::Scalar(
+                datafusion::common::ScalarValue::Boolean(Some(true)),
+            ) => continue,
+            datafusion::physical_plan::ColumnarValue::Scalar(
+                datafusion::common::ScalarValue::Boolean(Some(false)),
+            ) => {
+                address_batch = address_batch.slice(0, 0);
+                break;
+            }
+            datafusion::physical_plan::ColumnarValue::Array(arr) => arr.as_boolean().clone(),
+            other => {
+                let arr = other.into_array(address_batch.num_rows())?;
+                arr.as_boolean().clone()
+            }
+        };
+        address_batch = filter_record_batch(&address_batch, &mask)?;
+    }
+
+    if address_batch.num_rows() == 0 {
+        return Ok(RecordBatch::new_empty(projected_schema));
+    }
+
+    // Phase 3: read stored fields only for surviving docs.
+    let surviving_doc_ids = address_batch
+        .column(0)
+        .as_primitive::<arrow::datatypes::UInt32Type>()
+        .values();
 
     let store_reader = segment_reader
         .get_store_reader(100)
         .map_err(|e| DataFusionError::Internal(format!("open store reader: {e}")))?;
 
-    let num_docs = doc_ids.len();
-    let seg_ord = segment_idx as u32;
-
+    let num_docs = surviving_doc_ids.len();
     let mut doc_id_builder = Vec::with_capacity(num_docs);
     let mut seg_ord_builder = Vec::with_capacity(num_docs);
     let mut doc_builder = StringBuilder::with_capacity(num_docs, num_docs * 256);
 
-    for &doc_id in &doc_ids {
+    for &doc_id in surviving_doc_ids {
         let doc: tantivy::TantivyDocument = store_reader.get(doc_id).map_err(|e| {
             DataFusionError::Internal(format!("read doc {doc_id}: {e}"))
         })?;
@@ -263,22 +347,16 @@ fn generate_document_batch(
         doc_builder.append_value(&json);
     }
 
+    // Phase 4: assemble full batch and project.
     let all_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
         Arc::new(UInt32Array::from(doc_id_builder)),
         Arc::new(UInt32Array::from(seg_ord_builder)),
         Arc::new(doc_builder.finish()),
     ];
 
-    let (projected_schema, projected_columns) = match projection {
-        Some(indices) => {
-            let fields: Vec<_> = indices
-                .iter()
-                .map(|&i| full_schema.field(i).clone())
-                .collect();
-            let cols: Vec<_> = indices.iter().map(|&i| all_columns[i].clone()).collect();
-            (Arc::new(Schema::new(fields)), cols)
-        }
-        None => (full_schema.clone(), all_columns),
+    let projected_columns = match projection {
+        Some(indices) => indices.iter().map(|&i| all_columns[i].clone()).collect(),
+        None => all_columns,
     };
 
     RecordBatch::try_new(projected_schema, projected_columns)

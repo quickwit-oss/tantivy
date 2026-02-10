@@ -801,8 +801,8 @@ async fn test_document_three_way_join_plan() {
     //   2. result (build) ⋈ d (probe) — document provider is the probe side
     //
     // - DynamicFilter pushed into FastFieldDataSource from the first hash
-    //   join; DocumentDataSource declines dynamic filters (PushedDown::No)
-    //   since it's typically joined after filtering is done.
+    //   join; DynamicFilter also pushed into DocumentDataSource from the
+    //   second hash join, pruning stored-field reads at scan time.
     let expected_physical_plan = "\
 SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
   CoalesceBatchesExec: target_batch_size=8192
@@ -814,7 +814,7 @@ SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
           CooperativeExec
             DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[price@3 > 2, DynamicFilter [ empty ]])
       CooperativeExec
-        DataSourceExec: DocumentDataSource(segments=1)";
+        DataSourceExec: DocumentDataSource(segments=1, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
