@@ -7,7 +7,7 @@ use datafusion::prelude::*;
 use tantivy::query::TermQuery;
 use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
-use tantivy_datafusion::{TantivySearchFunction, TantivyTableProvider};
+use tantivy_datafusion::{full_text_udf, TantivySearchFunction, TantivyTableProvider};
 
 fn create_test_index() -> Index {
     let mut builder = SchemaBuilder::new();
@@ -621,4 +621,67 @@ async fn test_join_with_additional_sql_filter() {
     assert_eq!(batch.num_rows(), 1);
     let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
     assert_eq!(id, 3);
+}
+
+// --- full_text() UDF pushdown tests ---
+
+#[tokio::test]
+async fn test_full_text_udf_basic() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index)))
+        .unwrap();
+
+    let df = ctx
+        .sql("SELECT id FROM t WHERE full_text(category, 'electronics') ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 1);
+    assert_eq!(ids.value(1), 3);
+}
+
+#[tokio::test]
+async fn test_full_text_udf_with_sql_filter() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index)))
+        .unwrap();
+
+    // full_text on inverted index + price filter on fast fields
+    let df = ctx
+        .sql("SELECT id, price FROM t WHERE full_text(category, 'electronics') AND price > 2.0 ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics = ids {1, 3}, price > 2.0 = ids {2, 3, 4, 5} → intersection = {3}
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+}
+
+#[tokio::test]
+async fn test_full_text_udf_no_matches() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index)))
+        .unwrap();
+
+    let df = ctx
+        .sql("SELECT id FROM t WHERE full_text(category, 'nonexistent_xyz')")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+
+    let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+    assert_eq!(total_rows, 0);
 }
