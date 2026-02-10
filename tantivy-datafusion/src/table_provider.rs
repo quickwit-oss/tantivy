@@ -8,24 +8,24 @@ use datafusion::catalog::Session;
 use datafusion::common::Result;
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::TableType;
-use datafusion::logical_expr::{Expr, TableProviderFilterPushDown};
+use datafusion::error::DataFusionError;
+use datafusion::logical_expr::Expr;
+use datafusion::physical_plan::memory::LazyMemoryExec;
 use datafusion::physical_plan::ExecutionPlan;
-use tantivy::query::{BooleanQuery, Query};
-use tantivy::Index;
+use parking_lot::RwLock;
+use tantivy::query::{EnableScoring, Query};
+use tantivy::{DocId, Index};
 
-use crate::exec::TantivyFastFieldExec;
-use crate::expr_to_tantivy::{can_convert_expr, df_expr_to_tantivy_query};
+use crate::fast_field_reader::read_segment_fast_fields_to_batch;
 use crate::schema_mapping::tantivy_schema_to_arrow_from_index;
 
 /// A DataFusion table provider backed by a tantivy index.
 ///
-/// Exposes fast fields from the index as Arrow columns. Supports two modes
-/// of query pushdown:
+/// Exposes fast fields from the index as Arrow columns. DataFusion handles
+/// all SQL filtering, sorting, and aggregation natively on Arrow output.
 ///
-/// 1. **SQL filter pushdown**: DataFusion passes `WHERE` clause filters to
-///    `scan()`, which converts supported expressions to tantivy queries.
-/// 2. **Direct tantivy query**: Pass a `Box<dyn Query>` via `new_with_query()`
-///    to filter at the segment level without Expr conversion.
+/// For inverted index (full-text) queries, use `new_with_query()` to pass
+/// a tantivy `Query` that pre-filters documents at the segment level.
 pub struct TantivyTableProvider {
     index: Index,
     arrow_schema: SchemaRef,
@@ -52,6 +52,9 @@ impl TantivyTableProvider {
     }
 
     /// Create a provider with a pre-set tantivy query for direct pushdown.
+    ///
+    /// The query runs through the inverted index to produce a doc ID set,
+    /// then only matching documents have their fast fields read.
     pub fn new_with_query(index: Index, query: Box<dyn Query>) -> Self {
         let arrow_schema = tantivy_schema_to_arrow_from_index(&index);
         Self {
@@ -76,28 +79,11 @@ impl TableProvider for TantivyTableProvider {
         TableType::Base
     }
 
-    fn supports_filters_pushdown(
-        &self,
-        filters: &[&Expr],
-    ) -> Result<Vec<TableProviderFilterPushDown>> {
-        let tantivy_schema = self.index.schema();
-        Ok(filters
-            .iter()
-            .map(|f| {
-                if can_convert_expr(f, &tantivy_schema, &self.arrow_schema) {
-                    TableProviderFilterPushDown::Exact
-                } else {
-                    TableProviderFilterPushDown::Unsupported
-                }
-            })
-            .collect())
-    }
-
     async fn scan(
         &self,
         _state: &dyn Session,
         projection: Option<&Vec<usize>>,
-        filters: &[Expr],
+        _filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
@@ -114,48 +100,124 @@ impl TableProvider for TantivyTableProvider {
         let reader = self
             .index
             .reader()
-            .map_err(|e| datafusion::error::DataFusionError::Internal(format!("open reader: {e}")))?;
+            .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
         let num_segments = reader.searcher().segment_readers().len();
 
-        // Convert pushed-down DF filters to tantivy queries
-        let tantivy_schema = self.index.schema();
-        let mut tantivy_queries: Vec<Box<dyn Query>> = Vec::new();
+        // One LazyBatchGenerator per segment
+        let generators: Vec<Arc<RwLock<dyn datafusion::physical_plan::memory::LazyBatchGenerator>>> =
+            (0..num_segments)
+                .map(|seg_idx| {
+                    let gen = FastFieldBatchGenerator {
+                        index: self.index.clone(),
+                        segment_idx: seg_idx,
+                        projected_schema: projected_schema.clone(),
+                        query: self.query.as_ref().map(|q| Arc::from(q.box_clone())),
+                        limit,
+                        exhausted: false,
+                    };
+                    Arc::new(RwLock::new(gen))
+                        as Arc<RwLock<dyn datafusion::physical_plan::memory::LazyBatchGenerator>>
+                })
+                .collect();
 
-        // Include the pre-set direct query if present
-        if let Some(q) = &self.query {
-            tantivy_queries.push(q.box_clone());
+        Ok(Arc::new(LazyMemoryExec::try_new(
+            projected_schema,
+            generators,
+        )?))
+    }
+}
+
+/// Generates Arrow RecordBatches from tantivy fast fields for a single segment.
+///
+/// If a tantivy `Query` is set, only matching documents are read.
+/// Otherwise all alive documents in the segment are read.
+struct FastFieldBatchGenerator {
+    index: Index,
+    segment_idx: usize,
+    projected_schema: SchemaRef,
+    query: Option<Arc<dyn Query>>,
+    limit: Option<usize>,
+    exhausted: bool,
+}
+
+impl fmt::Debug for FastFieldBatchGenerator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FastFieldBatchGenerator")
+            .field("segment_idx", &self.segment_idx)
+            .field("has_query", &self.query.is_some())
+            .field("limit", &self.limit)
+            .field("exhausted", &self.exhausted)
+            .finish()
+    }
+}
+
+impl fmt::Display for FastFieldBatchGenerator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "FastFieldBatchGenerator(segment={}, query={}, limit={:?})",
+            self.segment_idx,
+            self.query.is_some(),
+            self.limit,
+        )
+    }
+}
+
+impl datafusion::physical_plan::memory::LazyBatchGenerator for FastFieldBatchGenerator {
+    fn generate_next_batch(&mut self) -> Result<Option<arrow::record_batch::RecordBatch>> {
+        if self.exhausted {
+            return Ok(None);
         }
+        self.exhausted = true;
 
-        // Convert each DF filter expression
-        for filter in filters {
-            if let Some(q) = df_expr_to_tantivy_query(filter, &tantivy_schema)? {
-                tantivy_queries.push(q);
+        let reader = self
+            .index
+            .reader()
+            .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(self.segment_idx as u32);
+
+        // If a query is set, run it to get matching doc IDs
+        let doc_ids: Option<Vec<DocId>> = match &self.query {
+            Some(query) => {
+                let tantivy_schema = self.index.schema();
+                let weight = query
+                    .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
+                    .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
+                let limit = self.limit;
+                let mut matching_docs: Vec<DocId> = Vec::new();
+                weight
+                    .for_each_no_score(segment_reader, &mut |docs| {
+                        if let Some(lim) = limit {
+                            let remaining = lim.saturating_sub(matching_docs.len());
+                            if remaining > 0 {
+                                matching_docs
+                                    .extend_from_slice(&docs[..docs.len().min(remaining)]);
+                            }
+                        } else {
+                            matching_docs.extend_from_slice(docs);
+                        }
+                    })
+                    .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
+                if let Some(lim) = self.limit {
+                    matching_docs.truncate(lim);
+                }
+                Some(matching_docs)
             }
+            None => None,
+        };
+
+        let batch = read_segment_fast_fields_to_batch(
+            segment_reader,
+            &self.projected_schema,
+            doc_ids.as_deref(),
+            self.limit,
+        )?;
+
+        if batch.num_rows() == 0 {
+            return Ok(None);
         }
 
-        // Combine into a single query
-        let combined_query = match tantivy_queries.len() {
-            0 => None,
-            1 => Some(tantivy_queries.into_iter().next().unwrap()),
-            _ => Some(Box::new(BooleanQuery::intersection(tantivy_queries)) as Box<dyn Query>),
-        };
-
-        let exec = match combined_query {
-            Some(q) => TantivyFastFieldExec::new_with_query(
-                self.index.clone(),
-                projected_schema,
-                q,
-                num_segments,
-                limit,
-            ),
-            None => TantivyFastFieldExec::new(
-                self.index.clone(),
-                projected_schema,
-                num_segments,
-                limit,
-            ),
-        };
-
-        Ok(Arc::new(exec))
+        Ok(Some(batch))
     }
 }

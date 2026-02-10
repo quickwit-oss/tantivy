@@ -11,6 +11,7 @@ datafusion = "45"
 arrow = { version = "54", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
+parking_lot = "0.12"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
