@@ -1,0 +1,173 @@
+use std::sync::Arc;
+
+use arrow::array::{
+    ArrayRef, BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
+    TimestampMicrosecondBuilder, UInt64Builder,
+};
+use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
+use arrow::record_batch::RecordBatch;
+use datafusion::common::Result;
+use datafusion::error::DataFusionError;
+use tantivy::index::SegmentReader;
+
+/// Reads fast fields from a single segment and produces an Arrow RecordBatch.
+///
+/// Only alive (non-deleted) documents are included in the output.
+/// Fields are read according to the projected Arrow schema.
+pub fn read_segment_fast_fields_to_batch(
+    segment_reader: &SegmentReader,
+    projected_schema: &SchemaRef,
+) -> Result<RecordBatch> {
+    let fast_fields = segment_reader.fast_fields();
+    let max_doc = segment_reader.max_doc();
+    let alive_bitset = segment_reader.alive_bitset();
+
+    // Collect alive doc ids
+    let alive_docs: Vec<u32> = (0..max_doc)
+        .filter(|&doc_id| {
+            alive_bitset
+                .map(|bs| bs.is_alive(doc_id))
+                .unwrap_or(true)
+        })
+        .collect();
+
+    let num_alive = alive_docs.len();
+    let mut columns: Vec<ArrayRef> = Vec::with_capacity(projected_schema.fields().len());
+
+    for field in projected_schema.fields() {
+        let name = field.name();
+        let array: ArrayRef = match field.data_type() {
+            DataType::UInt64 => {
+                let col = fast_fields
+                    .u64(name)
+                    .map_err(|e| DataFusionError::Internal(format!("fast field u64 '{name}': {e}")))?;
+                let mut builder = UInt64Builder::with_capacity(num_alive);
+                for &doc_id in &alive_docs {
+                    match col.first(doc_id) {
+                        Some(v) => builder.append_value(v),
+                        None => builder.append_null(),
+                    }
+                }
+                Arc::new(builder.finish())
+            }
+            DataType::Int64 => {
+                let col = fast_fields
+                    .i64(name)
+                    .map_err(|e| DataFusionError::Internal(format!("fast field i64 '{name}': {e}")))?;
+                let mut builder = Int64Builder::with_capacity(num_alive);
+                for &doc_id in &alive_docs {
+                    match col.first(doc_id) {
+                        Some(v) => builder.append_value(v),
+                        None => builder.append_null(),
+                    }
+                }
+                Arc::new(builder.finish())
+            }
+            DataType::Float64 => {
+                let col = fast_fields
+                    .f64(name)
+                    .map_err(|e| DataFusionError::Internal(format!("fast field f64 '{name}': {e}")))?;
+                let mut builder = Float64Builder::with_capacity(num_alive);
+                for &doc_id in &alive_docs {
+                    match col.first(doc_id) {
+                        Some(v) => builder.append_value(v),
+                        None => builder.append_null(),
+                    }
+                }
+                Arc::new(builder.finish())
+            }
+            DataType::Boolean => {
+                let col = fast_fields
+                    .bool(name)
+                    .map_err(|e| DataFusionError::Internal(format!("fast field bool '{name}': {e}")))?;
+                let mut builder = BooleanBuilder::with_capacity(num_alive);
+                for &doc_id in &alive_docs {
+                    match col.first(doc_id) {
+                        Some(v) => builder.append_value(v),
+                        None => builder.append_null(),
+                    }
+                }
+                Arc::new(builder.finish())
+            }
+            DataType::Timestamp(TimeUnit::Microsecond, None) => {
+                let col = fast_fields
+                    .date(name)
+                    .map_err(|e| DataFusionError::Internal(format!("fast field date '{name}': {e}")))?;
+                let mut builder = TimestampMicrosecondBuilder::with_capacity(num_alive);
+                for &doc_id in &alive_docs {
+                    match col.first(doc_id) {
+                        Some(dt) => builder.append_value(dt.into_timestamp_micros()),
+                        None => builder.append_null(),
+                    }
+                }
+                Arc::new(builder.finish())
+            }
+            DataType::Utf8 => {
+                // Could be a Str fast field or IpAddr formatted as string
+                if let Ok(Some(str_col)) = fast_fields.str(name) {
+                    let mut builder = StringBuilder::with_capacity(num_alive, num_alive * 32);
+                    let mut buf = String::new();
+                    for &doc_id in &alive_docs {
+                        let mut ord_iter = str_col.term_ords(doc_id);
+                        if let Some(ord) = ord_iter.next() {
+                            buf.clear();
+                            str_col
+                                .ord_to_str(ord, &mut buf)
+                                .map_err(|e| DataFusionError::Internal(format!("ord_to_str '{name}': {e}")))?;
+                            builder.append_value(&buf);
+                        } else {
+                            builder.append_null();
+                        }
+                    }
+                    Arc::new(builder.finish())
+                } else if let Ok(col) = fast_fields.ip_addr(name) {
+                    // IpAddr stored as Ipv6Addr, format to string
+                    let mut builder = StringBuilder::with_capacity(num_alive, num_alive * 40);
+                    for &doc_id in &alive_docs {
+                        match col.first(doc_id) {
+                            Some(ip) => builder.append_value(ip.to_string()),
+                            None => builder.append_null(),
+                        }
+                    }
+                    Arc::new(builder.finish())
+                } else {
+                    return Err(DataFusionError::Internal(format!(
+                        "No str or ip_addr fast field found for Utf8 field '{name}'"
+                    )));
+                }
+            }
+            DataType::Binary => {
+                let bytes_col = fast_fields
+                    .bytes(name)
+                    .map_err(|e| DataFusionError::Internal(format!("fast field bytes '{name}': {e}")))?
+                    .ok_or_else(|| {
+                        DataFusionError::Internal(format!("bytes fast field '{name}' not found"))
+                    })?;
+                let mut builder = BinaryBuilder::with_capacity(num_alive, num_alive * 64);
+                let mut buf = Vec::new();
+                for &doc_id in &alive_docs {
+                    let mut ord_iter = bytes_col.term_ords(doc_id);
+                    if let Some(ord) = ord_iter.next() {
+                        buf.clear();
+                        bytes_col
+                            .ord_to_bytes(ord, &mut buf)
+                            .map_err(|e| DataFusionError::Internal(format!("ord_to_bytes '{name}': {e}")))?;
+                        builder.append_value(&buf);
+                    } else {
+                        builder.append_null();
+                    }
+                }
+                Arc::new(builder.finish())
+            }
+            other => {
+                return Err(DataFusionError::Internal(format!(
+                    "Unsupported Arrow data type for fast field '{name}': {other:?}"
+                )));
+            }
+        };
+        columns.push(array);
+    }
+
+    RecordBatch::try_new(projected_schema.clone(), columns)
+        .map_err(|e| DataFusionError::ArrowError(e, None))
+}
