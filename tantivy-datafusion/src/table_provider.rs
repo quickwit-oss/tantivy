@@ -216,6 +216,7 @@ impl datafusion::physical_plan::memory::LazyBatchGenerator for FastFieldBatchGen
             &self.projected_schema,
             doc_ids.as_deref(),
             self.limit,
+            self.segment_idx as u32,
         )?;
 
         if batch.num_rows() == 0 {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use arrow::array::{
     ArrayRef, BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, ListBuilder,
-    StringBuilder, TimestampMicrosecondBuilder, UInt64Builder,
+    StringBuilder, TimestampMicrosecondBuilder, UInt32Array, UInt64Builder,
 };
 use arrow::datatypes::{DataType, Field, SchemaRef, TimeUnit};
 use arrow::record_batch::RecordBatch;
@@ -21,6 +21,7 @@ pub fn read_segment_fast_fields_to_batch(
     projected_schema: &SchemaRef,
     doc_ids: Option<&[u32]>,
     limit: Option<usize>,
+    segment_ord: u32,
 ) -> Result<RecordBatch> {
     let fast_fields = segment_reader.fast_fields();
 
@@ -46,6 +47,20 @@ pub fn read_segment_fast_fields_to_batch(
 
     for field in projected_schema.fields() {
         let name = field.name();
+
+        // Handle synthetic internal columns
+        if name == "_doc_id" {
+            let array: ArrayRef =
+                Arc::new(UInt32Array::from(docs.iter().copied().collect::<Vec<_>>()));
+            columns.push(array);
+            continue;
+        }
+        if name == "_segment_ord" {
+            let array: ArrayRef = Arc::new(UInt32Array::from(vec![segment_ord; num_docs]));
+            columns.push(array);
+            continue;
+        }
+
         let array: ArrayRef = match field.data_type() {
             DataType::UInt64 => {
                 let col = fast_fields

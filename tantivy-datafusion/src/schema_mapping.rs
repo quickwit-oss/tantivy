@@ -25,16 +25,18 @@ fn scalar_arrow_type(field_type: &FieldType) -> Option<DataType> {
 /// All fields are mapped to scalar types regardless of actual cardinality.
 /// Use [`tantivy_schema_to_arrow_from_index`] to detect multi-valued fields.
 pub fn tantivy_schema_to_arrow(schema: &tantivy::schema::Schema) -> SchemaRef {
-    let fields: Vec<Field> = schema
-        .fields()
-        .filter_map(|(_field, field_entry)| {
-            if !field_entry.is_fast() {
-                return None;
-            }
-            let arrow_type = scalar_arrow_type(field_entry.field_type())?;
-            Some(Field::new(field_entry.name(), arrow_type, true))
-        })
-        .collect();
+    let mut fields: Vec<Field> = vec![
+        Field::new("_doc_id", DataType::UInt32, false),
+        Field::new("_segment_ord", DataType::UInt32, false),
+    ];
+
+    fields.extend(schema.fields().filter_map(|(_field, field_entry)| {
+        if !field_entry.is_fast() {
+            return None;
+        }
+        let arrow_type = scalar_arrow_type(field_entry.field_type())?;
+        Some(Field::new(field_entry.name(), arrow_type, true))
+    }));
     Arc::new(Schema::new(fields))
 }
 
@@ -58,29 +60,31 @@ pub fn tantivy_schema_to_arrow_from_index(index: &Index) -> SchemaRef {
         return tantivy_schema_to_arrow(&schema);
     }
 
-    let fields: Vec<Field> = schema
-        .fields()
-        .filter_map(|(_tantivy_field, field_entry)| {
-            if !field_entry.is_fast() {
-                return None;
-            }
-            let inner_type = scalar_arrow_type(field_entry.field_type())?;
-            let name = field_entry.name();
+    let mut fields: Vec<Field> = vec![
+        Field::new("_doc_id", DataType::UInt32, false),
+        Field::new("_segment_ord", DataType::UInt32, false),
+    ];
 
-            let is_multivalued = segment_readers.iter().any(|seg| {
-                field_cardinality(seg, name, field_entry.field_type())
-                    == Some(Cardinality::Multivalued)
-            });
+    fields.extend(schema.fields().filter_map(|(_tantivy_field, field_entry)| {
+        if !field_entry.is_fast() {
+            return None;
+        }
+        let inner_type = scalar_arrow_type(field_entry.field_type())?;
+        let name = field_entry.name();
 
-            let arrow_type = if is_multivalued {
-                DataType::List(Arc::new(Field::new("item", inner_type, true)))
-            } else {
-                inner_type
-            };
+        let is_multivalued = segment_readers.iter().any(|seg| {
+            field_cardinality(seg, name, field_entry.field_type())
+                == Some(Cardinality::Multivalued)
+        });
 
-            Some(Field::new(name, arrow_type, true))
-        })
-        .collect();
+        let arrow_type = if is_multivalued {
+            DataType::List(Arc::new(Field::new("item", inner_type, true)))
+        } else {
+            inner_type
+        };
+
+        Some(Field::new(name, arrow_type, true))
+    }));
     Arc::new(Schema::new(fields))
 }
 
@@ -128,14 +132,20 @@ mod tests {
         let schema = builder.build();
 
         let arrow_schema = tantivy_schema_to_arrow(&schema);
-        assert_eq!(arrow_schema.fields().len(), 4);
-        assert_eq!(arrow_schema.field(0).name(), "id");
-        assert_eq!(arrow_schema.field(0).data_type(), &DataType::UInt64);
-        assert_eq!(arrow_schema.field(1).name(), "score");
-        assert_eq!(arrow_schema.field(1).data_type(), &DataType::Int64);
-        assert_eq!(arrow_schema.field(2).name(), "price");
-        assert_eq!(arrow_schema.field(2).data_type(), &DataType::Float64);
-        assert_eq!(arrow_schema.field(3).name(), "active");
-        assert_eq!(arrow_schema.field(3).data_type(), &DataType::Boolean);
+        assert_eq!(arrow_schema.fields().len(), 6);
+        // Internal columns first
+        assert_eq!(arrow_schema.field(0).name(), "_doc_id");
+        assert_eq!(arrow_schema.field(0).data_type(), &DataType::UInt32);
+        assert_eq!(arrow_schema.field(1).name(), "_segment_ord");
+        assert_eq!(arrow_schema.field(1).data_type(), &DataType::UInt32);
+        // Then fast fields
+        assert_eq!(arrow_schema.field(2).name(), "id");
+        assert_eq!(arrow_schema.field(2).data_type(), &DataType::UInt64);
+        assert_eq!(arrow_schema.field(3).name(), "score");
+        assert_eq!(arrow_schema.field(3).data_type(), &DataType::Int64);
+        assert_eq!(arrow_schema.field(4).name(), "price");
+        assert_eq!(arrow_schema.field(4).data_type(), &DataType::Float64);
+        assert_eq!(arrow_schema.field(5).name(), "active");
+        assert_eq!(arrow_schema.field(5).data_type(), &DataType::Boolean);
     }
 }

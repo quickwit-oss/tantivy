@@ -93,7 +93,7 @@ async fn test_select_all() {
     let batch = collect_batches(&batches);
 
     assert_eq!(batch.num_rows(), 5);
-    assert_eq!(batch.num_columns(), 5); // id, score, price, active, category
+    assert_eq!(batch.num_columns(), 7); // _doc_id, _segment_ord, id, score, price, active, category
 }
 
 #[tokio::test]
@@ -543,4 +543,82 @@ async fn test_inverted_index_scores_are_positive() {
             scores.value(i)
         );
     }
+}
+
+// --- Join tests: fast fields + inverted index ---
+
+#[tokio::test]
+async fn test_join_fast_fields_with_inverted_index() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_udtf(
+        "tantivy_search",
+        Arc::new(TantivySearchFunction::new(index)),
+    );
+
+    let df = ctx
+        .sql(
+            "SELECT t.id, t.price, s._score \
+             FROM t \
+             JOIN tantivy_search('category', 'electronics') s \
+             ON t._doc_id = s._doc_id AND t._segment_ord = s._segment_ord \
+             ORDER BY t.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // "electronics" matches docs with id=1 and id=3
+    assert_eq!(batch.num_rows(), 2);
+
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 1);
+    assert_eq!(ids.value(1), 3);
+
+    // price for id=1 is 1.5, for id=3 is 3.5
+    let prices = batch.column(1).as_primitive::<Float64Type>();
+    assert!((prices.value(0) - 1.5).abs() < 1e-10);
+    assert!((prices.value(1) - 3.5).abs() < 1e-10);
+
+    // scores should be present and positive
+    let scores = batch.column(2).as_primitive::<Float32Type>();
+    assert!(scores.value(0) > 0.0);
+    assert!(scores.value(1) > 0.0);
+}
+
+#[tokio::test]
+async fn test_join_with_additional_sql_filter() {
+    let index = create_test_index();
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_udtf(
+        "tantivy_search",
+        Arc::new(TantivySearchFunction::new(index)),
+    );
+
+    // Full-text search for "electronics" (ids 1,3) + SQL filter price > 2.0 → only id=3
+    let df = ctx
+        .sql(
+            "SELECT t.id, t.price \
+             FROM t \
+             JOIN tantivy_search('category', 'electronics') s \
+             ON t._doc_id = s._doc_id AND t._segment_ord = s._segment_ord \
+             WHERE t.price > 2.0",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
 }
