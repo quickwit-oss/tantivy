@@ -1,8 +1,12 @@
 use std::ops::Bound;
 
 use datafusion::common::{Result, ScalarValue};
+use datafusion::logical_expr::expr::InList;
 use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
-use tantivy::query::{AllQuery, BooleanQuery, Query, RangeQuery, TermQuery};
+use tantivy::query::{
+    AllQuery, BooleanQuery, ExistsQuery, Occur, Query, RangeQuery, RegexQuery, TermQuery,
+    TermSetQuery,
+};
 use tantivy::schema::{Field, FieldType, IndexRecordOption, Schema, Term};
 
 /// Try to convert a DataFusion filter expression into a tantivy query.
@@ -17,34 +21,12 @@ pub fn df_expr_to_tantivy_query(
         Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
             convert_binary_expr(left, *op, right, schema)
         }
-        Expr::Not(inner) => {
-            let Some(inner_query) = df_expr_to_tantivy_query(inner, schema)? else {
-                return Ok(None);
-            };
-            // NOT q → BooleanQuery(Must[AllQuery], MustNot[q])
-            Ok(Some(Box::new(BooleanQuery::new(vec![
-                (tantivy::query::Occur::Must, Box::new(AllQuery) as Box<dyn Query>),
-                (tantivy::query::Occur::MustNot, inner_query),
-            ]))))
-        }
-        Expr::Between(between) if !between.negated => {
-            let Expr::Column(col) = between.expr.as_ref() else {
-                return Ok(None);
-            };
-            let Ok(field) = schema.get_field(&col.name) else {
-                return Ok(None);
-            };
-            let Some(lo_term) = scalar_to_term(field, &between.low, schema)? else {
-                return Ok(None);
-            };
-            let Some(hi_term) = scalar_to_term(field, &between.high, schema)? else {
-                return Ok(None);
-            };
-            Ok(Some(Box::new(RangeQuery::new(
-                Bound::Included(lo_term),
-                Bound::Included(hi_term),
-            ))))
-        }
+        Expr::Not(inner) => convert_not(inner, schema),
+        Expr::Between(between) => convert_between(between, schema),
+        Expr::InList(in_list) => convert_in_list(in_list, schema),
+        Expr::IsNotNull(inner) => convert_is_not_null(inner, schema),
+        Expr::IsNull(inner) => convert_is_null(inner, schema),
+        Expr::Like(like) if !like.case_insensitive => convert_like(like, schema),
         _ => Ok(None),
     }
 }
@@ -52,30 +34,190 @@ pub fn df_expr_to_tantivy_query(
 /// Check if an expression can be converted to a tantivy query (without doing it).
 pub fn can_convert_expr(expr: &Expr, schema: &Schema) -> bool {
     match expr {
-        Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
-            match op {
-                Operator::And | Operator::Or => {
-                    can_convert_expr(left, schema) && can_convert_expr(right, schema)
-                }
-                Operator::Eq | Operator::Lt | Operator::LtEq | Operator::Gt | Operator::GtEq => {
-                    is_column_lit_pair(left, right, schema) || is_column_lit_pair(right, left, schema)
-                }
-                _ => false,
+        Expr::BinaryExpr(BinaryExpr { left, op, right }) => match op {
+            Operator::And | Operator::Or => {
+                can_convert_expr(left, schema) && can_convert_expr(right, schema)
             }
-        }
+            Operator::Eq | Operator::NotEq
+            | Operator::Lt | Operator::LtEq
+            | Operator::Gt | Operator::GtEq => {
+                is_column_lit_pair(left, right, schema)
+                    || is_column_lit_pair(right, left, schema)
+            }
+            _ => false,
+        },
         Expr::Not(inner) => can_convert_expr(inner, schema),
-        Expr::Between(between) if !between.negated => {
+        Expr::Between(between) => {
             matches!(between.expr.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
                 && matches!(between.low.as_ref(), Expr::Literal(_))
                 && matches!(between.high.as_ref(), Expr::Literal(_))
+        }
+        Expr::InList(in_list) => {
+            matches!(in_list.expr.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
+                && in_list.list.iter().all(|e| matches!(e, Expr::Literal(_)))
+        }
+        Expr::IsNotNull(inner) | Expr::IsNull(inner) => {
+            matches!(inner.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
+        }
+        Expr::Like(like) if !like.case_insensitive => {
+            matches!(like.expr.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
+                && matches!(like.pattern.as_ref(), Expr::Literal(ScalarValue::Utf8(Some(_))))
         }
         _ => false,
     }
 }
 
+// --- Conversion helpers ---
+
 fn is_column_lit_pair(a: &Expr, b: &Expr, schema: &Schema) -> bool {
     matches!(a, Expr::Column(col) if schema.get_field(&col.name).is_ok())
         && matches!(b, Expr::Literal(_))
+}
+
+fn convert_not(inner: &Expr, schema: &Schema) -> Result<Option<Box<dyn Query>>> {
+    let Some(inner_query) = df_expr_to_tantivy_query(inner, schema)? else {
+        return Ok(None);
+    };
+    Ok(Some(negate(inner_query)))
+}
+
+/// NOT q → BooleanQuery(Must[AllQuery], MustNot[q])
+fn negate(query: Box<dyn Query>) -> Box<dyn Query> {
+    Box::new(BooleanQuery::new(vec![
+        (Occur::Must, Box::new(AllQuery) as Box<dyn Query>),
+        (Occur::MustNot, query),
+    ]))
+}
+
+fn convert_between(
+    between: &datafusion::logical_expr::Between,
+    schema: &Schema,
+) -> Result<Option<Box<dyn Query>>> {
+    let Expr::Column(col) = between.expr.as_ref() else {
+        return Ok(None);
+    };
+    let Ok(field) = schema.get_field(&col.name) else {
+        return Ok(None);
+    };
+    let Some(lo_term) = scalar_to_term(field, &between.low, schema)? else {
+        return Ok(None);
+    };
+    let Some(hi_term) = scalar_to_term(field, &between.high, schema)? else {
+        return Ok(None);
+    };
+    let query: Box<dyn Query> = Box::new(RangeQuery::new(
+        Bound::Included(lo_term),
+        Bound::Included(hi_term),
+    ));
+    if between.negated {
+        Ok(Some(negate(query)))
+    } else {
+        Ok(Some(query))
+    }
+}
+
+/// `col IN (v1, v2, ...)` → TermSetQuery
+/// `col NOT IN (v1, v2, ...)` → NOT TermSetQuery
+fn convert_in_list(
+    in_list: &InList,
+    schema: &Schema,
+) -> Result<Option<Box<dyn Query>>> {
+    let Expr::Column(col) = in_list.expr.as_ref() else {
+        return Ok(None);
+    };
+    let Ok(field) = schema.get_field(&col.name) else {
+        return Ok(None);
+    };
+    let mut terms = Vec::with_capacity(in_list.list.len());
+    for item in &in_list.list {
+        let Some(term) = scalar_to_term(field, item, schema)? else {
+            return Ok(None);
+        };
+        terms.push(term);
+    }
+    let query: Box<dyn Query> = Box::new(TermSetQuery::new(terms));
+    if in_list.negated {
+        Ok(Some(negate(query)))
+    } else {
+        Ok(Some(query))
+    }
+}
+
+/// `col IS NOT NULL` → ExistsQuery
+fn convert_is_not_null(inner: &Expr, schema: &Schema) -> Result<Option<Box<dyn Query>>> {
+    let Expr::Column(col) = inner else {
+        return Ok(None);
+    };
+    if schema.get_field(&col.name).is_err() {
+        return Ok(None);
+    }
+    Ok(Some(Box::new(ExistsQuery::new(col.name.clone(), false))))
+}
+
+/// `col IS NULL` → NOT ExistsQuery
+fn convert_is_null(inner: &Expr, schema: &Schema) -> Result<Option<Box<dyn Query>>> {
+    let Some(exists) = convert_is_not_null(inner, schema)? else {
+        return Ok(None);
+    };
+    Ok(Some(negate(exists)))
+}
+
+/// `col LIKE pattern` → RegexQuery (translate SQL wildcards to regex)
+fn convert_like(
+    like: &datafusion::logical_expr::Like,
+    schema: &Schema,
+) -> Result<Option<Box<dyn Query>>> {
+    let Expr::Column(col) = like.expr.as_ref() else {
+        return Ok(None);
+    };
+    let Ok(field) = schema.get_field(&col.name) else {
+        return Ok(None);
+    };
+    let Expr::Literal(ScalarValue::Utf8(Some(pattern))) = like.pattern.as_ref() else {
+        return Ok(None);
+    };
+    let regex_pattern = sql_like_to_regex(pattern, like.escape_char);
+    let regex_query = RegexQuery::from_pattern(&regex_pattern, field)
+        .map_err(|e| datafusion::error::DataFusionError::Internal(format!("regex: {e}")))?;
+    let query: Box<dyn Query> = Box::new(regex_query);
+    if like.negated {
+        Ok(Some(negate(query)))
+    } else {
+        Ok(Some(query))
+    }
+}
+
+/// Convert a SQL LIKE pattern to a regex pattern.
+/// `%` → `.*`, `_` → `.`, literal chars are escaped.
+fn sql_like_to_regex(pattern: &str, escape_char: Option<char>) -> String {
+    let mut regex = String::with_capacity(pattern.len() + 2);
+    regex.push('^');
+    let mut chars = pattern.chars();
+    while let Some(c) = chars.next() {
+        if Some(c) == escape_char {
+            if let Some(next) = chars.next() {
+                escape_regex_char(next, &mut regex);
+            }
+        } else {
+            match c {
+                '%' => regex.push_str(".*"),
+                '_' => regex.push('.'),
+                _ => escape_regex_char(c, &mut regex),
+            }
+        }
+    }
+    regex.push('$');
+    regex
+}
+
+fn escape_regex_char(c: char, out: &mut String) {
+    match c {
+        '.' | '+' | '*' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '\\' | '|' | '^' | '$' => {
+            out.push('\\');
+            out.push(c);
+        }
+        _ => out.push(c),
+    }
 }
 
 fn convert_binary_expr(
@@ -84,7 +226,6 @@ fn convert_binary_expr(
     right: &Expr,
     schema: &Schema,
 ) -> Result<Option<Box<dyn Query>>> {
-    // Handle AND / OR
     match op {
         Operator::And => {
             let lq = df_expr_to_tantivy_query(left, schema)?;
@@ -133,6 +274,9 @@ fn convert_comparison(
 
     let query: Box<dyn Query> = match op {
         Operator::Eq => Box::new(TermQuery::new(term, IndexRecordOption::Basic)),
+        Operator::NotEq => {
+            negate(Box::new(TermQuery::new(term, IndexRecordOption::Basic)))
+        }
         Operator::Gt => Box::new(RangeQuery::new(
             Bound::Excluded(term),
             Bound::Unbounded,
