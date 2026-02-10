@@ -98,7 +98,7 @@ impl TableProvider for TantivyTableProvider {
         _state: &dyn Session,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
-        _limit: Option<usize>,
+        limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let projected_schema = match projection {
             Some(indices) => {
@@ -146,11 +146,13 @@ impl TableProvider for TantivyTableProvider {
                 projected_schema,
                 q,
                 num_segments,
+                limit,
             ),
             None => TantivyFastFieldExec::new(
                 self.index.clone(),
                 projected_schema,
                 num_segments,
+                limit,
             ),
         };
 

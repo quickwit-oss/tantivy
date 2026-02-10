@@ -27,6 +27,8 @@ pub struct TantivyFastFieldExec {
     projected_schema: SchemaRef,
     properties: PlanProperties,
     query: Option<Arc<dyn Query>>,
+    /// Per-partition row limit. Each partition emits at most this many rows.
+    limit: Option<usize>,
 }
 
 impl Clone for TantivyFastFieldExec {
@@ -36,6 +38,7 @@ impl Clone for TantivyFastFieldExec {
             projected_schema: self.projected_schema.clone(),
             properties: self.properties.clone(),
             query: self.query.as_ref().map(|q| Arc::from(q.box_clone())),
+            limit: self.limit,
         }
     }
 }
@@ -50,8 +53,13 @@ impl fmt::Debug for TantivyFastFieldExec {
 }
 
 impl TantivyFastFieldExec {
-    pub fn new(index: Index, projected_schema: SchemaRef, num_segments: usize) -> Self {
-        Self::new_inner(index, projected_schema, None, num_segments)
+    pub fn new(
+        index: Index,
+        projected_schema: SchemaRef,
+        num_segments: usize,
+        limit: Option<usize>,
+    ) -> Self {
+        Self::new_inner(index, projected_schema, None, num_segments, limit)
     }
 
     pub fn new_with_query(
@@ -59,8 +67,9 @@ impl TantivyFastFieldExec {
         projected_schema: SchemaRef,
         query: Box<dyn Query>,
         num_segments: usize,
+        limit: Option<usize>,
     ) -> Self {
-        Self::new_inner(index, projected_schema, Some(Arc::from(query)), num_segments)
+        Self::new_inner(index, projected_schema, Some(Arc::from(query)), num_segments, limit)
     }
 
     fn new_inner(
@@ -68,6 +77,7 @@ impl TantivyFastFieldExec {
         projected_schema: SchemaRef,
         query: Option<Arc<dyn Query>>,
         num_segments: usize,
+        limit: Option<usize>,
     ) -> Self {
         let properties = PlanProperties::new(
             EquivalenceProperties::new(projected_schema.clone()),
@@ -80,6 +90,7 @@ impl TantivyFastFieldExec {
             projected_schema,
             properties,
             query,
+            limit,
         }
     }
 }
@@ -88,8 +99,9 @@ impl DisplayAs for TantivyFastFieldExec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "TantivyFastFieldExec: query={:?}",
-            self.query.as_ref().map(|q| format!("{q:?}"))
+            "TantivyFastFieldExec: query={:?}, limit={:?}",
+            self.query.as_ref().map(|q| format!("{q:?}")),
+            self.limit,
         )
     }
 }
@@ -129,6 +141,7 @@ impl ExecutionPlan for TantivyFastFieldExec {
             .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(partition as u32);
+        let limit = self.limit;
 
         let doc_ids = match &self.query {
             Some(query) => {
@@ -139,7 +152,14 @@ impl ExecutionPlan for TantivyFastFieldExec {
                 let mut matching_docs: Vec<DocId> = Vec::new();
                 weight
                     .for_each_no_score(segment_reader, &mut |docs| {
-                        matching_docs.extend_from_slice(docs);
+                        if let Some(lim) = limit {
+                            let remaining = lim.saturating_sub(matching_docs.len());
+                            if remaining > 0 {
+                                matching_docs.extend_from_slice(&docs[..docs.len().min(remaining)]);
+                            }
+                        } else {
+                            matching_docs.extend_from_slice(docs);
+                        }
                     })
                     .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
                 Some(matching_docs)
@@ -147,10 +167,21 @@ impl ExecutionPlan for TantivyFastFieldExec {
             None => None,
         };
 
+        // Apply limit to the doc list (handles the no-query path and caps the
+        // query path in case for_each_no_score overshot slightly).
+        let doc_ids = match (doc_ids, limit) {
+            (Some(mut ids), Some(lim)) => {
+                ids.truncate(lim);
+                Some(ids)
+            }
+            (ids, _) => ids,
+        };
+
         let batch = read_segment_fast_fields_to_batch(
             segment_reader,
             &self.projected_schema,
             doc_ids.as_deref(),
+            limit,
         )?;
 
         let schema = self.projected_schema.clone();

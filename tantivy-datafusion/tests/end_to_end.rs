@@ -427,3 +427,46 @@ async fn test_multivalued_field_values() {
     let row2_vals: Vec<u64> = row2.as_primitive::<UInt64Type>().iter().map(|v| v.unwrap()).collect();
     assert_eq!(row2_vals, vec![10, 30, 40]);
 }
+
+// --- Limit pushdown tests ---
+
+#[tokio::test]
+async fn test_limit_pushdown() {
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    let df = ctx
+        .sql("SELECT id FROM test_index LIMIT 2")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+}
+
+#[tokio::test]
+async fn test_limit_with_filter() {
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    // id > 2 gives {3,4,5}, LIMIT 1 should give exactly 1 row
+    let df = ctx
+        .sql("SELECT id FROM test_index WHERE id > 2 LIMIT 1")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert!(id > 2);
+}

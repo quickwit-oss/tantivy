@@ -14,11 +14,13 @@ use tantivy::index::SegmentReader;
 ///
 /// If `doc_ids` is `Some`, only those document IDs are read (already filtered by
 /// a tantivy query). If `None`, all alive (non-deleted) documents are read.
+/// When `limit` is `Some(n)`, at most `n` documents are returned.
 /// Fields are read according to the projected Arrow schema.
 pub fn read_segment_fast_fields_to_batch(
     segment_reader: &SegmentReader,
     projected_schema: &SchemaRef,
     doc_ids: Option<&[u32]>,
+    limit: Option<usize>,
 ) -> Result<RecordBatch> {
     let fast_fields = segment_reader.fast_fields();
 
@@ -27,13 +29,15 @@ pub fn read_segment_fast_fields_to_batch(
         None => {
             let max_doc = segment_reader.max_doc();
             let alive_bitset = segment_reader.alive_bitset();
-            (0..max_doc)
-                .filter(|&doc_id| {
-                    alive_bitset
-                        .map(|bs| bs.is_alive(doc_id))
-                        .unwrap_or(true)
-                })
-                .collect()
+            let iter = (0..max_doc).filter(|&doc_id| {
+                alive_bitset
+                    .map(|bs| bs.is_alive(doc_id))
+                    .unwrap_or(true)
+            });
+            match limit {
+                Some(lim) => iter.take(lim).collect(),
+                None => iter.collect(),
+            }
         }
     };
 
