@@ -20,7 +20,7 @@ use datafusion_physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion_physical_plan::projection::ProjectionExpr;
 use datafusion_physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion_physical_plan::{DisplayFormatType, Partitioning, SendableRecordBatchStream};
-use futures::stream;
+use futures::stream::{self, StreamExt};
 use tantivy::{Document, Index};
 
 use crate::table_provider::segment_hash_partitioning;
@@ -147,8 +147,9 @@ impl DataSource for DocumentDataSource {
     fn open(
         &self,
         partition: usize,
-        _context: Arc<datafusion::execution::TaskContext>,
+        context: Arc<datafusion::execution::TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
+        let batch_size = context.session_config().batch_size();
         let index = self.index.clone();
         let segment_idx = partition;
         let projection = self.projection.clone();
@@ -156,14 +157,23 @@ impl DataSource for DocumentDataSource {
         let pushed_filters = self.pushed_filters.clone();
 
         let schema = self.schema.clone();
+        // Lazy: the async block runs on first poll so dynamic filters
+        // pushed after the build side completes are evaluated at poll time.
+        // flat_map yields each independently-allocated batch so downstream
+        // can release them after processing instead of holding one giant batch.
         let stream = stream::once(async move {
-            generate_document_batch(
+            generate_document_batches(
                 &index,
                 segment_idx,
                 projection.as_deref(),
                 &full_schema,
                 &pushed_filters,
+                batch_size,
             )
+        })
+        .flat_map(|result| match result {
+            Ok(batches) => stream::iter(batches.into_iter().map(Ok)).left_stream(),
+            Err(e) => stream::once(async move { Err(e) }).right_stream(),
         });
 
         Ok(Box::pin(RecordBatchStreamAdapter::new(schema, stream)))
@@ -239,13 +249,16 @@ impl DataSource for DocumentDataSource {
 // Batch generation
 // ---------------------------------------------------------------------------
 
-fn generate_document_batch(
+/// Compute surviving doc_ids after applying pushed-down filters, then read
+/// stored fields in chunks of `batch_size`, returning one `RecordBatch` per chunk.
+fn generate_document_batches(
     index: &Index,
     segment_idx: usize,
     projection: Option<&[usize]>,
     full_schema: &SchemaRef,
     pushed_filters: &[Arc<dyn PhysicalExpr>],
-) -> Result<RecordBatch> {
+    batch_size: usize,
+) -> Result<Vec<RecordBatch>> {
     let projected_schema = match projection {
         Some(indices) => {
             let fields: Vec<_> = indices
@@ -272,7 +285,7 @@ fn generate_document_batch(
         .collect();
 
     if doc_ids.is_empty() {
-        return Ok(RecordBatch::new_empty(projected_schema));
+        return Ok(vec![]);
     }
 
     // Phase 1: build address batch with _doc_id and _segment_ord for all alive docs.
@@ -281,11 +294,12 @@ fn generate_document_batch(
         Field::new("_doc_id", DataType::UInt32, false),
         Field::new("_segment_ord", DataType::UInt32, false),
     ]));
+    let num_alive = doc_ids.len();
     let mut address_batch = RecordBatch::try_new(
         address_schema,
         vec![
-            Arc::new(UInt32Array::from(doc_ids.clone())),
-            Arc::new(UInt32Array::from(vec![seg_ord; doc_ids.len()])),
+            Arc::new(UInt32Array::from(doc_ids)),
+            Arc::new(UInt32Array::from(vec![seg_ord; num_alive])),
         ],
     )
     .map_err(|e| DataFusionError::Internal(format!("build address batch: {e}")))?;
@@ -318,10 +332,10 @@ fn generate_document_batch(
     }
 
     if address_batch.num_rows() == 0 {
-        return Ok(RecordBatch::new_empty(projected_schema));
+        return Ok(vec![]);
     }
 
-    // Phase 3: read stored fields only for surviving docs.
+    // Phase 3: read stored fields in chunks of batch_size.
     let surviving_doc_ids = address_batch
         .column(0)
         .as_primitive::<arrow::datatypes::UInt32Type>()
@@ -331,23 +345,47 @@ fn generate_document_batch(
         .get_store_reader(100)
         .map_err(|e| DataFusionError::Internal(format!("open store reader: {e}")))?;
 
-    let num_docs = surviving_doc_ids.len();
+    let mut batches = Vec::new();
+    for chunk in surviving_doc_ids.chunks(batch_size) {
+        let batch = read_document_chunk(
+            &store_reader,
+            &tantivy_schema,
+            chunk,
+            seg_ord,
+            projection,
+            &projected_schema,
+        )?;
+        batches.push(batch);
+    }
+
+    Ok(batches)
+}
+
+/// Read stored fields for a slice of doc_ids and return a projected RecordBatch.
+fn read_document_chunk(
+    store_reader: &tantivy::store::StoreReader,
+    tantivy_schema: &tantivy::schema::Schema,
+    doc_ids: &[u32],
+    seg_ord: u32,
+    projection: Option<&[usize]>,
+    projected_schema: &SchemaRef,
+) -> Result<RecordBatch> {
+    let num_docs = doc_ids.len();
     let mut doc_id_builder = Vec::with_capacity(num_docs);
     let mut seg_ord_builder = Vec::with_capacity(num_docs);
     let mut doc_builder = StringBuilder::with_capacity(num_docs, num_docs * 256);
 
-    for &doc_id in surviving_doc_ids {
+    for &doc_id in doc_ids {
         let doc: tantivy::TantivyDocument = store_reader.get(doc_id).map_err(|e| {
             DataFusionError::Internal(format!("read doc {doc_id}: {e}"))
         })?;
-        let json = doc.to_json(&tantivy_schema);
+        let json = doc.to_json(tantivy_schema);
 
         doc_id_builder.push(doc_id);
         seg_ord_builder.push(seg_ord);
         doc_builder.append_value(&json);
     }
 
-    // Phase 4: assemble full batch and project.
     let all_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
         Arc::new(UInt32Array::from(doc_id_builder)),
         Arc::new(UInt32Array::from(seg_ord_builder)),
@@ -359,6 +397,7 @@ fn generate_document_batch(
         None => all_columns,
     };
 
-    RecordBatch::try_new(projected_schema, projected_columns)
-        .map_err(|e| DataFusionError::Internal(format!("build record batch: {e}")))
+    RecordBatch::try_new(projected_schema.clone(), projected_columns).map_err(|e| {
+        DataFusionError::Internal(format!("build record batch: {e}"))
+    })
 }
