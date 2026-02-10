@@ -1,5 +1,6 @@
 use std::ops::Bound;
 
+use arrow::datatypes::{DataType, SchemaRef};
 use datafusion::common::{Result, ScalarValue};
 use datafusion::logical_expr::expr::InList;
 use datafusion::logical_expr::{BinaryExpr, Expr, Operator};
@@ -32,45 +33,63 @@ pub fn df_expr_to_tantivy_query(
 }
 
 /// Check if an expression can be converted to a tantivy query (without doing it).
-pub fn can_convert_expr(expr: &Expr, schema: &Schema) -> bool {
+///
+/// The `arrow_schema` is used to reject pushdown for multi-valued (List) columns,
+/// since tantivy's TermQuery semantics (matches if ANY value matches) differ from
+/// SQL scalar comparison semantics.
+pub fn can_convert_expr(expr: &Expr, schema: &Schema, arrow_schema: &SchemaRef) -> bool {
     match expr {
         Expr::BinaryExpr(BinaryExpr { left, op, right }) => match op {
             Operator::And | Operator::Or => {
-                can_convert_expr(left, schema) && can_convert_expr(right, schema)
+                can_convert_expr(left, schema, arrow_schema)
+                    && can_convert_expr(right, schema, arrow_schema)
             }
             Operator::Eq | Operator::NotEq
             | Operator::Lt | Operator::LtEq
             | Operator::Gt | Operator::GtEq => {
-                is_column_lit_pair(left, right, schema)
-                    || is_column_lit_pair(right, left, schema)
+                is_column_lit_pair(left, right, schema, arrow_schema)
+                    || is_column_lit_pair(right, left, schema, arrow_schema)
             }
             _ => false,
         },
-        Expr::Not(inner) => can_convert_expr(inner, schema),
+        Expr::Not(inner) => can_convert_expr(inner, schema, arrow_schema),
         Expr::Between(between) => {
-            matches!(between.expr.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
+            matches!(between.expr.as_ref(), Expr::Column(col)
+                if schema.get_field(&col.name).is_ok() && !is_list_column(&col.name, arrow_schema))
                 && matches!(between.low.as_ref(), Expr::Literal(_))
                 && matches!(between.high.as_ref(), Expr::Literal(_))
         }
         Expr::InList(in_list) => {
-            matches!(in_list.expr.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
+            matches!(in_list.expr.as_ref(), Expr::Column(col)
+                if schema.get_field(&col.name).is_ok() && !is_list_column(&col.name, arrow_schema))
                 && in_list.list.iter().all(|e| matches!(e, Expr::Literal(_)))
         }
         Expr::IsNotNull(inner) | Expr::IsNull(inner) => {
-            matches!(inner.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
+            matches!(inner.as_ref(), Expr::Column(col)
+                if schema.get_field(&col.name).is_ok() && !is_list_column(&col.name, arrow_schema))
         }
         Expr::Like(like) if !like.case_insensitive => {
-            matches!(like.expr.as_ref(), Expr::Column(col) if schema.get_field(&col.name).is_ok())
+            matches!(like.expr.as_ref(), Expr::Column(col)
+                if schema.get_field(&col.name).is_ok() && !is_list_column(&col.name, arrow_schema))
                 && matches!(like.pattern.as_ref(), Expr::Literal(ScalarValue::Utf8(Some(_))))
         }
         _ => false,
     }
 }
 
+/// Returns true if the named column is a `List<T>` type in the Arrow schema.
+fn is_list_column(name: &str, arrow_schema: &SchemaRef) -> bool {
+    arrow_schema
+        .field_with_name(name)
+        .map(|f| matches!(f.data_type(), DataType::List(_)))
+        .unwrap_or(false)
+}
+
 // --- Conversion helpers ---
 
-fn is_column_lit_pair(a: &Expr, b: &Expr, schema: &Schema) -> bool {
-    matches!(a, Expr::Column(col) if schema.get_field(&col.name).is_ok())
+fn is_column_lit_pair(a: &Expr, b: &Expr, schema: &Schema, arrow_schema: &SchemaRef) -> bool {
+    matches!(a, Expr::Column(col)
+        if schema.get_field(&col.name).is_ok() && !is_list_column(&col.name, arrow_schema))
         && matches!(b, Expr::Literal(_))
 }
 

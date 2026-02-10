@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use arrow::array::{
-    ArrayRef, BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder,
-    TimestampMicrosecondBuilder, UInt64Builder,
+    ArrayRef, BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, ListBuilder,
+    StringBuilder, TimestampMicrosecondBuilder, UInt64Builder,
 };
-use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
+use arrow::datatypes::{DataType, Field, SchemaRef, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use datafusion::common::Result;
 use datafusion::error::DataFusionError;
@@ -165,6 +165,10 @@ pub fn read_segment_fast_fields_to_batch(
                 }
                 Arc::new(builder.finish())
             }
+            // --- List<T> branches for multi-valued fields ---
+            DataType::List(inner) => {
+                build_list_array(inner, name, fast_fields, &docs, num_docs)?
+            }
             other => {
                 return Err(DataFusionError::Internal(format!(
                     "Unsupported Arrow data type for fast field '{name}': {other:?}"
@@ -176,4 +180,136 @@ pub fn read_segment_fast_fields_to_batch(
 
     RecordBatch::try_new(projected_schema.clone(), columns)
         .map_err(|e| DataFusionError::ArrowError(e, None))
+}
+
+/// Build a `ListArray` for a multi-valued fast field, dispatching on the inner type.
+fn build_list_array(
+    inner_field: &Arc<Field>,
+    name: &str,
+    fast_fields: &tantivy::fastfield::FastFieldReaders,
+    docs: &[u32],
+    _num_docs: usize,
+) -> Result<ArrayRef> {
+    match inner_field.data_type() {
+        DataType::UInt64 => {
+            let col = fast_fields
+                .u64(name)
+                .map_err(|e| DataFusionError::Internal(format!("fast field u64 '{name}': {e}")))?;
+            let mut builder = ListBuilder::new(UInt64Builder::new());
+            for &doc_id in docs {
+                for val in col.values_for_doc(doc_id) {
+                    builder.values().append_value(val);
+                }
+                builder.append(true);
+            }
+            Ok(Arc::new(builder.finish()))
+        }
+        DataType::Int64 => {
+            let col = fast_fields
+                .i64(name)
+                .map_err(|e| DataFusionError::Internal(format!("fast field i64 '{name}': {e}")))?;
+            let mut builder = ListBuilder::new(Int64Builder::new());
+            for &doc_id in docs {
+                for val in col.values_for_doc(doc_id) {
+                    builder.values().append_value(val);
+                }
+                builder.append(true);
+            }
+            Ok(Arc::new(builder.finish()))
+        }
+        DataType::Float64 => {
+            let col = fast_fields
+                .f64(name)
+                .map_err(|e| DataFusionError::Internal(format!("fast field f64 '{name}': {e}")))?;
+            let mut builder = ListBuilder::new(Float64Builder::new());
+            for &doc_id in docs {
+                for val in col.values_for_doc(doc_id) {
+                    builder.values().append_value(val);
+                }
+                builder.append(true);
+            }
+            Ok(Arc::new(builder.finish()))
+        }
+        DataType::Boolean => {
+            let col = fast_fields
+                .bool(name)
+                .map_err(|e| DataFusionError::Internal(format!("fast field bool '{name}': {e}")))?;
+            let mut builder = ListBuilder::new(BooleanBuilder::new());
+            for &doc_id in docs {
+                for val in col.values_for_doc(doc_id) {
+                    builder.values().append_value(val);
+                }
+                builder.append(true);
+            }
+            Ok(Arc::new(builder.finish()))
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, None) => {
+            let col = fast_fields
+                .date(name)
+                .map_err(|e| DataFusionError::Internal(format!("fast field date '{name}': {e}")))?;
+            let mut builder = ListBuilder::new(TimestampMicrosecondBuilder::new());
+            for &doc_id in docs {
+                for val in col.values_for_doc(doc_id) {
+                    builder.values().append_value(val.into_timestamp_micros());
+                }
+                builder.append(true);
+            }
+            Ok(Arc::new(builder.finish()))
+        }
+        DataType::Utf8 => {
+            // Could be a Str fast field or IpAddr formatted as string
+            if let Ok(Some(str_col)) = fast_fields.str(name) {
+                let mut builder = ListBuilder::new(StringBuilder::new());
+                let mut buf = String::new();
+                for &doc_id in docs {
+                    for ord in str_col.term_ords(doc_id) {
+                        buf.clear();
+                        str_col.ord_to_str(ord, &mut buf).map_err(|e| {
+                            DataFusionError::Internal(format!("ord_to_str '{name}': {e}"))
+                        })?;
+                        builder.values().append_value(&buf);
+                    }
+                    builder.append(true);
+                }
+                Ok(Arc::new(builder.finish()))
+            } else if let Ok(col) = fast_fields.ip_addr(name) {
+                let mut builder = ListBuilder::new(StringBuilder::new());
+                for &doc_id in docs {
+                    for val in col.values_for_doc(doc_id) {
+                        builder.values().append_value(val.to_string());
+                    }
+                    builder.append(true);
+                }
+                Ok(Arc::new(builder.finish()))
+            } else {
+                Err(DataFusionError::Internal(format!(
+                    "No str or ip_addr fast field found for List<Utf8> field '{name}'"
+                )))
+            }
+        }
+        DataType::Binary => {
+            let bytes_col = fast_fields
+                .bytes(name)
+                .map_err(|e| DataFusionError::Internal(format!("fast field bytes '{name}': {e}")))?
+                .ok_or_else(|| {
+                    DataFusionError::Internal(format!("bytes fast field '{name}' not found"))
+                })?;
+            let mut builder = ListBuilder::new(BinaryBuilder::new());
+            let mut buf = Vec::new();
+            for &doc_id in docs {
+                for ord in bytes_col.term_ords(doc_id) {
+                    buf.clear();
+                    bytes_col.ord_to_bytes(ord, &mut buf).map_err(|e| {
+                        DataFusionError::Internal(format!("ord_to_bytes '{name}': {e}"))
+                    })?;
+                    builder.values().append_value(&buf);
+                }
+                builder.append(true);
+            }
+            Ok(Arc::new(builder.finish()))
+        }
+        other => Err(DataFusionError::Internal(format!(
+            "Unsupported inner type for List fast field '{name}': {other:?}"
+        ))),
+    }
 }

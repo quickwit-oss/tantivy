@@ -15,7 +15,7 @@ use tantivy::Index;
 
 use crate::exec::TantivyFastFieldExec;
 use crate::expr_to_tantivy::{can_convert_expr, df_expr_to_tantivy_query};
-use crate::schema_mapping::tantivy_schema_to_arrow;
+use crate::schema_mapping::tantivy_schema_to_arrow_from_index;
 
 /// A DataFusion table provider backed by a tantivy index.
 ///
@@ -43,7 +43,7 @@ impl fmt::Debug for TantivyTableProvider {
 
 impl TantivyTableProvider {
     pub fn new(index: Index) -> Self {
-        let arrow_schema = tantivy_schema_to_arrow(&index.schema());
+        let arrow_schema = tantivy_schema_to_arrow_from_index(&index);
         Self {
             index,
             arrow_schema,
@@ -53,7 +53,7 @@ impl TantivyTableProvider {
 
     /// Create a provider with a pre-set tantivy query for direct pushdown.
     pub fn new_with_query(index: Index, query: Box<dyn Query>) -> Self {
-        let arrow_schema = tantivy_schema_to_arrow(&index.schema());
+        let arrow_schema = tantivy_schema_to_arrow_from_index(&index);
         Self {
             index,
             arrow_schema,
@@ -84,7 +84,7 @@ impl TableProvider for TantivyTableProvider {
         Ok(filters
             .iter()
             .map(|f| {
-                if can_convert_expr(f, &tantivy_schema) {
+                if can_convert_expr(f, &tantivy_schema, &self.arrow_schema) {
                     TableProviderFilterPushDown::Exact
                 } else {
                     TableProviderFilterPushDown::Unsupported

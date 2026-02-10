@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use arrow::array::{AsArray, RecordBatch};
+use arrow::array::{AsArray, ListArray, RecordBatch};
 use arrow::datatypes::{Float64Type, Int64Type, UInt64Type};
+use datafusion::datasource::TableProvider;
 use datafusion::prelude::*;
 use tantivy::query::TermQuery;
 use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
@@ -326,4 +327,103 @@ async fn test_filter_pushdown_compound() {
         .collect();
     ids.sort();
     assert_eq!(ids, vec![3, 4]);
+}
+
+// --- Multi-valued field tests ---
+
+fn create_multivalued_test_index() -> Index {
+    let mut builder = SchemaBuilder::new();
+    let id_field = builder.add_u64_field("id", FAST);
+    let tags_field = builder.add_u64_field("tags", FAST);
+    let schema = builder.build();
+
+    let index = Index::create_in_ram(schema);
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000).unwrap();
+
+    // Doc 0: tags [10, 20]
+    writer
+        .add_document(doc!(id_field => 1u64, tags_field => 10u64, tags_field => 20u64))
+        .unwrap();
+    // Doc 1: tags [30]
+    writer
+        .add_document(doc!(id_field => 2u64, tags_field => 30u64))
+        .unwrap();
+    // Doc 2: tags [10, 30, 40]
+    writer
+        .add_document(doc!(
+            id_field => 3u64,
+            tags_field => 10u64,
+            tags_field => 30u64,
+            tags_field => 40u64
+        ))
+        .unwrap();
+
+    writer.commit().unwrap();
+    index
+}
+
+#[tokio::test]
+async fn test_multivalued_field_schema() {
+    use arrow::datatypes::DataType;
+
+    let index = create_multivalued_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let schema = provider.schema();
+    let tags_field = schema.field_with_name("tags").unwrap();
+    assert!(
+        matches!(tags_field.data_type(), DataType::List(_)),
+        "Expected List type for multi-valued field, got {:?}",
+        tags_field.data_type()
+    );
+
+    // id should remain scalar
+    let id_field = schema.field_with_name("id").unwrap();
+    assert_eq!(id_field.data_type(), &DataType::UInt64);
+}
+
+#[tokio::test]
+async fn test_multivalued_field_values() {
+    let index = create_multivalued_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_mv", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql("SELECT id, tags FROM test_mv ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 3);
+
+    // id column is scalar u64
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 1);
+    assert_eq!(ids.value(1), 2);
+    assert_eq!(ids.value(2), 3);
+
+    // tags column is List<UInt64>
+    let tags_list = batch
+        .column(1)
+        .as_any()
+        .downcast_ref::<ListArray>()
+        .expect("tags should be a ListArray");
+
+    // Doc 1: tags [10, 20]
+    let row0 = tags_list.value(0);
+    let row0_vals: Vec<u64> = row0.as_primitive::<UInt64Type>().iter().map(|v| v.unwrap()).collect();
+    assert_eq!(row0_vals, vec![10, 20]);
+
+    // Doc 2: tags [30]
+    let row1 = tags_list.value(1);
+    let row1_vals: Vec<u64> = row1.as_primitive::<UInt64Type>().iter().map(|v| v.unwrap()).collect();
+    assert_eq!(row1_vals, vec![30]);
+
+    // Doc 3: tags [10, 30, 40]
+    let row2 = tags_list.value(2);
+    let row2_vals: Vec<u64> = row2.as_primitive::<UInt64Type>().iter().map(|v| v.unwrap()).collect();
+    assert_eq!(row2_vals, vec![10, 30, 40]);
 }
