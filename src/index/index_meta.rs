@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +46,7 @@ impl SegmentMetaInventory {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: None,
         };
         SegmentMeta::from(self.inventory.track(inner))
@@ -124,6 +127,7 @@ impl SegmentMeta {
             SegmentComponent::Positions => ".pos".to_string(),
             SegmentComponent::Terms => ".term".to_string(),
             SegmentComponent::Store => ".store".to_string(),
+            SegmentComponent::TempStore => ".store.temp".to_string(),
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
@@ -168,6 +172,7 @@ impl SegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc,
             deletes: None,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
         });
         SegmentMeta { tracked }
     }
@@ -186,6 +191,7 @@ impl SegmentMeta {
         let tracked = self.tracked.map(move |inner_meta| InnerSegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc: inner_meta.max_doc,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: Some(delete_meta),
         });
         SegmentMeta { tracked }

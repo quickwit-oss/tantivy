@@ -91,7 +91,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
 
     let reader = index.reader()?;
 
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     let mut index_writer: IndexWriter =
         index.writer_with_num_threads(3, 3 * MEMORY_BUDGET_NUM_BYTES_MIN)?;
@@ -100,7 +100,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
 
     for _ in 0..get_num_iterations() {
-        let random_val = rng.gen_range(0..20);
+        let random_val = rng.random_range(0..20);
         if random_val == 0 {
             index_writer.commit()?;
             committed_docs.extend(&uncommitted_docs);
