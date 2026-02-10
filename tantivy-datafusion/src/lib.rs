@@ -5,6 +5,7 @@ pub mod full_text_udf;
 pub mod inverted_index_provider;
 pub mod schema_mapping;
 pub mod table_provider;
+pub mod topk_pushdown;
 
 pub use catalog::{TantivyCatalog, TantivySchema};
 pub use document_provider::TantivyDocumentProvider;
@@ -12,3 +13,4 @@ pub use full_text_udf::full_text_udf;
 pub use inverted_index_provider::TantivyInvertedIndexProvider;
 pub use schema_mapping::{tantivy_schema_to_arrow, tantivy_schema_to_arrow_from_index};
 pub use table_provider::TantivyTableProvider;
+pub use topk_pushdown::TopKPushdown;

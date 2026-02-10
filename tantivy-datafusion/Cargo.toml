@@ -11,6 +11,7 @@ datafusion = "51"
 datafusion-datasource = "51"
 datafusion-physical-plan = "51"
 datafusion-physical-expr = "51"
+datafusion-physical-optimizer = "51"
 arrow = { version = "57", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"

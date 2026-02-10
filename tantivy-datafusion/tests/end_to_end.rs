@@ -9,6 +9,7 @@ use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORE
 use tantivy::{doc, Index, IndexWriter};
 use tantivy_datafusion::{
     full_text_udf, TantivyDocumentProvider, TantivyInvertedIndexProvider, TantivyTableProvider,
+    TopKPushdown,
 };
 
 fn plan_to_string(batches: &[RecordBatch]) -> String {
@@ -640,7 +641,7 @@ async fn test_dynamic_filter_in_plan() {
 CoalesceBatchesExec: target_batch_size=8192
   HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4]
     CooperativeExec
-      DataSourceExec: InvertedIndexDataSource(segments=1, query=true)
+      DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
     CooperativeExec
       DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
@@ -809,7 +810,7 @@ SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
       CoalesceBatchesExec: target_batch_size=8192
         HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[_doc_id@2, _segment_ord@3, id@4, price@5]
           CooperativeExec
-            DataSourceExec: InvertedIndexDataSource(segments=1, query=true)
+            DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
           CooperativeExec
             DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[price@3 > 2, DynamicFilter [ empty ]])
       CooperativeExec
@@ -851,4 +852,238 @@ async fn test_document_standalone() {
         let json: serde_json::Value = serde_json::from_str(docs.value(i)).unwrap();
         assert!(json.is_object(), "each _document should be a JSON object");
     }
+}
+
+// --- _score column tests ---
+
+#[tokio::test]
+async fn test_score_column_in_schema() {
+    use arrow::datatypes::DataType;
+
+    let index = create_test_index();
+    let provider = TantivyInvertedIndexProvider::new(index);
+    let schema = provider.schema();
+
+    let score_field = schema.field_with_name("_score").unwrap();
+    assert_eq!(score_field.data_type(), &DataType::Float32);
+    assert!(score_field.is_nullable());
+}
+
+#[tokio::test]
+async fn test_score_with_full_text() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    // Query for "electronics" — 2 matching docs, should have BM25 scores
+    let df = ctx
+        .sql(
+            "SELECT inv._doc_id, inv._score \
+             FROM inv \
+             WHERE full_text(inv.category, 'electronics') \
+             ORDER BY inv._score DESC",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+
+    let scores = batch.column(1).as_primitive::<Float32Type>();
+    // Both scores should be > 0
+    assert!(scores.value(0) > 0.0, "score should be positive");
+    assert!(scores.value(1) > 0.0, "score should be positive");
+    // Sorted descending
+    assert!(
+        scores.value(0) >= scores.value(1),
+        "scores should be descending"
+    );
+}
+
+#[tokio::test]
+async fn test_score_not_projected() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    // _score not in SELECT — should still work, no scoring overhead
+    let df = ctx
+        .sql(
+            "SELECT inv._doc_id \
+             FROM inv \
+             WHERE full_text(inv.category, 'electronics')",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+    assert_eq!(batch.num_columns(), 1); // Only _doc_id
+}
+
+#[tokio::test]
+async fn test_score_null_without_query() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    // No query — _score should be null for all rows
+    let df = ctx
+        .sql("SELECT inv._doc_id, inv._score FROM inv ORDER BY inv._doc_id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 5);
+    let scores = batch.column(1);
+    // All scores should be null
+    for i in 0..5 {
+        assert!(scores.is_null(i), "score should be null without query");
+    }
+}
+
+// --- TopK pushdown tests ---
+
+fn create_topk_session(index: &Index) -> SessionContext {
+    use datafusion::execution::SessionStateBuilder;
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_default_features()
+        .with_physical_optimizer_rule(Arc::new(TopKPushdown::new()))
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx
+}
+
+#[tokio::test]
+async fn test_topk_pushdown_plan() {
+    let index = create_test_index();
+    let ctx = create_topk_session(&index);
+
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT inv._doc_id, inv._score \
+             FROM inv \
+             WHERE full_text(inv.category, 'electronics') \
+             ORDER BY inv._score DESC LIMIT 1",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // The plan should show topk=Some(1) in the InvertedIndexDataSource
+    assert!(
+        plan.contains("topk=Some(1)"),
+        "Plan should contain topk=Some(1).\n\nActual plan:\n{plan}"
+    );
+}
+
+#[tokio::test]
+async fn test_topk_result_correctness() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+    let ctx = create_topk_session(&index);
+
+    // TopK=1 should return the single highest-scoring doc
+    let df = ctx
+        .sql(
+            "SELECT inv._doc_id, inv._score \
+             FROM inv \
+             WHERE full_text(inv.category, 'electronics') \
+             ORDER BY inv._score DESC LIMIT 1",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 1);
+    let score = batch.column(1).as_primitive::<Float32Type>().value(0);
+    assert!(score > 0.0, "top-1 score should be positive");
+}
+
+#[tokio::test]
+async fn test_topk_not_applied_with_join_filter() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let state = datafusion::execution::SessionStateBuilder::new()
+        .with_config(config)
+        .with_default_features()
+        .with_physical_optimizer_rule(Arc::new(TopKPushdown::new()))
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index)),
+    )
+    .unwrap();
+
+    // With a join + filter, topK should NOT be pushed down (safety)
+    // but the query should still return correct results
+    let df = ctx
+        .sql(
+            "SELECT f.id, inv._score \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY inv._score DESC LIMIT 1",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics = ids {1, 3}, price > 2.0 = ids {2, 3, 4, 5} → intersection = {3}
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+    let score = batch.column(1).as_primitive::<Float32Type>().value(0);
+    assert!(score > 0.0, "score should be positive");
+
+    // Verify the plan does NOT have topk pushed down
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id, inv._score \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY inv._score DESC LIMIT 1",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    assert!(
+        !plan.contains("topk=Some"),
+        "topK should NOT be pushed through join+filter.\n\nActual plan:\n{plan}"
+    );
 }

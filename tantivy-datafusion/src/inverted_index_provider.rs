@@ -2,7 +2,7 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
-use arrow::array::{new_null_array, RecordBatch, UInt32Array};
+use arrow::array::{new_null_array, Float32Array, RecordBatch, UInt32Array};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use async_trait::async_trait;
 use datafusion::catalog::Session;
@@ -20,9 +20,10 @@ use datafusion_physical_plan::projection::ProjectionExpr;
 use datafusion_physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion_physical_plan::{DisplayFormatType, Partitioning, SendableRecordBatchStream};
 use futures::stream;
+use tantivy::collector::TopNComputer;
 use tantivy::query::{BooleanQuery, EnableScoring, QueryParser};
 use tantivy::schema::FieldType;
-use tantivy::Index;
+use tantivy::{DocId, Index, Score};
 
 use crate::full_text_udf::extract_full_text_call;
 use crate::table_provider::segment_hash_partitioning;
@@ -30,9 +31,13 @@ use crate::table_provider::segment_hash_partitioning;
 /// A DataFusion table provider backed by a tantivy inverted index.
 ///
 /// Exposes `_doc_id` and `_segment_ord` columns (for joining with the fast
-/// field provider) plus one virtual Utf8 column per indexed text field.
+/// field provider) plus one virtual Utf8 column per indexed text field,
+/// and a `_score` column (Float32, nullable) for BM25 relevance scores.
+///
 /// The text columns exist so the optimizer can push `full_text(inv.col, ...)`
 /// predicates down — they always return null when projected.
+/// The `_score` column is populated with BM25 scores when a query is active
+/// and `_score` is projected; otherwise it is null.
 ///
 /// Register with:
 /// ```ignore
@@ -41,11 +46,12 @@ use crate::table_provider::segment_hash_partitioning;
 ///
 /// Then query via an explicit join:
 /// ```sql
-/// SELECT f.id, f.price
+/// SELECT f.id, f.price, inv._score
 /// FROM fast_fields f
 /// JOIN inverted_index inv
 ///   ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord
 /// WHERE full_text(inv.category, 'electronics') AND f.price > 2.0
+/// ORDER BY inv._score DESC LIMIT 10
 /// ```
 pub struct TantivyInvertedIndexProvider {
     index: Index,
@@ -69,6 +75,9 @@ impl TantivyInvertedIndexProvider {
                 }
             }
         }
+
+        // _score column — nullable Float32 for BM25 relevance scores
+        fields.push(Field::new("_score", DataType::Float32, true));
 
         let arrow_schema = Arc::new(Schema::new(fields));
         Self { index, arrow_schema }
@@ -170,6 +179,7 @@ impl TableProvider for TantivyInvertedIndexProvider {
             projection: projection.cloned(),
             query: combined_query,
             num_segments,
+            topk: None,
         };
         Ok(Arc::new(DataSourceExec::new(Arc::new(data_source))))
     }
@@ -180,13 +190,29 @@ impl TableProvider for TantivyInvertedIndexProvider {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
-struct InvertedIndexDataSource {
+pub(crate) struct InvertedIndexDataSource {
     index: Index,
     full_schema: SchemaRef,
     projected_schema: SchemaRef,
     projection: Option<Vec<usize>>,
-    query: Option<Arc<dyn tantivy::query::Query>>,
+    pub(crate) query: Option<Arc<dyn tantivy::query::Query>>,
     num_segments: usize,
+    pub(crate) topk: Option<usize>,
+}
+
+impl InvertedIndexDataSource {
+    /// Create a copy with the topk limit set.
+    pub(crate) fn with_topk(&self, topk: usize) -> Self {
+        InvertedIndexDataSource {
+            index: self.index.clone(),
+            full_schema: self.full_schema.clone(),
+            projected_schema: self.projected_schema.clone(),
+            projection: self.projection.clone(),
+            query: self.query.as_ref().map(|q| Arc::from(q.box_clone())),
+            num_segments: self.num_segments,
+            topk: Some(topk),
+        }
+    }
 }
 
 impl DataSource for InvertedIndexDataSource {
@@ -200,6 +226,7 @@ impl DataSource for InvertedIndexDataSource {
         let query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
         let projection = self.projection.clone();
         let full_schema = self.full_schema.clone();
+        let topk = self.topk;
 
         let schema = self.projected_schema.clone();
         let stream = stream::once(async move {
@@ -209,6 +236,7 @@ impl DataSource for InvertedIndexDataSource {
                 query.as_ref(),
                 projection.as_deref(),
                 &full_schema,
+                topk,
             )
         });
 
@@ -222,9 +250,10 @@ impl DataSource for InvertedIndexDataSource {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "InvertedIndexDataSource(segments={}, query={})",
+            "InvertedIndexDataSource(segments={}, query={}, topk={:?})",
             self.num_segments,
             self.query.is_some(),
+            self.topk,
         )
     }
 
@@ -288,6 +317,7 @@ fn generate_inverted_index_batch(
     query: Option<&Arc<dyn tantivy::query::Query>>,
     projection: Option<&[usize]>,
     full_schema: &SchemaRef,
+    topk: Option<usize>,
 ) -> Result<RecordBatch> {
     let reader = index
         .reader()
@@ -295,28 +325,127 @@ fn generate_inverted_index_batch(
     let searcher = reader.searcher();
     let segment_reader = searcher.segment_reader(segment_idx as u32);
 
-    let doc_ids: Vec<u32> = match query {
+    // Determine if _score is projected
+    let score_col_idx = full_schema.index_of("_score").unwrap();
+    let needs_scoring = projection.map_or(true, |p| p.contains(&score_col_idx));
+
+    // Collect matching docs (with optional scores)
+    let (doc_ids, scores): (Vec<u32>, Option<Vec<f32>>) = match query {
         Some(query) => {
-            let tantivy_schema = index.schema();
-            let weight = query
-                .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
-                .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
-            let mut matching_docs = Vec::new();
-            weight
-                .for_each_no_score(segment_reader, &mut |docs| {
-                    matching_docs.extend_from_slice(docs);
-                })
-                .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
-            matching_docs
+            if needs_scoring {
+                // BM25 scoring enabled
+                let weight = query
+                    .weight(EnableScoring::enabled_from_searcher(&searcher))
+                    .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
+
+                if let Some(k) = topk {
+                    // TopK with Block-WAND pruning via TopNComputer
+                    let mut top_n: TopNComputer<Score, DocId, _> =
+                        TopNComputer::new(k);
+
+                    let alive_bitset = segment_reader.alive_bitset();
+                    if let Some(alive_bitset) = alive_bitset {
+                        let mut threshold = Score::MIN;
+                        top_n.threshold = Some(threshold);
+                        weight
+                            .for_each_pruning(
+                                Score::MIN,
+                                segment_reader,
+                                &mut |doc, score| {
+                                    if alive_bitset.is_deleted(doc) {
+                                        return threshold;
+                                    }
+                                    top_n.push(score, doc);
+                                    threshold =
+                                        top_n.threshold.unwrap_or(Score::MIN);
+                                    threshold
+                                },
+                            )
+                            .map_err(|e| {
+                                DataFusionError::Internal(format!(
+                                    "topk query execution: {e}"
+                                ))
+                            })?;
+                    } else {
+                        weight
+                            .for_each_pruning(
+                                Score::MIN,
+                                segment_reader,
+                                &mut |doc, score| {
+                                    top_n.push(score, doc);
+                                    top_n.threshold.unwrap_or(Score::MIN)
+                                },
+                            )
+                            .map_err(|e| {
+                                DataFusionError::Internal(format!(
+                                    "topk query execution: {e}"
+                                ))
+                            })?;
+                    }
+
+                    let results = top_n.into_sorted_vec();
+                    let mut ids = Vec::with_capacity(results.len());
+                    let mut sc = Vec::with_capacity(results.len());
+                    for item in results {
+                        ids.push(item.doc);
+                        sc.push(item.sort_key);
+                    }
+                    (ids, Some(sc))
+                } else {
+                    // Full scoring without topK
+                    let mut ids = Vec::new();
+                    let mut sc = Vec::new();
+                    weight
+                        .for_each(segment_reader, &mut |doc, score| {
+                            ids.push(doc);
+                            sc.push(score);
+                        })
+                        .map_err(|e| {
+                            DataFusionError::Internal(format!("query execution: {e}"))
+                        })?;
+
+                    // Filter deleted docs
+                    if let Some(alive_bitset) = segment_reader.alive_bitset() {
+                        let mut filtered_ids = Vec::new();
+                        let mut filtered_sc = Vec::new();
+                        for (doc, score) in ids.into_iter().zip(sc) {
+                            if alive_bitset.is_alive(doc) {
+                                filtered_ids.push(doc);
+                                filtered_sc.push(score);
+                            }
+                        }
+                        (filtered_ids, Some(filtered_sc))
+                    } else {
+                        (ids, Some(sc))
+                    }
+                }
+            } else {
+                // No scoring needed — boolean filter only
+                let tantivy_schema = index.schema();
+                let weight = query
+                    .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
+                    .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
+                let mut matching_docs = Vec::new();
+                weight
+                    .for_each_no_score(segment_reader, &mut |docs| {
+                        matching_docs.extend_from_slice(docs);
+                    })
+                    .map_err(|e| {
+                        DataFusionError::Internal(format!("query execution: {e}"))
+                    })?;
+                (matching_docs, None)
+            }
         }
         None => {
+            // No query — iterate all alive docs, scores are null
             let max_doc = segment_reader.max_doc();
             let alive_bitset = segment_reader.alive_bitset();
-            (0..max_doc)
+            let ids: Vec<u32> = (0..max_doc)
                 .filter(|&doc_id| {
                     alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id))
                 })
-                .collect()
+                .collect();
+            (ids, None)
         }
     };
 
@@ -337,16 +466,23 @@ fn generate_inverted_index_batch(
     let num_docs = doc_ids.len();
     let seg_ord = segment_idx as u32;
 
-    // Build all columns: _doc_id, _segment_ord, then null arrays for text columns
+    // Build all columns: _doc_id, _segment_ord, null text arrays, _score
     let mut all_columns: Vec<Arc<dyn arrow::array::Array>> = vec![
         Arc::new(UInt32Array::from(doc_ids)),
         Arc::new(UInt32Array::from(vec![seg_ord; num_docs])),
     ];
 
-    // Add null arrays for each virtual text column
-    for i in 2..full_schema.fields().len() {
+    // Add null arrays for each virtual text column (all columns between
+    // _segment_ord and _score)
+    for i in 2..full_schema.fields().len() - 1 {
         let field = full_schema.field(i);
         all_columns.push(new_null_array(field.data_type(), num_docs));
+    }
+
+    // _score column
+    match scores {
+        Some(s) => all_columns.push(Arc::new(Float32Array::from(s))),
+        None => all_columns.push(new_null_array(&DataType::Float32, num_docs)),
     }
 
     let (projected_schema, projected_columns) = match projection {
