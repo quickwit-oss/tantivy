@@ -139,7 +139,7 @@ impl TableProvider for TantivyTableProvider {
 /// Accepts dynamic filters pushed down from the optimizer (e.g. from hash join
 /// build-side min/max bounds) and applies them after batch generation.
 #[derive(Debug)]
-struct FastFieldDataSource {
+pub(crate) struct FastFieldDataSource {
     index: Index,
     arrow_schema: SchemaRef,
     projected_schema: SchemaRef,
@@ -164,6 +164,16 @@ impl FastFieldDataSource {
         };
         f(&mut new);
         new
+    }
+
+    /// Read access to pushed filters (for the filter pushdown optimizer rule).
+    pub(crate) fn pushed_filters(&self) -> &[Arc<dyn PhysicalExpr>] {
+        &self.pushed_filters
+    }
+
+    /// Create a copy with a new set of pushed filters.
+    pub(crate) fn with_pushed_filters(&self, filters: Vec<Arc<dyn PhysicalExpr>>) -> Self {
+        self.clone_with(|s| s.pushed_filters = filters)
     }
 }
 

@@ -213,6 +213,37 @@ impl InvertedIndexDataSource {
             topk: Some(topk),
         }
     }
+
+    /// Access the underlying tantivy index (for schema inspection by optimizer rules).
+    pub(crate) fn index(&self) -> &Index {
+        &self.index
+    }
+
+    /// Create a copy with additional tantivy queries combined via intersection.
+    pub(crate) fn with_additional_queries(
+        &self,
+        extra: Vec<Box<dyn tantivy::query::Query>>,
+    ) -> Self {
+        if extra.is_empty() {
+            return self.with_topk(self.topk.unwrap_or(0));
+        }
+        let mut all_queries: Vec<Box<dyn tantivy::query::Query>> = Vec::new();
+        if let Some(q) = &self.query {
+            all_queries.push(q.box_clone());
+        }
+        all_queries.extend(extra);
+        let combined: Arc<dyn tantivy::query::Query> =
+            Arc::new(BooleanQuery::intersection(all_queries));
+        InvertedIndexDataSource {
+            index: self.index.clone(),
+            full_schema: self.full_schema.clone(),
+            projected_schema: self.projected_schema.clone(),
+            projection: self.projection.clone(),
+            query: Some(combined),
+            num_segments: self.num_segments,
+            topk: self.topk,
+        }
+    }
 }
 
 impl DataSource for InvertedIndexDataSource {

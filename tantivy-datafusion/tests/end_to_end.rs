@@ -8,8 +8,8 @@ use tantivy::query::TermQuery;
 use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter};
 use tantivy_datafusion::{
-    full_text_udf, TantivyDocumentProvider, TantivyInvertedIndexProvider, TantivyTableProvider,
-    TopKPushdown,
+    full_text_udf, FastFieldFilterPushdown, TantivyDocumentProvider,
+    TantivyInvertedIndexProvider, TantivyTableProvider, TopKPushdown,
 };
 
 fn plan_to_string(batches: &[RecordBatch]) -> String {
@@ -1086,4 +1086,270 @@ async fn test_topk_not_applied_with_join_filter() {
         !plan.contains("topk=Some"),
         "topK should NOT be pushed through join+filter.\n\nActual plan:\n{plan}"
     );
+}
+
+// --- Fast field filter pushdown tests ---
+
+fn create_filter_pushdown_session(index: &Index) -> SessionContext {
+    use datafusion::execution::SessionStateBuilder;
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_default_features()
+        .with_physical_optimizer_rule(Arc::new(FastFieldFilterPushdown::new()))
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx
+}
+
+#[tokio::test]
+async fn test_filter_pushdown_into_inverted_index_plan() {
+    let index = create_test_index();
+    let ctx = create_filter_pushdown_session(&index);
+
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id, f.price \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // Full physical plan showing FastFieldFilterPushdown in action:
+    //
+    // - The `f.price > 2.0` predicate has been moved from FastFieldDataSource's
+    //   pushed_filters into the InvertedIndexDataSource's tantivy query
+    //   (combined with full_text('electronics') via BooleanQuery::intersection).
+    //
+    // - FastFieldDataSource retains only the DynamicFilter (join-internal bounds
+    //   from the hash table build side — evaluates to true until populated).
+    //
+    // - The join is now purely 1:1 enrichment: every doc emitted by the inverted
+    //   index already satisfies the price filter.
+    let expected_physical_plan = "\
+SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
+  CoalesceBatchesExec: target_batch_size=8192
+    HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4, price@5]
+      CooperativeExec
+        DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
+      CooperativeExec
+        DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+
+    let physical_plan: String = plan
+        .lines()
+        .skip_while(|line| !line.starts_with("SortExec"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(
+        physical_plan, expected_physical_plan,
+        "Physical plan mismatch.\n\nActual:\n{physical_plan}\n\nExpected:\n{expected_physical_plan}"
+    );
+}
+
+#[tokio::test]
+async fn test_filter_pushdown_result_correctness() {
+    let index = create_test_index();
+    let ctx = create_filter_pushdown_session(&index);
+
+    let df = ctx
+        .sql(
+            "SELECT f.id, f.price \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics = ids {1, 3}, price > 2.0 = ids {2, 3, 4, 5} → intersection = {3}
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+    let price = batch.column(1).as_primitive::<Float64Type>().value(0);
+    assert!((price - 3.5).abs() < 1e-10);
+}
+
+#[tokio::test]
+async fn test_topk_through_join_with_filter_pushdown() {
+    use arrow::datatypes::Float32Type;
+    use datafusion::execution::SessionStateBuilder;
+
+    let index = create_test_index();
+
+    // Register BOTH rules: filter pushdown first, then topK
+    let config = SessionConfig::new().with_target_partitions(1);
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_default_features()
+        .with_physical_optimizer_rule(Arc::new(FastFieldFilterPushdown::new()))
+        .with_physical_optimizer_rule(Arc::new(TopKPushdown::new()))
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index)),
+    )
+    .unwrap();
+
+    // With filter pushdown + topK, the price filter moves into inverted index,
+    // then topK can traverse the join into the build side.
+    let df = ctx
+        .sql(
+            "SELECT f.id, inv._score \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY inv._score DESC LIMIT 1",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics AND price > 2.0 → only id=3
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+    let score = batch.column(1).as_primitive::<Float32Type>().value(0);
+    assert!(score > 0.0, "score should be positive");
+
+    // Full physical plan showing both rules working together:
+    //
+    // 1. FastFieldFilterPushdown moved `price > 2.0` into the inverted index query
+    // 2. TopKPushdown traversed the HashJoinExec (now filter-free on probe side)
+    //    and injected topk=Some(1) into InvertedIndexDataSource
+    // 3. Block-WAND pruning in tantivy produces at most 1 doc per segment
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id, inv._score \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0 \
+             ORDER BY inv._score DESC LIMIT 1",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    let expected_physical_plan = "\
+SortExec: TopK(fetch=1), expr=[_score@1 DESC], preserve_partitioning=[false]
+  ProjectionExec: expr=[id@1 as id, _score@0 as _score]
+    CoalesceBatchesExec: target_batch_size=8192
+      HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[_score@2, id@5]
+        CooperativeExec
+          DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=Some(1))
+        ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
+          CooperativeExec
+            DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+
+    let physical_plan: String = plan
+        .lines()
+        .skip_while(|line| !line.starts_with("SortExec"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(
+        physical_plan, expected_physical_plan,
+        "Physical plan mismatch.\n\nActual:\n{physical_plan}\n\nExpected:\n{expected_physical_plan}"
+    );
+}
+
+#[tokio::test]
+async fn test_filter_pushdown_preserves_dynamic_filter() {
+    let index = create_test_index();
+    let ctx = create_filter_pushdown_session(&index);
+
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') AND f.price > 2.0",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // Physical plan without ORDER BY — same filter pushdown behavior:
+    //
+    // - price > 2.0 moved into InvertedIndexDataSource query
+    // - DynamicFilter preserved on FastFieldDataSource
+    // - ProjectionExec trims fast field columns after the join
+    let expected_physical_plan = "\
+CoalesceBatchesExec: target_batch_size=8192
+  HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4]
+    CooperativeExec
+      DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
+    ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
+      CooperativeExec
+        DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+
+    let physical_plan: String = plan
+        .lines()
+        .skip_while(|line| !line.starts_with("CoalesceBatchesExec"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert_eq!(
+        physical_plan, expected_physical_plan,
+        "Physical plan mismatch.\n\nActual:\n{physical_plan}\n\nExpected:\n{expected_physical_plan}"
+    );
+}
+
+#[tokio::test]
+async fn test_no_pushdown_without_inverted_index_query() {
+    // When there's no full_text() query, no filter pushdown should occur
+    let index = create_test_index();
+    let ctx = create_filter_pushdown_session(&index);
+
+    let df = ctx
+        .sql(
+            "SELECT f.id \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE f.price > 2.0 \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // price > 2.0 → ids {2, 3, 4, 5} (4 of 5 total docs)
+    // All docs appear on both sides since inv has no filter
+    assert_eq!(batch.num_rows(), 4);
+    let mut ids: Vec<u64> = batch
+        .column(0)
+        .as_primitive::<UInt64Type>()
+        .iter()
+        .map(|v| v.unwrap())
+        .collect();
+    ids.sort();
+    assert_eq!(ids, vec![2, 3, 4, 5]);
 }

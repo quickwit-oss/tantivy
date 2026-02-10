@@ -1,6 +1,7 @@
 pub mod catalog;
 pub mod document_provider;
 pub mod fast_field_reader;
+pub mod filter_pushdown;
 pub mod full_text_udf;
 pub mod inverted_index_provider;
 pub mod schema_mapping;
@@ -9,6 +10,7 @@ pub mod topk_pushdown;
 
 pub use catalog::{TantivyCatalog, TantivySchema};
 pub use document_provider::TantivyDocumentProvider;
+pub use filter_pushdown::FastFieldFilterPushdown;
 pub use full_text_udf::full_text_udf;
 pub use inverted_index_provider::TantivyInvertedIndexProvider;
 pub use schema_mapping::{tantivy_schema_to_arrow, tantivy_schema_to_arrow_from_index};

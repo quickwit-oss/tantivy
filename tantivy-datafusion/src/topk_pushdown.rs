@@ -10,10 +10,14 @@ use datafusion_physical_expr::PhysicalExpr;
 use datafusion_physical_optimizer::PhysicalOptimizerRule;
 use datafusion_physical_plan::coalesce_batches::CoalesceBatchesExec;
 use datafusion_physical_plan::coop::CooperativeExec;
+use datafusion_physical_plan::joins::HashJoinExec;
 use datafusion_physical_plan::projection::ProjectionExec;
 use datafusion_physical_plan::sorts::sort::SortExec;
 
+use datafusion_physical_expr::expressions::DynamicFilterPhysicalExpr;
+
 use crate::inverted_index_provider::InvertedIndexDataSource;
+use crate::table_provider::FastFieldDataSource;
 
 /// A physical optimizer rule that pushes `ORDER BY _score DESC LIMIT K`
 /// into the `InvertedIndexDataSource` as a topK hint.
@@ -142,7 +146,62 @@ fn try_inject_topk(
         return Ok(None);
     }
 
-    // Anything else (FilterExec, HashJoinExec, RepartitionExec, etc.)
+    // HashJoinExec(Inner): safe to traverse into the build side (left)
+    // only when the probe side (right) has no user-predicate filters that
+    // could drop rows. After FastFieldFilterPushdown has moved predicates
+    // into the inverted index, the fast field side should only have
+    // DynamicFilter entries (join-specific, not row-dropping).
+    if let Some(hash_join) = plan.as_any().downcast_ref::<HashJoinExec>() {
+        if matches!(
+            hash_join.join_type(),
+            &datafusion::logical_expr::JoinType::Inner
+        ) && probe_side_is_filter_free(hash_join.right())
+        {
+            // Recurse into the build side (left) only
+            if let Some(new_left) = try_inject_topk(hash_join.left(), k)? {
+                let rebuilt = Arc::clone(plan)
+                    .with_new_children(vec![new_left, Arc::clone(hash_join.right())])?;
+                return Ok(Some(rebuilt));
+            }
+        }
+        return Ok(None);
+    }
+
+    // Anything else (FilterExec, RepartitionExec, etc.)
     // is unsafe — bail out.
     Ok(None)
+}
+
+/// Check that the probe side of the hash join has no user-predicate filters.
+///
+/// Walks through safe operators to find a `FastFieldDataSource` and checks
+/// that all its pushed filters are `DynamicFilterPhysicalExpr` (join-internal
+/// filters that don't drop user-visible rows).
+fn probe_side_is_filter_free(plan: &Arc<dyn ExecutionPlan>) -> bool {
+    if let Some(dse) = plan.as_any().downcast_ref::<DataSourceExec>() {
+        if let Some(ff) = dse.data_source().as_any().downcast_ref::<FastFieldDataSource>() {
+            return ff.pushed_filters().iter().all(|f| {
+                f.as_any()
+                    .downcast_ref::<DynamicFilterPhysicalExpr>()
+                    .is_some()
+            });
+        }
+        // Not a FastFieldDataSource — can't verify, bail
+        return false;
+    }
+
+    if plan
+        .as_any()
+        .downcast_ref::<CoalesceBatchesExec>()
+        .is_some()
+        || plan.as_any().downcast_ref::<CooperativeExec>().is_some()
+        || plan.as_any().downcast_ref::<ProjectionExec>().is_some()
+    {
+        let children = plan.children();
+        if children.len() == 1 {
+            return probe_side_is_filter_free(children[0]);
+        }
+    }
+
+    false
 }
