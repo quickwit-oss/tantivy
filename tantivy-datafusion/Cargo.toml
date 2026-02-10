@@ -7,8 +7,8 @@ license = "MIT"
 
 [dependencies]
 tantivy = { path = ".." }
-datafusion = "45"
-arrow = { version = "54", features = ["prettyprint"] }
+datafusion = "51"
+arrow = { version = "57", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
 parking_lot = "0.12"

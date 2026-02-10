@@ -183,7 +183,7 @@ pub fn read_segment_fast_fields_to_batch(
     }
 
     RecordBatch::try_new(projected_schema.clone(), columns)
-        .map_err(|e| DataFusionError::ArrowError(e, None))
+        .map_err(|e| DataFusionError::ArrowError(Box::new(e), None))
 }
 
 /// Build a `ListArray` for a multi-valued fast field, dispatching on the inner type.

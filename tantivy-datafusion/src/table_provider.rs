@@ -164,6 +164,10 @@ impl fmt::Display for FastFieldBatchGenerator {
 }
 
 impl datafusion::physical_plan::memory::LazyBatchGenerator for FastFieldBatchGenerator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn generate_next_batch(&mut self) -> Result<Option<arrow::record_batch::RecordBatch>> {
         if self.exhausted {
             return Ok(None);
