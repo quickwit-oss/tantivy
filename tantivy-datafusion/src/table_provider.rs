@@ -2,17 +2,26 @@ use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
 
+use arrow::array::AsArray;
+use arrow::compute::filter_record_batch;
 use arrow::datatypes::SchemaRef;
 use async_trait::async_trait;
 use datafusion::catalog::Session;
-use datafusion::common::Result;
+use datafusion::common::config::ConfigOptions;
+use datafusion::common::{Result, Statistics};
 use datafusion::datasource::TableProvider;
 use datafusion::datasource::TableType;
 use datafusion::error::DataFusionError;
 use datafusion::logical_expr::Expr;
-use datafusion::physical_plan::memory::LazyMemoryExec;
 use datafusion::physical_plan::ExecutionPlan;
-use parking_lot::RwLock;
+use datafusion_datasource::source::{DataSource, DataSourceExec};
+use datafusion_physical_expr::{EquivalenceProperties, PhysicalExpr};
+use datafusion_physical_plan::filter_pushdown::{FilterPushdownPropagation, PushedDown};
+use datafusion_physical_plan::metrics::ExecutionPlanMetricsSet;
+use datafusion_physical_plan::projection::ProjectionExpr;
+use datafusion_physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion_physical_plan::{DisplayFormatType, Partitioning, SendableRecordBatchStream};
+use futures::stream;
 use tantivy::query::{EnableScoring, Query};
 use tantivy::{DocId, Index};
 
@@ -106,126 +115,247 @@ impl TableProvider for TantivyTableProvider {
             .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
         let num_segments = reader.searcher().segment_readers().len();
 
-        // One LazyBatchGenerator per segment
-        let generators: Vec<Arc<RwLock<dyn datafusion::physical_plan::memory::LazyBatchGenerator>>> =
-            (0..num_segments)
-                .map(|seg_idx| {
-                    let gen = FastFieldBatchGenerator {
-                        index: self.index.clone(),
-                        segment_idx: seg_idx,
-                        projected_schema: projected_schema.clone(),
-                        query: combined_query.as_ref().map(|q| Arc::from(q.box_clone())),
-                        limit,
-                        exhausted: false,
-                    };
-                    Arc::new(RwLock::new(gen))
-                        as Arc<RwLock<dyn datafusion::physical_plan::memory::LazyBatchGenerator>>
-                })
-                .collect();
-
-        Ok(Arc::new(LazyMemoryExec::try_new(
+        let data_source = FastFieldDataSource {
+            index: self.index.clone(),
+            arrow_schema: self.arrow_schema.clone(),
             projected_schema,
-            generators,
-        )?))
+            projection: projection.cloned(),
+            query: combined_query,
+            limit,
+            num_segments,
+            pushed_filters: vec![],
+        };
+        Ok(Arc::new(DataSourceExec::new(Arc::new(data_source))))
     }
 }
 
-/// Generates Arrow RecordBatches from tantivy fast fields for a single segment.
+// ---------------------------------------------------------------------------
+// DataSource implementation
+// ---------------------------------------------------------------------------
+
+/// A [`DataSource`] backed by tantivy fast fields.
 ///
-/// If a tantivy `Query` is set, only matching documents are read.
-/// Otherwise all alive documents in the segment are read.
-struct FastFieldBatchGenerator {
+/// Accepts dynamic filters pushed down from the optimizer (e.g. from hash join
+/// build-side min/max bounds) and applies them after batch generation.
+#[derive(Debug)]
+struct FastFieldDataSource {
     index: Index,
-    segment_idx: usize,
+    arrow_schema: SchemaRef,
     projected_schema: SchemaRef,
+    projection: Option<Vec<usize>>,
     query: Option<Arc<dyn Query>>,
     limit: Option<usize>,
-    exhausted: bool,
+    num_segments: usize,
+    pushed_filters: Vec<Arc<dyn PhysicalExpr>>,
 }
 
-impl fmt::Debug for FastFieldBatchGenerator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FastFieldBatchGenerator")
-            .field("segment_idx", &self.segment_idx)
-            .field("has_query", &self.query.is_some())
-            .field("limit", &self.limit)
-            .field("exhausted", &self.exhausted)
-            .finish()
+impl FastFieldDataSource {
+    fn clone_with(&self, f: impl FnOnce(&mut Self)) -> Self {
+        let mut new = FastFieldDataSource {
+            index: self.index.clone(),
+            arrow_schema: self.arrow_schema.clone(),
+            projected_schema: self.projected_schema.clone(),
+            projection: self.projection.clone(),
+            query: self.query.as_ref().map(|q| Arc::from(q.box_clone())),
+            limit: self.limit,
+            num_segments: self.num_segments,
+            pushed_filters: self.pushed_filters.clone(),
+        };
+        f(&mut new);
+        new
     }
 }
 
-impl fmt::Display for FastFieldBatchGenerator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "FastFieldBatchGenerator(segment={}, query={}, limit={:?})",
-            self.segment_idx,
-            self.query.is_some(),
-            self.limit,
-        )
-    }
-}
+impl DataSource for FastFieldDataSource {
+    fn open(
+        &self,
+        partition: usize,
+        _context: Arc<datafusion::execution::TaskContext>,
+    ) -> Result<SendableRecordBatchStream> {
+        let index = self.index.clone();
+        let segment_idx = partition;
+        let projected_schema = self.projected_schema.clone();
+        let query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
+        let limit = self.limit;
+        let pushed_filters = self.pushed_filters.clone();
 
-impl datafusion::physical_plan::memory::LazyBatchGenerator for FastFieldBatchGenerator {
+        let schema = self.projected_schema.clone();
+        // Lazy: generate the batch inside the stream so dynamic filters
+        // pushed after the build side completes are evaluated at poll time.
+        let stream = stream::once(async move {
+            generate_and_filter_batch(
+                &index,
+                segment_idx,
+                &projected_schema,
+                query.as_ref(),
+                limit,
+                &pushed_filters,
+            )
+        });
+
+        Ok(Box::pin(RecordBatchStreamAdapter::new(schema, stream)))
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
-    fn generate_next_batch(&mut self) -> Result<Option<arrow::record_batch::RecordBatch>> {
-        if self.exhausted {
-            return Ok(None);
-        }
-        self.exhausted = true;
-
-        let reader = self
-            .index
-            .reader()
-            .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
-        let searcher = reader.searcher();
-        let segment_reader = searcher.segment_reader(self.segment_idx as u32);
-
-        // If a query is set, run it to get matching doc IDs
-        let doc_ids: Option<Vec<DocId>> = match &self.query {
-            Some(query) => {
-                let tantivy_schema = self.index.schema();
-                let weight = query
-                    .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
-                    .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
-                let limit = self.limit;
-                let mut matching_docs: Vec<DocId> = Vec::new();
-                weight
-                    .for_each_no_score(segment_reader, &mut |docs| {
-                        if let Some(lim) = limit {
-                            let remaining = lim.saturating_sub(matching_docs.len());
-                            if remaining > 0 {
-                                matching_docs
-                                    .extend_from_slice(&docs[..docs.len().min(remaining)]);
-                            }
-                        } else {
-                            matching_docs.extend_from_slice(docs);
-                        }
-                    })
-                    .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
-                if let Some(lim) = self.limit {
-                    matching_docs.truncate(lim);
-                }
-                Some(matching_docs)
-            }
-            None => None,
-        };
-
-        let batch = read_segment_fast_fields_to_batch(
-            segment_reader,
-            &self.projected_schema,
-            doc_ids.as_deref(),
+    fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "FastFieldDataSource(segments={}, query={}, limit={:?}, pushed_filters={})",
+            self.num_segments,
+            self.query.is_some(),
             self.limit,
-            self.segment_idx as u32,
-        )?;
-
-        if batch.num_rows() == 0 {
-            return Ok(None);
-        }
-
-        Ok(Some(batch))
+            self.pushed_filters.len(),
+        )
     }
+
+    fn output_partitioning(&self) -> Partitioning {
+        Partitioning::UnknownPartitioning(self.num_segments)
+    }
+
+    fn eq_properties(&self) -> EquivalenceProperties {
+        EquivalenceProperties::new(self.projected_schema.clone())
+    }
+
+    fn partition_statistics(&self, _partition: Option<usize>) -> Result<Statistics> {
+        Ok(Statistics::new_unknown(&self.projected_schema))
+    }
+
+    fn with_fetch(&self, _limit: Option<usize>) -> Option<Arc<dyn DataSource>> {
+        // Decline optimizer limit pushdown. The scan already applies the
+        // limit passed via TableProvider::scan() when a tantivy query is
+        // set. For SQL-filtered queries, DataFusion keeps a GlobalLimitExec
+        // above the FilterExec so limits are applied after filtering.
+        None
+    }
+
+    fn fetch(&self) -> Option<usize> {
+        self.limit
+    }
+
+    fn metrics(&self) -> ExecutionPlanMetricsSet {
+        ExecutionPlanMetricsSet::new()
+    }
+
+    fn try_swapping_with_projection(
+        &self,
+        _projection: &[ProjectionExpr],
+    ) -> Result<Option<Arc<dyn DataSource>>> {
+        Ok(None)
+    }
+
+    fn try_pushdown_filters(
+        &self,
+        filters: Vec<Arc<dyn PhysicalExpr>>,
+        _config: &ConfigOptions,
+    ) -> Result<FilterPushdownPropagation<Arc<dyn DataSource>>> {
+        let results: Vec<PushedDown> = filters.iter().map(|_| PushedDown::Yes).collect();
+        let mut new_filters = self.pushed_filters.clone();
+        new_filters.extend(filters);
+        let updated = self.clone_with(|s| s.pushed_filters = new_filters);
+        Ok(
+            FilterPushdownPropagation::with_parent_pushdown_result(results)
+                .with_updated_node(Arc::new(updated) as Arc<dyn DataSource>),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Batch generation + filter application
+// ---------------------------------------------------------------------------
+
+fn generate_and_filter_batch(
+    index: &Index,
+    segment_idx: usize,
+    projected_schema: &SchemaRef,
+    query: Option<&Arc<dyn Query>>,
+    limit: Option<usize>,
+    pushed_filters: &[Arc<dyn PhysicalExpr>],
+) -> Result<arrow::record_batch::RecordBatch> {
+    let reader = index
+        .reader()
+        .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
+    let searcher = reader.searcher();
+    let segment_reader = searcher.segment_reader(segment_idx as u32);
+
+    // If a query is set, run it to get matching doc IDs
+    let doc_ids: Option<Vec<DocId>> = match query {
+        Some(query) => {
+            let tantivy_schema = index.schema();
+            let weight = query
+                .weight(EnableScoring::disabled_from_schema(&tantivy_schema))
+                .map_err(|e| DataFusionError::Internal(format!("create weight: {e}")))?;
+            let mut matching_docs: Vec<DocId> = Vec::new();
+            weight
+                .for_each_no_score(segment_reader, &mut |docs| {
+                    if let Some(lim) = limit {
+                        let remaining = lim.saturating_sub(matching_docs.len());
+                        if remaining > 0 {
+                            matching_docs.extend_from_slice(&docs[..docs.len().min(remaining)]);
+                        }
+                    } else {
+                        matching_docs.extend_from_slice(docs);
+                    }
+                })
+                .map_err(|e| DataFusionError::Internal(format!("query execution: {e}")))?;
+            if let Some(lim) = limit {
+                matching_docs.truncate(lim);
+            }
+            Some(matching_docs)
+        }
+        None => None,
+    };
+
+    let mut batch = read_segment_fast_fields_to_batch(
+        segment_reader,
+        projected_schema,
+        doc_ids.as_deref(),
+        limit,
+        segment_idx as u32,
+    )?;
+
+    // Apply pushed-down filters (e.g. dynamic join filters).
+    // When a DynamicFilterPhysicalExpr hasn't received bounds yet it
+    // evaluates to `Scalar(Boolean(true))` → all-true mask → no-op.
+    for filter in pushed_filters {
+        if batch.num_rows() == 0 {
+            break;
+        }
+        let result = filter.evaluate(&batch)?;
+        let mask = match result {
+            datafusion::physical_plan::ColumnarValue::Array(arr) => arr
+                .as_boolean()
+                .clone(),
+            datafusion::physical_plan::ColumnarValue::Scalar(
+                datafusion::common::ScalarValue::Boolean(Some(true)),
+            ) => {
+                // All-true — nothing to filter.
+                continue;
+            }
+            datafusion::physical_plan::ColumnarValue::Scalar(
+                datafusion::common::ScalarValue::Boolean(Some(false)),
+            ) => {
+                // All-false — empty result.
+                batch = batch.slice(0, 0);
+                break;
+            }
+            other => {
+                let arr = other.into_array(batch.num_rows())?;
+                arr.as_boolean().clone()
+            }
+        };
+        batch = filter_record_batch(&batch, &mask)?;
+    }
+
+    if batch.num_rows() == 0 {
+        // Return an empty batch with the correct schema so the stream is
+        // well-typed even when nothing matches.
+        return Ok(arrow::record_batch::RecordBatch::new_empty(
+            projected_schema.clone(),
+        ));
+    }
+
+    Ok(batch)
 }

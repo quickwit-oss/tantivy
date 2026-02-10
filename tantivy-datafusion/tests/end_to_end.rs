@@ -9,6 +9,15 @@ use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORE
 use tantivy::{doc, Index, IndexWriter};
 use tantivy_datafusion::{full_text_udf, TantivyInvertedIndexProvider, TantivyTableProvider};
 
+fn plan_to_string(batches: &[RecordBatch]) -> String {
+    let batch = collect_batches(batches);
+    let plan_col = batch.column(1).as_string::<i32>();
+    (0..batch.num_rows())
+        .map(|i| plan_col.value(i))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 fn create_test_index() -> Index {
     let mut builder = SchemaBuilder::new();
     let u64_field = builder.add_u64_field("id", FAST | STORED);
@@ -580,4 +589,39 @@ async fn test_full_text_multiple_predicates() {
 
     let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
     assert_eq!(total_rows, 0);
+}
+
+#[tokio::test]
+async fn test_dynamic_filter_in_plan() {
+    let index = create_test_index();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    // EXPLAIN the join query to inspect the physical plan
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id \
+             FROM f \
+             JOIN inv ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics')",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // The fast field side should use DataSourceExec with our FastFieldDataSource
+    assert!(
+        plan.contains("DataSourceExec"),
+        "Expected DataSourceExec in plan, got:\n{plan}"
+    );
+    assert!(
+        plan.contains("FastFieldDataSource"),
+        "Expected FastFieldDataSource in plan, got:\n{plan}"
+    );
 }
