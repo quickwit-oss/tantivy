@@ -272,6 +272,51 @@ fn test_dictionary_encoded_bytes() {
     assert_eq!(term_buffer, b"b");
 }
 
+#[test]
+fn test_sort_order_str_asc_desc() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_str(0, "s", "z");
+    dataframe_writer.record_str(2, "s", "a");
+    dataframe_writer.record_str(3, "s", "m");
+
+    let asc = dataframe_writer.sort_order("s", 4, false);
+    assert_eq!(asc, vec![1, 2, 3, 0]); // None, a, m, z
+
+    let desc = dataframe_writer.sort_order("s", 4, true);
+    assert_eq!(desc, vec![0, 3, 2, 1]); // z, m, a, None
+}
+
+#[test]
+fn test_sort_order_str_empty_vs_missing() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_str(0, "s", "");
+
+    let asc = dataframe_writer.sort_order("s", 2, false);
+    assert_eq!(asc, vec![1, 0]); // None first, then empty string
+}
+
+#[test]
+fn test_sort_order_str_multivalued_stable() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_str(0, "s", "z");
+    dataframe_writer.record_str(0, "s", "a"); // multivalued; first value wins
+    dataframe_writer.record_str(1, "s", "b");
+    dataframe_writer.record_str(2, "s", "b");
+
+    let asc = dataframe_writer.sort_order("s", 3, false);
+    assert_eq!(asc, vec![1, 2, 0]); // b, b (stable), z
+}
+
+#[test]
+fn test_sort_order_bytes_asc() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_bytes(1, "b", &[0x01]);
+    dataframe_writer.record_bytes(3, "b", &[0x00]);
+
+    let asc = dataframe_writer.sort_order("b", 4, false);
+    assert_eq!(asc, vec![0, 2, 3, 1]); // None, None, 0x00, 0x01
+}
+
 fn num_strategy() -> impl Strategy<Value = NumericalValue> {
     prop_oneof![
         3 => Just(NumericalValue::U64(0u64)),

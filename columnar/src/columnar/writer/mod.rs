@@ -93,44 +93,39 @@ impl ColumnarWriter {
                     .get::<NumericalColumnWriter>(sort_field.as_bytes())
             })
         else {
-            return Vec::new();
+            let str_or_bytes_column_opt = self
+                .str_field_hash_map
+                .get::<StrOrBytesColumnWriter>(sort_field.as_bytes())
+                .or_else(|| {
+                    self.bytes_field_hash_map
+                        .get::<StrOrBytesColumnWriter>(sort_field.as_bytes())
+                });
+            let Some(str_or_bytes_column) = str_or_bytes_column_opt else {
+                return Vec::new();
+            };
+
+            let dictionary_builder = &self.dictionaries[str_or_bytes_column.dictionary_id as usize];
+            let term_id_mapping = dictionary_builder.build_term_id_mapping(&self.arena);
+            let mut symbols_buffer = Vec::new();
+
+            return collect_sort_order_from_ops(
+                str_or_bytes_column.operation_iterator(&self.arena, None, &mut symbols_buffer),
+                num_docs,
+                reversed,
+                |uid| Some(term_id_mapping.to_ord(uid).0),
+                None,
+                |a, b| a.cmp(b),
+            );
         };
         let mut symbols_buffer = Vec::new();
-        let mut values = Vec::new();
-        let mut start_doc_check_fill = 0;
-        let mut current_doc_opt: Option<RowId> = None;
-        // Assumption: NewDoc will never call the same doc twice and is strictly increasing between
-        // calls
-        for op in numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer) {
-            match op {
-                ColumnOperation::NewDoc(doc) => {
-                    current_doc_opt = Some(doc);
-                }
-                ColumnOperation::Value(numerical_value) => {
-                    if let Some(current_doc) = current_doc_opt {
-                        // Fill up with 0.0 since last doc
-                        values.extend((start_doc_check_fill..current_doc).map(|doc| (0.0, doc)));
-                        start_doc_check_fill = current_doc + 1;
-                        // handle multi values
-                        current_doc_opt = None;
-
-                        let score: f32 = f64::coerce(numerical_value) as f32;
-                        values.push((score, current_doc));
-                    }
-                }
-            }
-        }
-        for doc in values.len() as u32..num_docs {
-            values.push((0.0f32, doc));
-        }
-        values.sort_by(|(left_score, _), (right_score, _)| {
-            if reversed {
-                right_score.total_cmp(left_score)
-            } else {
-                left_score.total_cmp(right_score)
-            }
-        });
-        values.into_iter().map(|(_score, doc)| doc).collect()
+        collect_sort_order_from_ops(
+            numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer),
+            num_docs,
+            reversed,
+            |nv| f64::coerce(nv) as f32,
+            0.0f32,
+            |a, b| a.total_cmp(b),
+        )
     }
 
     /// Records a column type. This is useful to bypass the coercion process,
@@ -468,6 +463,56 @@ impl ColumnarWriter {
         serializer.finalize(num_docs)?;
         Ok(())
     }
+}
+
+/// Shared sorting pattern for both numeric and Str/Bytes sort fields.
+///
+/// Iterates column operations, fills gaps for missing docs with `default_key`, converts each value
+/// to a sort key via `value_to_key`, then sorts by the key using `cmp_keys`. Returns the doc ids
+/// in sorted order.
+fn collect_sort_order_from_ops<V, K: Clone>(
+    ops: impl Iterator<Item = ColumnOperation<V>>,
+    num_docs: RowId,
+    reversed: bool,
+    value_to_key: impl Fn(V) -> K,
+    default_key: K,
+    cmp_keys: impl Fn(&K, &K) -> std::cmp::Ordering,
+) -> Vec<u32> {
+    let mut doc_sort_keys: Vec<(K, RowId)> = Vec::with_capacity(num_docs as usize);
+    let mut start_doc_check_fill: RowId = 0;
+    let mut current_doc_opt: Option<RowId> = None;
+
+    for op in ops {
+        match op {
+            ColumnOperation::NewDoc(doc) => {
+                current_doc_opt = Some(doc);
+            }
+            ColumnOperation::Value(val) => {
+                if let Some(current_doc) = current_doc_opt {
+                    // Fill gaps since the last doc with the default key.
+                    doc_sort_keys.extend(
+                        (start_doc_check_fill..current_doc).map(|doc| (default_key.clone(), doc)),
+                    );
+                    start_doc_check_fill = current_doc + 1;
+                    // For multivalued fields, only the first value is used.
+                    current_doc_opt = None;
+
+                    doc_sort_keys.push((value_to_key(val), current_doc));
+                }
+            }
+        }
+    }
+    // Fill remaining docs at the tail.
+    doc_sort_keys.extend((start_doc_check_fill..num_docs).map(|doc| (default_key.clone(), doc)));
+
+    doc_sort_keys.sort_by(|(left_key, _), (right_key, _)| {
+        let cmp = cmp_keys(left_key, right_key);
+        if reversed { cmp.reverse() } else { cmp }
+    });
+    doc_sort_keys
+        .into_iter()
+        .map(|(_sort_key, doc)| doc)
+        .collect()
 }
 
 // Serialize [Dictionary, Column, dictionary num bytes U32::LE]

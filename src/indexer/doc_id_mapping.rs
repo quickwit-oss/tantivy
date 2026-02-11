@@ -562,10 +562,10 @@ mod tests_indexsorting {
     #[test]
     fn test_text_sort() -> crate::Result<()> {
         let mut schema_builder = SchemaBuilder::new();
-        schema_builder.add_text_field("id", STRING | FAST | STORED);
+        let id_field = schema_builder.add_text_field("id", STRING | FAST | STORED);
         schema_builder.add_text_field("name", TEXT | STORED);
 
-        let resp = IndexBuilder::new()
+        let index = IndexBuilder::new()
             .schema(schema_builder.build())
             .settings(IndexSettings {
                 sort_by_field: Some(IndexSortByField {
@@ -574,11 +574,26 @@ mod tests_indexsorting {
                 }),
                 ..Default::default()
             })
-            .create_in_ram();
-        assert!(resp
-            .unwrap_err()
-            .to_string()
-            .contains("Unsupported field type"));
+            .create_in_ram()?;
+
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(id_field => "z"))?;
+        index_writer.add_document(doc!(id_field => "a"))?;
+        index_writer.add_document(doc!(id_field => "m"))?;
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let str_col = segment_reader.fast_fields().str("id")?.unwrap();
+        let mut values = Vec::new();
+        for doc in 0..segment_reader.max_doc() {
+            if let Some(ord) = str_col.ords().first(doc) {
+                let mut s = String::new();
+                str_col.ord_to_str(ord, &mut s)?;
+                values.push(s);
+            }
+        }
+        assert_eq!(values, vec!["a", "m", "z"]);
 
         Ok(())
     }

@@ -1,5 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering;
+
+    use proptest::prelude::*;
+
     use crate::collector::TopDocs;
     use crate::fastfield::AliveBitSet;
     use crate::index::Index;
@@ -7,7 +11,7 @@ mod tests {
     use crate::query::QueryParser;
     use crate::schema::{
         self, BytesOptions, Facet, FacetOptions, IndexRecordOption, NumericOptions,
-        TextFieldIndexing, TextOptions, Value,
+        TextFieldIndexing, TextOptions, Value, FAST, STRING,
     };
     use crate::{
         DocAddress, DocSet, IndexSettings, IndexSortByField, IndexWriter, Order, TantivyDocument,
@@ -356,6 +360,454 @@ mod tests {
             assert_eq!(postings.term_freq(), 2);
             postings.positions(&mut output);
             assert_eq!(output, vec![1, 3]);
+        }
+    }
+
+    // ---- Str/Bytes sort_by helpers ----
+
+    fn build_str_sorted_index(order: Order, segments: Vec<Vec<Option<&str>>>) -> Index {
+        let segments = segments
+            .into_iter()
+            .map(|segment| {
+                segment
+                    .into_iter()
+                    .map(|value| value.map(str::to_owned))
+                    .collect()
+            })
+            .collect();
+        build_str_sorted_index_owned(order, segments)
+    }
+
+    fn build_str_sorted_index_owned(order: Order, segments: Vec<Vec<Option<String>>>) -> Index {
+        let mut schema_builder = schema::Schema::builder();
+        let str_field = schema_builder.add_text_field("str", STRING | FAST);
+        let schema = schema_builder.build();
+
+        let index_builder = Index::builder().schema(schema).settings(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "str".to_string(),
+                order,
+            }),
+            ..Default::default()
+        });
+        let index = index_builder.create_in_ram().unwrap();
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            for segment in segments {
+                for value in segment {
+                    let mut doc = TantivyDocument::new();
+                    if let Some(val) = value {
+                        doc.add_text(str_field, val);
+                    }
+                    index_writer.add_document(doc).unwrap();
+                }
+                index_writer.commit().unwrap();
+            }
+        }
+
+        {
+            let segment_ids = index.searchable_segment_ids().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            index_writer.merge(&segment_ids).wait().unwrap();
+            index_writer.wait_merging_threads().unwrap();
+        }
+        index
+    }
+
+    fn build_bytes_sorted_index(order: Order, segments: Vec<Vec<Option<&[u8]>>>) -> Index {
+        let segments = segments
+            .into_iter()
+            .map(|segment| {
+                segment
+                    .into_iter()
+                    .map(|value| value.map(<[u8]>::to_vec))
+                    .collect()
+            })
+            .collect();
+        build_bytes_sorted_index_owned(order, segments)
+    }
+
+    fn build_bytes_sorted_index_owned(order: Order, segments: Vec<Vec<Option<Vec<u8>>>>) -> Index {
+        let mut schema_builder = schema::Schema::builder();
+        let bytes_field = schema_builder
+            .add_bytes_field("bytes", BytesOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+
+        let index_builder = Index::builder().schema(schema).settings(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "bytes".to_string(),
+                order,
+            }),
+            ..Default::default()
+        });
+        let index = index_builder.create_in_ram().unwrap();
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            for segment in segments {
+                for value in segment {
+                    let mut doc = TantivyDocument::new();
+                    if let Some(val) = value {
+                        doc.add_bytes(bytes_field, &val);
+                    }
+                    index_writer.add_document(doc).unwrap();
+                }
+                index_writer.commit().unwrap();
+            }
+        }
+
+        {
+            let segment_ids = index.searchable_segment_ids().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            index_writer.merge(&segment_ids).wait().unwrap();
+            index_writer.wait_merging_threads().unwrap();
+        }
+        index
+    }
+
+    fn collect_str_values(index: &Index) -> Vec<Option<String>> {
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_readers().last().unwrap();
+        let str_col = segment_reader.fast_fields().str("str").unwrap().unwrap();
+        let mut values = Vec::new();
+        for doc in 0..segment_reader.max_doc() {
+            if let Some(ord) = str_col.ords().first(doc) {
+                let mut s = String::new();
+                str_col.ord_to_str(ord, &mut s).unwrap();
+                values.push(Some(s));
+            } else {
+                values.push(None);
+            }
+        }
+        values
+    }
+
+    fn collect_bytes_values(index: &Index) -> Vec<Option<Vec<u8>>> {
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_readers().last().unwrap();
+        let bytes_col = segment_reader
+            .fast_fields()
+            .bytes("bytes")
+            .unwrap()
+            .unwrap();
+        let mut values = Vec::new();
+        for doc in 0..segment_reader.max_doc() {
+            if let Some(ord) = bytes_col.ords().first(doc) {
+                let mut buf = Vec::new();
+                bytes_col.ord_to_bytes(ord, &mut buf).unwrap();
+                values.push(Some(buf));
+            } else {
+                values.push(None);
+            }
+        }
+        values
+    }
+
+    fn compare_option_values<T: Ord>(
+        left: &Option<T>,
+        right: &Option<T>,
+        order: Order,
+    ) -> Ordering {
+        match (left, right) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => {
+                if order.is_asc() {
+                    Ordering::Less
+                } else {
+                    Ordering::Greater
+                }
+            }
+            (Some(_), None) => {
+                if order.is_asc() {
+                    Ordering::Greater
+                } else {
+                    Ordering::Less
+                }
+            }
+            (Some(left), Some(right)) => {
+                if order.is_asc() {
+                    left.cmp(right)
+                } else {
+                    right.cmp(left)
+                }
+            }
+        }
+    }
+
+    // ---- Single-segment sort ----
+
+    #[test]
+    fn test_single_segment_str_sorted() {
+        // Insert out of order into a single segment.
+        // Read back and verify the segment itself is sorted — no merge involved.
+        let mut schema_builder = schema::Schema::builder();
+        let str_field = schema_builder.add_text_field("str", STRING | FAST);
+        let schema = schema_builder.build();
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "str".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            index_writer.add_document(doc!(str_field => "z")).unwrap();
+            index_writer.add_document(doc!(str_field => "a")).unwrap();
+            index_writer.add_document(doc!(str_field => "m")).unwrap();
+            index_writer.commit().unwrap();
+        }
+
+        // No merge — read the single segment directly.
+        let values = collect_str_values(&index);
+        assert_eq!(
+            values,
+            vec![
+                Some("a".to_string()),
+                Some("m".to_string()),
+                Some("z".to_string())
+            ]
+        );
+    }
+
+    // ---- Cross-segment merge: Str ----
+
+    #[test]
+    fn test_merge_sorted_index_str_asc() {
+        // Segment A: ["z", "a"] (out of order — proves per-segment sorting).
+        // Segment B: ["m", "b"] (also out of order).
+        // If per-segment sorting failed, kmerge would see unsorted streams.
+        // If the disjunct shortcut fired, it would stack segments without re-sorting.
+        // Correct merged order is ["a","b","m","z"].
+        let index = build_str_sorted_index(
+            Order::Asc,
+            vec![vec![Some("z"), Some("a")], vec![Some("m"), Some("b")]],
+        );
+        let values = collect_str_values(&index);
+        assert_eq!(
+            values,
+            vec![
+                Some("a".to_string()),
+                Some("b".to_string()),
+                Some("m".to_string()),
+                Some("z".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn test_merge_sorted_index_str_desc() {
+        let index = build_str_sorted_index(
+            Order::Desc,
+            vec![vec![Some("z"), None], vec![Some("m"), Some("a")]],
+        );
+        let values = collect_str_values(&index);
+        assert_eq!(
+            values,
+            vec![
+                Some("z".to_string()),
+                Some("m".to_string()),
+                Some("a".to_string()),
+                None
+            ]
+        );
+    }
+
+    #[test]
+    fn test_merge_sorted_index_str_missing_values() {
+        // Second segment has no values for the sort field.
+        let index = build_str_sorted_index(
+            Order::Asc,
+            vec![vec![Some("b"), Some("c")], vec![None, None]],
+        );
+        let values = collect_str_values(&index);
+        assert_eq!(
+            values,
+            vec![None, None, Some("b".to_string()), Some("c".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_merge_sorted_index_str_with_deletes() {
+        let mut schema_builder = schema::Schema::builder();
+        let str_field = schema_builder.add_text_field("str", STRING | FAST);
+        let schema = schema_builder.build();
+
+        let index_builder = Index::builder().schema(schema).settings(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "str".to_string(),
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        });
+        let index = index_builder.create_in_ram().unwrap();
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            // Segment 1 (with a delete)
+            index_writer.add_document(doc!(str_field => "z")).unwrap();
+            index_writer
+                .add_document(doc!(str_field => "deleteme"))
+                .unwrap();
+            index_writer.delete_term(Term::from_field_text(str_field, "deleteme"));
+            index_writer.commit().unwrap();
+
+            index_writer.add_document(doc!(str_field => "a")).unwrap();
+            index_writer.add_document(doc!(str_field => "m")).unwrap();
+            index_writer.commit().unwrap();
+        }
+
+        {
+            let segment_ids = index.searchable_segment_ids().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            index_writer.merge(&segment_ids).wait().unwrap();
+            index_writer.wait_merging_threads().unwrap();
+        }
+
+        let values = collect_str_values(&index);
+        assert_eq!(
+            values,
+            vec![
+                Some("a".to_string()),
+                Some("m".to_string()),
+                Some("z".to_string())
+            ]
+        );
+    }
+
+    // ---- Cross-segment merge: Bytes ----
+
+    #[test]
+    fn test_merge_sorted_index_bytes_asc() {
+        let index = build_bytes_sorted_index(
+            Order::Asc,
+            vec![
+                vec![Some(&[0x02][..]), Some(&[0x01][..])],
+                vec![Some(&[0x00][..])],
+            ],
+        );
+        let values = collect_bytes_values(&index);
+        assert_eq!(
+            values,
+            vec![Some(vec![0x00]), Some(vec![0x01]), Some(vec![0x02])]
+        );
+    }
+
+    #[test]
+    fn test_merge_sorted_index_bytes_desc() {
+        let index = build_bytes_sorted_index(
+            Order::Desc,
+            vec![
+                vec![Some(&[0x02][..]), None],
+                vec![Some(&[0x01][..]), Some(&[0x00][..])],
+            ],
+        );
+        let values = collect_bytes_values(&index);
+        assert_eq!(
+            values,
+            vec![Some(vec![0x02]), Some(vec![0x01]), Some(vec![0x00]), None]
+        );
+    }
+
+    #[test]
+    fn test_merge_sorted_index_bytes_missing_values() {
+        // Second segment has no values for the sort field.
+        let index = build_bytes_sorted_index(
+            Order::Asc,
+            vec![vec![Some(&[0x01][..]), Some(&[0x02][..])], vec![None, None]],
+        );
+        let values = collect_bytes_values(&index);
+        assert_eq!(values, vec![None, None, Some(vec![0x01]), Some(vec![0x02])]);
+    }
+
+    #[test]
+    fn test_merge_sorted_index_bytes_with_deletes() {
+        let mut schema_builder = schema::Schema::builder();
+        let bytes_field = schema_builder
+            .add_bytes_field("bytes", BytesOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+
+        let index_builder = Index::builder().schema(schema).settings(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "bytes".to_string(),
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        });
+        let index = index_builder.create_in_ram().unwrap();
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            // Segment 1 (with a delete)
+            index_writer
+                .add_document(doc!(bytes_field => vec![0x02]))
+                .unwrap();
+            index_writer
+                .add_document(doc!(bytes_field => vec![0x01]))
+                .unwrap();
+            index_writer.delete_term(Term::from_field_bytes(bytes_field, &[0x01]));
+            index_writer.commit().unwrap();
+
+            index_writer
+                .add_document(doc!(bytes_field => vec![0x00]))
+                .unwrap();
+            index_writer.commit().unwrap();
+        }
+
+        {
+            let segment_ids = index.searchable_segment_ids().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            index_writer.merge(&segment_ids).wait().unwrap();
+            index_writer.wait_merging_threads().unwrap();
+        }
+
+        let values = collect_bytes_values(&index);
+        assert_eq!(values, vec![Some(vec![0x00]), Some(vec![0x02])]);
+    }
+
+    proptest! {
+        #[test]
+        fn test_merge_sorted_index_str_matches_sorted_input(
+            order in prop_oneof![Just(Order::Asc), Just(Order::Desc)],
+            segments in proptest::collection::vec(
+                proptest::collection::vec(proptest::option::of("[a-z]{0,8}"), 1..8),
+                1..6,
+            )
+        ) {
+            let index = build_str_sorted_index_owned(order, segments.clone());
+            let values = collect_str_values(&index);
+            let mut expected: Vec<Option<String>> = segments.into_iter().flatten().collect();
+            expected.sort_by(|left, right| compare_option_values(left, right, order));
+            prop_assert_eq!(values, expected);
+        }
+
+        #[test]
+        fn test_merge_sorted_index_bytes_matches_sorted_input(
+            order in prop_oneof![Just(Order::Asc), Just(Order::Desc)],
+            segments in proptest::collection::vec(
+                proptest::collection::vec(
+                    proptest::option::of(proptest::collection::vec(any::<u8>(), 0..8)),
+                    1..8,
+                ),
+                1..6,
+            )
+        ) {
+            let index = build_bytes_sorted_index_owned(order, segments.clone());
+            let values = collect_bytes_values(&index);
+            let mut expected: Vec<Option<Vec<u8>>> = segments.into_iter().flatten().collect();
+            expected.sort_by(|left, right| compare_option_values(left, right, order));
+            prop_assert_eq!(values, expected);
         }
     }
 
