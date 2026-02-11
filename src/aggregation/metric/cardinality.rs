@@ -341,8 +341,7 @@ impl Serialize for CardinalityCollector {
 impl<'de> Deserialize<'de> for CardinalityCollector {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
-        let sketch =
-            HllSketch::deserialize(&bytes).map_err(serde::de::Error::custom)?;
+        let sketch = HllSketch::deserialize(&bytes).map_err(serde::de::Error::custom)?;
         Ok(Self { sketch, salt: 0 })
     }
 }
@@ -577,8 +576,9 @@ mod tests {
 
     #[test]
     fn cardinality_collector_serialize_deserialize_binary() {
-        use super::CardinalityCollector;
         use datasketches::hll::HllSketch;
+
+        use super::CardinalityCollector;
 
         let mut collector = CardinalityCollector::default();
         collector.insert("apple");
