@@ -1,3 +1,4 @@
+pub mod agg_translator;
 pub mod catalog;
 pub mod document_provider;
 pub mod fast_field_reader;
@@ -8,6 +9,7 @@ pub mod schema_mapping;
 pub mod table_provider;
 pub mod topk_pushdown;
 
+pub use agg_translator::translate_aggregations;
 pub use catalog::{TantivyCatalog, TantivySchema};
 pub use document_provider::TantivyDocumentProvider;
 pub use filter_pushdown::FastFieldFilterPushdown;
