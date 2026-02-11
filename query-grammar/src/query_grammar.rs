@@ -704,7 +704,11 @@ fn regex(inp: &str) -> IResult<&str, UserInputLeaf> {
                 many1(alt((preceded(char('\\'), char('/')), none_of("/")))),
                 char('/'),
             ),
-            peek(alt((multispace1, eof))),
+            peek(alt((
+                value((), multispace1),
+                value((), char(')')),
+                value((), eof),
+            ))),
         ),
         |elements| UserInputLeaf::Regex {
             field: None,
@@ -721,8 +725,12 @@ fn regex_infallible(inp: &str) -> JResult<&str, UserInputLeaf> {
             opt_i_err(char('/'), "missing delimiter /"),
         ),
         opt_i_err(
-            peek(alt((multispace1, eof))),
-            "expected whitespace or end of input",
+            peek(alt((
+                value((), multispace1),
+                value((), char(')')),
+                value((), eof),
+            ))),
+            "expected whitespace, closing parenthesis, or end of input",
         ),
     )(inp)
     {
@@ -1707,6 +1715,10 @@ mod test {
         test_parse_query_to_ast_helper("foo:(A OR B)", "(?\"foo\":A ?\"foo\":B)");
         test_parse_query_to_ast_helper("foo:(A* OR B*)", "(?\"foo\":A* ?\"foo\":B*)");
         test_parse_query_to_ast_helper("foo:(*A OR *B)", "(?\"foo\":*A ?\"foo\":*B)");
+
+        // Regexes between parentheses
+        test_parse_query_to_ast_helper("foo:(/A.*/)", "\"foo\":/A.*/");
+        test_parse_query_to_ast_helper("foo:(/A.*/ OR /B.*/)", "(?\"foo\":/A.*/ ?\"foo\":/B.*/)");
     }
 
     #[test]
