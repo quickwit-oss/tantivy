@@ -200,7 +200,7 @@ impl TantivyInvertedIndexReader {
         })
     }
 
-    pub(crate) fn new(
+    pub fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,

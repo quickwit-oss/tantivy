@@ -43,7 +43,7 @@ fn estimate_total_num_tokens_in_single_segment(
 
     // When there are deletes, we use an approximation either
     // by using the fieldnorm.
-    if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(field)? {
+    if let Some(fieldnorm_reader) = reader.get_fieldnorms_reader(field)? {
         let mut count: [usize; 256] = [0; 256];
         for doc in reader.doc_ids_alive() {
             let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);

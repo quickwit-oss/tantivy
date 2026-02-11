@@ -65,10 +65,6 @@ pub trait SegmentReader: Send + Sync {
     /// Accessor to the segment's `Field norms`'s reader.
     fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader>;
 
-    /// Accessor to the segment's field norms readers.
-    #[doc(hidden)]
-    fn fieldnorms_readers(&self) -> &FieldNormReaders;
-
     /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
     fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader>;
 
@@ -293,10 +289,6 @@ impl SegmentReader for TantivySegmentReader {
             );
             crate::TantivyError::SchemaError(err_msg)
         })
-    }
-
-    fn fieldnorms_readers(&self) -> &FieldNormReaders {
-        &self.fieldnorm_readers
     }
 
     fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {

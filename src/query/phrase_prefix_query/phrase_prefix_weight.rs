@@ -34,7 +34,7 @@ impl PhrasePrefixWeight {
     fn fieldnorm_reader(&self, reader: &dyn SegmentReader) -> crate::Result<FieldNormReader> {
         let field = self.phrase_terms[0].1.field();
         if self.similarity_weight_opt.is_some() {
-            if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(field)? {
+            if let Ok(fieldnorm_reader) = reader.get_fieldnorms_reader(field) {
                 return Ok(fieldnorm_reader);
             }
         }

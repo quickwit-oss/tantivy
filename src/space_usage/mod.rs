@@ -34,7 +34,7 @@ pub struct SearcherSpaceUsage {
 }
 
 impl SearcherSpaceUsage {
-    pub(crate) fn new() -> SearcherSpaceUsage {
+    pub fn new() -> SearcherSpaceUsage {
         SearcherSpaceUsage {
             segments: Vec::new(),
             total: Default::default(),
@@ -80,7 +80,7 @@ pub struct SegmentSpaceUsage {
 
 impl SegmentSpaceUsage {
     #[expect(clippy::too_many_arguments)]
-    pub(crate) fn new(
+    pub fn new(
         num_docs: u32,
         termdict: PerFieldSpaceUsage,
         postings: PerFieldSpaceUsage,

@@ -212,10 +212,7 @@ impl TermWeight {
         segment_reader: &dyn SegmentReader,
     ) -> crate::Result<FieldNormReader> {
         if self.scoring_enabled {
-            if let Some(field_norm_reader) = segment_reader
-                .fieldnorms_readers()
-                .get_field(self.term.field())?
-            {
+            if let Ok(field_norm_reader) = segment_reader.get_fieldnorms_reader(self.term.field()) {
                 return Ok(field_norm_reader);
             }
         }

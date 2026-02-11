@@ -49,7 +49,7 @@ impl RegexPhraseWeight {
 
     fn fieldnorm_reader(&self, reader: &dyn SegmentReader) -> crate::Result<FieldNormReader> {
         if self.similarity_weight_opt.is_some() {
-            if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(self.field)? {
+            if let Ok(fieldnorm_reader) = reader.get_fieldnorms_reader(self.field) {
                 return Ok(fieldnorm_reader);
             }
         }
