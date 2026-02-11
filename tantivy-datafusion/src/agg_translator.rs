@@ -163,7 +163,13 @@ fn single_metric_exprs(name: &str, kind: &MetricKind) -> Result<Vec<Expr>> {
                 .collect())
         }
         MetricKind::Cardinality(a) => {
-            let f = col(&a.field);
+            // approx_distinct doesn't support Dictionary-encoded columns;
+            // TryCast to Utf8 unwraps dictionary encoding for string fields
+            // and is a no-op identity for already-Utf8 columns.
+            let f = Expr::TryCast(datafusion::logical_expr::expr::TryCast {
+                expr: Box::new(col(&a.field)),
+                data_type: arrow::datatypes::DataType::Utf8,
+            });
             Ok(vec![approx_distinct(f).alias(name)])
         }
     }

@@ -280,7 +280,10 @@ async fn test_group_by() {
 
     assert_eq!(batch.num_rows(), 3);
 
-    let categories = batch.column(0).as_string::<i32>();
+    // Category column may be Dictionary<Int32, Utf8> or Utf8 depending on
+    // DataFusion's aggregate output. Cast to Utf8 to read uniformly.
+    let cat_col = arrow::compute::cast(batch.column(0), &arrow::datatypes::DataType::Utf8).unwrap();
+    let categories = cat_col.as_string::<i32>();
     let counts = batch.column(1).as_primitive::<Int64Type>();
 
     // Sorted: books(2), clothing(1), electronics(2)

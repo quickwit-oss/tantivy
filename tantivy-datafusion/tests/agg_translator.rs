@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::array::AsArray;
+use arrow::array::{Array, AsArray};
 use arrow::datatypes::{Float64Type, Int64Type};
 use datafusion::prelude::*;
 use tantivy::aggregation::agg_req::Aggregations;
@@ -50,6 +50,30 @@ async fn setup() -> SessionContext {
 
 fn collect(batches: &[arrow::array::RecordBatch]) -> arrow::array::RecordBatch {
     arrow::compute::concat_batches(&batches[0].schema(), batches).unwrap()
+}
+
+/// Read string value from a column that may be StringArray or DictionaryArray.
+fn string_val(col: &dyn Array, idx: usize) -> String {
+    // Try as plain string first
+    if let Some(s) = col.as_any().downcast_ref::<arrow::array::StringArray>() {
+        return s.value(idx).to_string();
+    }
+    // Try as Dictionary<Int32, Utf8>
+    if let Some(dict) = col
+        .as_any()
+        .downcast_ref::<arrow::array::DictionaryArray<arrow::datatypes::Int32Type>>()
+    {
+        let values = dict.values().as_any().downcast_ref::<arrow::array::StringArray>().unwrap();
+        let key = dict.keys().value(idx) as usize;
+        return values.value(key).to_string();
+    }
+    // Cast to string as fallback
+    let cast = arrow::compute::cast(col, &arrow::datatypes::DataType::Utf8).unwrap();
+    cast.as_any()
+        .downcast_ref::<arrow::array::StringArray>()
+        .unwrap()
+        .value(idx)
+        .to_string()
 }
 
 // --- Metric-only tests ---
@@ -132,14 +156,14 @@ async fn test_agg_translate_terms() {
 
     // Default order: doc_count DESC
     let counts = batch.column(1).as_primitive::<Int64Type>();
-    let categories = batch.column(0).as_string::<i32>();
+    let cat_col = batch.column(0);
 
     // electronics=2, books=2 (tied), clothing=1
     assert!(counts.value(0) >= counts.value(1));
     assert!(counts.value(1) >= counts.value(2));
     assert_eq!(counts.value(2), 1);
     // The single clothing doc should be last
-    assert_eq!(categories.value(2), "clothing");
+    assert_eq!(string_val(cat_col.as_ref(), 2), "clothing");
 }
 
 #[tokio::test]
@@ -171,7 +195,7 @@ async fn test_agg_translate_terms_with_metrics() {
     assert!(schema.index_of("max_price").is_ok());
 
     // Find the clothing row and verify its sub-agg values
-    let categories = batch.column(schema.index_of("category").unwrap()).as_string::<i32>();
+    let cat_col = batch.column(schema.index_of("category").unwrap());
     let avg_prices = batch
         .column(schema.index_of("avg_price").unwrap())
         .as_primitive::<Float64Type>();
@@ -180,7 +204,7 @@ async fn test_agg_translate_terms_with_metrics() {
         .as_primitive::<Float64Type>();
 
     for i in 0..batch.num_rows() {
-        if categories.value(i) == "clothing" {
+        if string_val(cat_col.as_ref(), i) == "clothing" {
             assert!((avg_prices.value(i) - 5.5).abs() < 1e-10);
             assert!((max_prices.value(i) - 5.5).abs() < 1e-10);
         }
@@ -249,18 +273,18 @@ async fn test_agg_translate_range() {
 
     assert_eq!(batch.num_rows(), 3);
 
-    let buckets = batch.column(0).as_string::<i32>();
+    let bucket_col = batch.column(0);
     let counts = batch.column(1).as_primitive::<Int64Type>();
 
     // Sorted alphabetically: cheap, expensive, mid
-    let mut rows: Vec<(&str, i64)> = (0..3)
-        .map(|i| (buckets.value(i), counts.value(i)))
+    let mut rows: Vec<(String, i64)> = (0..3)
+        .map(|i| (string_val(bucket_col.as_ref(), i), counts.value(i)))
         .collect();
-    rows.sort_by_key(|(k, _)| k.to_string());
+    rows.sort_by_key(|(k, _)| k.clone());
 
-    assert_eq!(rows[0], ("cheap", 2));      // 1.5, 2.5
-    assert_eq!(rows[1], ("expensive", 1));  // 5.5
-    assert_eq!(rows[2], ("mid", 2));        // 3.5, 4.5
+    assert_eq!(rows[0], ("cheap".to_string(), 2));      // 1.5, 2.5
+    assert_eq!(rows[1], ("expensive".to_string(), 1));  // 5.5
+    assert_eq!(rows[2], ("mid".to_string(), 2));        // 3.5, 4.5
 }
 
 // --- Metric-only with pre-filtered DataFrame ---
@@ -310,7 +334,6 @@ async fn test_agg_translate_cardinality() {
 
     assert_eq!(batch.num_rows(), 1);
     // 3 distinct categories: electronics, books, clothing
-    // approx_distinct may return UInt64 or Int64 depending on version
     let col = batch.column(0);
     let distinct: u64 = if let Some(arr) = col.as_any().downcast_ref::<arrow::array::UInt64Array>() {
         arr.value(0)

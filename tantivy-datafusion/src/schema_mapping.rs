@@ -13,7 +13,10 @@ fn scalar_arrow_type(field_type: &FieldType) -> Option<DataType> {
         FieldType::F64(_) => Some(DataType::Float64),
         FieldType::Bool(_) => Some(DataType::Boolean),
         FieldType::Date(_) => Some(DataType::Timestamp(TimeUnit::Microsecond, None)),
-        FieldType::Str(_) => Some(DataType::Utf8),
+        FieldType::Str(_) => Some(DataType::Dictionary(
+            Box::new(DataType::Int32),
+            Box::new(DataType::Utf8),
+        )),
         FieldType::Bytes(_) => Some(DataType::Binary),
         FieldType::IpAddr(_) => Some(DataType::Utf8),
         FieldType::Facet(_) | FieldType::JsonObject(_) => None,
@@ -78,7 +81,13 @@ pub fn tantivy_schema_to_arrow_from_index(index: &Index) -> SchemaRef {
         });
 
         let arrow_type = if is_multivalued {
-            DataType::List(Arc::new(Field::new("item", inner_type, true)))
+            // For multi-valued fields, use the plain scalar type inside List
+            // (unwrap Dictionary → Utf8 for str fields; numeric types pass through)
+            let list_inner = match &inner_type {
+                DataType::Dictionary(_, value_type) => value_type.as_ref().clone(),
+                other => other.clone(),
+            };
+            DataType::List(Arc::new(Field::new("item", list_inner, true)))
         } else {
             inner_type
         };

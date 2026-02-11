@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use arrow::array::{
-    ArrayRef, BinaryBuilder, BooleanBuilder, Float64Builder, Int64Builder, ListBuilder,
-    StringBuilder, TimestampMicrosecondBuilder, UInt32Array, UInt64Builder,
+    ArrayRef, BinaryBuilder, BooleanBuilder, DictionaryArray, Float64Builder, Int32Builder,
+    Int64Builder, ListBuilder, StringBuilder, TimestampMicrosecondBuilder, UInt32Array,
+    UInt64Builder,
 };
-use arrow::datatypes::{DataType, Field, SchemaRef, TimeUnit};
+use arrow::datatypes::{DataType, Field, Int32Type, SchemaRef, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use datafusion::common::Result;
 use datafusion::error::DataFusionError;
@@ -127,26 +128,46 @@ pub fn read_segment_fast_fields_to_batch(
                 }
                 Arc::new(builder.finish())
             }
-            DataType::Utf8 => {
-                // Could be a Str fast field or IpAddr formatted as string
-                if let Ok(Some(str_col)) = fast_fields.str(name) {
-                    let mut builder = StringBuilder::with_capacity(num_docs, num_docs * 32);
-                    let mut buf = String::new();
-                    for &doc_id in &docs {
-                        let mut ord_iter = str_col.term_ords(doc_id);
-                        if let Some(ord) = ord_iter.next() {
-                            buf.clear();
-                            str_col
-                                .ord_to_str(ord, &mut buf)
-                                .map_err(|e| DataFusionError::Internal(format!("ord_to_str '{name}': {e}")))?;
-                            builder.append_value(&buf);
-                        } else {
-                            builder.append_null();
-                        }
+            DataType::Dictionary(_, _) => {
+                // Str fast field → DictionaryArray<Int32, Utf8>
+                let str_col = fast_fields
+                    .str(name)
+                    .map_err(|e| DataFusionError::Internal(format!("fast field str '{name}': {e}")))?
+                    .ok_or_else(|| {
+                        DataFusionError::Internal(format!("str fast field '{name}' not found"))
+                    })?;
+
+                // Build dictionary values once (one string per unique term)
+                let num_terms = str_col.num_terms();
+                let mut dict_builder = StringBuilder::with_capacity(num_terms, num_terms * 16);
+                let mut buf = String::new();
+                for ord in 0..num_terms {
+                    buf.clear();
+                    str_col
+                        .ord_to_str(ord as u64, &mut buf)
+                        .map_err(|e| DataFusionError::Internal(format!("dict build '{name}': {e}")))?;
+                    dict_builder.append_value(&buf);
+                }
+                let dict_values: ArrayRef = Arc::new(dict_builder.finish());
+
+                // Build keys (one i32 ordinal per doc)
+                let mut keys_builder = Int32Builder::with_capacity(num_docs);
+                for &doc_id in &docs {
+                    let mut ord_iter = str_col.term_ords(doc_id);
+                    match ord_iter.next() {
+                        Some(ord) => keys_builder.append_value(ord as i32),
+                        None => keys_builder.append_null(),
                     }
-                    Arc::new(builder.finish())
-                } else if let Ok(col) = fast_fields.ip_addr(name) {
-                    // IpAddr stored as Ipv6Addr; prefer IPv4 representation when possible
+                }
+
+                Arc::new(
+                    DictionaryArray::<Int32Type>::try_new(keys_builder.finish(), dict_values)
+                        .map_err(|e| DataFusionError::ArrowError(Box::new(e), None))?,
+                )
+            }
+            DataType::Utf8 => {
+                // IpAddr formatted as string (not dictionary-encoded)
+                if let Ok(col) = fast_fields.ip_addr(name) {
                     let mut builder = StringBuilder::with_capacity(num_docs, num_docs * 40);
                     for &doc_id in &docs {
                         match col.first(doc_id) {
@@ -163,7 +184,7 @@ pub fn read_segment_fast_fields_to_batch(
                     Arc::new(builder.finish())
                 } else {
                     return Err(DataFusionError::Internal(format!(
-                        "No str or ip_addr fast field found for Utf8 field '{name}'"
+                        "No ip_addr fast field found for Utf8 field '{name}'"
                     )));
                 }
             }
