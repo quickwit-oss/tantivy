@@ -464,6 +464,10 @@ fn generate_inverted_index_batch(
                     .map_err(|e| {
                         DataFusionError::Internal(format!("query execution: {e}"))
                     })?;
+                // Filter deleted docs
+                if let Some(alive_bitset) = segment_reader.alive_bitset() {
+                    matching_docs.retain(|&doc| alive_bitset.is_alive(doc));
+                }
                 (matching_docs, None)
             }
         }

@@ -16,6 +16,7 @@ use datafusion_physical_plan::joins::HashJoinExec;
 use datafusion_physical_plan::projection::ProjectionExec;
 use tantivy::query::RangeQuery;
 use tantivy::schema::{FieldType, IndexRecordOption, Schema as TantivySchema, Term};
+use tantivy::DateTime;
 
 use crate::inverted_index_provider::InvertedIndexDataSource;
 use crate::table_provider::FastFieldDataSource;
@@ -318,6 +319,33 @@ fn scalar_to_term(
         }
         (FieldType::U64(_), ScalarValue::Int64(Some(v))) if *v >= 0 => {
             Some(Term::from_field_u64(field, *v as u64))
+        }
+        // Date — tantivy DateTime stores nanoseconds internally.
+        // Arrow Timestamp(Microsecond) is what schema_mapping produces.
+        (FieldType::Date(_), ScalarValue::TimestampMicrosecond(Some(v), _)) => {
+            Some(Term::from_field_date(field, DateTime::from_timestamp_micros(*v)))
+        }
+        (FieldType::Date(_), ScalarValue::TimestampSecond(Some(v), _)) => {
+            Some(Term::from_field_date(field, DateTime::from_timestamp_secs(*v)))
+        }
+        (FieldType::Date(_), ScalarValue::TimestampMillisecond(Some(v), _)) => {
+            Some(Term::from_field_date(field, DateTime::from_timestamp_millis(*v)))
+        }
+        (FieldType::Date(_), ScalarValue::TimestampNanosecond(Some(v), _)) => {
+            Some(Term::from_field_date(field, DateTime::from_timestamp_nanos(*v)))
+        }
+        // IpAddr — mapped to Utf8 in schema_mapping, tantivy stores as Ipv6Addr
+        (FieldType::IpAddr(_), ScalarValue::Utf8(Some(s))) => {
+            let ip: std::net::IpAddr = s.parse().ok()?;
+            let ipv6 = match ip {
+                std::net::IpAddr::V4(v4) => v4.to_ipv6_mapped(),
+                std::net::IpAddr::V6(v6) => v6,
+            };
+            Some(Term::from_field_ip_addr(field, ipv6))
+        }
+        // Bytes — mapped to Binary in schema_mapping
+        (FieldType::Bytes(_), ScalarValue::Binary(Some(b))) => {
+            Some(Term::from_field_bytes(field, b))
         }
         _ => None,
     }

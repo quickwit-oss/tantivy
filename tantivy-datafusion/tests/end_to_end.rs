@@ -1,3 +1,4 @@
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 
 use arrow::array::{AsArray, ListArray, RecordBatch};
@@ -6,7 +7,7 @@ use datafusion::datasource::TableProvider;
 use datafusion::prelude::*;
 use tantivy::query::TermQuery;
 use tantivy::schema::{Field, IndexRecordOption, SchemaBuilder, Term, FAST, STORED, TEXT};
-use tantivy::{doc, Index, IndexWriter};
+use tantivy::{doc, DateTime, Index, IndexWriter, TantivyDocument};
 use tantivy_datafusion::{
     full_text_udf, FastFieldFilterPushdown, TantivyDocumentProvider,
     TantivyInvertedIndexProvider, TantivyTableProvider, TopKPushdown,
@@ -21,69 +22,170 @@ fn plan_to_string(batches: &[RecordBatch]) -> String {
         .join("\n")
 }
 
-fn create_test_index() -> Index {
+/// Builds the shared test schema with all supported field types.
+fn build_test_schema() -> (
+    tantivy::schema::Schema,
+    Field, // id (u64)
+    Field, // score (i64)
+    Field, // price (f64)
+    Field, // active (bool)
+    Field, // category (text)
+    Field, // created_at (date)
+    Field, // ip_address (ip)
+    Field, // data (bytes)
+) {
     let mut builder = SchemaBuilder::new();
     let u64_field = builder.add_u64_field("id", FAST | STORED);
     let i64_field = builder.add_i64_field("score", FAST);
     let f64_field = builder.add_f64_field("price", FAST);
     let bool_field = builder.add_bool_field("active", FAST);
     let text_field = builder.add_text_field("category", TEXT | FAST | STORED);
+    let date_field = builder.add_date_field("created_at", FAST);
+    let ip_field = builder.add_ip_addr_field("ip_address", FAST);
+    let bytes_field = builder.add_bytes_field("data", FAST);
     let schema = builder.build();
+    (
+        schema,
+        u64_field,
+        i64_field,
+        f64_field,
+        bool_field,
+        text_field,
+        date_field,
+        ip_field,
+        bytes_field,
+    )
+}
+
+/// Adds the 5 standard test documents to the writer.
+fn add_test_documents(
+    writer: &IndexWriter,
+    fields: (Field, Field, Field, Field, Field, Field, Field, Field),
+) {
+    let (u64_field, i64_field, f64_field, bool_field, text_field, date_field, ip_field, bytes_field) =
+        fields;
+
+    // Timestamps: 1_000_000, 2_000_000, ... microseconds
+    let timestamps = [1_000_000i64, 2_000_000, 3_000_000, 4_000_000, 5_000_000];
+    let ips: [Ipv4Addr; 5] = [
+        Ipv4Addr::new(192, 168, 1, 1),
+        Ipv4Addr::new(10, 0, 0, 1),
+        Ipv4Addr::new(192, 168, 1, 2),
+        Ipv4Addr::new(10, 0, 0, 2),
+        Ipv4Addr::new(172, 16, 0, 1),
+    ];
+    let data_payloads: [&[u8]; 5] = [b"aaa", b"bbb", b"ccc", b"ddd", b"eee"];
+
+    let ids = [1u64, 2, 3, 4, 5];
+    let scores = [10i64, 20, 30, 40, 50];
+    let prices = [1.5f64, 2.5, 3.5, 4.5, 5.5];
+    let actives = [true, false, true, false, true];
+    let categories = ["electronics", "books", "electronics", "books", "clothing"];
+
+    for i in 0..5 {
+        let mut doc = TantivyDocument::default();
+        doc.add_u64(u64_field, ids[i]);
+        doc.add_i64(i64_field, scores[i]);
+        doc.add_f64(f64_field, prices[i]);
+        doc.add_bool(bool_field, actives[i]);
+        doc.add_text(text_field, categories[i]);
+        doc.add_date(date_field, DateTime::from_timestamp_micros(timestamps[i]));
+        doc.add_ip_addr(ip_field, ips[i].to_ipv6_mapped());
+        doc.add_bytes(bytes_field, data_payloads[i]);
+        writer.add_document(doc).unwrap();
+    }
+}
+
+fn create_test_index() -> Index {
+    let (schema, u64_f, i64_f, f64_f, bool_f, text_f, date_f, ip_f, bytes_f) =
+        build_test_schema();
 
     let index = Index::create_in_ram(schema);
     let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000).unwrap();
 
-    writer
-        .add_document(doc!(
-            u64_field => 1u64,
-            i64_field => 10i64,
-            f64_field => 1.5f64,
-            bool_field => true,
-            text_field => "electronics",
-        ))
-        .unwrap();
-
-    writer
-        .add_document(doc!(
-            u64_field => 2u64,
-            i64_field => 20i64,
-            f64_field => 2.5f64,
-            bool_field => false,
-            text_field => "books",
-        ))
-        .unwrap();
-
-    writer
-        .add_document(doc!(
-            u64_field => 3u64,
-            i64_field => 30i64,
-            f64_field => 3.5f64,
-            bool_field => true,
-            text_field => "electronics",
-        ))
-        .unwrap();
-
-    writer
-        .add_document(doc!(
-            u64_field => 4u64,
-            i64_field => 40i64,
-            f64_field => 4.5f64,
-            bool_field => false,
-            text_field => "books",
-        ))
-        .unwrap();
-
-    writer
-        .add_document(doc!(
-            u64_field => 5u64,
-            i64_field => 50i64,
-            f64_field => 5.5f64,
-            bool_field => true,
-            text_field => "clothing",
-        ))
-        .unwrap();
-
+    add_test_documents(
+        &writer,
+        (u64_f, i64_f, f64_f, bool_f, text_f, date_f, ip_f, bytes_f),
+    );
     writer.commit().unwrap();
+    index
+}
+
+/// Creates an index with 2 segments (commit after first 3 docs, then remaining 2).
+fn create_multi_segment_test_index() -> Index {
+    let (schema, u64_f, i64_f, f64_f, bool_f, text_f, date_f, ip_f, bytes_f) =
+        build_test_schema();
+
+    let index = Index::create_in_ram(schema);
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000).unwrap();
+
+    let timestamps = [1_000_000i64, 2_000_000, 3_000_000, 4_000_000, 5_000_000];
+    let ips: [Ipv4Addr; 5] = [
+        Ipv4Addr::new(192, 168, 1, 1),
+        Ipv4Addr::new(10, 0, 0, 1),
+        Ipv4Addr::new(192, 168, 1, 2),
+        Ipv4Addr::new(10, 0, 0, 2),
+        Ipv4Addr::new(172, 16, 0, 1),
+    ];
+    let data_payloads: [&[u8]; 5] = [b"aaa", b"bbb", b"ccc", b"ddd", b"eee"];
+    let ids = [1u64, 2, 3, 4, 5];
+    let scores = [10i64, 20, 30, 40, 50];
+    let prices = [1.5f64, 2.5, 3.5, 4.5, 5.5];
+    let actives = [true, false, true, false, true];
+    let categories = ["electronics", "books", "electronics", "books", "clothing"];
+
+    // Segment 1: docs 0..3
+    for i in 0..3 {
+        let mut doc = TantivyDocument::default();
+        doc.add_u64(u64_f, ids[i]);
+        doc.add_i64(i64_f, scores[i]);
+        doc.add_f64(f64_f, prices[i]);
+        doc.add_bool(bool_f, actives[i]);
+        doc.add_text(text_f, categories[i]);
+        doc.add_date(date_f, DateTime::from_timestamp_micros(timestamps[i]));
+        doc.add_ip_addr(ip_f, ips[i].to_ipv6_mapped());
+        doc.add_bytes(bytes_f, data_payloads[i]);
+        writer.add_document(doc).unwrap();
+    }
+    writer.commit().unwrap();
+
+    // Segment 2: docs 3..5
+    for i in 3..5 {
+        let mut doc = TantivyDocument::default();
+        doc.add_u64(u64_f, ids[i]);
+        doc.add_i64(i64_f, scores[i]);
+        doc.add_f64(f64_f, prices[i]);
+        doc.add_bool(bool_f, actives[i]);
+        doc.add_text(text_f, categories[i]);
+        doc.add_date(date_f, DateTime::from_timestamp_micros(timestamps[i]));
+        doc.add_ip_addr(ip_f, ips[i].to_ipv6_mapped());
+        doc.add_bytes(bytes_f, data_payloads[i]);
+        writer.add_document(doc).unwrap();
+    }
+    writer.commit().unwrap();
+
+    index
+}
+
+/// Creates an index where docs with id=2 and id=4 are deleted.
+fn create_test_index_with_deletes() -> Index {
+    let (schema, u64_f, i64_f, f64_f, bool_f, text_f, date_f, ip_f, bytes_f) =
+        build_test_schema();
+
+    let index = Index::create_in_ram(schema);
+    let mut writer: IndexWriter = index.writer_with_num_threads(1, 15_000_000).unwrap();
+
+    add_test_documents(
+        &writer,
+        (u64_f, i64_f, f64_f, bool_f, text_f, date_f, ip_f, bytes_f),
+    );
+    writer.commit().unwrap();
+
+    // Delete docs with id=2 and id=4
+    writer.delete_term(Term::from_field_u64(u64_f, 2u64));
+    writer.delete_term(Term::from_field_u64(u64_f, 4u64));
+    writer.commit().unwrap();
+
     index
 }
 
@@ -105,7 +207,8 @@ async fn test_select_all() {
     let batch = collect_batches(&batches);
 
     assert_eq!(batch.num_rows(), 5);
-    assert_eq!(batch.num_columns(), 7); // _doc_id, _segment_ord, id, score, price, active, category
+    // _doc_id, _segment_ord, id, score, price, active, category, created_at, ip_address, data
+    assert_eq!(batch.num_columns(), 10);
 }
 
 #[tokio::test]
@@ -1352,4 +1455,411 @@ async fn test_no_pushdown_without_inverted_index_query() {
         .collect();
     ids.sort();
     assert_eq!(ids, vec![2, 3, 4, 5]);
+}
+
+// --- Date, IpAddr, Bytes field tests ---
+
+#[tokio::test]
+async fn test_date_field_filter() {
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    // created_at > 3_000_000 microseconds → docs 4 and 5
+    let df = ctx
+        .sql(
+            "SELECT id FROM test_index \
+             WHERE created_at > TIMESTAMP '1970-01-01T00:00:03' \
+             ORDER BY id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 4);
+    assert_eq!(ids.value(1), 5);
+}
+
+#[tokio::test]
+async fn test_ip_address_field_filter() {
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    // ip_address = '192.168.1.1' → doc 1 only
+    let df = ctx
+        .sql("SELECT id FROM test_index WHERE ip_address = '192.168.1.1' ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 1);
+}
+
+#[tokio::test]
+async fn test_bytes_field_roundtrip() {
+    let index = create_test_index();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    let df = ctx
+        .sql("SELECT id, data FROM test_index ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 5);
+
+    let data_col = batch.column(1).as_binary::<i32>();
+    assert_eq!(data_col.value(0), b"aaa");
+    assert_eq!(data_col.value(1), b"bbb");
+    assert_eq!(data_col.value(2), b"ccc");
+    assert_eq!(data_col.value(3), b"ddd");
+    assert_eq!(data_col.value(4), b"eee");
+}
+
+// --- Multi-segment tests ---
+
+#[tokio::test]
+async fn test_multi_segment_join() {
+    let index = create_multi_segment_test_index();
+    let num_segments = index.searchable_segments().unwrap().len();
+    assert_eq!(num_segments, 2);
+
+    let config = SessionConfig::new().with_target_partitions(num_segments);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    let df = ctx
+        .sql(
+            "SELECT f.id, f.price \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics = ids {1, 3}, both in segment 0 (first 3 docs)
+    assert_eq!(batch.num_rows(), 2);
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 1);
+    assert_eq!(ids.value(1), 3);
+}
+
+/// Three-way join across 2 segments: inverted index + fast fields + document store.
+///
+/// Segment 0 has docs {id=1, id=2, id=3} and segment 1 has docs {id=4, id=5}.
+/// The query searches for 'books' (ids {2, 4}) which span both segments,
+/// then joins fast fields for price/score and documents for stored JSON.
+/// Every column value is verified per row.
+#[tokio::test]
+async fn test_multi_segment_three_way_join() {
+    let index = create_multi_segment_test_index();
+    let num_segments = index.searchable_segments().unwrap().len();
+    assert_eq!(num_segments, 2);
+
+    let config = SessionConfig::new().with_target_partitions(num_segments);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table(
+        "inv",
+        Arc::new(TantivyInvertedIndexProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx.register_table(
+        "f",
+        Arc::new(TantivyTableProvider::new(index.clone())),
+    )
+    .unwrap();
+    ctx.register_table(
+        "d",
+        Arc::new(TantivyDocumentProvider::new(index)),
+    )
+    .unwrap();
+
+    let df = ctx
+        .sql(
+            "SELECT f.id, f.score, f.price, f.active, d._document \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             JOIN d ON d._doc_id = f._doc_id AND d._segment_ord = f._segment_ord \
+             WHERE full_text(inv.category, 'books') \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // 'books' matches ids {2, 4} — id=2 in segment 0, id=4 in segment 1.
+    assert_eq!(batch.num_rows(), 2);
+
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    let scores = batch.column(1).as_primitive::<Int64Type>();
+    let prices = batch.column(2).as_primitive::<Float64Type>();
+    let actives = batch.column(3).as_boolean();
+    let docs = batch.column(4).as_string::<i32>();
+
+    // Row 0: id=2, score=20, price=2.5, active=false
+    assert_eq!(ids.value(0), 2);
+    assert_eq!(scores.value(0), 20);
+    assert!((prices.value(0) - 2.5).abs() < 1e-10);
+    assert!(!actives.value(0));
+
+    let doc0: serde_json::Value = serde_json::from_str(docs.value(0)).unwrap();
+    assert_eq!(doc0["id"][0], 2);
+    assert_eq!(doc0["category"][0], "books");
+
+    // Row 1: id=4, score=40, price=4.5, active=false
+    assert_eq!(ids.value(1), 4);
+    assert_eq!(scores.value(1), 40);
+    assert!((prices.value(1) - 4.5).abs() < 1e-10);
+    assert!(!actives.value(1));
+
+    let doc1: serde_json::Value = serde_json::from_str(docs.value(1)).unwrap();
+    assert_eq!(doc1["id"][0], 4);
+    assert_eq!(doc1["category"][0], "books");
+}
+
+/// Fast-field-only query across 2 segments with a price filter.
+/// Verifies that all columns come back correct when results span both partitions.
+#[tokio::test]
+async fn test_multi_segment_fast_field_filter() {
+    let index = create_multi_segment_test_index();
+    let num_segments = index.searchable_segments().unwrap().len();
+    assert_eq!(num_segments, 2);
+
+    let config = SessionConfig::new().with_target_partitions(num_segments);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index)))
+        .unwrap();
+
+    // price > 3.0 → ids {3, 4, 5} — id=3 in segment 0, ids {4, 5} in segment 1
+    let df = ctx
+        .sql(
+            "SELECT id, score, price, active \
+             FROM f \
+             WHERE price > 3.0 \
+             ORDER BY id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 3);
+
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    let scores = batch.column(1).as_primitive::<Int64Type>();
+    let prices = batch.column(2).as_primitive::<Float64Type>();
+    let actives = batch.column(3).as_boolean();
+
+    // Row 0: id=3, score=30, price=3.5, active=true
+    assert_eq!(ids.value(0), 3);
+    assert_eq!(scores.value(0), 30);
+    assert!((prices.value(0) - 3.5).abs() < 1e-10);
+    assert!(actives.value(0));
+
+    // Row 1: id=4, score=40, price=4.5, active=false
+    assert_eq!(ids.value(1), 4);
+    assert_eq!(scores.value(1), 40);
+    assert!((prices.value(1) - 4.5).abs() < 1e-10);
+    assert!(!actives.value(1));
+
+    // Row 2: id=5, score=50, price=5.5, active=true
+    assert_eq!(ids.value(2), 5);
+    assert_eq!(scores.value(2), 50);
+    assert!((prices.value(2) - 5.5).abs() < 1e-10);
+    assert!(actives.value(2));
+}
+
+#[tokio::test]
+async fn test_multi_segment_plan() {
+    let index = create_multi_segment_test_index();
+    let num_segments = index.searchable_segments().unwrap().len();
+    assert_eq!(num_segments, 2);
+
+    let config = SessionConfig::new().with_target_partitions(num_segments);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+        .unwrap();
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics')",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // Plan should show segments=2 for both providers
+    assert!(
+        plan.contains("segments=2"),
+        "Plan should show segments=2.\n\nActual plan:\n{plan}"
+    );
+}
+
+// --- Deleted docs tests ---
+
+#[tokio::test]
+async fn test_deleted_docs_excluded() {
+    let index = create_test_index_with_deletes();
+    let provider = TantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("test_index", Arc::new(provider))
+        .unwrap();
+
+    let df = ctx
+        .sql("SELECT id FROM test_index ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // Docs 2 and 4 deleted → only ids {1, 3, 5} remain
+    assert_eq!(batch.num_rows(), 3);
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 1);
+    assert_eq!(ids.value(1), 3);
+    assert_eq!(ids.value(2), 5);
+}
+
+#[tokio::test]
+async fn test_deleted_docs_excluded_inverted_index() {
+    let index = create_test_index_with_deletes();
+    let ctx = SessionContext::new();
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("inv", Arc::new(TantivyInvertedIndexProvider::new(index)))
+        .unwrap();
+
+    // "books" matched ids {2, 4} originally, both deleted → 0 rows
+    let df = ctx
+        .sql(
+            "SELECT inv._doc_id \
+             FROM inv \
+             WHERE full_text(inv.category, 'books')",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+    assert_eq!(total_rows, 0);
+}
+
+#[tokio::test]
+async fn test_deleted_docs_excluded_document_provider() {
+    let index = create_test_index_with_deletes();
+    let ctx = SessionContext::new();
+    ctx.register_table("docs", Arc::new(TantivyDocumentProvider::new(index)))
+        .unwrap();
+
+    let df = ctx
+        .sql("SELECT _document FROM docs ORDER BY _doc_id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // Only 3 alive docs
+    assert_eq!(batch.num_rows(), 3);
+}
+
+// --- Date filter pushdown into inverted index ---
+
+#[tokio::test]
+async fn test_date_filter_pushdown_into_inverted_index() {
+    let index = create_test_index();
+    let ctx = create_filter_pushdown_session(&index);
+
+    // full_text for 'electronics' (ids {1, 3}) AND created_at > 1_000_000 micros (ids {2..5})
+    // → intersection = {3}
+    let df = ctx
+        .sql(
+            "SELECT f.id \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') \
+               AND f.created_at > TIMESTAMP '1970-01-01T00:00:01' \
+             ORDER BY f.id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+}
+
+#[tokio::test]
+async fn test_date_filter_pushdown_into_inverted_index_plan() {
+    let index = create_test_index();
+    let ctx = create_filter_pushdown_session(&index);
+
+    let df = ctx
+        .sql(
+            "EXPLAIN \
+             SELECT f.id \
+             FROM inv \
+             JOIN f ON f._doc_id = inv._doc_id AND f._segment_ord = inv._segment_ord \
+             WHERE full_text(inv.category, 'electronics') \
+               AND f.created_at > TIMESTAMP '1970-01-01T00:00:01'",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // Extract physical plan only (skip logical plan lines)
+    let physical_plan: String = plan
+        .lines()
+        .skip_while(|line| !line.starts_with("CoalesceBatchesExec"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // The date predicate should have been pushed into the InvertedIndexDataSource,
+    // leaving only the DynamicFilter on the FastFieldDataSource
+    assert!(
+        physical_plan.contains("pushed_filters=[DynamicFilter"),
+        "Date filter should be pushed into inverted index, only DynamicFilter on fast field.\n\nPhysical plan:\n{physical_plan}"
+    );
+    // The FastFieldDataSource should NOT have the created_at filter
+    assert!(
+        !physical_plan.contains("created_at"),
+        "created_at filter should not remain on FastFieldDataSource.\n\nPhysical plan:\n{physical_plan}"
+    );
 }

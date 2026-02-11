@@ -146,11 +146,17 @@ pub fn read_segment_fast_fields_to_batch(
                     }
                     Arc::new(builder.finish())
                 } else if let Ok(col) = fast_fields.ip_addr(name) {
-                    // IpAddr stored as Ipv6Addr, format to string
+                    // IpAddr stored as Ipv6Addr; prefer IPv4 representation when possible
                     let mut builder = StringBuilder::with_capacity(num_docs, num_docs * 40);
                     for &doc_id in &docs {
                         match col.first(doc_id) {
-                            Some(ip) => builder.append_value(ip.to_string()),
+                            Some(ip) => {
+                                if let Some(v4) = ip.to_ipv4_mapped() {
+                                    builder.append_value(v4.to_string());
+                                } else {
+                                    builder.append_value(ip.to_string());
+                                }
+                            }
                             None => builder.append_null(),
                         }
                     }
@@ -295,7 +301,11 @@ fn build_list_array(
                 let mut builder = ListBuilder::new(StringBuilder::new());
                 for &doc_id in docs {
                     for val in col.values_for_doc(doc_id) {
-                        builder.values().append_value(val.to_string());
+                        if let Some(v4) = val.to_ipv4_mapped() {
+                            builder.values().append_value(v4.to_string());
+                        } else {
+                            builder.values().append_value(val.to_string());
+                        }
                     }
                     builder.append(true);
                 }
