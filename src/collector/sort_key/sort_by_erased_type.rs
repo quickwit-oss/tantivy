@@ -1,7 +1,7 @@
 use columnar::{ColumnType, MonotonicallyMappableToU64};
 
 use crate::collector::sort_key::{
-    NaturalComparator, SortBySimilarityScore, SortByStaticFastValue, SortByString,
+    NaturalComparator, SortByBytes, SortBySimilarityScore, SortByStaticFastValue, SortByString,
 };
 use crate::collector::{SegmentSortKeyComputer, SortKeyComputer};
 use crate::fastfield::FastFieldNotAvailableError;
@@ -111,6 +111,16 @@ impl SortKeyComputer for SortByErasedType {
                             inner,
                             converter: |val: Option<String>| {
                                 val.map(OwnedValue::Str).unwrap_or(OwnedValue::Null)
+                            },
+                        })
+                    }
+                    ColumnType::Bytes => {
+                        let computer = SortByBytes::for_field(column_name);
+                        let inner = computer.segment_sort_key_computer(segment_reader)?;
+                        Box::new(ErasedSegmentSortKeyComputerWrapper {
+                            inner,
+                            converter: |val: Option<Vec<u8>>| {
+                                val.map(OwnedValue::Bytes).unwrap_or(OwnedValue::Null)
                             },
                         })
                     }
@@ -276,6 +286,65 @@ mod tests {
             vec![
                 OwnedValue::Str("austin".to_string()),
                 OwnedValue::Str("tokyo".to_string()),
+                OwnedValue::Null
+            ]
+        );
+    }
+
+    #[test]
+    fn test_sort_by_owned_bytes() {
+        let mut schema_builder = Schema::builder();
+        let data_field = schema_builder.add_bytes_field("data", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(data_field => vec![0x03u8, 0x00]))
+            .unwrap();
+        writer
+            .add_document(doc!(data_field => vec![0x01u8, 0x00]))
+            .unwrap();
+        writer
+            .add_document(doc!(data_field => vec![0x02u8, 0x00]))
+            .unwrap();
+        writer.add_document(doc!()).unwrap();
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Sort descending (Natural - highest first)
+        let collector = TopDocs::with_limit(10)
+            .order_by((SortByErasedType::for_field("data"), ComparatorEnum::Natural));
+        let top_docs = searcher.search(&AllQuery, &collector).unwrap();
+
+        let values: Vec<OwnedValue> = top_docs.into_iter().map(|(key, _)| key).collect();
+
+        assert_eq!(
+            values,
+            vec![
+                OwnedValue::Bytes(vec![0x03, 0x00]),
+                OwnedValue::Bytes(vec![0x02, 0x00]),
+                OwnedValue::Bytes(vec![0x01, 0x00]),
+                OwnedValue::Null
+            ]
+        );
+
+        // Sort ascending (ReverseNoneLower - lowest first, nulls last)
+        let collector = TopDocs::with_limit(10).order_by((
+            SortByErasedType::for_field("data"),
+            ComparatorEnum::ReverseNoneLower,
+        ));
+        let top_docs = searcher.search(&AllQuery, &collector).unwrap();
+
+        let values: Vec<OwnedValue> = top_docs.into_iter().map(|(key, _)| key).collect();
+
+        assert_eq!(
+            values,
+            vec![
+                OwnedValue::Bytes(vec![0x01, 0x00]),
+                OwnedValue::Bytes(vec![0x02, 0x00]),
+                OwnedValue::Bytes(vec![0x03, 0x00]),
                 OwnedValue::Null
             ]
         );
