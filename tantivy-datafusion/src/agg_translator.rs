@@ -473,32 +473,95 @@ fn translate_range(
     use datafusion::functions_aggregate::expr_fn::count;
 
     let field = &range.field;
+    let base_metric_exprs = collect_metric_exprs(sub_aggs)?;
 
-    // Build CASE WHEN ... for each range
-    let mut case = datafusion::prelude::when(
-        range_condition(field, &range.ranges[0]),
-        lit(range_bucket_key(&range.ranges[0])),
-    );
-    for entry in &range.ranges[1..] {
-        case = case.when(
-            range_condition(field, entry),
-            lit(range_bucket_key(entry)),
+    // Build filtered aggregates: one (doc_count + metrics) set per bucket.
+    // Single pass, no GROUP BY, no string allocations during scan.
+    let mut agg_exprs = Vec::new();
+    let mut bucket_keys = Vec::new();
+
+    for (i, entry) in range.ranges.iter().enumerate() {
+        let cond = range_condition(field, entry);
+        bucket_keys.push(range_bucket_key(entry));
+
+        // doc_count FILTER (WHERE cond)
+        agg_exprs.push(
+            add_agg_filter(count(lit(1)), cond.clone())
+                .alias(&format!("__b{i}_doc_count")),
         );
+
+        // sub-agg metrics FILTER (WHERE cond)
+        for (j, base_expr) in base_metric_exprs.iter().enumerate() {
+            let (inner, alias) = strip_alias(base_expr);
+            agg_exprs.push(
+                add_agg_filter(inner, cond.clone())
+                    .alias(&format!("__b{i}_m{j}_{alias}")),
+            );
+        }
     }
-    let bucket_expr = case
-        .otherwise(lit(datafusion::scalar::ScalarValue::Utf8(None)))?
-        .alias("bucket");
 
-    // Add bucket column and filter out NULLs
-    let df = df.with_column("bucket", bucket_expr)?;
-    let df = df.filter(col("bucket").is_not_null())?;
+    // Single-row aggregate with all buckets as columns
+    let flat_df = df.aggregate(vec![], agg_exprs)?;
 
-    let mut agg_exprs = vec![count(lit(1)).alias("doc_count")];
-    agg_exprs.extend(collect_metric_exprs(sub_aggs)?);
+    // Restructure into one row per bucket via UNION ALL
+    let metric_aliases: Vec<String> = base_metric_exprs
+        .iter()
+        .enumerate()
+        .map(|(j, e)| {
+            let (_, alias) = strip_alias(e);
+            format!("m{j}_{alias}")
+        })
+        .collect();
+    let metric_names: Vec<String> = base_metric_exprs
+        .iter()
+        .map(|e| strip_alias(e).1)
+        .collect();
 
-    let df = df.aggregate(vec![col("bucket")], agg_exprs)?;
+    let mut result: Option<DataFrame> = None;
+    for (i, key) in bucket_keys.iter().enumerate() {
+        let mut select_exprs = vec![
+            lit(key.clone()).alias("bucket"),
+            col(&format!("__b{i}_doc_count")).alias("doc_count"),
+        ];
+        for (j, m_alias) in metric_aliases.iter().enumerate() {
+            select_exprs.push(
+                col(&format!("__b{i}_{m_alias}")).alias(&metric_names[j]),
+            );
+        }
+        let bucket_df = flat_df.clone().select(select_exprs)?;
+        result = Some(match result {
+            Some(prev) => prev.union(bucket_df)?,
+            None => bucket_df,
+        });
+    }
 
-    df.sort(vec![col("bucket").sort(true, true)])
+    result
+        .unwrap_or(flat_df)
+        .sort(vec![col("bucket").sort(true, true)])
+}
+
+/// Inject a FILTER (WHERE cond) into an aggregate expression.
+fn add_agg_filter(expr: Expr, filter: Expr) -> Expr {
+    match expr {
+        Expr::AggregateFunction(mut agg_fn) => {
+            agg_fn.params.filter = Some(Box::new(filter));
+            Expr::AggregateFunction(agg_fn)
+        }
+        // If wrapped in Alias, unwrap, add filter, re-wrap
+        Expr::Alias(alias) => {
+            let filtered = add_agg_filter(*alias.expr, filter);
+            filtered.alias(alias.name)
+        }
+        other => other,
+    }
+}
+
+/// Strip the outermost Alias from an Expr, returning (inner_expr, alias_name).
+fn strip_alias(expr: &Expr) -> (Expr, String) {
+    match expr {
+        Expr::Alias(alias) => (*alias.expr.clone(), alias.name.to_string()),
+        other => (other.clone(), "unnamed".to_string()),
+    }
 }
 
 fn range_condition(field: &str, entry: &RangeAggregationRange) -> Expr {
