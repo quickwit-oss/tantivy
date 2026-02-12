@@ -23,6 +23,7 @@ use datafusion_physical_plan::{DisplayFormatType, Partitioning, SendableRecordBa
 use futures::stream::{self, StreamExt};
 use tantivy::{Document, Index};
 
+use crate::index_opener::{DirectIndexOpener, IndexOpener};
 use crate::table_provider::segment_hash_partitioning;
 
 /// A DataFusion table provider that returns full tantivy documents as JSON.
@@ -43,18 +44,23 @@ use crate::table_provider::segment_hash_partitioning;
 /// WHERE full_text(inv.category, 'electronics')
 /// ```
 pub struct TantivyDocumentProvider {
-    index: Index,
+    opener: Arc<dyn IndexOpener>,
     arrow_schema: SchemaRef,
 }
 
 impl TantivyDocumentProvider {
     pub fn new(index: Index) -> Self {
+        Self::from_opener(Arc::new(DirectIndexOpener::new(index)))
+    }
+
+    /// Create a provider from an [`IndexOpener`] for deferred index opening.
+    pub fn from_opener(opener: Arc<dyn IndexOpener>) -> Self {
         let arrow_schema = Arc::new(Schema::new(vec![
             Field::new("_doc_id", DataType::UInt32, false),
             Field::new("_segment_ord", DataType::UInt32, false),
             Field::new("_document", DataType::Utf8, false),
         ]));
-        Self { index, arrow_schema }
+        Self { opener, arrow_schema }
     }
 }
 
@@ -96,14 +102,11 @@ impl TableProvider for TantivyDocumentProvider {
             None => self.arrow_schema.clone(),
         };
 
-        let reader = self
-            .index
-            .reader()
-            .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
-        let num_segments = reader.searcher().segment_readers().len();
+        let segment_sizes = self.opener.segment_sizes();
+        let num_segments = segment_sizes.len().max(1);
 
         let data_source = DocumentDataSource {
-            index: self.index.clone(),
+            opener: self.opener.clone(),
             schema: projected_schema,
             full_schema: self.arrow_schema.clone(),
             projection: projection.cloned(),
@@ -120,7 +123,7 @@ impl TableProvider for TantivyDocumentProvider {
 
 #[derive(Debug)]
 struct DocumentDataSource {
-    index: Index,
+    opener: Arc<dyn IndexOpener>,
     schema: SchemaRef,
     full_schema: SchemaRef,
     projection: Option<Vec<usize>>,
@@ -131,7 +134,7 @@ struct DocumentDataSource {
 impl DocumentDataSource {
     fn clone_with(&self, f: impl FnOnce(&mut Self)) -> Self {
         let mut new = DocumentDataSource {
-            index: self.index.clone(),
+            opener: self.opener.clone(),
             schema: self.schema.clone(),
             full_schema: self.full_schema.clone(),
             projection: self.projection.clone(),
@@ -150,7 +153,7 @@ impl DataSource for DocumentDataSource {
         context: Arc<datafusion::execution::TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         let batch_size = context.session_config().batch_size();
-        let index = self.index.clone();
+        let opener = self.opener.clone();
         let segment_idx = partition;
         let projection = self.projection.clone();
         let full_schema = self.full_schema.clone();
@@ -162,6 +165,7 @@ impl DataSource for DocumentDataSource {
         // flat_map yields each independently-allocated batch so downstream
         // can release them after processing instead of holding one giant batch.
         let stream = stream::once(async move {
+            let index = opener.open().await?;
             generate_document_batches(
                 &index,
                 segment_idx,

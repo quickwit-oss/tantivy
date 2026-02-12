@@ -122,7 +122,7 @@ fn try_inject_topk(
     // Target: DataSourceExec wrapping InvertedIndexDataSource
     if let Some(dse) = plan.as_any().downcast_ref::<DataSourceExec>() {
         if let Some(inv) = dse.data_source().as_any().downcast_ref::<InvertedIndexDataSource>() {
-            if inv.query.is_some() {
+            if inv.has_query() {
                 let new_ds = Arc::new(inv.with_topk(k));
                 let new_exec = dse.clone().with_data_source(new_ds);
                 return Ok(Some(Arc::new(new_exec)));

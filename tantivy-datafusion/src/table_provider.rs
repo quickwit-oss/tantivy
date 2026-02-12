@@ -29,7 +29,8 @@ use tantivy::query::{EnableScoring, Query};
 use tantivy::{DocId, Index};
 
 use crate::fast_field_reader::read_segment_fast_fields_to_batch;
-use crate::schema_mapping::tantivy_schema_to_arrow_from_index;
+use crate::index_opener::{DirectIndexOpener, IndexOpener};
+use crate::schema_mapping::{tantivy_schema_to_arrow, tantivy_schema_to_arrow_from_index};
 
 /// Describes which slice of which segment a partition reads.
 #[derive(Debug, Clone)]
@@ -48,7 +49,7 @@ struct PartitionRange {
 /// For inverted index (full-text) queries, use `new_with_query()` to pass
 /// a tantivy `Query` that pre-filters documents at the segment level.
 pub struct TantivyTableProvider {
-    index: Index,
+    opener: Arc<dyn IndexOpener>,
     arrow_schema: SchemaRef,
     query: Option<Arc<dyn Query>>,
     aggregations: Option<Arc<Aggregations>>,
@@ -67,7 +68,22 @@ impl TantivyTableProvider {
     pub fn new(index: Index) -> Self {
         let arrow_schema = tantivy_schema_to_arrow_from_index(&index);
         Self {
-            index,
+            opener: Arc::new(DirectIndexOpener::new(index)),
+            arrow_schema,
+            query: None,
+            aggregations: None,
+        }
+    }
+
+    /// Create a provider from an [`IndexOpener`] for deferred index opening.
+    ///
+    /// Uses [`tantivy_schema_to_arrow`] (schema-only, treats all string
+    /// fields as single-valued Dictionary). For local usage where multi-valued
+    /// detection is needed, prefer [`new`](Self::new).
+    pub fn from_opener(opener: Arc<dyn IndexOpener>) -> Self {
+        let arrow_schema = tantivy_schema_to_arrow(&opener.schema());
+        Self {
+            opener,
             arrow_schema,
             query: None,
             aggregations: None,
@@ -81,7 +97,7 @@ impl TantivyTableProvider {
     pub fn new_with_query(index: Index, query: Box<dyn Query>) -> Self {
         let arrow_schema = tantivy_schema_to_arrow_from_index(&index);
         Self {
-            index,
+            opener: Arc::new(DirectIndexOpener::new(index)),
             arrow_schema,
             query: Some(Arc::from(query)),
             aggregations: None,
@@ -131,12 +147,8 @@ impl TableProvider for TantivyTableProvider {
         let combined_query: Option<Arc<dyn Query>> =
             self.query.as_ref().map(|q| Arc::from(q.box_clone()));
 
-        let reader = self
-            .index
-            .reader()
-            .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
-        let searcher = reader.searcher();
-        let num_segments = searcher.segment_readers().len();
+        let segment_sizes = self.opener.segment_sizes();
+        let num_segments = segment_sizes.len().max(1);
 
         // Decide whether to chunk segments for parallelism.
         // Chunking is only safe when _doc_id/_segment_ord are NOT projected
@@ -149,20 +161,27 @@ impl TableProvider for TantivyTableProvider {
 
         let partition_ranges = if is_join_query || self.query.is_some() {
             // 1 partition per segment — preserve co-partitioning
-            (0..num_segments)
+            (0..segment_sizes.len())
                 .map(|seg| PartitionRange {
                     segment_idx: seg,
                     segment_ord: seg as u32,
                     doc_start: 0,
-                    doc_end: searcher.segment_reader(seg as u32).max_doc(),
+                    doc_end: segment_sizes[seg],
                 })
                 .collect()
+        } else if segment_sizes.is_empty() {
+            // Unknown segment layout — single partition fallback
+            vec![PartitionRange {
+                segment_idx: 0,
+                segment_ord: 0,
+                doc_start: 0,
+                doc_end: 0,
+            }]
         } else {
             // Chunk segments for parallelism
-            let chunks_per_segment = (target_partitions / num_segments.max(1)).max(1);
+            let chunks_per_segment = (target_partitions / num_segments).max(1);
             let mut ranges = Vec::new();
-            for seg in 0..num_segments {
-                let max_doc = searcher.segment_reader(seg as u32).max_doc();
+            for (seg, &max_doc) in segment_sizes.iter().enumerate() {
                 let chunk_size = ((max_doc as usize) / chunks_per_segment).max(1) as u32;
                 let mut start = 0u32;
                 while start < max_doc {
@@ -180,7 +199,7 @@ impl TableProvider for TantivyTableProvider {
         };
 
         let data_source = FastFieldDataSource {
-            index: self.index.clone(),
+            opener: self.opener.clone(),
             arrow_schema: self.arrow_schema.clone(),
             projected_schema,
             projection: projection.cloned(),
@@ -204,7 +223,7 @@ impl TableProvider for TantivyTableProvider {
 /// build-side min/max bounds) and applies them after batch generation.
 #[derive(Debug)]
 pub(crate) struct FastFieldDataSource {
-    index: Index,
+    opener: Arc<dyn IndexOpener>,
     arrow_schema: SchemaRef,
     projected_schema: SchemaRef,
     projection: Option<Vec<usize>>,
@@ -218,7 +237,7 @@ pub(crate) struct FastFieldDataSource {
 impl FastFieldDataSource {
     fn clone_with(&self, f: impl FnOnce(&mut Self)) -> Self {
         let mut new = FastFieldDataSource {
-            index: self.index.clone(),
+            opener: self.opener.clone(),
             arrow_schema: self.arrow_schema.clone(),
             projected_schema: self.projected_schema.clone(),
             projection: self.projection.clone(),
@@ -247,9 +266,9 @@ impl FastFieldDataSource {
         self.aggregations.as_ref()
     }
 
-    /// Access the underlying tantivy index.
-    pub(crate) fn index(&self) -> &Index {
-        &self.index
+    /// Access the index opener.
+    pub(crate) fn opener(&self) -> &Arc<dyn IndexOpener> {
+        &self.opener
     }
 
     /// Access the optional tantivy query.
@@ -264,7 +283,7 @@ impl DataSource for FastFieldDataSource {
         partition: usize,
         _context: Arc<datafusion::execution::TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        let index = self.index.clone();
+        let opener = self.opener.clone();
         let range = self.partition_ranges[partition].clone();
         let projected_schema = self.projected_schema.clone();
         let query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
@@ -274,7 +293,9 @@ impl DataSource for FastFieldDataSource {
         let schema = self.projected_schema.clone();
         // Lazy: generate the batch inside the stream so dynamic filters
         // pushed after the build side completes are evaluated at poll time.
+        // The index is opened here (execution time), not at planning time.
         let stream = stream::once(async move {
+            let index = opener.open().await?;
             generate_and_filter_batch(
                 &index,
                 range.segment_idx,

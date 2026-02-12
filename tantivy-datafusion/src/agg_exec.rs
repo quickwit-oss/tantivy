@@ -25,11 +25,13 @@ use tantivy::collector::SegmentCollector;
 use tantivy::query::{EnableScoring, Query};
 use tantivy::Index;
 
+use crate::index_opener::IndexOpener;
+
 /// A custom leaf `ExecutionPlan` that calls tantivy's native
 /// `AggregationSegmentCollector` directly, bypassing DataFusion's
 /// hash-based `AggregateExec` for near-native aggregation performance.
 pub(crate) struct TantivyAggregateExec {
-    index: Index,
+    opener: Arc<dyn IndexOpener>,
     aggregations: Arc<Aggregations>,
     query: Option<Arc<dyn Query>>,
     output_schema: SchemaRef,
@@ -38,7 +40,7 @@ pub(crate) struct TantivyAggregateExec {
 
 impl TantivyAggregateExec {
     pub fn new(
-        index: Index,
+        opener: Arc<dyn IndexOpener>,
         aggregations: Arc<Aggregations>,
         query: Option<Arc<dyn Query>>,
         output_schema: SchemaRef,
@@ -50,7 +52,7 @@ impl TantivyAggregateExec {
             datafusion::physical_plan::execution_plan::Boundedness::Bounded,
         );
         Self {
-            index,
+            opener,
             aggregations,
             query,
             output_schema,
@@ -123,12 +125,13 @@ impl ExecutionPlan for TantivyAggregateExec {
             )));
         }
 
-        let index = self.index.clone();
+        let opener = self.opener.clone();
         let aggs = self.aggregations.clone();
         let query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
         let schema = self.output_schema.clone();
 
         let stream = stream::once(async move {
+            let index = opener.open().await?;
             execute_tantivy_agg(&index, &aggs, query.as_ref(), &schema)
         });
 

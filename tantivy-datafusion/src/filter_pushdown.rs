@@ -71,7 +71,7 @@ fn try_push_filters(
         return Ok(Transformed::no(plan));
     };
 
-    if inv_ds.query.is_none() {
+    if !inv_ds.has_query() {
         return Ok(Transformed::no(plan));
     }
 
@@ -80,7 +80,7 @@ fn try_push_filters(
         return Ok(Transformed::no(plan));
     };
 
-    let tantivy_schema = inv_ds.index().schema();
+    let tantivy_schema = inv_ds.opener().schema();
 
     // Partition filters into convertible (→ tantivy) and remaining
     let mut tantivy_queries: Vec<Box<dyn tantivy::query::Query>> = Vec::new();

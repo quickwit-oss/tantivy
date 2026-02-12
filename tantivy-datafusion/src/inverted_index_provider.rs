@@ -26,6 +26,7 @@ use tantivy::schema::FieldType;
 use tantivy::{DocId, Index, Score};
 
 use crate::full_text_udf::extract_full_text_call;
+use crate::index_opener::{DirectIndexOpener, IndexOpener};
 use crate::table_provider::segment_hash_partitioning;
 
 /// A DataFusion table provider backed by a tantivy inverted index.
@@ -54,14 +55,23 @@ use crate::table_provider::segment_hash_partitioning;
 /// ORDER BY inv._score DESC LIMIT 10
 /// ```
 pub struct TantivyInvertedIndexProvider {
-    index: Index,
+    opener: Arc<dyn IndexOpener>,
     arrow_schema: SchemaRef,
 }
 
 impl TantivyInvertedIndexProvider {
     pub fn new(index: Index) -> Self {
-        let schema = index.schema();
+        Self::from_opener(Arc::new(DirectIndexOpener::new(index)))
+    }
 
+    /// Create a provider from an [`IndexOpener`] for deferred index opening.
+    pub fn from_opener(opener: Arc<dyn IndexOpener>) -> Self {
+        let schema = opener.schema();
+        let arrow_schema = Arc::new(Schema::new(Self::build_arrow_fields(&schema)));
+        Self { opener, arrow_schema }
+    }
+
+    fn build_arrow_fields(schema: &tantivy::schema::Schema) -> Vec<Field> {
         let mut fields: Vec<Field> = vec![
             Field::new("_doc_id", DataType::UInt32, false),
             Field::new("_segment_ord", DataType::UInt32, false),
@@ -79,8 +89,7 @@ impl TantivyInvertedIndexProvider {
         // _score column — nullable Float32 for BM25 relevance scores
         fields.push(Field::new("_score", DataType::Float32, true));
 
-        let arrow_schema = Arc::new(Schema::new(fields));
-        Self { index, arrow_schema }
+        fields
     }
 }
 
@@ -140,44 +149,33 @@ impl TableProvider for TantivyInvertedIndexProvider {
             None => self.arrow_schema.clone(),
         };
 
-        // Extract full_text() calls from pushed-down filters
-        let mut queries: Vec<Box<dyn tantivy::query::Query>> = Vec::new();
-        let schema = self.index.schema();
+        // Extract full_text() calls from pushed-down filters.
+        // Validate field names against the schema now (planning time),
+        // but defer query parsing to execution time (open()).
+        let tantivy_schema = self.opener.schema();
+        let mut raw_queries: Vec<(String, String)> = Vec::new();
         for filter in filters {
             if let Some((field_name, query_string)) = extract_full_text_call(filter) {
-                let field = schema.get_field(&field_name).map_err(|e| {
+                // Validate field exists in schema
+                tantivy_schema.get_field(&field_name).map_err(|e| {
                     DataFusionError::Plan(format!(
                         "full_text: field '{field_name}' not found: {e}"
                     ))
                 })?;
-                let parser = QueryParser::for_index(&self.index, vec![field]);
-                let parsed = parser.parse_query(&query_string).map_err(|e| {
-                    DataFusionError::Plan(format!(
-                        "full_text: failed to parse '{query_string}': {e}"
-                    ))
-                })?;
-                queries.push(parsed);
+                raw_queries.push((field_name, query_string));
             }
         }
 
-        let combined_query: Option<Arc<dyn tantivy::query::Query>> = match queries.len() {
-            0 => None,
-            1 => Some(Arc::from(queries.into_iter().next().unwrap())),
-            _ => Some(Arc::new(BooleanQuery::intersection(queries))),
-        };
-
-        let reader = self
-            .index
-            .reader()
-            .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
-        let num_segments = reader.searcher().segment_readers().len();
+        let segment_sizes = self.opener.segment_sizes();
+        let num_segments = segment_sizes.len().max(1);
 
         let data_source = InvertedIndexDataSource {
-            index: self.index.clone(),
+            opener: self.opener.clone(),
             full_schema: self.arrow_schema.clone(),
             projected_schema,
             projection: projection.cloned(),
-            query: combined_query,
+            query: None,
+            raw_queries,
             num_segments,
             topk: None,
         };
@@ -191,11 +189,14 @@ impl TableProvider for TantivyInvertedIndexProvider {
 
 #[derive(Debug)]
 pub(crate) struct InvertedIndexDataSource {
-    index: Index,
+    opener: Arc<dyn IndexOpener>,
     full_schema: SchemaRef,
     projected_schema: SchemaRef,
     projection: Option<Vec<usize>>,
     pub(crate) query: Option<Arc<dyn tantivy::query::Query>>,
+    /// Raw `(field_name, query_string)` pairs deferred from scan time.
+    /// Parsed into tantivy queries at execution time (in `open()`).
+    raw_queries: Vec<(String, String)>,
     num_segments: usize,
     pub(crate) topk: Option<usize>,
 }
@@ -204,19 +205,25 @@ impl InvertedIndexDataSource {
     /// Create a copy with the topk limit set.
     pub(crate) fn with_topk(&self, topk: usize) -> Self {
         InvertedIndexDataSource {
-            index: self.index.clone(),
+            opener: self.opener.clone(),
             full_schema: self.full_schema.clone(),
             projected_schema: self.projected_schema.clone(),
             projection: self.projection.clone(),
             query: self.query.as_ref().map(|q| Arc::from(q.box_clone())),
+            raw_queries: self.raw_queries.clone(),
             num_segments: self.num_segments,
             topk: Some(topk),
         }
     }
 
-    /// Access the underlying tantivy index (for schema inspection by optimizer rules).
-    pub(crate) fn index(&self) -> &Index {
-        &self.index
+    /// Access the index opener (for schema inspection by optimizer rules).
+    pub(crate) fn opener(&self) -> &Arc<dyn IndexOpener> {
+        &self.opener
+    }
+
+    /// Whether this data source has an active query (pre-parsed or deferred).
+    pub(crate) fn has_query(&self) -> bool {
+        self.query.is_some() || !self.raw_queries.is_empty()
     }
 
     /// Create a copy with additional tantivy queries combined via intersection.
@@ -235,11 +242,12 @@ impl InvertedIndexDataSource {
         let combined: Arc<dyn tantivy::query::Query> =
             Arc::new(BooleanQuery::intersection(all_queries));
         InvertedIndexDataSource {
-            index: self.index.clone(),
+            opener: self.opener.clone(),
             full_schema: self.full_schema.clone(),
             projected_schema: self.projected_schema.clone(),
             projection: self.projection.clone(),
             query: Some(combined),
+            raw_queries: self.raw_queries.clone(),
             num_segments: self.num_segments,
             topk: self.topk,
         }
@@ -252,15 +260,25 @@ impl DataSource for InvertedIndexDataSource {
         partition: usize,
         _context: Arc<datafusion::execution::TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        let index = self.index.clone();
+        let opener = self.opener.clone();
         let segment_idx = partition;
-        let query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
+        let pre_parsed_query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
+        let raw_queries = self.raw_queries.clone();
         let projection = self.projection.clone();
         let full_schema = self.full_schema.clone();
         let topk = self.topk;
 
         let schema = self.projected_schema.clone();
         let stream = stream::once(async move {
+            let index = opener.open().await?;
+
+            // Parse deferred raw queries now that we have an opened Index
+            let query = build_combined_query(
+                &index,
+                pre_parsed_query.as_ref(),
+                &raw_queries,
+            )?;
+
             generate_inverted_index_batch(
                 &index,
                 segment_idx,
@@ -283,7 +301,7 @@ impl DataSource for InvertedIndexDataSource {
             f,
             "InvertedIndexDataSource(segments={}, query={}, topk={:?})",
             self.num_segments,
-            self.query.is_some(),
+            self.has_query(),
             self.topk,
         )
     }
@@ -335,6 +353,46 @@ impl DataSource for InvertedIndexDataSource {
                 vec![datafusion_physical_plan::filter_pushdown::PushedDown::No; filters.len()],
             ),
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Query parsing (deferred to execution time)
+// ---------------------------------------------------------------------------
+
+/// Combine pre-parsed queries with raw query strings into a single tantivy query.
+/// Raw queries are parsed using `QueryParser::for_index` which requires an opened `Index`.
+fn build_combined_query(
+    index: &Index,
+    pre_parsed: Option<&Arc<dyn tantivy::query::Query>>,
+    raw_queries: &[(String, String)],
+) -> Result<Option<Arc<dyn tantivy::query::Query>>> {
+    let mut queries: Vec<Box<dyn tantivy::query::Query>> = Vec::new();
+
+    if let Some(q) = pre_parsed {
+        queries.push(q.box_clone());
+    }
+
+    let tantivy_schema = index.schema();
+    for (field_name, query_string) in raw_queries {
+        let field = tantivy_schema.get_field(field_name).map_err(|e| {
+            DataFusionError::Plan(format!(
+                "full_text: field '{field_name}' not found: {e}"
+            ))
+        })?;
+        let parser = QueryParser::for_index(index, vec![field]);
+        let parsed = parser.parse_query(query_string).map_err(|e| {
+            DataFusionError::Plan(format!(
+                "full_text: failed to parse '{query_string}': {e}"
+            ))
+        })?;
+        queries.push(parsed);
+    }
+
+    match queries.len() {
+        0 => Ok(None),
+        1 => Ok(Some(Arc::from(queries.into_iter().next().unwrap()))),
+        _ => Ok(Some(Arc::new(BooleanQuery::intersection(queries)))),
     }
 }
 

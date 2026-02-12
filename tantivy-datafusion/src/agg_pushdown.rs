@@ -101,7 +101,7 @@ fn try_rewrite_single(
     if let Some(ff_ds) = find_fast_field_datasource(input) {
         if let Some(tantivy_aggs) = ff_ds.aggregations() {
             let new_exec = TantivyAggregateExec::new(
-                ff_ds.index().clone(),
+                ff_ds.opener().clone(),
                 tantivy_aggs.clone(),
                 ff_ds.query().map(|q| Arc::from(q.box_clone())),
                 agg.schema(),
@@ -133,7 +133,7 @@ fn try_rewrite_two_phase(
     if let Some(ff_ds) = find_fast_field_datasource(partial_input) {
         if let Some(tantivy_aggs) = ff_ds.aggregations() {
             let new_exec = TantivyAggregateExec::new(
-                ff_ds.index().clone(),
+                ff_ds.opener().clone(),
                 tantivy_aggs.clone(),
                 ff_ds.query().map(|q| Arc::from(q.box_clone())),
                 final_agg.schema(),
