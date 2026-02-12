@@ -15,12 +15,14 @@ use tantivy::index::SegmentReader;
 ///
 /// If `doc_ids` is `Some`, only those document IDs are read (already filtered by
 /// a tantivy query). If `None`, all alive (non-deleted) documents are read.
-/// When `limit` is `Some(n)`, at most `n` documents are returned.
-/// Fields are read according to the projected Arrow schema.
+/// When `doc_id_range` is `Some`, only docs in `[start, end)` are read (for
+/// chunked partitions). When `limit` is `Some(n)`, at most `n` documents are
+/// returned. Fields are read according to the projected Arrow schema.
 pub fn read_segment_fast_fields_to_batch(
     segment_reader: &SegmentReader,
     projected_schema: &SchemaRef,
     doc_ids: Option<&[u32]>,
+    doc_id_range: Option<std::ops::Range<u32>>,
     limit: Option<usize>,
     segment_ord: u32,
 ) -> Result<RecordBatch> {
@@ -29,9 +31,12 @@ pub fn read_segment_fast_fields_to_batch(
     let docs: Vec<u32> = match doc_ids {
         Some(ids) => ids.to_vec(),
         None => {
-            let max_doc = segment_reader.max_doc();
             let alive_bitset = segment_reader.alive_bitset();
-            let iter = (0..max_doc).filter(|&doc_id| {
+            let (start, end) = match doc_id_range {
+                Some(range) => (range.start, range.end),
+                None => (0, segment_reader.max_doc()),
+            };
+            let iter = (start..end).filter(|&doc_id| {
                 alive_bitset
                     .map(|bs| bs.is_alive(doc_id))
                     .unwrap_or(true)

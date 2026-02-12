@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::fmt;
+use std::ops::Range;
 use std::sync::Arc;
 
 use arrow::array::AsArray;
@@ -23,11 +24,21 @@ use datafusion_physical_plan::projection::ProjectionExpr;
 use datafusion_physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion_physical_plan::{DisplayFormatType, Partitioning, SendableRecordBatchStream};
 use futures::stream;
+use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::query::{EnableScoring, Query};
 use tantivy::{DocId, Index};
 
 use crate::fast_field_reader::read_segment_fast_fields_to_batch;
 use crate::schema_mapping::tantivy_schema_to_arrow_from_index;
+
+/// Describes which slice of which segment a partition reads.
+#[derive(Debug, Clone)]
+struct PartitionRange {
+    segment_idx: usize,
+    segment_ord: u32,
+    doc_start: u32,
+    doc_end: u32,
+}
 
 /// A DataFusion table provider backed by a tantivy index.
 ///
@@ -40,6 +51,7 @@ pub struct TantivyTableProvider {
     index: Index,
     arrow_schema: SchemaRef,
     query: Option<Arc<dyn Query>>,
+    aggregations: Option<Arc<Aggregations>>,
 }
 
 impl fmt::Debug for TantivyTableProvider {
@@ -58,6 +70,7 @@ impl TantivyTableProvider {
             index,
             arrow_schema,
             query: None,
+            aggregations: None,
         }
     }
 
@@ -71,7 +84,15 @@ impl TantivyTableProvider {
             index,
             arrow_schema,
             query: Some(Arc::from(query)),
+            aggregations: None,
         }
+    }
+
+    /// Stash tantivy aggregations on this provider so the `AggPushdown`
+    /// optimizer rule can replace DataFusion's `AggregateExec` with
+    /// tantivy's native collectors.
+    pub fn set_aggregations(&mut self, aggs: Arc<Aggregations>) {
+        self.aggregations = Some(aggs);
     }
 }
 
@@ -91,7 +112,7 @@ impl TableProvider for TantivyTableProvider {
 
     async fn scan(
         &self,
-        _state: &dyn Session,
+        state: &dyn Session,
         projection: Option<&Vec<usize>>,
         _filters: &[Expr],
         limit: Option<usize>,
@@ -114,7 +135,49 @@ impl TableProvider for TantivyTableProvider {
             .index
             .reader()
             .map_err(|e| DataFusionError::Internal(format!("open reader: {e}")))?;
-        let num_segments = reader.searcher().segment_readers().len();
+        let searcher = reader.searcher();
+        let num_segments = searcher.segment_readers().len();
+
+        // Decide whether to chunk segments for parallelism.
+        // Chunking is only safe when _doc_id/_segment_ord are NOT projected
+        // (i.e. aggregation queries), since join queries require co-partitioning
+        // with inverted index / document providers (1 partition per segment).
+        let is_join_query = projected_schema.index_of("_doc_id").is_ok()
+            && projected_schema.index_of("_segment_ord").is_ok();
+
+        let target_partitions = state.config_options().execution.target_partitions;
+
+        let partition_ranges = if is_join_query || self.query.is_some() {
+            // 1 partition per segment — preserve co-partitioning
+            (0..num_segments)
+                .map(|seg| PartitionRange {
+                    segment_idx: seg,
+                    segment_ord: seg as u32,
+                    doc_start: 0,
+                    doc_end: searcher.segment_reader(seg as u32).max_doc(),
+                })
+                .collect()
+        } else {
+            // Chunk segments for parallelism
+            let chunks_per_segment = (target_partitions / num_segments.max(1)).max(1);
+            let mut ranges = Vec::new();
+            for seg in 0..num_segments {
+                let max_doc = searcher.segment_reader(seg as u32).max_doc();
+                let chunk_size = ((max_doc as usize) / chunks_per_segment).max(1) as u32;
+                let mut start = 0u32;
+                while start < max_doc {
+                    let end = (start + chunk_size).min(max_doc);
+                    ranges.push(PartitionRange {
+                        segment_idx: seg,
+                        segment_ord: seg as u32,
+                        doc_start: start,
+                        doc_end: end,
+                    });
+                    start = end;
+                }
+            }
+            ranges
+        };
 
         let data_source = FastFieldDataSource {
             index: self.index.clone(),
@@ -123,8 +186,9 @@ impl TableProvider for TantivyTableProvider {
             projection: projection.cloned(),
             query: combined_query,
             limit,
-            num_segments,
+            partition_ranges,
             pushed_filters: vec![],
+            aggregations: self.aggregations.clone(),
         };
         Ok(Arc::new(DataSourceExec::new(Arc::new(data_source))))
     }
@@ -146,8 +210,9 @@ pub(crate) struct FastFieldDataSource {
     projection: Option<Vec<usize>>,
     query: Option<Arc<dyn Query>>,
     limit: Option<usize>,
-    num_segments: usize,
+    partition_ranges: Vec<PartitionRange>,
     pushed_filters: Vec<Arc<dyn PhysicalExpr>>,
+    aggregations: Option<Arc<Aggregations>>,
 }
 
 impl FastFieldDataSource {
@@ -159,8 +224,9 @@ impl FastFieldDataSource {
             projection: self.projection.clone(),
             query: self.query.as_ref().map(|q| Arc::from(q.box_clone())),
             limit: self.limit,
-            num_segments: self.num_segments,
+            partition_ranges: self.partition_ranges.clone(),
             pushed_filters: self.pushed_filters.clone(),
+            aggregations: self.aggregations.clone(),
         };
         f(&mut new);
         new
@@ -175,6 +241,21 @@ impl FastFieldDataSource {
     pub(crate) fn with_pushed_filters(&self, filters: Vec<Arc<dyn PhysicalExpr>>) -> Self {
         self.clone_with(|s| s.pushed_filters = filters)
     }
+
+    /// Access the stashed tantivy aggregations (for the agg pushdown rule).
+    pub(crate) fn aggregations(&self) -> Option<&Arc<Aggregations>> {
+        self.aggregations.as_ref()
+    }
+
+    /// Access the underlying tantivy index.
+    pub(crate) fn index(&self) -> &Index {
+        &self.index
+    }
+
+    /// Access the optional tantivy query.
+    pub(crate) fn query(&self) -> Option<&Arc<dyn Query>> {
+        self.query.as_ref()
+    }
 }
 
 impl DataSource for FastFieldDataSource {
@@ -184,7 +265,7 @@ impl DataSource for FastFieldDataSource {
         _context: Arc<datafusion::execution::TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
         let index = self.index.clone();
-        let segment_idx = partition;
+        let range = self.partition_ranges[partition].clone();
         let projected_schema = self.projected_schema.clone();
         let query = self.query.as_ref().map(|q| Arc::from(q.box_clone()));
         let limit = self.limit;
@@ -196,7 +277,10 @@ impl DataSource for FastFieldDataSource {
         let stream = stream::once(async move {
             generate_and_filter_batch(
                 &index,
-                segment_idx,
+                range.segment_idx,
+                range.segment_ord,
+                range.doc_start,
+                range.doc_end,
                 &projected_schema,
                 query.as_ref(),
                 limit,
@@ -214,8 +298,8 @@ impl DataSource for FastFieldDataSource {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "FastFieldDataSource(segments={}, query={}, limit={:?}",
-            self.num_segments,
+            "FastFieldDataSource(partitions={}, query={}, limit={:?}",
+            self.partition_ranges.len(),
             self.query.is_some(),
             self.limit,
         )?;
@@ -233,7 +317,15 @@ impl DataSource for FastFieldDataSource {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        segment_hash_partitioning(&self.projected_schema, self.num_segments)
+        let num_partitions = self.partition_ranges.len();
+        // If all partitions span full segments (no chunking), use hash
+        // partitioning so joins recognise co-partitioned sides.
+        let is_full_segments = self.partition_ranges.iter().all(|r| r.doc_start == 0);
+        if is_full_segments {
+            segment_hash_partitioning(&self.projected_schema, num_partitions)
+        } else {
+            Partitioning::UnknownPartitioning(num_partitions)
+        }
     }
 
     fn eq_properties(&self) -> EquivalenceProperties {
@@ -290,6 +382,9 @@ impl DataSource for FastFieldDataSource {
 fn generate_and_filter_batch(
     index: &Index,
     segment_idx: usize,
+    segment_ord: u32,
+    doc_start: u32,
+    doc_end: u32,
     projected_schema: &SchemaRef,
     query: Option<&Arc<dyn Query>>,
     limit: Option<usize>,
@@ -301,7 +396,7 @@ fn generate_and_filter_batch(
     let searcher = reader.searcher();
     let segment_reader = searcher.segment_reader(segment_idx as u32);
 
-    // If a query is set, run it to get matching doc IDs
+    // If a query is set, run it to get matching doc IDs within the chunk range
     let doc_ids: Option<Vec<DocId>> = match query {
         Some(query) => {
             let tantivy_schema = index.schema();
@@ -324,17 +419,27 @@ fn generate_and_filter_batch(
             if let Some(lim) = limit {
                 matching_docs.truncate(lim);
             }
+            // Filter to the chunk range
+            matching_docs.retain(|&d| d >= doc_start && d < doc_end);
             Some(matching_docs)
         }
         None => None,
+    };
+
+    // When no query, pass the chunk range so only docs in [doc_start, doc_end) are read
+    let doc_id_range = if doc_ids.is_none() {
+        Some(Range { start: doc_start, end: doc_end })
+    } else {
+        None
     };
 
     let mut batch = read_segment_fast_fields_to_batch(
         segment_reader,
         projected_schema,
         doc_ids.as_deref(),
+        doc_id_range,
         limit,
-        segment_idx as u32,
+        segment_ord,
     )?;
 
     // Apply pushed-down filters (e.g. dynamic join filters).
