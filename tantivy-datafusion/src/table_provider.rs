@@ -20,7 +20,7 @@ use datafusion_physical_expr::expressions::Column;
 use datafusion_physical_expr::{EquivalenceProperties, PhysicalExpr};
 use datafusion_physical_plan::filter_pushdown::{FilterPushdownPropagation, PushedDown};
 use datafusion_physical_plan::metrics::ExecutionPlanMetricsSet;
-use datafusion_physical_plan::projection::ProjectionExpr;
+use datafusion_physical_plan::projection::ProjectionExprs;
 use datafusion_physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion_physical_plan::{DisplayFormatType, Partitioning, SendableRecordBatchStream};
 use futures::stream;
@@ -375,7 +375,7 @@ impl DataSource for FastFieldDataSource {
 
     fn try_swapping_with_projection(
         &self,
-        _projection: &[ProjectionExpr],
+        _projection: &ProjectionExprs,
     ) -> Result<Option<Arc<dyn DataSource>>> {
         Ok(None)
     }

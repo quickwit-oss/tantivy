@@ -744,16 +744,15 @@ async fn test_dynamic_filter_in_plan() {
     //   populated with min/max bounds on (_doc_id, _segment_ord) from the
     //   hash table, pruning non-matching rows on the probe side.
     let expected_physical_plan = "\
-CoalesceBatchesExec: target_batch_size=8192
-  HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4]
-    CooperativeExec
-      DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
-    CooperativeExec
-      DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4]
+  CooperativeExec
+    DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
+  CooperativeExec
+    DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
-        .skip_while(|line| !line.starts_with("CoalesceBatchesExec"))
+        .skip_while(|line| !line.starts_with("HashJoinExec"))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -911,16 +910,14 @@ async fn test_document_three_way_join_plan() {
     //   second hash join, pruning stored-field reads at scan time.
     let expected_physical_plan = "\
 SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
-  CoalesceBatchesExec: target_batch_size=8192
-    HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@2, price@3, _document@6]
-      CoalesceBatchesExec: target_batch_size=8192
-        HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[_doc_id@2, _segment_ord@3, id@4, price@5]
-          CooperativeExec
-            DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
-          CooperativeExec
-            DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[price@3 > 2, DynamicFilter [ empty ]])
+  HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@2, price@3, _document@6]
+    HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[_doc_id@2, _segment_ord@3, id@4, price@5]
       CooperativeExec
-        DataSourceExec: DocumentDataSource(segments=1, pushed_filters=[DynamicFilter [ empty ]])";
+        DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
+      CooperativeExec
+        DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[price@3 > 2, DynamicFilter [ empty ]])
+    CooperativeExec
+      DataSourceExec: DocumentDataSource(segments=1, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
@@ -1249,12 +1246,11 @@ async fn test_filter_pushdown_into_inverted_index_plan() {
     //   index already satisfies the price filter.
     let expected_physical_plan = "\
 SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
-  CoalesceBatchesExec: target_batch_size=8192
-    HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4, price@5]
-      CooperativeExec
-        DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
-      CooperativeExec
-        DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+  HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4, price@5]
+    CooperativeExec
+      DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
+    CooperativeExec
+      DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
@@ -1364,13 +1360,12 @@ async fn test_topk_through_join_with_filter_pushdown() {
     let expected_physical_plan = "\
 SortExec: TopK(fetch=1), expr=[_score@1 DESC], preserve_partitioning=[false]
   ProjectionExec: expr=[id@1 as id, _score@0 as _score]
-    CoalesceBatchesExec: target_batch_size=8192
-      HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[_score@2, id@5]
+    HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[_score@2, id@5]
+      CooperativeExec
+        DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=Some(1))
+      ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
         CooperativeExec
-          DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=Some(1))
-        ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
-          CooperativeExec
-            DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+          DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
@@ -1408,17 +1403,16 @@ async fn test_filter_pushdown_preserves_dynamic_filter() {
     // - DynamicFilter preserved on FastFieldDataSource
     // - ProjectionExec trims fast field columns after the join
     let expected_physical_plan = "\
-CoalesceBatchesExec: target_batch_size=8192
-  HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4]
+HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(_doc_id@0, _doc_id@0), (_segment_ord@1, _segment_ord@1)], projection=[id@4]
+  CooperativeExec
+    DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
+  ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
     CooperativeExec
-      DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
-    ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
-      CooperativeExec
-        DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+      DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
-        .skip_while(|line| !line.starts_with("CoalesceBatchesExec"))
+        .skip_while(|line| !line.starts_with("HashJoinExec"))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -1585,7 +1579,15 @@ async fn test_multi_segment_three_way_join() {
     let num_segments = index.searchable_segments().unwrap().len();
     assert_eq!(num_segments, 2);
 
-    let config = SessionConfig::new().with_target_partitions(num_segments);
+    // Disable join dynamic filter pushdown to work around a DF 52 bug where
+    // Partitioned hash joins with dynamic filters use CaseHash routing instead
+    // of PartitionIndex routing, causing cross-partition mismatches.
+    // Upstream fix: https://github.com/apache/datafusion/pull/20246
+    let mut config = SessionConfig::new().with_target_partitions(num_segments);
+    config
+        .options_mut()
+        .optimizer
+        .enable_join_dynamic_filter_pushdown = false;
     let ctx = SessionContext::new_with_config(config);
     ctx.register_udf(full_text_udf());
     ctx.register_table(
@@ -1850,7 +1852,7 @@ async fn test_date_filter_pushdown_into_inverted_index_plan() {
     // Extract physical plan only (skip logical plan lines)
     let physical_plan: String = plan
         .lines()
-        .skip_while(|line| !line.starts_with("CoalesceBatchesExec"))
+        .skip_while(|line| !line.starts_with("HashJoinExec"))
         .collect::<Vec<_>>()
         .join("\n");
 
