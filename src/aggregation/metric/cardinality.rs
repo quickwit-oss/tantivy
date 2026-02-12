@@ -15,8 +15,8 @@ use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::*;
 use crate::TantivyError;
 
-/// Log2 of the number of registers. Must match the Java `Union(LOG2M)` where LOG2M=11.
-/// 2^11 = 2048 registers.
+/// Log2 of the number of registers for the HLL sketch.
+/// 2^11 = 2048 registers, giving ~2.3% relative error and ~1KB per sketch (Hll4).
 const LG_K: u8 = 11;
 
 /// # Cardinality
@@ -310,7 +310,8 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
 
 #[derive(Clone, Debug)]
 /// The cardinality collector used during segment collection and for merging results.
-/// Uses Apache DataSketches HLL (lg_k=11) for compatibility with Datadog's event query.
+/// Uses Apache DataSketches HLL (lg_k=11, Hll4) for compact binary serialization
+/// and cross-language compatibility (e.g. Java `datasketches` library).
 pub struct CardinalityCollector {
     sketch: HllSketch,
     /// Salt derived from `ColumnType`, used to differentiate values of different column types
@@ -367,7 +368,7 @@ impl CardinalityCollector {
     }
 
     /// Serialize the HLL sketch to its compact binary representation.
-    /// This format is compatible with Apache DataSketches Java (`HllSketch.heapify()`).
+    /// The format is cross-language compatible with Apache DataSketches (Java, C++, Python).
     pub fn to_sketch_bytes(&self) -> Vec<u8> {
         self.sketch.serialize()
     }
