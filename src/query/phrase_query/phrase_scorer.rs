@@ -44,6 +44,13 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
     }
 }
 
+/// `PhraseScorer` is a `Scorer` that matches documents that match a phrase query, and scores them
+/// based on the number of times the phrase appears in the document and the fieldnorm of the
+/// document.
+///
+/// It is implemented as an intersection of the postings of each term in the
+/// phrase, where the intersection condition is that the positions of the terms are next to each
+/// other (or within a certain slop).
 pub struct PhraseScorer<TPostings: Postings = StandardPostings> {
     intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
     num_terms: usize,
@@ -347,6 +354,9 @@ fn intersection_count_with_carrying_slop(
 
 impl<TPostings: Postings> PhraseScorer<TPostings> {
     // If similarity_weight is None, then scoring is disabled.
+    /// Creates a phrase scorer from term postings and phrase matching options.
+    ///
+    /// `slop` controls the maximum positional distance allowed between terms.
     pub fn new(
         term_postings: Vec<(usize, TPostings)>,
         similarity_weight_opt: Option<Bm25Weight>,

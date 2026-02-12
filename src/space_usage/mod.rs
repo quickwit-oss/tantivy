@@ -34,6 +34,7 @@ pub struct SearcherSpaceUsage {
 }
 
 impl SearcherSpaceUsage {
+    /// Creates an empty searcher space-usage accumulator.
     pub fn new() -> SearcherSpaceUsage {
         SearcherSpaceUsage {
             segments: Vec::new(),
@@ -80,6 +81,7 @@ pub struct SegmentSpaceUsage {
 
 impl SegmentSpaceUsage {
     #[expect(clippy::too_many_arguments)]
+    /// Creates a segment space-usage summary from all major segment components.
     pub fn new(
         num_docs: u32,
         termdict: PerFieldSpaceUsage,
@@ -210,7 +212,7 @@ impl StoreSpaceUsage {
 ///
 /// A field can appear with a single index (typically 0) or with multiple indexes.
 /// Multiple indexes are used to handle variable length things, where
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct PerFieldSpaceUsage {
     fields: BTreeMap<String, FieldUsage>,
     total: ByteCount,

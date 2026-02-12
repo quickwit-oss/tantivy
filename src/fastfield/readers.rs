@@ -25,6 +25,7 @@ pub struct FastFieldReaders {
 }
 
 impl FastFieldReaders {
+    /// Opens the segment fast-field container and binds it to a schema.
     pub fn open(fast_field_file: FileSlice, schema: Schema) -> io::Result<FastFieldReaders> {
         let columnar = Arc::new(ColumnarReader::open(fast_field_file)?);
         Ok(FastFieldReaders { columnar, schema })
@@ -39,6 +40,7 @@ impl FastFieldReaders {
         self.resolve_column_name_given_default_field(column_name, default_field_opt)
     }
 
+    /// Returns per-field space usage for all loaded fast-field columns.
     pub fn space_usage(&self) -> io::Result<PerFieldSpaceUsage> {
         let mut per_field_usages: Vec<FieldUsage> = Default::default();
         for (mut field_name, column_handle) in self.columnar.iter_columns()? {
@@ -51,6 +53,7 @@ impl FastFieldReaders {
         Ok(PerFieldSpaceUsage::new(per_field_usages))
     }
 
+    /// Returns the underlying `ColumnarReader`.
     pub fn columnar(&self) -> &ColumnarReader {
         self.columnar.as_ref()
     }

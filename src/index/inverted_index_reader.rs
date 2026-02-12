@@ -200,6 +200,10 @@ impl TantivyInvertedIndexReader {
         })
     }
 
+    /// Opens an inverted index reader from already-loaded term/postings/positions slices.
+    ///
+    /// The first 8 bytes of `postings_file_slice` are expected to contain
+    /// the serialized total token count.
     pub fn new(
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
