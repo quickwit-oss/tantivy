@@ -1,9 +1,13 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use arrow::array::RecordBatch;
 use datafusion::common::{DataFusionError, Result};
 use datafusion::dataframe::DataFrame;
+use datafusion::execution::SessionStateBuilder;
 use datafusion::logical_expr::expr::Sort;
 use datafusion::logical_expr::{col, lit, Expr, ExprSchemable, SortExpr};
+use datafusion::prelude::{SessionConfig, SessionContext};
 use tantivy::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use tantivy::aggregation::bucket::{
     CustomOrder, DateHistogramAggregationReq, HistogramAggregation, Order as TantivyOrder,
@@ -13,6 +17,70 @@ use tantivy::aggregation::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
     MaxAggregation, MinAggregation, PercentilesAggregationReq, StatsAggregation, SumAggregation,
 };
+use tantivy::Index;
+
+use crate::agg_pushdown::AggPushdown;
+use crate::ordinal_group_by::OrdinalGroupByOptimization;
+use crate::table_provider::TantivyTableProvider;
+
+/// Execute tantivy aggregations with native pushdown.
+///
+/// Creates a `SessionContext` with the `AggPushdown` optimizer rule,
+/// registers the index with aggregations stashed, and collects results.
+/// The optimizer replaces DataFusion's `AggregateExec` with tantivy's
+/// native `AggregationSegmentCollector` for near-native performance.
+///
+/// Each top-level aggregation is executed independently with its own
+/// stashed aggregation, so the optimizer can correctly map tantivy
+/// results to the expected output schema.
+///
+/// For hot-path usage, prefer [`create_session_with_pushdown`] to build
+/// the session once and reuse it across many calls.
+pub async fn execute_aggregations(
+    index: &Index,
+    aggs: &Aggregations,
+) -> Result<HashMap<String, Vec<RecordBatch>>> {
+    let ctx = create_session_with_pushdown(index, aggs)?;
+
+    let df = ctx.table("f").await?;
+    let dataframes = translate_aggregations_inner(df, aggs, true)?;
+
+    let mut results = HashMap::with_capacity(dataframes.len());
+    for (name, df) in dataframes {
+        let batches = df.collect().await?;
+        results.insert(name, batches);
+    }
+    Ok(results)
+}
+
+/// Build a `SessionContext` with the `AggPushdown` optimizer rule and a
+/// `TantivyTableProvider` (registered as `"f"`) that has the given
+/// aggregations stashed.
+///
+/// The returned context can be reused across many calls to
+/// [`translate_aggregations`] — only the table registration is
+/// agg-specific. For a long-lived service, call this once at startup
+/// (or once per distinct agg shape) and reuse the context.
+pub fn create_session_with_pushdown(
+    index: &Index,
+    aggs: &Aggregations,
+) -> Result<SessionContext> {
+    let config = SessionConfig::new();
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_default_features()
+        .with_physical_optimizer_rule(Arc::new(AggPushdown::new()))
+        .with_physical_optimizer_rule(Arc::new(OrdinalGroupByOptimization::new()))
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+
+    let mut provider = TantivyTableProvider::new(index.clone());
+    provider.set_aggregations(Arc::new(aggs.clone()));
+    ctx.register_table("f", Arc::new(provider))
+        .map_err(|e| DataFusionError::Internal(format!("register table: {e}")))?;
+
+    Ok(ctx)
+}
 
 /// Translate tantivy `Aggregations` into one `DataFrame` per top-level agg key.
 ///
@@ -23,6 +91,14 @@ pub fn translate_aggregations(
     df: DataFrame,
     aggs: &Aggregations,
 ) -> Result<HashMap<String, DataFrame>> {
+    translate_aggregations_inner(df, aggs, false)
+}
+
+fn translate_aggregations_inner(
+    df: DataFrame,
+    aggs: &Aggregations,
+    _pushdown: bool,
+) -> Result<HashMap<String, DataFrame>> {
     let mut result = HashMap::with_capacity(aggs.len());
     for (name, agg) in aggs {
         let translated = translate_single(df.clone(), name, agg)?;
@@ -31,7 +107,11 @@ pub fn translate_aggregations(
     Ok(result)
 }
 
-fn translate_single(df: DataFrame, name: &str, agg: &Aggregation) -> Result<DataFrame> {
+fn translate_single(
+    df: DataFrame,
+    name: &str,
+    agg: &Aggregation,
+) -> Result<DataFrame> {
     match &agg.agg {
         // Metric aggregations (no GROUP BY)
         AggregationVariants::Average(a) => translate_metric_only(df, name, MetricKind::Avg(a)),
@@ -61,7 +141,7 @@ fn translate_single(df: DataFrame, name: &str, agg: &Aggregation) -> Result<Data
             translate_date_histogram(df, name, dh, &agg.sub_aggregation)
         }
         AggregationVariants::Range(range) => {
-            translate_range(df, name, range, &agg.sub_aggregation)
+            translate_range_case(df, name, range, &agg.sub_aggregation)
         }
 
         // Deferred
@@ -464,104 +544,57 @@ fn parse_offset_to_micros(offset: &str) -> Result<i64> {
 // Range bucket
 // ---------------------------------------------------------------------------
 
-fn translate_range(
+/// Range via CASE-based GROUP BY — single scan, optimal for pushdown.
+/// Produces a normal `AggregateExec(GROUP BY bucket)` that the pushdown
+/// optimizer rule can replace with `TantivyAggregateExec`.
+fn translate_range_case(
     df: DataFrame,
     _name: &str,
     range: &RangeAggregation,
     sub_aggs: &Aggregations,
 ) -> Result<DataFrame> {
     use datafusion::functions_aggregate::expr_fn::count;
+    use datafusion::logical_expr::expr::Case;
 
     let field = &range.field;
     let base_metric_exprs = collect_metric_exprs(sub_aggs)?;
 
-    // Build filtered aggregates: one (doc_count + metrics) set per bucket.
-    // Single pass, no GROUP BY, no string allocations during scan.
-    let mut agg_exprs = Vec::new();
-    let mut bucket_keys = Vec::new();
-
-    for (i, entry) in range.ranges.iter().enumerate() {
-        let cond = range_condition(field, entry);
-        bucket_keys.push(range_bucket_key(entry));
-
-        // doc_count FILTER (WHERE cond)
-        agg_exprs.push(
-            add_agg_filter(count(lit(1)), cond.clone())
-                .alias(&format!("__b{i}_doc_count")),
-        );
-
-        // sub-agg metrics FILTER (WHERE cond)
-        for (j, base_expr) in base_metric_exprs.iter().enumerate() {
-            let (inner, alias) = strip_alias(base_expr);
-            agg_exprs.push(
-                add_agg_filter(inner, cond.clone())
-                    .alias(&format!("__b{i}_m{j}_{alias}")),
-            );
-        }
-    }
-
-    // Single-row aggregate with all buckets as columns
-    let flat_df = df.aggregate(vec![], agg_exprs)?;
-
-    // Restructure into one row per bucket via UNION ALL
-    let metric_aliases: Vec<String> = base_metric_exprs
+    // Build a CASE expression that assigns each row to a bucket key.
+    // Single scan with GROUP BY on the bucket key — no UNION, no N-scan.
+    //
+    // SELECT
+    //   CASE
+    //     WHEN price < 3.0 THEN 'cheap'
+    //     WHEN price >= 3.0 AND price < 5.0 THEN 'mid'
+    //     WHEN price >= 5.0 THEN 'expensive'
+    //   END as bucket,
+    //   count(*) as doc_count,
+    //   [sub-agg metrics]
+    // FROM f
+    // WHERE bucket IS NOT NULL
+    // GROUP BY bucket
+    // ORDER BY bucket ASC
+    let when_then: Vec<(Box<Expr>, Box<Expr>)> = range
+        .ranges
         .iter()
-        .enumerate()
-        .map(|(j, e)| {
-            let (_, alias) = strip_alias(e);
-            format!("m{j}_{alias}")
+        .map(|entry| {
+            let cond = range_condition(field, entry);
+            let key = lit(range_bucket_key(entry));
+            (Box::new(cond), Box::new(key))
         })
         .collect();
-    let metric_names: Vec<String> = base_metric_exprs
-        .iter()
-        .map(|e| strip_alias(e).1)
-        .collect();
 
-    let mut result: Option<DataFrame> = None;
-    for (i, key) in bucket_keys.iter().enumerate() {
-        let mut select_exprs = vec![
-            lit(key.clone()).alias("bucket"),
-            col(&format!("__b{i}_doc_count")).alias("doc_count"),
-        ];
-        for (j, m_alias) in metric_aliases.iter().enumerate() {
-            select_exprs.push(
-                col(&format!("__b{i}_{m_alias}")).alias(&metric_names[j]),
-            );
-        }
-        let bucket_df = flat_df.clone().select(select_exprs)?;
-        result = Some(match result {
-            Some(prev) => prev.union(bucket_df)?,
-            None => bucket_df,
-        });
-    }
+    let bucket_case = Expr::Case(Case::new(None, when_then, None));
+    let bucket_expr = bucket_case.alias("bucket");
 
-    result
-        .unwrap_or(flat_df)
-        .sort(vec![col("bucket").sort(true, true)])
-}
+    let mut agg_exprs = vec![count(lit(1)).alias("doc_count")];
+    agg_exprs.extend(base_metric_exprs);
 
-/// Inject a FILTER (WHERE cond) into an aggregate expression.
-fn add_agg_filter(expr: Expr, filter: Expr) -> Expr {
-    match expr {
-        Expr::AggregateFunction(mut agg_fn) => {
-            agg_fn.params.filter = Some(Box::new(filter));
-            Expr::AggregateFunction(agg_fn)
-        }
-        // If wrapped in Alias, unwrap, add filter, re-wrap
-        Expr::Alias(alias) => {
-            let filtered = add_agg_filter(*alias.expr, filter);
-            filtered.alias(alias.name)
-        }
-        other => other,
-    }
-}
+    // Filter out rows that don't match any range (NULL bucket)
+    let df = df.filter(bucket_expr.clone().is_not_null())?;
+    let df = df.aggregate(vec![bucket_expr], agg_exprs)?;
 
-/// Strip the outermost Alias from an Expr, returning (inner_expr, alias_name).
-fn strip_alias(expr: &Expr) -> (Expr, String) {
-    match expr {
-        Expr::Alias(alias) => (*alias.expr.clone(), alias.name.to_string()),
-        other => (other.clone(), "unnamed".to_string()),
-    }
+    df.sort(vec![col("bucket").sort(true, true)])
 }
 
 fn range_condition(field: &str, entry: &RangeAggregationRange) -> Expr {

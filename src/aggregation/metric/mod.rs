@@ -107,8 +107,10 @@ pub enum PercentileValues {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// The entry when requesting percentiles with keyed: false
 pub struct PercentileValuesVecEntry {
-    key: f64,
-    value: f64,
+    /// The percentile key (e.g. 1.0, 5.0, 25.0).
+    pub key: f64,
+    /// The percentile value. `NaN` when there are no values.
+    pub value: f64,
 }
 
 /// Single-metric aggregations use this common result structure.

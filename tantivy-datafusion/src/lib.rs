@@ -1,3 +1,5 @@
+pub(crate) mod agg_exec;
+pub mod agg_pushdown;
 pub mod agg_translator;
 pub mod catalog;
 pub mod document_provider;
@@ -5,16 +7,19 @@ pub mod fast_field_reader;
 pub mod filter_pushdown;
 pub mod full_text_udf;
 pub mod inverted_index_provider;
+pub mod ordinal_group_by;
 pub mod schema_mapping;
 pub mod table_provider;
 pub mod topk_pushdown;
 
-pub use agg_translator::translate_aggregations;
+pub use agg_pushdown::AggPushdown;
+pub use agg_translator::{create_session_with_pushdown, execute_aggregations, translate_aggregations};
 pub use catalog::{TantivyCatalog, TantivySchema};
 pub use document_provider::TantivyDocumentProvider;
 pub use filter_pushdown::FastFieldFilterPushdown;
 pub use full_text_udf::full_text_udf;
 pub use inverted_index_provider::TantivyInvertedIndexProvider;
+pub use ordinal_group_by::OrdinalGroupByOptimization;
 pub use schema_mapping::{tantivy_schema_to_arrow, tantivy_schema_to_arrow_from_index};
 pub use table_provider::TantivyTableProvider;
 pub use topk_pushdown::TopKPushdown;
