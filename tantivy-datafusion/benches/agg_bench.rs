@@ -1,11 +1,12 @@
-//! Benchmark: tantivy native AggregationCollector vs tantivy-datafusion translate_aggregations.
+//! Benchmark: tantivy native AggregationCollector vs tantivy-datafusion translate_aggregations
+//! vs native pushdown via execute_aggregations.
 //!
-//! Reuses the same index and aggregation JSON for apples-to-apples comparison.
 //! Run with: `cargo bench -p tantivy-datafusion`
 
 use std::sync::Arc;
 
 use binggan::{black_box, InputGroup};
+use datafusion::physical_plan::ExecutionPlan;
 use datafusion::prelude::*;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
@@ -15,12 +16,16 @@ use serde_json::json;
 use tantivy::aggregation::agg_req::Aggregations;
 use tantivy::aggregation::AggregationCollector;
 use tantivy::query::AllQuery;
-use tantivy::schema::{Schema, TextFieldIndexing, IndexRecordOption, FAST, STRING};
+use tantivy::schema::{IndexRecordOption, Schema, TextFieldIndexing, FAST, STRING};
 use tantivy::{doc, Index};
-use tantivy_datafusion::{translate_aggregations, TantivyTableProvider};
+use datafusion::execution::SessionStateBuilder;
+use tantivy_datafusion::{
+    create_session_with_pushdown, translate_aggregations, OrdinalGroupByOptimization,
+    TantivyTableProvider,
+};
 
 // ---------------------------------------------------------------------------
-// Index builder (mirrors root agg_bench, simplified to "full" cardinality)
+// Index builder (mirrors root agg_bench, "full" cardinality, 1M docs)
 // ---------------------------------------------------------------------------
 
 fn build_bench_index(num_docs: usize) -> Index {
@@ -75,7 +80,6 @@ fn build_bench_index(num_docs: usize) -> Index {
 struct AggCase {
     name: &'static str,
     json: serde_json::Value,
-    /// Key in the translate_aggregations result map to collect
     df_key: &'static str,
 }
 
@@ -145,6 +149,183 @@ fn agg_cases() -> Vec<AggCase> {
 }
 
 // ---------------------------------------------------------------------------
+// Shared tokio runtime + pre-warmed SessionContext
+// ---------------------------------------------------------------------------
+
+/// Pre-built context that avoids per-iteration setup overhead.
+struct DfContext {
+    rt: tokio::runtime::Runtime,
+    ctx: SessionContext,
+}
+
+impl DfContext {
+    fn new(index: &Index) -> Self {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let ctx = SessionContext::new();
+        ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+            .unwrap();
+        Self { rt, ctx }
+    }
+
+    fn run(&self, agg_req: &serde_json::Value, df_key: &str) {
+        self.rt.block_on(async {
+            let df = self.ctx.table("f").await.unwrap();
+            let aggs: Aggregations = serde_json::from_value(agg_req.clone()).unwrap();
+            let results = translate_aggregations(df, &aggs).unwrap();
+            let batches = results[df_key].clone().collect().await.unwrap();
+            black_box(batches);
+        });
+    }
+}
+
+/// Pre-built context with AggPushdown rule and aggregations stashed.
+struct PushdownContext {
+    rt: tokio::runtime::Runtime,
+    ctx: SessionContext,
+    aggs: Aggregations,
+    df_key: String,
+}
+
+impl PushdownContext {
+    fn new(index: &Index, agg_json: &serde_json::Value, df_key: &str) -> Self {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let aggs: Aggregations = serde_json::from_value(agg_json.clone()).unwrap();
+        let ctx = create_session_with_pushdown(index, &aggs).unwrap();
+        Self {
+            rt,
+            ctx,
+            aggs,
+            df_key: df_key.to_string(),
+        }
+    }
+
+    fn run(&self) {
+        self.rt.block_on(async {
+            let df = self.ctx.table("f").await.unwrap();
+            let results = translate_aggregations(df, &self.aggs).unwrap();
+            let batches = results[&self.df_key].clone().collect().await.unwrap();
+            black_box(batches);
+        });
+    }
+}
+
+/// Pre-built context with OrdinalGroupByOptimization rule (no pushdown).
+struct OrdinalDfContext {
+    rt: tokio::runtime::Runtime,
+    ctx: SessionContext,
+}
+
+impl OrdinalDfContext {
+    fn new(index: &Index) -> Self {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        // Use default target_partitions (= num CPUs) for parallelism,
+        // same as DfContext, so the comparison is fair.
+        let config = SessionConfig::new();
+        let state = SessionStateBuilder::new()
+            .with_config(config)
+            .with_default_features()
+            .with_physical_optimizer_rule(Arc::new(OrdinalGroupByOptimization::new()))
+            .build();
+        let ctx = SessionContext::new_with_state(state);
+        ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+            .unwrap();
+        Self { rt, ctx }
+    }
+
+    fn run(&self, agg_req: &serde_json::Value, df_key: &str) {
+        self.rt.block_on(async {
+            let df = self.ctx.table("f").await.unwrap();
+            let aggs: Aggregations = serde_json::from_value(agg_req.clone()).unwrap();
+            let results = translate_aggregations(df, &aggs).unwrap();
+            let batches = results[df_key].clone().collect().await.unwrap();
+            black_box(batches);
+        });
+    }
+}
+
+/// Single-threaded ordinal: target_partitions=1 so no chunking, no repartition.
+/// Shows true single-threaded ordinal performance vs native tantivy.
+struct OrdinalDf1T {
+    rt: tokio::runtime::Runtime,
+    ctx: SessionContext,
+}
+
+impl OrdinalDf1T {
+    fn new(index: &Index) -> Self {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let config = SessionConfig::new().with_target_partitions(1);
+        let state = SessionStateBuilder::new()
+            .with_config(config)
+            .with_default_features()
+            .with_physical_optimizer_rule(Arc::new(OrdinalGroupByOptimization::new()))
+            .build();
+        let ctx = SessionContext::new_with_state(state);
+        ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
+            .unwrap();
+        Self { rt, ctx }
+    }
+
+    fn run(&self, agg_req: &serde_json::Value, df_key: &str) {
+        self.rt.block_on(async {
+            let df = self.ctx.table("f").await.unwrap();
+            let aggs: Aggregations = serde_json::from_value(agg_req.clone()).unwrap();
+            let results = translate_aggregations(df, &aggs).unwrap();
+            let batches = results[df_key].clone().collect().await.unwrap();
+            black_box(batches);
+        });
+    }
+}
+
+/// Pre-planned pushdown: physical plan built once, only execution is benchmarked.
+struct PrePlannedPushdown {
+    rt: tokio::runtime::Runtime,
+    plan: Arc<dyn ExecutionPlan>,
+    ctx: SessionContext,
+}
+
+impl PrePlannedPushdown {
+    fn new(index: &Index, agg_json: &serde_json::Value, df_key: &str) -> Self {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let aggs: Aggregations = serde_json::from_value(agg_json.clone()).unwrap();
+        let ctx = create_session_with_pushdown(index, &aggs).unwrap();
+        let plan = rt.block_on(async {
+            let df = ctx.table("f").await.unwrap();
+            let results = translate_aggregations(df, &aggs).unwrap();
+            results[df_key]
+                .clone()
+                .create_physical_plan()
+                .await
+                .unwrap()
+        });
+        Self { rt, plan, ctx }
+    }
+
+    fn run(&self) {
+        self.rt.block_on(async {
+            let task_ctx = self.ctx.task_ctx();
+            let batches =
+                datafusion::physical_plan::collect(self.plan.clone(), task_ctx).await.unwrap();
+            black_box(batches);
+        });
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tantivy native runner
 // ---------------------------------------------------------------------------
 
@@ -157,60 +338,26 @@ fn run_native(index: &Index, agg_req: &serde_json::Value) {
 }
 
 // ---------------------------------------------------------------------------
-// DataFusion runner
-// ---------------------------------------------------------------------------
-
-fn run_datafusion(index: &Index, agg_req: &serde_json::Value, df_key: &str) {
-    run_datafusion_with_partitions(index, agg_req, df_key, 1);
-}
-
-fn run_datafusion_parallel(index: &Index, agg_req: &serde_json::Value, df_key: &str) {
-    // Use default target_partitions (num CPUs)
-    run_datafusion_with_partitions(index, agg_req, df_key, 0);
-}
-
-fn run_datafusion_with_partitions(
-    index: &Index,
-    agg_req: &serde_json::Value,
-    df_key: &str,
-    target_partitions: usize,
-) {
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-
-    rt.block_on(async {
-        let ctx = if target_partitions > 0 {
-            let config = SessionConfig::new().with_target_partitions(target_partitions);
-            SessionContext::new_with_config(config)
-        } else {
-            SessionContext::new() // default = num_cpus
-        };
-        ctx.register_table("f", Arc::new(TantivyTableProvider::new(index.clone())))
-            .unwrap();
-
-        let df = ctx.table("f").await.unwrap();
-        let aggs: Aggregations = serde_json::from_value(agg_req.clone()).unwrap();
-        let results = translate_aggregations(df, &aggs).unwrap();
-        let batches = results[df_key].clone().collect().await.unwrap();
-        black_box(batches);
-    });
-}
-
-// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 fn main() {
     let cases = agg_cases();
 
-    // Build inputs: different sizes to see scaling behavior
-    let inputs: Vec<(&str, Index)> = vec![
-        ("1M_docs", build_bench_index(1_000_000)),
-    ];
+    let index = build_bench_index(1_000_000);
+
+    // Pre-warm DF context once (reused across all cases)
+    let df_ctx = Arc::new(DfContext::new(&index));
+    let ordinal_ctx = Arc::new(OrdinalDfContext::new(&index));
+    let ordinal_1t = Arc::new(OrdinalDf1T::new(&index));
+
+    let inputs: Vec<(&str, Index)> = vec![("1M_docs", index.clone())];
 
     for case in &cases {
+        // Pre-warm contexts per case
+        let pd_ctx = Arc::new(PushdownContext::new(&index, &case.json, case.df_key));
+        let pp_pd = Arc::new(PrePlannedPushdown::new(&index, &case.json, case.df_key));
+
         let mut group = InputGroup::new_with_inputs(
             inputs
                 .iter()
@@ -223,18 +370,45 @@ fn main() {
             run_native(index, &json_native);
         });
 
+        let pd = pd_ctx.clone();
+        group.register(
+            &format!("native_pushdown/{}", case.name),
+            move |_index| {
+                pd.run();
+            },
+        );
+
+        let ctx = df_ctx.clone();
         let json_df = case.json.clone();
-        let key = case.df_key;
-        group.register(&format!("datafusion_1t/{}", case.name), move |index| {
-            run_datafusion(index, &json_df, key);
+        let key_df = case.df_key;
+        group.register(&format!("datafusion/{}", case.name), move |_index| {
+            ctx.run(&json_df, key_df);
         });
 
-        let json_df_par = case.json.clone();
-        let key_par = case.df_key;
-        group.register(&format!("datafusion_par/{}", case.name), move |index| {
-            run_datafusion_parallel(index, &json_df_par, key_par);
+        let ord_ctx = ordinal_ctx.clone();
+        let json_ord = case.json.clone();
+        let key_ord = case.df_key;
+        group.register(&format!("ordinal_df/{}", case.name), move |_index| {
+            ord_ctx.run(&json_ord, key_ord);
         });
+
+        let o1t = ordinal_1t.clone();
+        let json_1t = case.json.clone();
+        let key_1t = case.df_key;
+        group.register(&format!("ordinal_1t/{}", case.name), move |_index| {
+            o1t.run(&json_1t, key_1t);
+        });
+
+        // Pre-planned variants: execution only, no planning overhead
+        let pp = pp_pd.clone();
+        group.register(
+            &format!("pushdown_exec/{}", case.name),
+            move |_index| {
+                pp.run();
+            },
+        );
 
         group.run();
     }
 }
+

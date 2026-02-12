@@ -749,7 +749,7 @@ CoalesceBatchesExec: target_batch_size=8192
     CooperativeExec
       DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
     CooperativeExec
-      DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+      DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
@@ -918,7 +918,7 @@ SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
           CooperativeExec
             DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
           CooperativeExec
-            DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[price@3 > 2, DynamicFilter [ empty ]])
+            DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[price@3 > 2, DynamicFilter [ empty ]])
       CooperativeExec
         DataSourceExec: DocumentDataSource(segments=1, pushed_filters=[DynamicFilter [ empty ]])";
 
@@ -1254,7 +1254,7 @@ SortExec: expr=[id@0 ASC NULLS LAST], preserve_partitioning=[false]
       CooperativeExec
         DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
       CooperativeExec
-        DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+        DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
@@ -1370,7 +1370,7 @@ SortExec: TopK(fetch=1), expr=[_score@1 DESC], preserve_partitioning=[false]
           DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=Some(1))
         ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
           CooperativeExec
-            DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+            DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
@@ -1414,7 +1414,7 @@ CoalesceBatchesExec: target_batch_size=8192
       DataSourceExec: InvertedIndexDataSource(segments=1, query=true, topk=None)
     ProjectionExec: expr=[_doc_id@0 as _doc_id, _segment_ord@1 as _segment_ord, id@2 as id]
       CooperativeExec
-        DataSourceExec: FastFieldDataSource(segments=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
+        DataSourceExec: FastFieldDataSource(partitions=1, query=false, limit=None, pushed_filters=[DynamicFilter [ empty ]])";
 
     let physical_plan: String = plan
         .lines()
