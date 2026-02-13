@@ -1,9 +1,10 @@
 use std::io;
 use std::io::Write;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use common::{CountingWriter, OwnedBytes};
+use pgm_extra::OneLevelIndex;
 
 use super::optional_index::{open_optional_index, serialize_optional_index};
 use super::{OptionalIndex, SerializableOptionalIndex, Set};
@@ -12,6 +13,8 @@ use crate::column_values::{
 };
 use crate::iterable::Iterable;
 use crate::{DocId, RowId, Version};
+
+const MIN_SIZE_FOR_PGM: u32 = 1024;
 
 pub struct SerializableMultivalueIndex<'a> {
     pub doc_ids_with_values: SerializableOptionalIndex<'a>,
@@ -53,6 +56,7 @@ pub fn open_multivalued_index(
                 load_u64_based_column_values(bytes)?;
             Ok(MultiValueIndex::MultiValueIndexV1(MultiValueIndexV1 {
                 start_index_column,
+                pgm_index: OnceLock::new(),
             }))
         }
         Version::V2 => {
@@ -67,6 +71,7 @@ pub fn open_multivalued_index(
             Ok(MultiValueIndex::MultiValueIndexV2(MultiValueIndexV2 {
                 optional_index,
                 start_index_column,
+                pgm_index: OnceLock::new(),
             }))
         }
     }
@@ -80,11 +85,25 @@ pub enum MultiValueIndex {
     MultiValueIndexV2(MultiValueIndexV2),
 }
 
-#[derive(Clone)]
 /// Index to resolve value range for given doc_id.
 /// Starts at 0.
 pub struct MultiValueIndexV1 {
     pub start_index_column: Arc<dyn crate::ColumnValues<RowId>>,
+    pgm_index: OnceLock<PgmIndexData>,
+}
+
+impl Clone for MultiValueIndexV1 {
+    fn clone(&self) -> Self {
+        Self {
+            start_index_column: self.start_index_column.clone(),
+            pgm_index: OnceLock::new(),
+        }
+    }
+}
+
+struct PgmIndexData {
+    index: OneLevelIndex<u32>,
+    values: Vec<u32>,
 }
 
 impl MultiValueIndexV1 {
@@ -106,21 +125,58 @@ impl MultiValueIndexV1 {
         self.start_index_column.num_vals() - 1
     }
 
+    fn get_or_build_pgm(&self) -> Option<&PgmIndexData> {
+        let num_vals = self.start_index_column.num_vals();
+        if num_vals < MIN_SIZE_FOR_PGM {
+            return None;
+        }
+        Some(self.pgm_index.get_or_init(|| {
+            let mut values = Vec::with_capacity(num_vals as usize);
+            for i in 0..num_vals {
+                values.push(self.start_index_column.get_val(i));
+            }
+            let index = OneLevelIndex::new(&values, 64).expect("PGM build failed");
+            PgmIndexData { index, values }
+        }))
+    }
+
     /// Converts a list of ranks (row ids of values) in a 1:n index to the corresponding list of
     /// docids. Positions are converted inplace to docids.
     ///
-    /// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the
-    /// index.
-    ///
-    /// Correctness: positions needs to be sorted. idx_reader needs to contain monotonically
-    /// increasing positions.
-    ///
-    /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
-    /// match a docid to its value position.
+    /// Uses PGM-index for O(1) predecessor lookups on large columns.
     pub(crate) fn select_batch_in_place(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         if ranks.is_empty() {
             return;
         }
+
+        if let Some(pgm_data) = self.get_or_build_pgm() {
+            self.select_batch_with_pgm(pgm_data, ranks);
+        } else {
+            self.select_batch_linear(docid_start, ranks);
+        }
+    }
+
+    fn select_batch_with_pgm(&self, pgm_data: &PgmIndexData, ranks: &mut Vec<u32>) {
+        let mut write_pos = 0;
+        let mut last_doc: Option<u32> = None;
+
+        for i in 0..ranks.len() {
+            let pos = ranks[i];
+            let ub = pgm_data.index.upper_bound(&pgm_data.values, &pos);
+            if ub == 0 {
+                continue;
+            }
+            let doc = (ub - 1) as u32;
+            if last_doc != Some(doc) {
+                ranks[write_pos] = doc;
+                write_pos += 1;
+                last_doc = Some(doc);
+            }
+        }
+        ranks.truncate(write_pos);
+    }
+
+    fn select_batch_linear(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         let mut cur_doc = docid_start;
         let mut last_doc = None;
 
@@ -144,12 +200,22 @@ impl MultiValueIndexV1 {
     }
 }
 
-#[derive(Clone)]
 /// Index to resolve value range for given doc_id.
 /// Starts at 0.
 pub struct MultiValueIndexV2 {
     pub optional_index: OptionalIndex,
     pub start_index_column: Arc<dyn crate::ColumnValues<RowId>>,
+    pgm_index: OnceLock<PgmIndexData>,
+}
+
+impl Clone for MultiValueIndexV2 {
+    fn clone(&self) -> Self {
+        Self {
+            optional_index: self.optional_index.clone(),
+            start_index_column: self.start_index_column.clone(),
+            pgm_index: OnceLock::new(),
+        }
+    }
 }
 
 impl std::fmt::Debug for MultiValueIndex {
@@ -282,21 +348,62 @@ impl MultiValueIndexV2 {
         self.optional_index.num_docs()
     }
 
+    fn get_or_build_pgm(&self) -> Option<&PgmIndexData> {
+        let num_vals = self.start_index_column.num_vals();
+        if num_vals < MIN_SIZE_FOR_PGM {
+            return None;
+        }
+        Some(self.pgm_index.get_or_init(|| {
+            let mut values = Vec::with_capacity(num_vals as usize);
+            for i in 0..num_vals {
+                values.push(self.start_index_column.get_val(i));
+            }
+            let index = OneLevelIndex::new(&values, 64).expect("PGM build failed");
+            PgmIndexData { index, values }
+        }))
+    }
+
     /// Converts a list of ranks (row ids of values) in a 1:n index to the corresponding list of
     /// docids. Positions are converted inplace to docids.
     ///
-    /// Since there is no index for value pos -> docid, but docid -> value pos range, we scan the
-    /// index.
-    ///
-    /// Correctness: positions needs to be sorted. idx_reader needs to contain monotonically
-    /// increasing positions.
-    ///
-    /// TODO: Instead of a linear scan we can employ a exponential search into binary search to
-    /// match a docid to its value position.
+    /// Uses PGM-index for O(1) predecessor lookups on large columns.
     pub(crate) fn select_batch_in_place(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         if ranks.is_empty() {
             return;
         }
+
+        if let Some(pgm_data) = self.get_or_build_pgm() {
+            self.select_batch_with_pgm(pgm_data, ranks);
+        } else {
+            self.select_batch_linear(docid_start, ranks);
+        }
+    }
+
+    fn select_batch_with_pgm(&self, pgm_data: &PgmIndexData, ranks: &mut Vec<u32>) {
+        let mut write_pos = 0;
+        let mut last_rank: Option<u32> = None;
+
+        for i in 0..ranks.len() {
+            let pos = ranks[i];
+            let ub = pgm_data.index.upper_bound(&pgm_data.values, &pos);
+            if ub == 0 {
+                continue;
+            }
+            let rank = (ub - 1) as u32;
+            if last_rank != Some(rank) {
+                ranks[write_pos] = rank;
+                write_pos += 1;
+                last_rank = Some(rank);
+            }
+        }
+        ranks.truncate(write_pos);
+
+        for rank in ranks.iter_mut() {
+            *rank = self.optional_index.select(*rank);
+        }
+    }
+
+    fn select_batch_linear(&self, docid_start: DocId, ranks: &mut Vec<u32>) {
         let mut cur_pos_in_idx = self.optional_index.rank(docid_start);
         let mut last_doc = None;
 
