@@ -34,11 +34,11 @@ use crate::schema_mapping::{tantivy_schema_to_arrow, tantivy_schema_to_arrow_fro
 
 /// Describes which slice of which segment a partition reads.
 #[derive(Debug, Clone)]
-struct PartitionRange {
-    segment_idx: usize,
-    segment_ord: u32,
-    doc_start: u32,
-    doc_end: u32,
+pub(crate) struct PartitionRange {
+    pub(crate) segment_idx: usize,
+    pub(crate) segment_ord: u32,
+    pub(crate) doc_start: u32,
+    pub(crate) doc_end: u32,
 }
 
 /// A DataFusion table provider backed by a tantivy index.
@@ -222,7 +222,7 @@ impl TableProvider for TantivyTableProvider {
 /// Accepts dynamic filters pushed down from the optimizer (e.g. from hash join
 /// build-side min/max bounds) and applies them after batch generation.
 #[derive(Debug)]
-pub(crate) struct FastFieldDataSource {
+pub struct FastFieldDataSource {
     opener: Arc<dyn IndexOpener>,
     arrow_schema: SchemaRef,
     projected_schema: SchemaRef,
@@ -235,6 +235,31 @@ pub(crate) struct FastFieldDataSource {
 }
 
 impl FastFieldDataSource {
+    /// Create a new `FastFieldDataSource` for use by the unified provider.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        opener: Arc<dyn IndexOpener>,
+        arrow_schema: SchemaRef,
+        projected_schema: SchemaRef,
+        projection: Option<Vec<usize>>,
+        query: Option<Arc<dyn Query>>,
+        limit: Option<usize>,
+        partition_ranges: Vec<PartitionRange>,
+        aggregations: Option<Arc<Aggregations>>,
+    ) -> Self {
+        Self {
+            opener,
+            arrow_schema,
+            projected_schema,
+            projection,
+            query,
+            limit,
+            partition_ranges,
+            pushed_filters: vec![],
+            aggregations,
+        }
+    }
+
     fn clone_with(&self, f: impl FnOnce(&mut Self)) -> Self {
         let mut new = FastFieldDataSource {
             opener: self.opener.clone(),
@@ -267,8 +292,13 @@ impl FastFieldDataSource {
     }
 
     /// Access the index opener.
-    pub(crate) fn opener(&self) -> &Arc<dyn IndexOpener> {
+    pub fn opener(&self) -> &Arc<dyn IndexOpener> {
         &self.opener
+    }
+
+    /// Access the projection indices (if any).
+    pub fn projection(&self) -> Option<&Vec<usize>> {
+        self.projection.as_ref()
     }
 
     /// Access the optional tantivy query.

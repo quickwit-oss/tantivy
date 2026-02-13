@@ -122,7 +122,7 @@ impl TableProvider for TantivyDocumentProvider {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
-struct DocumentDataSource {
+pub struct DocumentDataSource {
     opener: Arc<dyn IndexOpener>,
     schema: SchemaRef,
     full_schema: SchemaRef,
@@ -143,6 +143,41 @@ impl DocumentDataSource {
         };
         f(&mut new);
         new
+    }
+}
+
+impl DocumentDataSource {
+    /// Create a new `DocumentDataSource` for use by the unified provider.
+    pub(crate) fn new(
+        opener: Arc<dyn IndexOpener>,
+        schema: SchemaRef,
+        full_schema: SchemaRef,
+        projection: Option<Vec<usize>>,
+        num_segments: usize,
+    ) -> Self {
+        Self {
+            opener,
+            schema,
+            full_schema,
+            projection,
+            num_segments,
+            pushed_filters: vec![],
+        }
+    }
+
+    /// Access the index opener.
+    pub fn opener(&self) -> &Arc<dyn IndexOpener> {
+        &self.opener
+    }
+
+    /// Access the projection indices.
+    pub fn projection(&self) -> Option<&Vec<usize>> {
+        self.projection.as_ref()
+    }
+
+    /// The number of segments this data source is partitioned over.
+    pub fn num_segments(&self) -> usize {
+        self.num_segments
     }
 }
 

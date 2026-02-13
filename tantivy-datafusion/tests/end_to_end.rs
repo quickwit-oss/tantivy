@@ -11,6 +11,7 @@ use tantivy::{doc, DateTime, Index, IndexWriter, TantivyDocument};
 use tantivy_datafusion::{
     full_text_udf, FastFieldFilterPushdown, TantivyDocumentProvider,
     TantivyInvertedIndexProvider, TantivyTableProvider, TopKPushdown,
+    UnifiedTantivyTableProvider,
 };
 
 fn plan_to_string(batches: &[RecordBatch]) -> String {
@@ -1866,5 +1867,265 @@ async fn test_date_filter_pushdown_into_inverted_index_plan() {
     assert!(
         !physical_plan.contains("created_at"),
         "created_at filter should not remain on FastFieldDataSource.\n\nPhysical plan:\n{physical_plan}"
+    );
+}
+
+// --- Unified provider tests ---
+
+#[tokio::test]
+async fn test_unified_fast_fields_only() {
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql("SELECT id, price FROM t WHERE price > 2.0 ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // price > 2.0 → ids {2, 3, 4, 5}
+    assert_eq!(batch.num_rows(), 4);
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 2);
+    assert_eq!(ids.value(1), 3);
+    assert_eq!(ids.value(2), 4);
+    assert_eq!(ids.value(3), 5);
+}
+
+#[tokio::test]
+async fn test_unified_full_text_with_score() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql("SELECT id, _score FROM t WHERE full_text(category, 'electronics') ORDER BY id")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics → ids {1, 3}
+    assert_eq!(batch.num_rows(), 2);
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 1);
+    assert_eq!(ids.value(1), 3);
+
+    // Scores should be positive
+    let scores = batch.column(1).as_primitive::<Float32Type>();
+    assert!(scores.value(0) > 0.0);
+    assert!(scores.value(1) > 0.0);
+}
+
+#[tokio::test]
+async fn test_unified_full_text_with_filter() {
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql(
+            "SELECT id, price FROM t \
+             WHERE full_text(category, 'electronics') AND price > 2.0 \
+             ORDER BY id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics AND price > 2.0 → only id=3
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+}
+
+#[tokio::test]
+async fn test_unified_with_document() {
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql(
+            "SELECT id, _document FROM t \
+             WHERE full_text(category, 'electronics') \
+             ORDER BY id",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 2);
+    let ids = batch.column(0).as_primitive::<UInt64Type>();
+    assert_eq!(ids.value(0), 1);
+    assert_eq!(ids.value(1), 3);
+
+    // _document should be valid JSON
+    let docs = batch.column(1).as_string::<i32>();
+    let doc0: serde_json::Value = serde_json::from_str(docs.value(0)).unwrap();
+    assert_eq!(doc0["id"][0], 1);
+    let doc1: serde_json::Value = serde_json::from_str(docs.value(1)).unwrap();
+    assert_eq!(doc1["id"][0], 3);
+}
+
+#[tokio::test]
+async fn test_unified_three_way() {
+    use arrow::datatypes::Float32Type;
+
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql(
+            "SELECT id, price, _score, _document FROM t \
+             WHERE full_text(category, 'electronics') AND price > 2.0 \
+             ORDER BY _score DESC LIMIT 10",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    // electronics AND price > 2.0 → only id=3
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 3);
+    let price = batch.column(1).as_primitive::<Float64Type>().value(0);
+    assert!((price - 3.5).abs() < 1e-10);
+    let score = batch.column(2).as_primitive::<Float32Type>().value(0);
+    assert!(score > 0.0);
+    let doc: serde_json::Value =
+        serde_json::from_str(batch.column(3).as_string::<i32>().value(0)).unwrap();
+    assert_eq!(doc["id"][0], 3);
+}
+
+#[tokio::test]
+async fn test_unified_score_null_without_query() {
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql("SELECT id, _score FROM t ORDER BY id LIMIT 3")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 3);
+    // _score should be null when no full_text() filter
+    let scores = batch.column(1);
+    assert!(scores.is_null(0), "_score should be null without a query");
+}
+
+#[tokio::test]
+async fn test_unified_document_without_inverted_index() {
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql("SELECT id, _document FROM t WHERE id = 1")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let batch = collect_batches(&batches);
+
+    assert_eq!(batch.num_rows(), 1);
+    let id = batch.column(0).as_primitive::<UInt64Type>().value(0);
+    assert_eq!(id, 1);
+
+    let doc: serde_json::Value =
+        serde_json::from_str(batch.column(1).as_string::<i32>().value(0)).unwrap();
+    assert_eq!(doc["id"][0], 1);
+}
+
+#[tokio::test]
+async fn test_unified_plan_fast_fields_only() {
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let ctx = SessionContext::new();
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql("EXPLAIN SELECT id, price FROM t WHERE price > 2.0")
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    // Should NOT contain HashJoinExec — fast fields only
+    assert!(
+        !plan.contains("HashJoinExec"),
+        "Fast-fields-only query should not have joins.\n\nPlan:\n{plan}"
+    );
+    assert!(
+        plan.contains("FastFieldDataSource"),
+        "Plan should contain FastFieldDataSource.\n\nPlan:\n{plan}"
+    );
+}
+
+#[tokio::test]
+async fn test_unified_plan_with_join() {
+    let index = create_test_index();
+    let provider = UnifiedTantivyTableProvider::new(index);
+
+    let config = SessionConfig::new().with_target_partitions(1);
+    let ctx = SessionContext::new_with_config(config);
+    ctx.register_udf(full_text_udf());
+    ctx.register_table("t", Arc::new(provider)).unwrap();
+
+    let df = ctx
+        .sql(
+            "EXPLAIN SELECT id, _score FROM t \
+             WHERE full_text(category, 'electronics')",
+        )
+        .await
+        .unwrap();
+    let batches = df.collect().await.unwrap();
+    let plan = plan_to_string(&batches);
+
+    assert!(
+        plan.contains("HashJoinExec"),
+        "Full-text query should produce a join plan.\n\nPlan:\n{plan}"
+    );
+    assert!(
+        plan.contains("InvertedIndexDataSource"),
+        "Plan should contain InvertedIndexDataSource.\n\nPlan:\n{plan}"
+    );
+    assert!(
+        plan.contains("FastFieldDataSource"),
+        "Plan should contain FastFieldDataSource.\n\nPlan:\n{plan}"
     );
 }

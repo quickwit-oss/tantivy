@@ -87,6 +87,16 @@ pub(crate) fn extract_full_text_call(expr: &Expr) -> Option<(String, String)> {
         let field_name = match &args[0] {
             Expr::Column(col) => col.name().to_string(),
             Expr::Literal(ScalarValue::Utf8(Some(s)), _) => s.clone(),
+            // Handle CAST(column AS Utf8) — DataFusion inserts this when the
+            // column type is Dictionary(Int32, Utf8) and the UDF expects Utf8.
+            Expr::Cast(cast) => match cast.expr.as_ref() {
+                Expr::Column(col) => col.name().to_string(),
+                _ => return None,
+            },
+            Expr::TryCast(cast) => match cast.expr.as_ref() {
+                Expr::Column(col) => col.name().to_string(),
+                _ => return None,
+            },
             _ => return None,
         };
         let query_string = match &args[1] {

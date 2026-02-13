@@ -71,7 +71,7 @@ impl TantivyInvertedIndexProvider {
         Self { opener, arrow_schema }
     }
 
-    fn build_arrow_fields(schema: &tantivy::schema::Schema) -> Vec<Field> {
+    pub(crate) fn build_arrow_fields(schema: &tantivy::schema::Schema) -> Vec<Field> {
         let mut fields: Vec<Field> = vec![
             Field::new("_doc_id", DataType::UInt32, false),
             Field::new("_segment_ord", DataType::UInt32, false),
@@ -188,7 +188,7 @@ impl TableProvider for TantivyInvertedIndexProvider {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
-pub(crate) struct InvertedIndexDataSource {
+pub struct InvertedIndexDataSource {
     opener: Arc<dyn IndexOpener>,
     full_schema: SchemaRef,
     projected_schema: SchemaRef,
@@ -202,6 +202,27 @@ pub(crate) struct InvertedIndexDataSource {
 }
 
 impl InvertedIndexDataSource {
+    /// Create a new `InvertedIndexDataSource` for use by the unified provider.
+    pub(crate) fn new(
+        opener: Arc<dyn IndexOpener>,
+        full_schema: SchemaRef,
+        projected_schema: SchemaRef,
+        projection: Option<Vec<usize>>,
+        raw_queries: Vec<(String, String)>,
+        num_segments: usize,
+    ) -> Self {
+        Self {
+            opener,
+            full_schema,
+            projected_schema,
+            projection,
+            query: None,
+            raw_queries,
+            num_segments,
+            topk: None,
+        }
+    }
+
     /// Create a copy with the topk limit set.
     pub(crate) fn with_topk(&self, topk: usize) -> Self {
         InvertedIndexDataSource {
@@ -217,8 +238,28 @@ impl InvertedIndexDataSource {
     }
 
     /// Access the index opener (for schema inspection by optimizer rules).
-    pub(crate) fn opener(&self) -> &Arc<dyn IndexOpener> {
+    pub fn opener(&self) -> &Arc<dyn IndexOpener> {
         &self.opener
+    }
+
+    /// Access the projection indices.
+    pub fn projection(&self) -> Option<&Vec<usize>> {
+        self.projection.as_ref()
+    }
+
+    /// Access the raw full-text queries (field_name, query_string).
+    pub fn raw_queries(&self) -> &[(String, String)] {
+        &self.raw_queries
+    }
+
+    /// The number of segments this data source is partitioned over.
+    pub fn num_segments(&self) -> usize {
+        self.num_segments
+    }
+
+    /// Access the topk limit.
+    pub fn topk(&self) -> Option<usize> {
+        self.topk
     }
 
     /// Whether this data source has an active query (pre-parsed or deferred).

@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt;
 
 use async_trait::async_trait;
@@ -25,6 +26,29 @@ pub trait IndexOpener: Send + Sync + fmt::Debug {
     /// Used during planning to determine partition count and chunking.
     /// Returns empty vec if unknown (single-partition fallback).
     fn segment_sizes(&self) -> Vec<u32>;
+
+    /// A serializable identifier for this opener.
+    ///
+    /// Used by [`TantivyCodec`](crate::codec::TantivyCodec) to reconstruct
+    /// the opener on remote workers. The caller's opener factory receives
+    /// this identifier along with the schema and segment sizes.
+    ///
+    /// For local (non-distributed) usage this can return an empty string.
+    fn identifier(&self) -> &str;
+
+    /// Downcast to a concrete type.
+    fn as_any(&self) -> &dyn Any;
+}
+
+/// Metadata extracted from an [`IndexOpener`] for codec serialization.
+///
+/// Passed to the opener factory on the remote worker to reconstruct
+/// an [`IndexOpener`] that can open the index from local storage/cache.
+#[derive(Debug, Clone)]
+pub struct OpenerMetadata {
+    pub identifier: String,
+    pub tantivy_schema: tantivy::schema::Schema,
+    pub segment_sizes: Vec<u32>,
 }
 
 /// An [`IndexOpener`] that wraps an already-opened `Index`.
@@ -64,5 +88,13 @@ impl IndexOpener for DirectIndexOpener {
             }
             Err(_) => vec![],
         }
+    }
+
+    fn identifier(&self) -> &str {
+        ""
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
