@@ -277,12 +277,12 @@ impl FastFieldDataSource {
     }
 
     /// Read access to pushed filters (for the filter pushdown optimizer rule).
-    pub(crate) fn pushed_filters(&self) -> &[Arc<dyn PhysicalExpr>] {
+    pub fn pushed_filters(&self) -> &[Arc<dyn PhysicalExpr>] {
         &self.pushed_filters
     }
 
     /// Create a copy with a new set of pushed filters.
-    pub(crate) fn with_pushed_filters(&self, filters: Vec<Arc<dyn PhysicalExpr>>) -> Self {
+    pub fn with_pushed_filters(&self, filters: Vec<Arc<dyn PhysicalExpr>>) -> Self {
         self.clone_with(|s| s.pushed_filters = filters)
     }
 

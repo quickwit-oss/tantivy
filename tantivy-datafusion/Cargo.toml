@@ -17,7 +17,7 @@ datafusion-proto = "52"
 arrow = { version = "57", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
-prost = "0.13"
+prost = "0.14"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

@@ -34,6 +34,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::prelude::SessionConfig;
 use datafusion_datasource::source::DataSourceExec;
+use datafusion_physical_expr::PhysicalExpr;
 use datafusion_physical_plan::execution_plan::{Boundedness, EmissionType};
 use datafusion_proto::physical_plan::PhysicalExtensionCodec;
 use futures::stream;
@@ -116,6 +117,9 @@ struct TantivyScanProto {
     topk: u32,
     #[prost(bool, tag = "10")]
     has_topk: bool,
+    /// Serialized pushed filters (PhysicalExprNode protobuf bytes, one per filter).
+    #[prost(bytes = "vec", repeated, tag = "11")]
+    pushed_filters: Vec<Vec<u8>>,
 }
 
 const FAST_FIELD: u32 = 0;
@@ -136,6 +140,45 @@ const DOCUMENT: u32 = 2;
 /// ```
 #[derive(Debug, Clone)]
 pub struct TantivyCodec;
+
+/// Serialize a list of `PhysicalExpr`s into protobuf bytes.
+fn serialize_pushed_filters(
+    filters: &[Arc<dyn PhysicalExpr>],
+    codec: &TantivyCodec,
+) -> Result<Vec<Vec<u8>>> {
+    filters
+        .iter()
+        .map(|f| {
+            let proto = datafusion_proto::physical_plan::to_proto::serialize_physical_expr(f, codec)?;
+            let mut buf = Vec::new();
+            proto
+                .encode(&mut buf)
+                .map_err(|e| DataFusionError::Internal(format!("encode filter: {e}")))?;
+            Ok(buf)
+        })
+        .collect()
+}
+
+/// Deserialize pushed filters from protobuf bytes.
+fn deserialize_pushed_filters(
+    filter_bytes: &[Vec<u8>],
+    ctx: &TaskContext,
+    schema: &arrow::datatypes::Schema,
+    codec: &TantivyCodec,
+) -> Result<Vec<Arc<dyn PhysicalExpr>>> {
+    use prost::Message as ProstMessage;
+    filter_bytes
+        .iter()
+        .map(|buf| {
+            let proto =
+                datafusion_proto::protobuf::PhysicalExprNode::decode(buf.as_slice())
+                    .map_err(|e| DataFusionError::Internal(format!("decode filter: {e}")))?;
+            datafusion_proto::physical_plan::from_proto::parse_physical_expr(
+                &proto, ctx, schema, codec,
+            )
+        })
+        .collect()
+}
 
 /// Extract serializable metadata from an opener.
 fn opener_to_proto(opener: &Arc<dyn IndexOpener>) -> Result<(String, String, Vec<u32>)> {
@@ -165,10 +208,12 @@ impl PhysicalExtensionCodec for TantivyCodec {
                     Some(p) => (p.iter().map(|&i| i as u32).collect(), true),
                     None => (Vec::new(), false),
                 };
+                let pushed_filters = serialize_pushed_filters(ff.pushed_filters(), self)?;
                 return TantivyScanProto {
                     identifier: id, tantivy_schema_json: schema_json, segment_sizes: seg,
                     projection: proj, has_projection: has_proj, output_partitions,
                     provider_type: FAST_FIELD, raw_queries_json: String::new(), topk: 0, has_topk: false,
+                    pushed_filters,
                 }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
             }
 
@@ -188,6 +233,7 @@ impl PhysicalExtensionCodec for TantivyCodec {
                     identifier: id, tantivy_schema_json: schema_json, segment_sizes: seg,
                     projection: proj, has_projection: has_proj, output_partitions,
                     provider_type: INVERTED_INDEX, raw_queries_json: rq_json, topk, has_topk,
+                    pushed_filters: Vec::new(),
                 }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
             }
 
@@ -197,10 +243,12 @@ impl PhysicalExtensionCodec for TantivyCodec {
                     Some(p) => (p.iter().map(|&i| i as u32).collect(), true),
                     None => (Vec::new(), false),
                 };
+                let pushed_filters = serialize_pushed_filters(doc.pushed_filters(), self)?;
                 return TantivyScanProto {
                     identifier: id, tantivy_schema_json: schema_json, segment_sizes: seg,
                     projection: proj, has_projection: has_proj, output_partitions,
                     provider_type: DOCUMENT, raw_queries_json: String::new(), topk: 0, has_topk: false,
+                    pushed_filters,
                 }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
             }
         }
@@ -218,6 +266,7 @@ impl PhysicalExtensionCodec for TantivyCodec {
                 raw_queries_json: lazy.raw_queries_json.clone(),
                 topk: lazy.topk.map(|k| k as u32).unwrap_or(0),
                 has_topk: lazy.topk.is_some(),
+                pushed_filters: lazy.pushed_filter_bytes.clone(),
             }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
         }
 
@@ -292,6 +341,7 @@ impl PhysicalExtensionCodec for TantivyCodec {
             provider_type: proto.provider_type,
             raw_queries_json: proto.raw_queries_json,
             topk: if proto.has_topk { Some(proto.topk as usize) } else { None },
+            pushed_filter_bytes: proto.pushed_filters,
             plan_properties,
             projected_schema,
             output_partitions: proto.output_partitions,
@@ -313,6 +363,7 @@ struct LazyScanExec {
     provider_type: u32,
     raw_queries_json: String,
     topk: Option<usize>,
+    pushed_filter_bytes: Vec<Vec<u8>>,
     plan_properties: PlanProperties,
     projected_schema: SchemaRef,
     output_partitions: u32,
@@ -364,6 +415,7 @@ impl ExecutionPlan for LazyScanExec {
         let output_partitions = self.output_partitions as usize;
         let provider_type = self.provider_type;
         let raw_queries_json = self.raw_queries_json.clone();
+        let pushed_filter_bytes = self.pushed_filter_bytes.clone();
 
         let stream = stream::once(async move {
             let tantivy_schema: tantivy::schema::Schema =
@@ -417,6 +469,36 @@ impl ExecutionPlan for LazyScanExec {
                 }
                 other => return Err(DataFusionError::Internal(format!("unknown provider type: {other}"))),
             };
+
+            // Re-apply pushed filters that survived serialization.
+            let exec: Arc<dyn ExecutionPlan> =
+                if !pushed_filter_bytes.is_empty() {
+                    if let Some(ds_exec) =
+                        exec.as_any().downcast_ref::<DataSourceExec>()
+                    {
+                        let ds_schema = ds_exec.schema();
+                        if let Some(ff_ds) = ds_exec
+                            .data_source()
+                            .as_any()
+                            .downcast_ref::<FastFieldDataSource>()
+                        {
+                            let deserialized = deserialize_pushed_filters(
+                                &pushed_filter_bytes,
+                                &context,
+                                ds_schema.as_ref(),
+                                &TantivyCodec,
+                            )?;
+                            let updated = ff_ds.with_pushed_filters(deserialized);
+                            Arc::new(DataSourceExec::new(Arc::new(updated)))
+                        } else {
+                            exec
+                        }
+                    } else {
+                        exec
+                    }
+                } else {
+                    exec
+                };
 
             use futures::TryStreamExt;
             let inner_stream = exec.execute(partition, context)?;

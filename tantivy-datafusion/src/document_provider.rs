@@ -179,6 +179,11 @@ impl DocumentDataSource {
     pub fn num_segments(&self) -> usize {
         self.num_segments
     }
+
+    /// Access the pushed-down filters.
+    pub fn pushed_filters(&self) -> &[Arc<dyn PhysicalExpr>] {
+        &self.pushed_filters
+    }
 }
 
 impl DataSource for DocumentDataSource {
