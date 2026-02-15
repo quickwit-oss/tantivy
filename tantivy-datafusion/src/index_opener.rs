@@ -36,6 +36,12 @@ pub trait IndexOpener: Send + Sync + fmt::Debug {
     /// For local (non-distributed) usage this can return an empty string.
     fn identifier(&self) -> &str;
 
+    /// Footer byte range in the split bundle.
+    /// Used by storage-backed openers. Returns (0, 0) if not applicable.
+    fn footer_range(&self) -> (u64, u64) {
+        (0, 0)
+    }
+
     /// Downcast to a concrete type.
     fn as_any(&self) -> &dyn Any;
 }
@@ -49,6 +55,11 @@ pub struct OpenerMetadata {
     pub identifier: String,
     pub tantivy_schema: tantivy::schema::Schema,
     pub segment_sizes: Vec<u32>,
+    /// Start offset of the split footer in the bundle file.
+    /// Used by storage-backed openers to open the split.
+    pub footer_start: u64,
+    /// End offset of the split footer.
+    pub footer_end: u64,
 }
 
 /// An [`IndexOpener`] that wraps an already-opened `Index`.

@@ -120,6 +120,11 @@ struct TantivyScanProto {
     /// Serialized pushed filters (PhysicalExprNode protobuf bytes, one per filter).
     #[prost(bytes = "vec", repeated, tag = "11")]
     pushed_filters: Vec<Vec<u8>>,
+    /// Footer byte range for storage-backed openers.
+    #[prost(uint64, tag = "12")]
+    footer_start: u64,
+    #[prost(uint64, tag = "13")]
+    footer_end: u64,
 }
 
 const FAST_FIELD: u32 = 0;
@@ -181,14 +186,15 @@ fn deserialize_pushed_filters(
 }
 
 /// Extract serializable metadata from an opener.
-fn opener_to_proto(opener: &Arc<dyn IndexOpener>) -> Result<(String, String, Vec<u32>)> {
+fn opener_to_proto(opener: &Arc<dyn IndexOpener>) -> Result<(String, String, Vec<u32>, u64, u64)> {
     let identifier = opener.identifier().to_string();
     let tantivy_schema_json =
         serde_json::to_string(&opener.schema()).map_err(|e| {
             DataFusionError::Internal(format!("failed to serialize tantivy schema: {e}"))
         })?;
     let segment_sizes = opener.segment_sizes();
-    Ok((identifier, tantivy_schema_json, segment_sizes))
+    let (footer_start, footer_end) = opener.footer_range();
+    Ok((identifier, tantivy_schema_json, segment_sizes, footer_start, footer_end))
 }
 
 impl PhysicalExtensionCodec for TantivyCodec {
@@ -203,7 +209,7 @@ impl PhysicalExtensionCodec for TantivyCodec {
                 ds_exec.properties().partitioning.partition_count() as u32;
 
             if let Some(ff) = ds.as_any().downcast_ref::<FastFieldDataSource>() {
-                let (id, schema_json, seg) = opener_to_proto(ff.opener())?;
+                let (id, schema_json, seg, footer_start, footer_end) = opener_to_proto(ff.opener())?;
                 let (proj, has_proj) = match ff.projection() {
                     Some(p) => (p.iter().map(|&i| i as u32).collect(), true),
                     None => (Vec::new(), false),
@@ -214,11 +220,11 @@ impl PhysicalExtensionCodec for TantivyCodec {
                     projection: proj, has_projection: has_proj, output_partitions,
                     provider_type: FAST_FIELD, raw_queries_json: String::new(), topk: 0, has_topk: false,
                     pushed_filters,
-                }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
+                    footer_start, footer_end,                }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
             }
 
             if let Some(inv) = ds.as_any().downcast_ref::<InvertedIndexDataSource>() {
-                let (id, schema_json, seg) = opener_to_proto(inv.opener())?;
+                let (id, schema_json, seg, footer_start, footer_end) = opener_to_proto(inv.opener())?;
                 let (proj, has_proj) = match inv.projection() {
                     Some(p) => (p.iter().map(|&i| i as u32).collect(), true),
                     None => (Vec::new(), false),
@@ -234,11 +240,11 @@ impl PhysicalExtensionCodec for TantivyCodec {
                     projection: proj, has_projection: has_proj, output_partitions,
                     provider_type: INVERTED_INDEX, raw_queries_json: rq_json, topk, has_topk,
                     pushed_filters: Vec::new(),
-                }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
+                    footer_start, footer_end,                }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
             }
 
             if let Some(doc) = ds.as_any().downcast_ref::<DocumentDataSource>() {
-                let (id, schema_json, seg) = opener_to_proto(doc.opener())?;
+                let (id, schema_json, seg, footer_start, footer_end) = opener_to_proto(doc.opener())?;
                 let (proj, has_proj) = match doc.projection() {
                     Some(p) => (p.iter().map(|&i| i as u32).collect(), true),
                     None => (Vec::new(), false),
@@ -249,7 +255,7 @@ impl PhysicalExtensionCodec for TantivyCodec {
                     projection: proj, has_projection: has_proj, output_partitions,
                     provider_type: DOCUMENT, raw_queries_json: String::new(), topk: 0, has_topk: false,
                     pushed_filters,
-                }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
+                    footer_start, footer_end,                }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
             }
         }
 
@@ -267,6 +273,8 @@ impl PhysicalExtensionCodec for TantivyCodec {
                 topk: lazy.topk.map(|k| k as u32).unwrap_or(0),
                 has_topk: lazy.topk.is_some(),
                 pushed_filters: lazy.pushed_filter_bytes.clone(),
+                footer_start: lazy.footer_start,
+                footer_end: lazy.footer_end,
             }.encode(buf).map_err(|e| DataFusionError::Internal(format!("encode: {e}")));
         }
 
@@ -302,6 +310,8 @@ impl PhysicalExtensionCodec for TantivyCodec {
             identifier: proto.identifier.clone(),
             tantivy_schema,
             segment_sizes: proto.segment_sizes.clone(),
+            footer_start: proto.footer_start,
+            footer_end: proto.footer_end,
         });
 
         let projection = if proto.has_projection {
@@ -342,6 +352,8 @@ impl PhysicalExtensionCodec for TantivyCodec {
             raw_queries_json: proto.raw_queries_json,
             topk: if proto.has_topk { Some(proto.topk as usize) } else { None },
             pushed_filter_bytes: proto.pushed_filters,
+            footer_start: proto.footer_start,
+            footer_end: proto.footer_end,
             plan_properties,
             projected_schema,
             output_partitions: proto.output_partitions,
@@ -364,6 +376,8 @@ struct LazyScanExec {
     raw_queries_json: String,
     topk: Option<usize>,
     pushed_filter_bytes: Vec<Vec<u8>>,
+    footer_start: u64,
+    footer_end: u64,
     plan_properties: PlanProperties,
     projected_schema: SchemaRef,
     output_partitions: u32,
@@ -416,6 +430,8 @@ impl ExecutionPlan for LazyScanExec {
         let provider_type = self.provider_type;
         let raw_queries_json = self.raw_queries_json.clone();
         let pushed_filter_bytes = self.pushed_filter_bytes.clone();
+        let footer_start = self.footer_start;
+        let footer_end = self.footer_end;
 
         let stream = stream::once(async move {
             let tantivy_schema: tantivy::schema::Schema =
@@ -423,7 +439,7 @@ impl ExecutionPlan for LazyScanExec {
                     .map_err(|e| DataFusionError::Internal(format!("parse schema: {e}")))?;
 
             let opener = opener_factory(OpenerMetadata {
-                identifier, tantivy_schema, segment_sizes,
+                identifier, tantivy_schema, segment_sizes, footer_start, footer_end,
             });
 
             let target_partitions = output_partitions.max(1);

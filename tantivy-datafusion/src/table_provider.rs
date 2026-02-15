@@ -326,6 +326,15 @@ impl DataSource for FastFieldDataSource {
         // The index is opened here (execution time), not at planning time.
         let stream = stream::once(async move {
             let index = opener.open().await?;
+
+            // Warm only the projected fast fields for storage-backed dirs.
+            let field_names: Vec<&str> = projected_schema
+                .fields()
+                .iter()
+                .map(|f| f.name().as_str())
+                .collect();
+            crate::warmup::warmup_fast_fields_by_name(&index, &field_names).await?;
+
             generate_and_filter_batch(
                 &index,
                 range.segment_idx,

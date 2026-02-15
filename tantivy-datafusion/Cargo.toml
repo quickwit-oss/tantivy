@@ -6,7 +6,7 @@ description = "DataFusion integration for tantivy search indices"
 license = "MIT"
 
 [dependencies]
-tantivy = { path = ".." }
+tantivy = { path = "..", features = ["quickwit"] }
 datafusion = "52"
 datafusion-datasource = "52"
 datafusion-physical-plan = "52"
@@ -17,6 +17,7 @@ datafusion-proto = "52"
 arrow = { version = "57", features = ["prettyprint"] }
 async-trait = "0.1"
 futures = "0.3"
+tokio = { version = "1", features = ["rt"] }
 prost = "0.14"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -14,6 +14,7 @@ pub mod schema_mapping;
 pub mod table_provider;
 pub mod topk_pushdown;
 pub mod unified_provider;
+pub mod warmup;
 
 pub use agg_pushdown::AggPushdown;
 pub use agg_translator::{create_session_with_pushdown, execute_aggregations, translate_aggregations};

@@ -313,6 +313,15 @@ impl DataSource for InvertedIndexDataSource {
         let stream = stream::once(async move {
             let index = opener.open().await?;
 
+            // Warm only the text fields this query touches.
+            let queried_fields: Vec<tantivy::schema::Field> = raw_queries
+                .iter()
+                .filter_map(|(field_name, _)| index.schema().get_field(field_name).ok())
+                .collect();
+            if !queried_fields.is_empty() {
+                crate::warmup::warmup_inverted_index(&index, &queried_fields).await?;
+            }
+
             // Parse deferred raw queries now that we have an opened Index
             let query = build_combined_query(
                 &index,
