@@ -6,8 +6,7 @@ use crate::collector::Collector;
 use crate::core::Executor;
 use crate::index::{SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
-use crate::schema::document::DocumentDeserialize;
-use crate::schema::{Schema, Term};
+use crate::schema::{Schema, TantivyDocument, Term};
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::{CacheStats, StoreReader};
 use crate::{DocAddress, Index, Opstamp, TrackedObject};
@@ -85,7 +84,7 @@ impl Searcher {
     ///
     /// The searcher uses the segment ordinal to route the
     /// request to the right `Segment`.
-    pub fn doc<D: DocumentDeserialize>(&self, doc_address: DocAddress) -> crate::Result<D> {
+    pub fn doc(&self, doc_address: DocAddress) -> crate::Result<TantivyDocument> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
     }
@@ -105,10 +104,7 @@ impl Searcher {
 
     /// Fetches a document in an asynchronous manner.
     #[cfg(feature = "quickwit")]
-    pub async fn doc_async<D: DocumentDeserialize>(
-        &self,
-        doc_address: DocAddress,
-    ) -> crate::Result<D> {
+    pub async fn doc_async(&self, doc_address: DocAddress) -> crate::Result<TantivyDocument> {
         let executor = self.inner.index.search_executor();
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id, executor).await
@@ -264,7 +260,7 @@ pub(crate) struct SearcherInner {
     schema: Schema,
     index: Index,
     segment_readers: Vec<Arc<dyn SegmentReader>>,
-    store_readers: Vec<StoreReader>,
+    store_readers: Vec<Box<dyn StoreReader>>,
     generation: TrackedObject<SearcherGeneration>,
 }
 
@@ -285,7 +281,7 @@ impl SearcherInner {
             generation.segments(),
             "Set of segments referenced by this Searcher and its SearcherGeneration must match"
         );
-        let store_readers: Vec<StoreReader> = segment_readers
+        let store_readers: Vec<Box<dyn StoreReader>> = segment_readers
             .iter()
             .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_num_blocks))
             .collect::<io::Result<Vec<_>>>()?;

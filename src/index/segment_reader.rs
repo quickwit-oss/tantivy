@@ -19,7 +19,7 @@ use crate::json_utils::json_path_sep_to_dot;
 use crate::query::Scorer;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
-use crate::store::StoreReader;
+use crate::store::{StoreReader, TantivyStoreReader};
 use crate::termdict::TermDictionary;
 use crate::{DocId, Opstamp, Score};
 
@@ -78,7 +78,7 @@ pub trait SegmentReader: Send + Sync {
     fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader>;
 
     /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
-    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader>;
+    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<Box<dyn StoreReader>>;
 
     /// Returns a field reader associated with the field given in argument.
     fn inverted_index(&self, field: Field) -> crate::Result<Arc<dyn InvertedIndexReader>>;
@@ -289,8 +289,11 @@ impl SegmentReader for TantivySegmentReader {
         })
     }
 
-    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone(), cache_num_blocks)
+    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<Box<dyn StoreReader>> {
+        Ok(Box::new(TantivyStoreReader::open(
+            self.store_file.clone(),
+            cache_num_blocks,
+        )?))
     }
 
     fn inverted_index(&self, field: Field) -> crate::Result<Arc<dyn InvertedIndexReader>> {
@@ -524,7 +527,7 @@ impl SegmentReader for TantivySegmentReader {
             self.positions_composite.space_usage(&self.schema),
             self.fast_fields_readers.space_usage()?,
             self.fieldnorm_readers.space_usage(&self.schema),
-            StoreReader::open(self.store_file.clone(), 0)?.space_usage(),
+            TantivyStoreReader::open(self.store_file.clone(), 0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
                 .map(AliveBitSet::space_usage)

@@ -438,7 +438,7 @@ mod tests {
         Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value,
         DATE_TIME_PRECISION_INDEXED, FAST, STORED, STRING, TEXT,
     };
-    use crate::store::{Compressor, StoreReader, StoreWriter};
+    use crate::store::{Compressor, StoreWriter, TantivyStoreReader};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
@@ -486,8 +486,8 @@ mod tests {
         store_writer.store(&doc, &schema).unwrap();
         store_writer.close().unwrap();
 
-        let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
-        let doc = reader.get::<TantivyDocument>(0).unwrap();
+        let reader = TantivyStoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
+        let doc = reader.get(0).unwrap();
 
         assert_eq!(doc.field_values().count(), 2);
         assert_eq!(
@@ -604,7 +604,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let doc = searcher
-            .doc::<TantivyDocument>(DocAddress {
+            .doc(DocAddress {
                 segment_ord: 0u32,
                 doc_id: 0u32,
             })

@@ -93,7 +93,7 @@
 //!
 //! for (_score, doc_address) in top_docs {
 //!     // Retrieve the actual content of documents given its `doc_address`.
-//!     let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
+//!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", retrieved_doc.to_json(&schema));
 //! }
 //!

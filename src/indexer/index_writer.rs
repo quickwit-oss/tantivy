@@ -1976,9 +1976,9 @@ mod tests {
                 .get_store_reader(DOCSTORE_CACHE_CAPACITY)
                 .unwrap();
             // test store iterator
-            for doc in store_reader.iter::<TantivyDocument>(segment_reader.alive_bitset()) {
+            for doc_id in segment_reader.doc_ids_alive() {
+                let doc = store_reader.get(doc_id).unwrap();
                 let id = doc
-                    .unwrap()
                     .get_first(id_field)
                     .unwrap()
                     .as_value()
@@ -1989,7 +1989,7 @@ mod tests {
             // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
                 let id = store_reader
-                    .get::<TantivyDocument>(doc_id)
+                    .get(doc_id)
                     .unwrap()
                     .get_first(id_field)
                     .unwrap()
@@ -1998,7 +1998,7 @@ mod tests {
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
                 if id_is_full_doc(id) {
                     let id2 = store_reader
-                        .get::<TantivyDocument>(doc_id)
+                        .get(doc_id)
                         .unwrap()
                         .get_first(multi_numbers)
                         .unwrap()
@@ -2006,13 +2006,13 @@ mod tests {
                         .unwrap();
                     assert_eq!(id, id2);
                     let bool = store_reader
-                        .get::<TantivyDocument>(doc_id)
+                        .get(doc_id)
                         .unwrap()
                         .get_first(bool_field)
                         .unwrap()
                         .as_bool()
                         .unwrap();
-                    let doc = store_reader.get::<TantivyDocument>(doc_id).unwrap();
+                    let doc = store_reader.get(doc_id).unwrap();
                     let mut bool2 = doc.get_all(multi_bools);
                     assert_eq!(bool, bool2.next().unwrap().as_bool().unwrap());
                     assert_ne!(bool, bool2.next().unwrap().as_bool().unwrap());
