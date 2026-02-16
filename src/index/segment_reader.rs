@@ -60,7 +60,19 @@ pub trait SegmentReader: Send + Sync {
     fn fast_fields(&self) -> &FastFieldReaders;
 
     /// Accessor to the `FacetReader` associated with a given `Field`.
-    fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader>;
+    fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
+        let field = self.schema().get_field(field_name)?;
+        let field_entry = self.schema().get_field_entry(field);
+        if field_entry.field_type().value_type() != Type::Facet {
+            return Err(crate::TantivyError::SchemaError(format!(
+                "`{field_name}` is not a facet field.`"
+            )));
+        }
+        let Some(facet_column) = self.fast_fields().str(field_name)? else {
+            panic!("Facet Field `{field_name}` is missing. This should not happen");
+        };
+        Ok(FacetReader::new(facet_column))
+    }
 
     /// Accessor to the segment's `Field norms`'s reader.
     fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader>;
@@ -266,20 +278,6 @@ impl SegmentReader for TantivySegmentReader {
         &self.fast_fields_readers
     }
 
-    fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
-        let field = self.schema.get_field(field_name)?;
-        let field_entry = self.schema.get_field_entry(field);
-        if field_entry.field_type().value_type() != Type::Facet {
-            return Err(crate::TantivyError::SchemaError(format!(
-                "`{field_name}` is not a facet field.`"
-            )));
-        }
-        let Some(facet_column) = self.fast_fields_readers.str(field_name)? else {
-            panic!("Facet Field `{field_name}` is missing. This should not happen");
-        };
-        Ok(FacetReader::new(facet_column))
-    }
-
     fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader> {
         self.fieldnorm_readers.get_field(field)?.ok_or_else(|| {
             let field_name = self.schema.get_field_name(field);
@@ -345,12 +343,18 @@ impl SegmentReader for TantivySegmentReader {
             );
             DataCorruption::comment_only(error_msg)
         })?;
+        let fieldnorms_file = self
+            .fieldnorm_readers
+            .get_inner_file()
+            .open_read(field)
+            .unwrap_or_else(FileSlice::empty);
 
         let inv_idx_reader: Arc<dyn InvertedIndexReader> =
             Arc::new(TantivyInvertedIndexReader::new(
                 TermDictionary::open(termdict_file)?,
                 postings_file,
                 positions_file,
+                fieldnorms_file,
                 record_option,
             )?);
 

@@ -62,8 +62,8 @@ pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::score_combiner::{DisjunctionMaxCombiner, ScoreCombiner, SumCombiner};
 pub use self::scorer::{box_scorer, Scorer};
 pub use self::set_query::TermSetQuery;
-pub use self::term_query::TermQuery;
-pub use self::union::BufferedUnionScorer;
+pub use self::term_query::{TermQuery, TermScorer};
+pub use self::union::{BufferedUnionScorer, SimpleUnion};
 #[cfg(test)]
 pub use self::vec_docset::VecDocSet;
 pub use self::weight::Weight;

@@ -18,13 +18,30 @@ use crate::codec::standard::postings::{
     fill_bitset_from_raw_data, load_postings_from_raw_data, SegmentPostings,
 };
 use crate::directory::FileSlice;
-use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::{Postings, TermInfo};
 use crate::query::term_query::TermScorer;
 use crate::query::{box_scorer, Bm25Weight, PhraseScorer, Scorer};
 use crate::schema::{IndexRecordOption, Term, Type};
 use crate::termdict::TermDictionary;
+
+#[cfg(feature = "quickwit")]
+pub type TermRangeBounds = (std::ops::Bound<Term>, std::ops::Bound<Term>);
+
+/// Type-erased term scorer guaranteed to wrap a Tantivy [`TermScorer`].
+pub struct BoxedTermScorer(Box<dyn Scorer>);
+
+impl BoxedTermScorer {
+    /// Creates a boxed term scorer from a concrete Tantivy [`TermScorer`].
+    pub fn new<TPostings: Postings>(term_scorer: TermScorer<TPostings>) -> BoxedTermScorer {
+        BoxedTermScorer(box_scorer(term_scorer))
+    }
+
+    /// Converts this boxed term scorer into a generic boxed scorer.
+    pub fn into_boxed_scorer(self) -> Box<dyn Scorer> {
+        self.0
+    }
+}
 
 /// Trait defining the contract for inverted index readers.
 pub trait InvertedIndexReader: Send + Sync {
@@ -49,7 +66,7 @@ pub trait InvertedIndexReader: Send + Sync {
         option: IndexRecordOption,
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
-    ) -> io::Result<Box<dyn Scorer>>;
+    ) -> io::Result<BoxedTermScorer>;
 
     /// Returns a posting object given a `term_info`.
     /// This method is for an advanced usage only.
@@ -116,6 +133,56 @@ pub trait InvertedIndexReader: Send + Sync {
         &'a self,
         term: &'a Term,
     ) -> Pin<Box<dyn Future<Output = io::Result<u32>> + Send + 'a>>;
+
+    /// Warmup fieldnorm readers for this inverted index field.
+    #[cfg(feature = "quickwit")]
+    fn warm_fieldnorms_readers<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + 'a>>;
+
+    /// Warmup the block postings for all terms.
+    ///
+    /// Default implementation is a no-op.
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_full<'a>(
+        &'a self,
+        _with_positions: bool,
+    ) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + 'a>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    /// Warmup a block postings given a `Term`.
+    ///
+    /// Returns whether the term was found in the dictionary.
+    #[cfg(feature = "quickwit")]
+    fn warm_postings<'a>(
+        &'a self,
+        term: &'a Term,
+        with_positions: bool,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>;
+
+    /// Warmup block postings for terms in a range.
+    ///
+    /// Returns whether at least one matching term was found.
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_range<'a>(
+        &'a self,
+        terms: TermRangeBounds,
+        limit: Option<u64>,
+        with_positions: bool,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>;
+
+    /// Warmup block postings for terms matching an automaton.
+    ///
+    /// Returns whether at least one matching term was found.
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_automaton<'a, A: Automaton + Clone + Send + Sync + 'static>(
+        &'a self,
+        automaton: A,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>
+    where
+        A::State: Clone + Send,
+        Self: Sized;
 }
 
 /// Tantivy's default inverted index reader implementation.
@@ -136,6 +203,8 @@ pub struct TantivyInvertedIndexReader {
     termdict: TermDictionary,
     postings_file_slice: FileSlice,
     positions_file_slice: FileSlice,
+    #[cfg_attr(not(feature = "quickwit"), allow(dead_code))]
+    fieldnorms_file_slice: FileSlice,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
 }
@@ -208,6 +277,7 @@ impl TantivyInvertedIndexReader {
         termdict: TermDictionary,
         postings_file_slice: FileSlice,
         positions_file_slice: FileSlice,
+        fieldnorms_file_slice: FileSlice,
         record_option: IndexRecordOption,
     ) -> io::Result<TantivyInvertedIndexReader> {
         let (total_num_tokens_slice, postings_body) = postings_file_slice.split(8);
@@ -216,6 +286,7 @@ impl TantivyInvertedIndexReader {
             termdict,
             postings_file_slice: postings_body,
             positions_file_slice,
+            fieldnorms_file_slice,
             record_option,
             total_num_tokens,
         })
@@ -228,6 +299,7 @@ impl TantivyInvertedIndexReader {
             termdict: TermDictionary::empty(),
             postings_file_slice: FileSlice::empty(),
             positions_file_slice: FileSlice::empty(),
+            fieldnorms_file_slice: FileSlice::empty(),
             record_option,
             total_num_tokens: 0u64,
         }
@@ -307,10 +379,10 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         option: IndexRecordOption,
         fieldnorm_reader: FieldNormReader,
         similarity_weight: Bm25Weight,
-    ) -> io::Result<Box<dyn Scorer>> {
+    ) -> io::Result<BoxedTermScorer> {
         let postings = self.load_segment_postings(term_info, option)?;
         let term_scorer = TermScorer::new(postings, fieldnorm_reader, similarity_weight);
-        Ok(box_scorer(term_scorer))
+        Ok(BoxedTermScorer::new(term_scorer))
     }
 
     fn read_postings_from_terminfo(
@@ -397,6 +469,153 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
                 .unwrap_or(0u32))
         })
     }
+
+    #[cfg(feature = "quickwit")]
+    fn warm_fieldnorms_readers<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            self.fieldnorms_file_slice.read_bytes_async().await?;
+            Ok(())
+        })
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_full<'a>(
+        &'a self,
+        with_positions: bool,
+    ) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            self.postings_file_slice.read_bytes_async().await?;
+            if with_positions {
+                self.positions_file_slice.read_bytes_async().await?;
+            }
+            Ok(())
+        })
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn warm_postings<'a>(
+        &'a self,
+        term: &'a Term,
+        with_positions: bool,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>> {
+        Box::pin(async move {
+            let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
+            if let Some(term_info) = term_info_opt {
+                let postings = self
+                    .postings_file_slice
+                    .read_bytes_slice_async(term_info.postings_range.clone());
+                if with_positions {
+                    let positions = self
+                        .positions_file_slice
+                        .read_bytes_slice_async(term_info.positions_range.clone());
+                    futures_util::future::try_join(postings, positions).await?;
+                } else {
+                    postings.await?;
+                }
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        })
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_range<'a>(
+        &'a self,
+        terms: TermRangeBounds,
+        limit: Option<u64>,
+        with_positions: bool,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut term_info = self
+                .get_term_range_async(terms, AlwaysMatch, limit, 0)
+                .await?;
+
+            let Some(first_terminfo) = term_info.next() else {
+                // no key matches, nothing more to load
+                return Ok(false);
+            };
+
+            let last_terminfo = term_info.last().unwrap_or_else(|| first_terminfo.clone());
+
+            let postings_range =
+                first_terminfo.postings_range.start..last_terminfo.postings_range.end;
+            let positions_range =
+                first_terminfo.positions_range.start..last_terminfo.positions_range.end;
+
+            let postings = self
+                .postings_file_slice
+                .read_bytes_slice_async(postings_range);
+            if with_positions {
+                let positions = self
+                    .positions_file_slice
+                    .read_bytes_slice_async(positions_range);
+                futures_util::future::try_join(postings, positions).await?;
+            } else {
+                postings.await?;
+            }
+            Ok(true)
+        })
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn warm_postings_automaton<'a, A: Automaton + Clone + Send + Sync + 'static>(
+        &'a self,
+        automaton: A,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>
+    where
+        A::State: Clone + Send,
+        Self: Sized,
+    {
+        Box::pin(async move {
+            // merge holes under 4MiB, that's how many bytes we can hope to receive during a TTFB
+            // from S3 (~80MiB/s, and 50ms latency)
+            const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
+            // Trigger async prefetch of relevant termdict blocks.
+            let _term_info_iter = self
+                .get_term_range_async(
+                    (std::ops::Bound::Unbounded, std::ops::Bound::Unbounded),
+                    automaton.clone(),
+                    None,
+                    MERGE_HOLES_UNDER_BYTES,
+                )
+                .await?;
+            drop(_term_info_iter);
+
+            // Build a 2nd stream without merged holes so we only scan matching blocks.
+            // This assumes the storage layer caches data fetched by the first pass.
+            let mut stream = self.termdict.search(automaton).into_stream()?;
+            let posting_ranges_iter =
+                std::iter::from_fn(move || stream.next().map(|(_k, v)| v.postings_range.clone()));
+            let merged_posting_ranges: Vec<std::ops::Range<usize>> = posting_ranges_iter
+                .coalesce(|range1, range2| {
+                    if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
+                        Ok(range1.start..range2.end)
+                    } else {
+                        Err((range1, range2))
+                    }
+                })
+                .collect();
+
+            if merged_posting_ranges.is_empty() {
+                return Ok(false);
+            }
+
+            let slices_downloaded = futures_util::stream::iter(merged_posting_ranges.into_iter())
+                .map(|posting_slice| {
+                    self.postings_file_slice
+                        .read_bytes_slice_async(posting_slice)
+                        .map(|result| result.map(|_slice| ()))
+                })
+                .buffer_unordered(5)
+                .try_collect::<Vec<()>>()
+                .await?;
+
+            Ok(!slices_downloaded.is_empty())
+        })
+    }
 }
 
 #[cfg(feature = "quickwit")]
@@ -407,7 +626,7 @@ impl TantivyInvertedIndexReader {
 
     async fn get_term_range_async<'a, A: Automaton + 'a>(
         &'a self,
-        terms: impl std::ops::RangeBounds<Term>,
+        terms: TermRangeBounds,
         automaton: A,
         limit: Option<u64>,
         merge_holes_under_bytes: usize,
@@ -415,17 +634,17 @@ impl TantivyInvertedIndexReader {
     where
         A::State: Clone,
     {
-        use std::ops::Bound;
         let range_builder = self.termdict.search(automaton);
-        let range_builder = match terms.start_bound() {
-            Bound::Included(bound) => range_builder.ge(bound.serialized_value_bytes()),
-            Bound::Excluded(bound) => range_builder.gt(bound.serialized_value_bytes()),
-            Bound::Unbounded => range_builder,
+        let (start_bound, end_bound) = terms;
+        let range_builder = match start_bound {
+            std::ops::Bound::Included(bound) => range_builder.ge(bound.serialized_value_bytes()),
+            std::ops::Bound::Excluded(bound) => range_builder.gt(bound.serialized_value_bytes()),
+            std::ops::Bound::Unbounded => range_builder,
         };
-        let range_builder = match terms.end_bound() {
-            Bound::Included(bound) => range_builder.le(bound.serialized_value_bytes()),
-            Bound::Excluded(bound) => range_builder.lt(bound.serialized_value_bytes()),
-            Bound::Unbounded => range_builder,
+        let range_builder = match end_bound {
+            std::ops::Bound::Included(bound) => range_builder.le(bound.serialized_value_bytes()),
+            std::ops::Bound::Excluded(bound) => range_builder.lt(bound.serialized_value_bytes()),
+            std::ops::Bound::Unbounded => range_builder,
         };
         let range_builder = if let Some(limit) = limit {
             range_builder.limit(limit)
@@ -445,159 +664,5 @@ impl TantivyInvertedIndexReader {
         let iter = iter.take(limit);
 
         Ok(iter)
-    }
-
-    /// Warmup a block postings given a `Term`.
-    /// This method is for an advanced usage only.
-    ///
-    /// returns a boolean, whether the term was found in the dictionary
-    pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> io::Result<bool> {
-        let term_info_opt: Option<TermInfo> = self.get_term_info_async(term).await?;
-        if let Some(term_info) = term_info_opt {
-            let postings = self
-                .postings_file_slice
-                .read_bytes_slice_async(term_info.postings_range.clone());
-            if with_positions {
-                let positions = self
-                    .positions_file_slice
-                    .read_bytes_slice_async(term_info.positions_range.clone());
-                futures_util::future::try_join(postings, positions).await?;
-            } else {
-                postings.await?;
-            }
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    /// Warmup a block postings given a range of `Term`s.
-    /// This method is for an advanced usage only.
-    ///
-    /// returns a boolean, whether a term matching the range was found in the dictionary
-    pub async fn warm_postings_range(
-        &self,
-        terms: impl std::ops::RangeBounds<Term>,
-        limit: Option<u64>,
-        with_positions: bool,
-    ) -> io::Result<bool> {
-        let mut term_info = self
-            .get_term_range_async(terms, AlwaysMatch, limit, 0)
-            .await?;
-
-        let Some(first_terminfo) = term_info.next() else {
-            // no key matches, nothing more to load
-            return Ok(false);
-        };
-
-        let last_terminfo = term_info.last().unwrap_or_else(|| first_terminfo.clone());
-
-        let postings_range = first_terminfo.postings_range.start..last_terminfo.postings_range.end;
-        let positions_range =
-            first_terminfo.positions_range.start..last_terminfo.positions_range.end;
-
-        let postings = self
-            .postings_file_slice
-            .read_bytes_slice_async(postings_range);
-        if with_positions {
-            let positions = self
-                .positions_file_slice
-                .read_bytes_slice_async(positions_range);
-            futures_util::future::try_join(postings, positions).await?;
-        } else {
-            postings.await?;
-        }
-        Ok(true)
-    }
-
-    /// Warmup a block postings given a range of `Term`s.
-    /// This method is for an advanced usage only.
-    ///
-    /// returns a boolean, whether a term matching the range was found in the dictionary
-    pub async fn warm_postings_automaton<
-        A: Automaton + Clone + Send + 'static,
-        E: FnOnce(Box<dyn FnOnce() -> io::Result<()> + Send>) -> F,
-        F: std::future::Future<Output = io::Result<()>>,
-    >(
-        &self,
-        automaton: A,
-        // with_positions: bool, at the moment we have no use for it, and supporting it would add
-        // complexity to the coalesce
-        executor: E,
-    ) -> io::Result<bool>
-    where
-        A::State: Clone,
-    {
-        // merge holes under 4MiB, that's how many bytes we can hope to receive during a TTFB from
-        // S3 (~80MiB/s, and 50ms latency)
-        const MERGE_HOLES_UNDER_BYTES: usize = (80 * 1024 * 1024 * 50) / 1000;
-        // we build a first iterator to download everything. Simply calling the function already
-        // download everything we need from the sstable, but doesn't start iterating over it.
-        let _term_info_iter = self
-            .get_term_range_async(.., automaton.clone(), None, MERGE_HOLES_UNDER_BYTES)
-            .await?;
-
-        let (sender, posting_ranges_to_load_stream) = futures_channel::mpsc::unbounded();
-        let termdict = self.termdict.clone();
-        let cpu_bound_task = move || {
-            // then we build a 2nd iterator, this one with no holes, so we don't go through blocks
-            // we can't match.
-            // This makes the assumption there is a caching layer below us, which gives sync read
-            // for free after the initial async access. This might not always be true, but is in
-            // Quickwit.
-            // We build things from this closure otherwise we get into lifetime issues that can only
-            // be solved with self referential strucs. Returning an io::Result from here is a bit
-            // more leaky abstraction-wise, but a lot better than the alternative
-            let mut stream = termdict.search(automaton).into_stream()?;
-
-            // we could do without an iterator, but this allows us access to coalesce which simplify
-            // things
-            let posting_ranges_iter =
-                std::iter::from_fn(move || stream.next().map(|(_k, v)| v.postings_range.clone()));
-
-            let merged_posting_ranges_iter = posting_ranges_iter.coalesce(|range1, range2| {
-                if range1.end + MERGE_HOLES_UNDER_BYTES >= range2.start {
-                    Ok(range1.start..range2.end)
-                } else {
-                    Err((range1, range2))
-                }
-            });
-
-            for posting_range in merged_posting_ranges_iter {
-                if let Err(_) = sender.unbounded_send(posting_range) {
-                    // this should happen only when search is cancelled
-                    return Err(io::Error::other("failed to send posting range back"));
-                }
-            }
-            Ok(())
-        };
-        let task_handle = executor(Box::new(cpu_bound_task));
-
-        let posting_downloader = posting_ranges_to_load_stream
-            .map(|posting_slice| {
-                self.postings_file_slice
-                    .read_bytes_slice_async(posting_slice)
-                    .map(|result| result.map(|_slice| ()))
-            })
-            .buffer_unordered(5)
-            .try_collect::<Vec<()>>();
-
-        let (_, slices_downloaded) =
-            futures_util::future::try_join(task_handle, posting_downloader).await?;
-
-        Ok(!slices_downloaded.is_empty())
-    }
-
-    /// Warmup the block postings for all terms.
-    /// This method is for an advanced usage only.
-    ///
-    /// If you know which terms to pre-load, prefer using [`Self::warm_postings`] or
-    /// [`Self::warm_postings`] instead.
-    pub async fn warm_postings_full(&self, with_positions: bool) -> io::Result<()> {
-        self.postings_file_slice.read_bytes_async().await?;
-        if with_positions {
-            self.positions_file_slice.read_bytes_async().await?;
-        }
-        Ok(())
     }
 }

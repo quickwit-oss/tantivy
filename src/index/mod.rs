@@ -16,7 +16,7 @@ pub use self::index::{Index, IndexBuilder};
 pub(crate) use self::index_meta::SegmentMetaInventory;
 pub use self::index_meta::{IndexMeta, IndexSettings, Order, SegmentMeta};
 pub use self::inverted_index_reader::{
-    InvertedIndexFieldSpace, InvertedIndexReader, TantivyInvertedIndexReader,
+    BoxedTermScorer, InvertedIndexFieldSpace, InvertedIndexReader, TantivyInvertedIndexReader,
 };
 pub use self::segment::Segment;
 pub use self::segment_component::SegmentComponent;

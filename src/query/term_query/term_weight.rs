@@ -1,9 +1,8 @@
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
-use crate::index::SegmentReader;
+use crate::index::{BoxedTermScorer, SegmentReader};
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
-use crate::query::term_query::TermScorer;
 use crate::query::weight::for_each_docset_buffered;
 use crate::query::{box_scorer, AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
@@ -17,7 +16,7 @@ pub struct TermWeight {
 }
 
 enum TermOrEmptyOrAllScorer {
-    TermScorer(Box<dyn Scorer>),
+    TermScorer(BoxedTermScorer),
     Empty,
     AllMatch(AllScorer),
 }
@@ -25,7 +24,7 @@ enum TermOrEmptyOrAllScorer {
 impl TermOrEmptyOrAllScorer {
     pub fn into_boxed_scorer(self) -> Box<dyn Scorer> {
         match self {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => scorer,
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => scorer.into_boxed_scorer(),
             TermOrEmptyOrAllScorer::Empty => box_scorer(EmptyScorer),
             TermOrEmptyOrAllScorer::AllMatch(scorer) => box_scorer(scorer),
         }
@@ -39,11 +38,11 @@ impl Weight for TermWeight {
 
     fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         match self.specialized_scorer(reader, 1.0)? {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut term_scorer = term_scorer.into_boxed_scorer();
                 if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
                     return Err(does_not_match(doc));
                 }
-                let mut term_scorer = term_scorer.downcast::<TermScorer>().ok().unwrap();
                 let mut explanation = term_scorer.explain();
                 explanation.add_context(format!("Term={:?}", self.term,));
                 Ok(explanation)
@@ -72,7 +71,8 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut term_scorer = term_scorer.into_boxed_scorer();
                 term_scorer.for_each(callback);
             }
             TermOrEmptyOrAllScorer::Empty => {}
@@ -91,7 +91,8 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut term_scorer = term_scorer.into_boxed_scorer();
                 let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
                 for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
             }
@@ -124,7 +125,7 @@ impl Weight for TermWeight {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
             TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
-                reader.for_each_pruning(threshold, term_scorer, callback);
+                reader.for_each_pruning(threshold, term_scorer.into_boxed_scorer(), callback);
             }
             TermOrEmptyOrAllScorer::Empty => {}
             TermOrEmptyOrAllScorer::AllMatch(_) => {
@@ -167,8 +168,11 @@ impl TermWeight {
     ) -> Option<super::TermScorer> {
         let scorer = self.specialized_scorer(reader, boost).unwrap();
         match scorer {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => {
-                let term_scorer = scorer.downcast::<super::TermScorer>().ok()?;
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let term_scorer = term_scorer
+                    .into_boxed_scorer()
+                    .downcast::<super::TermScorer>()
+                    .ok()?;
                 Some(*term_scorer)
             }
             _ => None,
