@@ -407,22 +407,6 @@ impl Index {
 }
 
 impl<Codec: crate::codec::Codec> Index<Codec> {
-    /// Returns a version of this index with the standard codec.
-    /// This is useful when you need to pass the index to APIs that
-    /// don't care about the codec (e.g., for reading).
-    pub(crate) fn with_standard_codec(&self) -> Index<StandardCodec> {
-        Index {
-            directory: self.directory.clone(),
-            schema: self.schema.clone(),
-            settings: self.settings.clone(),
-            executor: self.executor.clone(),
-            tokenizers: self.tokenizers.clone(),
-            fast_field_tokenizers: self.fast_field_tokenizers.clone(),
-            inventory: self.inventory.clone(),
-            codec: StandardCodec,
-        }
-    }
-
     /// Open the index using the provided directory
     #[inline(never)]
     pub fn open_with_codec(directory: Box<dyn Directory>) -> crate::Result<Index<Codec>> {

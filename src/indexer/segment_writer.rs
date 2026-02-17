@@ -609,11 +609,7 @@ mod tests {
                 doc_id: 0u32,
             })
             .unwrap();
-        let serdeser_json_val = serde_json::from_str::<serde_json::Value>(&doc.to_json(&schema))
-            .unwrap()
-            .get("json")
-            .unwrap()[0]
-            .clone();
+        let serdeser_json_val = doc.to_json(&schema).get("json").unwrap().clone();
         assert_eq!(json_val, serdeser_json_val);
         let segment_reader = searcher.segment_reader(0u32);
         let inv_idx = segment_reader.inverted_index(json_field).unwrap();

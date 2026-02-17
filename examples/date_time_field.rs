@@ -60,7 +60,7 @@ fn main() -> tantivy::Result<()> {
         let count_docs = searcher.search(&*query, &TopDocs::with_limit(4).order_by_score())?;
         assert_eq!(count_docs.len(), 1);
         for (_score, doc_address) in count_docs {
-            let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
+            let retrieved_doc = searcher.doc(doc_address)?;
             assert!(retrieved_doc
                 .get_first(occurred_at)
                 .unwrap()

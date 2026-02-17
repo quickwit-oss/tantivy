@@ -167,7 +167,7 @@ impl MoreLikeThis {
         term_frequencies: &mut HashMap<Term, usize>,
     ) -> Result<()> {
         let schema = searcher.schema();
-        let tokenizer_manager = searcher.index().tokenizers();
+        let tokenizer_manager = searcher.tokenizers();
 
         let field_entry = schema.get_field_entry(field);
         if !field_entry.is_indexed() {

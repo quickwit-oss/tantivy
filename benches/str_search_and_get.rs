@@ -17,7 +17,6 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tantivy::collector::{Count, DocSetCollector};
 use tantivy::query::RangeQuery;
-use tantivy::schema::document::TantivyDocument;
 use tantivy::schema::{Schema, Value, FAST, STORED, STRING};
 use tantivy::{doc, Index, ReloadPolicy, Searcher, Term};
 
@@ -406,7 +405,7 @@ impl FetchAllStringsFromDocTask {
 
         for doc_address in docs {
             // Get the document from the doc store (row store access)
-            if let Ok(doc) = self.searcher.doc::<TantivyDocument>(doc_address) {
+            if let Ok(doc) = self.searcher.doc(doc_address) {
                 // Extract string values from the stored field
                 if let Some(field_value) = doc.get_first(str_stored_field) {
                     if let Some(text) = field_value.as_value().as_str() {

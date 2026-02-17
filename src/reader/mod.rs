@@ -8,7 +8,7 @@ pub use warming::Warmer;
 
 use self::warming::WarmingState;
 use crate::codec::Codec;
-use crate::core::searcher::{SearcherGeneration, SearcherInner};
+use crate::core::searcher::{SearcherContext, SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
 use crate::store::DOCSTORE_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
@@ -233,11 +233,9 @@ impl<C: Codec> InnerIndexReader<C> {
             searcher_generation_inventory,
         );
 
-        let schema = index.schema();
-        // SearcherInner uses Index<StandardCodec> since the codec doesn't affect reading
+        let context = SearcherContext::from_index(index);
         let searcher = Arc::new(SearcherInner::new(
-            schema,
-            index.with_standard_codec(),
+            context,
             segment_readers,
             searcher_generation,
             doc_store_cache_num_blocks,
