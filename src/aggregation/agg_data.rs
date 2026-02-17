@@ -677,7 +677,7 @@ fn build_nodes(
         }
         AggregationVariants::TopHits(top_hits_req) => {
             let mut top_hits = top_hits_req.clone();
-            top_hits.validate_and_resolve_field_names(reader.fast_fields().columnar())?;
+            top_hits.validate_and_resolve_field_names(reader.fast_fields())?;
             let accessors: Vec<(Column<u64>, ColumnType)> = top_hits
                 .field_names()
                 .iter()

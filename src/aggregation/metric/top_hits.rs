@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::Ipv6Addr;
 
-use columnar::{Column, ColumnType, ColumnarReader, DynamicColumn};
+use columnar::{Column, ColumnType, DynamicColumn};
 use common::json_path_writer::JSON_PATH_SEGMENT_SEP_STR;
 use common::DateTime;
 use regex::Regex;
@@ -18,8 +18,9 @@ use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::aggregation::{AggregationError, BucketId};
 use crate::collector::sort_key::ReverseComparator;
 use crate::collector::TopNComputer;
+use crate::fastfield::FastFieldReaders;
 use crate::schema::OwnedValue;
-use crate::{DocAddress, DocId, SegmentOrdinal};
+use crate::{DocAddress, DocId, SegmentOrdinal, TantivyError};
 
 /// Contains all information required by the TopHitsSegmentCollector to perform the
 /// top_hits aggregation on a segment.
@@ -115,13 +116,17 @@ impl TopHitsAggReqData {
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct TopHitsAggregationReq {
-    sort: Vec<KeyOrder>,
-    size: usize,
-    from: Option<usize>,
+    /// The sort criteria to determine the top hits.
+    pub sort: Vec<KeyOrder>,
+    /// The number of top hits to return.
+    pub size: usize,
+    /// The number of top hits to skip.
+    pub from: Option<usize>,
 
+    /// The list of fast fields to retrieve for each document.
     #[serde(rename = "docvalue_fields")]
     #[serde(default)]
-    doc_value_fields: Vec<String>,
+    pub doc_value_fields: Vec<String>,
 
     // Not supported
     _source: Option<serde_json::Value>,
@@ -132,9 +137,12 @@ pub struct TopHitsAggregationReq {
     version: Option<serde_json::Value>,
 }
 
+/// A field and its associated sort order.
 #[derive(Debug, Clone, PartialEq, Default)]
-struct KeyOrder {
+pub struct KeyOrder {
+    /// The field name.
     field: String,
+    /// The sort order.
     order: Order,
 }
 
@@ -193,7 +201,7 @@ impl TopHitsAggregationReq {
     /// Validate and resolve field retrieval parameters
     pub fn validate_and_resolve_field_names(
         &mut self,
-        reader: &ColumnarReader,
+        reader: &FastFieldReaders,
     ) -> crate::Result<()> {
         if self._source.is_some() {
             use_doc_value_fields_err("_source")?;
@@ -218,16 +226,19 @@ impl TopHitsAggregationReq {
             .doc_value_fields
             .iter()
             .map(|field| {
-                if !field.contains('*')
-                    && reader
-                        .iter_columns()?
-                        .any(|(name, _)| name.as_str() == field)
-                {
+                if !field.contains('*') {
+                    reader.resolve_field(field)?.ok_or_else(|| {
+                        TantivyError::SchemaError(format!(
+                            "Field '{field}' in docvalue_fields does not exist"
+                        ))
+                    })?;
+
                     return Ok(vec![field.to_owned()]);
                 }
 
                 let pattern = globbed_string_to_regex(field)?;
                 let fields = reader
+                    .columnar()
                     .iter_columns()?
                     .map(|(name, _)| {
                         // normalize path from internal fast field repr
@@ -235,10 +246,13 @@ impl TopHitsAggregationReq {
                     })
                     .filter(|name| pattern.is_match(name))
                     .collect::<Vec<_>>();
-                assert!(
-                    !fields.is_empty(),
-                    "No fields matched the glob '{field}' in docvalue_fields"
-                );
+
+                if fields.is_empty() {
+                    return Err(TantivyError::SchemaError(format!(
+                        "No fields matched the glob '{field}' in docvalue_fields"
+                    )));
+                }
+
                 Ok(fields)
             })
             .collect::<crate::Result<Vec<_>>>()?
@@ -663,6 +677,7 @@ mod tests {
     use crate::collector::ComparableDoc;
     use crate::query::AllQuery;
     use crate::schema::OwnedValue;
+    use crate::TantivyError;
 
     fn invert_order(cmp_feature: DocValueAndOrder) -> DocValueAndOrder {
         let DocValueAndOrder { value, order } = cmp_feature;
@@ -863,12 +878,12 @@ mod tests {
     fn test_aggregation_top_hits(merge_segments: bool) -> crate::Result<()> {
         let docs = vec![
             vec![
-                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb", "mixed": { "dyn_arr": [1, "2"] } }"#,
-                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd", "mixed": { "dyn_arr": [3, "4"] } }"#,
+                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb", "mixed": { "dyn_arr": [1, "2"], "dyn_str": "foo" } }"#,
+                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd", "mixed": { "dyn_arr": [3, "4"], "dyn_str": "bar" } }"#,
             ],
             vec![
-                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z", "mixed": { "dyn_arr": ["9", 8] } }"#,
-                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z", "mixed": { "dyn_arr": ["7", 6] } }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z", "mixed": { "dyn_arr": ["9", 8], "dyn_str": "baz" } }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z", "mixed": { "dyn_arr": ["7", 6], "dyn_str": "bor" } }"#,
             ],
         ];
 
@@ -886,6 +901,7 @@ mod tests {
                         "date",
                         "tex*",
                         "mixed.*",
+                        "mixed.dyn_str"
                     ],
                 }
             }
@@ -912,6 +928,7 @@ mod tests {
                             "text": [ "ccc" ],
                             "text2": [ "ddd" ],
                             "mixed.dyn_arr": [ 3, "4" ],
+                            "mixed.dyn_str": [ "bar" ],
                         }
                     },
                     {
@@ -921,6 +938,7 @@ mod tests {
                             "text": [ "aaa" ],
                             "text2": [ "bbb" ],
                             "mixed.dyn_arr": [ 6, "7" ],
+                            "mixed.dyn_str": [ "bor" ],
                         }
                     }
                 ]
@@ -938,5 +956,67 @@ mod tests {
     #[test]
     fn test_aggregation_top_hits_multi_segment() -> crate::Result<()> {
         test_aggregation_top_hits(false)
+    }
+
+    #[test]
+    fn test_aggregation_top_hits_unknown_field() -> crate::Result<()> {
+        let docs = vec![
+            vec![
+                r#"{ "date": "2015-01-02T00:00:00Z", "text": "bbb", "text2": "bbb", "mixed": { "dyn_arr": [1, "2"] } }"#,
+                r#"{ "date": "2017-06-15T00:00:00Z", "text": "ccc", "text2": "ddd", "mixed": { "dyn_arr": [3, "4"] } }"#,
+            ],
+            vec![
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2018-01-02T00:00:00Z", "mixed": { "dyn_arr": ["9", 8] } }"#,
+                r#"{ "text": "aaa", "text2": "bbb", "date": "2016-01-02T00:00:00Z", "mixed": { "dyn_arr": ["7", 6] } }"#,
+            ],
+        ];
+
+        let index = get_test_index_from_docs(false, &docs)?;
+
+        let d: Aggregations = serde_json::from_value(json!({
+            "top_hits_req": {
+                "top_hits": {
+                    "size": 2,
+                    "sort": [
+                        { "date": "desc" }
+                    ],
+                    "from": 1,
+                    "docvalue_fields": [
+                        "invalid_basic_field",
+                    ],
+                }
+            }
+        }))?;
+
+        let collector = AggregationCollector::from_aggs(d, Default::default());
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        let agg_res = searcher.search(&AllQuery, &collector).unwrap_err();
+        assert!(matches!(agg_res, TantivyError::SchemaError(_)));
+
+        let d: Aggregations = serde_json::from_value(json!({
+            "top_hits_req": {
+                "top_hits": {
+                    "size": 2,
+                    "sort": [
+                        { "date": "desc" }
+                    ],
+                    "from": 1,
+                    "docvalue_fields": [
+                        "invalid_glob_fie*",
+                    ],
+                }
+            }
+        }))?;
+
+        let collector = AggregationCollector::from_aggs(d, Default::default());
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+
+        let agg_res = searcher.search(&AllQuery, &collector).unwrap_err();
+        assert!(matches!(agg_res, TantivyError::SchemaError(_)));
+
+        Ok(())
     }
 }
