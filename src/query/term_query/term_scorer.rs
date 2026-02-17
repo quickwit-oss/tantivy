@@ -8,6 +8,10 @@ use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};
 
 #[derive(Clone)]
+/// Scorer for a single term over a postings list.
+///
+/// `TermScorer` combines postings data, fieldnorms, and BM25 term weight to
+/// produce per-document scores.
 pub struct TermScorer<
     TPostings: Postings = <<StandardCodec as Codec>::PostingsCodec as PostingsCodec>::Postings,
 > {
@@ -17,6 +21,8 @@ pub struct TermScorer<
 }
 
 impl<TPostings: Postings> TermScorer<TPostings> {
+    /// Creates a new term scorer from postings, fieldnorm reader, and BM25
+    /// term weight.
     pub fn new(
         postings: TPostings,
         fieldnorm_reader: FieldNormReader,
@@ -29,14 +35,17 @@ impl<TPostings: Postings> TermScorer<TPostings> {
         }
     }
 
+    /// Returns the term frequency for the current document.
     pub fn term_freq(&self) -> u32 {
         self.postings.term_freq()
     }
 
+    /// Returns the fieldnorm id for the current document.
     pub fn fieldnorm_id(&self) -> u8 {
         self.fieldnorm_reader.fieldnorm_id(self.doc())
     }
 
+    /// Returns the maximum score upper bound for this scorer.
     pub fn max_score(&self) -> Score {
         self.similarity_weight.max_score()
     }

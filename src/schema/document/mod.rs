@@ -247,9 +247,34 @@ pub trait Document: Send + Sync + 'static {
     /// Encode the doc in JSON.
     ///
     /// Encoding a document cannot fail.
-    fn to_json(&self, schema: &Schema) -> String {
+    fn to_serialized_json(&self, schema: &Schema) -> String {
         serde_json::to_string(&self.to_named_doc(schema))
             .expect("doc encoding failed. This is a bug")
+    }
+
+    /// Encode the doc in JSON.
+    ///
+    /// Encoding a document cannot fail.
+    ///
+    /// It will automatically flatten arrays of length 1 to just the value, and it will
+    /// automatically flatten objects of length 1 to just the value.
+    fn to_json(&self, schema: &Schema) -> serde_json::Value {
+        let mut json_value = serde_json::Value::Object(serde_json::Map::new());
+        for (field, field_values) in self.get_sorted_field_values() {
+            let field_name = schema.get_field_name(field);
+            let values: Vec<OwnedValue> = field_values
+                .into_iter()
+                .map(|val| OwnedValue::from(val.as_value()))
+                .collect();
+            if values.len() == 1 {
+                json_value[field_name] =
+                    serde_json::to_value(&values[0]).expect("doc encoding failed. This is a bug");
+            } else {
+                json_value[field_name] =
+                    serde_json::to_value(&values).expect("doc encoding failed. This is a bug");
+            }
+        }
+        json_value
     }
 }
 

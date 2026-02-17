@@ -12,6 +12,10 @@ pub struct SimpleUnion<TDocSet> {
 }
 
 impl<TDocSet: DocSet> SimpleUnion<TDocSet> {
+    /// Builds a `SimpleUnion` from multiple docsets.
+    ///
+    /// Exhausted docsets are filtered out, and the union is initialized at the
+    /// smallest current doc id across remaining docsets.
     pub fn build(mut docsets: Vec<TDocSet>) -> SimpleUnion<TDocSet> {
         docsets.retain(|docset| docset.doc() != TERMINATED);
         let mut docset = SimpleUnion { docsets, doc: 0 };
