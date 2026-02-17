@@ -19,13 +19,14 @@ use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
-    // Let's create a temporary directory for the
-    // sake of this example
+    // Normally you would use `MMapDirectory` instead to persist data on disk.
+    // https://docs.rs/tantivy/latest/tantivy/directory/struct.MmapDirectory.html
+    // But for this example, we will use a temporary directory `TempDir`.
     let index_path = TempDir::new()?;
 
     // # Defining the schema
     //
-    // The Tantivy index requires a very strict schema.
+    // The Tantivy index requires a schema.
     // The schema declares which fields are in the index,
     // and for each field, its type and "the way it should
     // be indexed".
