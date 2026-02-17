@@ -349,6 +349,41 @@ impl<D: Document> IndexWriter<D> {
         &self.index
     }
 
+    /// Creates a near-real-time `Searcher` reflecting the latest `soft_commit()` state.
+    ///
+    /// This builds a `Searcher` directly from the IndexWriter's in-memory committed segments,
+    /// without relying on `meta.json` having been persisted.
+    pub fn nrt_searcher(&self) -> crate::Result<crate::Searcher> {
+        use crate::core::searcher::{SearcherGeneration, SearcherInner};
+        use crate::directory::{Directory as _, META_LOCK};
+        use crate::store::DOCSTORE_CACHE_CAPACITY;
+        use crate::Inventory;
+
+        // Prevent GC from removing files while we open readers
+        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
+
+        // Load the current in-memory committed segment metas
+        let metas = self.segment_updater().committed_segment_metas();
+        let mut segment_readers = Vec::with_capacity(metas.len());
+        for meta in metas {
+            let segment = self.index.segment(meta);
+            let seg_reader = SegmentReader::open(&segment)?;
+            segment_readers.push(seg_reader);
+        }
+
+        // Track generation using a fresh Inventory
+        let inventory: Inventory<SearcherGeneration> = Inventory::default();
+        let generation = inventory.track(SearcherGeneration::from_segment_readers(&segment_readers, 0));
+        let searcher_inner = SearcherInner::new(
+            self.index.schema(),
+            self.index.clone(),
+            segment_readers,
+            generation,
+            DOCSTORE_CACHE_CAPACITY,
+        )?;
+        Ok(Arc::new(searcher_inner).into())
+    }
+
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
     pub fn wait_merging_threads(mut self) -> crate::Result<()> {
@@ -663,6 +698,13 @@ impl<D: Document> IndexWriter<D> {
     /// that made it in the commit.
     pub fn commit(&mut self) -> crate::Result<Opstamp> {
         self.prepare_commit()?.commit()
+    }
+
+    /// Soft-commit the current changes: publishes them to the in-memory committed set so
+    /// they become visible to a near real-time reader, without persisting `meta.json`.
+    pub fn soft_commit(&mut self) -> crate::Result<Opstamp> {
+        let prepared = self.prepare_commit()?;
+        prepared.soft_commit()
     }
 
     pub(crate) fn segment_updater(&self) -> &SegmentUpdater {

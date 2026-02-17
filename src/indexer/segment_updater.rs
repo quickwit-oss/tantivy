@@ -454,6 +454,29 @@ impl SegmentUpdater {
         })
     }
 
+    /// Perform a soft commit: publish current uncommitted segments as committed in the
+    /// in-memory state, but do not write `meta.json`.
+    pub(crate) fn schedule_soft_commit(
+        &self,
+        opstamp: Opstamp,
+        _payload: Option<String>,
+    ) -> FutureResult<Opstamp> {
+        let segment_updater: SegmentUpdater = self.clone();
+        self.schedule_task(move || {
+            let segment_entries = segment_updater.purge_deletes(opstamp)?;
+            // Move them to committed in memory only
+            segment_updater.segment_manager.commit(segment_entries);
+            // Do not persist meta.json. Keep active_index_meta opstamp as-is.
+            segment_updater.consider_merge_options();
+            Ok(opstamp)
+        })
+    }
+
+    /// Returns the current list of committed segment metas from the in-memory state.
+    pub(crate) fn committed_segment_metas(&self) -> Vec<SegmentMeta> {
+        self.segment_manager.committed_segment_metas()
+    }
+
     fn store_meta(&self, index_meta: &IndexMeta) {
         *self.active_index_meta.write().unwrap() = Arc::new(index_meta.clone());
     }
