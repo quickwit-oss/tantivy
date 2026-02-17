@@ -28,6 +28,9 @@ pub enum LogicalLiteral {
         pattern: Arc<Regex>,
         field: Field,
     },
+    Exists {
+        field: String,
+    },
 }
 
 pub enum LogicalAst {
@@ -159,6 +162,7 @@ impl fmt::Debug for LogicalLiteral {
                 ref pattern,
                 ref field,
             } => write!(formatter, "Regex({field:?}, {pattern:?})"),
+            LogicalLiteral::Exists { ref field } => write!(formatter, "Exists({field})"),
         }
     }
 }
