@@ -637,7 +637,7 @@ impl<D: Document> IndexWriter<D> {
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
                 .join()
-                .map_err(|e| TantivyError::ErrorInThread(format!("{e:?}")))?;
+                .map_err(|e| TantivyError::ErrorInThread(e.to_string()))?;
             indexing_worker_result?;
             self.add_indexing_worker()?;
         }
