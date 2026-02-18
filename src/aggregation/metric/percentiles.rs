@@ -223,7 +223,7 @@ impl PercentilesCollector {
     }
 
     /// Encode the underlying DDSketch to Java-compatible binary format
-    /// for cross-language serialization with event-query.
+    /// for cross-language serialization with Java consumers.
     pub fn to_sketch_bytes(&self) -> Vec<u8> {
         self.sketch.to_java_bytes()
     }
