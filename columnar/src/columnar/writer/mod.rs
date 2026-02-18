@@ -122,9 +122,26 @@ impl ColumnarWriter {
             numerical_col_writer.operation_iterator(&self.arena, None, &mut symbols_buffer),
             num_docs,
             reversed,
-            |nv| f64::coerce(nv) as f32,
-            0.0f32,
-            |a, b| a.total_cmp(b),
+            // MonotonicallyMappableToU64 converts each value to u64 in an
+            // order-preserving way (u64: identity, i64: XOR sign bit, f64: bit
+            // manipulation). Converting once per document lets the comparator be
+            // a simple u64 cmp instead of unwrapping the NumericalValue variant
+            // on every comparison.
+            //
+            // For f64, NaN maps to a deterministic u64 via raw bit manipulation,
+            // so it sorts to a consistent position. Sorting only requires total
+            // ordering, not IEEE 754 equality semantics where NaN != NaN.
+            |nv| {
+                Some(match nv {
+                    NumericalValue::U64(v) => v.to_u64(),
+                    NumericalValue::I64(v) => v.to_u64(),
+                    NumericalValue::F64(v) => v.to_u64(),
+                })
+            },
+            // None for missing values. Option<u64> sorts None < Some(_),
+            // placing nulls before non-null values.
+            None,
+            |a, b| a.cmp(b),
         )
     }
 

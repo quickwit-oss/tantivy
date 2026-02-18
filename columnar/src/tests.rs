@@ -317,6 +317,48 @@ fn test_sort_order_bytes_asc() {
     assert_eq!(asc, vec![0, 2, 3, 1]); // None, None, 0x00, 0x01
 }
 
+#[test]
+fn test_sort_order_numeric_u64_above_2_24() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_numerical(0, "n", 16_777_217u64);
+    dataframe_writer.record_numerical(1, "n", 16_777_216u64);
+
+    let asc = dataframe_writer.sort_order("n", 2, false);
+    assert_eq!(asc, vec![1, 0]); // 16,777,216 then 16,777,217
+}
+
+#[test]
+fn test_sort_order_numeric_u64_above_2_53() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_numerical(0, "n", 9_007_199_254_740_993u64);
+    dataframe_writer.record_numerical(1, "n", 9_007_199_254_740_992u64);
+
+    let asc = dataframe_writer.sort_order("n", 2, false);
+    assert_eq!(asc, vec![1, 0]); // smaller value first
+}
+
+#[test]
+fn test_sort_order_numeric_null_vs_zero() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    dataframe_writer.record_numerical(0, "n", 0u64);
+
+    let asc = dataframe_writer.sort_order("n", 2, false);
+    assert_eq!(asc, vec![1, 0]); // None first, then 0
+}
+
+#[test]
+fn test_sort_order_datetime_close_timestamps() {
+    let mut dataframe_writer = ColumnarWriter::default();
+    // Two timestamps 1 nanosecond apart. As f32, both round to the same value.
+    let dt1 = DateTime::from_timestamp_nanos(1_700_000_000_000_000_001);
+    let dt2 = DateTime::from_timestamp_nanos(1_700_000_000_000_000_000);
+    dataframe_writer.record_datetime(0, "ts", dt1);
+    dataframe_writer.record_datetime(1, "ts", dt2);
+
+    let asc = dataframe_writer.sort_order("ts", 2, false);
+    assert_eq!(asc, vec![1, 0]); // smaller timestamp first
+}
+
 fn num_strategy() -> impl Strategy<Value = NumericalValue> {
     prop_oneof![
         3 => Just(NumericalValue::U64(0u64)),
