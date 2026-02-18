@@ -22,7 +22,7 @@ const FLAG_TYPE_POSITIVE_STORE: u8 = 0b01;
 const FLAG_TYPE_INDEX_MAPPING: u8 = 0b10;
 const FLAG_TYPE_NEGATIVE_STORE: u8 = 0b11;
 
-const FLAG_INDEX_MAPPING_LOG: u8 = (0 << 2) | FLAG_TYPE_INDEX_MAPPING; // 0x02
+const FLAG_INDEX_MAPPING_LOG: u8 = FLAG_TYPE_INDEX_MAPPING; // 0x02
 const FLAG_ZERO_COUNT: u8 = (1 << 2) | FLAG_TYPE_SKETCH_FEATURES; // 0x04
 const FLAG_COUNT: u8 = (0x28 << 2) | FLAG_TYPE_SKETCH_FEATURES; // 0xA0
 const FLAG_SUM: u8 = (0x21 << 2) | FLAG_TYPE_SKETCH_FEATURES; // 0x84
@@ -67,7 +67,7 @@ impl std::error::Error for DecodeError {}
 // ---------------------------------------------------------------------------
 
 fn encode_unsigned_var_long(out: &mut Vec<u8>, mut value: u64) {
-    let length = ((63 - value.leading_zeros() as i32) / 7).max(0).min(8);
+    let length = ((63 - value.leading_zeros() as i32) / 7).clamp(0, 8);
     for _ in 0..length {
         out.push((value as u8) | 0x80);
         value >>= 7;

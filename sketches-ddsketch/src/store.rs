@@ -127,7 +127,7 @@ impl Store {
                     let zero_len = (new_min_key - self.min_key) as usize;
                     self.bins.splice(
                         collapse_start_index..collapse_end_index,
-                        std::iter::repeat(0).take(zero_len),
+                        std::iter::repeat_n(0, zero_len),
                     );
                     self.bins[collapse_end_index] += collapsed_count;
                 }
@@ -152,7 +152,7 @@ impl Store {
                 self.bins[idx] = 0;
             }
         } else {
-            let shift = shift.abs() as usize;
+            let shift = shift.unsigned_abs() as usize;
             for idx in 0..shift {
                 self.bins[idx] = 0;
             }

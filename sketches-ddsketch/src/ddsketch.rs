@@ -92,7 +92,7 @@ impl DDSketch {
     ///
     /// If the sketch is empty the result is None, else Some(v) for the quantile value.
     pub fn quantile(&self, q: f64) -> Result<Option<f64>> {
-        if q < 0.0 || q > 1.0 {
+        if !(0.0..=1.0).contains(&q) {
             return Err(DDSketchError::Quantile);
         }
 
