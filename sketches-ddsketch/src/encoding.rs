@@ -510,9 +510,7 @@ mod tests {
 
     #[test]
     fn test_var_double_roundtrip() {
-        for v in [
-            0.0, 1.0, 2.0, 5.0, 15.0, 42.0, 100.0, 1e-9, 1e15, 0.5, 3.14159,
-        ] {
+        for v in [0.0, 1.0, 2.0, 5.0, 15.0, 42.0, 100.0, 1e-9, 1e15, 0.5, 7.77] {
             let mut buf = Vec::new();
             encode_var_double(&mut buf, v);
             let mut input = buf.as_slice();

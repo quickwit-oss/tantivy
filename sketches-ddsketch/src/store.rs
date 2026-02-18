@@ -245,7 +245,7 @@ mod tests {
     fn test_simple_store_rev() {
         let mut s = Store::new(2048);
 
-        for i in 2048..0 {
+        for i in (0..2048).rev() {
             s.add(i);
         }
     }
