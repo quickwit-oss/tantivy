@@ -361,10 +361,18 @@ pub fn decode_from_java_bytes(bytes: &[u8]) -> Result<DDSketch, DecodeError> {
                 }
             }
             FLAG_TYPE_POSITIVE_STORE => {
-                positive_store = Some(decode_store(&mut input, subflag, DEFAULT_MAX_BINS as usize)?);
+                positive_store = Some(decode_store(
+                    &mut input,
+                    subflag,
+                    DEFAULT_MAX_BINS as usize,
+                )?);
             }
             FLAG_TYPE_NEGATIVE_STORE => {
-                negative_store = Some(decode_store(&mut input, subflag, DEFAULT_MAX_BINS as usize)?);
+                negative_store = Some(decode_store(
+                    &mut input,
+                    subflag,
+                    DEFAULT_MAX_BINS as usize,
+                )?);
             }
             _ => {
                 return Err(DecodeError::InvalidFlag(flag));
@@ -393,12 +401,7 @@ pub fn decode_from_java_bytes(bytes: &[u8]) -> Result<DDSketch, DecodeError> {
 fn is_valid_flag_byte(b: u8) -> bool {
     matches!(
         b,
-        FLAG_ZERO_COUNT
-            | FLAG_COUNT
-            | FLAG_SUM
-            | FLAG_MIN
-            | FLAG_MAX
-            | FLAG_INDEX_MAPPING_LOG
+        FLAG_ZERO_COUNT | FLAG_COUNT | FLAG_SUM | FLAG_MIN | FLAG_MAX | FLAG_INDEX_MAPPING_LOG
     ) || {
         let flag_type = b & 0x03;
         let subflag = b >> 2;
@@ -480,7 +483,9 @@ mod tests {
 
     #[test]
     fn test_var_double_roundtrip() {
-        for &v in &[0.0, 1.0, 2.0, 5.0, 15.0, 42.0, 100.0, 1e-9, 1e15, 0.5, 3.14159] {
+        for &v in &[
+            0.0, 1.0, 2.0, 5.0, 15.0, 42.0, 100.0, 1e-9, 1e15, 0.5, 3.14159,
+        ] {
             let mut buf = Vec::new();
             encode_var_double(&mut buf, v);
             let mut input = buf.as_slice();
@@ -683,9 +688,13 @@ mod tests {
         let bytes = sketch.to_java_bytes();
         let expected = hex_to_bytes(GOLDEN_SIMPLE);
         assert_eq!(
-            bytes, expected,
+            bytes,
+            expected,
             "Rust encoding doesn't match Java golden bytes for SIMPLE.\nRust:   {}\nJava:   {}",
-            bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>(),
             GOLDEN_SIMPLE
         );
     }
@@ -697,9 +706,13 @@ mod tests {
         let bytes = sketch.to_java_bytes();
         let expected = hex_to_bytes(GOLDEN_SINGLE);
         assert_eq!(
-            bytes, expected,
+            bytes,
+            expected,
             "Rust encoding doesn't match Java golden bytes for SINGLE.\nRust:   {}\nJava:   {}",
-            bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>(),
             GOLDEN_SINGLE
         );
     }
@@ -713,9 +726,13 @@ mod tests {
         let bytes = sketch.to_java_bytes();
         let expected = hex_to_bytes(GOLDEN_NEGATIVE);
         assert_eq!(
-            bytes, expected,
+            bytes,
+            expected,
             "Rust encoding doesn't match Java golden bytes for NEGATIVE.\nRust:   {}\nJava:   {}",
-            bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>(),
             GOLDEN_NEGATIVE
         );
     }
@@ -729,9 +746,13 @@ mod tests {
         let bytes = sketch.to_java_bytes();
         let expected = hex_to_bytes(GOLDEN_ZERO);
         assert_eq!(
-            bytes, expected,
+            bytes,
+            expected,
             "Rust encoding doesn't match Java golden bytes for ZERO.\nRust:   {}\nJava:   {}",
-            bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>(),
             GOLDEN_ZERO
         );
     }
@@ -742,9 +763,13 @@ mod tests {
         let bytes = sketch.to_java_bytes();
         let expected = hex_to_bytes(GOLDEN_EMPTY);
         assert_eq!(
-            bytes, expected,
+            bytes,
+            expected,
             "Rust encoding doesn't match Java golden bytes for EMPTY.\nRust:   {}\nJava:   {}",
-            bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>(),
             GOLDEN_EMPTY
         );
     }
@@ -758,9 +783,13 @@ mod tests {
         let bytes = sketch.to_java_bytes();
         let expected = hex_to_bytes(GOLDEN_MANY);
         assert_eq!(
-            bytes, expected,
+            bytes,
+            expected,
             "Rust encoding doesn't match Java golden bytes for MANY.\nRust:   {}\nJava:   {}",
-            bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>(),
+            bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>(),
             GOLDEN_MANY
         );
     }
@@ -778,7 +807,12 @@ mod tests {
         ] {
             let bytes = hex_to_bytes(hex);
             let result = DDSketch::from_java_bytes(&bytes);
-            assert!(result.is_ok(), "failed to decode {}: {:?}", name, result.err());
+            assert!(
+                result.is_ok(),
+                "failed to decode {}: {:?}",
+                name,
+                result.err()
+            );
         }
     }
 

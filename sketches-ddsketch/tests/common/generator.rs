@@ -7,7 +7,6 @@ pub trait Generator {
     fn generate(&mut self) -> f64;
 }
 
-//
 // Constant generator
 //
 pub struct Constant {
@@ -24,7 +23,6 @@ impl Generator for Constant {
     }
 }
 
-//
 // Linear generator
 //
 pub struct Linear {
@@ -47,7 +45,6 @@ impl Generator for Linear {
     }
 }
 
-//
 // Normal distribution generator
 //
 pub struct Normal {
@@ -66,7 +63,6 @@ impl Generator for Normal {
     }
 }
 
-//
 // Lognormal distribution generator
 //
 pub struct Lognormal {
@@ -85,7 +81,6 @@ impl Generator for Lognormal {
     }
 }
 
-//
 // Exponential distribution generator
 //
 pub struct Exponential {

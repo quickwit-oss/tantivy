@@ -1,12 +1,10 @@
 mod common;
+use std::time::Instant;
+
 use common::dataset::Dataset;
 use common::generator;
 use common::generator::Generator;
-
-use std::time::Instant;
-
-use sketches_ddsketch::Config;
-use sketches_ddsketch::DDSketch;
+use sketches_ddsketch::{Config, DDSketch};
 
 const TEST_ALPHA: f64 = 0.01;
 const TEST_MAX_BINS: u32 = 1024;

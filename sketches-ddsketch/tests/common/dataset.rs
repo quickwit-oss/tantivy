@@ -34,11 +34,9 @@ impl Dataset {
         self.sorted = false;
     }
 
-    /*
-    pub fn quantile(&mut self, q: f64) -> f64 {
-        self.lower_quantile(q)
-    }
-    */
+    // pub fn quantile(&mut self, q: f64) -> f64 {
+    // self.lower_quantile(q)
+    // }
 
     pub fn lower_quantile(&mut self, q: f64) -> f64 {
         if q < 0.0 || q > 1.0 || self.values.len() == 0 {

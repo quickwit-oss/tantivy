@@ -1,17 +1,15 @@
-use std::error;
-use std::fmt;
-
-use crate::config::Config;
-use crate::store::Store;
+use std::{error, fmt};
 
 #[cfg(feature = "use_serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::config::Config;
+use crate::store::Store;
 
 type Result<T> = std::result::Result<T, DDSketchError>;
 
 /// General error type for DDSketch, represents either an invalid quantile or an
 /// incompatible merge operation.
-///
 #[derive(Debug, Clone)]
 pub enum DDSketchError {
     Quantile,
@@ -209,7 +207,9 @@ impl DDSketch {
     /// Decode a sketch from the Java-compatible binary format.
     /// Accepts bytes produced by Java's `DDSketchWithExactSummaryStatistics.encode()`
     /// with or without the `0x02` version prefix.
-    pub fn from_java_bytes(bytes: &[u8]) -> std::result::Result<Self, crate::encoding::DecodeError> {
+    pub fn from_java_bytes(
+        bytes: &[u8],
+    ) -> std::result::Result<Self, crate::encoding::DecodeError> {
         crate::encoding::decode_from_java_bytes(bytes)
     }
 }
@@ -218,8 +218,7 @@ impl DDSketch {
 mod tests {
     use approx::assert_relative_eq;
 
-    use crate::Config;
-    use crate::DDSketch;
+    use crate::{Config, DDSketch};
 
     #[test]
     fn test_add_zero() {
