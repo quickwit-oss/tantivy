@@ -51,6 +51,7 @@ impl Store {
         self.count += 1;
     }
 
+    /// See Java: https://github.com/DataDog/sketches-java/blob/master/src/main/java/com/datadoghq/sketch/ddsketch/store/DenseStore.java  (add(int index, double count) method)
     pub(crate) fn add_count(&mut self, key: i32, count: u64) {
         let idx = self.get_index(key);
         self.bins[idx] += count;

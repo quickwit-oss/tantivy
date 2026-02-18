@@ -26,11 +26,11 @@ impl Config {
     ///
     /// `max_num_bins` is the max number of bins the DDSketch will grow to, in steps of 128 bins.
     pub fn new(alpha: f64, max_num_bins: u32, min_value: f64) -> Self {
-        // Compute gamma the same way Java's LogarithmicMapping does:
-        // gamma = (1 + alpha) / (1 - alpha), which is algebraically
-        // the same as 1 + 2*alpha/(1-alpha).
-        // Using gamma.ln() (not ln_1p) to match Java's Math.log(gamma)
-        // for bit-exact cross-language bin index compatibility.
+        // Aligned with Java's LogarithmicMapping / LogLikeIndexMapping:
+        //   gamma = (1 + alpha) / (1 - alpha)  (correctingFactor=1 for LogarithmicMapping)
+        //   gamma_ln = gamma.ln()  (not ln_1p, to match Java's Math.log(gamma))
+        // See: https://github.com/DataDog/sketches-java/blob/master/src/main/java/com/datadoghq/sketch/ddsketch/mapping/LogLikeIndexMapping.java  (gamma() static method)
+        // See: https://github.com/DataDog/sketches-java/blob/master/src/main/java/com/datadoghq/sketch/ddsketch/mapping/LogarithmicMapping.java  (constructor, correctingFactor()=1)
         let gamma = (1.0 + alpha) / (1.0 - alpha);
         let gamma_ln = gamma.ln();
 
@@ -49,14 +49,18 @@ impl Config {
     }
 
     pub fn key(&self, v: f64) -> i32 {
-        // Match Java's LogLikeIndexMapping.index():
-        // floor-based indexing for cross-language bin compatibility.
+        // Aligned with Java's LogLikeIndexMapping.index(): floor-based indexing.
+        // Java uses `(int) index` / `(int) index - 1` which is equivalent to floor().
+        // See: https://github.com/DataDog/sketches-java/blob/master/src/main/java/com/datadoghq/sketch/ddsketch/mapping/LogLikeIndexMapping.java  (index() method)
         self.log_gamma(v).floor() as i32
     }
 
     pub fn value(&self, key: i32) -> f64 {
-        // Match Java's LogLikeIndexMapping.value():
-        // gamma^key * (1 + relativeAccuracy) = gamma^key * 2*gamma/(gamma+1)
+        // Aligned with Java's LogLikeIndexMapping.value():
+        //   lowerBound(index) * (1 + relativeAccuracy)
+        //   = logInverse((index - indexOffset) / multiplier) * (1 + relativeAccuracy)
+        //   = gamma^key * 2*gamma/(gamma+1)
+        // See: https://github.com/DataDog/sketches-java/blob/master/src/main/java/com/datadoghq/sketch/ddsketch/mapping/LogLikeIndexMapping.java  (value() and lowerBound() methods)
         self.pow_gamma(key) * (2.0 * self.gamma / (1.0 + self.gamma))
     }
 
@@ -74,6 +78,7 @@ impl Config {
 
     /// Reconstruct a Config from a gamma value (as decoded from the binary format).
     /// Uses default max_num_bins and min_value.
+    /// See Java: https://github.com/DataDog/sketches-java/blob/master/src/main/java/com/datadoghq/sketch/ddsketch/mapping/LogarithmicMapping.java  (LogarithmicMapping(double gamma, double indexOffset) constructor)
     pub(crate) fn from_gamma(gamma: f64) -> Self {
         let gamma_ln = gamma.ln();
         Config {
