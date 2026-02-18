@@ -64,7 +64,7 @@ query-grammar = { version = "0.25.0", path = "./query-grammar", package = "tanti
 tantivy-bitpacker = { version = "0.9", path = "./bitpacker" }
 common = { version = "0.10", path = "./common/", package = "tantivy-common" }
 tokenizer-api = { version = "0.6", path = "./tokenizer-api", package = "tantivy-tokenizer-api" }
-sketches-ddsketch = { version = "0.3.0", features = ["use_serde"] }
+sketches-ddsketch = { path = "./sketches-ddsketch", features = ["use_serde"] }
 datasketches = "0.2.0"
 futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
@@ -144,6 +144,7 @@ members = [
     "sstable",
     "tokenizer-api",
     "columnar",
+    "sketches-ddsketch",
 ]
 
 # Following the "fail" crate best practises, we isolate

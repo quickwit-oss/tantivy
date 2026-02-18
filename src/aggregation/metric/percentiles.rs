@@ -222,6 +222,12 @@ impl PercentilesCollector {
         self.sketch.add(val);
     }
 
+    /// Encode the underlying DDSketch to Java-compatible binary format
+    /// for cross-language serialization with event-query.
+    pub fn to_sketch_bytes(&self) -> Vec<u8> {
+        self.sketch.to_java_bytes()
+    }
+
     pub(crate) fn merge_fruits(&mut self, right: PercentilesCollector) -> crate::Result<()> {
         self.sketch.merge(&right.sketch).map_err(|err| {
             TantivyError::AggregationError(AggregationError::InternalError(format!(
@@ -610,11 +616,11 @@ mod tests {
 
         assert_eq!(
             res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["1.0"],
-            5.0028295751107414
+            5.002829575110705
         );
         assert_eq!(
             res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["99.0"],
-            10.07469668951144
+            10.07469668951133
         );
 
         Ok(())
@@ -659,8 +665,8 @@ mod tests {
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
-        assert_eq!(res["percentiles"]["values"]["1.0"], 5.0028295751107414);
-        assert_eq!(res["percentiles"]["values"]["99.0"], 10.07469668951144);
+        assert_eq!(res["percentiles"]["values"]["1.0"], 5.002829575110705);
+        assert_eq!(res["percentiles"]["values"]["99.0"], 10.07469668951133);
 
         Ok(())
     }
