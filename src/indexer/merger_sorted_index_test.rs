@@ -811,6 +811,115 @@ mod tests {
         }
     }
 
+    // ---- Cross-segment merge: numeric u64 with NULLs ----
+
+    fn build_u64_sorted_index(order: Order, segments: Vec<Vec<Option<u64>>>) -> Index {
+        let mut schema_builder = schema::Schema::builder();
+        let int_field = schema_builder
+            .add_u64_field("intval", NumericOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+
+        {
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            for segment in segments {
+                for value in segment {
+                    let mut doc = TantivyDocument::new();
+                    if let Some(v) = value {
+                        doc.add_u64(int_field, v);
+                    }
+                    index_writer.add_document(doc).unwrap();
+                }
+                index_writer.commit().unwrap();
+            }
+        }
+
+        {
+            let segment_ids = index.searchable_segment_ids().unwrap();
+            let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+            index_writer.merge(&segment_ids).wait().unwrap();
+            index_writer.wait_merging_threads().unwrap();
+        }
+        index
+    }
+
+    fn collect_u64_values(index: &Index) -> Vec<Option<u64>> {
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_readers().last().unwrap();
+        let u64_col = segment_reader.fast_fields().u64("intval").unwrap();
+        let mut values = Vec::new();
+        for doc in 0..segment_reader.max_doc() {
+            values.push(u64_col.first(doc));
+        }
+        values
+    }
+
+    #[test]
+    fn test_merge_sorted_index_u64_asc_null_before_zero() {
+        let index =
+            build_u64_sorted_index(Order::Asc, vec![vec![None, Some(0)], vec![None, Some(0)]]);
+        let values = collect_u64_values(&index);
+        assert_eq!(values, vec![None, None, Some(0), Some(0)]);
+    }
+
+    #[test]
+    fn test_merge_sorted_index_u64_desc_null_after_zero() {
+        let index =
+            build_u64_sorted_index(Order::Desc, vec![vec![Some(0), None], vec![Some(0), None]]);
+        let values = collect_u64_values(&index);
+        assert_eq!(values, vec![Some(0), Some(0), None, None]);
+    }
+
+    #[test]
+    fn test_merge_sorted_index_u64_asc_nulls_only_in_first_segment() {
+        let index = build_u64_sorted_index(
+            Order::Asc,
+            vec![vec![None, Some(1), Some(2)], vec![Some(3), Some(4)]],
+        );
+        let values = collect_u64_values(&index);
+        assert_eq!(values, vec![None, Some(1), Some(2), Some(3), Some(4)]);
+    }
+
+    #[test]
+    fn test_merge_sorted_index_u64_desc_nulls_only_in_last_segment() {
+        let index = build_u64_sorted_index(
+            Order::Desc,
+            vec![vec![Some(4), Some(3)], vec![Some(2), Some(1), None]],
+        );
+        let values = collect_u64_values(&index);
+        assert_eq!(values, vec![Some(4), Some(3), Some(2), Some(1), None]);
+    }
+
+    proptest! {
+        #[test]
+        fn test_merge_sorted_index_u64_matches_sorted_input(
+            order in prop_oneof![Just(Order::Asc), Just(Order::Desc)],
+            segments in proptest::collection::vec(
+                proptest::collection::vec(proptest::option::of(0u64..100), 1..8),
+                1..6,
+            )
+        ) {
+            let index = build_u64_sorted_index(order, segments.clone());
+            let values = collect_u64_values(&index);
+            let mut expected: Vec<Option<u64>> = segments.into_iter().flatten().collect();
+            expected.sort_by(|left, right| compare_option_values(left, right, order));
+            prop_assert_eq!(values, expected);
+        }
+    }
+
     // #[test]
     // fn test_merge_sorted_index_asc() {
     //     let index = create_test_index(

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use columnar::{
-    compute_merged_term_ord_mapping, BytesColumn, Column, ColumnType, ColumnValues, ColumnarReader,
+    compute_merged_term_ord_mapping, BytesColumn, Column, ColumnType, ColumnarReader,
     MergeRowOrder, RowAddr, ShuffleMergeOrder, StackMergeOrder,
 };
 use common::ReadOnlyBitSet;
@@ -54,7 +54,7 @@ impl StrBytesSortFieldAccessor {
 ///   global ordinals so that cross-segment lexicographic comparison works without loading term
 ///   bytes.
 enum ReaderSortFieldAccessors {
-    Numeric(Vec<(SegmentOrdinal, Arc<dyn ColumnValues>)>),
+    Numeric(Vec<(SegmentOrdinal, Column<u64>)>),
     StrBytes(Vec<(SegmentOrdinal, StrBytesSortFieldAccessor)>),
 }
 
@@ -183,6 +183,41 @@ fn extract_fast_field_required_columns(schema: &Schema) -> Vec<(String, ColumnTy
 }
 
 impl IndexMerger {
+    fn total_num_new_docs(&self) -> usize {
+        self.readers
+            .iter()
+            .map(|reader| reader.num_docs() as usize)
+            .sum()
+    }
+
+    fn collect_alive_bitsets(&self) -> Vec<Option<ReadOnlyBitSet>> {
+        self.readers
+            .iter()
+            .map(|reader| {
+                reader
+                    .alive_bitset()
+                    .map(|alive_bitset| alive_bitset.bitset().clone())
+            })
+            .collect()
+    }
+
+    /// Column cardinality metadata (`Optional`) covers all docs including deleted ones.
+    /// A segment can report `Optional` but have zero live NULLs if every NULL doc was
+    /// deleted. We scan alive docs to distinguish this case, because deleted NULLs
+    /// are excluded from the merge and shouldn't block the disjunct-stack path.
+    fn segment_has_live_nulls(&self, segment_ord: SegmentOrdinal, col: &Column<u64>) -> bool {
+        if col.get_cardinality() != columnar::Cardinality::Optional {
+            return false;
+        }
+        let reader = &self.readers[segment_ord as usize];
+        if !reader.has_deletes() {
+            return true;
+        }
+        reader
+            .doc_ids_alive()
+            .any(|doc_id| col.first(doc_id).is_none())
+    }
+
     pub fn open(
         schema: Schema,
         index_settings: IndexSettings,
@@ -326,9 +361,14 @@ impl IndexMerger {
         Ok(())
     }
 
-    /// Checks if the readers are disjunct for their sort property and in the correct order to be
-    /// able to just stack them.
-    pub(crate) fn is_disjunct_and_sorted_on_sort_property(
+    /// Checks if segments can use the fast disjunct-stack path (byte concatenation)
+    /// instead of a full k-way merge.
+    ///
+    /// Stacking preserves per-segment order but doesn't reposition docs across segments.
+    /// NULLs must sort first (ASC) or last (DESC) globally, but stacking can't move a
+    /// NULL from segment 2 before values in segment 1. So any live NULL forces a full
+    /// k-way merge to place NULLs correctly.
+    fn is_disjunct_and_sorted_on_sort_property(
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<bool> {
@@ -340,18 +380,29 @@ impl IndexMerger {
 
         let reader_ordinal_and_field_accessors = self.get_numeric_accessors(sort_by_field)?;
 
-        let everything_is_in_order = reader_ordinal_and_field_accessors
-            .into_iter()
+        let asc = sort_by_field.order.is_asc();
+
+        let values_disjunct = reader_ordinal_and_field_accessors
+            .iter()
             .map(|(_, col)| col)
             .tuple_windows()
-            .all(|(field_accessor1, field_accessor2)| {
-                if sort_by_field.order.is_asc() {
-                    field_accessor1.max_value() <= field_accessor2.min_value()
+            .all(|(col1, col2)| {
+                if asc {
+                    col1.max_value() <= col2.min_value()
                 } else {
-                    field_accessor1.min_value() >= field_accessor2.max_value()
+                    col1.min_value() >= col2.max_value()
                 }
             });
-        Ok(everything_is_in_order)
+
+        if !values_disjunct {
+            return Ok(false);
+        }
+
+        let has_live_nulls = reader_ordinal_and_field_accessors
+            .iter()
+            .any(|(segment_ord, col)| self.segment_has_live_nulls(*segment_ord, col));
+
+        Ok(!has_live_nulls)
     }
 
     fn get_str_bytes_column(
@@ -416,10 +467,14 @@ impl IndexMerger {
         Ok(accessors)
     }
 
+    /// Returns the full `Column<u64>` so callers can use `Column::first()` which
+    /// returns `Option<u64>` — `None` for NULLs, `Some` for real values. This
+    /// distinction is required for correct NULL ordering during merge sort and
+    /// for detecting live NULLs in the disjunct-stack check.
     fn get_numeric_accessor(
         reader: &SegmentReader,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<Arc<dyn ColumnValues>> {
+    ) -> crate::Result<Column<u64>> {
         reader.schema().get_field(&sort_by_field.field)?;
         let (value_accessor, _column_type) = reader
             .fast_fields()
@@ -427,13 +482,13 @@ impl IndexMerger {
             .ok_or_else(|| FastFieldNotAvailableError {
                 field_name: sort_by_field.field.to_string(),
             })?;
-        Ok(value_accessor.first_or_default_col(0u64))
+        Ok(value_accessor)
     }
 
     fn get_numeric_accessors(
         &self,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<Vec<(SegmentOrdinal, Arc<dyn ColumnValues>)>> {
+    ) -> crate::Result<Vec<(SegmentOrdinal, Column<u64>)>> {
         self.readers
             .iter()
             .enumerate()
@@ -503,11 +558,7 @@ impl IndexMerger {
         let sort_field_accessors = self.get_reader_with_sort_field_accessor(sort_by_field)?;
         // Loading the field accessor on demand causes a 15x regression
 
-        let total_num_new_docs = self
-            .readers
-            .iter()
-            .map(|reader| reader.num_docs() as usize)
-            .sum();
+        let total_num_new_docs = self.total_num_new_docs();
 
         let mut sorted_doc_ids: Vec<DocAddress> = Vec::with_capacity(total_num_new_docs);
 
@@ -522,8 +573,11 @@ impl IndexMerger {
                 self.extend_sorted_doc_ids(
                     &reader_ordinal_and_field_accessors,
                     |a, b| {
-                        let val1 = a.2.get_val(a.0);
-                        let val2 = b.2.get_val(b.0);
+                        // Column::first() returns Option<u64>: None for NULLs, Some for values.
+                        // Option's Ord puts None < Some, giving NULL-first in ASC, NULL-last in
+                        // DESC.
+                        let val1 = a.2.first(a.0);
+                        let val2 = b.2.first(b.0);
                         if asc {
                             val1 < val2
                         } else {
@@ -539,17 +593,10 @@ impl IndexMerger {
                     |a, b| {
                         let val1 = a.2.remapped_term_ord(a.0);
                         let val2 = b.2.remapped_term_ord(b.0);
-                        match (val1, val2) {
-                            (None, None) => false,
-                            (None, Some(_)) => asc,
-                            (Some(_), None) => !asc,
-                            (Some(left), Some(right)) => {
-                                if asc {
-                                    left < right
-                                } else {
-                                    left > right
-                                }
-                            }
+                        if asc {
+                            val1 < val2
+                        } else {
+                            val1 > val2
                         }
                     },
                     &mut sorted_doc_ids,
@@ -557,14 +604,7 @@ impl IndexMerger {
             }
         }
 
-        let alive_bitsets: Vec<Option<ReadOnlyBitSet>> = self
-            .readers
-            .iter()
-            .map(|segment_reader| {
-                let alive_bitset = segment_reader.alive_bitset()?;
-                Some(alive_bitset.bitset().clone())
-            })
-            .collect();
+        let alive_bitsets = self.collect_alive_bitsets();
         Ok(SegmentDocIdMapping::new(
             sorted_doc_ids,
             MappingType::Shuffled,
@@ -575,11 +615,7 @@ impl IndexMerger {
     /// Creates a mapping if the segments are stacked. this is helpful to merge codelines between
     /// index sorting and the others
     pub(crate) fn get_doc_id_from_concatenated_data(&self) -> crate::Result<SegmentDocIdMapping> {
-        let total_num_new_docs = self
-            .readers
-            .iter()
-            .map(|reader| reader.num_docs() as usize)
-            .sum();
+        let total_num_new_docs = self.total_num_new_docs();
 
         let mut mapping: Vec<DocAddress> = Vec::with_capacity(total_num_new_docs);
 
@@ -595,20 +631,13 @@ impl IndexMerger {
                 }),
         );
 
-        let has_deletes: bool = self.readers.iter().any(SegmentReader::has_deletes);
+        let has_deletes = self.readers.iter().any(SegmentReader::has_deletes);
         let mapping_type = if has_deletes {
             MappingType::StackedWithDeletes
         } else {
             MappingType::Stacked
         };
-        let alive_bitsets: Vec<Option<ReadOnlyBitSet>> = self
-            .readers
-            .iter()
-            .map(|reader| {
-                let alive_bitset = reader.alive_bitset()?;
-                Some(alive_bitset.bitset().clone())
-            })
-            .collect();
+        let alive_bitsets = self.collect_alive_bitsets();
         Ok(SegmentDocIdMapping::new(
             mapping,
             mapping_type,
@@ -921,8 +950,6 @@ impl IndexMerger {
     pub fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
         let doc_id_mapping = if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref()
         {
-            // If the documents are already sorted and stackable, we ignore the mapping and execute
-            // it as if there was no sorting
             if self.is_disjunct_and_sorted_on_sort_property(sort_by_field)? {
                 self.get_doc_id_from_concatenated_data()?
             } else {
@@ -959,7 +986,6 @@ impl IndexMerger {
 
 #[cfg(test)]
 mod tests {
-
     use columnar::Column;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
