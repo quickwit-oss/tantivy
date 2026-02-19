@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
-use serde::{Deserialize, Serialize};
+use serde::ser::Serializer;
+use serde::{Deserialize, Deserializer, Serialize};
 
 use super::*;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
@@ -142,10 +143,28 @@ pub(crate) struct SegmentPercentilesCollector {
     pub accessor: Column<u64>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 /// The percentiles collector used during segment collection and for merging results.
+/// Uses Java-compatible DDSketch binary encoding for compact serialization
+/// and cross-language compatibility (e.g. Java `sketches-java` library).
 pub struct PercentilesCollector {
     sketch: sketches_ddsketch::DDSketch,
+}
+
+impl Serialize for PercentilesCollector {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let bytes = self.sketch.to_java_bytes();
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<'de> Deserialize<'de> for PercentilesCollector {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
+        let sketch =
+            sketches_ddsketch::DDSketch::from_java_bytes(&bytes).map_err(serde::de::Error::custom)?;
+        Ok(Self { sketch })
+    }
 }
 impl Default for PercentilesCollector {
     fn default() -> Self {
@@ -619,13 +638,13 @@ mod tests {
             res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["1.0"]
                 .as_f64()
                 .unwrap(),
-            5.002829575110705
+            5.0028295751107414
         );
         assert_nearly_equals!(
             res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["99.0"]
                 .as_f64()
                 .unwrap(),
-            10.07469668951133
+            10.07469668951144
         );
 
         Ok(())
@@ -670,8 +689,14 @@ mod tests {
 
         let res = exec_request_with_query(agg_req, &index, None)?;
 
-        assert_eq!(res["percentiles"]["values"]["1.0"], 5.002829575110705);
-        assert_eq!(res["percentiles"]["values"]["99.0"], 10.07469668951133);
+        assert_nearly_equals!(
+            res["percentiles"]["values"]["1.0"].as_f64().unwrap(),
+            5.0028295751107414
+        );
+        assert_nearly_equals!(
+            res["percentiles"]["values"]["99.0"].as_f64().unwrap(),
+            10.07469668951144
+        );
 
         Ok(())
     }
