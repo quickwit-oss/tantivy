@@ -329,6 +329,7 @@ mod tests {
         exec_request_with_query, get_test_index_from_values, get_test_index_from_values_and_terms,
     };
     use crate::aggregation::AggregationCollector;
+    use crate::assert_nearly_equals;
     use crate::query::AllQuery;
     use crate::schema::{Schema, FAST};
     use crate::Index;
@@ -614,12 +615,16 @@ mod tests {
         let res = exec_request_with_query(agg_req, &index, None)?;
         assert_eq!(res["range_with_stats"]["buckets"][0]["doc_count"], 3);
 
-        assert_eq!(
-            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["1.0"],
+        assert_nearly_equals!(
+            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["1.0"]
+                .as_f64()
+                .unwrap(),
             5.002829575110705
         );
-        assert_eq!(
-            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["99.0"],
+        assert_nearly_equals!(
+            res["range_with_stats"]["buckets"][0]["percentiles"]["values"]["99.0"]
+                .as_f64()
+                .unwrap(),
             10.07469668951133
         );
 
