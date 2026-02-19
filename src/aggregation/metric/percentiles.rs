@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
-use serde::ser::Serializer;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use super::*;
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
@@ -143,28 +142,10 @@ pub(crate) struct SegmentPercentilesCollector {
     pub accessor: Column<u64>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 /// The percentiles collector used during segment collection and for merging results.
-/// Uses Java-compatible DDSketch binary encoding for compact serialization
-/// and cross-language compatibility (e.g. Java `sketches-java` library).
 pub struct PercentilesCollector {
     sketch: sketches_ddsketch::DDSketch,
-}
-
-impl Serialize for PercentilesCollector {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let bytes = self.sketch.to_java_bytes();
-        serializer.serialize_bytes(&bytes)
-    }
-}
-
-impl<'de> Deserialize<'de> for PercentilesCollector {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes: Vec<u8> = Deserialize::deserialize(deserializer)?;
-        let sketch =
-            sketches_ddsketch::DDSketch::from_java_bytes(&bytes).map_err(serde::de::Error::custom)?;
-        Ok(Self { sketch })
-    }
 }
 impl Default for PercentilesCollector {
     fn default() -> Self {
