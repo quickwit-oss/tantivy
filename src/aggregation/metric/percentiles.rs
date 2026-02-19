@@ -329,10 +329,9 @@ mod tests {
         exec_request_with_query, get_test_index_from_values, get_test_index_from_values_and_terms,
     };
     use crate::aggregation::AggregationCollector;
-    use crate::assert_nearly_equals;
     use crate::query::AllQuery;
     use crate::schema::{Schema, FAST};
-    use crate::Index;
+    use crate::{assert_nearly_equals, Index};
 
     #[test]
     fn test_aggregation_percentiles_empty_index() -> crate::Result<()> {
