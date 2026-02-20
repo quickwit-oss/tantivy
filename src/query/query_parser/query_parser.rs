@@ -104,6 +104,9 @@ pub enum QueryParserError {
     /// The format for the ip field is invalid.
     #[error("The ip field is malformed: {0}")]
     IpFormatError(#[from] AddrParseError),
+    /// The fuzzy distance is too large. Maximum allowed is 2.
+    #[error("Fuzzy distance {0} is too large. Maximum allowed is 2.")]
+    FuzzyDistanceTooLarge(u32),
 }
 
 /// Recursively remove empty clause from the AST
@@ -952,6 +955,11 @@ fn convert_literal_to_query(
         LogicalLiteral::Regex { pattern, field } => {
             Box::new(RegexQuery::from_regex(pattern, field))
         }
+        LogicalLiteral::FuzzyTerm {
+            term,
+            distance,
+            transposition_cost_one,
+        } => Box::new(FuzzyTermQuery::new(term, distance, transposition_cost_one)),
     }
 }
 
@@ -976,6 +984,24 @@ fn generate_literals_for_str(
                 phrase: phrase.to_owned(),
                 tokenizer: indexing_options.tokenizer().to_owned(),
             });
+        }
+        // When slop > 0 and we have exactly one term after tokenization,
+        // this means the user wrote something like "hello"~1 and "hello" tokenized to a single term.
+        // In this case, we interpret ~N as fuzzy distance instead of phrase slop.
+        // Note: slop is only set for quoted phrases ("..." or '...'), not bare words.
+        if slop > 0 {
+            // Fuzzy distance must be 0, 1, or 2 (Levenshtein automaton limitation)
+            if slop > 2 {
+                return Err(QueryParserError::FuzzyDistanceTooLarge(slop));
+            }
+            let term_literal_opt = terms.into_iter().next().map(|(_, term)| {
+                LogicalLiteral::FuzzyTerm {
+                    term,
+                    distance: slop as u8,
+                    transposition_cost_one: true,
+                }
+            });
+            return Ok(term_literal_opt);
         }
         let term_literal_opt = terms
             .into_iter()
@@ -1917,6 +1943,100 @@ mod test {
             "title:\"a b~4\"~2",
             r#""[(0, Term(field=0, type=Str, "a")), (1, Term(field=0, type=Str, "b")), (2, Term(field=0, type=Str, "4"))]"~2"#,
             false,
+        );
+    }
+
+    #[test]
+    pub fn test_fuzzy_syntax() {
+        // Test fuzzy syntax: "word"~N (quoted with slop, single term) creates FuzzyTermQuery
+        // With ~ allowed in bare words, bare word~1 is literal "word~1"
+        // To get fuzzy, use quoted form: "word"~1
+
+        // fuzzy distance 1
+        test_parse_query_to_logical_ast_helper(
+            "title:\"abc\"~1",
+            r#"Term(field=0, type=Str, "abc")~1"#,
+            false,
+        );
+
+        // fuzzy distance 2
+        test_parse_query_to_logical_ast_helper(
+            "title:\"abc\"~2",
+            r#"Term(field=0, type=Str, "abc")~2"#,
+            false,
+        );
+
+        // fuzzy on multiple default fields
+        test_parse_query_to_logical_ast_helper(
+            "\"abc\"~1",
+            r#"(Term(field=0, type=Str, "abc")~1 Term(field=1, type=Str, "abc")~1)"#,
+            false,
+        );
+
+        // fuzzy distance 0 should just be a normal term
+        test_parse_query_to_logical_ast_helper(
+            "title:\"abc\"~0",
+            r#"Term(field=0, type=Str, "abc")"#,
+            false,
+        );
+
+        // Test that the actual query produced is FuzzyTermQuery
+        let query_parser = make_query_parser();
+        let query = query_parser.parse_query("title:\"abc\"~1").unwrap();
+        assert_eq!(
+            format!("{query:?}"),
+            "FuzzyTermQuery { term: Term(field=0, type=Str, \"abc\"), distance: 1, \
+             transposition_cost_one: true, prefix: false }"
+        );
+
+        // Test with boost
+        let query = query_parser.parse_query("title:\"abc\"~1^2").unwrap();
+        assert_eq!(
+            format!("{query:?}"),
+            "Boost(query=FuzzyTermQuery { term: Term(field=0, type=Str, \"abc\"), distance: 1, \
+             transposition_cost_one: true, prefix: false }, boost=2)"
+        );
+
+        // Test that bare word~N is parsed as literal (backward compatible)
+        // abc~1 becomes "abc~1" -> tokenized as ["abc", "1"] -> phrase query
+        test_parse_query_to_logical_ast_helper(
+            "title:abc~1",
+            r#""[(0, Term(field=0, type=Str, "abc")), (1, Term(field=0, type=Str, "1"))]""#,
+            false,
+        );
+
+        // Paths with ~ are preserved as literals
+        test_parse_query_to_logical_ast_helper(
+            "title:C~Users~Documents",
+            r#""[(0, Term(field=0, type=Str, "c")), (1, Term(field=0, type=Str, "users")), (2, Term(field=0, type=Str, "documents"))]""#,
+            false,
+        );
+
+        // Test fuzzy distance boundary: 0, 1, 2 are valid
+        test_parse_query_to_logical_ast_helper(
+            "title:\"abc\"~0",
+            r#"Term(field=0, type=Str, "abc")"#,
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:\"abc\"~2",
+            r#"Term(field=0, type=Str, "abc")~2"#,
+            false,
+        );
+
+        // Test fuzzy distance > 2 should error
+        let query_parser = make_query_parser();
+        let err = query_parser.parse_query("title:\"abc\"~3").unwrap_err();
+        assert!(
+            matches!(err, QueryParserError::FuzzyDistanceTooLarge(3)),
+            "Expected FuzzyDistanceTooLarge(3), got: {:?}",
+            err
+        );
+        let err = query_parser.parse_query("title:\"abc\"~100").unwrap_err();
+        assert!(
+            matches!(err, QueryParserError::FuzzyDistanceTooLarge(100)),
+            "Expected FuzzyDistanceTooLarge(100), got: {:?}",
+            err
         );
     }
 

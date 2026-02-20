@@ -159,6 +159,7 @@ impl fmt::Debug for UserInputLiteral {
                 write!(formatter, "{}", self.phrase)?;
             }
         }
+        // Display slop (~N) for phrases
         if self.slop > 0 {
             write!(formatter, "~{}", self.slop)?;
         } else if self.prefix {

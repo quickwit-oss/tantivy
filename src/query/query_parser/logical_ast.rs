@@ -28,6 +28,12 @@ pub enum LogicalLiteral {
         pattern: Arc<Regex>,
         field: Field,
     },
+    /// A fuzzy term query using Levenshtein distance
+    FuzzyTerm {
+        term: Term,
+        distance: u8,
+        transposition_cost_one: bool,
+    },
 }
 
 pub enum LogicalAst {
@@ -159,6 +165,17 @@ impl fmt::Debug for LogicalLiteral {
                 ref pattern,
                 ref field,
             } => write!(formatter, "Regex({field:?}, {pattern:?})"),
+            LogicalLiteral::FuzzyTerm {
+                ref term,
+                distance,
+                transposition_cost_one,
+            } => {
+                write!(formatter, "{term:?}~{distance}")?;
+                if !transposition_cost_one {
+                    write!(formatter, "(transposition_cost=2)")?;
+                }
+                Ok(())
+            }
         }
     }
 }
