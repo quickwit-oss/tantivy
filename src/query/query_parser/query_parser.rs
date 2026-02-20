@@ -208,7 +208,13 @@ pub struct QueryParser {
     tokenizer_manager: TokenizerManager,
     boost: FxHashMap<Field, Score>,
     fuzzy: FxHashMap<Field, Fuzzy>,
+
+    /// If true, an empty query (e.g. "" or only whitespace) will match all
+    /// documents instead of matching none.
+    empty_query_match_all: bool,
+
     regexes_allowed: bool,
+
 }
 
 #[derive(Clone)]
@@ -263,7 +269,11 @@ impl QueryParser {
             conjunction_by_default: false,
             boost: Default::default(),
             fuzzy: Default::default(),
+
+            empty_query_match_all: false,
+
             regexes_allowed: false,
+
         }
     }
 
@@ -324,9 +334,35 @@ impl QueryParser {
         );
     }
 
+
+    /// Configure the behaviour of an empty query (e.g. an empty string or only whitespace).
+    ///
+    /// If `should_match_all` is `true`, an empty query will match all documents in the index.
+    /// Otherwise (the default), an empty query matches no documents.
+    pub fn set_empty_query_match_all(&mut self, should_match_all: bool) {
+        self.empty_query_match_all = should_match_all;
+    }
+
+    /// Returns the current behaviour for empty queries.
+    pub fn get_empty_query_match_all(&self) -> bool {
+        self.empty_query_match_all
+    }
+
+    fn empty_query_result(&self) -> Box<dyn Query> {
+        if self.empty_query_match_all {
+            Box::new(AllQuery)
+        } else {
+            Box::new(EmptyQuery)
+        }
+    }
+
+    fn is_user_input_ast_empty(user_input_ast: &UserInputAst) -> bool {
+        matches!(user_input_ast, UserInputAst::Clause(clauses) if clauses.is_empty())
+
     /// Allow regexes in queries
     pub fn allow_regexes(&mut self) {
         self.regexes_allowed = true;
+
     }
 
     /// Parse a query
@@ -334,8 +370,17 @@ impl QueryParser {
     /// Note that `parse_query` returns an error if the input
     /// is not a valid query.
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
-        let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(&self.fuzzy, logical_ast))
+        // Parse to user input AST first so we can decide on empty-query behaviour early
+        let user_input_ast = query_grammar::parse_query(query)
+            .map_err(|_| QueryParserError::SyntaxError(query.to_string()))?;
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return Ok(self.empty_query_result());
+        }
+        let (logical_ast, mut err) = self.compute_logical_ast_lenient(user_input_ast);
+        if !err.is_empty() {
+            return Err(err.swap_remove(0));
+        }
+        Ok(self.logical_ast_to_query(logical_ast))
     }
 
     /// Parse a query leniently
@@ -347,8 +392,22 @@ impl QueryParser {
     ///
     /// In case it encountered such issues, they are reported as a Vec of errors.
     pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, Vec<QueryParserError>) {
-        let (logical_ast, errors) = self.parse_query_to_logical_ast_lenient(query);
-        (convert_to_query(&self.fuzzy, logical_ast), errors)
+        let (user_input_ast, grammar_errors) = query_grammar::parse_query_lenient(query);
+        let mut errors: Vec<_> = grammar_errors
+            .into_iter()
+            .map(|error| {
+                QueryParserError::SyntaxError(format!(
+                    "{} at position {}",
+                    error.message, error.pos
+                ))
+            })
+            .collect();
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return (self.empty_query_result(), errors);
+        }
+        let (logical_ast, mut ast_errors) = self.compute_logical_ast_lenient(user_input_ast);
+        errors.append(&mut ast_errors);
+        (self.logical_ast_to_query(logical_ast), errors)
     }
 
     /// Build a query from an already parsed user input AST
@@ -360,11 +419,14 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAst,
     ) -> Result<Box<dyn Query>, QueryParserError> {
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return Ok(self.empty_query_result());
+        }
         let (logical_ast, mut err) = self.compute_logical_ast_lenient(user_input_ast);
         if !err.is_empty() {
             return Err(err.swap_remove(0));
         }
-        Ok(convert_to_query(&self.fuzzy, logical_ast))
+        Ok(self.logical_ast_to_query(logical_ast))
     }
 
     /// Build leniently a query from an already parsed user input AST.
@@ -374,8 +436,11 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAst,
     ) -> (Box<dyn Query>, Vec<QueryParserError>) {
+        if Self::is_user_input_ast_empty(&user_input_ast) {
+            return (self.empty_query_result(), Vec::new());
+        }
         let (logical_ast, errors) = self.compute_logical_ast_lenient(user_input_ast);
-        (convert_to_query(&self.fuzzy, logical_ast), errors)
+        (self.logical_ast_to_query(logical_ast), errors)
     }
 
     /// Parse the user query into an AST.
@@ -907,6 +972,14 @@ impl QueryParser {
                 }));
                 (Some(logical_ast), Vec::new())
             }
+        }
+    }
+
+    /// Convert a logical AST into a runnable `Query`, taking into account the parser configuration.
+    fn logical_ast_to_query(&self, logical_ast: LogicalAst) -> Box<dyn Query> {
+        match trim_ast(logical_ast) {
+            Some(trimmed_ast) => convert_to_query(&self.fuzzy, trimmed_ast),
+            None => Box::new(EmptyQuery),
         }
     }
 }
@@ -1521,6 +1594,62 @@ mod test {
         let base64_err: QueryParserError =
             parse_query_to_logical_ast("bytes:aa", false).unwrap_err();
         assert!(matches!(base64_err, QueryParserError::ExpectedBase64(_)));
+    }
+
+    #[test]
+    fn test_empty_query_match_all_when_enabled_parse_strict() {
+        let mut query_parser = make_query_parser();
+        // enable the new behavior: empty input matches all documents
+        query_parser.set_empty_query_match_all(true);
+
+        let query = query_parser.parse_query("").unwrap();
+        assert_eq!(format!("{query:?}"), "AllQuery");
+
+        let query_ws = query_parser.parse_query("   ").unwrap();
+        assert_eq!(format!("{query_ws:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_empty_query_match_all_when_enabled_parse_lenient() {
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+
+        let (query, errs) = query_parser.parse_query_lenient("");
+        assert!(errs.is_empty());
+        assert_eq!(format!("{query:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_empty_query_match_all_when_enabled_build_from_ast() {
+        use query_grammar::UserInputAst;
+
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+
+        let ast = UserInputAst::Clause(Vec::new());
+        let query = query_parser.build_query_from_user_input_ast(ast).unwrap();
+        assert_eq!(format!("{query:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_empty_query_match_all_when_enabled_build_from_ast_lenient() {
+        use query_grammar::UserInputAst;
+
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+
+        let ast = UserInputAst::Clause(Vec::new());
+        let (query, errs) = query_parser.build_query_from_user_input_ast_lenient(ast);
+        assert!(errs.is_empty());
+        assert_eq!(format!("{query:?}"), "AllQuery");
+    }
+
+    #[test]
+    fn test_get_set_empty_query_match_all() {
+        let mut query_parser = make_query_parser();
+        assert!(!query_parser.get_empty_query_match_all());
+        query_parser.set_empty_query_match_all(true);
+        assert!(query_parser.get_empty_query_match_all());
     }
 
     #[test]
