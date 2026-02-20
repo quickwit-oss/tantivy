@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use super::SegmentComponent;
-use crate::index::SegmentId;
+use crate::codec::Codec;
+use crate::index::{CodecConfiguration, SegmentId};
 use crate::schema::Schema;
 use crate::store::Compressor;
 use crate::{Inventory, Opstamp, TrackedObject};
@@ -286,8 +287,10 @@ pub struct IndexMeta {
     /// This payload is entirely unused by tantivy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
+    /// Codec configuration for the index.
+    #[serde(skip_serializing_if = "CodecConfiguration::is_standard")]
+    pub codec: CodecConfiguration,
 }
-
 #[derive(Deserialize, Debug)]
 struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
@@ -297,6 +300,8 @@ struct UntrackedIndexMeta {
     pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
+    #[serde(default)]
+    pub codec: CodecConfiguration,
 }
 
 impl UntrackedIndexMeta {
@@ -311,6 +316,7 @@ impl UntrackedIndexMeta {
             schema: self.schema,
             opstamp: self.opstamp,
             payload: self.payload,
+            codec: self.codec,
         }
     }
 }
@@ -321,13 +327,14 @@ impl IndexMeta {
     ///
     /// This new index does not contains any segments.
     /// Opstamp will the value `0u64`.
-    pub fn with_schema(schema: Schema) -> IndexMeta {
+    pub fn with_schema_and_codec<C: Codec>(schema: Schema, codec: &C) -> IndexMeta {
         IndexMeta {
             index_settings: IndexSettings::default(),
             segments: vec![],
             schema,
             opstamp: 0u64,
             payload: None,
+            codec: CodecConfiguration::from(codec),
         }
     }
 
@@ -378,14 +385,38 @@ mod tests {
             schema,
             opstamp: 0u64,
             payload: None,
+            codec: Default::default(),
         };
-        let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
+        let json_value: serde_json::Value =
+            serde_json::to_value(&index_metas).expect("serialization failed");
         assert_eq!(
-            json,
-            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            &json_value,
+            &serde_json::json!(
+            {
+              "index_settings": {
+                "docstore_compression": "none",
+                "docstore_blocksize": 16384
+              },
+              "segments": [],
+              "schema": [
+                {
+                  "name": "text",
+                  "type": "text",
+                  "options": {
+                    "indexing": {
+                      "record": "position",
+                      "fieldnorms": true,
+                      "tokenizer": "default"
+                    },
+                    "stored": false,
+                    "fast": false
+                  }
+                }
+              ],
+              "opstamp": 0
+            })
         );
-
-        let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
+        let deser_meta: UntrackedIndexMeta = serde_json::from_value(json_value).unwrap();
         assert_eq!(index_metas.index_settings, deser_meta.index_settings);
         assert_eq!(index_metas.schema, deser_meta.schema);
         assert_eq!(index_metas.opstamp, deser_meta.opstamp);
@@ -411,14 +442,39 @@ mod tests {
             schema,
             opstamp: 0u64,
             payload: None,
+            codec: Default::default(),
         };
-        let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
+        let json_value = serde_json::to_value(&index_metas).expect("serialization failed");
         assert_eq!(
-            json,
-            r#"{"index_settings":{"docstore_compression":"zstd(compression_level=4)","docstore_blocksize":1000000},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            &json_value,
+            &serde_json::json!(
+                {
+                  "index_settings": {
+                    "docstore_compression": "zstd(compression_level=4)",
+                    "docstore_blocksize": 1000000
+                  },
+                  "segments": [],
+                  "schema": [
+                    {
+                      "name": "text",
+                      "type": "text",
+                      "options": {
+                        "indexing": {
+                          "record": "position",
+                          "fieldnorms": true,
+                          "tokenizer": "default"
+                        },
+                        "stored": false,
+                        "fast": false
+                      }
+                    }
+                  ],
+                  "opstamp": 0
+                }
+            )
         );
 
-        let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
+        let deser_meta: UntrackedIndexMeta = serde_json::from_value(json_value).unwrap();
         assert_eq!(index_metas.index_settings, deser_meta.index_settings);
         assert_eq!(index_metas.schema, deser_meta.schema);
         assert_eq!(index_metas.opstamp, deser_meta.opstamp);

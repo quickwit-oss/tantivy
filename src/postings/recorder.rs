@@ -70,7 +70,7 @@ pub(crate) trait Recorder: Copy + Default + Send + Sync + 'static {
     fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<'_>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     );
     /// Returns the number of document containing this term.
@@ -113,7 +113,7 @@ impl Recorder for DocIdRecorder {
     fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<'_>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     ) {
         let buffer = buffer_lender.lend_u8();
@@ -181,7 +181,7 @@ impl Recorder for TermFrequencyRecorder {
     fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<'_>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     ) {
         let buffer = buffer_lender.lend_u8();
@@ -238,7 +238,7 @@ impl Recorder for TfAndPositionRecorder {
     fn serialize(
         &self,
         arena: &MemoryArena,
-        serializer: &mut FieldSerializer<'_>,
+        serializer: &mut FieldSerializer,
         buffer_lender: &mut BufferLender,
     ) {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();

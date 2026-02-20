@@ -7,8 +7,8 @@ use crate::query::TermQuery;
 use crate::schema::{Field, IndexRecordOption, Schema, INDEXED, STRING, TEXT};
 use crate::tokenizer::TokenizerManager;
 use crate::{
-    Directory, DocSet, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter, ReloadPolicy,
-    TantivyDocument, Term,
+    Directory, DocSet, Executor, Index, IndexBuilder, IndexReader, IndexSettings, IndexWriter,
+    ReloadPolicy, Searcher, SearcherContext, TantivyDocument, Term,
 };
 
 #[test]
@@ -297,6 +297,40 @@ fn test_single_segment_index_writer() -> crate::Result<()> {
     );
     let count = searcher.search(&term_query, &Count)?;
     assert_eq!(count, 10);
+    Ok(())
+}
+
+#[test]
+fn test_searcher_from_external_segment_readers() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT);
+    let schema = schema_builder.build();
+    let index = Index::create_in_ram(schema.clone());
+    let mut writer: IndexWriter = index.writer_for_tests()?;
+    writer.add_document(doc!(text_field => "hello"))?;
+    writer.add_document(doc!(text_field => "hello"))?;
+    writer.commit()?;
+
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
+    let segment_readers = searcher.segment_readers().to_vec();
+    let context = SearcherContext::new(
+        schema,
+        Executor::single_thread(),
+        TokenizerManager::default(),
+        TokenizerManager::default(),
+    );
+    let custom_searcher =
+        Searcher::from_segment_readers_with_generation_id(context, segment_readers, 42)?;
+
+    let term_query = TermQuery::new(
+        Term::from_field_text(text_field, "hello"),
+        IndexRecordOption::Basic,
+    );
+    let count = custom_searcher.search(&term_query, &Count)?;
+    assert_eq!(count, 2);
+    assert_eq!(custom_searcher.generation().generation_id(), 42);
+    assert_eq!(custom_searcher.segment_readers().len(), 1);
     Ok(())
 }
 

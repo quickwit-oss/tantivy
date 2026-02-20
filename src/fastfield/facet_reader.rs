@@ -84,9 +84,7 @@ mod tests {
         let mut facet = Facet::default();
         facet_reader.facet_from_ord(0, &mut facet).unwrap();
         assert_eq!(facet.to_path_string(), "/a/b");
-        let doc = searcher
-            .doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))
-            .unwrap();
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32)).unwrap();
         let value = doc
             .get_first(facet_field)
             .and_then(|v| v.as_value().as_facet());
@@ -145,7 +143,7 @@ mod tests {
         let mut facet_ords = Vec::new();
         facet_ords.extend(facet_reader.facet_ords(0u32));
         assert_eq!(&facet_ords, &[0u64]);
-        let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0u32, 0u32))?;
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let value: Option<Facet> = doc
             .get_first(facet_field)
             .and_then(|v| v.as_facet())

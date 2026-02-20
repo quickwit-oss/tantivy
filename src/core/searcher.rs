@@ -4,13 +4,13 @@ use std::{fmt, io};
 
 use crate::collector::Collector;
 use crate::core::Executor;
-use crate::index::{SegmentId, SegmentReader};
+use crate::index::{Index, SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
-use crate::schema::document::DocumentDeserialize;
-use crate::schema::{Schema, Term};
+use crate::schema::{Field, FieldType, Schema, TantivyDocument, Term};
 use crate::space_usage::SearcherSpaceUsage;
-use crate::store::{CacheStats, StoreReader};
-use crate::{DocAddress, Index, Opstamp, TrackedObject};
+use crate::store::{CacheStats, StoreReader, DOCSTORE_CACHE_CAPACITY};
+use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::{DocAddress, Inventory, Opstamp, TantivyError, TrackedObject};
 
 /// Identifies the searcher generation accessed by a [`Searcher`].
 ///
@@ -36,7 +36,7 @@ pub struct SearcherGeneration {
 
 impl SearcherGeneration {
     pub(crate) fn from_segment_readers(
-        segment_readers: &[SegmentReader],
+        segment_readers: &[Arc<dyn SegmentReader>],
         generation_id: u64,
     ) -> Self {
         let mut segment_id_to_del_opstamp = BTreeMap::new();
@@ -61,6 +61,103 @@ impl SearcherGeneration {
     }
 }
 
+/// Search-time context required by a [`Searcher`].
+#[derive(Clone)]
+pub struct SearcherContext {
+    schema: Schema,
+    executor: Executor,
+    tokenizers: TokenizerManager,
+    fast_field_tokenizers: TokenizerManager,
+}
+
+impl SearcherContext {
+    /// Creates a context from explicit search-time components.
+    pub fn new(
+        schema: Schema,
+        executor: Executor,
+        tokenizers: TokenizerManager,
+        fast_field_tokenizers: TokenizerManager,
+    ) -> SearcherContext {
+        SearcherContext {
+            schema,
+            executor,
+            tokenizers,
+            fast_field_tokenizers,
+        }
+    }
+
+    /// Creates a context from an index.
+    pub fn from_index<C: crate::codec::Codec>(index: &Index<C>) -> SearcherContext {
+        SearcherContext::new(
+            index.schema(),
+            index.search_executor().clone(),
+            index.tokenizers().clone(),
+            index.fast_field_tokenizer().clone(),
+        )
+    }
+
+    /// Access the schema associated with this context.
+    pub fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    /// Access the executor associated with this context.
+    pub fn search_executor(&self) -> &Executor {
+        &self.executor
+    }
+
+    /// Access the tokenizer manager associated with this context.
+    pub fn tokenizers(&self) -> &TokenizerManager {
+        &self.tokenizers
+    }
+
+    /// Access the fast field tokenizer manager associated with this context.
+    pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
+        &self.fast_field_tokenizers
+    }
+
+    /// Get the tokenizer associated with a specific field.
+    pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<TextAnalyzer> {
+        let field_entry = self.schema.get_field_entry(field);
+        let field_type = field_entry.field_type();
+        let indexing_options_opt = match field_type {
+            FieldType::JsonObject(options) => options.get_text_indexing_options(),
+            FieldType::Str(options) => options.get_indexing_options(),
+            _ => {
+                return Err(TantivyError::SchemaError(format!(
+                    "{:?} is not a text field.",
+                    field_entry.name()
+                )))
+            }
+        };
+        let indexing_options = indexing_options_opt.ok_or_else(|| {
+            TantivyError::InvalidArgument(format!(
+                "No indexing options set for field {field_entry:?}"
+            ))
+        })?;
+
+        self.tokenizers
+            .get(indexing_options.tokenizer())
+            .ok_or_else(|| {
+                TantivyError::InvalidArgument(format!(
+                    "No Tokenizer found for field {field_entry:?}"
+                ))
+            })
+    }
+}
+
+impl<C: crate::codec::Codec> From<&Index<C>> for SearcherContext {
+    fn from(index: &Index<C>) -> Self {
+        SearcherContext::from_index(index)
+    }
+}
+
+impl<C: crate::codec::Codec> From<Index<C>> for SearcherContext {
+    fn from(index: Index<C>) -> Self {
+        SearcherContext::from(&index)
+    }
+}
+
 /// Holds a list of `SegmentReader`s ready for search.
 ///
 /// It guarantees that the `Segment` will not be removed before
@@ -71,9 +168,66 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    /// Returns the `Index` associated with the `Searcher`
-    pub fn index(&self) -> &Index {
-        &self.inner.index
+    /// Creates a `Searcher` from an arbitrary list of segment readers.
+    ///
+    /// This is useful when segment readers are not opened from
+    /// `IndexReader` / `meta.json` (e.g. external segment sources).
+    /// The generated [`SearcherGeneration`] uses `generation_id = 0`.
+    pub fn from_segment_readers<Ctx: Into<SearcherContext>>(
+        context: Ctx,
+        segment_readers: Vec<Arc<dyn SegmentReader>>,
+    ) -> crate::Result<Searcher> {
+        Self::from_segment_readers_with_generation_id(context, segment_readers, 0)
+    }
+
+    /// Same as [`Searcher::from_segment_readers`] but allows setting
+    /// a custom generation id.
+    pub fn from_segment_readers_with_generation_id<Ctx: Into<SearcherContext>>(
+        context: Ctx,
+        segment_readers: Vec<Arc<dyn SegmentReader>>,
+        generation_id: u64,
+    ) -> crate::Result<Searcher> {
+        let context = context.into();
+        let generation = SearcherGeneration::from_segment_readers(&segment_readers, generation_id);
+        let tracked_generation = Inventory::default().track(generation);
+        let inner = SearcherInner::new(
+            context,
+            segment_readers,
+            tracked_generation,
+            DOCSTORE_CACHE_CAPACITY,
+        )?;
+        Ok(Arc::new(inner).into())
+    }
+
+    /// Returns the search context associated with the `Searcher`.
+    pub fn context(&self) -> &SearcherContext {
+        &self.inner.context
+    }
+
+    /// Deprecated alias for [`Searcher::context`].
+    #[deprecated(note = "use Searcher::context()")]
+    pub fn index(&self) -> &SearcherContext {
+        self.context()
+    }
+
+    /// Access the search executor associated with this searcher.
+    pub fn search_executor(&self) -> &Executor {
+        self.context().search_executor()
+    }
+
+    /// Access the tokenizer manager associated with this searcher.
+    pub fn tokenizers(&self) -> &TokenizerManager {
+        self.context().tokenizers()
+    }
+
+    /// Access the fast field tokenizer manager associated with this searcher.
+    pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
+        self.context().fast_field_tokenizer()
+    }
+
+    /// Get the tokenizer associated with a specific field.
+    pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<TextAnalyzer> {
+        self.context().tokenizer_for_field(field)
     }
 
     /// [`SearcherGeneration`] which identifies the version of the snapshot held by this `Searcher`.
@@ -85,7 +239,7 @@ impl Searcher {
     ///
     /// The searcher uses the segment ordinal to route the
     /// request to the right `Segment`.
-    pub fn doc<D: DocumentDeserialize>(&self, doc_address: DocAddress) -> crate::Result<D> {
+    pub fn doc(&self, doc_address: DocAddress) -> crate::Result<TantivyDocument> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
     }
@@ -105,18 +259,15 @@ impl Searcher {
 
     /// Fetches a document in an asynchronous manner.
     #[cfg(feature = "quickwit")]
-    pub async fn doc_async<D: DocumentDeserialize>(
-        &self,
-        doc_address: DocAddress,
-    ) -> crate::Result<D> {
-        let executor = self.inner.index.search_executor();
+    pub async fn doc_async(&self, doc_address: DocAddress) -> crate::Result<TantivyDocument> {
+        let executor = self.search_executor();
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id, executor).await
     }
 
     /// Access the schema associated with the index of this searcher.
     pub fn schema(&self) -> &Schema {
-        &self.inner.schema
+        self.context().schema()
     }
 
     /// Returns the overall number of documents in the index.
@@ -154,13 +305,13 @@ impl Searcher {
     }
 
     /// Return the list of segment readers
-    pub fn segment_readers(&self) -> &[SegmentReader] {
+    pub fn segment_readers(&self) -> &[Arc<dyn SegmentReader>] {
         &self.inner.segment_readers
     }
 
     /// Returns the segment_reader associated with the given segment_ord
-    pub fn segment_reader(&self, segment_ord: u32) -> &SegmentReader {
-        &self.inner.segment_readers[segment_ord as usize]
+    pub fn segment_reader(&self, segment_ord: u32) -> &dyn SegmentReader {
+        self.inner.segment_readers[segment_ord as usize].as_ref()
     }
 
     /// Runs a query on the segment readers wrapped by the searcher.
@@ -201,7 +352,7 @@ impl Searcher {
         } else {
             EnableScoring::disabled_from_searcher(self)
         };
-        let executor = self.inner.index.search_executor();
+        let executor = self.search_executor();
         self.search_with_executor(query, collector, executor, enabled_scoring)
     }
 
@@ -229,7 +380,11 @@ impl Searcher {
         let segment_readers = self.segment_readers();
         let fruits = executor.map(
             |(segment_ord, segment_reader)| {
-                collector.collect_segment(weight.as_ref(), segment_ord as u32, segment_reader)
+                collector.collect_segment(
+                    weight.as_ref(),
+                    segment_ord as u32,
+                    segment_reader.as_ref(),
+                )
             },
             segment_readers.iter().enumerate(),
         )?;
@@ -257,19 +412,17 @@ impl From<Arc<SearcherInner>> for Searcher {
 /// It guarantees that the `Segment` will not be removed before
 /// the destruction of the `Searcher`.
 pub(crate) struct SearcherInner {
-    schema: Schema,
-    index: Index,
-    segment_readers: Vec<SegmentReader>,
-    store_readers: Vec<StoreReader>,
+    context: SearcherContext,
+    segment_readers: Vec<Arc<dyn SegmentReader>>,
+    store_readers: Vec<Box<dyn StoreReader>>,
     generation: TrackedObject<SearcherGeneration>,
 }
 
 impl SearcherInner {
     /// Creates a new `Searcher`
     pub(crate) fn new(
-        schema: Schema,
-        index: Index,
-        segment_readers: Vec<SegmentReader>,
+        context: SearcherContext,
+        segment_readers: Vec<Arc<dyn SegmentReader>>,
         generation: TrackedObject<SearcherGeneration>,
         doc_store_cache_num_blocks: usize,
     ) -> io::Result<SearcherInner> {
@@ -281,14 +434,13 @@ impl SearcherInner {
             generation.segments(),
             "Set of segments referenced by this Searcher and its SearcherGeneration must match"
         );
-        let store_readers: Vec<StoreReader> = segment_readers
+        let store_readers: Vec<Box<dyn StoreReader>> = segment_readers
             .iter()
             .map(|segment_reader| segment_reader.get_store_reader(doc_store_cache_num_blocks))
             .collect::<io::Result<Vec<_>>>()?;
 
         Ok(SearcherInner {
-            schema,
-            index,
+            context,
             segment_readers,
             store_readers,
             generation,
@@ -301,7 +453,7 @@ impl fmt::Debug for Searcher {
         let segment_ids = self
             .segment_readers()
             .iter()
-            .map(SegmentReader::segment_id)
+            .map(|segment_reader| segment_reader.segment_id())
             .collect::<Vec<_>>();
         write!(f, "Searcher({segment_ids:?})")
     }

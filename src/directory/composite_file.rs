@@ -167,6 +167,9 @@ impl CompositeFile {
             .map(|byte_range| self.data.slice(byte_range.clone()))
     }
 
+    /// Returns per-field byte usage for all slices stored in this composite file.
+    ///
+    /// The provided `schema` is used to resolve field ids into field names.
     pub fn space_usage(&self, schema: &Schema) -> PerFieldSpaceUsage {
         let mut fields = Vec::new();
         for (&field_addr, byte_range) in &self.offsets_index {

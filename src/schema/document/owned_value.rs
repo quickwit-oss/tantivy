@@ -475,8 +475,11 @@ mod tests {
         let schema = schema_builder.build();
         let mut doc = TantivyDocument::default();
         doc.add_bytes(bytes_field, "this is a test".as_bytes());
-        let json_string = doc.to_json(&schema);
-        assert_eq!(json_string, r#"{"my_bytes":["dGhpcyBpcyBhIHRlc3Q="]}"#);
+        let json_value = doc.to_json(&schema);
+        assert_eq!(
+            json_value,
+            serde_json::json!({"my_bytes": "dGhpcyBpcyBhIHRlc3Q="})
+        );
     }
 
     #[test]
@@ -487,9 +490,8 @@ mod tests {
         let schema = schema_builder.build();
         let mut doc = TantivyDocument::default();
         doc.add_bytes(bytes_field, "".as_bytes());
-        let json_string = doc.to_json(&schema);
-
-        assert_eq!(json_string, r#"{"my_bytes":[""]}"#);
+        let json_value = doc.to_json(&schema);
+        assert_eq!(json_value, serde_json::json!({"my_bytes": ""}));
     }
 
     #[test]
@@ -503,10 +505,12 @@ mod tests {
             bytes_field,
             "A bigger test I guess\nspanning on multiple lines\nhoping this will work".as_bytes(),
         );
-        let json_string = doc.to_json(&schema);
+        let json_value = doc.to_json(&schema);
         assert_eq!(
-            json_string,
-            r#"{"my_bytes":["QSBiaWdnZXIgdGVzdCBJIGd1ZXNzCnNwYW5uaW5nIG9uIG11bHRpcGxlIGxpbmVzCmhvcGluZyB0aGlzIHdpbGwgd29yaw=="]}"#
+            json_value,
+            serde_json::json!({
+                "my_bytes": "QSBiaWdnZXIgdGVzdCBJIGd1ZXNzCnNwYW5uaW5nIG9uIG11bHRpcGxlIGxpbmVzCmhvcGluZyB0aGlzIHdpbGwgd29yaw=="
+            })
         );
     }
 

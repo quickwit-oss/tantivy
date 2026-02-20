@@ -32,7 +32,11 @@ where TSortKeyComputer: SortKeyComputer + Send + Sync + 'static
         self.sort_key_computer.check_schema(schema)
     }
 
-    fn for_segment(&self, segment_ord: u32, segment_reader: &SegmentReader) -> Result<Self::Child> {
+    fn for_segment(
+        &self,
+        segment_ord: u32,
+        segment_reader: &dyn SegmentReader,
+    ) -> Result<Self::Child> {
         let segment_sort_key_computer = self
             .sort_key_computer
             .segment_sort_key_computer(segment_reader)?;
@@ -63,7 +67,7 @@ where TSortKeyComputer: SortKeyComputer + Send + Sync + 'static
         &self,
         weight: &dyn Weight,
         segment_ord: u32,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
     ) -> crate::Result<Vec<(TSortKeyComputer::SortKey, DocAddress)>> {
         let k = self.doc_range.end;
         let docs = self

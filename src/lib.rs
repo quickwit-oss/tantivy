@@ -93,7 +93,7 @@
 //!
 //! for (_score, doc_address) in top_docs {
 //!     // Retrieve the actual content of documents given its `doc_address`.
-//!     let retrieved_doc = searcher.doc::<TantivyDocument>(doc_address)?;
+//!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", retrieved_doc.to_json(&schema));
 //! }
 //!
@@ -166,6 +166,9 @@ mod functional_test;
 
 #[macro_use]
 mod macros;
+
+/// Tantivy codecs describes how data is layed out on disk.
+pub mod codec;
 mod future_result;
 
 // Re-exports
@@ -221,11 +224,11 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
-pub use crate::core::{json_utils, Executor, Searcher, SearcherGeneration};
+pub use crate::core::{json_utils, Executor, Searcher, SearcherContext, SearcherGeneration};
 pub use crate::directory::Directory;
 pub use crate::index::{
     Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader, Order, Segment,
-    SegmentMeta, SegmentReader,
+    SegmentMeta, SegmentReader, TantivyInvertedIndexReader, TantivySegmentReader,
 };
 pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::schema::{Document, TantivyDocument, Term};
@@ -545,7 +548,7 @@ pub mod tests {
         index_writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let segment_reader: &SegmentReader = searcher.segment_reader(0);
+        let segment_reader: &dyn SegmentReader = searcher.segment_reader(0);
         let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field)?;
         assert_eq!(fieldnorms_reader.fieldnorm(0), 3);
         assert_eq!(fieldnorms_reader.fieldnorm(1), 0);
@@ -553,7 +556,7 @@ pub mod tests {
         Ok(())
     }
 
-    fn advance_undeleted(docset: &mut dyn DocSet, reader: &SegmentReader) -> bool {
+    fn advance_undeleted(docset: &mut dyn DocSet, reader: &dyn SegmentReader) -> bool {
         let mut doc = docset.advance();
         while doc != TERMINATED {
             if !reader.is_deleted(doc) {
@@ -1070,7 +1073,7 @@ pub mod tests {
         }
         let reader = index.reader()?;
         let searcher = reader.searcher();
-        let segment_reader: &SegmentReader = searcher.segment_reader(0);
+        let segment_reader: &dyn SegmentReader = searcher.segment_reader(0);
         {
             let fast_field_reader_res = segment_reader.fast_fields().u64("text");
             assert!(fast_field_reader_res.is_err());

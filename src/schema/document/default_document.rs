@@ -755,10 +755,9 @@ mod tests {
         doc.add_object(json_field, json_val);
 
         let schema = schema_builder.build();
-        let json = doc.to_json(&schema);
-        let actual_json: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let actual_json = doc.to_json(&schema);
         let expected_json: serde_json::Value = serde_json::from_str(json_str).unwrap();
-        assert_eq!(actual_json["json"][0], expected_json);
+        assert_eq!(actual_json["json"], expected_json);
     }
 
     // TODO: Should this be re-added with the serialize method

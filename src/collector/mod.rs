@@ -156,7 +156,7 @@ pub trait Collector: Sync + Send {
     fn for_segment(
         &self,
         segment_local_id: SegmentOrdinal,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child>;
 
     /// Returns true iff the collector requires to compute scores for documents.
@@ -174,7 +174,7 @@ pub trait Collector: Sync + Send {
         &self,
         weight: &dyn Weight,
         segment_ord: u32,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let with_scoring = self.requires_scoring();
         let mut segment_collector = self.for_segment(segment_ord, reader)?;
@@ -186,7 +186,7 @@ pub trait Collector: Sync + Send {
 pub(crate) fn default_collect_segment_impl<TSegmentCollector: SegmentCollector>(
     segment_collector: &mut TSegmentCollector,
     weight: &dyn Weight,
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     with_scoring: bool,
 ) -> crate::Result<()> {
     match (reader.alive_bitset(), with_scoring) {
@@ -255,7 +255,7 @@ impl<TCollector: Collector> Collector for Option<TCollector> {
     fn for_segment(
         &self,
         segment_local_id: SegmentOrdinal,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok(if let Some(inner) = self {
             let inner_segment_collector = inner.for_segment(segment_local_id, segment)?;
@@ -336,7 +336,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let left = self.0.for_segment(segment_local_id, segment)?;
         let right = self.1.for_segment(segment_local_id, segment)?;
@@ -407,7 +407,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let one = self.0.for_segment(segment_local_id, segment)?;
         let two = self.1.for_segment(segment_local_id, segment)?;
@@ -487,7 +487,7 @@ where
     fn for_segment(
         &self,
         segment_local_id: u32,
-        segment: &SegmentReader,
+        segment: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let one = self.0.for_segment(segment_local_id, segment)?;
         let two = self.1.for_segment(segment_local_id, segment)?;

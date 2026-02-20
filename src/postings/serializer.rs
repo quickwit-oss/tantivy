@@ -8,7 +8,7 @@ use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::Segment;
 use crate::positions::PositionSerializer;
-use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
+use crate::postings::compression::{BlockEncoder, VIntEncoder as _, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
 use crate::query::Bm25Weight;
 use crate::schema::{Field, FieldEntry, IndexRecordOption, Schema};
@@ -55,7 +55,9 @@ pub struct InvertedIndexSerializer {
 
 impl InvertedIndexSerializer {
     /// Open a new `InvertedIndexSerializer` for the given segment
-    pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
+    pub fn open<C: crate::codec::Codec>(
+        segment: &mut Segment<C>,
+    ) -> crate::Result<InvertedIndexSerializer> {
         use crate::index::SegmentComponent::{Positions, Postings, Terms};
         let inv_index_serializer = InvertedIndexSerializer {
             terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),

@@ -6,17 +6,107 @@ use common::{ByteCount, HasLen};
 use fnv::FnvHashMap;
 use itertools::Itertools;
 
-use crate::directory::{CompositeFile, FileSlice};
+use crate::codec::{ObjectSafeCodec, SumOrDoNothingCombiner};
+use crate::directory::{CompositeFile, Directory, FileSlice};
 use crate::error::DataCorruption;
 use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::index::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
+use crate::index::{
+    InvertedIndexReader, Segment, SegmentComponent, SegmentId, SegmentMeta,
+    TantivyInvertedIndexReader,
+};
 use crate::json_utils::json_path_sep_to_dot;
+use crate::query::Scorer;
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
-use crate::store::StoreReader;
+use crate::store::{StoreReader, TantivyStoreReader};
 use crate::termdict::TermDictionary;
-use crate::{DocId, Opstamp};
+use crate::{DocId, Opstamp, Score};
+
+/// Trait defining the contract for a segment reader.
+pub trait SegmentReader: Send + Sync {
+    /// Returns the highest document id ever attributed in this segment + 1.
+    fn max_doc(&self) -> DocId;
+
+    /// Returns the number of alive documents. Deleted documents are not counted.
+    fn num_docs(&self) -> DocId;
+
+    /// Returns the schema of the index this segment belongs to.
+    fn schema(&self) -> &Schema;
+
+    /// Performs a for_each_pruning operation on the given scorer.
+    fn for_each_pruning(
+        &self,
+        threshold: Score,
+        scorer: Box<dyn Scorer>,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    );
+
+    /// Builds a union scorer possibly specialized if all scorers are term scorers.
+    fn build_union_scorer_with_sum_combiner(
+        &self,
+        scorers: Vec<Box<dyn Scorer>>,
+        num_docs: DocId,
+        score_combiner_type: SumOrDoNothingCombiner,
+    ) -> Box<dyn Scorer>;
+
+    /// Return the number of documents that have been deleted in the segment.
+    fn num_deleted_docs(&self) -> DocId;
+
+    /// Returns true if some of the documents of the segment have been deleted.
+    fn has_deletes(&self) -> bool;
+
+    /// Accessor to a segment's fast field reader given a field.
+    fn fast_fields(&self) -> &FastFieldReaders;
+
+    /// Accessor to the `FacetReader` associated with a given `Field`.
+    fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
+        let field = self.schema().get_field(field_name)?;
+        let field_entry = self.schema().get_field_entry(field);
+        if field_entry.field_type().value_type() != Type::Facet {
+            return Err(crate::TantivyError::SchemaError(format!(
+                "`{field_name}` is not a facet field.`"
+            )));
+        }
+        let Some(facet_column) = self.fast_fields().str(field_name)? else {
+            panic!("Facet Field `{field_name}` is missing. This should not happen");
+        };
+        Ok(FacetReader::new(facet_column))
+    }
+
+    /// Accessor to the segment's `Field norms`'s reader.
+    fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader>;
+
+    /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
+    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<Box<dyn StoreReader>>;
+
+    /// Returns a field reader associated with the field given in argument.
+    fn inverted_index(&self, field: Field) -> crate::Result<Arc<dyn InvertedIndexReader>>;
+
+    /// Returns the list of fields that have been indexed in the segment.
+    fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>>;
+
+    /// Returns the segment id.
+    fn segment_id(&self) -> SegmentId;
+
+    /// Returns the delete opstamp.
+    fn delete_opstamp(&self) -> Option<Opstamp>;
+
+    /// Returns the bitset representing the alive `DocId`s.
+    fn alive_bitset(&self) -> Option<&AliveBitSet>;
+
+    /// Returns true if the `doc` is marked as deleted.
+    fn is_deleted(&self, doc: DocId) -> bool;
+
+    /// Returns an iterator that will iterate over the alive document ids.
+    fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_>;
+
+    /// Summarize total space usage of this segment.
+    fn space_usage(&self) -> io::Result<SegmentSpaceUsage>;
+
+    /// Clones this reader into a shared trait object.
+    fn clone_arc(&self) -> Arc<dyn SegmentReader>;
+}
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -29,8 +119,8 @@ use crate::{DocId, Opstamp};
 /// The segment reader has a very low memory footprint,
 /// as close to all of the memory data is mmapped.
 #[derive(Clone)]
-pub struct SegmentReader {
-    inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
+pub struct TantivySegmentReader {
+    inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<dyn InvertedIndexReader>>>>,
 
     segment_id: SegmentId,
     delete_opstamp: Option<Opstamp>,
@@ -47,75 +137,148 @@ pub struct SegmentReader {
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
     schema: Schema,
+    codec: Arc<dyn ObjectSafeCodec>,
 }
 
-impl SegmentReader {
-    /// Returns the highest document id ever attributed in
-    /// this segment + 1.
-    pub fn max_doc(&self) -> DocId {
+impl TantivySegmentReader {
+    /// Open a new segment for reading.
+    pub fn open<C: crate::codec::Codec>(
+        segment: &Segment<C>,
+    ) -> crate::Result<Arc<dyn SegmentReader>> {
+        Self::open_with_custom_alive_set(segment, None)
+    }
+
+    /// Open a new segment for reading.
+    pub fn open_with_custom_alive_set<C: crate::codec::Codec>(
+        segment: &Segment<C>,
+        custom_bitset: Option<AliveBitSet>,
+    ) -> crate::Result<Arc<dyn SegmentReader>> {
+        segment.index().codec().open_segment_reader(
+            segment.index().directory(),
+            segment.meta(),
+            segment.schema(),
+            custom_bitset,
+        )
+    }
+
+    pub(crate) fn open_with_custom_alive_set_from_directory(
+        directory: &dyn Directory,
+        segment_meta: &SegmentMeta,
+        schema: Schema,
+        codec: Arc<dyn ObjectSafeCodec>,
+        custom_bitset: Option<AliveBitSet>,
+    ) -> crate::Result<TantivySegmentReader> {
+        let termdict_file =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::Terms))?;
+        let termdict_composite = CompositeFile::open(&termdict_file)?;
+
+        let store_file =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::Store))?;
+
+        crate::fail_point!("SegmentReader::open#middle");
+
+        let postings_file =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::Postings))?;
+        let postings_composite = CompositeFile::open(&postings_file)?;
+
+        let positions_composite = {
+            if let Ok(positions_file) =
+                directory.open_read(&segment_meta.relative_path(SegmentComponent::Positions))
+            {
+                CompositeFile::open(&positions_file)?
+            } else {
+                CompositeFile::empty()
+            }
+        };
+
+        let fast_fields_data =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::FastFields))?;
+        let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
+        let fieldnorm_data =
+            directory.open_read(&segment_meta.relative_path(SegmentComponent::FieldNorms))?;
+        let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
+
+        let original_bitset = if segment_meta.has_deletes() {
+            let alive_doc_file_slice =
+                directory.open_read(&segment_meta.relative_path(SegmentComponent::Delete))?;
+            let alive_doc_data = alive_doc_file_slice.read_bytes()?;
+            Some(AliveBitSet::open(alive_doc_data))
+        } else {
+            None
+        };
+
+        let alive_bitset_opt = intersect_alive_bitset(original_bitset, custom_bitset);
+
+        let max_doc = segment_meta.max_doc();
+        let num_docs = alive_bitset_opt
+            .as_ref()
+            .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
+            .unwrap_or(max_doc);
+
+        Ok(TantivySegmentReader {
+            inv_idx_reader_cache: Default::default(),
+            num_docs,
+            max_doc,
+            termdict_composite,
+            postings_composite,
+            fast_fields_readers,
+            fieldnorm_readers,
+            segment_id: segment_meta.id(),
+            delete_opstamp: segment_meta.delete_opstamp(),
+            store_file,
+            alive_bitset_opt,
+            positions_composite,
+            schema,
+            codec,
+        })
+    }
+}
+
+impl SegmentReader for TantivySegmentReader {
+    fn max_doc(&self) -> DocId {
         self.max_doc
     }
 
-    /// Returns the number of alive documents.
-    /// Deleted documents are not counted.
-    pub fn num_docs(&self) -> DocId {
+    fn num_docs(&self) -> DocId {
         self.num_docs
     }
 
-    /// Returns the schema of the index this segment belongs to.
-    pub fn schema(&self) -> &Schema {
+    fn schema(&self) -> &Schema {
         &self.schema
     }
 
-    /// Return the number of documents that have been
-    /// deleted in the segment.
-    pub fn num_deleted_docs(&self) -> DocId {
+    fn for_each_pruning(
+        &self,
+        threshold: Score,
+        scorer: Box<dyn Scorer>,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) {
+        self.codec.for_each_pruning(threshold, scorer, callback);
+    }
+
+    fn build_union_scorer_with_sum_combiner(
+        &self,
+        scorers: Vec<Box<dyn Scorer>>,
+        num_docs: DocId,
+        score_combiner_type: SumOrDoNothingCombiner,
+    ) -> Box<dyn Scorer> {
+        self.codec
+            .build_union_scorer_with_sum_combiner(scorers, num_docs, score_combiner_type)
+    }
+
+    fn num_deleted_docs(&self) -> DocId {
         self.max_doc - self.num_docs
     }
 
-    /// Returns true if some of the documents of the segment have been deleted.
-    pub fn has_deletes(&self) -> bool {
-        self.num_deleted_docs() > 0
+    fn has_deletes(&self) -> bool {
+        self.num_docs != self.max_doc
     }
 
-    /// Accessor to a segment's fast field reader given a field.
-    ///
-    /// Returns the u64 fast value reader if the field
-    /// is a u64 field indexed as "fast".
-    ///
-    /// Return a FastFieldNotAvailableError if the field is not
-    /// declared as a fast field in the schema.
-    ///
-    /// # Panics
-    /// May panic if the index is corrupted.
-    pub fn fast_fields(&self) -> &FastFieldReaders {
+    fn fast_fields(&self) -> &FastFieldReaders {
         &self.fast_fields_readers
     }
 
-    /// Accessor to the `FacetReader` associated with a given `Field`.
-    pub fn facet_reader(&self, field_name: &str) -> crate::Result<FacetReader> {
-        let schema = self.schema();
-        let field = schema.get_field(field_name)?;
-        let field_entry = schema.get_field_entry(field);
-        if field_entry.field_type().value_type() != Type::Facet {
-            return Err(crate::TantivyError::SchemaError(format!(
-                "`{field_name}` is not a facet field.`"
-            )));
-        }
-        let Some(facet_column) = self.fast_fields().str(field_name)? else {
-            panic!("Facet Field `{field_name}` is missing. This should not happen");
-        };
-        Ok(FacetReader::new(facet_column))
-    }
-
-    /// Accessor to the segment's `Field norms`'s reader.
-    ///
-    /// Field norms are the length (in tokens) of the fields.
-    /// It is used in the computation of the [TfIdf](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).
-    ///
-    /// They are simply stored as a fast field, serialized in
-    /// the `.fieldnorm` file of the segment.
-    pub fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader> {
+    fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader> {
         self.fieldnorm_readers.get_field(field)?.ok_or_else(|| {
             let field_name = self.schema.get_field_name(field);
             let err_msg = format!(
@@ -126,100 +289,14 @@ impl SegmentReader {
         })
     }
 
-    #[doc(hidden)]
-    pub fn fieldnorms_readers(&self) -> &FieldNormReaders {
-        &self.fieldnorm_readers
+    fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<Box<dyn StoreReader>> {
+        Ok(Box::new(TantivyStoreReader::open(
+            self.store_file.clone(),
+            cache_num_blocks,
+        )?))
     }
 
-    /// Accessor to the segment's [`StoreReader`](crate::store::StoreReader).
-    ///
-    /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
-    /// The size of blocks is configurable, this should be reflexted in the
-    pub fn get_store_reader(&self, cache_num_blocks: usize) -> io::Result<StoreReader> {
-        StoreReader::open(self.store_file.clone(), cache_num_blocks)
-    }
-
-    /// Open a new segment for reading.
-    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
-        Self::open_with_custom_alive_set(segment, None)
-    }
-
-    /// Open a new segment for reading.
-    pub fn open_with_custom_alive_set(
-        segment: &Segment,
-        custom_bitset: Option<AliveBitSet>,
-    ) -> crate::Result<SegmentReader> {
-        let termdict_file = segment.open_read(SegmentComponent::Terms)?;
-        let termdict_composite = CompositeFile::open(&termdict_file)?;
-
-        let store_file = segment.open_read(SegmentComponent::Store)?;
-
-        crate::fail_point!("SegmentReader::open#middle");
-
-        let postings_file = segment.open_read(SegmentComponent::Postings)?;
-        let postings_composite = CompositeFile::open(&postings_file)?;
-
-        let positions_composite = {
-            if let Ok(positions_file) = segment.open_read(SegmentComponent::Positions) {
-                CompositeFile::open(&positions_file)?
-            } else {
-                CompositeFile::empty()
-            }
-        };
-
-        let schema = segment.schema();
-
-        let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
-        let fast_fields_readers = FastFieldReaders::open(fast_fields_data, schema.clone())?;
-        let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
-        let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-
-        let original_bitset = if segment.meta().has_deletes() {
-            let alive_doc_file_slice = segment.open_read(SegmentComponent::Delete)?;
-            let alive_doc_data = alive_doc_file_slice.read_bytes()?;
-            Some(AliveBitSet::open(alive_doc_data))
-        } else {
-            None
-        };
-
-        let alive_bitset_opt = intersect_alive_bitset(original_bitset, custom_bitset);
-
-        let max_doc = segment.meta().max_doc();
-        let num_docs = alive_bitset_opt
-            .as_ref()
-            .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
-            .unwrap_or(max_doc);
-
-        Ok(SegmentReader {
-            inv_idx_reader_cache: Default::default(),
-            num_docs,
-            max_doc,
-            termdict_composite,
-            postings_composite,
-            fast_fields_readers,
-            fieldnorm_readers,
-            segment_id: segment.id(),
-            delete_opstamp: segment.meta().delete_opstamp(),
-            store_file,
-            alive_bitset_opt,
-            positions_composite,
-            schema,
-        })
-    }
-
-    /// Returns a field reader associated with the field given in argument.
-    /// If the field was not present in the index during indexing time,
-    /// the InvertedIndexReader is empty.
-    ///
-    /// The field reader is in charge of iterating through the
-    /// term dictionary associated with a specific field,
-    /// and opening the posting list associated with any term.
-    ///
-    /// If the field is not marked as index, a warning is logged and an empty `InvertedIndexReader`
-    /// is returned.
-    /// Similarly, if the field is marked as indexed but no term has been indexed for the given
-    /// index, an empty `InvertedIndexReader` is returned (but no warning is logged).
-    pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
+    fn inverted_index(&self, field: Field) -> crate::Result<Arc<dyn InvertedIndexReader>> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
             .read()
@@ -244,7 +321,9 @@ impl SegmentReader {
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
-            return Ok(Arc::new(InvertedIndexReader::empty(record_option)));
+            let inv_idx_reader: Arc<dyn InvertedIndexReader> =
+                Arc::new(TantivyInvertedIndexReader::empty(record_option));
+            return Ok(inv_idx_reader);
         }
 
         let record_option = record_option_opt.unwrap();
@@ -267,13 +346,20 @@ impl SegmentReader {
             );
             DataCorruption::comment_only(error_msg)
         })?;
+        let fieldnorms_file = self
+            .fieldnorm_readers
+            .get_inner_file()
+            .open_read(field)
+            .unwrap_or_else(FileSlice::empty);
 
-        let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            TermDictionary::open(termdict_file)?,
-            postings_file,
-            positions_file,
-            record_option,
-        )?);
+        let inv_idx_reader: Arc<dyn InvertedIndexReader> =
+            Arc::new(TantivyInvertedIndexReader::new(
+                TermDictionary::open(termdict_file)?,
+                postings_file,
+                positions_file,
+                fieldnorms_file,
+                record_option,
+            )?);
 
         // by releasing the lock in between, we may end up opening the inverting index
         // twice, but this is fine.
@@ -285,23 +371,10 @@ impl SegmentReader {
         Ok(inv_idx_reader)
     }
 
-    /// Returns the list of fields that have been indexed in the segment.
-    /// The field list includes the field defined in the schema as well as the fields
-    /// that have been indexed as a part of a JSON field.
-    /// The returned field name is the full field name, including the name of the JSON field.
-    ///
-    /// The returned field names can be used in queries.
-    ///
-    /// Notice: If your data contains JSON fields this is **very expensive**, as it requires
-    /// browsing through the inverted index term dictionary and the columnar field dictionary.
-    ///
-    /// Disclaimer: Some fields may not be listed here. For instance, if the schema contains a json
-    /// field that is not indexed nor a fast field but is stored, it is possible for the field
-    /// to not be listed.
-    pub fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
+    fn fields_metadata(&self) -> crate::Result<Vec<FieldMetadata>> {
         let mut indexed_fields: Vec<FieldMetadata> = Vec::new();
         let mut map_to_canonical = FnvHashMap::default();
-        for (field, field_entry) in self.schema().fields() {
+        for (field, field_entry) in self.schema.fields() {
             let field_name = field_entry.name().to_string();
             let is_indexed = field_entry.is_indexed();
             if is_indexed {
@@ -391,7 +464,7 @@ impl SegmentReader {
             }
         }
         let fast_fields: Vec<FieldMetadata> = self
-            .fast_fields()
+            .fast_fields_readers
             .columnar()
             .iter_columns()?
             .map(|(mut field_name, handle)| {
@@ -419,31 +492,26 @@ impl SegmentReader {
         Ok(merged_field_metadatas)
     }
 
-    /// Returns the segment id
-    pub fn segment_id(&self) -> SegmentId {
+    fn segment_id(&self) -> SegmentId {
         self.segment_id
     }
 
-    /// Returns the delete opstamp
-    pub fn delete_opstamp(&self) -> Option<Opstamp> {
+    fn delete_opstamp(&self) -> Option<Opstamp> {
         self.delete_opstamp
     }
 
-    /// Returns the bitset representing the alive `DocId`s.
-    pub fn alive_bitset(&self) -> Option<&AliveBitSet> {
+    fn alive_bitset(&self) -> Option<&AliveBitSet> {
         self.alive_bitset_opt.as_ref()
     }
 
-    /// Returns true if the `doc` is marked
-    /// as deleted.
-    pub fn is_deleted(&self, doc: DocId) -> bool {
-        self.alive_bitset()
+    fn is_deleted(&self, doc: DocId) -> bool {
+        self.alive_bitset_opt
+            .as_ref()
             .map(|alive_bitset| alive_bitset.is_deleted(doc))
             .unwrap_or(false)
     }
 
-    /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_> {
+    fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + Send + '_> {
         if let Some(alive_bitset) = &self.alive_bitset_opt {
             Box::new(alive_bitset.iter_alive())
         } else {
@@ -451,21 +519,24 @@ impl SegmentReader {
         }
     }
 
-    /// Summarize total space usage of this segment.
-    pub fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
+    fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
         Ok(SegmentSpaceUsage::new(
-            self.num_docs(),
-            self.termdict_composite.space_usage(self.schema()),
-            self.postings_composite.space_usage(self.schema()),
-            self.positions_composite.space_usage(self.schema()),
+            self.num_docs,
+            self.termdict_composite.space_usage(&self.schema),
+            self.postings_composite.space_usage(&self.schema),
+            self.positions_composite.space_usage(&self.schema),
             self.fast_fields_readers.space_usage()?,
-            self.fieldnorm_readers.space_usage(self.schema()),
-            self.get_store_reader(0)?.space_usage(),
+            self.fieldnorm_readers.space_usage(&self.schema),
+            TantivyStoreReader::open(self.store_file.clone(), 0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
                 .map(AliveBitSet::space_usage)
                 .unwrap_or_default(),
         ))
+    }
+
+    fn clone_arc(&self) -> Arc<dyn SegmentReader> {
+        Arc::new(self.clone())
     }
 }
 
@@ -576,7 +647,7 @@ fn intersect_alive_bitset(
     }
 }
 
-impl fmt::Debug for SegmentReader {
+impl fmt::Debug for TantivySegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "SegmentReader({:?})", self.segment_id)
     }

@@ -17,7 +17,6 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tantivy::collector::{Count, DocSetCollector};
 use tantivy::query::RangeQuery;
-use tantivy::schema::document::TantivyDocument;
 use tantivy::schema::{Schema, Value, FAST, STORED, STRING};
 use tantivy::{doc, Index, ReloadPolicy, Searcher, Term};
 
@@ -45,7 +44,7 @@ fn build_shared_indices(num_docs: usize, distribution: &str) -> BenchIndex {
         match distribution {
             "dense_random" => {
                 for _doc_id in 0..num_docs {
-                    let suffix = rng.gen_range(0u64..1000u64);
+                    let suffix = rng.random_range(0u64..1000u64);
                     let str_val = format!("str_{:03}", suffix);
 
                     writer
@@ -71,7 +70,7 @@ fn build_shared_indices(num_docs: usize, distribution: &str) -> BenchIndex {
             }
             "sparse_random" => {
                 for _doc_id in 0..num_docs {
-                    let suffix = rng.gen_range(0u64..1000000u64);
+                    let suffix = rng.random_range(0u64..1000000u64);
                     let str_val = format!("str_{:07}", suffix);
 
                     writer
@@ -406,7 +405,7 @@ impl FetchAllStringsFromDocTask {
 
         for doc_address in docs {
             // Get the document from the doc store (row store access)
-            if let Ok(doc) = self.searcher.doc::<TantivyDocument>(doc_address) {
+            if let Ok(doc) = self.searcher.doc(doc_address) {
                 // Extract string values from the stored field
                 if let Some(field_value) = doc.get_first(str_stored_field) {
                     if let Some(text) = field_value.as_value().as_str() {

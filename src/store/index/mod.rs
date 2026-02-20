@@ -48,7 +48,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::schema::{SchemaBuilder, STORED, TEXT};
     use crate::store::index::Checkpoint;
-    use crate::{DocAddress, DocId, Index, IndexWriter, TantivyDocument, Term};
+    use crate::{DocAddress, DocId, Index, IndexWriter, Term};
 
     #[test]
     fn test_skip_index_empty() -> io::Result<()> {
@@ -149,7 +149,7 @@ mod tests {
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 30);
         for i in 0..searcher.num_docs() as u32 {
-            let _doc = searcher.doc::<TantivyDocument>(DocAddress::new(0u32, i))?;
+            let _doc = searcher.doc(DocAddress::new(0u32, i))?;
         }
         Ok(())
     }

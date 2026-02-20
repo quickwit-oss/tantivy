@@ -9,6 +9,7 @@ use smallvec::smallvec;
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::{AddBatch, AddBatchReceiver, AddBatchSender, PreparedCommit};
+use crate::codec::{Codec, StandardCodec};
 use crate::directory::{DirectoryLock, GarbageCollectionResult, TerminatingWrite};
 use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
@@ -68,12 +69,12 @@ pub struct IndexWriterOptions {
 /// indexing queue.
 /// Each indexing thread builds its own independent [`Segment`], via
 /// a `SegmentWriter` object.
-pub struct IndexWriter<D: Document = TantivyDocument> {
+pub struct IndexWriter<C: Codec = StandardCodec, D: Document = TantivyDocument> {
     // the lock is just used to bind the
     // lifetime of the lock with that of the IndexWriter.
     _directory_lock: Option<DirectoryLock>,
 
-    index: Index,
+    index: Index<C>,
 
     options: IndexWriterOptions,
 
@@ -82,7 +83,7 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
     index_writer_status: IndexWriterStatus<D>,
     operation_sender: AddBatchSender<D>,
 
-    segment_updater: SegmentUpdater,
+    segment_updater: SegmentUpdater<C>,
 
     worker_id: usize,
 
@@ -94,7 +95,7 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
 
 fn compute_deleted_bitset(
     alive_bitset: &mut BitSet,
-    segment_reader: &SegmentReader,
+    segment_reader: &dyn SegmentReader,
     delete_cursor: &mut DeleteCursor,
     doc_opstamps: &DocToOpstampMapping,
     target_opstamp: Opstamp,
@@ -128,8 +129,8 @@ fn compute_deleted_bitset(
 /// is `==` target_opstamp.
 /// For instance, there was no delete operation between the state of the `segment_entry` and
 /// the `target_opstamp`, `segment_entry` is not updated.
-pub fn advance_deletes(
-    mut segment: Segment,
+pub fn advance_deletes<C: Codec>(
+    mut segment: Segment<C>,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
 ) -> crate::Result<()> {
@@ -143,7 +144,12 @@ pub fn advance_deletes(
         return Ok(());
     }
 
-    let segment_reader = SegmentReader::open(&segment)?;
+    let segment_reader = segment.index().codec().open_segment_reader(
+        segment.index().directory(),
+        segment.meta(),
+        segment.schema(),
+        None,
+    )?;
 
     let max_doc = segment_reader.max_doc();
     let mut alive_bitset: BitSet = match segment_entry.alive_bitset() {
@@ -155,7 +161,7 @@ pub fn advance_deletes(
 
     compute_deleted_bitset(
         &mut alive_bitset,
-        &segment_reader,
+        segment_reader.as_ref(),
         segment_entry.delete_cursor(),
         &DocToOpstampMapping::None,
         target_opstamp,
@@ -179,11 +185,11 @@ pub fn advance_deletes(
     Ok(())
 }
 
-fn index_documents<D: Document>(
+fn index_documents<C: crate::codec::Codec, D: Document>(
     memory_budget: usize,
-    segment: Segment,
+    segment: Segment<C>,
     grouped_document_iterator: &mut dyn Iterator<Item = AddBatch<D>>,
-    segment_updater: &SegmentUpdater,
+    segment_updater: &SegmentUpdater<C>,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<()> {
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone())?;
@@ -226,8 +232,8 @@ fn index_documents<D: Document>(
 }
 
 /// `doc_opstamps` is required to be non-empty.
-fn apply_deletes(
-    segment: &Segment,
+fn apply_deletes<C: crate::codec::Codec>(
+    segment: &Segment<C>,
     delete_cursor: &mut DeleteCursor,
     doc_opstamps: &[Opstamp],
 ) -> crate::Result<Option<BitSet>> {
@@ -243,14 +249,19 @@ fn apply_deletes(
         .max()
         .expect("Empty DocOpstamp is forbidden");
 
-    let segment_reader = SegmentReader::open(segment)?;
+    let segment_reader = segment.index().codec().open_segment_reader(
+        segment.index().directory(),
+        segment.meta(),
+        segment.schema(),
+        None,
+    )?;
     let doc_to_opstamps = DocToOpstampMapping::WithMap(doc_opstamps);
 
     let max_doc = segment.meta().max_doc();
     let mut deleted_bitset = BitSet::with_max_value_and_full(max_doc);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
-        &segment_reader,
+        segment_reader.as_ref(),
         delete_cursor,
         &doc_to_opstamps,
         max_doc_opstamp,
@@ -262,7 +273,7 @@ fn apply_deletes(
     })
 }
 
-impl<D: Document> IndexWriter<D> {
+impl<C: Codec, D: Document> IndexWriter<C, D> {
     /// Create a new index writer. Attempts to acquire a lockfile.
     ///
     /// The lockfile should be deleted on drop, but it is possible
@@ -278,7 +289,7 @@ impl<D: Document> IndexWriter<D> {
     /// If the memory arena per thread is too small or too big, returns
     /// `TantivyError::InvalidArgument`
     pub(crate) fn new(
-        index: &Index,
+        index: &Index<C>,
         options: IndexWriterOptions,
         directory_lock: DirectoryLock,
     ) -> crate::Result<Self> {
@@ -345,7 +356,7 @@ impl<D: Document> IndexWriter<D> {
     }
 
     /// Accessor to the index.
-    pub fn index(&self) -> &Index {
+    pub fn index(&self) -> &Index<C> {
         &self.index
     }
 
@@ -393,7 +404,7 @@ impl<D: Document> IndexWriter<D> {
     /// It is safe to start writing file associated with the new `Segment`.
     /// These will not be garbage collected as long as an instance object of
     /// `SegmentMeta` object associated with the new `Segment` is "alive".
-    pub fn new_segment(&self) -> Segment {
+    pub fn new_segment(&self) -> Segment<C> {
         self.index.new_segment()
     }
 
@@ -615,7 +626,7 @@ impl<D: Document> IndexWriter<D> {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`].
-    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<'_, D>> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit<'_, C, D>> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -665,7 +676,7 @@ impl<D: Document> IndexWriter<D> {
         self.prepare_commit()?.commit()
     }
 
-    pub(crate) fn segment_updater(&self) -> &SegmentUpdater {
+    pub(crate) fn segment_updater(&self) -> &SegmentUpdater<C> {
         &self.segment_updater
     }
 
@@ -804,7 +815,7 @@ impl<D: Document> IndexWriter<D> {
     }
 }
 
-impl<D: Document> Drop for IndexWriter<D> {
+impl<C: Codec, D: Document> Drop for IndexWriter<C, D> {
     fn drop(&mut self) {
         self.segment_updater.kill();
         self.drop_sender();
@@ -1965,9 +1976,9 @@ mod tests {
                 .get_store_reader(DOCSTORE_CACHE_CAPACITY)
                 .unwrap();
             // test store iterator
-            for doc in store_reader.iter::<TantivyDocument>(segment_reader.alive_bitset()) {
+            for doc_id in segment_reader.doc_ids_alive() {
+                let doc = store_reader.get(doc_id).unwrap();
                 let id = doc
-                    .unwrap()
                     .get_first(id_field)
                     .unwrap()
                     .as_value()
@@ -1978,7 +1989,7 @@ mod tests {
             // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
                 let id = store_reader
-                    .get::<TantivyDocument>(doc_id)
+                    .get(doc_id)
                     .unwrap()
                     .get_first(id_field)
                     .unwrap()
@@ -1987,7 +1998,7 @@ mod tests {
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
                 if id_is_full_doc(id) {
                     let id2 = store_reader
-                        .get::<TantivyDocument>(doc_id)
+                        .get(doc_id)
                         .unwrap()
                         .get_first(multi_numbers)
                         .unwrap()
@@ -1995,13 +2006,13 @@ mod tests {
                         .unwrap();
                     assert_eq!(id, id2);
                     let bool = store_reader
-                        .get::<TantivyDocument>(doc_id)
+                        .get(doc_id)
                         .unwrap()
                         .get_first(bool_field)
                         .unwrap()
                         .as_bool()
                         .unwrap();
-                    let doc = store_reader.get::<TantivyDocument>(doc_id).unwrap();
+                    let doc = store_reader.get(doc_id).unwrap();
                     let mut bool2 = doc.get_all(multi_bools);
                     assert_eq!(bool, bool2.next().unwrap().as_bool().unwrap());
                     assert_ne!(bool, bool2.next().unwrap().as_bool().unwrap());

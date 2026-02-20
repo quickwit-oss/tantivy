@@ -57,7 +57,7 @@ pub(crate) fn get_numeric_or_date_column_types() -> &'static [ColumnType] {
 
 /// Get fast field reader or empty as default.
 pub(crate) fn get_ff_reader(
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
 ) -> crate::Result<(columnar::Column<u64>, ColumnType)> {
@@ -74,7 +74,7 @@ pub(crate) fn get_ff_reader(
 }
 
 pub(crate) fn get_dynamic_columns(
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     field_name: &str,
 ) -> crate::Result<Vec<columnar::DynamicColumn>> {
     let ff_fields = reader.fast_fields().dynamic_column_handles(field_name)?;
@@ -90,7 +90,7 @@ pub(crate) fn get_dynamic_columns(
 ///
 /// Is guaranteed to return at least one column.
 pub(crate) fn get_all_ff_reader_or_empty(
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     field_name: &str,
     allowed_column_types: Option<&[ColumnType]>,
     fallback_type: ColumnType,
