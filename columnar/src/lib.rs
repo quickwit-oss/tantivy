@@ -36,7 +36,7 @@ pub mod column_values;
 mod columnar;
 mod dictionary;
 mod dynamic_column;
-mod iterable;
+pub mod iterable;
 pub(crate) mod utils;
 mod value;
 
