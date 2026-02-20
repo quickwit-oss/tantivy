@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 use super::{Collector, SegmentCollector};
 use crate::{DocAddress, DocId, Score};
@@ -9,7 +9,7 @@ use crate::{DocAddress, DocId, Score};
 pub struct DocSetCollector;
 
 impl Collector for DocSetCollector {
-    type Fruit = HashSet<DocAddress>;
+    type Fruit = FxHashSet<DocAddress>;
     type Child = DocSetChildCollector;
 
     fn for_segment(
@@ -19,7 +19,7 @@ impl Collector for DocSetCollector {
     ) -> crate::Result<Self::Child> {
         Ok(DocSetChildCollector {
             segment_local_id,
-            docs: HashSet::new(),
+            docs: Default::default(),
         })
     }
 
@@ -29,10 +29,10 @@ impl Collector for DocSetCollector {
 
     fn merge_fruits(
         &self,
-        segment_fruits: Vec<(u32, HashSet<DocId>)>,
+        segment_fruits: Vec<(u32, FxHashSet<DocId>)>,
     ) -> crate::Result<Self::Fruit> {
         let len: usize = segment_fruits.iter().map(|(_, docset)| docset.len()).sum();
-        let mut result = HashSet::with_capacity(len);
+        let mut result = FxHashSet::with_capacity_and_hasher(len, Default::default());
         for (segment_local_id, docs) in segment_fruits {
             for doc in docs {
                 result.insert(DocAddress::new(segment_local_id, doc));
@@ -44,17 +44,17 @@ impl Collector for DocSetCollector {
 
 pub struct DocSetChildCollector {
     segment_local_id: u32,
-    docs: HashSet<DocId>,
+    docs: FxHashSet<DocId>,
 }
 
 impl SegmentCollector for DocSetChildCollector {
-    type Fruit = (u32, HashSet<DocId>);
+    type Fruit = (u32, FxHashSet<DocId>);
 
     fn collect(&mut self, doc: crate::DocId, _score: Score) {
         self.docs.insert(doc);
     }
 
-    fn harvest(self) -> (u32, HashSet<DocId>) {
+    fn harvest(self) -> (u32, FxHashSet<DocId>) {
         (self.segment_local_id, self.docs)
     }
 }
