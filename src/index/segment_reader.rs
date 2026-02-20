@@ -79,6 +79,10 @@ impl SegmentReader {
         &self.schema
     }
 
+    pub(crate) fn sort_by_field(&self) -> Option<&crate::IndexSortByField> {
+        self.index.settings().sort_by_field.as_ref()
+    }
+
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {

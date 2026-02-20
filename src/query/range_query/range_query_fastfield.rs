@@ -11,12 +11,14 @@ use columnar::{
 };
 use common::bounds::{BoundsRange, TransformBound};
 
+use super::contiguous_doc_set::ContiguousDocSet;
 use super::fast_field_range_doc_set::RangeDocSet;
+use crate::index::SegmentReader;
 use crate::query::{
     AllScorer, ConstScorer, EmptyScorer, EnableScoring, Explanation, Query, Scorer, Weight,
 };
 use crate::schema::{Type, ValueBytes};
-use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
+use crate::{DocId, DocSet, Order, Score, TantivyError, Term};
 
 #[derive(Clone, Debug)]
 /// `FastFieldRangeQuery` is the same as [RangeQuery] but only uses the fast field
@@ -73,6 +75,13 @@ impl Weight for FastFieldRangeWeight {
         );
         let field_name = term.get_full_path(reader.schema());
 
+        // Extract sort order if this field is the index sort field (enables sorted optimization
+        // below).
+        let sort_order = reader
+            .sort_by_field()
+            .filter(|sbf| sbf.field == field_name)
+            .map(|sbf| sbf.order);
+
         let get_value_bytes = |term: &Term| term.value().value_bytes_payload();
 
         let term_value = term.value();
@@ -100,7 +109,6 @@ impl Weight for FastFieldRangeWeight {
                     let dict = str_dict_column.dictionary();
 
                     let bounds = self.bounds.map_bound(get_value_bytes);
-                    // Get term ids for terms
                     let (lower_bound, upper_bound) =
                         dict.term_bounds_to_ord(bounds.lower_bound, bounds.upper_bound)?;
                     let fast_field_reader = reader.fast_fields();
@@ -109,7 +117,13 @@ impl Weight for FastFieldRangeWeight {
                     else {
                         return Ok(Box::new(EmptyScorer));
                     };
-                    search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+                    // JSON subfields can't be sort_by_field targets, so no sorted optimization.
+                    search_on_u64_ff(
+                        column,
+                        boost,
+                        BoundsRange::new(lower_bound, upper_bound),
+                        None,
+                    )
                 }
                 Type::U64 | Type::I64 | Type::F64 => {
                     search_on_json_numerical_field(reader, &field_name, typ, bounds, boost)
@@ -122,10 +136,12 @@ impl Weight for FastFieldRangeWeight {
                         return Ok(Box::new(EmptyScorer));
                     };
                     let bounds = bounds.map_bound(|term| term.as_date().unwrap().to_u64());
+                    // JSON subfields can't be sort_by_field targets, so no sorted optimization.
                     search_on_u64_ff(
                         column,
                         boost,
                         BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+                        None,
                     )
                 }
                 Type::Bool | Type::Facet | Type::Bytes | Type::Json | Type::IpAddr => {
@@ -164,7 +180,6 @@ impl Weight for FastFieldRangeWeight {
             let dict = str_dict_column.dictionary();
 
             let bounds = self.bounds.map_bound(get_value_bytes);
-            // Get term ids for terms
             let (lower_bound, upper_bound) =
                 dict.term_bounds_to_ord(bounds.lower_bound, bounds.upper_bound)?;
             let fast_field_reader = reader.fast_fields();
@@ -173,7 +188,12 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
-            search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+            search_on_u64_ff(
+                column,
+                boost,
+                BoundsRange::new(lower_bound, upper_bound),
+                sort_order,
+            )
         } else if field_type.is_bytes() {
             let Some(bytes_column): Option<BytesColumn> =
                 reader.fast_fields().bytes(&field_name)?
@@ -183,7 +203,6 @@ impl Weight for FastFieldRangeWeight {
             let dict = bytes_column.dictionary();
 
             let bounds = self.bounds.map_bound(get_value_bytes);
-            // Get term ids for terms
             let (lower_bound, upper_bound) =
                 dict.term_bounds_to_ord(bounds.lower_bound, bounds.upper_bound)?;
             let fast_field_reader = reader.fast_fields();
@@ -192,7 +211,12 @@ impl Weight for FastFieldRangeWeight {
             else {
                 return Ok(Box::new(EmptyScorer));
             };
-            search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
+            search_on_u64_ff(
+                column,
+                boost,
+                BoundsRange::new(lower_bound, upper_bound),
+                sort_order,
+            )
         } else {
             assert!(
                 maps_to_u64_fastfield(field_type.value_type()),
@@ -234,6 +258,7 @@ impl Weight for FastFieldRangeWeight {
                 column,
                 boost,
                 BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+                sort_order,
             )
         }
     }
@@ -333,10 +358,12 @@ fn search_on_json_numerical_field(
             }
         }
     };
+    // JSON subfields can't be sort_by_field targets, so no sorted optimization.
     search_on_u64_ff(
         column,
         boost,
         BoundsRange::new(bounds.lower_bound, bounds.upper_bound),
+        None,
     )
 }
 
@@ -415,6 +442,7 @@ fn search_on_u64_ff(
     column: Column<u64>,
     boost: Score,
     bounds: BoundsRange<u64>,
+    sort_order: Option<Order>,
 ) -> crate::Result<Box<dyn Scorer>> {
     let col_min_value = column.min_value();
     let col_max_value = column.max_value();
@@ -445,8 +473,188 @@ fn search_on_u64_ff(
         }
     }
 
+    // Sorted index optimization: when the index is sorted by this field,
+    // binary search for the matching DocId range instead of scanning.
+    if let Some(order) = sort_order {
+        let cardinality = column.index.get_cardinality();
+        if matches!(cardinality, Cardinality::Full | Cardinality::Optional) {
+            return Ok(sorted_range_scorer(
+                &column,
+                boost,
+                &value_range,
+                order,
+                cardinality,
+            ));
+        }
+    }
+
     let docset = RangeDocSet::new(value_range, column);
     Ok(Box::new(ConstScorer::new(docset, boost)))
+}
+
+/// Builds a scorer by binary-searching the matching DocId range in a sorted column.
+///
+/// # Design
+///
+/// When an index is sorted by a field, documents with adjacent values have adjacent DocIds.
+/// This means the set of matching DocIds for a range query is always contiguous — if DocId 5
+/// matches and DocId 9 matches, then 6, 7, 8 must also match. This lets us replace O(n)
+/// column scanning with O(log n) binary search to find the boundaries.
+///
+/// The algorithm has three phases:
+///
+/// 1. **NULL boundary**: NULLs cluster at one end of the segment (start for ASC, end for DESC). We
+///    binary search using `column.first(doc).is_some()` to find where real values begin, because
+///    NULL docs have no value to compare against — only presence can be tested.
+///
+/// 2. **Value boundary**: Within the non-NULL range, two binary searches find the first and last
+///    matching DocIds. The result is a half-open range `[start, end)` where `start` is the first
+///    match and `end` is one past the last match.
+///
+/// 3. **ContiguousDocSet**: Wraps the `[start, end)` range as a `DocSet`.
+///
+/// Only `Full` and `Optional` cardinalities are supported. `Multivalued` columns
+/// have multiple values per doc and cannot be binary-searched.
+fn sorted_range_scorer(
+    column: &Column<u64>,
+    boost: Score,
+    value_range: &RangeInclusive<u64>,
+    order: Order,
+    cardinality: Cardinality,
+) -> Box<dyn Scorer> {
+    let num_docs = column.num_docs();
+    if num_docs == 0 {
+        return Box::new(EmptyScorer);
+    }
+
+    let lower = *value_range.start();
+    let upper = *value_range.end();
+
+    // Determine the non-NULL range within the segment.
+    // - ASC: NULLs at start (low DocIds), values ascending after.
+    // - DESC: values descending first, NULLs at end (high DocIds).
+    let (non_null_start, non_null_end) = match cardinality {
+        Cardinality::Full => (0u32, num_docs),
+        Cardinality::Optional => match order {
+            Order::Asc => {
+                // Binary search for first DocId with a value (NULLs at start).
+                let start = binary_search_null_boundary(column, 0, num_docs, Order::Asc);
+                (start, num_docs)
+            }
+            Order::Desc => {
+                // Binary search for first NULL DocId (NULLs at end).
+                let end = binary_search_null_boundary(column, 0, num_docs, Order::Desc);
+                (0, end)
+            }
+        },
+        _ => unreachable!("caller filters out unsupported cardinality"),
+    };
+
+    if non_null_start >= non_null_end {
+        return Box::new(EmptyScorer);
+    }
+
+    let (start_target, end_target) = match order {
+        Order::Asc => (lower, upper),
+        Order::Desc => (upper, lower),
+    };
+    let start_doc = binary_search_sorted(
+        column,
+        non_null_start,
+        non_null_end,
+        start_target,
+        order,
+        false, // inclusive: find first match
+    );
+    let end_doc = binary_search_sorted(
+        column,
+        non_null_start,
+        non_null_end,
+        end_target,
+        order,
+        true, // exclusive: find one past last match
+    );
+
+    let docset = ContiguousDocSet::new(start_doc, end_doc);
+    Box::new(ConstScorer::new(docset, boost))
+}
+
+/// Binary search for the boundary between NULLs and non-NULLs.
+///
+/// This is separated from value search because NULL docs have no stored value —
+/// `column.first(doc)` returns `None`. We can only test presence (`is_some()`),
+/// not compare against a target value. Once the NULL boundary is known, the
+/// non-NULL range is passed to `binary_search_sorted` which can safely `.expect()`
+/// on every lookup.
+///
+/// - `Order::Asc`: NULLs are at the start. Returns the first DocId with a value.
+/// - `Order::Desc`: NULLs are at the end. Returns the first DocId without a value (i.e., past all
+///   valued docs).
+fn binary_search_null_boundary(column: &Column<u64>, lo: u32, hi: u32, order: Order) -> u32 {
+    let mut lo = lo;
+    let mut hi = hi;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let has_value = column.first(mid).is_some();
+        match order {
+            Order::Asc => {
+                // NULLs at start. Looking for first doc WITH a value.
+                if has_value {
+                    hi = mid;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+            Order::Desc => {
+                // NULLs at end. Looking for first doc WITHOUT a value.
+                if has_value {
+                    lo = mid + 1;
+                } else {
+                    hi = mid;
+                }
+            }
+        }
+    }
+    lo
+}
+
+/// Binary search on a sorted column for the boundary of a value range.
+///
+/// Returns a DocId forming one side of the half-open range `[start, end)`:
+/// - `strict=false` (inclusive): first doc whose value is at or past `target` — used for `start`.
+/// - `strict=true` (exclusive): first doc whose value is strictly past `target` — used for `end`.
+///
+/// The caller guarantees that `[lo, hi)` contains only non-NULL docs
+/// (the NULL boundary was already computed by `binary_search_null_boundary`).
+fn binary_search_sorted(
+    column: &Column<u64>,
+    lo: u32,
+    hi: u32,
+    target: u64,
+    order: Order,
+    strict: bool,
+) -> u32 {
+    let mut lo = lo;
+    let mut hi = hi;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        // Safe: caller guarantees [lo, hi) is non-NULL (see binary_search_null_boundary).
+        let val = column
+            .first(mid)
+            .expect("doc in non-NULL range has no value");
+        let go_right = match (order, strict) {
+            (Order::Asc, false) => val < target,
+            (Order::Asc, true) => val <= target,
+            (Order::Desc, false) => val > target,
+            (Order::Desc, true) => val >= target,
+        };
+        if go_right {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    lo
 }
 
 /// Returns true if the type maps to a u64 fast field
@@ -1675,5 +1883,895 @@ pub(crate) mod ip_range_tests {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod sorted_range_tests {
+    use std::ops::Bound;
+
+    use common::bounds::BoundsRange;
+
+    use crate::collector::Count;
+    use crate::index::{Index, IndexSettings, IndexSortByField};
+    use crate::query::range_query::range_query_fastfield::FastFieldRangeWeight;
+    use crate::query::{RangeQuery, Scorer, Weight};
+    use crate::schema::{BytesOptions, NumericOptions, SchemaBuilder, FAST};
+    use crate::{IndexWriter, Order, TantivyDocument, Term};
+
+    fn create_sorted_index_u64(order: Order, values: &[u64]) -> (Index, crate::schema::Field) {
+        let mut schema_builder = SchemaBuilder::new();
+        let field = schema_builder.add_u64_field(
+            "intval",
+            NumericOptions::default()
+                .set_fast()
+                .set_indexed()
+                .set_stored(),
+        );
+        let schema = schema_builder.build();
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+
+        let mut writer = index.writer_for_tests().unwrap();
+        for &val in values {
+            writer.add_document(doc!(field => val)).unwrap();
+        }
+        writer.commit().unwrap();
+        (index, field)
+    }
+
+    fn create_sorted_index_optional_u64(
+        order: Order,
+        values: &[Option<u64>],
+    ) -> (Index, crate::schema::Field, crate::schema::Field) {
+        let mut schema_builder = SchemaBuilder::new();
+        let label_field = schema_builder.add_text_field("label", crate::schema::STRING);
+        let field = schema_builder
+            .add_u64_field("intval", NumericOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+
+        let mut writer = index.writer_for_tests().unwrap();
+        for (i, val) in values.iter().enumerate() {
+            match val {
+                Some(v) => {
+                    writer
+                        .add_document(doc!(label_field => format!("doc{i}"), field => *v))
+                        .unwrap();
+                }
+                None => {
+                    writer
+                        .add_document(doc!(label_field => format!("doc{i}")))
+                        .unwrap();
+                }
+            }
+        }
+        writer.commit().unwrap();
+        (index, field, label_field)
+    }
+
+    fn count_range(
+        index: &Index,
+        field: crate::schema::Field,
+        lower: Bound<u64>,
+        upper: Bound<u64>,
+    ) -> usize {
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let query = RangeQuery::new(
+            lower.map(|v| Term::from_field_u64(field, v)),
+            upper.map(|v| Term::from_field_u64(field, v)),
+        );
+        searcher.search(&query, &Count).unwrap()
+    }
+
+    fn delete_by_u64_value(index: &Index, field: crate::schema::Field, value: u64) {
+        let mut writer: IndexWriter = index.writer_for_tests().unwrap();
+        writer.delete_term(Term::from_field_u64(field, value));
+        writer.commit().unwrap();
+    }
+
+    fn create_unsorted_index_u64(values: &[u64]) -> (Index, crate::schema::Field) {
+        let mut schema_builder = SchemaBuilder::new();
+        let field = schema_builder.add_u64_field(
+            "intval",
+            NumericOptions::default()
+                .set_fast()
+                .set_indexed()
+                .set_stored(),
+        );
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut writer = index.writer_for_tests().unwrap();
+        for &val in values {
+            writer.add_document(doc!(field => val)).unwrap();
+        }
+        writer.commit().unwrap();
+        (index, field)
+    }
+
+    /// Build a scorer for the given field on the given reader.
+    fn make_scorer(
+        reader: &crate::SegmentReader,
+        field: crate::schema::Field,
+        lower: u64,
+        upper: u64,
+    ) -> Box<dyn Scorer> {
+        let weight = FastFieldRangeWeight::new(BoundsRange::new(
+            Bound::Included(Term::from_field_u64(field, lower)),
+            Bound::Included(Term::from_field_u64(field, upper)),
+        ));
+        weight.scorer(reader, 1.0).unwrap()
+    }
+
+    #[test]
+    fn sorted_range_activates_when_sort_field_matches() {
+        for order in [Order::Asc, Order::Desc] {
+            let (index, field) = create_sorted_index_u64(order, &[10, 20, 30, 40, 50]);
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+            let seg = searcher.segment_reader(0);
+            let sorted_cost = make_scorer(seg, field, 20, 40).cost();
+
+            let (unsorted_index, unsorted_field) = create_unsorted_index_u64(&[10, 20, 30, 40, 50]);
+            let unsorted_reader = unsorted_index.reader().unwrap();
+            let unsorted_searcher = unsorted_reader.searcher();
+            let unsorted_seg = unsorted_searcher.segment_reader(0);
+            let unsorted_cost = make_scorer(unsorted_seg, unsorted_field, 20, 40).cost();
+            assert!(
+                sorted_cost < unsorted_cost,
+                "order={order:?}: sorted path cost ({sorted_cost}) should be less than fallback \
+                 ({unsorted_cost})"
+            );
+        }
+    }
+
+    fn assert_sorted_range_cases(order: Order, cases: &[(&str, Bound<u64>, Bound<u64>, usize)]) {
+        let (index, field) =
+            create_sorted_index_u64(order, &[10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+        for (name, lower, upper, expected) in cases {
+            let actual = count_range(&index, field, lower.clone(), upper.clone());
+            assert_eq!(actual, *expected, "order={order:?}, case={name}");
+        }
+    }
+
+    #[test]
+    fn sorted_range_falls_back_when_index_not_sorted() {
+        let (index, field) = create_unsorted_index_u64(&[10, 20, 30, 40, 50]);
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let seg = searcher.segment_reader(0);
+        let no_sort_cost = make_scorer(seg, field, 20, 40).cost();
+        assert!(no_sort_cost > 0, "Expected nonzero cost from RangeDocSet");
+        // And the result is correct.
+        assert_eq!(
+            count_range(&index, field, Bound::Included(20), Bound::Included(40)),
+            3
+        );
+    }
+
+    #[test]
+    fn sorted_range_falls_back_when_sort_field_mismatches_query_field() {
+        let mut schema_builder = SchemaBuilder::new();
+        let intval_field = schema_builder
+            .add_u64_field("intval", NumericOptions::default().set_fast().set_indexed());
+        let other_field = schema_builder
+            .add_u64_field("other", NumericOptions::default().set_fast().set_indexed());
+        let index = Index::builder()
+            .schema(schema_builder.build())
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+        let mut writer = index.writer_for_tests().unwrap();
+        for &v in &[10u64, 20, 30, 40, 50] {
+            writer
+                .add_document(doc!(intval_field => v, other_field => v * 2))
+                .unwrap();
+        }
+        writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let seg = searcher.segment_reader(0);
+
+        // Query is on "other" but index is sorted by "intval" — should not use sorted path.
+        let mismatched_cost = make_scorer(seg, other_field, 40, 80).cost();
+
+        let mut unsorted_schema_builder = SchemaBuilder::new();
+        let unsorted_intval = unsorted_schema_builder
+            .add_u64_field("intval", NumericOptions::default().set_fast().set_indexed());
+        let unsorted_other = unsorted_schema_builder
+            .add_u64_field("other", NumericOptions::default().set_fast().set_indexed());
+        let unsorted_index = Index::create_in_ram(unsorted_schema_builder.build());
+        let mut unsorted_writer = unsorted_index.writer_for_tests().unwrap();
+        for &v in &[10u64, 20, 30, 40, 50] {
+            unsorted_writer
+                .add_document(doc!(unsorted_intval => v, unsorted_other => v * 2))
+                .unwrap();
+        }
+        unsorted_writer.commit().unwrap();
+        let unsorted_reader = unsorted_index.reader().unwrap();
+        let unsorted_searcher = unsorted_reader.searcher();
+        let unsorted_seg = unsorted_searcher.segment_reader(0);
+        let no_sort_cost = make_scorer(unsorted_seg, unsorted_other, 40, 80).cost();
+
+        // Both should produce the same fallback cost since sort field != query field.
+        assert_eq!(
+            mismatched_cost, no_sort_cost,
+            "Mismatched sort field should produce same cost as no-sort fallback"
+        );
+    }
+
+    #[test]
+    fn sorted_range_asc_bounds_matrix() {
+        let cases = vec![
+            ("inclusive", Bound::Included(20), Bound::Included(80), 7),
+            ("exclusive", Bound::Excluded(20), Bound::Excluded(80), 5),
+            (
+                "mixed_incl_excl",
+                Bound::Included(20),
+                Bound::Excluded(80),
+                6,
+            ),
+            (
+                "mixed_excl_incl",
+                Bound::Excluded(20),
+                Bound::Included(80),
+                6,
+            ),
+            ("unbounded_lower", Bound::Unbounded, Bound::Included(50), 5),
+            ("unbounded_upper", Bound::Included(50), Bound::Unbounded, 6),
+            (
+                "wide_range",
+                Bound::Included(0),
+                Bound::Included(u64::MAX),
+                10,
+            ),
+            ("exact_hit", Bound::Included(50), Bound::Included(50), 1),
+            ("exact_miss", Bound::Included(55), Bound::Included(55), 0),
+        ];
+        assert_sorted_range_cases(Order::Asc, &cases);
+    }
+
+    #[test]
+    fn sorted_range_desc_bounds_matrix() {
+        let cases = vec![
+            ("inclusive", Bound::Included(40), Bound::Included(60), 3),
+            ("exclusive", Bound::Excluded(20), Bound::Excluded(80), 5),
+            (
+                "mixed_incl_excl",
+                Bound::Included(20),
+                Bound::Excluded(80),
+                6,
+            ),
+            (
+                "mixed_excl_incl",
+                Bound::Excluded(20),
+                Bound::Included(80),
+                6,
+            ),
+            ("unbounded_lower", Bound::Unbounded, Bound::Included(50), 5),
+            ("unbounded_upper", Bound::Included(50), Bound::Unbounded, 6),
+            ("exact_hit", Bound::Included(50), Bound::Included(50), 1),
+            ("exact_miss", Bound::Included(55), Bound::Included(55), 0),
+        ];
+        assert_sorted_range_cases(Order::Desc, &cases);
+    }
+
+    #[test]
+    fn sorted_range_optional_nulls_excluded() {
+        // ASC and DESC both exclude NULLs from range results.
+        for order in [Order::Asc, Order::Desc] {
+            let (index, field, _) = create_sorted_index_optional_u64(
+                order,
+                &[None, None, Some(10), Some(20), Some(30), Some(40)],
+            );
+            assert_eq!(
+                count_range(&index, field, Bound::Included(10), Bound::Included(30)),
+                3,
+                "order={order:?}: NULLs should be excluded from range"
+            );
+            // Wide range still excludes NULLs.
+            assert_eq!(
+                count_range(&index, field, Bound::Included(0), Bound::Included(u64::MAX)),
+                4,
+                "order={order:?}: wide range should still exclude NULLs"
+            );
+        }
+
+        // All-NULL segment returns empty.
+        let (index, field, _) =
+            create_sorted_index_optional_u64(Order::Asc, &[None, None, None, None, None]);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(0), Bound::Included(100)),
+            0,
+            "all-NULL segment should return 0"
+        );
+
+        // Single non-NULL among NULLs.
+        let (index, field, _) =
+            create_sorted_index_optional_u64(Order::Asc, &[None, None, None, None, Some(50)]);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(50), Bound::Included(50)),
+            1,
+            "single non-NULL exact match"
+        );
+
+        // Interleaved NULLs and zeros (regression: NULL encoded as 0 must not collide).
+        let (index, field, _) =
+            create_sorted_index_optional_u64(Order::Asc, &[None, Some(0), None, Some(1)]);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(0), Bound::Included(0)),
+            1,
+            "NULL-vs-zero interleave regression"
+        );
+    }
+
+    /// Helper: create a sorted index with Optional cardinality across multiple
+    /// segments (one commit per batch), then force-merge into a single segment.
+    fn create_merged_sorted_index_optional_u64(
+        order: Order,
+        batches: &[&[Option<u64>]],
+    ) -> (Index, crate::schema::Field) {
+        let mut schema_builder = SchemaBuilder::new();
+        let label_field = schema_builder.add_text_field("label", crate::schema::STRING);
+        let field = schema_builder
+            .add_u64_field("intval", NumericOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+
+        let mut doc_counter = 0usize;
+        {
+            let mut writer = index.writer_for_tests().unwrap();
+            for batch in batches {
+                for val in *batch {
+                    match val {
+                        Some(v) => {
+                            writer
+                                .add_document(
+                                    doc!(label_field => format!("doc{doc_counter}"), field => *v),
+                                )
+                                .unwrap();
+                        }
+                        None => {
+                            writer
+                                .add_document(doc!(label_field => format!("doc{doc_counter}")))
+                                .unwrap();
+                        }
+                    }
+                    doc_counter += 1;
+                }
+                writer.commit().unwrap();
+            }
+        }
+
+        // Force merge all segments into one.
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("searchable_segment_ids failed");
+            let mut writer: IndexWriter = index.writer_for_tests().unwrap();
+            writer.merge(&segment_ids).wait().expect("merge failed");
+            writer
+                .wait_merging_threads()
+                .expect("wait_merging_threads failed");
+        }
+
+        (index, field)
+    }
+
+    /// Regression test: after merging multiple segments with NULLs and zeros,
+    /// the sorted range path must still correctly exclude NULLs.
+    /// Depends on the merger NULL-ordering fix (tantivy PR #106).
+    #[test]
+    fn sorted_range_optional_correctness_after_merge() {
+        for order in [Order::Asc, Order::Desc] {
+            let (index, field) = create_merged_sorted_index_optional_u64(
+                order,
+                &[
+                    &[None, Some(0), Some(10)],
+                    &[None, Some(0), Some(20)],
+                    &[None, Some(5), Some(30)],
+                ],
+            );
+
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+            assert_eq!(
+                searcher.segment_readers().len(),
+                1,
+                "order={order:?}: expected 1 segment after merge"
+            );
+
+            // Range [0, 20]: should match 0, 0, 5, 10, 20 = 5 docs (NULLs excluded).
+            assert_eq!(
+                count_range(&index, field, Bound::Included(0), Bound::Included(20)),
+                5,
+                "order={order:?}: range [0,20]"
+            );
+            // Range [0, 0]: should match exactly the two zeros.
+            assert_eq!(
+                count_range(&index, field, Bound::Included(0), Bound::Included(0)),
+                2,
+                "order={order:?}: range [0,0]"
+            );
+            // Wide range covering all non-NULL values.
+            assert_eq!(
+                count_range(&index, field, Bound::Included(0), Bound::Included(u64::MAX)),
+                6,
+                "order={order:?}: wide range"
+            );
+        }
+    }
+
+    /// Regression test: the sort key previously used `f64::coerce(nv) as f32`,
+    /// which has only 24 bits of mantissa.  Values above 2^24 (16,777,216)
+    /// could collide — e.g. 16,777,216 and 16,777,217 both round to the same
+    /// f32 — causing wrong sort order and incorrect binary-search results.
+    /// The fix compares each NumericalValue variant in its native type.
+    #[test]
+    fn sorted_range_f32_precision_no_collision_regression() {
+        // 16_777_216 = 2^24, 16_777_217 = 2^24+1: identical as f32
+        let (index, field) = create_sorted_index_u64(Order::Asc, &[16_777_217, 16_777_216]);
+        // Exact match for 16_777_216 must return exactly 1 doc, not 2.
+        assert_eq!(
+            count_range(
+                &index,
+                field,
+                Bound::Included(16_777_216),
+                Bound::Included(16_777_216)
+            ),
+            1
+        );
+        // Exact match for 16_777_217 must also return exactly 1 doc.
+        assert_eq!(
+            count_range(
+                &index,
+                field,
+                Bound::Included(16_777_217),
+                Bound::Included(16_777_217)
+            ),
+            1
+        );
+        // Range covering both must return 2.
+        assert_eq!(
+            count_range(
+                &index,
+                field,
+                Bound::Included(16_777_216),
+                Bound::Included(16_777_217)
+            ),
+            2
+        );
+    }
+
+    /// Regression test: even after widening the sort key from f32 to f64,
+    /// u64 values above 2^53 could still collide — e.g.
+    /// 9,007,199,254,740,992 (2^53) and 9,007,199,254,740,993 (2^53+1) round to
+    /// the same f64 — causing wrong sort order and incorrect binary-search
+    /// results.  The fix compares each NumericalValue variant in its native
+    /// type, so u64 values are compared as u64 with zero precision loss.
+    #[test]
+    fn sorted_range_u64_precision_above_2_53_regression() {
+        let (index, field) =
+            create_sorted_index_u64(Order::Asc, &[9_007_199_254_740_993, 9_007_199_254_740_992]);
+        // Exact match for 2^53 must return exactly 1, not 2.
+        assert_eq!(
+            count_range(
+                &index,
+                field,
+                Bound::Included(9_007_199_254_740_992),
+                Bound::Included(9_007_199_254_740_992)
+            ),
+            1
+        );
+        // Exact match for 2^53+1 must also return exactly 1.
+        assert_eq!(
+            count_range(
+                &index,
+                field,
+                Bound::Included(9_007_199_254_740_993),
+                Bound::Included(9_007_199_254_740_993)
+            ),
+            1
+        );
+    }
+
+    #[test]
+    fn sorted_range_with_deletes() {
+        // Delete middle values (40, 50), query spanning them.
+        let (index, field) = create_sorted_index_u64(Order::Asc, &[10, 20, 30, 40, 50, 60, 70, 80]);
+        delete_by_u64_value(&index, field, 40);
+        delete_by_u64_value(&index, field, 50);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(30), Bound::Included(60)),
+            2,
+            "middle deletes: only 30, 60 survive"
+        );
+        assert_eq!(
+            count_range(&index, field, Bound::Included(40), Bound::Included(50)),
+            0,
+            "all matching docs deleted"
+        );
+
+        // Delete boundary values (first, last).
+        let (index, field) = create_sorted_index_u64(Order::Asc, &[10, 20, 30, 40, 50, 60, 70, 80]);
+        delete_by_u64_value(&index, field, 10);
+        delete_by_u64_value(&index, field, 80);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(10), Bound::Included(80)),
+            6,
+            "boundary deletes: 6 of 8 survive"
+        );
+    }
+
+    #[test]
+    fn sorted_range_str_dictionary_bounds_correct() {
+        let mut schema_builder = SchemaBuilder::new();
+        let field = schema_builder.add_text_field("strval", crate::schema::TEXT | FAST);
+        let schema = schema_builder.build();
+        let index = Index::builder()
+            .schema(schema)
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "strval".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+        let mut writer = index.writer_for_tests().unwrap();
+        for val in &["apple", "banana", "cherry", "date", "elderberry"] {
+            writer.add_document(doc!(field => *val)).unwrap();
+        }
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let lower = Term::from_field_text(field, "banana");
+        let upper = Term::from_field_text(field, "date");
+        let query = RangeQuery::new(Bound::Included(lower), Bound::Included(upper));
+        let count = searcher.search(&query, &Count).unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn sorted_range_bytes_dictionary_bounds_correct() {
+        let mut schema_builder = SchemaBuilder::new();
+        let field = schema_builder
+            .add_bytes_field("bytesval", BytesOptions::default().set_fast().set_indexed());
+        let schema = schema_builder.build();
+        let index = Index::builder()
+            .schema(schema)
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "bytesval".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+        let mut writer = index.writer_for_tests().unwrap();
+        let values: Vec<Vec<u8>> = vec![
+            vec![0x00, 0x10],
+            vec![0x00, 0x20],
+            vec![0x00, 0x30],
+            vec![0x01, 0x00],
+        ];
+        for val in &values {
+            let mut doc = TantivyDocument::new();
+            doc.add_bytes(field, val);
+            writer.add_document(doc).unwrap();
+        }
+        writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let lower = Term::from_field_bytes(field, &[0x00, 0x20]);
+        let upper = Term::from_field_bytes(field, &[0x00, 0x30]);
+        let query = RangeQuery::new(Bound::Included(lower), Bound::Included(upper));
+        let count = searcher.search(&query, &Count).unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn sorted_range_edge_cases() {
+        // Empty segment.
+        let (index, field) = create_sorted_index_u64(Order::Asc, &[]);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(0), Bound::Included(100)),
+            0,
+            "empty segment"
+        );
+
+        // Single doc: matching and not matching.
+        let (index, field) = create_sorted_index_u64(Order::Asc, &[50]);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(50), Bound::Included(50)),
+            1,
+            "single doc match"
+        );
+        assert_eq!(
+            count_range(&index, field, Bound::Included(100), Bound::Included(200)),
+            0,
+            "single doc miss"
+        );
+
+        // u64::MAX boundary.
+        let (index, field) =
+            create_sorted_index_u64(Order::Asc, &[u64::MAX - 2, u64::MAX - 1, u64::MAX]);
+        assert_eq!(
+            count_range(
+                &index,
+                field,
+                Bound::Included(u64::MAX - 1),
+                Bound::Included(u64::MAX)
+            ),
+            2,
+            "max u64 boundary"
+        );
+
+        // u64 min (zero) boundary.
+        let (index, field) = create_sorted_index_u64(Order::Asc, &[0, 1, 2]);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(0), Bound::Included(0)),
+            1,
+            "min u64 boundary"
+        );
+
+        // All same value.
+        let vals: Vec<u64> = vec![42; 100];
+        let (index, field) = create_sorted_index_u64(Order::Asc, &vals);
+        assert_eq!(
+            count_range(&index, field, Bound::Included(42), Bound::Included(42)),
+            100,
+            "all same: exact match"
+        );
+        assert_eq!(
+            count_range(&index, field, Bound::Included(43), Bound::Included(43)),
+            0,
+            "all same: miss"
+        );
+        assert_eq!(
+            count_range(&index, field, Bound::Included(41), Bound::Included(43)),
+            100,
+            "all same: covering range"
+        );
+    }
+
+    fn create_sorted_intersection_test_index() -> (Index, crate::schema::Field, crate::schema::Field)
+    {
+        let mut schema_builder = SchemaBuilder::new();
+        let intval = schema_builder
+            .add_u64_field("intval", NumericOptions::default().set_fast().set_indexed());
+        let label = schema_builder.add_text_field("label", crate::schema::STRING);
+        let index = Index::builder()
+            .schema(schema_builder.build())
+            .settings(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            })
+            .create_in_ram()
+            .unwrap();
+        let mut writer = index.writer_for_tests().unwrap();
+        for (v, l) in &[
+            (10u64, "alpha"),
+            (20, "beta"),
+            (30, "alpha"),
+            (40, "beta"),
+            (50, "alpha"),
+            (60, "beta"),
+        ] {
+            writer
+                .add_document(doc!(intval => *v, label => *l))
+                .unwrap();
+        }
+        writer.commit().unwrap();
+        (index, intval, label)
+    }
+
+    #[test]
+    fn sorted_range_term_intersection_matrix() {
+        let (index, intval, label) = create_sorted_intersection_test_index();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let cases = vec![
+            ("medium_range_alpha", 20, 50, "alpha", 2usize),
+            ("narrow_range_alpha", 30, 30, "alpha", 1usize),
+            ("broad_range_beta", 10, 60, "beta", 3usize),
+        ];
+        for (name, lower, upper, term, expected_count) in cases {
+            let range_q = RangeQuery::new(
+                Bound::Included(Term::from_field_u64(intval, lower)),
+                Bound::Included(Term::from_field_u64(intval, upper)),
+            );
+            let term_q = crate::query::TermQuery::new(
+                Term::from_field_text(label, term),
+                crate::schema::IndexRecordOption::Basic,
+            );
+            let bool_q =
+                crate::query::BooleanQuery::intersection(vec![Box::new(range_q), Box::new(term_q)]);
+            let count = searcher.search(&bool_q, &Count).unwrap();
+            assert_eq!(count, expected_count, "{name}");
+        }
+    }
+
+    use proptest::prelude::*;
+
+    /// Reference implementation: filter values in Rust and count matches.
+    fn reference_count(values: &[u64], lower: Bound<u64>, upper: Bound<u64>) -> usize {
+        values
+            .iter()
+            .filter(|&&v| {
+                let lo_ok = match lower {
+                    Bound::Included(lo) => v >= lo,
+                    Bound::Excluded(lo) => v > lo,
+                    Bound::Unbounded => true,
+                };
+                let hi_ok = match upper {
+                    Bound::Included(hi) => v <= hi,
+                    Bound::Excluded(hi) => v < hi,
+                    Bound::Unbounded => true,
+                };
+                lo_ok && hi_ok
+            })
+            .count()
+    }
+
+    /// Strategy that produces a valid (lower, upper) bound pair where
+    /// at least one bound is set (as required by RangeQuery).
+    fn bound_pair_strategy() -> impl Strategy<Value = (Bound<u64>, Bound<u64>)> {
+        // Generate two values, then pick bound types
+        (0u64..10000, 0u64..10000, 0u8..4).prop_map(|(a, b, variant)| {
+            let (lo_val, hi_val) = if a <= b { (a, b) } else { (b, a) };
+            match variant {
+                0 => (Bound::Included(lo_val), Bound::Included(hi_val)),
+                1 => (Bound::Excluded(lo_val), Bound::Included(hi_val)),
+                2 => (Bound::Included(lo_val), Bound::Excluded(hi_val)),
+                _ => (Bound::Excluded(lo_val), Bound::Excluded(hi_val)),
+            }
+        })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(50))]
+
+        #[test]
+        fn proptest_sorted_asc_range_equivalence(
+            values in proptest::collection::vec(0u64..10000, 1..200),
+            bounds in bound_pair_strategy(),
+        ) {
+            let (index, field) = create_sorted_index_u64(Order::Asc, &values);
+            let actual = count_range(&index, field, bounds.0, bounds.1);
+            let expected = reference_count(&values, bounds.0, bounds.1);
+            prop_assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn proptest_sorted_desc_range_equivalence(
+            values in proptest::collection::vec(0u64..10000, 1..200),
+            bounds in bound_pair_strategy(),
+        ) {
+            let (index, field) = create_sorted_index_u64(Order::Desc, &values);
+            let actual = count_range(&index, field, bounds.0, bounds.1);
+            let expected = reference_count(&values, bounds.0, bounds.1);
+            prop_assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn proptest_sorted_with_nulls_equivalence(
+            non_null_values in proptest::collection::vec(0u64..10000, 0..100),
+            null_count in 0usize..50,
+            bounds in bound_pair_strategy(),
+        ) {
+            let mut values: Vec<Option<u64>> = non_null_values.iter().map(|&v| Some(v)).collect();
+            for _ in 0..null_count {
+                values.push(None);
+            }
+            let (index, field, _) = create_sorted_index_optional_u64(Order::Asc, &values);
+            let actual = count_range(&index, field, bounds.0, bounds.1);
+            // Nulls should never match
+            let expected = reference_count(&non_null_values, bounds.0, bounds.1);
+            prop_assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn proptest_sorted_with_deletes_equivalence(
+            values in proptest::collection::vec(0u64..100, 5..100),
+            bounds in bound_pair_strategy(),
+            delete_indices in proptest::collection::vec(0usize..100, 0..20),
+        ) {
+            let (index, field) = create_sorted_index_u64(Order::Asc, &values);
+            // Deduplicate delete values — we delete by value, so multiple
+            // docs with the same value all get deleted.
+            let mut deleted_values = std::collections::HashSet::new();
+            for &idx in &delete_indices {
+                if idx < values.len() {
+                    let v = values[idx];
+                    if !deleted_values.contains(&v) {
+                        deleted_values.insert(v);
+                        delete_by_u64_value(&index, field, v);
+                    }
+                }
+            }
+            let surviving: Vec<u64> = values
+                .iter()
+                .filter(|v| !deleted_values.contains(v))
+                .copied()
+                .collect();
+            let actual = count_range(&index, field, bounds.0, bounds.1);
+            let expected = reference_count(&surviving, bounds.0, bounds.1);
+            prop_assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn proptest_sorted_vs_unsorted_equivalence(
+            values in proptest::collection::vec(0u64..10000, 1..200),
+            bounds in bound_pair_strategy(),
+        ) {
+            // Sorted index
+            let (sorted_index, sorted_field) =
+                create_sorted_index_u64(Order::Asc, &values);
+            let sorted_count =
+                count_range(&sorted_index, sorted_field, bounds.0, bounds.1);
+
+            // Unsorted index (same data, no sort setting)
+            let mut schema_builder = SchemaBuilder::new();
+            let unsorted_field = schema_builder.add_u64_field(
+                "intval",
+                NumericOptions::default().set_fast().set_indexed(),
+            );
+            let unsorted_index = Index::create_in_ram(schema_builder.build());
+            let mut writer = unsorted_index.writer_for_tests().unwrap();
+            for &val in &values {
+                writer.add_document(doc!(unsorted_field => val)).unwrap();
+            }
+            writer.commit().unwrap();
+            let unsorted_count =
+                count_range(&unsorted_index, unsorted_field, bounds.0, bounds.1);
+
+            prop_assert_eq!(sorted_count, unsorted_count);
+        }
     }
 }
