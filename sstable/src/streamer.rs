@@ -205,7 +205,7 @@ where
     /// Before the first call to `.advance()`, the stream
     /// is an uninitialized state.
     pub fn advance(&mut self) -> bool {
-        while self.delta_reader.advance().unwrap() {
+        while self.delta_reader.advance().unwrap_or(false) {
             self.term_ord = Some(
                 self.term_ord
                     .map(|term_ord| term_ord + 1u64)
