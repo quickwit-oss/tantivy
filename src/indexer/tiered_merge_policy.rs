@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::mem;
 
 use itertools::Itertools;
@@ -149,21 +148,15 @@ impl TieredMergePolicyBuilder {
 }
 
 /// A tiered merge policy that groups segments into exponential size
-/// levels and merges them bottom-up.
+/// levels and merges them top down.
 ///
 /// Segments are bucketed by document count into levels defined by powers of two,
-/// starting at `2^min_exp` and increasing by `2^step` up to `2^max_exp`. At each
-/// level, segments smaller than that level's threshold are batched together. Once
-/// a batch accumulates enough documents to meet the level's target, it becomes a
-/// merge candidate.
+/// starting at `2^max_exp` and decreasing by `2^step` down to `2^min_exp`. At each level, segments
+/// are accumulated into a batch until it meets the minimum document and segment count; then a new
+/// candidate is emitted.
 ///
-/// To avoid redundant small merges, candidates from smaller levels are held in a
-/// pool and can be consumed by larger levels when enough total documents exist to
-/// form a bigger segment. Leftover segments that don't fill a batch are carried
-/// upward to the next level.
-///
-/// Segments that already meet or exceed the maximum target size (`2^max_exp`) are
-/// never selected for merging unless they have a sufficient number of deletes.
+/// This approach means that if there are enough tiny segments to meet the target then intermediate
+/// levels may be skipped to prevent redundant merges.
 ///
 /// The policy will never output a segment larger than `(2 * 2^max_exp) - 2`
 ///
@@ -214,126 +207,66 @@ impl TieredMergePolicy {
 
 impl MergePolicy for TieredMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
+        let mut unmerged_docs = 0;
         let mut segments = segments
             .iter()
             .filter_map(|segment| {
                 if segment.max_doc() < self.target || self.hit_target_delete_threshold(segment) {
-                    Some((segment.num_docs() as usize, segment.id()))
+                    let docs = segment.num_docs();
+                    unmerged_docs += docs;
+                    Some((docs, segment.id()))
                 } else {
                     None
                 }
             })
-            .sorted_unstable_by_key(|(docs, _)| *docs)
-            .peekable();
+            .sorted_unstable_by(|(a, _), (b, _)| b.cmp(a));
 
-        // The smallest segment size, if iterator is empty then exit
-        let Some(smallest) = segments.peek().map(|(docs, _)| *docs) else {
-            return Vec::new();
-        };
-
-        // Pool for potential merge candidates
-        let mut pool = VecDeque::new();
-        let mut pool_docs = 0;
+        let mut candidates = Vec::new();
 
         // The current batch of segments to merge
         let mut current = Vec::new();
         let mut current_docs = 0;
 
-        // Leftover segments that were not merged in their native level
-        let mut carry = Vec::new();
-        let mut carry_docs = 0;
-
-        // Start at the smallest exponent, then skip any targets smaller than the first candidate
-        let mut current_exponent = self.min_exp;
-        while 1 << current_exponent < smallest {
-            current_exponent += self.step;
-        }
-
-        while current_exponent <= self.max_exp {
+        let mut current_exponent = self.max_exp;
+        while current_exponent >= self.min_exp {
             let target = 1 << current_exponent;
+            current_exponent -= self.step;
 
-            // Number of docs in the pool before starting this iteration
-            let mut pre_pool_docs = pool_docs;
-
-            // Break if there aren't enough docs left to create any more merges
-            if segments.peek().is_none() && carry_docs + pool_docs < target {
-                break;
+            // Skip level if there aren't enough docs to reach the target
+            if unmerged_docs < target {
+                continue;
             }
 
-            // Get all segments that are less than the target size for this level and make a new
-            // candidate whenever the batch hits the target size
-            for (docs, id) in segments.peeking_take_while(|(docs, _)| *docs < target) {
+            for (docs, segment) in segments.by_ref() {
+                unmerged_docs -= docs;
+
+                // Skip segments larger than the current target
+                if docs >= target {
+                    continue;
+                }
+
+                current.push(segment);
                 current_docs += docs;
-                current.push(id);
 
-                // Add to the pool if we hit the target conditions
+                // Emit a candidate if we get enough docs/segments to hit the target
                 if (current_docs >= target && current.len() >= self.min_segments)
-                    || current_docs as u32 >= self.target
+                    || current_docs >= self.target
                 {
-                    pool_docs += current_docs;
-                    pool.push_back((mem::take(&mut current_docs), mem::take(&mut current)));
+                    candidates.push(MergeCandidate(mem::take(&mut current)));
+                    current_docs = 0;
+                }
+
+                // Not enough docs to create another segment at the current target
+                if unmerged_docs + current_docs < target {
+                    break;
                 }
             }
 
-            // If there are enough leftover docs in the current batch, carry, and merges from
-            // smaller levels then use them to make larger segments to prevent redundant
-            // smaller merges
-            if current_docs + carry_docs + pre_pool_docs >= target {
-                // The number of docs in carry will always be less than the previous target
-                // otherwise they would have been merged already
-                current.append(&mut carry);
-                current_docs += carry_docs;
-                carry_docs = 0;
-
-                loop {
-                    // Add to the pool if we hit the target conditions
-                    if (current_docs >= target && current.len() >= self.min_segments)
-                        || current_docs as u32 >= self.target
-                    {
-                        pool_docs += current_docs;
-                        pool.push_back((mem::take(&mut current_docs), mem::take(&mut current)));
-                    }
-
-                    // Pop smaller merge candidates off the pool if there are enough docs to create
-                    // an even bigger segment
-                    //
-                    // New merge candidates are always placed at the back of the pool, since we loop
-                    // through segments in ascending order this means that the pool will be in
-                    // roughly ascending order. Individual merge candidates may not be in order, but
-                    // all candidates for a given tier will be placed together. By checking the
-                    // front of the pool we ensure we get merge candidates from the smallest tiers
-                    // first to maximise tier skipping for small segments. We only take candidates
-                    // from tiers smaller than the current iteration.
-                    if current_docs + pre_pool_docs >= target
-                        && pool.front().is_some_and(|(docs, _)| *docs < target)
-                    {
-                        let (docs, candidate) = pool.pop_front().unwrap();
-                        current_docs += docs;
-                        pre_pool_docs -= docs;
-                        pool_docs -= docs;
-                        current.extend(candidate);
-                    } else {
-                        break;
-                    }
-                }
-            }
-
-            carry_docs += mem::take(&mut current_docs);
-            carry.append(&mut current);
-            current_exponent += self.step;
+            current.clear();
+            current_docs = 0;
         }
 
-        // All candidates should have at least 2 segments and never exceed 2x the target size
-        debug_assert!(pool
-            .iter()
-            .all(|(docs, _)| (*docs as u32) < self.target * 2));
-        debug_assert!(pool.iter().all(|(_, segments)| segments.len() >= 2));
-
-        // Pool will be in roughly ascending order, the tiers will be ascending but segments within
-        // a tier may be out of order
-        pool.into_iter()
-            .map(|(_, candidate)| MergeCandidate(candidate))
-            .collect()
+        candidates
     }
 }
 
@@ -428,19 +361,19 @@ mod tests {
         assert_eq!(result_list[0].0.len(), 2);
         assert_eq!(result_list[1].0.len(), 2);
 
-        // The first merge should contain both small segments
+        // The first merge should contain both large segments
         for segment in &result_list[0].0 {
-            assert!(small_ids.contains(segment));
+            assert!(large_ids.contains(segment));
         }
 
-        // The second merge should contain both large segments
+        // The second merge should contain both small segments
         for segment in &result_list[1].0 {
-            assert!(large_ids.contains(segment));
+            assert!(small_ids.contains(segment));
         }
     }
 
     #[test]
-    fn test_tiered_merge_policy_carry() {
+    fn test_tiered_merge_policy_skip_multiple() {
         // No indivdual tier has enough documents to reach the next target, but carrying small
         // segments has enough to reach the next tier of 512 so all segments should be merged in
         // this case.
@@ -456,10 +389,9 @@ mod tests {
     }
 
     #[test]
-    fn test_tiered_merge_policy_pool() {
-        // The 2 small segments will meet the merge criteria to hit the target of 128, but this
-        // candidate should then be consumed since there are enough total documents to hit the next
-        // tier of 512 docs.
+    fn test_tiered_merge_policy_skip_single() {
+        // The 2 small segments will meet the merge criteria to hit the target of 128, but there are
+        // enough total docs to reach the 512 doc target so all segments should be merged.
         let test_input = vec![
             create_random_segment_meta(64),
             create_random_segment_meta(64),
