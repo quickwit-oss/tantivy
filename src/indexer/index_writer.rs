@@ -828,7 +828,7 @@ mod tests {
     use crate::directory::error::LockError;
     use crate::error::*;
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
-    use crate::indexer::{IndexWriterOptions, NoMergePolicy};
+    use crate::indexer::{IndexWriterOptions, LogMergePolicy};
     use crate::query::{QueryParser, TermQuery};
     use crate::schema::{
         self, Facet, FacetOptions, IndexRecordOption, IpAddrOptions, JsonObjectOptions,
@@ -1002,14 +1002,14 @@ mod tests {
         let index_writer: IndexWriter = index.writer_for_tests().unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
-            "LogMergePolicy { min_num_segments: 8, max_docs_before_merge: 10000000, \
-             min_layer_size: 10000, level_log_size: 0.75, del_docs_ratio_before_merge: 1.0 }"
+            "NoMergePolicy"
         );
-        let merge_policy = Box::<NoMergePolicy>::default();
+        let merge_policy = Box::<LogMergePolicy>::default();
         index_writer.set_merge_policy(merge_policy);
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
-            "NoMergePolicy"
+            "LogMergePolicy { min_num_segments: 8, target_segment_size: 200000000, \
+             min_layer_size: 100, level_log_size: 0.75, del_docs_ratio_before_merge: 0.3 }"
         );
     }
 
@@ -1671,7 +1671,6 @@ mod tests {
             .settings(settings)
             .create_in_ram()?;
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
         let old_reader = index.reader()?;
 
@@ -2421,7 +2420,6 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::builder().schema(schema).create_in_ram()?;
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
         let existing_id = 16u64;
         let deleted_id = 13u64;
@@ -2467,7 +2465,6 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::builder().schema(schema).create_in_ram()?;
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
         index_writer.add_document(doc!(
             id_field=>10i64,
@@ -2520,7 +2517,6 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::builder().schema(schema).create_in_ram()?;
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
         index_writer
             .add_document(doc!(
