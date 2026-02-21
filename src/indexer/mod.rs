@@ -29,6 +29,7 @@ pub(crate) mod segment_updater;
 pub(crate) mod segment_writer;
 pub(crate) mod single_segment_index_writer;
 mod stamper;
+mod tiered_merge_policy;
 
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
@@ -44,6 +45,7 @@ pub(crate) use self::segment_serializer::SegmentSerializer;
 pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
 pub use self::single_segment_index_writer::SingleSegmentIndexWriter;
+pub use self::tiered_merge_policy::{TieredMergePolicy, TieredMergePolicyBuilder};
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;
