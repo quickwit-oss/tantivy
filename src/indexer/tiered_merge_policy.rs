@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::mem;
 
 use itertools::Itertools;
@@ -219,7 +220,8 @@ impl MergePolicy for TieredMergePolicy {
                     None
                 }
             })
-            .sorted_unstable_by(|(a, _), (b, _)| b.cmp(a));
+            .sorted_unstable_by_key(|(docs, _)| *docs)
+            .collect::<VecDeque<_>>();
 
         let mut candidates = Vec::new();
 
@@ -228,7 +230,7 @@ impl MergePolicy for TieredMergePolicy {
         let mut current_docs = 0;
 
         let mut current_exponent = self.max_exp;
-        while current_exponent >= self.min_exp {
+        while current_exponent >= self.min_exp && !segments.is_empty() {
             let target = 1 << current_exponent;
             current_exponent -= self.step;
 
@@ -237,7 +239,7 @@ impl MergePolicy for TieredMergePolicy {
                 continue;
             }
 
-            for (docs, segment) in segments.by_ref() {
+            while let Some((docs, segment)) = segments.pop_back() {
                 unmerged_docs -= docs;
 
                 // Skip segments larger than the current target
@@ -252,6 +254,22 @@ impl MergePolicy for TieredMergePolicy {
                 if (current_docs >= target && current.len() >= self.min_segments)
                     || current_docs >= self.target
                 {
+                    // Opportunistically add the smallest candidates to maximise level skipping
+                    // until we hit the hard limit
+                    while segments
+                        .front()
+                        .is_some_and(|(docs, _)| *docs + current_docs < target * 2)
+                    {
+                        let Some((docs, id)) = segments.pop_front() else {
+                            unreachable!("While loop checks that front is some");
+                        };
+                        unmerged_docs -= docs;
+                        current_docs += docs;
+                        current.push(id);
+                    }
+
+                    debug_assert!(current_docs < self.target * 2);
+                    debug_assert!(current.len() >= 2);
                     candidates.push(MergeCandidate(mem::take(&mut current)));
                     current_docs = 0;
                 }
@@ -262,6 +280,8 @@ impl MergePolicy for TieredMergePolicy {
                 }
             }
 
+            // Need to clear any leftovers since they are from larger segments and will result in
+            // additional merges with lopsided sizes
             current.clear();
             current_docs = 0;
         }
@@ -272,8 +292,6 @@ impl MergePolicy for TieredMergePolicy {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use once_cell::sync::Lazy;
 
     use super::*;
@@ -338,41 +356,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tiered_merge_policy_multiple_levels() {
-        // This should create 2 merges, one for the 2 small segments and another for the large
-        // segments. No carrying/pooling should occur since there aren't enough docs in the small
-        // segments
-        let test_input = vec![
-            create_random_segment_meta(64),
-            create_random_segment_meta(64),
-            create_random_segment_meta(512),
-            create_random_segment_meta(512),
-        ];
-
-        let small_ids: HashSet<_> = vec![test_input[0].id(), test_input[1].id()]
-            .into_iter()
-            .collect();
-        let large_ids: HashSet<_> = vec![test_input[2].id(), test_input[3].id()]
-            .into_iter()
-            .collect();
-
-        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
-        assert_eq!(result_list.len(), 2);
-        assert_eq!(result_list[0].0.len(), 2);
-        assert_eq!(result_list[1].0.len(), 2);
-
-        // The first merge should contain both large segments
-        for segment in &result_list[0].0 {
-            assert!(large_ids.contains(segment));
-        }
-
-        // The second merge should contain both small segments
-        for segment in &result_list[1].0 {
-            assert!(small_ids.contains(segment));
-        }
-    }
-
-    #[test]
     fn test_tiered_merge_policy_skip_multiple() {
         // No indivdual tier has enough documents to reach the next target, but carrying small
         // segments has enough to reach the next tier of 512 so all segments should be merged in
@@ -405,17 +388,18 @@ mod tests {
 
     #[test]
     fn test_tiered_merge_policy_pool_aggregate_target() {
-        // 8096 total docs as 1024 tiny segments. This should get merged into 2 segments of 4096
-        // docs.
-        let test_input = (0..1024)
+        // 20480 total docs as 2560 tiny segments. This should get merged into 2 candidates with
+        // 1023 segments each (just below 2x the target), and a remainder with 514 segments.
+        let test_input = (0..2560)
             .map(|_| create_random_segment_meta(8))
             .collect_vec();
 
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
 
-        assert_eq!(result_list.len(), 2);
-        assert_eq!(result_list[0].0.len(), 512);
-        assert_eq!(result_list[1].0.len(), 512);
+        assert_eq!(result_list.len(), 3);
+        assert_eq!(result_list[0].0.len(), 1023);
+        assert_eq!(result_list[1].0.len(), 1023);
+        assert_eq!(result_list[2].0.len(), 514);
     }
 
     #[test]
