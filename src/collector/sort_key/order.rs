@@ -402,6 +402,88 @@ where
     }
 }
 
+impl<
+        Type1,
+        Type2,
+        Type3,
+        Type4,
+        Type5,
+        Comparator1,
+        Comparator2,
+        Comparator3,
+        Comparator4,
+        Comparator5,
+    > Comparator<(Type1, (Type2, (Type3, (Type4, Type5))))>
+    for (
+        Comparator1,
+        Comparator2,
+        Comparator3,
+        Comparator4,
+        Comparator5,
+    )
+where
+    Comparator1: Comparator<Type1>,
+    Comparator2: Comparator<Type2>,
+    Comparator3: Comparator<Type3>,
+    Comparator4: Comparator<Type4>,
+    Comparator5: Comparator<Type5>,
+{
+    #[inline(always)]
+    fn compare(
+        &self,
+        lhs: &(Type1, (Type2, (Type3, (Type4, Type5)))),
+        rhs: &(Type1, (Type2, (Type3, (Type4, Type5)))),
+    ) -> Ordering {
+        self.0
+            .compare(&lhs.0, &rhs.0)
+            .then_with(|| self.1.compare(&lhs.1 .0, &rhs.1 .0))
+            .then_with(|| self.2.compare(&lhs.1 .1 .0, &rhs.1 .1 .0))
+            .then_with(|| self.3.compare(&lhs.1 .1 .1 .0, &rhs.1 .1 .1 .0))
+            .then_with(|| self.4.compare(&lhs.1 .1 .1 .1, &rhs.1 .1 .1 .1))
+    }
+}
+
+impl<
+        Type1,
+        Type2,
+        Type3,
+        Type4,
+        Type5,
+        Comparator1,
+        Comparator2,
+        Comparator3,
+        Comparator4,
+        Comparator5,
+    > Comparator<(Type1, Type2, Type3, Type4, Type5)>
+    for (
+        Comparator1,
+        Comparator2,
+        Comparator3,
+        Comparator4,
+        Comparator5,
+    )
+where
+    Comparator1: Comparator<Type1>,
+    Comparator2: Comparator<Type2>,
+    Comparator3: Comparator<Type3>,
+    Comparator4: Comparator<Type4>,
+    Comparator5: Comparator<Type5>,
+{
+    #[inline(always)]
+    fn compare(
+        &self,
+        lhs: &(Type1, Type2, Type3, Type4, Type5),
+        rhs: &(Type1, Type2, Type3, Type4, Type5),
+    ) -> Ordering {
+        self.0
+            .compare(&lhs.0, &rhs.0)
+            .then_with(|| self.1.compare(&lhs.1, &rhs.1))
+            .then_with(|| self.2.compare(&lhs.2, &rhs.2))
+            .then_with(|| self.3.compare(&lhs.3, &rhs.3))
+            .then_with(|| self.4.compare(&lhs.4, &rhs.4))
+    }
+}
+
 impl<TSortKeyComputer> SortKeyComputer for (TSortKeyComputer, ComparatorEnum)
 where
     TSortKeyComputer: SortKeyComputer,

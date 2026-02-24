@@ -420,6 +420,15 @@ where
         SortKeyComputer4::Comparator,
     );
 
+    fn comparator(&self) -> Self::Comparator {
+        (
+            self.0.comparator(),
+            self.1.comparator(),
+            self.2.comparator(),
+            self.3.comparator(),
+        )
+    }
+
     fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         let sort_key_computer1 = self.0.segment_sort_key_computer(segment_reader)?;
         let sort_key_computer2 = self.1.segment_sort_key_computer(segment_reader)?;
@@ -449,6 +458,106 @@ where
             || self.1.requires_scoring()
             || self.2.requires_scoring()
             || self.3.requires_scoring()
+    }
+}
+
+impl<SortKeyComputer1, SortKeyComputer2, SortKeyComputer3, SortKeyComputer4, SortKeyComputer5>
+    SortKeyComputer
+    for (
+        SortKeyComputer1,
+        SortKeyComputer2,
+        SortKeyComputer3,
+        SortKeyComputer4,
+        SortKeyComputer5,
+    )
+where
+    SortKeyComputer1: SortKeyComputer,
+    SortKeyComputer2: SortKeyComputer,
+    SortKeyComputer3: SortKeyComputer,
+    SortKeyComputer4: SortKeyComputer,
+    SortKeyComputer5: SortKeyComputer,
+{
+    type Child = MappedSegmentSortKeyComputer<
+        <(
+            SortKeyComputer1,
+            (
+                SortKeyComputer2,
+                (SortKeyComputer3, (SortKeyComputer4, SortKeyComputer5)),
+            ),
+        ) as SortKeyComputer>::Child,
+        (
+            SortKeyComputer1::SortKey,
+            (
+                SortKeyComputer2::SortKey,
+                (
+                    SortKeyComputer3::SortKey,
+                    (SortKeyComputer4::SortKey, SortKeyComputer5::SortKey),
+                ),
+            ),
+        ),
+        Self::SortKey,
+    >;
+
+    type SortKey = (
+        SortKeyComputer1::SortKey,
+        SortKeyComputer2::SortKey,
+        SortKeyComputer3::SortKey,
+        SortKeyComputer4::SortKey,
+        SortKeyComputer5::SortKey,
+    );
+    type Comparator = (
+        SortKeyComputer1::Comparator,
+        SortKeyComputer2::Comparator,
+        SortKeyComputer3::Comparator,
+        SortKeyComputer4::Comparator,
+        SortKeyComputer5::Comparator,
+    );
+
+    fn comparator(&self) -> Self::Comparator {
+        (
+            self.0.comparator(),
+            self.1.comparator(),
+            self.2.comparator(),
+            self.3.comparator(),
+            self.4.comparator(),
+        )
+    }
+
+    fn segment_sort_key_computer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+        let sort_key_computer1 = self.0.segment_sort_key_computer(segment_reader)?;
+        let sort_key_computer2 = self.1.segment_sort_key_computer(segment_reader)?;
+        let sort_key_computer3 = self.2.segment_sort_key_computer(segment_reader)?;
+        let sort_key_computer4 = self.3.segment_sort_key_computer(segment_reader)?;
+        let sort_key_computer5 = self.4.segment_sort_key_computer(segment_reader)?;
+        Ok(MappedSegmentSortKeyComputer {
+            sort_key_computer: (
+                sort_key_computer1,
+                (
+                    sort_key_computer2,
+                    (sort_key_computer3, (sort_key_computer4, sort_key_computer5)),
+                ),
+            ),
+            map: |(sort_key1, (sort_key2, (sort_key3, (sort_key4, sort_key5))))| {
+                (sort_key1, sort_key2, sort_key3, sort_key4, sort_key5)
+            },
+        })
+    }
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)?;
+        self.1.check_schema(schema)?;
+        self.2.check_schema(schema)?;
+        self.3.check_schema(schema)?;
+        self.4.check_schema(schema)?;
+        Ok(())
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring()
+            || self.1.requires_scoring()
+            || self.2.requires_scoring()
+            || self.3.requires_scoring()
+            || self.4.requires_scoring()
     }
 }
 
