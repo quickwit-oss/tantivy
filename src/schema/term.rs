@@ -135,7 +135,7 @@ impl Term {
     /// Use `clear_with_field_and_type` in that case.
     ///
     /// Sets field and the type.
-    pub(crate) fn set_field_and_type(&mut self, field: Field, typ: Type) {
+    pub fn set_field_and_type(&mut self, field: Field, typ: Type) {
         assert!(self.is_empty());
         self.field = field;
         self.serialized_value_bytes[0] = typ.to_code();
