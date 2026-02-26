@@ -15,9 +15,12 @@
 
 pub mod bkd;
 pub mod cell_index;
+pub mod cell_index_reader;
 pub mod containment;
 pub mod crossings;
 pub mod delta;
+pub mod edge_reader;
+pub mod edge_writer;
 pub mod exact;
 pub mod geometry;
 pub mod math;

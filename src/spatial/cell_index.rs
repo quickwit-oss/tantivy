@@ -2,8 +2,13 @@
 //!
 //! Maps S2CellIds to the shapes that intersect each cell. Cells are subdivided until no cell
 //! contains more than a configurable number of edges.
+use std::io::Write;
+
+use common::CountingWriter;
+
 use super::containment::brute_force_contains;
 use super::crossings::S2EdgeCrosser;
+use super::edge_writer::EdgeWriter;
 use super::math::normalize;
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
@@ -338,35 +343,50 @@ impl CellIndex {
         None
     }
 
-    /// Encodes the index to a byte representation.
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
-
-        buf.extend_from_slice(&(self.cells.len() as u32).to_le_bytes());
+    /// Writes the cell index to a CountingWriter with a dictionary at the end.
+    pub fn write<W: Write>(&self, write: &mut CountingWriter<W>) {
+        let mut offsets: Vec<(u64, u64)> = Vec::with_capacity(self.cells.len());
 
         for cell in &self.cells {
-            buf.extend_from_slice(&cell.cell_id.0.to_le_bytes());
-            buf.extend_from_slice(&(cell.shapes.len() as u16).to_le_bytes());
+            let offset = write.written_bytes();
+
+            write.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
+            write
+                .write_all(&(cell.shapes.len() as u16).to_le_bytes())
+                .unwrap();
 
             for shape in &cell.shapes {
-                buf.extend_from_slice(&shape.geometry_id.to_le_bytes());
-                buf.push(shape.contains_center as u8);
-                buf.extend_from_slice(&(shape.edge_indices.len() as u16).to_le_bytes());
+                write.write_all(&shape.geometry_id.to_le_bytes()).unwrap();
+                write.write_all(&[shape.contains_center as u8]).unwrap();
+                write
+                    .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
+                    .unwrap();
                 for &edge_id in &shape.edge_indices {
-                    buf.extend_from_slice(&edge_id.to_le_bytes());
+                    write.write_all(&edge_id.to_le_bytes()).unwrap();
                 }
             }
+
+            offsets.push((cell.cell_id.0, offset));
         }
 
-        buf
+        // Dictionary: (cell_id, offset) pairs.
+        let dir_offset = write.written_bytes();
+        for &(cell_id, offset) in &offsets {
+            write.write_all(&cell_id.to_le_bytes()).unwrap();
+            write.write_all(&offset.to_le_bytes()).unwrap();
+        }
+
+        // Footer: cell count, directory offset.
+        write
+            .write_all(&(self.cells.len() as u32).to_le_bytes())
+            .unwrap();
+        write.write_all(&dir_offset.to_le_bytes()).unwrap();
     }
 }
 
 /// Input geometry data for indexing, consisting of vertices and metadata.
 pub struct GeometryData {
-    /// Geometry id.
-    pub geometry_id: u32,
-    /// The full verticies that define the geometry.
+    /// The full vertices that define the geometry.
     pub vertices: Vec<[f64; 3]>,
     /// Whether the reference origin is inside this polygon.
     pub origin_inside: bool,
@@ -376,8 +396,8 @@ pub struct GeometryData {
 
 /// Builder for constructing a CellIndex from a collection of geometries.
 pub struct IndexBuilder {
-    /// An array of geometries to index.
-    pub geometries: Vec<GeometryData>,
+    /// Geometries grouped by document. Each entry is (doc_id, geometries).
+    documents: Vec<(u32, Vec<GeometryData>)>,
     options: BuildOptions,
     /// Tracks which cells' centers are inside the polygon as we traverse in S2CellId order.
     tracker: InteriorTracker,
@@ -389,30 +409,44 @@ impl IndexBuilder {
     /// Creates a new IndexBuilder with the given options.
     pub fn new(options: BuildOptions) -> Self {
         Self {
-            geometries: Vec::new(),
+            documents: Vec::new(),
             options,
             tracker: InteriorTracker::new(),
             cells: Vec::new(),
         }
     }
 
-    /// Consumes the builder and returns the constructed CellIndex.
-    pub fn build(mut self) -> CellIndex {
+    /// Adds a document's geometries to the builder.
+    pub fn add(&mut self, doc_id: u32, geometries: Vec<GeometryData>) {
+        self.documents.push((doc_id, geometries));
+    }
+
+    /// Consumes the builder and returns the constructed CellIndex. Writes edge data through the
+    /// provided EdgeWriter as it iterates geometries.
+    pub fn build(mut self, edge_writer: &mut EdgeWriter) -> CellIndex {
         // Reject the degenerates.
-        if self.geometries.is_empty() {
+        if self.documents.is_empty() {
             return CellIndex { cells: Vec::new() };
         }
 
+        // Flatten geometries with sequential geometry_ids.
+        let mut geometry_id: u32 = 0;
+
         // Brute force to determine if the focal point starts inside or outside of each polygon.
         let tracker_origin = self.tracker.focus;
-        for geo in &self.geometries {
-            if geo.dimension < 2 {
-                continue;
-            }
-            self.tracker.is_active = true;
-            let inside = brute_force_contains(&tracker_origin, &geo.vertices, geo.origin_inside);
-            if inside {
-                self.tracker.add_shape(geo.geometry_id);
+        for (_doc_id, geometries) in &self.documents {
+            for geo in geometries {
+                if geo.dimension < 2 {
+                    geometry_id += 1;
+                    continue;
+                }
+                self.tracker.is_active = true;
+                let inside =
+                    brute_force_contains(&tracker_origin, &geo.vertices, geo.origin_inside);
+                if inside {
+                    self.tracker.add_shape(geometry_id);
+                }
+                geometry_id += 1;
             }
         }
 
@@ -420,38 +454,52 @@ impl IndexBuilder {
         let mut face_edges: [Vec<FaceEdge>; 6] = Default::default();
 
         // Stuff our faces.
-        for geo in &self.geometries {
-            let n = geo.vertices.len();
+        geometry_id = 0;
+        for (doc_id, geometries) in &self.documents {
+            let doc_geometry_id = geometry_id;
+            for geo in geometries {
+                let n = geo.vertices.len();
 
-            // Polygons need at least 3 vertices (closed ring)
-            // Line strings need at least 2 vertices (open path)
-            let min_vertices = if geo.dimension == 2 { 3 } else { 2 };
-            if n < min_vertices {
-                continue;
+                // Polygons need at least 3 vertices (closed ring)
+                // Line strings need at least 2 vertices (open path)
+                let min_vertices = if geo.dimension == 2 { 3 } else { 2 };
+                if n < min_vertices {
+                    geometry_id += 1;
+                    continue;
+                }
+
+                // Polygons: n edges with wrap-around
+                // Line strings: n-1 edges, no wrap
+                let edge_count = if geo.dimension == 2 { n } else { n - 1 };
+
+                for i in 0..edge_count {
+                    let v0 = geo.vertices[i];
+                    let v1 = if geo.dimension == 2 {
+                        geo.vertices[(i + 1) % n]
+                    } else {
+                        geo.vertices[i + 1]
+                    };
+                    let max_level = self.get_edge_max_level(&v0, &v1);
+                    self.add_face_edge(
+                        geometry_id,
+                        i as u16,
+                        max_level,
+                        geo.dimension == 2,
+                        &v0,
+                        &v1,
+                        &mut face_edges,
+                    );
+                }
+
+                geometry_id += 1;
             }
 
-            // Polygons: n edges with wrap-around (0->1, 1->2, ..., n-1->0)
-            // Line strings: n-1 edges, no wrap (0->1, 1->2, ..., n-2->n-1)
-            let edge_count = if geo.dimension == 2 { n } else { n - 1 };
-
-            for i in 0..edge_count {
-                let v0 = geo.vertices[i];
-                let v1 = if geo.dimension == 2 {
-                    geo.vertices[(i + 1) % n]
-                } else {
-                    geo.vertices[i + 1]
-                };
-                let max_level = self.get_edge_max_level(&v0, &v1);
-                self.add_face_edge(
-                    geo.geometry_id,
-                    i as u16,
-                    max_level,
-                    geo.dimension == 2,
-                    &v0,
-                    &v1,
-                    &mut face_edges,
-                );
-            }
+            let slices: Vec<(u32, &[[f64; 3]])> = geometries
+                .iter()
+                .enumerate()
+                .map(|(i, geo)| (doc_geometry_id + i as u32, geo.vertices.as_slice()))
+                .collect();
+            edge_writer.insert(*doc_id, &slices);
         }
 
         for face in 0..NUM_FACES {
