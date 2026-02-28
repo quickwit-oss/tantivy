@@ -134,6 +134,11 @@ impl S2PaddedCell {
         self.level
     }
 
+    /// Returns the padded UV bounding box of this cell.
+    pub fn bound(&self) -> R2Rect {
+        self.bound
+    }
+
     /// Returns the "middle" rectangle that belongs to all four children.
     pub fn middle(&self) -> R2Rect {
         self.middle

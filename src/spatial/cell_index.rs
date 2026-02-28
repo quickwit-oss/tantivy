@@ -30,15 +30,15 @@ pub const DEFAULT_MAX_EDGES_PER_CELL: usize = 10;
 
 /// Average edge length metric derivative for quadratic projection.
 /// From s2metrics.cc: kAvgEdge for S2_QUADRATIC_PROJECTION
-const K_AVG_EDGE_DERIV: f64 = 1.459_213_746_386_106_1;
+pub(crate) const K_AVG_EDGE_DERIV: f64 = 1.459_213_746_386_106_1;
 
 /// Default ratio of cell size to edge length for "long" edge classification.
 /// From FLAGS_s2shape_index_cell_size_to_long_edge_ratio default value.
-const CELL_SIZE_TO_LONG_EDGE_RATIO: f64 = 1.0;
+pub(crate) const CELL_SIZE_TO_LONG_EDGE_RATIO: f64 = 1.0;
 
 /// Returns the minimum level such that the average edge metric is at most the given value.
 /// Port of S2::Metric<1>::GetLevelForMaxValue from s2metrics.h.
-fn get_level_for_max_value(value: f64) -> i32 {
+pub(crate) fn get_level_for_max_value(value: f64) -> i32 {
     // Catches non-positive values, including NaN.
     if value <= 0.0 || value.is_nan() {
         return S2CellId::MAX_LEVEL;
@@ -51,6 +51,16 @@ fn get_level_for_max_value(value: f64) -> i32 {
     let level = ratio.log2().floor() as i32;
     // For dim=1, (level >> (dim - 1)) == (level >> 0) == level
     (-level).clamp(0, S2CellId::MAX_LEVEL)
+}
+
+/// Computes the maximum level at which an edge is "short" relative to the
+/// cell size. Above this level the edge is "long" and doesn't count toward
+/// the subdivision threshold. Port of MutableS2ShapeIndex::GetEdgeMaxLevel.
+pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
+    let length =
+        ((v0[0] - v1[0]).powi(2) + (v0[1] - v1[1]).powi(2) + (v0[2] - v1[2]).powi(2)).sqrt();
+    let max_cell_edge = length * CELL_SIZE_TO_LONG_EDGE_RATIO;
+    get_level_for_max_value(max_cell_edge)
 }
 
 /// Represents the part of a shape that intersects an S2Cell.
@@ -511,23 +521,9 @@ impl IndexBuilder {
         CellIndex { cells: self.cells }
     }
 
-    /// Computes the maximum level for an edge (based on length).
-    /// Long edges don't count toward the max_edges_per_cell limit because subdividing won't help -
-    /// the edge will appear in children too.
-    ///
-    /// Port of MutableS2ShapeIndex::GetEdgeMaxLevel from mutable_s2shape_index.cc.
+    /// Delegates to the free function `get_edge_max_level`.
     fn get_edge_max_level(&self, v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
-        // Compute the maximum cell edge length for which this edge is considered
-        // "long".  The calculation does not need to be perfectly accurate, so we
-        // use Norm() rather than Angle() for speed.
-        let length =
-            ((v0[0] - v1[0]).powi(2) + (v0[1] - v1[1]).powi(2) + (v0[2] - v1[2]).powi(2)).sqrt();
-
-        let max_cell_edge = length * CELL_SIZE_TO_LONG_EDGE_RATIO;
-
-        // Now return the first level encountered during subdivision where the
-        // average cell edge length at that level is at most "max_cell_edge".
-        get_level_for_max_value(max_cell_edge)
+        get_edge_max_level(v0, v1)
     }
 
     /// Clips an edge to all cube faces.
