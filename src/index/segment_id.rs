@@ -44,7 +44,7 @@ fn create_uuid() -> Uuid {
 }
 
 impl SegmentId {
-    #[doc(hidden)]
+    /// Generates a new random `SegmentId`.
     pub fn generate_random() -> SegmentId {
         SegmentId(create_uuid())
     }

@@ -55,7 +55,7 @@ fn main() -> tantivy::Result<()> {
     let snippet_generator = SnippetGenerator::create(&searcher, &*query, body)?;
 
     for (score, doc_address) in top_docs {
-        let doc = searcher.doc::<TantivyDocument>(doc_address)?;
+        let doc = searcher.doc(doc_address)?;
         let snippet = snippet_generator.snippet_from_doc(&doc);
         println!("Document score {score}:");
         println!("title: {}", doc.get_first(title).unwrap().as_str().unwrap());

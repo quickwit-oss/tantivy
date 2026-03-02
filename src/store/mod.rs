@@ -22,7 +22,7 @@
 //!
 //! # Usage
 //!
-//! Most users should not access the `StoreReader` directly
+//! Most users should not access the `TantivyStoreReader` directly
 //! and should rely on either
 //!
 //! - at the segment level, the [`SegmentReader`'s `doc`
@@ -38,7 +38,7 @@ mod writer;
 
 pub use self::compressors::{Compressor, ZstdCompressor};
 pub use self::decompressors::Decompressor;
-pub use self::reader::{CacheStats, StoreReader};
+pub use self::reader::{CacheStats, StoreReader, TantivyStoreReader};
 pub(crate) use self::reader::{DocStoreVersion, DOCSTORE_CACHE_CAPACITY};
 pub use self::writer::StoreWriter;
 mod store_compressor;
@@ -117,11 +117,11 @@ pub(crate) mod tests {
             write_lorem_ipsum_store(store_wrt, NUM_DOCS, Compressor::default(), BLOCK_SIZE, true);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file, 10)?;
+        let store = TantivyStoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 store
-                    .get::<TantivyDocument>(i)?
+                    .get(i)?
                     .get_first(field_title)
                     .unwrap()
                     .as_value()
@@ -169,11 +169,11 @@ pub(crate) mod tests {
             write_lorem_ipsum_store(store_wrt, NUM_DOCS, compressor, blocksize, separate_thread);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file, 10)?;
+        let store = TantivyStoreReader::open(store_file, 10)?;
         for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
-                    .get::<TantivyDocument>(i)?
+                    .get(i)?
                     .get_first(field_title)
                     .unwrap()
                     .as_str()
@@ -247,9 +247,10 @@ pub(crate) mod tests {
         let searcher = index.reader()?.searcher();
         let reader = searcher.segment_reader(0);
         let store = reader.get_store_reader(10)?;
-        for doc in store.iter::<TantivyDocument>(reader.alive_bitset()) {
+        for doc_id in reader.doc_ids_alive() {
+            let doc = store.get(doc_id)?;
             assert_eq!(
-                *doc?.get_first(text_field).unwrap().as_str().unwrap(),
+                *doc.get_first(text_field).unwrap().as_str().unwrap(),
                 "deletemenot".to_string()
             );
         }
@@ -280,13 +281,6 @@ pub(crate) mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
-        assert_eq!(
-            index.reader().unwrap().searcher().segment_readers()[0]
-                .get_store_reader(10)
-                .unwrap()
-                .decompressor(),
-            Decompressor::Lz4
-        );
         // Change compressor, this disables stacking on merging
         let index_settings = index.settings_mut();
         index_settings.docstore_compression = Compressor::Zstd(Default::default());
@@ -305,17 +299,13 @@ pub(crate) mod tests {
         let reader = searcher.segment_readers().iter().last().unwrap();
         let store = reader.get_store_reader(10).unwrap();
 
-        for doc in store
-            .iter::<TantivyDocument>(reader.alive_bitset())
-            .take(50)
-        {
+        for doc_id in reader.doc_ids_alive().take(50) {
+            let doc = store.get(doc_id)?;
             assert_eq!(
-                *doc?.get_first(text_field).and_then(|v| v.as_str()).unwrap(),
+                *doc.get_first(text_field).and_then(|v| v.as_str()).unwrap(),
                 LOREM.to_string()
             );
         }
-        assert_eq!(store.decompressor(), Decompressor::Zstd);
-
         Ok(())
     }
 
@@ -354,7 +344,12 @@ pub(crate) mod tests {
         assert_eq!(searcher.segment_readers().len(), 1);
         let reader = searcher.segment_readers().iter().last().unwrap();
         let store = reader.get_store_reader(10)?;
-        assert_eq!(store.block_checkpoints().count(), 1);
+        let mut num_docs = 0;
+        for doc_id in reader.doc_ids_alive() {
+            store.get(doc_id)?;
+            num_docs += 1;
+        }
+        assert_eq!(num_docs, 5);
         Ok(())
     }
 }
@@ -368,7 +363,7 @@ mod bench {
 
     use super::tests::write_lorem_ipsum_store;
     use crate::directory::{Directory, RamDirectory};
-    use crate::store::{Compressor, StoreReader};
+    use crate::store::{Compressor, TantivyStoreReader};
     use crate::TantivyDocument;
 
     #[bench]
@@ -400,7 +395,7 @@ mod bench {
             true,
         );
         let store_file = directory.open_read(path).unwrap();
-        let store = StoreReader::open(store_file, 10).unwrap();
+        let store = TantivyStoreReader::open(store_file, 10).unwrap();
         b.iter(|| store.iter::<TantivyDocument>(None).collect::<Vec<_>>());
     }
 }

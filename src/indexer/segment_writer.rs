@@ -4,6 +4,7 @@ use itertools::Itertools;
 use tokenizer_api::BoxTokenStream;
 
 use super::operation::AddOperation;
+use crate::codec::Codec;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::index::{Segment, SegmentComponent};
@@ -12,7 +13,7 @@ use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
-    PerFieldPostingsWriter, PostingsWriter,
+    PerFieldPostingsWriter, PostingsWriter, PostingsWriterEnum,
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
@@ -45,11 +46,11 @@ fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<
 ///
 /// They creates the postings list in anonymous memory.
 /// The segment is laid on disk when the segment gets `finalized`.
-pub struct SegmentWriter {
+pub struct SegmentWriter<Codec: crate::codec::Codec> {
     pub(crate) max_doc: DocId,
     pub(crate) ctx: IndexingContext,
     pub(crate) per_field_postings_writers: PerFieldPostingsWriter,
-    pub(crate) segment_serializer: SegmentSerializer,
+    pub(crate) segment_serializer: SegmentSerializer<Codec>,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
     pub(crate) json_path_writer: JsonPathWriter,
@@ -60,7 +61,7 @@ pub struct SegmentWriter {
     schema: Schema,
 }
 
-impl SegmentWriter {
+impl<Codec: crate::codec::Codec> SegmentWriter<Codec> {
     /// Creates a new `SegmentWriter`
     ///
     /// The arguments are defined as follows
@@ -70,7 +71,10 @@ impl SegmentWriter {
     ///   behavior as a memory limit.
     /// - segment: The segment being written
     /// - schema
-    pub fn for_segment(memory_budget_in_bytes: usize, segment: Segment) -> crate::Result<Self> {
+    pub fn for_segment(
+        memory_budget_in_bytes: usize,
+        segment: Segment<Codec>,
+    ) -> crate::Result<Self> {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
@@ -169,7 +173,7 @@ impl SegmentWriter {
             }
 
             let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
-            let postings_writer: &mut dyn PostingsWriter =
+            let postings_writer: &mut PostingsWriterEnum =
                 self.per_field_postings_writers.get_for_field_mut(field);
             term_buffer.clear_with_field(field);
 
@@ -386,13 +390,13 @@ impl SegmentWriter {
 /// to the `SegmentSerializer`.
 ///
 /// `doc_id_map` is used to map to the new doc_id order.
-fn remap_and_write(
+fn remap_and_write<C: Codec>(
     schema: Schema,
     per_field_postings_writers: &PerFieldPostingsWriter,
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
-    mut serializer: SegmentSerializer,
+    mut serializer: SegmentSerializer<C>,
 ) -> crate::Result<()> {
     debug!("remap-and-write");
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
@@ -434,7 +438,7 @@ mod tests {
         Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value,
         DATE_TIME_PRECISION_INDEXED, FAST, STORED, STRING, TEXT,
     };
-    use crate::store::{Compressor, StoreReader, StoreWriter};
+    use crate::store::{Compressor, StoreWriter, TantivyStoreReader};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
@@ -482,8 +486,8 @@ mod tests {
         store_writer.store(&doc, &schema).unwrap();
         store_writer.close().unwrap();
 
-        let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
-        let doc = reader.get::<TantivyDocument>(0).unwrap();
+        let reader = TantivyStoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
+        let doc = reader.get(0).unwrap();
 
         assert_eq!(doc.field_values().count(), 2);
         assert_eq!(
@@ -600,16 +604,12 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let doc = searcher
-            .doc::<TantivyDocument>(DocAddress {
+            .doc(DocAddress {
                 segment_ord: 0u32,
                 doc_id: 0u32,
             })
             .unwrap();
-        let serdeser_json_val = serde_json::from_str::<serde_json::Value>(&doc.to_json(&schema))
-            .unwrap()
-            .get("json")
-            .unwrap()[0]
-            .clone();
+        let serdeser_json_val = doc.to_json(&schema).get("json").unwrap().clone();
         assert_eq!(json_val, serdeser_json_val);
         let segment_reader = searcher.segment_reader(0u32);
         let inv_idx = segment_reader.inverted_index(json_field).unwrap();
@@ -871,7 +871,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
 
-        fn assert_type(reader: &SegmentReader, field: &str, typ: ColumnType) {
+        fn assert_type(reader: &dyn SegmentReader, field: &str, typ: ColumnType) {
             let cols = reader.fast_fields().dynamic_column_handles(field).unwrap();
             assert_eq!(cols.len(), 1, "{field}");
             assert_eq!(cols[0].column_type(), typ, "{field}");
@@ -890,7 +890,7 @@ mod tests {
         assert_type(segment_reader, "json.my_arr", ColumnType::I64);
         assert_type(segment_reader, "json.my_arr.my_key", ColumnType::Str);
 
-        fn assert_empty(reader: &SegmentReader, field: &str) {
+        fn assert_empty(reader: &dyn SegmentReader, field: &str) {
             let cols = reader.fast_fields().dynamic_column_handles(field).unwrap();
             assert_eq!(cols.len(), 0);
         }

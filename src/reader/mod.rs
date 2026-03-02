@@ -7,7 +7,8 @@ use arc_swap::ArcSwap;
 pub use warming::Warmer;
 
 use self::warming::WarmingState;
-use crate::core::searcher::{SearcherGeneration, SearcherInner};
+use crate::codec::Codec;
+use crate::core::searcher::{SearcherContext, SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
 use crate::store::DOCSTORE_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
@@ -38,17 +39,17 @@ pub enum ReloadPolicy {
 /// - number of warming threads, for parallelizing warming work
 /// - The cache size of the underlying doc store readers.
 #[derive(Clone)]
-pub struct IndexReaderBuilder {
+pub struct IndexReaderBuilder<C: Codec = crate::codec::StandardCodec> {
     reload_policy: ReloadPolicy,
-    index: Index,
+    index: Index<C>,
     warmers: Vec<Weak<dyn Warmer>>,
     num_warming_threads: usize,
     doc_store_cache_num_blocks: usize,
 }
 
-impl IndexReaderBuilder {
+impl<C: Codec> IndexReaderBuilder<C> {
     #[must_use]
-    pub(crate) fn new(index: Index) -> IndexReaderBuilder {
+    pub(crate) fn new(index: Index<C>) -> IndexReaderBuilder<C> {
         IndexReaderBuilder {
             reload_policy: ReloadPolicy::OnCommitWithDelay,
             index,
@@ -63,7 +64,7 @@ impl IndexReaderBuilder {
     /// Building the reader is a non-trivial operation that requires
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
-    pub fn try_into(self) -> crate::Result<IndexReader> {
+    pub fn try_into(self) -> crate::Result<IndexReader<C>> {
         let searcher_generation_inventory = Inventory::default();
         let warming_state = WarmingState::new(
             self.num_warming_threads,
@@ -106,7 +107,7 @@ impl IndexReaderBuilder {
     ///
     /// See [`ReloadPolicy`] for more details.
     #[must_use]
-    pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
+    pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder<C> {
         self.reload_policy = reload_policy;
         self
     }
@@ -118,14 +119,14 @@ impl IndexReaderBuilder {
     pub fn doc_store_cache_num_blocks(
         mut self,
         doc_store_cache_num_blocks: usize,
-    ) -> IndexReaderBuilder {
+    ) -> IndexReaderBuilder<C> {
         self.doc_store_cache_num_blocks = doc_store_cache_num_blocks;
         self
     }
 
     /// Set the [`Warmer`]s that are invoked when reloading searchable segments.
     #[must_use]
-    pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
+    pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder<C> {
         self.warmers = warmers;
         self
     }
@@ -135,33 +136,33 @@ impl IndexReaderBuilder {
     /// This allows parallelizing warming work when there are multiple [`Warmer`] registered with
     /// the [`IndexReader`].
     #[must_use]
-    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
+    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder<C> {
         self.num_warming_threads = num_warming_threads;
         self
     }
 }
 
-impl TryInto<IndexReader> for IndexReaderBuilder {
+impl<C: Codec> TryInto<IndexReader<C>> for IndexReaderBuilder<C> {
     type Error = crate::TantivyError;
 
-    fn try_into(self) -> crate::Result<IndexReader> {
+    fn try_into(self) -> crate::Result<IndexReader<C>> {
         IndexReaderBuilder::try_into(self)
     }
 }
 
-struct InnerIndexReader {
+struct InnerIndexReader<C: Codec> {
     doc_store_cache_num_blocks: usize,
-    index: Index,
+    index: Index<C>,
     warming_state: WarmingState,
     searcher: arc_swap::ArcSwap<SearcherInner>,
     searcher_generation_counter: Arc<AtomicU64>,
     searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
 
-impl InnerIndexReader {
+impl<C: Codec> InnerIndexReader<C> {
     fn new(
         doc_store_cache_num_blocks: usize,
-        index: Index,
+        index: Index<C>,
         warming_state: WarmingState,
         // The searcher_generation_inventory is not used as source, but as target to track the
         // loaded segments.
@@ -189,19 +190,26 @@ impl InnerIndexReader {
     ///
     /// This function acquires a lock to prevent GC from removing files
     /// as we are opening our index.
-    fn open_segment_readers(index: &Index) -> crate::Result<Vec<SegmentReader>> {
+    fn open_segment_readers(index: &Index<C>) -> crate::Result<Vec<Arc<dyn SegmentReader>>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
         let _meta_lock = index.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = index.searchable_segments()?;
         let segment_readers = searchable_segments
             .iter()
-            .map(SegmentReader::open)
+            .map(|segment| {
+                segment.index().codec().open_segment_reader(
+                    segment.index().directory(),
+                    segment.meta(),
+                    segment.schema(),
+                    None,
+                )
+            })
             .collect::<crate::Result<_>>()?;
         Ok(segment_readers)
     }
 
     fn track_segment_readers_in_inventory(
-        segment_readers: &[SegmentReader],
+        segment_readers: &[Arc<dyn SegmentReader>],
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
     ) -> TrackedObject<SearcherGeneration> {
@@ -212,7 +220,7 @@ impl InnerIndexReader {
     }
 
     fn create_searcher(
-        index: &Index,
+        index: &Index<C>,
         doc_store_cache_num_blocks: usize,
         warming_state: &WarmingState,
         searcher_generation_counter: &Arc<AtomicU64>,
@@ -225,10 +233,9 @@ impl InnerIndexReader {
             searcher_generation_inventory,
         );
 
-        let schema = index.schema();
+        let context = SearcherContext::from_index(index);
         let searcher = Arc::new(SearcherInner::new(
-            schema,
-            index.clone(),
+            context,
             segment_readers,
             searcher_generation,
             doc_store_cache_num_blocks,
@@ -264,14 +271,14 @@ impl InnerIndexReader {
 ///
 /// `IndexReader` just wraps an `Arc`.
 #[derive(Clone)]
-pub struct IndexReader {
-    inner: Arc<InnerIndexReader>,
+pub struct IndexReader<C: Codec = crate::codec::StandardCodec> {
+    inner: Arc<InnerIndexReader<C>>,
     _watch_handle_opt: Option<WatchHandle>,
 }
 
-impl IndexReader {
+impl<C: Codec> IndexReader<C> {
     #[cfg(test)]
-    pub(crate) fn index(&self) -> Index {
+    pub(crate) fn index(&self) -> Index<C> {
         self.inner.index.clone()
     }
 

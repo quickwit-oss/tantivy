@@ -6,11 +6,13 @@ use tantivy_fst::Regex;
 use super::PhraseScorer;
 use crate::fieldnorm::FieldNormReader;
 use crate::index::SegmentReader;
-use crate::postings::{LoadedPostings, Postings, SegmentPostings, TermInfo};
+use crate::postings::{LoadedPostings, Postings, TermInfo};
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::union::{BitSetPostingUnion, SimpleUnion};
-use crate::query::{AutomatonWeight, BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::{
+    box_scorer, AutomatonWeight, BitSetDocSet, EmptyScorer, Explanation, Scorer, Weight,
+};
 use crate::schema::{Field, IndexRecordOption};
 use crate::{DocId, DocSet, InvertedIndexReader, Score};
 
@@ -45,9 +47,9 @@ impl RegexPhraseWeight {
         }
     }
 
-    fn fieldnorm_reader(&self, reader: &SegmentReader) -> crate::Result<FieldNormReader> {
+    fn fieldnorm_reader(&self, reader: &dyn SegmentReader) -> crate::Result<FieldNormReader> {
         if self.similarity_weight_opt.is_some() {
-            if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(self.field)? {
+            if let Ok(fieldnorm_reader) = reader.get_fieldnorms_reader(self.field) {
                 return Ok(fieldnorm_reader);
             }
         }
@@ -56,7 +58,7 @@ impl RegexPhraseWeight {
 
     pub(crate) fn phrase_scorer(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
     ) -> crate::Result<Option<PhraseScorer<UnionType>>> {
         let similarity_weight_opt = self
@@ -84,7 +86,8 @@ impl RegexPhraseWeight {
                     "Phrase query exceeded max expansions {num_terms}"
                 )));
             }
-            let union = Self::get_union_from_term_infos(&term_infos, reader, &inverted_index)?;
+            let union =
+                Self::get_union_from_term_infos(&term_infos, reader, inverted_index.as_ref())?;
 
             posting_lists.push((offset, union));
         }
@@ -99,22 +102,11 @@ impl RegexPhraseWeight {
 
     /// Add all docs of the term to the docset
     fn add_to_bitset(
-        inverted_index: &InvertedIndexReader,
+        inverted_index: &dyn InvertedIndexReader,
         term_info: &TermInfo,
         doc_bitset: &mut BitSet,
     ) -> crate::Result<()> {
-        let mut block_segment_postings = inverted_index
-            .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
-        loop {
-            let docs = block_segment_postings.docs();
-            if docs.is_empty() {
-                break;
-            }
-            for &doc in docs {
-                doc_bitset.insert(doc);
-            }
-            block_segment_postings.advance();
-        }
+        inverted_index.fill_bitset_for_term(term_info, IndexRecordOption::Basic, doc_bitset)?;
         Ok(())
     }
 
@@ -174,8 +166,8 @@ impl RegexPhraseWeight {
     /// Use Roaring Bitmaps for sparse terms. The full bitvec is main memory consumer currently.
     pub(crate) fn get_union_from_term_infos(
         term_infos: &[TermInfo],
-        reader: &SegmentReader,
-        inverted_index: &InvertedIndexReader,
+        reader: &dyn SegmentReader,
+        inverted_index: &dyn InvertedIndexReader,
     ) -> crate::Result<UnionType> {
         let max_doc = reader.max_doc();
 
@@ -188,7 +180,7 @@ impl RegexPhraseWeight {
         // - Bucket 1: Terms appearing in 0.1% to 1% of documents
         // - Bucket 2: Terms appearing in 1% to 10% of documents
         // - Bucket 3: Terms appearing in more than 10% of documents
-        let mut buckets: Vec<(BitSet, Vec<SegmentPostings>)> = (0..4)
+        let mut buckets: Vec<(BitSet, Vec<Box<dyn Postings>>)> = (0..4)
             .map(|_| (BitSet::with_max_value(max_doc), Vec::new()))
             .collect();
 
@@ -197,7 +189,7 @@ impl RegexPhraseWeight {
         for term_info in term_infos {
             let mut term_posting = inverted_index
                 .read_postings_from_terminfo(term_info, IndexRecordOption::WithFreqsAndPositions)?;
-            let num_docs = term_posting.doc_freq();
+            let num_docs = u32::from(term_posting.doc_freq());
 
             if num_docs < SPARSE_TERM_DOC_THRESHOLD {
                 let current_bucket = &mut sparse_buckets[0];
@@ -269,15 +261,15 @@ impl RegexPhraseWeight {
 }
 
 impl Weight for RegexPhraseWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
-            Ok(Box::new(scorer))
+            Ok(box_scorer(scorer))
         } else {
-            Ok(Box::new(EmptyScorer))
+            Ok(box_scorer(EmptyScorer))
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let scorer_opt = self.phrase_scorer(reader, 1.0)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
