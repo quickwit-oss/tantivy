@@ -60,6 +60,35 @@ impl<'a> CellIndexReader<'a> {
         CellIndexIter {
             reader: self,
             pos: 0,
+            end_at: None,
+        }
+    }
+
+    /// Returns an iterator over all index cells whose ranges overlap the given target cell's
+    /// range. This is the candidate collection step: for a covering cell, find all index cells
+    /// that might contain relevant geometry.
+    ///
+    /// Binary search the dictionary for the first cell whose range_max is at or past the target's
+    /// range_min, then yield cells forward until past the target's range_max.
+    pub fn scan_range(&'a self, target: S2CellId) -> CellIndexIter<'a> {
+        // Find the first dictionary entry whose range_max >= target.range_min().
+        let target_min = target.range_min();
+        let mut lo = 0u32;
+        let mut hi = self.cell_count;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let (cell_id, _) = self.read_dir_entry(mid);
+            if S2CellId(cell_id).range_max() < target_min {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        CellIndexIter {
+            reader: self,
+            pos: lo,
+            end_at: Some(target.range_max()),
         }
     }
 
@@ -112,10 +141,12 @@ impl<'a> CellIndexReader<'a> {
     }
 }
 
-/// Iterates cells in sorted order.
+/// Iterates cells in sorted order, optionally bounded by a range_max.
 pub struct CellIndexIter<'a> {
     reader: &'a CellIndexReader<'a>,
     pos: u32,
+    /// When set, stop yielding cells whose range_min exceeds this value.
+    end_at: Option<S2CellId>,
 }
 
 impl<'a> Iterator for CellIndexIter<'a> {
@@ -125,7 +156,12 @@ impl<'a> Iterator for CellIndexIter<'a> {
         if self.pos >= self.reader.cell_count {
             return None;
         }
-        let (_, offset) = self.reader.read_dir_entry(self.pos);
+        let (cell_id, offset) = self.reader.read_dir_entry(self.pos);
+        if let Some(max) = self.end_at {
+            if S2CellId(cell_id).range_min() > max {
+                return None;
+            }
+        }
         self.pos += 1;
         Some(self.reader.read_cell(offset as usize))
     }

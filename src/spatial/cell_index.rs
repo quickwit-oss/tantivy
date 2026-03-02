@@ -8,7 +8,6 @@ use common::CountingWriter;
 
 use super::containment::brute_force_contains;
 use super::crossings::S2EdgeCrosser;
-use super::edge_writer::EdgeWriter;
 use super::math::normalize;
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
@@ -431,9 +430,8 @@ impl IndexBuilder {
         self.documents.push((doc_id, geometries));
     }
 
-    /// Consumes the builder and returns the constructed CellIndex. Writes edge data through the
-    /// provided EdgeWriter as it iterates geometries.
-    pub fn build(mut self, edge_writer: &mut EdgeWriter) -> CellIndex {
+    /// Consumes the builder and returns the constructed CellIndex.
+    pub fn build(mut self) -> CellIndex {
         // Reject the degenerates.
         if self.documents.is_empty() {
             return CellIndex { cells: Vec::new() };
@@ -465,8 +463,7 @@ impl IndexBuilder {
 
         // Stuff our faces.
         geometry_id = 0;
-        for (doc_id, geometries) in &self.documents {
-            let doc_geometry_id = geometry_id;
+        for (_doc_id, geometries) in &self.documents {
             for geo in geometries {
                 let n = geo.vertices.len();
 
@@ -503,13 +500,6 @@ impl IndexBuilder {
 
                 geometry_id += 1;
             }
-
-            let slices: Vec<(u32, &[[f64; 3]])> = geometries
-                .iter()
-                .enumerate()
-                .map(|(i, geo)| (doc_geometry_id + i as u32, geo.vertices.as_slice()))
-                .collect();
-            edge_writer.insert(*doc_id, &slices);
         }
 
         for face in 0..NUM_FACES {
@@ -678,8 +668,8 @@ impl IndexBuilder {
             return false;
         }
 
-        // Compute the threshold for short edges. This ensures linear index size.
-        // The formula is: max(max_edges_per_cell, min_short_edge_fraction * (edges + shapes))
+        // Compute the threshold for short edges. This ensures linear index size. The formula is:
+        // max(max_edges_per_cell, min_short_edge_fraction * (edges + shapes))
         let max_short_edges = self.options.max_edges_per_cell.max(
             (self.options.min_short_edge_fraction
                 * (edges.len() + tracker.shape_ids().len()) as f64) as usize,

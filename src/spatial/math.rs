@@ -40,3 +40,9 @@ pub fn cross(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
 pub fn ldexp(x: f64, exp: i32) -> f64 {
     x * 2.0_f64.powi(exp)
 }
+
+/// IEEE 754 remainder. Equivalent to C's remainder().
+#[inline]
+pub fn remainder(x: f64, y: f64) -> f64 {
+    x - (x / y).round_ties_even() * y
+}

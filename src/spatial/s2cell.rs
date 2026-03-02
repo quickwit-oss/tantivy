@@ -4,14 +4,18 @@
 //! cell's (u,v) bounds and providing vertex/edge access.
 //!
 //! S2Cell from s2cell.h and s2cell.cc.
-use std::f64::consts::PI;
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
+use super::latlng_rect::S2LatLngRect;
 use super::math::{ldexp, neg, normalize};
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
+use super::s1interval::S1Interval;
+use super::s2cap::S2Cap;
 use super::s2cell_id::S2CellId;
 use super::s2coords::{
-    self, face_uv_to_xyz, get_u_norm, get_v_norm, ij_to_st_min, st_to_uv, MAX_CELL_LEVEL,
+    self, face_uv_to_xyz, get_u_axis, get_u_norm, get_v_axis, get_v_norm, ij_to_st_min, st_to_uv,
+    MAX_CELL_LEVEL,
 };
 
 /// An S2Cell represents a cell in the S2 cell decomposition.
@@ -218,6 +222,104 @@ impl S2Cell {
     pub fn average_area(level: i32) -> f64 {
         const AVG_AREA_BASE: f64 = 4.0 * PI / 6.0; // ~2.094
         ldexp(AVG_AREA_BASE, -2 * level)
+    }
+
+    /// Returns the latitude of the cell vertex at (i, j) where i, j in {0, 1}.
+    fn get_latitude(&self, i: usize, j: usize) -> f64 {
+        let p = face_uv_to_xyz(
+            self.face as i32,
+            self.uv[0].get_bound(i),
+            self.uv[1].get_bound(j),
+        );
+        (p[2] + 0.0).atan2((p[0] * p[0] + p[1] * p[1]).sqrt())
+    }
+
+    /// Returns the longitude of the cell vertex at (i, j).
+    fn get_longitude(&self, i: usize, j: usize) -> f64 {
+        let p = face_uv_to_xyz(
+            self.face as i32,
+            self.uv[0].get_bound(i),
+            self.uv[1].get_bound(j),
+        );
+        (p[1] + 0.0).atan2(p[0] + 0.0)
+    }
+
+    /// Returns the latitude-longitude bounding rectangle for this cell.
+    pub fn get_rect_bound(&self) -> S2LatLngRect {
+        if self.level > 0 {
+            let u = self.uv[0].lo() + self.uv[0].hi();
+            let v = self.uv[1].lo() + self.uv[1].hi();
+
+            let u_axis = get_u_axis(self.face as i32);
+            let v_axis = get_v_axis(self.face as i32);
+
+            let i = if u_axis[2] == 0.0 {
+                (u < 0.0) as usize
+            } else {
+                (u > 0.0) as usize
+            };
+            let j = if v_axis[2] == 0.0 {
+                (v < 0.0) as usize
+            } else {
+                (v > 0.0) as usize
+            };
+
+            let lat = R1Interval::from_point_pair(
+                self.get_latitude(i, j),
+                self.get_latitude(1 - i, 1 - j),
+            );
+            let lng = S1Interval::from_point_pair(
+                self.get_longitude(i, 1 - j),
+                self.get_longitude(1 - i, j),
+            );
+
+            S2LatLngRect::new(lat, lng)
+                .expanded(2.0 * f64::EPSILON, 2.0 * f64::EPSILON)
+                .polar_closure()
+        } else {
+            let pole_min_lat = (1.0_f64 / 3.0).sqrt().asin() - 0.5 * f64::EPSILON;
+
+            let bound = match self.face {
+                0 => S2LatLngRect::new(
+                    R1Interval::new(-FRAC_PI_4, FRAC_PI_4),
+                    S1Interval::new(-FRAC_PI_4, FRAC_PI_4),
+                ),
+                1 => S2LatLngRect::new(
+                    R1Interval::new(-FRAC_PI_4, FRAC_PI_4),
+                    S1Interval::new(FRAC_PI_4, 3.0 * FRAC_PI_4),
+                ),
+                2 => {
+                    S2LatLngRect::new(R1Interval::new(pole_min_lat, FRAC_PI_2), S1Interval::full())
+                }
+                3 => S2LatLngRect::new(
+                    R1Interval::new(-FRAC_PI_4, FRAC_PI_4),
+                    S1Interval::new(3.0 * FRAC_PI_4, -3.0 * FRAC_PI_4),
+                ),
+                4 => S2LatLngRect::new(
+                    R1Interval::new(-FRAC_PI_4, FRAC_PI_4),
+                    S1Interval::new(-3.0 * FRAC_PI_4, -FRAC_PI_4),
+                ),
+                _ => S2LatLngRect::new(
+                    R1Interval::new(-FRAC_PI_2, -pole_min_lat),
+                    S1Interval::full(),
+                ),
+            };
+
+            bound.expanded(f64::EPSILON, 0.0)
+        }
+    }
+
+    /// Returns a bounding spherical cap for this cell.
+    pub fn get_cap_bound(&self) -> S2Cap {
+        let uv_center = self.uv.get_center();
+        let center_raw = face_uv_to_xyz(self.face as i32, uv_center[0], uv_center[1]);
+        let center = normalize(&center_raw);
+
+        let mut cap = S2Cap::from_point(center);
+        for k in 0..4 {
+            cap.add_point(&self.get_vertex(k));
+        }
+        cap
     }
 }
 
