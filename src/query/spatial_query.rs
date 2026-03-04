@@ -1,40 +1,98 @@
-//! HUSH
+//! Spatial polygon query.
+//!
+//! Finds indexed geometries that match a query polygon via contains or intersects predicates.
+//! The query polygon is specified as lon/lat vertices, converted to unit sphere coordinates,
+//! and searched against each segment's cell index and edge index.
 
 use common::BitSet;
 
 use crate::query::explanation::does_not_match;
 use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
 use crate::schema::Field;
-use crate::spatial::bkd::{search_contains, search_intersects, search_within, Segment};
-use crate::spatial::writer::as_point_i32;
+use crate::spatial::cell_index_reader::CellIndexReader;
+use crate::spatial::contains_query::ContainsQuery;
+use crate::spatial::edge_reader::EdgeReader;
+use crate::spatial::intersects_query::IntersectsQuery;
+use crate::spatial::region_coverer::CovererOptions;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
-#[derive(Clone, Copy, Debug)]
-/// HUSH
-pub enum SpatialQueryType {
-    /// HUSH
-    Intersects,
-    /// HUSH
-    Within,
-    /// HUSH
-    Contains,
+/// Converts longitude/latitude in degrees to a unit sphere point.
+fn lonlat_to_sphere(lon: f64, lat: f64) -> [f64; 3] {
+    let lat = lat.to_radians();
+    let lon = lon.to_radians();
+    let cos_lat = lat.cos();
+    [cos_lat * lon.cos(), cos_lat * lon.sin(), lat.sin()]
 }
 
-#[derive(Clone, Copy, Debug)]
-/// HUSH
+/// The spatial predicate to apply.
+#[derive(Clone, Debug)]
+pub enum SpatialPredicate {
+    /// Return geometries contained by the query polygon.
+    Contains,
+    /// Return geometries that intersect the query polygon.
+    Intersects,
+}
+
+/// Spatial polygon query.
+#[derive(Clone, Debug)]
 pub struct SpatialQuery {
     field: Field,
-    bounds: [(i32, i32); 2],
-    query_type: SpatialQueryType,
+    polygon: Vec<[f64; 2]>,
+    predicate: SpatialPredicate,
 }
 
 impl SpatialQuery {
-    /// HUSH
-    pub fn new(field: Field, bounds: [[f64; 2]; 2], query_type: SpatialQueryType) -> Self {
+    /// Create a contains query from a polygon specified as lon/lat vertices.
+    pub fn new(field: Field, polygon: Vec<[f64; 2]>) -> Self {
         SpatialQuery {
             field,
-            bounds: [as_point_i32(bounds[0]), as_point_i32(bounds[1])],
-            query_type,
+            polygon,
+            predicate: SpatialPredicate::Contains,
+        }
+    }
+
+    /// Create a spatial query with the given predicate.
+    pub fn with_predicate(
+        field: Field,
+        polygon: Vec<[f64; 2]>,
+        predicate: SpatialPredicate,
+    ) -> Self {
+        SpatialQuery {
+            field,
+            polygon,
+            predicate,
+        }
+    }
+
+    /// Create a spatial query from a bounding box. The box is converted to a 4-vertex polygon.
+    pub fn from_bounds(field: Field, bounds: [[f64; 2]; 2]) -> Self {
+        let [lo, hi] = bounds;
+        let polygon = vec![
+            [lo[0], lo[1]],
+            [hi[0], lo[1]],
+            [hi[0], hi[1]],
+            [lo[0], hi[1]],
+        ];
+        SpatialQuery {
+            field,
+            polygon,
+            predicate: SpatialPredicate::Contains,
+        }
+    }
+
+    /// Create an intersects query from a bounding box.
+    pub fn intersects_bounds(field: Field, bounds: [[f64; 2]; 2]) -> Self {
+        let [lo, hi] = bounds;
+        let polygon = vec![
+            [lo[0], lo[1]],
+            [hi[0], lo[1]],
+            [hi[0], hi[1]],
+            [lo[0], hi[1]],
+        ];
+        SpatialQuery {
+            field,
+            polygon,
+            predicate: SpatialPredicate::Intersects,
         }
     }
 }
@@ -44,28 +102,58 @@ impl Query for SpatialQuery {
         &self,
         _enable_scoring: super::EnableScoring<'_>,
     ) -> crate::Result<Box<dyn super::Weight>> {
-        Ok(Box::new(SpatialWeight::new(
-            self.field,
-            self.bounds,
-            self.query_type,
-        )))
+        let vertices: Vec<[f64; 3]> = self
+            .polygon
+            .iter()
+            .map(|p| lonlat_to_sphere(p[0], p[1]))
+            .collect();
+        let prepared: Box<dyn PreparedSpatialQuery> = match self.predicate {
+            SpatialPredicate::Contains => {
+                Box::new(ContainsQuery::new(vertices, CovererOptions::default()))
+            }
+            SpatialPredicate::Intersects => {
+                Box::new(IntersectsQuery::new(vertices, CovererOptions::default()))
+            }
+        };
+        Ok(Box::new(SpatialWeight {
+            field: self.field,
+            query: prepared,
+        }))
     }
 }
 
-pub struct SpatialWeight {
+/// Shared interface for prepared spatial queries.
+trait PreparedSpatialQuery: Send + Sync {
+    fn search_segment(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_reader: &mut EdgeReader,
+    ) -> Vec<u32>;
+}
+
+impl PreparedSpatialQuery for ContainsQuery {
+    fn search_segment(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_reader: &mut EdgeReader,
+    ) -> Vec<u32> {
+        ContainsQuery::search_segment(self, cell_reader, edge_reader)
+    }
+}
+
+impl PreparedSpatialQuery for IntersectsQuery {
+    fn search_segment(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_reader: &mut EdgeReader,
+    ) -> Vec<u32> {
+        IntersectsQuery::search_segment(self, cell_reader, edge_reader)
+    }
+}
+
+struct SpatialWeight {
     field: Field,
-    bounds: [(i32, i32); 2],
-    query_type: SpatialQueryType,
-}
-
-impl SpatialWeight {
-    fn new(field: Field, bounds: [(i32, i32); 2], query_type: SpatialQueryType) -> Self {
-        SpatialWeight {
-            field,
-            bounds,
-            query_type,
-        }
-    }
+    query: Box<dyn PreparedSpatialQuery>,
 }
 
 impl Weight for SpatialWeight {
@@ -78,62 +166,23 @@ impl Weight for SpatialWeight {
             Some(reader) => reader,
             None => {
                 let empty_bitset = BitSet::with_max_value(reader.max_doc());
-                return Ok(Box::new(SpatialScorer::new(boost, empty_bitset, None)));
+                return Ok(Box::new(SpatialScorer::new(boost, empty_bitset)));
             }
         };
-        let block_kd_tree = Segment::new(spatial_reader.get_bytes());
-        match self.query_type {
-            SpatialQueryType::Intersects => {
-                let mut include = BitSet::with_max_value(reader.max_doc());
-                search_intersects(
-                    &block_kd_tree,
-                    block_kd_tree.root_offset,
-                    &[
-                        self.bounds[0].1,
-                        self.bounds[0].0,
-                        self.bounds[1].1,
-                        self.bounds[1].0,
-                    ],
-                    &mut include,
-                )?;
-                Ok(Box::new(SpatialScorer::new(boost, include, None)))
-            }
-            SpatialQueryType::Within => {
-                let mut include = BitSet::with_max_value(reader.max_doc());
-                let mut exclude = BitSet::with_max_value(reader.max_doc());
-                search_within(
-                    &block_kd_tree,
-                    block_kd_tree.root_offset,
-                    &[
-                        self.bounds[0].1,
-                        self.bounds[0].0,
-                        self.bounds[1].1,
-                        self.bounds[1].0,
-                    ],
-                    &mut include,
-                    &mut exclude,
-                )?;
-                Ok(Box::new(SpatialScorer::new(boost, include, Some(exclude))))
-            }
-            SpatialQueryType::Contains => {
-                let mut include = BitSet::with_max_value(reader.max_doc());
-                let mut exclude = BitSet::with_max_value(reader.max_doc());
-                search_contains(
-                    &block_kd_tree,
-                    block_kd_tree.root_offset,
-                    &[
-                        self.bounds[0].1,
-                        self.bounds[0].0,
-                        self.bounds[1].1,
-                        self.bounds[1].0,
-                    ],
-                    &mut include,
-                    &mut exclude,
-                )?;
-                Ok(Box::new(SpatialScorer::new(boost, include, Some(exclude))))
-            }
+
+        let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
+        let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+
+        let doc_ids = self.query.search_segment(&cell_reader, &mut edge_reader);
+
+        let mut include = BitSet::with_max_value(reader.max_doc());
+        for doc_id in doc_ids {
+            include.insert(doc_id);
         }
+
+        Ok(Box::new(SpatialScorer::new(boost, include)))
     }
+
     fn explain(
         &self,
         reader: &crate::SegmentReader,
@@ -143,55 +192,27 @@ impl Weight for SpatialWeight {
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
-        let query_type_desc = match self.query_type {
-            SpatialQueryType::Intersects => "SpatialQuery::Intersects",
-            SpatialQueryType::Within => "SpatialQuery::Within",
-            SpatialQueryType::Contains => "SpatialQuery::Contains",
-        };
         let score = scorer.score();
-        let mut explanation = Explanation::new(query_type_desc, score);
-        explanation.add_context(format!(
-            "bounds: [({}, {}), ({}, {})]",
-            self.bounds[0].0, self.bounds[0].1, self.bounds[1].0, self.bounds[1].1,
-        ));
-        explanation.add_context(format!("field: {:?}", self.field));
+        let explanation = Explanation::new("SpatialQuery", score);
         Ok(explanation)
     }
 }
 
 struct SpatialScorer {
     include: BitSetDocSet,
-    exclude: Option<BitSet>,
     doc_id: DocId,
     score: Score,
 }
 
 impl SpatialScorer {
-    pub fn new(score: Score, include: BitSet, exclude: Option<BitSet>) -> Self {
+    pub fn new(score: Score, include: BitSet) -> Self {
         let mut scorer = SpatialScorer {
             include: BitSetDocSet::from(include),
-            exclude,
             doc_id: 0,
             score,
         };
-        scorer.prime();
+        scorer.doc_id = scorer.include.doc();
         scorer
-    }
-    fn prime(&mut self) {
-        self.doc_id = self.include.doc();
-        while self.exclude() {
-            self.doc_id = self.include.advance();
-        }
-    }
-
-    fn exclude(&self) -> bool {
-        if self.doc_id == TERMINATED {
-            return false;
-        }
-        match &self.exclude {
-            Some(exclude) => exclude.contains(self.doc_id),
-            None => false,
-        }
     }
 }
 
@@ -207,17 +228,11 @@ impl DocSet for SpatialScorer {
             return TERMINATED;
         }
         self.doc_id = self.include.advance();
-        while self.exclude() {
-            self.doc_id = self.include.advance();
-        }
         self.doc_id
     }
 
     fn size_hint(&self) -> u32 {
-        match &self.exclude {
-            Some(exclude) => self.include.size_hint() - exclude.len() as u32,
-            None => self.include.size_hint(),
-        }
+        self.include.size_hint()
     }
 
     fn doc(&self) -> DocId {

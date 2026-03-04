@@ -1,19 +1,17 @@
-//! Spatial module (implements a block kd-tree)
+//! Spatial module.
+//!
+//! Geospatial indexing using S2 cell partitioning. Polygon edges are stored in a streaming
+//! binary format backed by an S2 cell index, enabling polygon containment queries at search
+//! engine scale.
 //!
 //! References:
 //!
 //! https://s2geometry.io/
 //! https://s2geometry.io/about/overview
 //! https://s2geometry.io/devguide/s2cell_hierarchy.html
-//! The above contains the visualization of face projection.
 //! https://proj.org/en/stable/operations/projections/s2.html
 //! https://s2geometry.io/resources/earthcube.html
-//! https://www.geopipe.ai/posts/s2-sees-the-world-differently
-//! https://blog.christianperone.com/2015/08/googles-s2-geometry-on-the-sphere-cells-and-hilbert-curve/
-//! https://benfeifke.com/posts/geospatial-indexing-explained/
-//! https://docs.s2cell.aliddell.com/en/stable/s2_concepts.html
 
-pub mod bkd;
 pub mod cell_index;
 pub mod cell_index_reader;
 pub mod cell_union;
@@ -25,10 +23,11 @@ pub mod edge_reader;
 pub mod edge_writer;
 pub mod exact;
 pub mod geometry;
+pub mod intersects_query;
 pub mod latlng_rect;
 pub mod math;
+pub mod merge;
 pub mod plane;
-pub mod point;
 pub mod r1interval;
 pub mod r2rect;
 pub mod radix_select;
@@ -49,7 +48,6 @@ pub mod shape_index_region;
 pub mod spatial_index_manager;
 pub mod sphere;
 pub mod surface;
-pub mod triangle;
 pub mod writer;
 pub mod xor;
 

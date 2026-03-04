@@ -14,10 +14,7 @@ use std::collections::VecDeque;
 
 use common::ReadOnlyBitSet;
 
-use super::cell_index::{
-    get_edge_max_level, BuildOptions, ClippedShape, IndexCell, CELL_PADDING,
-    DEFAULT_MAX_EDGES_PER_CELL,
-};
+use super::cell_index::{get_edge_max_level, BuildOptions, ClippedShape, IndexCell, CELL_PADDING};
 use super::cell_index_reader::CellIndexIter;
 use super::crossings::S2EdgeCrosser;
 use super::edge_reader::EdgeReader;
@@ -53,6 +50,7 @@ pub struct GeometryMap {
 }
 
 impl GeometryMap {
+    /// Creates a geometry map from per-segment geometry counts.
     pub fn new(segment_geometry_counts: &[u32]) -> Self {
         let mut offsets = Vec::with_capacity(segment_geometry_counts.len() + 1);
         let mut total = 0u32;
@@ -127,7 +125,7 @@ struct HeldShape {
     contains_center: bool,
     edges: Vec<HeldEdge>,
     /// UV bounding box of all edges, for early rejection against fine cells.
-    uv_bound: R2Rect,
+    _uv_bound: R2Rect,
 }
 
 /// A coarse cell whose edges are being distributed into the fine stream.
@@ -148,7 +146,7 @@ impl HeldCoarse {
 
     /// Distribute held shapes into a fine cell. Returns the shapes that
     /// intersect the fine cell or contain its center.
-    fn distribute(&self, fine_cell_id: S2CellId, fine_pcell: &S2PaddedCell) -> Vec<ClippedShape> {
+    fn distribute(&self, _fine_cell_id: S2CellId, fine_pcell: &S2PaddedCell) -> Vec<ClippedShape> {
         // S2PaddedCell::bound() needs to exist and return R2Rect for the
         // cell's UV bounds. If the API doesn't have it, compute from the
         // cell's ij-coordinates. See s2padded_cell.rs.
@@ -295,6 +293,7 @@ struct CollapseEntry {
 }
 
 impl<'a> CellIndexMerge<'a> {
+    /// Creates a merge iterator over multiple segment cell indexes.
     pub fn new(
         iters: Vec<CellIndexIter<'a>>,
         edge_readers: Vec<EdgeReader<'a>>,
@@ -315,6 +314,19 @@ impl<'a> CellIndexMerge<'a> {
             max_edges: options.max_edges_per_cell,
             min_short_edge_fraction: options.min_short_edge_fraction,
         }
+    }
+
+    /// Look up the source segment and old geometry ID for a merged geometry.
+    pub fn geo_source(&self, new_geometry_id: u32) -> (usize, u32) {
+        self.geo_map.source(new_geometry_id)
+    }
+
+    /// Read vertices for a geometry from its source segment's edge reader.
+    pub fn read_vertices(&mut self, new_geometry_id: u32) -> (u32, Vec<[f64; 3]>) {
+        let (seg, old_id) = self.geo_map.source(new_geometry_id);
+        let geo_set = self.edge_readers[seg].get(old_id);
+        let member_idx = (old_id - geo_set.geometry_id) as usize;
+        (geo_set.doc_id, geo_set.vertices[member_idx].clone())
     }
 
     // -------------------------------------------------------------------
@@ -466,7 +478,7 @@ impl<'a> CellIndexMerge<'a> {
 
             for &edge_idx in &clipped.edge_indices {
                 let v0 = vertices[edge_idx as usize];
-                let v1 = vertices[((edge_idx as usize) + 1) % vertices.len()];
+                let v1 = vertices[(edge_idx as usize) + 1];
 
                 let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
                 let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
@@ -476,18 +488,28 @@ impl<'a> CellIndexMerge<'a> {
                 let edge_bound = R2Rect::from_point_pair(a_uv, b_uv);
                 uv_bound = uv_bound.union(&edge_bound);
 
-                edges.push(HeldEdge { v0, v1, a_uv, b_uv, edge_index: edge_idx });
+                edges.push(HeldEdge {
+                    v0,
+                    v1,
+                    a_uv,
+                    b_uv,
+                    edge_index: edge_idx,
+                });
             }
 
             shapes.push(HeldShape {
                 new_geometry_id: new_id,
                 contains_center: clipped.contains_center,
                 edges,
-                uv_bound,
+                _uv_bound: uv_bound,
             });
         }
 
-        HeldCoarse { cell_id: cell.cell_id, center_3d, shapes }
+        HeldCoarse {
+            cell_id: cell.cell_id,
+            center_3d,
+            shapes,
+        }
     }
 
     // -------------------------------------------------------------------
@@ -531,7 +553,7 @@ impl<'a> CellIndexMerge<'a> {
 
             for &edge_idx in &shape.edge_indices {
                 let v0 = vertices[edge_idx as usize];
-                let v1 = vertices[((edge_idx as usize) + 1) % vertices.len()];
+                let v1 = vertices[(edge_idx as usize) + 1];
                 let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
                 let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
 
@@ -611,12 +633,13 @@ impl<'a> CellIndexMerge<'a> {
         // path's tracker.shape_ids().len().
         let should_subdivide = pcell.level() < S2CellId::MAX_LEVEL && {
             let max_short_edges = self.max_edges.max(
-                (self.min_short_edge_fraction
-                    * (clipped.len() + parent_contains.len()) as f64) as usize,
+                (self.min_short_edge_fraction * (clipped.len() + parent_contains.len()) as f64)
+                    as usize,
             );
-            let short_count = clipped.iter().filter(|ce| {
-                pcell.level() < all_edges[ce.edge_index].max_level
-            }).count();
+            let short_count = clipped
+                .iter()
+                .filter(|ce| pcell.level() < all_edges[ce.edge_index].max_level)
+                .count();
             short_count > max_short_edges
         };
 
@@ -630,7 +653,9 @@ impl<'a> CellIndexMerge<'a> {
             let mut edge_map: Vec<(u32, Vec<u16>)> = Vec::new();
             for ce in clipped {
                 let me = &all_edges[ce.edge_index];
-                if let Some((_, edges)) = edge_map.iter_mut().find(|(gid, _)| *gid == me.geometry_id) {
+                if let Some((_, edges)) =
+                    edge_map.iter_mut().find(|(gid, _)| *gid == me.geometry_id)
+                {
                     edges.push(me.edge_index);
                 } else {
                     edge_map.push((me.geometry_id, vec![me.edge_index]));
@@ -716,7 +741,7 @@ impl<'a> CellIndexMerge<'a> {
             })
             .collect();
 
-        for pos in 0..4u8 {
+        for pos in 0..4i32 {
             let (i, j) = pcell.get_child_ij(pos);
             let child_pcell = S2PaddedCell::from_parent(pcell, i, j);
 
@@ -821,9 +846,10 @@ impl<'a> CellIndexMerge<'a> {
             let slot = self.sibling_slots[level].as_mut().unwrap();
 
             debug_assert!(
-                !slot.cells.iter().any(|c| {
-                    c.cell_id.child_position() == cell.cell_id.child_position()
-                }),
+                !slot
+                    .cells
+                    .iter()
+                    .any(|c| { c.cell_id.child_position() == cell.cell_id.child_position() }),
                 "duplicate child position in sibling slot"
             );
             debug_assert!(
@@ -886,8 +912,7 @@ impl<'a> CellIndexMerge<'a> {
             }
         }
         self.max_edges.max(
-            (self.min_short_edge_fraction
-                * (slot.edge_count + unique_gids.len()) as f64) as usize,
+            (self.min_short_edge_fraction * (slot.edge_count + unique_gids.len()) as f64) as usize,
         )
     }
 
@@ -936,14 +961,11 @@ impl<'a> CellIndexMerge<'a> {
             let member_idx = (old_id - geo_set.geometry_id) as usize;
             let vertices = geo_set.vertices[member_idx].clone();
 
-            let mut crosser = S2EdgeCrosser::new(
-                &entry.anchor_center,
-                &parent_center,
-            );
+            let mut crosser = S2EdgeCrosser::new(&entry.anchor_center, &parent_center);
             let mut crossings = 0u32;
             for &edge_idx in &entry.edge_indices {
                 let v0 = vertices[edge_idx as usize];
-                let v1 = vertices[((edge_idx as usize) + 1) % vertices.len()];
+                let v1 = vertices[(edge_idx as usize) + 1];
                 if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
                     crossings += 1;
                 }
@@ -1033,7 +1055,6 @@ fn clip_to_children_merge(
     middle: &R2Rect,
     child_edges: &mut [[Vec<MergeClippedEdge>; 2]; 2],
 ) {
-
     let u_mid_lo = middle[0].lo();
     let u_mid_hi = middle[0].hi();
     let v_mid_lo = middle[1].lo();
@@ -1095,7 +1116,11 @@ fn clip_u_bound_merge(
     let v_clamped = ce.bound[1].clamp(v);
 
     let slopes_same_sign = (me.a_uv[0] > me.b_uv[0]) == (me.a_uv[1] > me.b_uv[1]);
-    let clip_v_hi = if clip_hi { slopes_same_sign } else { !slopes_same_sign };
+    let clip_v_hi = if clip_hi {
+        slopes_same_sign
+    } else {
+        !slopes_same_sign
+    };
 
     let new_bound = if clip_hi {
         R2Rect::new(
@@ -1144,7 +1169,11 @@ fn clip_v_bound_merge(
     let u_clamped = ce.bound[0].clamp(u);
 
     let slopes_same_sign = (me.a_uv[0] > me.b_uv[0]) == (me.a_uv[1] > me.b_uv[1]);
-    let clip_u_hi = if clip_hi { slopes_same_sign } else { !slopes_same_sign };
+    let clip_u_hi = if clip_hi {
+        slopes_same_sign
+    } else {
+        !slopes_same_sign
+    };
 
     let new_bound = if clip_hi {
         R2Rect::new(

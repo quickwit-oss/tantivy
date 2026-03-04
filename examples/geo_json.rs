@@ -36,11 +36,7 @@ fn main() -> tantivy::Result<()> {
     let reader = index.reader()?;
     let searcher = reader.searcher();
     let field = schema.get_field("geometry").unwrap();
-    let query = SpatialQuery::new(
-        field,
-        [[-99.49, 45.56], [-99.45, 45.59]],
-        tantivy::query::SpatialQueryType::Intersects,
-    );
+    let query = SpatialQuery::from_bounds(field, [[-99.49, 45.56], [-99.45, 45.59]]);
     let hits = searcher.search(&query, &TopDocs::with_limit(10))?;
     for (_score, doc_address) in &hits {
         let retrieved_doc: TantivyDocument = searcher.doc(*doc_address)?;

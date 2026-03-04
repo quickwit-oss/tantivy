@@ -181,8 +181,9 @@ impl SegmentReader {
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
         let spatial_readers = if schema.contains_spatial_field() {
-            let spatial_data = segment.open_read(SegmentComponent::Spatial)?;
-            SpatialReaders::open(spatial_data)?
+            let cells_data = segment.open_read(SegmentComponent::SpatialCells)?;
+            let edges_data = segment.open_read(SegmentComponent::SpatialEdges)?;
+            SpatialReaders::open(cells_data, edges_data)?
         } else {
             SpatialReaders::empty()
         };

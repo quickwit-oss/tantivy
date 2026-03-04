@@ -221,13 +221,6 @@ impl InteriorTracker {
         }
     }
 
-    fn add_shape(&mut self, geometry_id: u32) {
-        match self.shape_ids.binary_search(&geometry_id) {
-            Ok(_) => {}
-            Err(i) => self.shape_ids.insert(i, geometry_id),
-        }
-    }
-
     fn toggle_shape(&mut self, geometry_id: u32) {
         match self.shape_ids.binary_search(&geometry_id) {
             Ok(i) => {
@@ -393,12 +386,14 @@ impl CellIndex {
     }
 }
 
-/// Input geometry data for indexing, consisting of vertices and metadata.
+/// Input geometry data for indexing, consisting of rings and metadata.
+#[derive(Clone)]
 pub struct GeometryData {
-    /// The full vertices that define the geometry.
-    pub vertices: Vec<[f64; 3]>,
-    /// Whether the reference origin is inside this polygon.
-    pub origin_inside: bool,
+    /// The rings that define the geometry. A simple polygon has one ring. A polygon with holes
+    /// has an outer ring followed by hole rings. A line string has one ring (open, not wrapped).
+    pub rings: Vec<Vec<[f64; 3]>>,
+    /// Whether the reference origin is inside each ring, parallel to `rings`.
+    pub origin_inside: Vec<bool>,
     /// The geometry type.
     pub dimension: u8,
 }
@@ -441,6 +436,8 @@ impl IndexBuilder {
         let mut geometry_id: u32 = 0;
 
         // Brute force to determine if the focal point starts inside or outside of each polygon.
+        // Each ring toggles the geometry_id independently: outer ring toggles on, hole ring
+        // toggles back off if the origin falls inside the hole.
         let tracker_origin = self.tracker.focus;
         for (_doc_id, geometries) in &self.documents {
             for geo in geometries {
@@ -449,10 +446,11 @@ impl IndexBuilder {
                     continue;
                 }
                 self.tracker.is_active = true;
-                let inside =
-                    brute_force_contains(&tracker_origin, &geo.vertices, geo.origin_inside);
-                if inside {
-                    self.tracker.add_shape(geometry_id);
+                for (ring, &ring_origin_inside) in geo.rings.iter().zip(geo.origin_inside.iter()) {
+                    let inside = brute_force_contains(&tracker_origin, ring, ring_origin_inside);
+                    if inside {
+                        self.tracker.toggle_shape(geometry_id);
+                    }
                 }
                 geometry_id += 1;
             }
@@ -461,41 +459,48 @@ impl IndexBuilder {
         // Collection of edges per face.
         let mut face_edges: [Vec<FaceEdge>; 6] = Default::default();
 
-        // Stuff our faces.
+        // Stuff our faces. Edge IDs are flat across all rings within a geometry.
         geometry_id = 0;
         for (_doc_id, geometries) in &self.documents {
             for geo in geometries {
-                let n = geo.vertices.len();
+                let mut edge_id: u16 = 0;
 
-                // Polygons need at least 3 vertices (closed ring)
-                // Line strings need at least 2 vertices (open path)
-                let min_vertices = if geo.dimension == 2 { 3 } else { 2 };
-                if n < min_vertices {
-                    geometry_id += 1;
-                    continue;
-                }
+                for ring in &geo.rings {
+                    let n = ring.len();
 
-                // Polygons: n edges with wrap-around
-                // Line strings: n-1 edges, no wrap
-                let edge_count = if geo.dimension == 2 { n } else { n - 1 };
+                    let min_vertices = if geo.dimension == 2 { 3 } else { 2 };
+                    if n < min_vertices {
+                        continue;
+                    }
 
-                for i in 0..edge_count {
-                    let v0 = geo.vertices[i];
-                    let v1 = if geo.dimension == 2 {
-                        geo.vertices[(i + 1) % n]
-                    } else {
-                        geo.vertices[i + 1]
-                    };
-                    let max_level = self.get_edge_max_level(&v0, &v1);
-                    self.add_face_edge(
-                        geometry_id,
-                        i as u16,
-                        max_level,
-                        geo.dimension == 2,
-                        &v0,
-                        &v1,
-                        &mut face_edges,
-                    );
+                    let edge_count = if geo.dimension == 2 { n } else { n - 1 };
+
+                    for i in 0..edge_count {
+                        let v0 = ring[i];
+                        let v1 = if geo.dimension == 2 {
+                            ring[(i + 1) % n]
+                        } else {
+                            ring[i + 1]
+                        };
+                        let max_level = self.get_edge_max_level(&v0, &v1);
+                        self.add_face_edge(
+                            geometry_id,
+                            edge_id,
+                            max_level,
+                            geo.dimension == 2,
+                            &v0,
+                            &v1,
+                            &mut face_edges,
+                        );
+                        edge_id += 1;
+                    }
+
+                    // Skip the duplicated first-vertex position for polygon rings.
+                    // The stored format appends ring[0] after each ring so edge lookup
+                    // is always position and position + 1, never modulo.
+                    if geo.dimension == 2 {
+                        edge_id += 1;
+                    }
                 }
 
                 geometry_id += 1;
