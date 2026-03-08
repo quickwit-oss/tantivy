@@ -135,10 +135,18 @@ impl IntersectsQuery {
         info: &CandidateInfo,
         edge_reader: &mut EdgeReader,
     ) -> bool {
-        // Interior cell hit: the covering cell is entirely inside the query polygon and the
-        // candidate has geometry in that cell. They share a point.
+        // Interior cell hit: a covering cell entirely inside the query polygon contains an
+        // index cell where this geometry appears. The CellIndex assigns edges to cells using
+        // conservative bounding box tests, so confirm with a vertex containment check.
         if info.has_interior {
-            return true;
+            let set = edge_reader.get(geometry_id);
+            let member_idx = (geometry_id - set.geometry_id) as usize;
+            let vertices = &set.vertices[member_idx];
+            if !vertices.is_empty()
+                && index_contains_point(&self.query_index, &self.query_edges, 0, &vertices[0])
+            {
+                return true;
+            }
         }
 
         // Boundary: any edge crossing means intersection.
