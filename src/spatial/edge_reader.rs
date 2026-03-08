@@ -120,6 +120,17 @@ impl<'a> EdgeReader<'a> {
                     steps += 1;
                 }
             }
+            // Skip any doc_id footer between the last entry we passed and
+            // the target entry. This happens at set boundaries where the
+            // previous document's footer sits between two entries.
+            while i32::from_le_bytes(
+                self.data[current as usize..current as usize + 4]
+                    .try_into()
+                    .unwrap(),
+            ) < 0
+            {
+                current += 4;
+            }
         }
 
         // Resolve the set head and member count.
