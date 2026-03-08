@@ -77,12 +77,19 @@ impl IntersectsQuery {
             let is_interior = self.interior[i];
 
             for index_cell in reader.scan_range(covering_cell_id) {
+                // The interior shortcut is only valid when the covering cell
+                // contains the index cell — the index cell is entirely within
+                // the query polygon's interior. When the index cell is coarser
+                // (contains the covering cell), geometries in the far reaches
+                // of the index cell may not intersect the query at all.
+                let cell_is_interior = is_interior && covering_cell_id.contains(index_cell.cell_id);
+
                 for clipped in &index_cell.shapes {
                     let info = candidates
                         .entry(clipped.geometry_id)
                         .or_insert_with(CandidateInfo::new);
 
-                    if is_interior {
+                    if cell_is_interior {
                         info.has_interior = true;
                     } else {
                         info.has_boundary = true;

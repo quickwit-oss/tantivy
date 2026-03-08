@@ -191,7 +191,7 @@ where
             let max = target.id().range_max();
 
             let mut pos = start;
-            while pos < index.cells.len() && index.cells[pos].cell_id <= max {
+            while pos < index.cells.len() && index.cells[pos].cell_id.range_min() <= max {
                 let cell = &index.cells[pos];
                 for clipped in &cell.shapes {
                     let not_contains = shape_not_contains

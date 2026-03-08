@@ -116,12 +116,14 @@ impl ContainsQuery {
             let is_interior = self.interior[i];
 
             for index_cell in reader.scan_range(covering_cell_id) {
+                let cell_is_interior = is_interior && covering_cell_id.contains(index_cell.cell_id);
+
                 for clipped in &index_cell.shapes {
                     let info = candidates
                         .entry(clipped.geometry_id)
                         .or_insert_with(CandidateInfo::new);
 
-                    if is_interior {
+                    if cell_is_interior {
                         info.has_interior = true;
                     } else {
                         info.has_boundary = true;
