@@ -329,6 +329,18 @@ impl<'a> CellIndexMerge<'a> {
         (geo_set.doc_id, geo_set.vertices[member_idx].clone())
     }
 
+    /// Read the full geometry set for a given new geometry ID. Returns the
+    /// source segment, the member offset within the set, the doc_id, and
+    /// all members' vertices.
+    pub fn read_set(&mut self, new_geometry_id: u32) -> (usize, u32, u32, Vec<Vec<[f64; 3]>>) {
+        let (seg, old_id) = self.geo_map.source(new_geometry_id);
+        let geo_set = self.edge_readers[seg].get(old_id);
+        let member_offset = old_id - geo_set.geometry_id;
+        let doc_id = geo_set.doc_id;
+        let vertices = geo_set.vertices.clone();
+        (seg, member_offset, doc_id, vertices)
+    }
+
     // -------------------------------------------------------------------
     // Stage 1: Interleave with coarse-into-fine distribution
     // -------------------------------------------------------------------
@@ -433,13 +445,21 @@ impl<'a> CellIndexMerge<'a> {
             });
         }
 
-        // Remap surviving shapes to new geometry IDs.
+        // Remap surviving shapes to new geometry IDs. When a geometry is
+        // first encountered, assign IDs for all members of its set so they
+        // get consecutive new IDs. The edge writer needs consecutive IDs
+        // to write the set with correct set indicators and one doc_id footer.
         for shape in &mut cell.shapes {
-            let (new_id, _first_encounter) = self.geo_map.get_or_assign(segment, shape.geometry_id);
+            let (new_id, first_encounter) = self.geo_map.get_or_assign(segment, shape.geometry_id);
+            if first_encounter {
+                let geo_set = self.edge_readers[segment].get(shape.geometry_id);
+                let set_size = geo_set.vertices.len() as u32;
+                for i in 1..set_size {
+                    let sibling_old_id = geo_set.geometry_id + i;
+                    self.geo_map.get_or_assign(segment, sibling_old_id);
+                }
+            }
             shape.geometry_id = new_id;
-            // When _first_encounter is true, the caller should write this
-            // geometry to the new edge index. For now we just track the
-            // mapping; edge writing is the consumer's responsibility.
         }
     }
 

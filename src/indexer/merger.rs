@@ -175,7 +175,6 @@ impl IndexMerger {
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
-                dbg!("segment");
                 let reader =
                     SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;
                 readers.push(reader);
@@ -633,27 +632,44 @@ impl IndexMerger {
             cells_out.flush()?;
 
             // Write edges for first-encountered geometries.
+            let edges_out = edges_composite.for_field(field);
             {
-                let edges_out = edges_composite.for_field(field);
                 let mut edge_writer = EdgeWriter::new(edges_out, 16);
 
                 for cell in &merged_cells {
                     for shape in &cell.shapes {
-                        if written_geometries.insert(shape.geometry_id) {
-                            let (old_doc_id, vertices) = merge.read_vertices(shape.geometry_id);
-                            let (seg, _) = merge.geo_source(shape.geometry_id);
-                            let new_doc_id = doc_id_inverse[seg][old_doc_id as usize].unwrap();
-                            edge_writer.insert(
-                                new_doc_id as u32,
-                                &[(shape.geometry_id, vertices.as_slice())],
-                            );
+                        if written_geometries.contains(&shape.geometry_id) {
+                            continue;
                         }
+                        // First encounter of this geometry. Read the full set
+                        // from the source and write all members together.
+                        let (seg, member_offset, old_doc_id, all_vertices) =
+                            merge.read_set(shape.geometry_id);
+                        let head_new_id = shape.geometry_id - member_offset;
+                        let new_doc_id = doc_id_inverse[seg][old_doc_id as usize].unwrap();
+
+                        let members: Vec<(u32, Vec<[f64; 3]>)> = all_vertices
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, v)| {
+                                let new_id = head_new_id + i as u32;
+                                written_geometries.insert(new_id);
+                                (new_id, v)
+                            })
+                            .collect();
+
+                        let refs: Vec<(u32, &[[f64; 3]])> = members
+                            .iter()
+                            .map(|(id, v)| (*id, v.as_slice()))
+                            .collect();
+
+                        edge_writer.insert(new_doc_id as u32, &refs);
                     }
                 }
 
                 edge_writer.finish();
-                edges_composite.for_field(field).flush()?;
             }
+            edges_out.flush()?;
         }
 
         cells_composite.close()?;
