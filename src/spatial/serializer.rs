@@ -53,8 +53,8 @@ impl SpatialSerializer {
         cells_out.flush()?;
 
         // Write the edge index. Iterate documents in the same order so geometry IDs align.
+        let edges_out = self.edges_write.for_field(field);
         {
-            let edges_out = self.edges_write.for_field(field);
             let mut edge_writer = EdgeWriter::new(edges_out, EDGE_SKIP_INTERVAL);
 
             let mut geometry_id: u32 = 0;
@@ -87,7 +87,7 @@ impl SpatialSerializer {
 
             edge_writer.finish();
         }
-        self.edges_write.for_field(field).flush()?;
+        edges_out.flush()?;
 
         Ok(())
     }

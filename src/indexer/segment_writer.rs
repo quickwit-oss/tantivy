@@ -161,6 +161,17 @@ impl SegmentWriter {
             let values = field_values.map(|el| el.1);
 
             let field_entry = self.schema.get_field_entry(field);
+
+            // Spatial fields have their own write path and do not participate in postings.
+            if let FieldType::Spatial(_) = field_entry.field_type() {
+                for value in values {
+                    if let Some(geometry) = value.as_geometry() {
+                        self.spatial_writer.add_geometry(doc_id, field, *geometry);
+                    }
+                }
+                continue;
+            }
+
             let make_schema_error = || {
                 TantivyError::SchemaError(format!(
                     "Expected a {:?} for field {:?}",
@@ -343,11 +354,8 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::Spatial(_) => {
-                    for value in values {
-                        if let Some(geometry) = value.as_geometry() {
-                            self.spatial_writer.add_geometry(doc_id, field, *geometry);
-                        }
-                    }
+                    // Handled above, before the is_indexed gate.
+                    unreachable!();
                 }
             }
         }

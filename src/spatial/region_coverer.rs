@@ -236,7 +236,7 @@ impl RegionCoverer {
 
         for cell_id in initial_cells {
             if let Some(candidate) = self.new_candidate(region, &S2Cell::new(cell_id)) {
-                self.add_candidate_to_queue(candidate, 0, &mut pq, &mut candidates);
+                self.add_candidate(region, candidate, result, &mut pq, &mut candidates);
             }
         }
 
