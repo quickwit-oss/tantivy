@@ -583,11 +583,8 @@ impl IndexMerger {
                 &doc_id_mapping.alive_bitsets,
             );
 
-            // Stream cells to output, write edges inline on first encounter.
             let cells_out = cells_composite.for_field(field);
             let mut offsets: Vec<(u64, u64)> = Vec::new();
-            let mut written_geometries: std::collections::HashSet<u32> =
-                std::collections::HashSet::new();
 
             // Collect cells first, then write edges. We can't hold mutable borrows on both
             // composite writes simultaneously through the same loop, so we buffer cells
@@ -632,39 +629,36 @@ impl IndexMerger {
             cells_out.flush()?;
 
             // Write edges for first-encountered geometries.
+            // Collect all new geometry IDs that appear in the merged cells.
+            let mut max_new_id: u32 = 0;
+            for cell in &merged_cells {
+                for shape in &cell.shapes {
+                    if shape.geometry_id >= max_new_id {
+                        max_new_id = shape.geometry_id + 1;
+                    }
+                }
+            }
+
+            // Write edges in new_id order so edge positions match geometry IDs.
             let edges_out = edges_composite.for_field(field);
             {
                 let mut edge_writer = EdgeWriter::new(edges_out, 16);
+                let mut new_id: u32 = 0;
 
-                for cell in &merged_cells {
-                    for shape in &cell.shapes {
-                        if written_geometries.contains(&shape.geometry_id) {
-                            continue;
-                        }
-                        // First encounter of this geometry. Read the full set
-                        // from the source and write all members together.
-                        let (seg, member_offset, old_doc_id, all_vertices) =
-                            merge.read_set(shape.geometry_id);
-                        let head_new_id = shape.geometry_id - member_offset;
-                        let new_doc_id = doc_id_inverse[seg][old_doc_id as usize].unwrap();
+                while new_id < max_new_id {
+                    let (seg, member_offset, old_doc_id, all_vertices) = merge.read_set(new_id);
+                    let head_new_id = new_id - member_offset;
+                    let new_doc_id = doc_id_inverse[seg][old_doc_id as usize].unwrap();
+                    let set_size = all_vertices.len();
 
-                        let members: Vec<(u32, Vec<[f64; 3]>)> = all_vertices
-                            .into_iter()
-                            .enumerate()
-                            .map(|(i, v)| {
-                                let new_id = head_new_id + i as u32;
-                                written_geometries.insert(new_id);
-                                (new_id, v)
-                            })
-                            .collect();
+                    let refs: Vec<(u32, &[[f64; 3]])> = all_vertices
+                        .iter()
+                        .enumerate()
+                        .map(|(i, v)| (head_new_id + i as u32, v.as_slice()))
+                        .collect();
 
-                        let refs: Vec<(u32, &[[f64; 3]])> = members
-                            .iter()
-                            .map(|(id, v)| (*id, v.as_slice()))
-                            .collect();
-
-                        edge_writer.insert(new_doc_id as u32, &refs);
-                    }
+                    edge_writer.insert(new_doc_id as u32, &refs);
+                    new_id = head_new_id + set_size as u32;
                 }
 
                 edge_writer.finish();

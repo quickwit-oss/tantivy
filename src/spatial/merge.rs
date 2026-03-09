@@ -445,20 +445,17 @@ impl<'a> CellIndexMerge<'a> {
             });
         }
 
-        // Remap surviving shapes to new geometry IDs. When a geometry is
-        // first encountered, assign IDs for all members of its set so they
-        // get consecutive new IDs. The edge writer needs consecutive IDs
-        // to write the set with correct set indicators and one doc_id footer.
+        // Remap surviving shapes to new geometry IDs. When any member of a
+        // set is first encountered, assign IDs for all members starting from
+        // the head so they get consecutive new IDs in the correct order.
         for shape in &mut cell.shapes {
-            let (new_id, first_encounter) = self.geo_map.get_or_assign(segment, shape.geometry_id);
-            if first_encounter {
-                let geo_set = self.edge_readers[segment].get(shape.geometry_id);
-                let set_size = geo_set.vertices.len() as u32;
-                for i in 1..set_size {
-                    let sibling_old_id = geo_set.geometry_id + i;
-                    self.geo_map.get_or_assign(segment, sibling_old_id);
-                }
+            let geo_set = self.edge_readers[segment].get(shape.geometry_id);
+            let head_old_id = geo_set.geometry_id;
+            let set_size = geo_set.vertices.len() as u32;
+            for i in 0..set_size {
+                self.geo_map.get_or_assign(segment, head_old_id + i);
             }
+            let (new_id, _) = self.geo_map.get_or_assign(segment, shape.geometry_id);
             shape.geometry_id = new_id;
         }
     }
