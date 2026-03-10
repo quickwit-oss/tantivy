@@ -59,7 +59,7 @@ impl SpatialSerializer {
 
             let mut geometry_id: u32 = 0;
             for (doc_id, geometries) in documents {
-                let flattened: Vec<Vec<[f64; 3]>> = geometries
+                let flattened: Vec<(Vec<[f64; 3]>, bool)> = geometries
                     .iter()
                     .map(|geo| {
                         let mut flat = Vec::new();
@@ -71,14 +71,14 @@ impl SpatialSerializer {
                                 flat.push(ring[0]);
                             }
                         }
-                        flat
+                        (flat, geo.dimension == 2)
                     })
                     .collect();
 
-                let refs: Vec<(u32, &[[f64; 3]])> = flattened
+                let refs: Vec<(u32, &[[f64; 3]], bool)> = flattened
                     .iter()
                     .enumerate()
-                    .map(|(i, flat)| (geometry_id + i as u32, flat.as_slice()))
+                    .map(|(i, (flat, closed))| (geometry_id + i as u32, flat.as_slice(), *closed))
                     .collect();
 
                 edge_writer.insert(*doc_id, &refs);

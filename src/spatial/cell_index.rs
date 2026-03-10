@@ -43,18 +43,17 @@ pub(crate) fn get_level_for_max_value(value: f64) -> i32 {
         return S2CellId::MAX_LEVEL;
     }
 
-    // This code is equivalent to computing a floating-point "level" value and
-    // rounding up. ilogb() returns the exponent corresponding to a fraction in
-    // the range [1,2).
+    // This code is equivalent to computing a floating-point "level" value and rounding up. ilogb()
+    // returns the exponent corresponding to a fraction in the range [1,2).
     let ratio = value / K_AVG_EDGE_DERIV;
     let level = ratio.log2().floor() as i32;
     // For dim=1, (level >> (dim - 1)) == (level >> 0) == level
     (-level).clamp(0, S2CellId::MAX_LEVEL)
 }
 
-/// Computes the maximum level at which an edge is "short" relative to the
-/// cell size. Above this level the edge is "long" and doesn't count toward
-/// the subdivision threshold. Port of MutableS2ShapeIndex::GetEdgeMaxLevel.
+/// Computes the maximum level at which an edge is "short" relative to the cell size. Above this
+/// level the edge is "long" and doesn't count toward the subdivision threshold. Port of
+/// MutableS2ShapeIndex::GetEdgeMaxLevel.
 pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
     let length =
         ((v0[0] - v1[0]).powi(2) + (v0[1] - v1[1]).powi(2) + (v0[2] - v1[2]).powi(2)).sqrt();
@@ -268,10 +267,9 @@ impl InteriorTracker {
 pub struct BuildOptions {
     /// Maximum edges per cell before subdivision.
     pub max_edges_per_cell: usize,
-    /// Minimum fraction of 'short' edges required for subdivision.
-    /// If this parameter is non-zero then the total index size and construction
-    /// time are guaranteed to be linear in the number of input edges.
-    /// Default: 0.2 (from FLAGS_s2shape_index_min_short_edge_fraction)
+    /// Minimum fraction of 'short' edges required for subdivision. If this parameter is non-zero
+    /// then the total index size and construction time are guaranteed to be linear in the number
+    /// of input edges. Default: 0.2 (from FLAGS_s2shape_index_min_short_edge_fraction)
     pub min_short_edge_fraction: f64,
 }
 
@@ -389,8 +387,8 @@ impl CellIndex {
 /// Input geometry data for indexing, consisting of rings and metadata.
 #[derive(Clone)]
 pub struct GeometryData {
-    /// The rings that define the geometry. A simple polygon has one ring. A polygon with holes
-    /// has an outer ring followed by hole rings. A line string has one ring (open, not wrapped).
+    /// The rings that define the geometry. A simple polygon has one ring. A polygon with holes has
+    /// an outer ring followed by hole rings. A line string has one ring (open, not wrapped).
     pub rings: Vec<Vec<[f64; 3]>>,
     /// Whether the reference origin is inside each ring, parallel to `rings`.
     pub origin_inside: Vec<bool>,
@@ -468,19 +466,27 @@ impl IndexBuilder {
                 for ring in &geo.rings {
                     let n = ring.len();
 
-                    let min_vertices = if geo.dimension == 2 { 3 } else { 2 };
+                    let min_vertices = match geo.dimension {
+                        0 => 1,
+                        2 => 3,
+                        _ => 2,
+                    };
                     if n < min_vertices {
                         continue;
                     }
 
-                    let edge_count = if geo.dimension == 2 { n } else { n - 1 };
+                    let edge_count = match geo.dimension {
+                        0 => 1,
+                        2 => n,
+                        _ => n - 1,
+                    };
 
                     for i in 0..edge_count {
                         let v0 = ring[i];
-                        let v1 = if geo.dimension == 2 {
-                            ring[(i + 1) % n]
-                        } else {
-                            ring[i + 1]
+                        let v1 = match geo.dimension {
+                            0 => ring[i],
+                            2 => ring[(i + 1) % n],
+                            _ => ring[i + 1],
                         };
                         let max_level = self.get_edge_max_level(&v0, &v1);
                         self.add_face_edge(

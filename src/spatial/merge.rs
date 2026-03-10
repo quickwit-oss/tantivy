@@ -332,13 +332,17 @@ impl<'a> CellIndexMerge<'a> {
     /// Read the full geometry set for a given new geometry ID. Returns the
     /// source segment, the member offset within the set, the doc_id, and
     /// all members' vertices.
-    pub fn read_set(&mut self, new_geometry_id: u32) -> (usize, u32, u32, Vec<Vec<[f64; 3]>>) {
+    pub fn read_set(
+        &mut self,
+        new_geometry_id: u32,
+    ) -> (usize, u32, u32, Vec<Vec<[f64; 3]>>, Vec<bool>) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
         let geo_set = self.edge_readers[seg].get(old_id);
         let member_offset = old_id - geo_set.geometry_id;
         let doc_id = geo_set.doc_id;
         let vertices = geo_set.vertices.clone();
-        (seg, member_offset, doc_id, vertices)
+        let closed = geo_set.closed.clone();
+        (seg, member_offset, doc_id, vertices, closed)
     }
 
     // -------------------------------------------------------------------

@@ -587,8 +587,8 @@ impl IndexMerger {
             let mut offsets: Vec<(u64, u64)> = Vec::new();
 
             // Collect cells first, then write edges. We can't hold mutable borrows on both
-            // composite writes simultaneously through the same loop, so we buffer cells
-            // and write edges after.
+            // composite writes simultaneously through the same loop, so we buffer cells and write
+            // edges after.
             let mut merged_cells: Vec<super::super::spatial::cell_index::IndexCell> = Vec::new();
             while let Some(cell) = merge.next() {
                 merged_cells.push(cell);
@@ -646,15 +646,17 @@ impl IndexMerger {
                 let mut new_id: u32 = 0;
 
                 while new_id < max_new_id {
-                    let (seg, member_offset, old_doc_id, all_vertices) = merge.read_set(new_id);
+                    let (seg, member_offset, old_doc_id, all_vertices, all_closed) =
+                        merge.read_set(new_id);
                     let head_new_id = new_id - member_offset;
                     let new_doc_id = doc_id_inverse[seg][old_doc_id as usize].unwrap();
                     let set_size = all_vertices.len();
 
-                    let refs: Vec<(u32, &[[f64; 3]])> = all_vertices
+                    let refs: Vec<(u32, &[[f64; 3]], bool)> = all_vertices
                         .iter()
+                        .zip(all_closed.iter())
                         .enumerate()
-                        .map(|(i, v)| (head_new_id + i as u32, v.as_slice()))
+                        .map(|(i, (v, &c))| (head_new_id + i as u32, v.as_slice(), c))
                         .collect();
 
                     edge_writer.insert(new_doc_id as u32, &refs);

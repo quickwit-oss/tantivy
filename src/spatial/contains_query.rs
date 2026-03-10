@@ -203,7 +203,7 @@ impl ContainsQuery {
         let candidate_vertices = &set.vertices[member_idx];
         let n_candidate = candidate_vertices.len();
 
-        if n_candidate < 3 {
+        if n_candidate < 2 {
             return false;
         }
 

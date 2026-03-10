@@ -158,6 +158,7 @@ impl IntersectsQuery {
         let set = edge_reader.get(geometry_id);
         let member_idx = (geometry_id - set.geometry_id) as usize;
         let vertices = &set.vertices[member_idx];
+        let closed = set.closed[member_idx];
 
         if vertices.is_empty() {
             return false;
@@ -168,9 +169,16 @@ impl IntersectsQuery {
             return true;
         }
 
-        // Reverse: query vertex inside candidate polygon.
-        let origin_inside = compute_origin_inside(vertices);
-        brute_force_contains(&self.query_edges.vertices[0], vertices, origin_inside)
+        // Reverse: query vertex inside candidate polygon. Only meaningful for
+        // closed geometries -- open paths have no interior.
+        if closed {
+            let origin_inside = compute_origin_inside(vertices);
+            if brute_force_contains(&self.query_edges.vertices[0], vertices, origin_inside) {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Tests whether any candidate edge crosses any query polygon edge, narrowed to edges sharing
@@ -187,7 +195,7 @@ impl IntersectsQuery {
         let candidate_vertices = &set.vertices[member_idx];
         let n_candidate = candidate_vertices.len();
 
-        if n_candidate < 3 {
+        if n_candidate < 2 {
             return false;
         }
 
