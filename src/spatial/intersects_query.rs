@@ -8,7 +8,6 @@ use std::collections::HashMap;
 
 use super::cell_index::{BuildOptions, CellIndex, GeometryData, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
-use super::containment::{brute_force_contains, compute_origin_inside};
 use super::contains_query::{BoundaryEdges, CandidateInfo, QueryEdgeProvider};
 use super::crossings::S2EdgeCrosser;
 use super::edge_reader::EdgeReader;
@@ -16,7 +15,9 @@ use super::region::Region;
 use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
-use super::shape_index_region::{index_contains_point, CellIndexRegion};
+use super::shape_index_region::{
+    contains_point, index_contains_point, CellIndexRegion, SegmentIndex,
+};
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
 pub struct IntersectsQuery {
@@ -61,13 +62,13 @@ impl IntersectsQuery {
     }
 
     /// Search one segment for geometries that intersect the query polygon.
-    pub fn search_segment(
+    pub fn search_segment<'a>(
         &self,
-        cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
         let candidates = self.collect_candidates(cell_reader);
-        self.verify_candidates(candidates, edge_reader)
+        self.verify_candidates(candidates, cell_reader, edge_reader)
     }
 
     fn collect_candidates(&self, reader: &CellIndexReader) -> HashMap<u32, CandidateInfo> {
@@ -77,11 +78,10 @@ impl IntersectsQuery {
             let is_interior = self.interior[i];
 
             for index_cell in reader.scan_range(covering_cell_id) {
-                // The interior shortcut is only valid when the covering cell
-                // contains the index cell — the index cell is entirely within
-                // the query polygon's interior. When the index cell is coarser
-                // (contains the covering cell), geometries in the far reaches
-                // of the index cell may not intersect the query at all.
+                // The interior shortcut is only valid when the covering cell contains the index
+                // cell — the index cell is entirely within the query polygon's interior. When the
+                // index cell is coarser (contains the covering cell), geometries in the far
+                // reaches of the index cell may not intersect the query at all.
                 let cell_is_interior = is_interior && covering_cell_id.contains(index_cell.cell_id);
 
                 for clipped in &index_cell.shapes {
@@ -107,15 +107,16 @@ impl IntersectsQuery {
         candidates
     }
 
-    fn verify_candidates(
+    fn verify_candidates<'a>(
         &self,
         candidates: HashMap<u32, CandidateInfo>,
-        edge_reader: &mut EdgeReader,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
         let mut doc_ids = Vec::new();
 
         for (geometry_id, info) in candidates {
-            if self.verify_one(geometry_id, &info, edge_reader) {
+            if self.verify_one(geometry_id, &info, cell_reader, edge_reader) {
                 let set = edge_reader.get(geometry_id);
                 doc_ids.push(set.doc_id);
             }
@@ -129,14 +130,15 @@ impl IntersectsQuery {
     /// Interior cell hit is an immediate match. Boundary candidates get crossing tests -- any
     /// crossing means intersection. If no crossings, test vertex containment in both directions:
     /// candidate vertex inside query, and query vertex inside candidate.
-    fn verify_one(
+    fn verify_one<'a>(
         &self,
         geometry_id: u32,
         info: &CandidateInfo,
-        edge_reader: &mut EdgeReader,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
     ) -> bool {
-        // Interior cell hit: a covering cell entirely inside the query polygon contains an
-        // index cell where this geometry appears. The CellIndex assigns edges to cells using
+        // Interior cell hit: a covering cell entirely inside the query polygon contains an index
+        // cell where this geometry appears. The CellIndex assigns edges to cells using
         // conservative bounding box tests, so confirm with a vertex containment check.
         if info.has_interior {
             let set = edge_reader.get(geometry_id);
@@ -169,11 +171,14 @@ impl IntersectsQuery {
             return true;
         }
 
-        // Reverse: query vertex inside candidate polygon. Only meaningful for
-        // closed geometries -- open paths have no interior.
+        // Reverse: query vertex inside candidate polygon. Only meaningful for closed geometries --
+        // open paths have no interior. Uses indexed containment through the segment's cell index.
         if closed {
-            let origin_inside = compute_origin_inside(vertices);
-            if brute_force_contains(&self.query_edges.vertices[0], vertices, origin_inside) {
+            let mut seg = SegmentIndex {
+                cell_reader,
+                edge_reader,
+            };
+            if contains_point(&mut seg, geometry_id, &self.query_edges.vertices[0]) {
                 return true;
             }
         }

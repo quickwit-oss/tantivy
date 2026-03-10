@@ -1,8 +1,8 @@
 //! Spatial polygon query.
 //!
-//! Finds indexed geometries that match a query polygon via contains or intersects predicates.
-//! The query polygon is specified as lon/lat vertices, converted to unit sphere coordinates,
-//! and searched against each segment's cell index and edge index.
+//! Finds indexed geometries that match a query polygon via contains or intersects predicates. The
+//! query polygon is specified as lon/lat vertices, converted to unit sphere coordinates, and
+//! searched against each segment's cell index and edge index.
 
 use common::BitSet;
 
@@ -124,28 +124,28 @@ impl Query for SpatialQuery {
 
 /// Shared interface for prepared spatial queries.
 trait PreparedSpatialQuery: Send + Sync {
-    fn search_segment(
+    fn search_segment<'a>(
         &self,
-        cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32>;
 }
 
 impl PreparedSpatialQuery for ContainsQuery {
-    fn search_segment(
+    fn search_segment<'a>(
         &self,
-        cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
         ContainsQuery::search_segment(self, cell_reader, edge_reader)
     }
 }
 
 impl PreparedSpatialQuery for IntersectsQuery {
-    fn search_segment(
+    fn search_segment<'a>(
         &self,
-        cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
         IntersectsQuery::search_segment(self, cell_reader, edge_reader)
     }

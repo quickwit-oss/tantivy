@@ -137,7 +137,18 @@ fn collect_geometry(geometries: &mut Vec<GeometryData>, geometry: &Geometry<Plan
             }
         }
         Geometry::Polygon(polygon) => {
-            let rings: Vec<Vec<[f64; 3]>> = polygon.iter().map(|r| ring_to_sphere(r)).collect();
+            let rings: Vec<Vec<[f64; 3]>> = polygon
+                .iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    let mut ring = ring_to_sphere(r);
+                    // GeoJSON RFC 7946: holes are CW. S2 wants all rings CCW.
+                    if i > 0 {
+                        ring.reverse();
+                    }
+                    ring
+                })
+                .collect();
             let origin_inside: Vec<bool> = rings.iter().map(|r| compute_origin_inside(r)).collect();
             geometries.push(GeometryData {
                 rings,
@@ -147,7 +158,17 @@ fn collect_geometry(geometries: &mut Vec<GeometryData>, geometry: &Geometry<Plan
         }
         Geometry::MultiPolygon(multi_polygon) => {
             for polygon in multi_polygon {
-                let rings: Vec<Vec<[f64; 3]>> = polygon.iter().map(|r| ring_to_sphere(r)).collect();
+                let rings: Vec<Vec<[f64; 3]>> = polygon
+                    .iter()
+                    .enumerate()
+                    .map(|(i, r)| {
+                        let mut ring = ring_to_sphere(r);
+                        if i > 0 {
+                            ring.reverse();
+                        }
+                        ring
+                    })
+                    .collect();
                 let origin_inside: Vec<bool> =
                     rings.iter().map(|r| compute_origin_inside(r)).collect();
                 geometries.push(GeometryData {

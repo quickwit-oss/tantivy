@@ -1,16 +1,18 @@
 //! ShapeIndexRegion: Query methods for shape-cell relationships.
 //!
-//! This module provides methods to determine whether shapes in a CellIndex
-//! intersect or contain a given S2Cell target. Used to implement the Region
-//! trait over a CellIndex, enabling RegionCoverer to produce coverings.
+//! This module provides methods to determine whether shapes in a CellIndex intersect or contain a
+//! given S2Cell target. Used to implement the Region trait over a CellIndex, enabling
+//! RegionCoverer to produce coverings.
 //!
 //! Corresponds to S2ShapeIndexRegion in the C++ implementation.
 //! From s2shape_index_region.h
 use std::collections::HashMap;
 
 use super::cell_index::{CellIndex, ClippedShape};
+use super::cell_index_reader::CellIndexReader;
 use super::cell_union::CellUnion;
 use super::crossings::S2EdgeCrosser;
+use super::edge_reader::EdgeReader;
 use super::latlng_rect::S2LatLngRect;
 use super::region::Region;
 use super::s2cap::S2Cap;
@@ -22,9 +24,9 @@ use super::s2edge_clipping::{
 
 /// Provides vertex access for edge intersection tests.
 ///
-/// Implementors resolve a (geometry_id, edge_index) pair to the two endpoints
-/// of that edge. For ingest-side indexes backed by EdgeReader, this reads from
-/// disk. For query-local indexes, this indexes into an in-memory vertex array.
+/// Implementors resolve a (geometry_id, edge_index) pair to the two endpoints of that edge. For
+/// ingest-side indexes backed by EdgeReader, this reads from disk. For query-local indexes, this
+/// indexes into an in-memory vertex array.
 pub trait EdgeProvider {
     /// Returns the two endpoints of the given edge.
     fn get_edge(&self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]);
@@ -32,6 +34,107 @@ pub trait EdgeProvider {
     /// Returns all vertices for the given geometry, plus whether the reference
     /// origin is inside. Used for point-in-polygon fallback.
     fn get_vertices(&self, geometry_id: u32) -> (&[[f64; 3]], bool);
+}
+
+/// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between
+/// borrowed in-memory data and deserialized reader data.
+pub struct ClippedInfo {
+    /// The cell containing the test point.
+    pub cell_id: S2CellId,
+    /// Whether the geometry contains the cell center.
+    pub contains_center: bool,
+    /// Edge indices clipped to this cell.
+    pub edge_indices: Vec<u16>,
+}
+
+/// Abstracts cell lookup and edge resolution for indexed point-in-polygon. Takes &mut self because
+/// the segment-side EdgeReader mutates its LRU cache.
+pub trait ContainmentIndex {
+    /// Finds the cell containing the test point and returns the clipped shape data
+    /// for the given geometry, or None if the geometry is not present in that cell.
+    fn find_clipped(&mut self, geometry_id: u32, point: &[f64; 3]) -> Option<ClippedInfo>;
+    /// Resolves an edge index to its two endpoint vertices.
+    fn resolve_edge(&mut self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]);
+}
+
+/// Indexed point-in-polygon through either backend. Finds the cell containing the test point,
+/// starts from contains_center, counts crossings of only the edges clipped to that cell.
+pub fn contains_point<T: ContainmentIndex>(
+    index: &mut T,
+    geometry_id: u32,
+    point: &[f64; 3],
+) -> bool {
+    let info = match index.find_clipped(geometry_id, point) {
+        Some(c) => c,
+        None => return false,
+    };
+    let mut inside = info.contains_center;
+    if !info.edge_indices.is_empty() {
+        let center = info.cell_id.to_point();
+        let mut crosser = S2EdgeCrosser::new(&center, point);
+        for &edge_idx in &info.edge_indices {
+            let (v0, v1) = index.resolve_edge(geometry_id, edge_idx);
+            inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
+        }
+    }
+    inside
+}
+
+/// In-memory containment index wrapping a CellIndex and an EdgeProvider.
+pub struct InMemoryIndex<'a, E: EdgeProvider> {
+    /// The in-memory cell index.
+    pub index: &'a CellIndex,
+    /// The edge provider for vertex resolution.
+    pub edges: &'a E,
+}
+
+impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
+    fn find_clipped(&mut self, geometry_id: u32, point: &[f64; 3]) -> Option<ClippedInfo> {
+        let cell_id = S2CellId::from_point(point);
+        let index_cell = self.index.find_cell(cell_id)?;
+        let clipped = index_cell.find_shape(geometry_id)?;
+        Some(ClippedInfo {
+            cell_id: index_cell.cell_id,
+            contains_center: clipped.contains_center,
+            edge_indices: clipped.edge_indices.clone(),
+        })
+    }
+
+    fn resolve_edge(&mut self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
+        self.edges.get_edge(geometry_id, edge_idx)
+    }
+}
+
+/// Segment containment index wrapping a CellIndexReader and an EdgeReader.
+pub struct SegmentIndex<'a, 'b> {
+    /// The serialized cell index reader.
+    pub cell_reader: &'a CellIndexReader<'a>,
+    /// The edge reader for vertex resolution.
+    pub edge_reader: &'b mut EdgeReader<'a>,
+}
+
+impl ContainmentIndex for SegmentIndex<'_, '_> {
+    fn find_clipped(&mut self, geometry_id: u32, point: &[f64; 3]) -> Option<ClippedInfo> {
+        let cell_id = S2CellId::from_point(point);
+        let index_cell = self.cell_reader.find(cell_id)?;
+        let clipped = index_cell
+            .shapes
+            .iter()
+            .find(|s| s.geometry_id == geometry_id)?;
+        Some(ClippedInfo {
+            cell_id: index_cell.cell_id,
+            contains_center: clipped.contains_center,
+            edge_indices: clipped.edge_indices.clone(),
+        })
+    }
+
+    fn resolve_edge(&mut self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
+        let set = self.edge_reader.get(geometry_id);
+        let member_idx = (geometry_id - set.geometry_id) as usize;
+        let vertices = &set.vertices[member_idx];
+        let i = edge_idx as usize;
+        (vertices[i], vertices[i + 1])
+    }
 }
 
 /// Maximum error in edge-cell intersection tests.
@@ -73,8 +176,8 @@ pub fn any_edge_intersects<E: EdgeProvider>(
 }
 
 /// Returns true if the given geometry in the index contains the point. Uses the cell index to
-/// narrow the edge set — locates the cell containing the point, starts from contains_center,
-/// and counts crossings of only the edges in that cell.
+/// narrow the edge set — locates the cell containing the point, starts from contains_center, and
+/// counts crossings of only the edges in that cell.
 ///
 /// Port of S2ContainsPointQuery::ShapeContains.
 pub fn index_contains_point<E: EdgeProvider>(
@@ -95,9 +198,9 @@ pub fn index_contains_point<E: EdgeProvider>(
     clipped_shape_contains_point(index_cell.cell_id, clipped, edges, point)
 }
 
-/// Returns true if the given clipped shape contains the point. The cell_id identifies the
-/// index cell the clipped shape belongs to — its center is the reference point for the
-/// edge crossing test.
+/// Returns true if the given clipped shape contains the point. The cell_id identifies the index
+/// cell the clipped shape belongs to — its center is the reference point for the edge crossing
+/// test.
 fn clipped_shape_contains_point<E: EdgeProvider>(
     cell_id: S2CellId,
     clipped: &ClippedShape,
@@ -232,10 +335,9 @@ where
                         // Edge intersects target: shape intersects but doesn't contain
                         false
                     } else {
-                        // No edges intersect: check if shape contains target's center
-                        // by ray-casting from the index cell's center (where we know
-                        // contains_center) to the target center, counting crossings
-                        // of only the edges in this cell.
+                        // No edges intersect: check if shape contains target's center by
+                        // ray-casting from the index cell's center (where we know contains_center)
+                        // to the target center, counting crossings of only the edges in this cell.
                         if !clipped_shape_contains_point(
                             index_cell_id,
                             clipped,
