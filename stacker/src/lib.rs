@@ -9,11 +9,13 @@ mod fastcmp;
 mod fastcpy;
 mod memory_arena;
 mod shared_arena_hashmap;
+mod vec_vint;
 
 pub use self::arena_hashmap::ArenaHashMap;
 pub use self::expull::ExpUnrolledLinkedList;
 pub use self::memory_arena::{Addr, MemoryArena};
 pub use self::shared_arena_hashmap::{SharedArenaHashMap, compute_table_memory_size};
+pub use self::vec_vint::VecVint;
 
 /// When adding an element in a `ArenaHashMap`, we get a unique id associated to the given key.
 pub type UnorderedId = u32;

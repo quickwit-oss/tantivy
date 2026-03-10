@@ -159,6 +159,30 @@ pub fn write_u32_vint<W: io::Write + ?Sized>(val: u32, writer: &mut W) -> io::Re
     writer.write_all(data)
 }
 
+/// An iterator that decodes consecutive vint-encoded `u32` values from a byte slice.
+pub struct VInt32Reader<'a> {
+    data: &'a [u8],
+}
+
+impl<'a> VInt32Reader<'a> {
+    pub fn new(data: &'a [u8]) -> VInt32Reader<'a> {
+        VInt32Reader { data }
+    }
+}
+
+impl Iterator for VInt32Reader<'_> {
+    type Item = u32;
+
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        if self.data.is_empty() {
+            None
+        } else {
+            Some(read_u32_vint(&mut self.data))
+        }
+    }
+}
+
 impl VInt {
     pub fn val(&self) -> u64 {
         self.0

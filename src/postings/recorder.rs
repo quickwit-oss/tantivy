@@ -1,4 +1,4 @@
-use common::read_u32_vint;
+use common::VInt32Reader;
 use stacker::{ExpUnrolledLinkedList, MemoryArena};
 
 use crate::postings::FieldSerializer;
@@ -21,28 +21,6 @@ impl BufferLender {
         self.buffer_u8.clear();
         self.buffer_u32.clear();
         (&mut self.buffer_u8, &mut self.buffer_u32)
-    }
-}
-
-pub struct VInt32Reader<'a> {
-    data: &'a [u8],
-}
-
-impl<'a> VInt32Reader<'a> {
-    fn new(data: &'a [u8]) -> VInt32Reader<'a> {
-        VInt32Reader { data }
-    }
-}
-
-impl Iterator for VInt32Reader<'_> {
-    type Item = u32;
-
-    fn next(&mut self) -> Option<u32> {
-        if self.data.is_empty() {
-            None
-        } else {
-            Some(read_u32_vint(&mut self.data))
-        }
     }
 }
 
@@ -274,9 +252,9 @@ impl Recorder for TfAndPositionRecorder {
 #[cfg(test)]
 mod tests {
 
-    use common::write_u32_vint;
+    use common::{VInt32Reader, write_u32_vint};
 
-    use super::{BufferLender, VInt32Reader};
+    use super::BufferLender;
 
     #[test]
     fn test_buffer_lender() {
