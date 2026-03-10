@@ -1,4 +1,4 @@
-use common::VInt32Reader;
+use common::{VInt32Reader, read_u32_vint_no_advance};
 
 use crate::{ExpUnrolledLinkedList, MemoryArena};
 
@@ -24,6 +24,7 @@ use crate::{ExpUnrolledLinkedList, MemoryArena};
 #[derive(Debug)]
 pub struct VecVint {
     eull: ExpUnrolledLinkedList,
+    count: u32,
 }
 
 impl Default for VecVint {
@@ -37,6 +38,7 @@ impl VecVint {
     pub fn new() -> Self {
         Self {
             eull: ExpUnrolledLinkedList::default(),
+            count: 0,
         }
     }
 
@@ -49,10 +51,17 @@ impl VecVint {
         col
     }
 
+    #[allow(clippy::len_without_is_empty)]
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.count as usize
+    }
+
     /// Appends a `u32` value, encoding it as a vint.
     #[inline]
     pub fn push(&mut self, val: u32, arena: &mut MemoryArena) {
         self.eull.writer(arena).write_u32_vint(val);
+        self.count += 1;
     }
 
     /// Appends all values from `other` into `self`.
@@ -78,11 +87,20 @@ impl VecVint {
         self.eull.read_to_end(arena, buffer);
     }
 
-    /// Collects all values into a `Vec<u32>`.
-    pub fn to_vec(&self, arena: &MemoryArena) -> Vec<u32> {
+    /// Returns an iterator over the decoded `u32` values.
+    pub fn iter(&self, arena: &MemoryArena) -> VecVintIter {
         let mut buffer = Vec::new();
         self.read_to_end(arena, &mut buffer);
-        VInt32Reader::new(&buffer).collect()
+        VecVintIter {
+            buffer,
+            pos: 0,
+            remaining: self.count as usize,
+        }
+    }
+
+    /// Collects all values into a `Vec<u32>`.
+    pub fn to_vec(&self, arena: &MemoryArena) -> Vec<u32> {
+        self.iter(arena).collect()
     }
 
     /// Retains only the values at positions where `keep(index)` returns `true`.
@@ -98,6 +116,33 @@ impl VecVint {
         }
     }
 }
+
+pub struct VecVintIter {
+    buffer: Vec<u8>,
+    pos: usize,
+    remaining: usize,
+}
+
+impl Iterator for VecVintIter {
+    type Item = u32;
+
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        if self.remaining == 0 {
+            return None;
+        }
+        let (val, consumed) = read_u32_vint_no_advance(&self.buffer[self.pos..]);
+        self.pos += consumed;
+        self.remaining -= 1;
+        Some(val)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl ExactSizeIterator for VecVintIter {}
 
 #[cfg(test)]
 mod tests {
@@ -117,6 +162,7 @@ mod tests {
         col.push(u32::MAX, &mut arena);
         let vals: Vec<u32> = col.to_vec(&arena);
         assert_eq!(vals, vec![0, 127, 128, 16383, 16384, u32::MAX]);
+        assert_eq!(col.len(), 6);
     }
 
     #[test]

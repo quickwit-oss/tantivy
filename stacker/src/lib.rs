@@ -15,7 +15,7 @@ pub use self::arena_hashmap::ArenaHashMap;
 pub use self::expull::ExpUnrolledLinkedList;
 pub use self::memory_arena::{Addr, MemoryArena};
 pub use self::shared_arena_hashmap::{SharedArenaHashMap, compute_table_memory_size};
-pub use self::vec_vint::VecVint;
+pub use self::vec_vint::{VecVint, VecVintIter};
 
 /// When adding an element in a `ArenaHashMap`, we get a unique id associated to the given key.
 pub type UnorderedId = u32;
