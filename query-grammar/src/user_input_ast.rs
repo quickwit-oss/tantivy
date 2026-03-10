@@ -5,6 +5,14 @@ use serde::Serialize;
 
 use crate::Occur;
 
+/// The spatial predicate kind, shared between parser and formatter.
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpatialPredicateKind {
+    Intersects,
+    Contains,
+}
+
 #[derive(PartialEq, Eq, Hash, Clone, Serialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
@@ -26,6 +34,14 @@ pub enum UserInputLeaf {
     Regex {
         field: Option<String>,
         pattern: String,
+    },
+    Spatial {
+        field: Option<String>,
+        predicate: SpatialPredicateKind,
+        coordinates: Vec<(
+            ordered_float::OrderedFloat<f64>,
+            ordered_float::OrderedFloat<f64>,
+        )>,
     },
 }
 
@@ -51,6 +67,15 @@ impl UserInputLeaf {
                 field: field.expect("Exist query without a field isn't allowed"),
             },
             UserInputLeaf::Regex { field: _, pattern } => UserInputLeaf::Regex { field, pattern },
+            UserInputLeaf::Spatial {
+                field: _,
+                predicate,
+                coordinates,
+            } => UserInputLeaf::Spatial {
+                field,
+                predicate,
+                coordinates,
+            },
         }
     }
 
@@ -66,7 +91,8 @@ impl UserInputLeaf {
             }
             UserInputLeaf::Range { field, .. } if field.is_none() => *field = Some(default_field),
             UserInputLeaf::Set { field, .. } if field.is_none() => *field = Some(default_field),
-            _ => (), // field was already set, do nothing
+            UserInputLeaf::Spatial { .. } => (), // spatial requires explicit field
+            _ => (),                             // field was already set, do nothing
         }
     }
 }
@@ -115,6 +141,27 @@ impl Debug for UserInputLeaf {
                 }
                 // TODO properly escape pattern (in case of \")
                 write!(formatter, "/{pattern}/")
+            }
+            UserInputLeaf::Spatial {
+                field,
+                predicate,
+                coordinates,
+            } => {
+                if let Some(field) = field {
+                    write!(formatter, "\"{field}\":")?;
+                }
+                let pred = match predicate {
+                    SpatialPredicateKind::Intersects => "$intersects",
+                    SpatialPredicateKind::Contains => "$contains",
+                };
+                write!(formatter, "{pred}(")?;
+                for (i, (lon, lat)) in coordinates.iter().enumerate() {
+                    if i > 0 {
+                        write!(formatter, ", ")?;
+                    }
+                    write!(formatter, "{} {}", lon.0, lat.0)?;
+                }
+                write!(formatter, ")")
             }
         }
     }

@@ -7,7 +7,9 @@ use std::sync::Arc;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use itertools::Itertools;
-use query_grammar::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use query_grammar::{
+    SpatialPredicateKind, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
+};
 use rustc_hash::FxHashMap;
 use tantivy_fst::Regex;
 
@@ -17,7 +19,7 @@ use crate::json_utils::convert_to_fast_value_and_append_to_json_term;
 use crate::query::range_query::{is_type_valid_for_fastfield_range_query, RangeQuery};
 use crate::query::{
     AllQuery, BooleanQuery, BoostQuery, EmptyQuery, FuzzyTermQuery, Occur, PhrasePrefixQuery,
-    PhraseQuery, Query, RegexQuery, TermQuery, TermSetQuery,
+    PhraseQuery, Query, RegexQuery, SpatialPredicate, SpatialQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
     Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
@@ -869,6 +871,49 @@ impl QueryParser {
                     "Range query need to target a specific field.".to_string(),
                 )],
             ),
+            UserInputLeaf::Spatial {
+                field,
+                predicate,
+                coordinates,
+            } => {
+                let full_path = try_tuple!(field.ok_or_else(|| {
+                    QueryParserError::UnsupportedQuery(
+                        "Spatial query requires an explicit field name.".to_string(),
+                    )
+                }));
+                let (field, json_path) = try_tuple!(self
+                    .split_full_path(&full_path)
+                    .ok_or_else(|| QueryParserError::FieldDoesNotExist(full_path.clone())));
+                if !json_path.is_empty() {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Spatial query does not support json paths.".to_string(),
+                        )],
+                    );
+                }
+                if !matches!(
+                    self.schema.get_field_entry(field).field_type(),
+                    FieldType::Spatial(_)
+                ) {
+                    return (
+                        None,
+                        vec![QueryParserError::UnsupportedQuery(
+                            "Spatial predicates require a spatial field.".to_string(),
+                        )],
+                    );
+                }
+                let coords: Vec<[f64; 2]> = coordinates
+                    .into_iter()
+                    .map(|(lon, lat)| [lon.0, lat.0])
+                    .collect();
+                let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Spatial {
+                    field,
+                    predicate,
+                    coordinates: coords,
+                }));
+                (Some(logical_ast), Vec::new())
+            }
             UserInputLeaf::Regex { field, pattern } => {
                 if !self.regexes_allowed {
                     return (
@@ -958,6 +1003,21 @@ fn convert_literal_to_query(
         LogicalLiteral::All => Box::new(AllQuery),
         LogicalLiteral::Regex { pattern, field } => {
             Box::new(RegexQuery::from_regex(pattern, field))
+        }
+        LogicalLiteral::Spatial {
+            field,
+            predicate,
+            coordinates,
+        } => {
+            let spatial_predicate = match predicate {
+                SpatialPredicateKind::Intersects => SpatialPredicate::Intersects,
+                SpatialPredicateKind::Contains => SpatialPredicate::Contains,
+            };
+            Box::new(SpatialQuery::with_predicate(
+                field,
+                coordinates,
+                spatial_predicate,
+            ))
         }
     }
 }

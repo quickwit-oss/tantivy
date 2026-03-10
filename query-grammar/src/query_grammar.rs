@@ -13,7 +13,9 @@ use nom::error::{Error, ErrorKind};
 use nom::multi::{many0, many1, separated_list0};
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
 
-use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use super::user_input_ast::{
+    SpatialPredicateKind, UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral,
+};
 use crate::Occur;
 use crate::infallible::*;
 use crate::user_input_ast::Delimiter;
@@ -362,6 +364,57 @@ fn exists_infallible(inp: &str) -> JResult<&str, UserInputAst> {
     Ok((inp, (exists, Vec::new())))
 }
 
+/// Parse a float that may be negative. Returns the f64 value.
+fn spatial_float(inp: &str) -> IResult<&str, f64> {
+    map_res(
+        recognize(tuple((
+            opt(char('-')),
+            digit1,
+            opt(tuple((char('.'), digit1))),
+        ))),
+        |s: &str| s.parse::<f64>(),
+    )(inp)
+}
+
+/// Parse a spatial predicate: $intersects(...) or $contains(...).
+fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let mut predicate_tag = alt((
+        value(SpatialPredicateKind::Intersects, tag("$intersects")),
+        value(SpatialPredicateKind::Contains, tag("$contains")),
+    ));
+
+    let coord_sep = || delimited(multispace0, char(','), multispace0);
+    let coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+
+    let (inp, predicate) = predicate_tag(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+    let (inp, pairs) = separated_list0(coord_sep(), coord_pair)(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    if pairs.len() < 3 {
+        return Err(nom::Err::Failure(Error::new(inp, ErrorKind::Verify)));
+    }
+
+    let coordinates = pairs
+        .into_iter()
+        .map(|(lon, lat)| {
+            (
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )
+        })
+        .collect();
+
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate,
+            coordinates,
+        },
+    ))
+}
+
 fn literal(inp: &str) -> IResult<&str, UserInputAst> {
     // * alone is already parsed by our caller, so if `exists` succeed, we can be confident
     // something (a field name) got parsed before
@@ -369,7 +422,7 @@ fn literal(inp: &str) -> IResult<&str, UserInputAst> {
         map(
             tuple((
                 opt(field_name),
-                alt((range, set, exists, regex, term_or_phrase)),
+                alt((range, set, exists, regex, spatial, term_or_phrase)),
             )),
             |(field_name, leaf): (Option<String>, UserInputLeaf)| leaf.set_field(field_name).into(),
         ),
@@ -1134,6 +1187,12 @@ mod test {
     // assert_eq!(super::occur_symbol("+")?, ("", Occur::Must));
     // Ok(())
     // }
+
+    #[test]
+    fn test_spatial_parser_direct() {
+        let result = spatial("$intersects(1.0 2.0, 3.0 4.0, 5.0 6.0)");
+        assert!(result.is_ok(), "spatial parser failed: {:?}", result);
+    }
 
     #[test]
     fn test_positive_float_number() {
