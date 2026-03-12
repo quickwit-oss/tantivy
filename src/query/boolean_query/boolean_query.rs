@@ -261,7 +261,7 @@ impl BooleanQuery {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use rustc_hash::FxHashSet;
 
     use super::BooleanQuery;
     use crate::collector::{Count, DocSetCollector};
@@ -314,7 +314,7 @@ mod tests {
         }
         fn check_doc_id<T: IntoIterator<Item = DocId>>(
             expected: T,
-            actually: HashSet<DocAddress>,
+            actually: FxHashSet<DocAddress>,
             seg: u32,
         ) {
             assert_eq!(
@@ -322,7 +322,7 @@ mod tests {
                 expected
                     .into_iter()
                     .map(|id| DocAddress::new(seg, id))
-                    .collect()
+                    .collect::<FxHashSet<DocAddress>>()
             );
         }
         let index = create_test_index_with(["a b c", "a c e", "d f g", "z z z", "c i b"])?;
