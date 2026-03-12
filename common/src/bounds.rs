@@ -44,6 +44,18 @@ impl<T> BoundsRange<T> {
         }
     }
 
+    pub fn transform_inner_res<TTo, Err>(
+        &self,
+        transform_lower: impl Fn(&T) -> io::Result<TransformBound<TTo>>,
+        transform_upper: impl Fn(&T) -> io::Result<TransformBound<TTo>>,
+    ) -> io::Result<BoundsRange<TTo>> {
+        let range = BoundsRange {
+            lower_bound: transform_bound_inner_res(&self.lower_bound, &transform_lower)?,
+            upper_bound: transform_bound_inner_res(&self.upper_bound, &transform_upper)?,
+        };
+        Ok(range)
+    }
+
     /// Returns the first set inner value
     pub fn get_inner(&self) -> Option<&T> {
         inner_bound(&self.lower_bound).or(inner_bound(&self.upper_bound))
