@@ -9,11 +9,12 @@ use crate::aggregation::accessor_helpers::{
     get_numeric_or_date_column_types,
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
+pub use crate::aggregation::bucket::{CompositeAggReqData, CompositeSourceAccessors};
 use crate::aggregation::bucket::{
-    build_segment_filter_collector, build_segment_range_collector, FilterAggReqData,
-    HistogramAggReqData, HistogramBounds, IncludeExcludeParam, MissingTermAggReqData,
-    RangeAggReqData, SegmentHistogramCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
-    TermsAggregationInternal,
+    build_segment_filter_collector, build_segment_range_collector, CompositeAggregation,
+    FilterAggReqData, HistogramAggReqData, HistogramBounds, IncludeExcludeParam,
+    MissingTermAggReqData, RangeAggReqData, SegmentCompositeCollector, SegmentHistogramCollector,
+    TermMissingAgg, TermsAggReqData, TermsAggregation, TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
@@ -73,6 +74,12 @@ impl AggregationsSegmentCtx {
         self.per_request.filter_req_data.push(Some(Box::new(data)));
         self.per_request.filter_req_data.len() - 1
     }
+    pub(crate) fn push_composite_req_data(&mut self, data: CompositeAggReqData) -> usize {
+        self.per_request
+            .composite_req_data
+            .push(Some(Box::new(data)));
+        self.per_request.composite_req_data.len() - 1
+    }
 
     #[inline]
     pub(crate) fn get_term_req_data(&self, idx: usize) -> &TermsAggReqData {
@@ -108,6 +115,12 @@ impl AggregationsSegmentCtx {
             .as_deref()
             .expect("range_req_data slot is empty (taken)")
     }
+    #[inline]
+    pub(crate) fn get_composite_req_data(&self, idx: usize) -> &CompositeAggReqData {
+        self.per_request.composite_req_data[idx]
+            .as_deref()
+            .expect("composite_req_data slot is empty (taken)")
+    }
 
     // ---------- mutable getters ----------
 
@@ -130,8 +143,14 @@ impl AggregationsSegmentCtx {
             .as_deref_mut()
             .expect("histogram_req_data slot is empty (taken)")
     }
+    #[inline]
+    pub(crate) fn get_composite_req_data_mut(&mut self, idx: usize) -> &mut CompositeAggReqData {
+        self.per_request.composite_req_data[idx]
+            .as_deref_mut()
+            .expect("composite_req_data slot is empty (taken)")
+    }
 
-    // ---------- take / put (terms, histogram, range) ----------
+    // ---------- take / put (terms, histogram, range, composite) ----------
 
     /// Move out the boxed Histogram request at `idx`, leaving `None`.
     #[inline]
@@ -181,6 +200,25 @@ impl AggregationsSegmentCtx {
         debug_assert!(self.per_request.filter_req_data[idx].is_none());
         self.per_request.filter_req_data[idx] = Some(value);
     }
+
+    /// Move out the Composite request at `idx`.
+    #[inline]
+    pub(crate) fn take_composite_req_data(&mut self, idx: usize) -> Box<CompositeAggReqData> {
+        self.per_request.composite_req_data[idx]
+            .take()
+            .expect("composite_req_data slot is empty (taken)")
+    }
+
+    /// Put back a Composite request into an empty slot at `idx`.
+    #[inline]
+    pub(crate) fn put_back_composite_req_data(
+        &mut self,
+        idx: usize,
+        value: Box<CompositeAggReqData>,
+    ) {
+        debug_assert!(self.per_request.composite_req_data[idx].is_none());
+        self.per_request.composite_req_data[idx] = Some(value);
+    }
 }
 
 /// Each type of aggregation has its own request data struct. This struct holds
@@ -200,6 +238,8 @@ pub struct PerRequestAggSegCtx {
     pub range_req_data: Vec<Option<Box<RangeAggReqData>>>,
     /// FilterAggReqData contains the request data for a filter aggregation.
     pub filter_req_data: Vec<Option<Box<FilterAggReqData>>>,
+    /// CompositeAggReqData contains the request data for a composite aggregation.
+    pub composite_req_data: Vec<Option<Box<CompositeAggReqData>>>,
     /// Shared by avg, min, max, sum, stats, extended_stats, count
     pub stats_metric_req_data: Vec<MetricAggReqData>,
     /// CardinalityAggReqData contains the request data for a cardinality aggregation.
@@ -255,6 +295,11 @@ impl PerRequestAggSegCtx {
                 .iter()
                 .map(|t| t.get_memory_consumption())
                 .sum::<usize>()
+            + self
+                .composite_req_data
+                .iter()
+                .map(|t| t.as_ref().unwrap().get_memory_consumption())
+                .sum::<usize>()
             + self.agg_tree.len() * std::mem::size_of::<AggRefNode>()
     }
 
@@ -289,6 +334,11 @@ impl PerRequestAggSegCtx {
             AggKind::Filter => self.filter_req_data[idx]
                 .as_deref()
                 .expect("filter_req_data slot is empty (taken)")
+                .name
+                .as_str(),
+            AggKind::Composite => &self.composite_req_data[idx]
+                .as_deref()
+                .expect("composite_req_data slot is empty (taken)")
                 .name
                 .as_str(),
         }
@@ -417,6 +467,9 @@ pub(crate) fn build_segment_agg_collector(
         )?)),
         AggKind::Range => Ok(build_segment_range_collector(req, node)?),
         AggKind::Filter => build_segment_filter_collector(req, node),
+        AggKind::Composite => Ok(Box::new(SegmentCompositeCollector::from_req_and_validate(
+            req, node,
+        )?)),
     }
 }
 
@@ -447,6 +500,7 @@ pub enum AggKind {
     DateHistogram,
     Range,
     Filter,
+    Composite,
 }
 
 impl AggKind {
@@ -462,6 +516,7 @@ impl AggKind {
             AggKind::DateHistogram => "DateHistogram",
             AggKind::Range => "Range",
             AggKind::Filter => "Filter",
+            AggKind::Composite => "Composite",
         }
     }
 }
@@ -740,6 +795,14 @@ fn build_nodes(
                 children,
             }])
         }
+        AggregationVariants::Composite(composite_req) => Ok(vec![build_composite_node(
+            agg_name,
+            reader,
+            segment_ordinal,
+            data,
+            &req.sub_aggregation,
+            composite_req,
+        )?]),
     }
 }
 
@@ -933,6 +996,35 @@ fn build_terms_or_cardinality_nodes(
     }
 
     Ok(nodes)
+}
+
+fn build_composite_node(
+    agg_name: &str,
+    reader: &SegmentReader,
+    segment_ordinal: SegmentOrdinal,
+    data: &mut AggregationsSegmentCtx,
+    sub_aggs: &Aggregations,
+    req: &CompositeAggregation,
+) -> crate::Result<AggRefNode> {
+    let mut composite_accessors = Vec::with_capacity(req.sources.len());
+    for source in &req.sources {
+        let source_after_key_opt = req.after.get(source.name()).map(|k| &k.0);
+        let source_accessor =
+            CompositeSourceAccessors::build_for_source(reader, source, source_after_key_opt)?;
+        composite_accessors.push(source_accessor);
+    }
+    let agg = CompositeAggReqData {
+        name: agg_name.to_string(),
+        req: req.clone(),
+        composite_accessors,
+    };
+    let idx = data.push_composite_req_data(agg);
+    let children = build_children(sub_aggs, reader, segment_ordinal, data)?;
+    Ok(AggRefNode {
+        kind: AggKind::Composite,
+        idx_in_req_data: idx,
+        children,
+    })
 }
 
 /// Builds a single BitSet of allowed term ordinals for a string dictionary column according to

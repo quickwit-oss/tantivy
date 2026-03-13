@@ -292,6 +292,19 @@ impl BinarySerializable for IPCodecParams {
     }
 }
 
+/// Represents the result of looking up a u128 value in the compact space.
+///
+/// If a value is outside the compact space, the next compact value is returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompactHit {
+    /// The value exists in the compact space
+    Exact(u32),
+    /// The value does not exist in the compact space, but the next higher value does
+    Next(u32),
+    /// The value is greater than the maximum compact value
+    AfterLast,
+}
+
 /// Exposes the compact space compressed values as u64.
 ///
 /// This allows faster access to the values, as u64 is faster to work with than u128.
@@ -308,6 +321,11 @@ impl CompactSpaceU64Accessor {
     /// Convert a compact space value to u128
     pub fn compact_to_u128(&self, compact: u32) -> u128 {
         self.0.compact_to_u128(compact)
+    }
+
+    /// Finds the next compact space value for a given u128 value.
+    pub fn u128_to_next_compact(&self, value: u128) -> CompactHit {
+        self.0.u128_to_next_compact(value)
     }
 }
 
@@ -428,6 +446,26 @@ impl CompactSpaceDecompressor {
         let decompressor = CompactSpaceDecompressor { data, params };
 
         Ok(decompressor)
+    }
+
+    /// Finds the next compact space value for a given u128 value
+    pub fn u128_to_next_compact(&self, value: u128) -> CompactHit {
+        // Try to convert to compact space
+        match self.u128_to_compact(value) {
+            // Value is in compact space, return its compact representation
+            Ok(compact) => CompactHit::Exact(compact),
+            // Value is not in compact space
+            Err(pos) => {
+                if pos >= self.params.compact_space.ranges_mapping.len() {
+                    // Value is beyond all ranges, no next value exists
+                    CompactHit::AfterLast
+                } else {
+                    // Get the next range and return its start compact value
+                    let next_range = &self.params.compact_space.ranges_mapping[pos];
+                    CompactHit::Next(next_range.compact_start)
+                }
+            }
+        }
     }
 
     /// Converting to compact space for the decompressor is more complex, since we may get values
@@ -821,6 +859,41 @@ mod tests {
     fn test_first_large_gaps() {
         let vals = &[1_000_000_000u128; 100];
         let _data = test_aux_vals(vals);
+    }
+
+    #[test]
+    fn test_u128_to_next_compact() {
+        let vals = &[100u128, 200u128, 1_000_000_000u128, 1_000_000_100u128];
+        let mut data = test_aux_vals(vals);
+
+        let _header = U128Header::deserialize(&mut data);
+        let decomp = CompactSpaceDecompressor::open(data).unwrap();
+
+        // Test value that's already in a range
+        let compact_100 = decomp.u128_to_compact(100).unwrap();
+        assert_eq!(
+            decomp.u128_to_next_compact(100),
+            CompactHit::Exact(compact_100)
+        );
+
+        // Test value between two ranges
+        let compact_million = decomp.u128_to_compact(1_000_000_000).unwrap();
+        assert_eq!(
+            decomp.u128_to_next_compact(250),
+            CompactHit::Next(compact_million)
+        );
+
+        // Test value before the first range
+        assert_eq!(
+            decomp.u128_to_next_compact(50),
+            CompactHit::Next(compact_100)
+        );
+
+        // Test value after the last range
+        assert_eq!(
+            decomp.u128_to_next_compact(10_000_000_000),
+            CompactHit::AfterLast
+        );
     }
 
     use proptest::prelude::*;
