@@ -25,29 +25,21 @@ use crate::aggregation::intermediate_agg_result::{
     IntermediateBucketResult, IntermediateCompositeBucketEntry, IntermediateCompositeBucketResult,
 };
 use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
+use crate::aggregation::BucketId;
 use crate::TantivyError;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct CompositeBucketCollector {
     count: u32,
-    sub_aggs: Option<Box<dyn SegmentAggregationCollector>>,
 }
 
 impl CompositeBucketCollector {
-    fn new(sub_aggs: Option<Box<dyn SegmentAggregationCollector>>) -> Self {
-        CompositeBucketCollector { count: 0, sub_aggs }
+    fn new() -> Self {
+        CompositeBucketCollector { count: 0 }
     }
     #[inline]
-    fn collect(
-        &mut self,
-        doc: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
+    fn collect(&mut self) {
         self.count += 1;
-        if let Some(sub_aggs) = &mut self.sub_aggs {
-            sub_aggs.collect(doc, agg_data)?;
-        }
-        Ok(())
     }
 }
 
@@ -102,7 +94,7 @@ impl InternalValueRepr {
 
 /// The collector puts values from the fast field into the correct buckets and
 /// does a conversion to the correct datatype.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct SegmentCompositeCollector {
     buckets: DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>,
     accessor_idx: usize,
@@ -110,9 +102,10 @@ pub struct SegmentCompositeCollector {
 
 impl SegmentAggregationCollector for SegmentCompositeCollector {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        _parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
         let name = agg_data
             .get_composite_req_data(self.accessor_idx)
@@ -131,15 +124,7 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
     #[inline]
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_data: &mut AggregationsSegmentCtx,
-    ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_data)
-    }
-
-    #[inline]
-    fn collect_block(
-        &mut self,
+        _parent_bucket_id: BucketId,
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
@@ -168,20 +153,21 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         Ok(())
     }
 
-    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
-        for sub_agg_collector in self.buckets.values_mut() {
-            if let Some(sub_aggs_collector) = &mut sub_agg_collector.sub_aggs {
-                sub_aggs_collector.flush(agg_data)?;
-            }
-        }
+    fn prepare_max_bucket(
+        &mut self,
+        _max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        Ok(())
+    }
+
+    fn flush(&mut self, _agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         Ok(())
     }
 }
 
 impl SegmentCompositeCollector {
     fn get_memory_consumption(&self) -> u64 {
-        // TODO: the footprint is underestimated because we don't account for the
-        // sub-aggregations which are trait objects
         self.buckets.memory_consumption()
     }
 
@@ -191,16 +177,11 @@ impl SegmentCompositeCollector {
     ) -> crate::Result<Self> {
         validate_req(req_data, node.idx_in_req_data)?;
 
-        let has_sub_aggregations = !node.children.is_empty();
-        let blueprint = if has_sub_aggregations {
-            let sub_aggregation = build_segment_agg_collectors(req_data, &node.children)?;
-            Some(sub_aggregation)
-        } else {
-            None
-        };
-        let composite_req_data = req_data.get_composite_req_data_mut(node.idx_in_req_data);
-        composite_req_data.sub_aggregation_blueprint = blueprint;
+        if !node.children.is_empty() {
+            let _sub_aggregation = build_segment_agg_collectors(req_data, &node.children)?;
+        }
 
+        let composite_req_data = req_data.get_composite_req_data(node.idx_in_req_data);
         Ok(SegmentCompositeCollector {
             buckets: DynArrayHeapMap::try_new(composite_req_data.req.sources.len())?,
             accessor_idx: node.idx_in_req_data,
@@ -209,20 +190,21 @@ impl SegmentCompositeCollector {
 
     #[inline]
     pub(crate) fn into_intermediate_bucket_result(
-        self,
+        &mut self,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateCompositeBucketResult> {
         let mut dict: FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry> =
             Default::default();
         dict.reserve(self.buckets.size());
         let composite_data = agg_data.get_composite_req_data(self.accessor_idx);
-        for (key_internal_repr, agg) in self.buckets.into_iter() {
+        let buckets = std::mem::replace(
+            &mut self.buckets,
+            DynArrayHeapMap::try_new(composite_data.req.sources.len())
+                .expect("already validated source count"),
+        );
+        for (key_internal_repr, agg) in buckets.into_iter() {
             let key = resolve_key(&key_internal_repr, composite_data)?;
-            let mut sub_aggregation_res = IntermediateAggregationResults::default();
-            if let Some(sub_aggs_collector) = agg.sub_aggs {
-                sub_aggs_collector
-                    .add_intermediate_aggregation_result(agg_data, &mut sub_aggregation_res)?;
-            }
+            let sub_aggregation_res = IntermediateAggregationResults::default();
 
             dict.insert(
                 key,
@@ -286,42 +268,33 @@ fn validate_req(req_data: &mut AggregationsSegmentCtx, accessor_idx: usize) -> c
 }
 
 fn collect_bucket_with_limit(
-    doc_id: crate::DocId,
     agg_data: &mut AggregationsSegmentCtx,
     composite_agg_data: &CompositeAggReqData,
     buckets: &mut DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>,
     key: &[InternalValueRepr],
 ) -> crate::Result<()> {
-    // we still have room for buckets, just insert
     if (buckets.size() as u32) < composite_agg_data.req.size {
         buckets
-            .get_or_insert_with(key, || {
-                CompositeBucketCollector::new(composite_agg_data.sub_aggregation_blueprint.clone())
-            })
-            .collect(doc_id, agg_data)?;
+            .get_or_insert_with(key, CompositeBucketCollector::new)
+            .collect();
         return Ok(());
     }
 
-    // map is full, but we can still update the bucket if it already exists
     if let Some(entry) = buckets.get_mut(key) {
-        entry.collect(doc_id, agg_data)?;
+        entry.collect();
         return Ok(());
     }
 
-    // check if the item qualifies to enter the top-k, and evict the highest if it does
     if let Some(highest_key) = buckets.peek_highest() {
         if key < highest_key {
             buckets.evict_highest();
             buckets
-                .get_or_insert_with(key, || {
-                    CompositeBucketCollector::new(
-                        composite_agg_data.sub_aggregation_blueprint.clone(),
-                    )
-                })
-                .collect(doc_id, agg_data)?;
+                .get_or_insert_with(key, CompositeBucketCollector::new)
+                .collect();
         }
     }
 
+    let _ = agg_data;
     Ok(())
 }
 
@@ -370,8 +343,6 @@ fn resolve_internal_value_repr(
             resolve_term(val, column_type, str_dict_column, column)?
         }
         CompositeAggregationSource::Histogram(source) => {
-            // Results are collected as interval indices to avoid Fx Hash collisions.
-            // Multiply back by the interval to get the bucket value.
             CompositeIntermediateKey::F64(i64::from_u64(val) as f64 * source.interval)
         }
         CompositeAggregationSource::DateHistogram(_) => {
@@ -395,7 +366,6 @@ fn resolve_term(
             .map(|el| el.dictionary())
             .unwrap_or_else(|| &fallback_dict);
 
-        // TODO try use sorted_ords_to_term_cb to batch
         let mut buffer = Vec::new();
         term_dict.ord_to_term(val, &mut buffer)?;
         CompositeIntermediateKey::Str(
@@ -448,13 +418,11 @@ fn recursive_key_visitor(
     source_idx_for_recursion: usize,
     sub_level_values: &mut SmallVec<[InternalValueRepr; MAX_DYN_ARRAY_SIZE]>,
     buckets: &mut DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>,
-    // whether we need to consider the after_key in the following levels
     is_on_after_key: bool,
 ) -> crate::Result<()> {
     if source_idx_for_recursion == composite_agg_data.req.sources.len() {
         if !is_on_after_key {
             collect_bucket_with_limit(
-                doc_id,
                 agg_data,
                 composite_agg_data,
                 buckets,
@@ -468,9 +436,6 @@ fn recursive_key_visitor(
     let current_level_source = &composite_agg_data.req.sources[source_idx_for_recursion];
     let mut missing = true;
     for (accessor_idx, accessor) in current_level_accessors.accessors.iter().enumerate() {
-        // TODO: optimize with prefetching using fetch_block
-        // TODO: currently duplicate values for a document imply double counting
-        // in doc_count (this is also the case in term aggregations)
         let values = accessor.column.values_for_doc(doc_id);
         for value in values {
             missing = false;
@@ -485,12 +450,6 @@ fn recursive_key_visitor(
                         accessor_idx == current_level_accessors.after_key_accessor_idx;
 
                     if matches_after_key_type && is_on_after_key {
-                        // At this stage, only skip values with the same type as the after_key and
-                        // that are strictly before:
-                        // - columns with types before the after_key type are already skipped
-                        // - in columns with types after the after_key type all values are kept
-                        // - in columns with the same type as the after_key type, values equal to
-                        //   the after_key are handled in the next recursion level
                         let should_skip = match current_level_source.order() {
                             Order::Asc => current_level_accessors.after_key.gt(value),
                             Order::Desc => current_level_accessors.after_key.lt(value),
@@ -521,8 +480,6 @@ fn recursive_key_visitor(
                     let float_value = match accessor.column_type {
                         ColumnType::U64 => value as f64,
                         ColumnType::I64 => i64::from_u64(value) as f64,
-                        // Dates are stored as nanoseconds since epoch but the
-                        // interval is in milliseconds
                         ColumnType::DateTime => i64::from_u64(value) as f64 / 1_000_000.,
                         ColumnType::F64 => f64::from_u64(value),
                         _ => {
@@ -532,15 +489,9 @@ fn recursive_key_visitor(
                             )
                         }
                     };
-                    // We use the interval index (as i64) instead of its value
-                    // (f64) because Fx Hash has a very high collision rate when
-                    // lower bits are similar. The index needs to be multiplied
-                    // back by the interval when building the result.
                     let bucket_index = (float_value / source.interval).floor() as i64;
                     let bucket_value = i64::to_u64(bucket_index);
                     if is_on_after_key {
-                        // At this stage, only skip values stricly before the after_key.
-                        // Values equal to the after_key are handled in the next recursion level.
                         let should_skip = match current_level_source.order() {
                             Order::Asc => current_level_accessors.after_key.gt(bucket_value),
                             Order::Desc => current_level_accessors.after_key.lt(bucket_value),
@@ -567,8 +518,6 @@ fn recursive_key_visitor(
                 }
                 CompositeAggregationSource::DateHistogram(_) => {
                     let value_ns = match accessor.column_type {
-                        // Dates are stored as nanoseconds since epoch but the
-                        // interval is in milliseconds
                         ColumnType::DateTime => i64::from_u64(value),
                         _ => {
                             panic!(
@@ -596,8 +545,6 @@ fn recursive_key_visitor(
                     };
                     let bucket_value = i64::to_u64(bucket_index);
                     if is_on_after_key {
-                        // At this stage, only skip values stricly before the after_key.
-                        // Values equal to the after_key are handled in the next recursion level.
                         let should_skip = match current_level_source.order() {
                             Order::Asc => current_level_accessors.after_key.gt(bucket_value),
                             Order::Desc => current_level_accessors.after_key.lt(bucket_value),

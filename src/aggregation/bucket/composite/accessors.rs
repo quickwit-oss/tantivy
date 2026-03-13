@@ -13,14 +13,11 @@ use crate::aggregation::bucket::{
     MissingOrder, Order,
 };
 use crate::aggregation::intermediate_agg_result::CompositeIntermediateKey;
-use crate::aggregation::segment_agg_result::SegmentAggregationCollector;
 use crate::{SegmentReader, TantivyError};
 
 /// Contains all information required by the SegmentCompositeCollector to perform the
 /// composite aggregation on a segment.
 pub struct CompositeAggReqData {
-    /// Note: sub_aggregation_blueprint is filled later when building collectors
-    pub sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
     /// The name of the aggregation.
     pub name: String,
     /// The normalized term aggregation request.

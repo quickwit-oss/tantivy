@@ -967,9 +967,39 @@ impl std::hash::Hash for CompositeIntermediateKey {
 /// Composite aggregation page.
 #[derive(Default, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct IntermediateCompositeBucketResult {
+    #[serde(
+        serialize_with = "serialize_composite_entries",
+        deserialize_with = "deserialize_composite_entries"
+    )]
     pub(crate) entries: FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry>,
     pub(crate) target_size: u32,
     pub(crate) orders: Vec<(Order, MissingOrder)>,
+}
+
+fn serialize_composite_entries<S>(
+    entries: &FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeSeq;
+    let mut seq = serializer.serialize_seq(Some(entries.len()))?;
+    for (k, v) in entries {
+        seq.serialize_element(&(k, v))?;
+    }
+    seq.end()
+}
+
+fn deserialize_composite_entries<'de, D>(
+    deserializer: D,
+) -> Result<FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let vec: Vec<(Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry)> =
+        serde::Deserialize::deserialize(deserializer)?;
+    Ok(vec.into_iter().collect())
 }
 
 impl IntermediateCompositeBucketResult {

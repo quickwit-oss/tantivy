@@ -1017,8 +1017,6 @@ fn build_composite_node(
         name: agg_name.to_string(),
         req: req.clone(),
         composite_accessors,
-        // fields below will be filled later when building collectors
-        sub_aggregation_blueprint: None,
     };
     let idx = data.push_composite_req_data(agg);
     let children = build_children(sub_aggs, reader, segment_ordinal, data)?;

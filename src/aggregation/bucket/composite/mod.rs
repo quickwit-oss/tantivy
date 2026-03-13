@@ -338,89 +338,76 @@ impl ToTypePaginationOrder for CompositeKey {
     }
 }
 
-/// After key is a string that encodes the intermediate composite key as "<type>:<value>"
-/// A wrapper type for CompositeIntermediateKey that serializes/deserializes
-/// to/from the "<type>:<value>" format.
+/// A wrapper type for CompositeIntermediateKey that serializes to ES-compatible
+/// raw values (strings as strings, numbers as numbers, etc.) and deserializes
+/// from both raw ES format and the legacy "<type>:<value>" format.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AfterKey(pub CompositeIntermediateKey);
 
 impl Serialize for AfterKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
-        let s = match &self.0 {
-            CompositeIntermediateKey::Bool(b) => format!("bool:{}", b),
-            CompositeIntermediateKey::Str(s) => format!("str:{}", s),
-            CompositeIntermediateKey::I64(i) => format!("i64:{}", i),
-            CompositeIntermediateKey::U64(u) => format!("u64:{}", u),
-            CompositeIntermediateKey::F64(f) => format!("f64:{}", f),
-            CompositeIntermediateKey::IpAddr(ip) => format!("ip:{}", ip),
-            CompositeIntermediateKey::DateTime(dt) => format!("dt:{}", dt),
-            CompositeIntermediateKey::Null => "null:".to_string(),
-        };
-        serializer.serialize_str(&s)
+        match &self.0 {
+            CompositeIntermediateKey::Bool(b) => serializer.serialize_bool(*b),
+            CompositeIntermediateKey::Str(s) => serializer.serialize_str(s),
+            CompositeIntermediateKey::I64(i) => serializer.serialize_i64(*i),
+            CompositeIntermediateKey::U64(u) => serializer.serialize_u64(*u),
+            CompositeIntermediateKey::F64(f) => serializer.serialize_f64(*f),
+            CompositeIntermediateKey::IpAddr(ip) => serializer.serialize_str(&ip.to_string()),
+            CompositeIntermediateKey::DateTime(dt) => serializer.serialize_i64(*dt),
+            CompositeIntermediateKey::Null => serializer.serialize_none(),
+        }
     }
 }
 
 impl<'de> Deserialize<'de> for AfterKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where D: serde::Deserializer<'de> {
-        let s = String::deserialize(deserializer)?;
-        let parts: Vec<&str> = s.splitn(2, ':').collect();
+        use serde::de;
 
-        if parts.len() != 2 {
-            return Err(serde::de::Error::custom("invalid after key format"));
+        struct AfterKeyVisitor;
+
+        impl<'de> de::Visitor<'de> for AfterKeyVisitor {
+            type Value = AfterKey;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a string, number, boolean, or null")
+            }
+
+            fn visit_bool<E: de::Error>(self, v: bool) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::Bool(v)))
+            }
+
+            fn visit_i64<E: de::Error>(self, v: i64) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::I64(v)))
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::U64(v)))
+            }
+
+            fn visit_f64<E: de::Error>(self, v: f64) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::F64(v)))
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::Str(v.to_string())))
+            }
+
+            fn visit_string<E: de::Error>(self, v: String) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::Str(v)))
+            }
+
+            fn visit_none<E: de::Error>(self) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::Null))
+            }
+
+            fn visit_unit<E: de::Error>(self) -> Result<AfterKey, E> {
+                Ok(AfterKey(CompositeIntermediateKey::Null))
+            }
         }
 
-        let key = match parts[0] {
-            "bool" => {
-                let b = parts[1].parse::<bool>().map_err(|e| {
-                    serde::de::Error::custom(format!("failed to parse bool: {}", e))
-                })?;
-                CompositeIntermediateKey::Bool(b)
-            }
-            "str" => CompositeIntermediateKey::Str(parts[1].to_string()),
-            "i64" => {
-                let i = parts[1]
-                    .parse::<i64>()
-                    .map_err(|e| serde::de::Error::custom(format!("failed to parse i64: {}", e)))?;
-                CompositeIntermediateKey::I64(i)
-            }
-            "u64" => {
-                let u = parts[1]
-                    .parse::<u64>()
-                    .map_err(|e| serde::de::Error::custom(format!("failed to parse u64: {}", e)))?;
-                CompositeIntermediateKey::U64(u)
-            }
-            "f64" => {
-                let f = parts[1]
-                    .parse::<f64>()
-                    .map_err(|e| serde::de::Error::custom(format!("failed to parse f64: {}", e)))?;
-                if f.is_nan() {
-                    return Err(serde::de::Error::custom(
-                        "NaN is not supported in after key",
-                    ));
-                }
-                CompositeIntermediateKey::F64(f)
-            }
-            "ip" => {
-                let ip = IpAddr::from_str(parts[1]).map_err(|e: AddrParseError| {
-                    serde::de::Error::custom(format!("failed to parse ip: {}", e))
-                })?;
-                CompositeIntermediateKey::IpAddr(ip.into_ipv6_addr())
-            }
-            "dt" => {
-                let dt = parts[1].parse::<i64>().map_err(|e| {
-                    serde::de::Error::custom(format!("failed to parse datetime: {}", e))
-                })?;
-                CompositeIntermediateKey::DateTime(dt)
-            }
-            "null" => CompositeIntermediateKey::Null,
-            _ => {
-                return Err(serde::de::Error::custom("invalid after key type"));
-            }
-        };
-
-        Ok(AfterKey(key))
+        deserializer.deserialize_any(AfterKeyVisitor)
     }
 }
 
