@@ -41,6 +41,7 @@ pub mod s2cell;
 pub mod s2cell_id;
 pub mod s2coords;
 pub mod s2edge_clipping;
+pub mod s2edge_distances;
 pub mod s2metrics;
 pub mod s2padded_cell;
 pub mod serializer;

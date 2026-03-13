@@ -35,6 +35,12 @@ pub fn cross(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
     ]
 }
 
+/// Returns the difference of two 3D vectors.
+#[inline]
+pub fn sub(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
 /// Returns x * 2^exp. Equivalent to C's ldexp.
 #[inline]
 pub fn ldexp(x: f64, exp: i32) -> f64 {
