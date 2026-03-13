@@ -376,19 +376,53 @@ fn spatial_float(inp: &str) -> IResult<&str, f64> {
     )(inp)
 }
 
-/// Parse a spatial predicate: $intersects(...) or $contains(...).
+/// Earth radius in miles.
+const EARTH_RADIUS_MI: f64 = 3958.8;
+/// Earth radius in kilometers.
+const EARTH_RADIUS_KM: f64 = 6371.0;
+/// Earth radius in meters.
+const EARTH_RADIUS_M: f64 = 6_371_000.0;
+/// Earth radius in feet.
+const EARTH_RADIUS_FT: f64 = 20_902_464.0;
+
+/// Parse a distance with unit: 50mi, 75km, 200ft, 1000m, 0.5rad.
+fn spatial_distance(inp: &str) -> IResult<&str, f64> {
+    let (inp, value) = spatial_float(inp)?;
+    let (inp, unit) = alt((
+        tag("mi"),
+        tag("km"),
+        tag("ft"),
+        tag("m"),
+        tag("rad"),
+    ))(inp)?;
+    let radians = match unit {
+        "mi" => value / EARTH_RADIUS_MI,
+        "km" => value / EARTH_RADIUS_KM,
+        "ft" => value / EARTH_RADIUS_FT,
+        "m" => value / EARTH_RADIUS_M,
+        "rad" => value,
+        _ => unreachable!(),
+    };
+    Ok((inp, radians))
+}
+
+/// Parse a spatial predicate: $intersects, $contains, $within, or $between.
 fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
+    alt((spatial_polygon, spatial_within, spatial_between))(inp)
+}
+
+fn spatial_polygon(inp: &str) -> IResult<&str, UserInputLeaf> {
     let mut predicate_tag = alt((
         value(SpatialPredicateKind::Intersects, tag("$intersects")),
         value(SpatialPredicateKind::Contains, tag("$contains")),
     ));
 
     let coord_sep = || delimited(multispace0, char(','), multispace0);
-    let coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
 
     let (inp, predicate) = predicate_tag(inp)?;
     let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
-    let (inp, pairs) = separated_list0(coord_sep(), coord_pair)(inp)?;
+    let (inp, pairs) = separated_list0(coord_sep(), &mut coord_pair)(inp)?;
     let (inp, _) = tuple((multispace0, char(')')))(inp)?;
 
     if pairs.len() < 3 {
@@ -411,6 +445,59 @@ fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
             field: None,
             predicate,
             coordinates,
+        },
+    ))
+}
+
+fn spatial_within(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let coord_sep = || delimited(multispace0, char(','), multispace0);
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+
+    let (inp, _) = tag("$within")(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+    let (inp, radius) = spatial_distance(inp)?;
+    let (inp, _) = coord_sep()(inp)?;
+    let (inp, (lon, lat)) = coord_pair(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate: SpatialPredicateKind::Within(ordered_float::OrderedFloat(radius)),
+            coordinates: vec![(
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )],
+        },
+    ))
+}
+
+fn spatial_between(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let coord_sep = || delimited(multispace0, char(','), multispace0);
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+
+    let (inp, _) = tag("$between")(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+    let (inp, inner) = spatial_distance(inp)?;
+    let (inp, _) = coord_sep()(inp)?;
+    let (inp, outer) = spatial_distance(inp)?;
+    let (inp, _) = coord_sep()(inp)?;
+    let (inp, (lon, lat)) = coord_pair(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate: SpatialPredicateKind::Between(
+                ordered_float::OrderedFloat(inner),
+                ordered_float::OrderedFloat(outer),
+            ),
+            coordinates: vec![(
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )],
         },
     ))
 }

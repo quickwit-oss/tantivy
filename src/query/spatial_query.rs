@@ -11,9 +11,11 @@ use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
 use crate::schema::Field;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::contains_query::ContainsQuery;
+use crate::spatial::distance_query::DistanceQuery;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::intersects_query::IntersectsQuery;
 use crate::spatial::region_coverer::CovererOptions;
+use crate::spatial::s1chord_angle::S1ChordAngle;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// Converts longitude/latitude in degrees to a unit sphere point.
@@ -31,14 +33,19 @@ pub enum SpatialPredicate {
     Contains,
     /// Return geometries that intersect the query polygon.
     Intersects,
+    /// Return geometries within a distance of a point. Distance in radians.
+    Within(f64),
+    /// Return geometries between two distances of a point. Distances in radians.
+    Between(f64, f64),
 }
 
-/// Spatial polygon query.
+/// Spatial query.
 #[derive(Clone, Debug)]
 pub struct SpatialQuery {
     field: Field,
-    polygon: Vec<[f64; 2]>,
     predicate: SpatialPredicate,
+    /// Polygon vertices (lon/lat) for Contains and Intersects, or a single point for distance.
+    coordinates: Vec<[f64; 2]>,
 }
 
 impl SpatialQuery {
@@ -46,7 +53,7 @@ impl SpatialQuery {
     pub fn new(field: Field, polygon: Vec<[f64; 2]>) -> Self {
         SpatialQuery {
             field,
-            polygon,
+            coordinates: polygon,
             predicate: SpatialPredicate::Contains,
         }
     }
@@ -54,12 +61,12 @@ impl SpatialQuery {
     /// Create a spatial query with the given predicate.
     pub fn with_predicate(
         field: Field,
-        polygon: Vec<[f64; 2]>,
+        coordinates: Vec<[f64; 2]>,
         predicate: SpatialPredicate,
     ) -> Self {
         SpatialQuery {
             field,
-            polygon,
+            coordinates,
             predicate,
         }
     }
@@ -75,7 +82,7 @@ impl SpatialQuery {
         ];
         SpatialQuery {
             field,
-            polygon,
+            coordinates: polygon,
             predicate: SpatialPredicate::Contains,
         }
     }
@@ -91,7 +98,7 @@ impl SpatialQuery {
         ];
         SpatialQuery {
             field,
-            polygon,
+            coordinates: polygon,
             predicate: SpatialPredicate::Intersects,
         }
     }
@@ -102,17 +109,33 @@ impl Query for SpatialQuery {
         &self,
         _enable_scoring: super::EnableScoring<'_>,
     ) -> crate::Result<Box<dyn super::Weight>> {
-        let vertices: Vec<[f64; 3]> = self
-            .polygon
-            .iter()
-            .map(|p| lonlat_to_sphere(p[0], p[1]))
-            .collect();
-        let prepared: Box<dyn PreparedSpatialQuery> = match self.predicate {
+        let prepared: Box<dyn PreparedSpatialQuery> = match &self.predicate {
             SpatialPredicate::Contains => {
+                let vertices: Vec<[f64; 3]> = self
+                    .coordinates
+                    .iter()
+                    .map(|p| lonlat_to_sphere(p[0], p[1]))
+                    .collect();
                 Box::new(ContainsQuery::new(vertices, CovererOptions::default()))
             }
             SpatialPredicate::Intersects => {
+                let vertices: Vec<[f64; 3]> = self
+                    .coordinates
+                    .iter()
+                    .map(|p| lonlat_to_sphere(p[0], p[1]))
+                    .collect();
                 Box::new(IntersectsQuery::new(vertices, CovererOptions::default()))
+            }
+            SpatialPredicate::Within(radius_radians) => {
+                let center = lonlat_to_sphere(self.coordinates[0][0], self.coordinates[0][1]);
+                let radius = S1ChordAngle::from_radians(*radius_radians);
+                Box::new(DistanceQuery::within(center, radius, CovererOptions::default()))
+            }
+            SpatialPredicate::Between(inner_radians, outer_radians) => {
+                let center = lonlat_to_sphere(self.coordinates[0][0], self.coordinates[0][1]);
+                let inner = S1ChordAngle::from_radians(*inner_radians);
+                let outer = S1ChordAngle::from_radians(*outer_radians);
+                Box::new(DistanceQuery::between(center, inner, outer, CovererOptions::default()))
             }
         };
         Ok(Box::new(SpatialWeight {
@@ -148,6 +171,16 @@ impl PreparedSpatialQuery for IntersectsQuery {
         edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
         IntersectsQuery::search_segment(self, cell_reader, edge_reader)
+    }
+}
+
+impl PreparedSpatialQuery for DistanceQuery {
+    fn search_segment<'a>(
+        &self,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
+    ) -> Vec<u32> {
+        DistanceQuery::search_segment(self, cell_reader, edge_reader)
     }
 }
 

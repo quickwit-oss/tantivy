@@ -1012,6 +1012,10 @@ fn convert_literal_to_query(
             let spatial_predicate = match predicate {
                 SpatialPredicateKind::Intersects => SpatialPredicate::Intersects,
                 SpatialPredicateKind::Contains => SpatialPredicate::Contains,
+                SpatialPredicateKind::Within(r) => SpatialPredicate::Within(r.0),
+                SpatialPredicateKind::Between(inner, outer) => {
+                    SpatialPredicate::Between(inner.0, outer.0)
+                }
             };
             Box::new(SpatialQuery::with_predicate(
                 field,

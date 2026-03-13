@@ -6,11 +6,13 @@ use serde::Serialize;
 use crate::Occur;
 
 /// The spatial predicate kind, shared between parser and formatter.
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Serialize)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpatialPredicateKind {
     Intersects,
     Contains,
+    Within(ordered_float::OrderedFloat<f64>),
+    Between(ordered_float::OrderedFloat<f64>, ordered_float::OrderedFloat<f64>),
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Serialize)]
@@ -150,18 +152,40 @@ impl Debug for UserInputLeaf {
                 if let Some(field) = field {
                     write!(formatter, "\"{field}\":")?;
                 }
-                let pred = match predicate {
-                    SpatialPredicateKind::Intersects => "$intersects",
-                    SpatialPredicateKind::Contains => "$contains",
-                };
-                write!(formatter, "{pred}(")?;
-                for (i, (lon, lat)) in coordinates.iter().enumerate() {
-                    if i > 0 {
-                        write!(formatter, ", ")?;
+                match predicate {
+                    SpatialPredicateKind::Intersects => {
+                        write!(formatter, "$intersects(")?;
+                        for (i, (lon, lat)) in coordinates.iter().enumerate() {
+                            if i > 0 {
+                                write!(formatter, ", ")?;
+                            }
+                            write!(formatter, "{} {}", lon.0, lat.0)?;
+                        }
+                        write!(formatter, ")")
                     }
-                    write!(formatter, "{} {}", lon.0, lat.0)?;
+                    SpatialPredicateKind::Contains => {
+                        write!(formatter, "$contains(")?;
+                        for (i, (lon, lat)) in coordinates.iter().enumerate() {
+                            if i > 0 {
+                                write!(formatter, ", ")?;
+                            }
+                            write!(formatter, "{} {}", lon.0, lat.0)?;
+                        }
+                        write!(formatter, ")")
+                    }
+                    SpatialPredicateKind::Within(radius) => {
+                        let (lon, lat) = &coordinates[0];
+                        write!(formatter, "$within({}rad, {} {})", radius.0, lon.0, lat.0)
+                    }
+                    SpatialPredicateKind::Between(inner, outer) => {
+                        let (lon, lat) = &coordinates[0];
+                        write!(
+                            formatter,
+                            "$between({}rad, {}rad, {} {})",
+                            inner.0, outer.0, lon.0, lat.0
+                        )
+                    }
                 }
-                write!(formatter, ")")
             }
         }
     }
