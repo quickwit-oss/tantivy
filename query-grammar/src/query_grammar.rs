@@ -256,17 +256,6 @@ fn term_or_phrase_infallible(inp: &str) -> JResult<&str, Option<UserInputLeaf>> 
                     }
                     .into(),
                 )
-            } else if slop != 0 {
-                Some(
-                    UserInputLiteral {
-                        field_name: None,
-                        phrase: "".to_string(),
-                        delimiter: Delimiter::None,
-                        slop,
-                        prefix,
-                    }
-                    .into(),
-                )
             } else {
                 None
             };
@@ -1761,6 +1750,22 @@ mod test {
         test_parse_query_to_ast_helper("\"a b\"~3", "\"a b\"~3");
         test_parse_query_to_ast_helper("foo:\"a b\"~300", "\"foo\":\"a b\"~300");
         test_parse_query_to_ast_helper("\"a b\"~300^2", "(\"a b\"~300)^2");
+    }
+
+    #[test]
+    fn test_fuzzy() {
+        // With ~ allowed in bare words, word~1 is parsed as literal "word~1"
+        // To get fuzzy, you need quoted form: "word"~1
+        // At grammar level, "word"~1 is parsed as phrase with slop=1
+        // The conversion to FuzzyTermQuery happens in QueryParser when tokenization yields 1 term
+        test_parse_query_to_ast_helper("\"word\"~1", "\"word\"~1");
+        test_parse_query_to_ast_helper("\"word\"~2", "\"word\"~2");
+        test_parse_query_to_ast_helper("foo:\"bar\"~1", "\"foo\":\"bar\"~1");
+        // Fuzzy with boost
+        test_parse_query_to_ast_helper("\"word\"~1^2", "(\"word\"~1)^2");
+        // Bare word with ~ is parsed as literal term (backward compatible)
+        test_parse_query_to_ast_helper("word~1", "word~1");
+        test_parse_query_to_ast_helper("C~Users~Documents", "C~Users~Documents");
     }
 
     #[test]
