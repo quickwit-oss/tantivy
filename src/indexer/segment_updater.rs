@@ -403,7 +403,8 @@ impl SegmentUpdater {
             // from the different drives.
             //
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
-            committed_segment_metas.sort_by_key(|segment_meta| std::cmp::Reverse(segment_meta.max_doc()));
+            committed_segment_metas
+                .sort_by_key(|segment_meta| std::cmp::Reverse(segment_meta.max_doc()));
             let index_meta = IndexMeta {
                 index_settings: index.settings().clone(),
                 segments: committed_segment_metas,
@@ -705,12 +706,12 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::directory::RamDirectory;
     use crate::fastfield::AliveBitSet;
+    use crate::index::{SegmentId, SegmentMetaInventory};
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::indexer::merger::IndexMerger;
     use crate::indexer::segment_updater::merge_filtered_segments;
     use crate::query::QueryParser;
     use crate::schema::*;
-    use crate::index::{SegmentId, SegmentMetaInventory};
     use crate::{Directory, DocAddress, Index, Segment};
 
     #[test]
