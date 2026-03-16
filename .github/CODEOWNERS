@@ -1,0 +1,3 @@
+# Order is important. The last matching pattern has the most precedence
+
+*   @paradedb/pg_search-maintainers
