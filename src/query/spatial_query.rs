@@ -13,18 +13,15 @@ use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::contains_query::ContainsQuery;
 use crate::spatial::distance_query::DistanceQuery;
 use crate::spatial::edge_reader::EdgeReader;
+use crate::spatial::geometry::Geometry;
+use crate::spatial::geometry_set::to_geometry_set;
 use crate::spatial::intersects_query::IntersectsQuery;
+use crate::spatial::plane::Plane;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::s1chord_angle::S1ChordAngle;
+use crate::spatial::sphere::Sphere;
+use crate::spatial::surface::Surface;
 use crate::{DocId, DocSet, Score, TERMINATED};
-
-/// Converts longitude/latitude in degrees to a unit sphere point.
-fn lonlat_to_sphere(lon: f64, lat: f64) -> [f64; 3] {
-    let lat = lat.to_radians();
-    let lon = lon.to_radians();
-    let cos_lat = lat.cos();
-    [cos_lat * lon.cos(), cos_lat * lon.sin(), lat.sin()]
-}
 
 /// The spatial predicate to apply.
 #[derive(Clone, Debug)]
@@ -110,29 +107,31 @@ impl Query for SpatialQuery {
         _enable_scoring: super::EnableScoring<'_>,
     ) -> crate::Result<Box<dyn super::Weight>> {
         let prepared: Box<dyn PreparedSpatialQuery> = match &self.predicate {
-            SpatialPredicate::Contains => {
-                let vertices: Vec<[f64; 3]> = self
-                    .coordinates
-                    .iter()
-                    .map(|p| lonlat_to_sphere(p[0], p[1]))
-                    .collect();
-                Box::new(ContainsQuery::new(vertices, CovererOptions::default()))
-            }
-            SpatialPredicate::Intersects => {
-                let vertices: Vec<[f64; 3]> = self
-                    .coordinates
-                    .iter()
-                    .map(|p| lonlat_to_sphere(p[0], p[1]))
-                    .collect();
-                Box::new(IntersectsQuery::new(vertices, CovererOptions::default()))
+            SpatialPredicate::Contains | SpatialPredicate::Intersects => {
+                let mut ring: Vec<[f64; 2]> = self.coordinates.clone();
+                if ring.first() != ring.last() {
+                    ring.push(ring[0]);
+                }
+                let plane_geometry = Geometry::<Plane>::Polygon(vec![ring]);
+                let projected = plane_geometry.project::<Sphere>();
+                let set = to_geometry_set(&projected, 0);
+                match &self.predicate {
+                    SpatialPredicate::Contains => {
+                        Box::new(ContainsQuery::new(set, CovererOptions::default()))
+                    }
+                    SpatialPredicate::Intersects => {
+                        Box::new(IntersectsQuery::new(set, CovererOptions::default()))
+                    }
+                    _ => unreachable!(),
+                }
             }
             SpatialPredicate::Within(radius_radians) => {
-                let center = lonlat_to_sphere(self.coordinates[0][0], self.coordinates[0][1]);
+                let center = Sphere::project(self.coordinates[0][0], self.coordinates[0][1]);
                 let radius = S1ChordAngle::from_radians(*radius_radians);
                 Box::new(DistanceQuery::within(center, radius, CovererOptions::default()))
             }
             SpatialPredicate::Between(inner_radians, outer_radians) => {
-                let center = lonlat_to_sphere(self.coordinates[0][0], self.coordinates[0][1]);
+                let center = Sphere::project(self.coordinates[0][0], self.coordinates[0][1]);
                 let inner = S1ChordAngle::from_radians(*inner_radians);
                 let outer = S1ChordAngle::from_radians(*outer_radians);
                 Box::new(DistanceQuery::between(center, inner, outer, CovererOptions::default()))

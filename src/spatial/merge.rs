@@ -324,9 +324,9 @@ impl<'a> CellIndexMerge<'a> {
     /// Read vertices for a geometry from its source segment's edge reader.
     pub fn read_vertices(&mut self, new_geometry_id: u32) -> (u32, Vec<[f64; 3]>) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
-        let geo_set = self.edge_readers[seg].get(old_id);
-        let member_idx = (old_id - geo_set.geometry_id) as usize;
-        (geo_set.doc_id, geo_set.vertices[member_idx].clone())
+        let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+        let member_idx = (old_id - head) as usize;
+        (geo_set.doc_id, geo_set.members[member_idx].vertices.clone())
     }
 
     /// Read the full geometry set for a given new geometry ID. Returns the
@@ -337,11 +337,11 @@ impl<'a> CellIndexMerge<'a> {
         new_geometry_id: u32,
     ) -> (usize, u32, u32, Vec<Vec<[f64; 3]>>, Vec<bool>) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
-        let geo_set = self.edge_readers[seg].get(old_id);
-        let member_offset = old_id - geo_set.geometry_id;
+        let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+        let member_offset = old_id - head;
         let doc_id = geo_set.doc_id;
-        let vertices = geo_set.vertices.clone();
-        let closed = geo_set.closed.clone();
+        let vertices: Vec<Vec<[f64; 3]>> = geo_set.members.iter().map(|m| m.vertices.clone()).collect();
+        let closed: Vec<bool> = geo_set.members.iter().map(|m| m.closed).collect();
         (seg, member_offset, doc_id, vertices, closed)
     }
 
@@ -444,7 +444,8 @@ impl<'a> CellIndexMerge<'a> {
         if let Some(bitset) = &self.alive_bitsets[segment] {
             let reader = &mut self.edge_readers[segment];
             cell.shapes.retain(|shape| {
-                let doc_id = reader.get(shape.geometry_id).doc_id;
+                let (_, set) = reader.get_geometry_set(shape.geometry_id);
+                let doc_id = set.doc_id;
                 bitset.contains(doc_id)
             });
         }
@@ -453,9 +454,8 @@ impl<'a> CellIndexMerge<'a> {
         // set is first encountered, assign IDs for all members starting from
         // the head so they get consecutive new IDs in the correct order.
         for shape in &mut cell.shapes {
-            let geo_set = self.edge_readers[segment].get(shape.geometry_id);
-            let head_old_id = geo_set.geometry_id;
-            let set_size = geo_set.vertices.len() as u32;
+            let (head_old_id, geo_set) = self.edge_readers[segment].get_geometry_set(shape.geometry_id);
+            let set_size = geo_set.members.len() as u32;
             for i in 0..set_size {
                 self.geo_map.get_or_assign(segment, head_old_id + i);
             }
@@ -476,7 +476,8 @@ impl<'a> CellIndexMerge<'a> {
 
         for clipped in &cell.shapes {
             // Skip shapes for deleted documents.
-            let doc_id = self.edge_readers[segment].get(clipped.geometry_id).doc_id;
+            let (_, clipped_set) = self.edge_readers[segment].get_geometry_set(clipped.geometry_id);
+            let doc_id = clipped_set.doc_id;
             if let Some(bitset) = &self.alive_bitsets[segment] {
                 if !bitset.contains(doc_id) {
                     continue;
@@ -487,12 +488,12 @@ impl<'a> CellIndexMerge<'a> {
 
             // Read vertices from the source edge reader. Second cache
             // lookup is a hit — we just called get() for the doc_id check.
-            let geo_set = self.edge_readers[segment].get(clipped.geometry_id);
-            let member_idx = (clipped.geometry_id - geo_set.geometry_id) as usize;
+            let (head, geo_set) = self.edge_readers[segment].get_geometry_set(clipped.geometry_id);
+            let member_idx = (clipped.geometry_id - head) as usize;
             // EdgeReader::get returns a borrow tied to the reader's LRU
             // cache. Clone the vertices so they outlive the borrow. A
             // coarse cell has at most 10 edges, so the clone is small.
-            let vertices = geo_set.vertices[member_idx].clone();
+            let vertices = geo_set.members[member_idx].vertices.clone();
 
             let mut edges = Vec::new();
             let mut uv_bound = R2Rect::empty();
@@ -568,9 +569,9 @@ impl<'a> CellIndexMerge<'a> {
 
         for shape in &cell.shapes {
             let (seg, old_id) = self.geo_map.source(shape.geometry_id);
-            let geo_set = self.edge_readers[seg].get(old_id);
-            let member_idx = (old_id - geo_set.geometry_id) as usize;
-            let vertices = geo_set.vertices[member_idx].clone();
+            let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+            let member_idx = (old_id - head) as usize;
+            let vertices = geo_set.members[member_idx].vertices.clone();
 
             for &edge_idx in &shape.edge_indices {
                 let v0 = vertices[edge_idx as usize];
@@ -978,9 +979,9 @@ impl<'a> CellIndexMerge<'a> {
 
         for entry in &entries {
             let (seg, old_id) = self.geo_map.source(entry.geometry_id);
-            let geo_set = self.edge_readers[seg].get(old_id);
-            let member_idx = (old_id - geo_set.geometry_id) as usize;
-            let vertices = geo_set.vertices[member_idx].clone();
+            let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+            let member_idx = (old_id - head) as usize;
+            let vertices = geo_set.members[member_idx].vertices.clone();
 
             let mut crosser = S2EdgeCrosser::new(&entry.anchor_center, &parent_center);
             let mut crossings = 0u32;

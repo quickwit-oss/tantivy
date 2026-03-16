@@ -7,6 +7,7 @@ use std::io::Write;
 use common::CountingWriter;
 
 use super::containment::brute_force_contains;
+use super::geometry_set::GeometrySet;
 use super::crossings::S2EdgeCrosser;
 use super::math::normalize;
 use super::r1interval::R1Interval;
@@ -510,6 +511,79 @@ impl IndexBuilder {
                 }
 
                 geometry_id += 1;
+            }
+        }
+
+        for face in 0..NUM_FACES {
+            self.update_face_edges(face, &face_edges[face as usize]);
+        }
+
+        self.cells.sort_by_key(|c| c.cell_id);
+
+        CellIndex { cells: self.cells }
+    }
+
+    /// Build a CellIndex from smashed GeometrySets. Geometry IDs are arrival order — the first
+    /// member of the first set is 0, and the count increments from there.
+    pub fn build_from_sets(mut self, sets: &[GeometrySet]) -> CellIndex {
+        if sets.is_empty() {
+            return CellIndex { cells: Vec::new() };
+        }
+
+        // Seed the InteriorTracker from precomputed contains_hilbert_start flags.
+        let mut gid: u32 = 0;
+        for set in sets {
+            for member in &set.members {
+                if member.closed {
+                    self.tracker.is_active = true;
+                    if member.contains_hilbert_start {
+                        self.tracker.toggle_shape(gid);
+                    }
+                }
+                gid += 1;
+            }
+        }
+
+        let mut face_edges: [Vec<FaceEdge>; 6] = Default::default();
+
+        gid = 0;
+        for set in sets {
+            for member in &set.members {
+                let closed = member.closed;
+                let vertices = &member.vertices;
+                let offsets = &member.ring_offsets;
+                let mut edge_id: u16 = 0;
+
+                for ring_idx in 0..offsets.len() - 1 {
+                    let ring_start = offsets[ring_idx];
+                    let ring_end = offsets[ring_idx + 1];
+                    let ring_len = ring_end - ring_start;
+
+                    if ring_len < 2 {
+                        if ring_len == 1 {
+                            let v = vertices[ring_start];
+                            let max_level = self.get_edge_max_level(&v, &v);
+                            self.add_face_edge(gid, edge_id, max_level, false, &v, &v, &mut face_edges);
+                            edge_id += 1;
+                        }
+                        continue;
+                    }
+
+                    let edge_count = ring_len - 1;
+                    for i in 0..edge_count {
+                        let v0 = vertices[ring_start + i];
+                        let v1 = vertices[ring_start + i + 1];
+                        let max_level = self.get_edge_max_level(&v0, &v1);
+                        self.add_face_edge(gid, edge_id, max_level, closed, &v0, &v1, &mut face_edges);
+                        edge_id += 1;
+                    }
+
+                    if closed {
+                        edge_id += 1;
+                    }
+                }
+
+                gid += 1;
             }
         }
 

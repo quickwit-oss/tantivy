@@ -137,9 +137,8 @@ impl DistanceQuery {
     ) -> Option<u32> {
         // Check closed flag and doc_id first, then release the borrow.
         let (closed, doc_id) = {
-            let set = edge_reader.get(geometry_id);
-            let member_idx = (geometry_id - set.geometry_id) as usize;
-            (set.closed[member_idx], set.doc_id)
+            let (doc_id, edge_set) = edge_reader.get_edge_set(geometry_id);
+            (edge_set.closed, doc_id)
         };
 
         // For closed geometries (polygons), check if the center is inside the candidate.
@@ -158,10 +157,9 @@ impl DistanceQuery {
             }
         }
 
-        // Re-borrow the set for edge distance computation.
-        let set = edge_reader.get(geometry_id);
-        let member_idx = (geometry_id - set.geometry_id) as usize;
-        let vertices = &set.vertices[member_idx];
+        // Re-borrow for edge distance computation.
+        let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
+        let vertices = &edge_set.vertices;
 
         if vertices.is_empty() {
             return None;

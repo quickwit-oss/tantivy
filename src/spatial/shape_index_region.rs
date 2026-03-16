@@ -31,9 +31,6 @@ pub trait EdgeProvider {
     /// Returns the two endpoints of the given edge.
     fn get_edge(&self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]);
 
-    /// Returns all vertices for the given geometry, plus whether the reference
-    /// origin is inside. Used for point-in-polygon fallback.
-    fn get_vertices(&self, geometry_id: u32) -> (&[[f64; 3]], bool);
 }
 
 /// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between
@@ -129,11 +126,9 @@ impl ContainmentIndex for SegmentIndex<'_, '_> {
     }
 
     fn resolve_edge(&mut self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
-        let set = self.edge_reader.get(geometry_id);
-        let member_idx = (geometry_id - set.geometry_id) as usize;
-        let vertices = &set.vertices[member_idx];
+        let (_, edge_set) = self.edge_reader.get_edge_set(geometry_id);
         let i = edge_idx as usize;
-        (vertices[i], vertices[i + 1])
+        (edge_set.vertices[i], edge_set.vertices[i + 1])
     }
 }
 

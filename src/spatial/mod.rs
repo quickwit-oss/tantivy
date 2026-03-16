@@ -24,6 +24,7 @@ pub mod edge_reader;
 pub mod edge_writer;
 pub mod exact;
 pub mod geometry;
+pub mod geometry_set;
 pub mod intersects_query;
 pub mod latlng_rect;
 pub mod math;

@@ -10,4 +10,10 @@
 pub trait Surface {
     /// The point type of the surface.
     type Point: Copy;
+
+    /// Project a lon/lat coordinate onto this surface.
+    fn project(lon: f64, lat: f64) -> Self::Point;
+
+    /// Whether the interior of a closed ring contains the surface's reference origin.
+    fn origin_inside(ring: &[Self::Point]) -> bool;
 }

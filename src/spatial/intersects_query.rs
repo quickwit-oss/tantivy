@@ -6,11 +6,12 @@
 
 use std::collections::HashMap;
 
-use super::cell_index::{BuildOptions, CellIndex, GeometryData, IndexBuilder};
+use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::{BoundaryEdges, CandidateInfo, QueryEdgeProvider};
 use super::crossings::S2EdgeCrosser;
 use super::edge_reader::EdgeReader;
+use super::geometry_set::GeometrySet;
 use super::region::Region;
 use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell::S2Cell;
@@ -28,18 +29,11 @@ pub struct IntersectsQuery {
 }
 
 impl IntersectsQuery {
-    /// Build the query from a polygon's vertices on the unit sphere.
-    pub fn new(vertices: Vec<[f64; 3]>, options: CovererOptions) -> Self {
-        let query_edges = QueryEdgeProvider::new(vertices.clone());
-
-        let geo = GeometryData {
-            rings: vec![vertices],
-            origin_inside: vec![query_edges.origin_inside],
-            dimension: 2,
-        };
-        let mut builder = IndexBuilder::new(BuildOptions::default());
-        builder.add(0, vec![geo]);
-        let query_index = builder.build();
+    /// Build the query from a smashed GeometrySet.
+    pub fn new(set: GeometrySet, options: CovererOptions) -> Self {
+        let builder = IndexBuilder::new(BuildOptions::default());
+        let query_index = builder.build_from_sets(std::slice::from_ref(&set));
+        let query_edges = QueryEdgeProvider { set };
 
         let region = CellIndexRegion::new(&query_index, &query_edges);
         let coverer = RegionCoverer::new(options);
@@ -78,10 +72,6 @@ impl IntersectsQuery {
             let is_interior = self.interior[i];
 
             for index_cell in reader.scan_range(covering_cell_id) {
-                // The interior shortcut is only valid when the covering cell contains the index
-                // cell — the index cell is entirely within the query polygon's interior. When the
-                // index cell is coarser (contains the covering cell), geometries in the far
-                // reaches of the index cell may not intersect the query at all.
                 let cell_is_interior = is_interior && covering_cell_id.contains(index_cell.cell_id);
 
                 for clipped in &index_cell.shapes {
@@ -117,19 +107,14 @@ impl IntersectsQuery {
 
         for (geometry_id, info) in candidates {
             if self.verify_one(geometry_id, &info, cell_reader, edge_reader) {
-                let set = edge_reader.get(geometry_id);
-                doc_ids.push(set.doc_id);
+                let (doc_id, _) = edge_reader.get_edge_set(geometry_id);
+                doc_ids.push(doc_id);
             }
         }
 
         doc_ids
     }
 
-    /// Verify a single candidate geometry for intersection.
-    ///
-    /// Interior cell hit is an immediate match. Boundary candidates get crossing tests -- any
-    /// crossing means intersection. If no crossings, test vertex containment in both directions:
-    /// candidate vertex inside query, and query vertex inside candidate.
     fn verify_one<'a>(
         &self,
         geometry_id: u32,
@@ -137,13 +122,9 @@ impl IntersectsQuery {
         cell_reader: &'a CellIndexReader<'a>,
         edge_reader: &mut EdgeReader<'a>,
     ) -> bool {
-        // Interior cell hit: a covering cell entirely inside the query polygon contains an index
-        // cell where this geometry appears. The CellIndex assigns edges to cells using
-        // conservative bounding box tests, so confirm with a vertex containment check.
         if info.has_interior {
-            let set = edge_reader.get(geometry_id);
-            let member_idx = (geometry_id - set.geometry_id) as usize;
-            let vertices = &set.vertices[member_idx];
+            let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
+            let vertices = &edge_set.vertices;
             if !vertices.is_empty()
                 && index_contains_point(&self.query_index, &self.query_edges, 0, &vertices[0])
             {
@@ -151,34 +132,29 @@ impl IntersectsQuery {
             }
         }
 
-        // Boundary: any edge crossing means intersection.
         if info.has_boundary && self.has_crossing(geometry_id, info, edge_reader) {
             return true;
         }
 
-        // No crossings: check nesting in both directions.
-        let set = edge_reader.get(geometry_id);
-        let member_idx = (geometry_id - set.geometry_id) as usize;
-        let vertices = &set.vertices[member_idx];
-        let closed = set.closed[member_idx];
+        let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
+        let vertices = &edge_set.vertices;
+        let closed = edge_set.closed;
 
         if vertices.is_empty() {
             return false;
         }
 
-        // Forward: candidate vertex inside query polygon.
         if index_contains_point(&self.query_index, &self.query_edges, 0, &vertices[0]) {
             return true;
         }
 
-        // Reverse: query vertex inside candidate polygon. Only meaningful for closed geometries --
-        // open paths have no interior. Uses indexed containment through the segment's cell index.
         if closed {
             let mut seg = SegmentIndex {
                 cell_reader,
                 edge_reader,
             };
-            if contains_point(&mut seg, geometry_id, &self.query_edges.vertices[0]) {
+            if contains_point(&mut seg, geometry_id, &self.query_edges.get_edge_set(0).vertices[0])
+            {
                 return true;
             }
         }
@@ -186,25 +162,21 @@ impl IntersectsQuery {
         false
     }
 
-    /// Tests whether any candidate edge crosses any query polygon edge, narrowed to edges sharing
-    /// a boundary covering cell. Same evidence gathering as contains_query; the caller interprets
-    /// the result differently.
     fn has_crossing(
         &self,
         geometry_id: u32,
         info: &CandidateInfo,
         edge_reader: &mut EdgeReader,
     ) -> bool {
-        let set = edge_reader.get(geometry_id);
-        let member_idx = (geometry_id - set.geometry_id) as usize;
-        let candidate_vertices = &set.vertices[member_idx];
+        let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
+        let candidate_vertices = &edge_set.vertices;
         let n_candidate = candidate_vertices.len();
 
         if n_candidate < 2 {
             return false;
         }
 
-        let n_query = self.query_edges.vertices.len();
+        let query_vertices = &self.query_edges.get_edge_set(0).vertices;
 
         for boundary in &info.boundary_edges {
             let query_cell = self.query_index.find_cell(boundary.covering_cell_id);
@@ -230,8 +202,8 @@ impl IntersectsQuery {
 
                 for &query_edge_idx in &query_edge_indices {
                     let qi = query_edge_idx as usize;
-                    let qv0 = &self.query_edges.vertices[qi];
-                    let qv1 = &self.query_edges.vertices[(qi + 1) % n_query];
+                    let qv0 = &query_vertices[qi];
+                    let qv1 = &query_vertices[qi + 1];
 
                     if crosser.crossing_sign_two(qv0, qv1) > 0 {
                         return true;

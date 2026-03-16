@@ -1,4 +1,4 @@
-//! HUSH
+//! GeoJSON geometry types, parsing, serialization, and projection.
 
 use std::io::{self, Read, Write};
 
@@ -9,42 +9,74 @@ use crate::spatial::plane::Plane;
 use crate::spatial::surface::Surface;
 use crate::spatial::xor::{compress_f64, decompress_f64};
 
-/// HUSH
+/// Errors from parsing GeoJSON geometry.
 #[derive(Debug)]
 pub enum GeometryError {
-    /// HUSH
+    /// The "type" field is missing.
     MissingType,
-    /// HUSH
-    MissingField(String), // "expected array", "wrong nesting depth", etc
-    /// HUSH
+    /// A required field is missing.
+    MissingField(String),
+    /// The geometry type is not supported.
     UnsupportedType(String),
-    /// HUSH
-    InvalidCoordinate(String), // Can report the actual bad value
-    /// HUSH
-    InvalidStructure(String), // "expected array", "wrong nesting depth", etc
+    /// A coordinate value is out of range or not a number.
+    InvalidCoordinate(String),
+    /// The coordinate structure is wrong (bad nesting, too few points, unclosed ring).
+    InvalidStructure(String),
 }
 
-/// HUSH
+/// A GeoJSON geometry, parameterized by surface. On the Plane, coordinates are lon/lat in degrees.
+/// On the Sphere, coordinates are unit vectors.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Geometry<S: Surface> {
-    /// HUSH
+    /// A single position.
     Point(S::Point),
-    /// HUSH
+    /// Multiple positions.
     MultiPoint(Vec<S::Point>),
-    /// HUSH
+    /// An ordered sequence of positions forming a line.
     LineString(Vec<S::Point>),
-    /// HUSH
+    /// Multiple line strings.
     MultiLineString(Vec<Vec<S::Point>>),
-    /// HUSH
+    /// A closed ring (outer) with optional holes (inner rings).
     Polygon(Vec<Vec<S::Point>>),
-    /// HUSH
+    /// Multiple polygons.
     MultiPolygon(Vec<Vec<Vec<S::Point>>>),
-    /// HUSH
+    /// A heterogeneous collection of geometries.
     GeometryCollection(Vec<Self>),
 }
 
 impl Geometry<Plane> {
-    /// HUSH
+    /// Project this geometry onto a surface. For Sphere, converts lon/lat to unit sphere
+    /// coordinates. For Plane, returns the geometry unchanged.
+    pub fn project<S: Surface>(&self) -> Geometry<S> {
+        match self {
+            Geometry::Point(p) => Geometry::Point(S::project(p[0], p[1])),
+            Geometry::MultiPoint(points) => {
+                Geometry::MultiPoint(points.iter().map(|p| S::project(p[0], p[1])).collect())
+            }
+            Geometry::LineString(line) => Geometry::LineString(Self::project_ring::<S>(line)),
+            Geometry::MultiLineString(lines) => {
+                Geometry::MultiLineString(lines.iter().map(|l| Self::project_ring::<S>(l)).collect())
+            }
+            Geometry::Polygon(rings) => {
+                Geometry::Polygon(rings.iter().map(|r| Self::project_ring::<S>(r)).collect())
+            }
+            Geometry::MultiPolygon(polygons) => Geometry::MultiPolygon(
+                polygons
+                    .iter()
+                    .map(|p| p.iter().map(|r| Self::project_ring::<S>(r)).collect())
+                    .collect(),
+            ),
+            Geometry::GeometryCollection(geometries) => {
+                Geometry::GeometryCollection(geometries.iter().map(|g| g.project::<S>()).collect())
+            }
+        }
+    }
+
+    fn project_ring<S: Surface>(ring: &[[f64; 2]]) -> Vec<S::Point> {
+        ring.iter().map(|p| S::project(p[0], p[1])).collect()
+    }
+
+    /// Parse a GeoJSON geometry object.
     pub fn from_geojson(object: &Map<String, Value>) -> Result<Self, GeometryError> {
         let geometry_type = object
             .get("type")
@@ -87,9 +119,16 @@ impl Geometry<Plane> {
                 let coordinates = get_coordinates(object)?;
                 let polygon = to_multi_line_string(coordinates)?;
                 for ring in &polygon {
-                    if ring.len() < 3 {
+                    // RFC 7946: a linear ring has four or more positions,
+                    // first and last identical.
+                    if ring.len() < 4 {
                         return Err(GeometryError::InvalidStructure(
-                            "a polygon ring contains at least 3 points".to_string(),
+                            "a linear ring has four or more positions".to_string(),
+                        ));
+                    }
+                    if ring.first() != ring.last() {
+                        return Err(GeometryError::InvalidStructure(
+                            "a linear ring must be closed (first == last)".to_string(),
                         ));
                     }
                 }
@@ -107,9 +146,14 @@ impl Geometry<Plane> {
                 for polygon in multi_polygons {
                     let polygon = to_multi_line_string(polygon)?;
                     for ring in &polygon {
-                        if ring.len() < 3 {
+                        if ring.len() < 4 {
                             return Err(GeometryError::InvalidStructure(
-                                "a polygon ring contains at least 3 points".to_string(),
+                                "a linear ring has four or more positions".to_string(),
+                            ));
+                        }
+                        if ring.first() != ring.last() {
+                            return Err(GeometryError::InvalidStructure(
+                                "a linear ring must be closed (first == last)".to_string(),
                             ));
                         }
                     }

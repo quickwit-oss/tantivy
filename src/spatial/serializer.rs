@@ -8,8 +8,9 @@ use std::io::Write;
 
 use crate::directory::{CompositeWrite, WritePtr};
 use crate::schema::Field;
-use crate::spatial::cell_index::{BuildOptions, GeometryData, IndexBuilder};
+use crate::spatial::cell_index::{BuildOptions, IndexBuilder};
 use crate::spatial::edge_writer::EdgeWriter;
+use crate::spatial::geometry_set::GeometrySet;
 
 /// Default skip interval for the edge index skip list directory.
 const EDGE_SKIP_INTERVAL: u32 = 16;
@@ -29,60 +30,33 @@ impl SpatialSerializer {
         })
     }
 
-    /// Serialize one field's spatial data. Builds a CellIndex from the accumulated documents
+    /// Serialize one field's spatial data. Builds a CellIndex from the smashed GeometrySets
     /// and streams edges through EdgeWriter.
     pub fn serialize_field(
         &mut self,
         field: Field,
-        documents: &[(u32, Vec<GeometryData>)],
+        sets: &[GeometrySet],
     ) -> io::Result<()> {
-        if documents.is_empty() {
+        if sets.is_empty() {
             return Ok(());
         }
 
-        // Build the cell index.
-        let mut builder = IndexBuilder::new(BuildOptions::default());
-        for (doc_id, geometries) in documents {
-            builder.add(*doc_id, geometries.clone());
-        }
-        let cell_index = builder.build();
+        // Build the cell index from smashed sets.
+        let builder = IndexBuilder::new(BuildOptions::default());
+        let cell_index = builder.build_from_sets(sets);
 
         // Write the cell index.
         let cells_out = self.cells_write.for_field(field);
         cell_index.write(cells_out);
         cells_out.flush()?;
 
-        // Write the edge index. Iterate documents in the same order so geometry IDs align.
+        // Write the edge index.
         let edges_out = self.edges_write.for_field(field);
         {
             let mut edge_writer = EdgeWriter::new(edges_out, EDGE_SKIP_INTERVAL);
 
-            let mut geometry_id: u32 = 0;
-            for (doc_id, geometries) in documents {
-                let flattened: Vec<(Vec<[f64; 3]>, bool)> = geometries
-                    .iter()
-                    .map(|geo| {
-                        let mut flat = Vec::new();
-                        for ring in &geo.rings {
-                            flat.extend_from_slice(ring);
-                            // Duplicate the first vertex at the end of polygon rings so
-                            // edge lookup is always position and position + 1.
-                            if geo.dimension == 2 && !ring.is_empty() {
-                                flat.push(ring[0]);
-                            }
-                        }
-                        (flat, geo.dimension == 2)
-                    })
-                    .collect();
-
-                let refs: Vec<(u32, &[[f64; 3]], bool)> = flattened
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (flat, closed))| (geometry_id + i as u32, flat.as_slice(), *closed))
-                    .collect();
-
-                edge_writer.insert(*doc_id, &refs);
-                geometry_id += geometries.len() as u32;
+            for set in sets {
+                edge_writer.insert(set);
             }
 
             edge_writer.finish();

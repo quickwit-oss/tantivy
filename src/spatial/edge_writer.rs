@@ -14,6 +14,7 @@ use std::io::Write;
 use common::CountingWriter;
 
 use crate::directory::WritePtr;
+use crate::spatial::geometry_set::GeometrySet;
 
 /// Streams geometry entries to disk. Vertices write through immediately. `offsets` records every
 /// Nth geometry's start position for the skip list directory, where N is the skip interval.
@@ -35,14 +36,19 @@ impl<'a> EdgeWriter<'a> {
         }
     }
 
-    /// Write all geometries for one document. Each tuple carries (geometry_id, vertices, closed).
-    /// Set indicators are derived from the slice length. Doc_id is inline after the set indicator
-    /// on the head entry.
-    pub fn insert(&mut self, doc_id: u32, geometries: &[(u32, &[[f64; 3]], bool)]) {
-        let count = geometries.len();
+    /// Write all geometries for one document from a smashed GeometrySet. Geometry IDs are arrival
+    /// order — the writer counts. Set indicators, ring boundaries, and flags are derived from the
+    /// GeometrySet fields. Doc_id is inline after the set field on the head entry.
+    pub fn insert(&mut self, set: &GeometrySet) {
+        let count = set.members.len();
         let mut prev_pos: u64 = 0;
 
-        for (i, &(_geometry_id, vertices, closed)) in geometries.iter().enumerate() {
+        for (member_idx, member) in set.members.iter().enumerate() {
+            let vertices = &member.vertices;
+            let closed = member.closed;
+            let contains_hilbert_start = member.contains_hilbert_start;
+            let ring_offsets = &member.ring_offsets;
+
             let pos = self.write.written_bytes();
 
             if self.geometry_count % self.skip_interval == 0 {
@@ -50,25 +56,52 @@ impl<'a> EdgeWriter<'a> {
             }
             self.geometry_count += 1;
 
-            let set_ind: i32 = if count == 1 {
-                0
-            } else if i == 0 {
-                count as i32
+            // Ring boundary entries: one u32 per hole ring, written before vertex data.
+            // Only present when there are holes (more than one ring, i.e. offsets len > 2).
+            let has_holes = ring_offsets.len() > 2;
+            let ring_boundary_bytes = if has_holes {
+                (ring_offsets.len() - 2) * 4
             } else {
-                let delta = pos - prev_pos;
-                debug_assert!(delta <= i32::MAX as u64, "back pointer exceeds i32 range");
-                -(delta as i32)
+                0
             };
 
             // 24 bytes per vertex, 3 * f64.
             let vertex_bytes = vertices.len() * 24;
-            let len_word = (vertex_bytes as u32) | if closed { 0x80000000 } else { 0 };
+            let data_bytes = ring_boundary_bytes + vertex_bytes;
+            let len_word = (data_bytes as u32)
+                | if closed { 0x80000000 } else { 0 }
+                | if contains_hilbert_start { 0x40000000 } else { 0 };
+
+            // set field: bit 31 = has_holes, bit 30 = is_member, bits 0-29 = count or distance.
+            let is_member = count > 1 && member_idx > 0;
+            let set_word: u32 = if count == 1 {
+                if has_holes { 0x80000000 | 1 } else { 1 }
+            } else if member_idx == 0 {
+                let c = count as u32;
+                if has_holes { 0x80000000 | c } else { c }
+            } else {
+                let delta = pos - prev_pos;
+                debug_assert!(delta <= 0x3FFFFFFF, "back pointer exceeds 30-bit range");
+                let d = delta as u32;
+                0x40000000 | if has_holes { 0x80000000 | d } else { d }
+            };
 
             self.write.write_all(&len_word.to_le_bytes()).unwrap();
-            self.write.write_all(&set_ind.to_le_bytes()).unwrap();
-            if set_ind >= 0 {
-                self.write.write_all(&doc_id.to_le_bytes()).unwrap();
+            self.write.write_all(&set_word.to_le_bytes()).unwrap();
+            if !is_member {
+                self.write.write_all(&set.doc_id.to_le_bytes()).unwrap();
             }
+
+            // Write ring boundary entries: hole ring start indices with continuation flag.
+            if has_holes {
+                let hole_count = ring_offsets.len() - 2;
+                for (h, &offset) in ring_offsets[1..ring_offsets.len() - 1].iter().enumerate() {
+                    let continuation = if h < hole_count - 1 { 0x80000000u32 } else { 0 };
+                    let entry = continuation | (offset as u32);
+                    self.write.write_all(&entry.to_le_bytes()).unwrap();
+                }
+            }
+
             for v in vertices {
                 for &coord in v {
                     self.write.write_all(&coord.to_le_bytes()).unwrap();

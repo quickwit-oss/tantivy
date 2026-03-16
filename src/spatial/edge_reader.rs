@@ -4,42 +4,47 @@
 //! the end locates the skip list directory, and the directory provides random access by geometry
 //! position. Between skip list entries, a forward walk bridges the gap using entry len fields.
 //!
-//! The high bit of the len field is a closed flag indicating whether the geometry has interior
-//! (polygon). The actual byte length is len & 0x7FFFFFFF. Head and standalone entries (set >= 0)
-//! carry an inline doc_id after the set indicator. Member entries (set < 0) do not.
+//! Geometry entry format per 004_edge_index.md:
+//!   len (u32): bit 31 = closed, bit 30 = contains_hilbert_start, bits 0-29 = data byte length
+//!   set (u32): bit 31 = has_holes, bit 30 = is_member, bits 0-29 = count or back distance
+//!   Head/standalone: [len] [set] [doc_id] [ring boundaries?] [vertex data]
+//!   Member:          [len] [set] [ring boundaries?] [vertex data]
 
 use std::collections::HashMap;
 
 use lru::LruCache;
 
+use super::geometry_set::{EdgeSet, GeometrySet};
+
 /// A geometry entry's header as stored on disk.
 struct EntryHeader {
-    /// Byte length of vertex data (high bit masked off).
-    len: u32,
-    /// Set indicator: 0 = standalone, positive = head with member count, negative = back pointer.
-    set: i32,
-    /// Whether this geometry is closed (has interior).
+    /// Byte length of data section (bits 0-29 of len word). Includes ring boundary entries
+    /// and vertex data.
+    data_len: u32,
+    /// Whether this geometry is closed (has interior). Bit 31 of len word.
     closed: bool,
+    /// Whether this geometry's interior contains the Hilbert curve start point. Bit 30 of len word.
+    contains_hilbert_start: bool,
+    /// Whether ring boundary entries precede vertex data. Bit 31 of set word.
+    has_holes: bool,
+    /// Whether this is a member entry (not head or standalone). Bit 30 of set word.
+    is_member: bool,
+    /// Bits 0-29 of set word: member count (head/standalone) or byte distance back (member).
+    set_value: u32,
 }
 
-/// Decoded geometry set: all members' vertices and the doc_id. The head position identifies the
-/// set -- member positions are consecutive starting from the head.
-pub struct GeometrySet {
-    /// The head position -- first member of the set in the edge index.
-    pub geometry_id: u32,
-    /// Decoded vertices for each member. Member at position P has its vertices at
-    /// index `P - geometry_id`.
-    pub vertices: Vec<Vec<[f64; 3]>>,
-    /// Whether each member is closed (has interior), parallel to `vertices`.
-    pub closed: Vec<bool>,
-    /// The document this set belongs to.
-    pub doc_id: u32,
+/// Cached geometry set with the head position for member index resolution.
+struct CachedSet {
+    /// The head position — first member of the set in the edge index.
+    head_position: u32,
+    /// The decoded geometry set.
+    set: GeometrySet,
 }
 
 /// Reads geometry entries from a serialized edge index segment. Constructed from a byte slice,
 /// reads the footer to locate the skip list directory, and provides random access to vertices and
-/// doc_ids by geometry position. Caches decoded vertices in an LRU evicted by total vertex count
-/// so large polygons cost proportionally more than small ones.
+/// doc_ids by geometry position. Caches decoded geometry sets in an LRU evicted by total vertex
+/// count so large polygons cost proportionally more than small ones.
 pub struct EdgeReader<'a> {
     /// The raw bytes of the edge index segment, typically mmap'd.
     data: &'a [u8],
@@ -49,10 +54,10 @@ pub struct EdgeReader<'a> {
     skip_interval: u32,
     /// Byte offset where the skip list directory begins.
     dir_offset: u64,
-    /// Maps any member position to the head's geometry_id for set lookup.
+    /// Maps any member position to the head's position for set lookup.
     index: HashMap<u32, u32>,
-    /// LRU cache of decoded geometry sets, keyed by geometry_id (head position).
-    sets: LruCache<u32, GeometrySet>,
+    /// LRU cache of decoded geometry sets, keyed by head position.
+    sets: LruCache<u32, CachedSet>,
     /// Running total of vertices across all cached sets, for eviction decisions.
     cached_vertices: usize,
     /// Eviction kicks in when `cached_vertices` exceeds this bound.
@@ -86,15 +91,21 @@ impl<'a> EdgeReader<'a> {
         self.geometry_count
     }
 
-    /// Retrieve the geometry set containing the given position. On a cache miss, resolves the
-    /// byte offset via the skip list directory, resolves the set head via back pointers, decodes
-    /// all members, reads the inline doc_id, and caches the entire set. The caller's member is
-    /// at index `position - set.geometry_id` in the returned `vertices` vec.
-    pub fn get(&mut self, position: u32) -> &GeometrySet {
+    /// Retrieve one member's edges and the document's doc_id.
+    pub fn get_edge_set(&mut self, position: u32) -> (u32, &EdgeSet) {
+        let (head, set) = self.get_geometry_set(position);
+        let member_idx = (position - head) as usize;
+        (set.doc_id, &set.members[member_idx])
+    }
+
+    /// Retrieve the full geometry set containing the given position. Returns the head position
+    /// and the set. Used by the merge path which needs all members.
+    pub fn get_geometry_set(&mut self, position: u32) -> (u32, &GeometrySet) {
         debug_assert!(position < self.geometry_count);
 
-        if let Some(&geometry_id) = self.index.get(&position) {
-            return self.sets.get(&geometry_id).unwrap();
+        if let Some(&head) = self.index.get(&position) {
+            let cached = self.sets.get(&head).unwrap();
+            return (cached.head_position, &cached.set);
         }
 
         // Resolve the byte offset via skip list directory and forward walk.
@@ -106,14 +117,10 @@ impl<'a> EdgeReader<'a> {
             u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
 
         if remainder > 0 {
-            // Forward walk from the skip list entry point. Every position is
-            // a geometry entry. Read len (mask high bit) and set to determine
-            // the entry size: head/standalone (set >= 0) has an inline doc_id
-            // adding 4 bytes.
             let mut steps = 0u32;
             while steps < remainder {
                 let h = self.read_header(current);
-                let advance = if h.set >= 0 { 12 } else { 8 } + h.len as u64;
+                let advance = if h.is_member { 8 } else { 12 } + h.data_len as u64;
                 current += advance;
                 steps += 1;
             }
@@ -123,23 +130,19 @@ impl<'a> EdgeReader<'a> {
         let offset = current;
         let header = self.read_header(offset);
 
-        let (head_position, head_offset, count) = if header.set == 0 {
-            (position, offset, 1)
-        } else if header.set > 0 {
-            (position, offset, header.set as u32)
-        } else {
-            let mut cur = offset - (-header.set) as u64;
+        let (head_position, head_offset, count) = if header.is_member {
+            let mut cur = offset - header.set_value as u64;
             let mut hops = 1u32;
             loop {
                 let h = self.read_header(cur);
-                if h.set > 0 {
-                    break (position - hops, cur, h.set as u32);
-                } else if h.set == 0 {
-                    break (position - hops, cur, 1);
+                if !h.is_member {
+                    break (position - hops, cur, h.set_value);
                 }
-                cur -= (-h.set) as u64;
+                cur -= h.set_value as u64;
                 hops += 1;
             }
+        } else {
+            (position, offset, header.set_value)
         };
 
         // Read the inline doc_id from the head entry (at head_offset + 8).
@@ -150,21 +153,40 @@ impl<'a> EdgeReader<'a> {
         );
 
         // Decode all members.
-        let mut all_vertices: Vec<Vec<[f64; 3]>> = Vec::with_capacity(count as usize);
-        let mut all_closed: Vec<bool> = Vec::with_capacity(count as usize);
+        let mut members: Vec<EdgeSet> = Vec::with_capacity(count as usize);
         let mut cur = head_offset;
         for _ in 0..count {
             let h = self.read_header(cur);
-            let data_offset = if h.set >= 0 { cur + 12 } else { cur + 8 };
-            let start = data_offset as usize;
-            let end = start + h.len as usize;
-            all_vertices.push(self.decode_vertices(&self.data[start..end]));
-            all_closed.push(h.closed);
-            cur = data_offset + h.len as u64;
+            let data_start = if h.is_member { cur + 8 } else { cur + 12 };
+
+            // Decode ring boundaries if has_holes, then vertex data.
+            let (hole_starts, vertex_start) = if h.has_holes {
+                self.decode_ring_boundaries(data_start as usize, h.data_len as usize)
+            } else {
+                (Vec::new(), data_start as usize)
+            };
+
+            let vertex_end = data_start as usize + h.data_len as usize;
+            let vertices = self.decode_vertices(&self.data[vertex_start..vertex_end]);
+
+            // Build the full ring_offsets vec: always [0, ..., vertex_count].
+            let mut offsets = vec![0usize];
+            for &hole_start in &hole_starts {
+                offsets.push(hole_start);
+            }
+            offsets.push(vertices.len());
+
+            members.push(EdgeSet {
+                vertices,
+                closed: h.closed,
+                contains_hilbert_start: h.contains_hilbert_start,
+                ring_offsets: offsets,
+            });
+            cur = data_start + h.data_len as u64;
         }
 
         // Cache the set and evict if over budget.
-        let vertex_count: usize = all_vertices.iter().map(|v| v.len()).sum();
+        let vertex_count: usize = members.iter().map(|m| m.vertices.len()).sum();
         self.cached_vertices += vertex_count;
 
         for i in 0..count {
@@ -173,35 +195,62 @@ impl<'a> EdgeReader<'a> {
 
         self.sets.put(
             head_position,
-            GeometrySet {
-                geometry_id: head_position,
-                vertices: all_vertices,
-                closed: all_closed,
-                doc_id,
+            CachedSet {
+                head_position,
+                set: GeometrySet {
+                    members,
+                    doc_id,
+                },
             },
         );
 
         while self.cached_vertices > self.max_vertices && self.sets.len() > 1 {
             if let Some((evicted_id, evicted_set)) = self.sets.pop_lru() {
-                let evicted_verts: usize = evicted_set.vertices.iter().map(|v| v.len()).sum();
+                let evicted_verts: usize =
+                    evicted_set.set.members.iter().map(|m| m.vertices.len()).sum();
                 self.cached_vertices -= evicted_verts;
-                for i in 0..evicted_set.vertices.len() as u32 {
+                for i in 0..evicted_set.set.members.len() as u32 {
                     self.index.remove(&(evicted_id + i));
                 }
             }
         }
 
-        self.sets.get(&head_position).unwrap()
+        let cached = self.sets.get(&head_position).unwrap();
+        (cached.head_position, &cached.set)
     }
 
     fn read_header(&self, offset: u64) -> EntryHeader {
         let o = offset as usize;
         let raw_len = u32::from_le_bytes(self.data[o..o + 4].try_into().unwrap());
+        let raw_set = u32::from_le_bytes(self.data[o + 4..o + 8].try_into().unwrap());
         EntryHeader {
-            len: raw_len & 0x7FFFFFFF,
-            set: i32::from_le_bytes(self.data[o + 4..o + 8].try_into().unwrap()),
+            data_len: raw_len & 0x3FFFFFFF,
             closed: raw_len & 0x80000000 != 0,
+            contains_hilbert_start: raw_len & 0x40000000 != 0,
+            has_holes: raw_set & 0x80000000 != 0,
+            is_member: raw_set & 0x40000000 != 0,
+            set_value: raw_set & 0x3FFFFFFF,
         }
+    }
+
+    /// Decode ring boundary entries from the data section. Returns the hole ring start vertex
+    /// indices and the byte offset where vertex data begins.
+    fn decode_ring_boundaries(&self, data_start: usize, data_len: usize) -> (Vec<usize>, usize) {
+        let mut hole_starts = Vec::new();
+        let mut pos = data_start;
+        let data_end = data_start + data_len;
+        loop {
+            debug_assert!(pos + 4 <= data_end, "ring boundary overruns data section");
+            let entry = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap());
+            let vertex_index = (entry & 0x7FFFFFFF) as usize;
+            let continuation = entry & 0x80000000 != 0;
+            hole_starts.push(vertex_index);
+            pos += 4;
+            if !continuation {
+                break;
+            }
+        }
+        (hole_starts, pos)
     }
 
     // 24 bytes per vertex, 3 * f64.

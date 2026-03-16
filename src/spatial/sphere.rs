@@ -23,4 +23,16 @@ pub struct Sphere;
 
 impl Surface for Sphere {
     type Point = [f64; 3];
+
+    fn project(lon: f64, lat: f64) -> [f64; 3] {
+        let lat = lat.to_radians();
+        let lon = lon.to_radians();
+        let cos_lat = lat.cos();
+        [cos_lat * lon.cos(), cos_lat * lon.sin(), lat.sin()]
+    }
+
+    #[inline]
+    fn origin_inside(ring: &[Self::Point]) -> bool {
+        crate::spatial::containment::compute_origin_inside(ring)
+    }
 }
