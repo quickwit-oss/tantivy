@@ -1,8 +1,9 @@
-//! Functions for computing the distance from a point to an edge on the unit sphere.
+//! Functions for computing the distance from a point to an edge, and between pairs of edges, on
+//! the unit sphere.
 //!
 //! Port of s2edge_distances.h and s2edge_distances.cc (Eric Veach, Google).
 
-use super::crossings::robust_cross;
+use super::crossings::{robust_cross, S2EdgeCrosser};
 use super::math::{cross, dot, norm2, sub};
 use super::s1chord_angle::S1ChordAngle;
 
@@ -147,6 +148,66 @@ fn always_update_min_distance<const ALWAYS_UPDATE: bool>(
     }
     *min_dist = S1ChordAngle::from_length2(dist2);
     true
+}
+
+/// Like update_min_distance(), but computes the minimum distance between the
+/// given pair of edges.  (If the two edges cross, the distance is zero.)
+/// The cases a0 == a1 and b0 == b1 are handled correctly.
+///
+/// Port of S2::UpdateEdgePairMinDistance in s2edge_distances.cc.
+pub fn update_edge_pair_min_distance(
+    a0: &[f64; 3],
+    a1: &[f64; 3],
+    b0: &[f64; 3],
+    b1: &[f64; 3],
+    min_dist: &mut S1ChordAngle,
+) -> bool {
+    if *min_dist == S1ChordAngle::zero() {
+        return false;
+    }
+    if crossing_sign(a0, a1, b0, b1) >= 0 {
+        *min_dist = S1ChordAngle::zero();
+        return true;
+    }
+    // Otherwise, the minimum distance is achieved at an endpoint of at least
+    // one of the two edges.  We use "|" rather than "||" below to ensure that
+    // all four possibilities are always checked.
+    //
+    // The calculation below computes each of the six vertex-vertex distances
+    // twice (this could be optimized).
+    let a = update_min_distance(a0, b0, b1, min_dist);
+    let b = update_min_distance(a1, b0, b1, min_dist);
+    let c = update_min_distance(b0, a0, a1, min_dist);
+    let d = update_min_distance(b1, a0, a1, min_dist);
+    a | b | c | d
+}
+
+/// Returns true if the minimum distance between two edges is less than distance.
+///
+/// Port of S2::IsEdgePairDistanceLess in s2edge_distances.cc.
+pub fn is_edge_pair_distance_less(
+    a0: &[f64; 3],
+    a1: &[f64; 3],
+    b0: &[f64; 3],
+    b1: &[f64; 3],
+    distance: S1ChordAngle,
+) -> bool {
+    // If the edges cross or share an endpoint, the minimum distance is zero.
+    if crossing_sign(a0, a1, b0, b1) >= 0 {
+        return distance != S1ChordAngle::zero();
+    }
+    // Otherwise the minimum distance is achieved at an endpoint of at least
+    // one of the endpoints of the two edges.  Written this way for short circuiting.
+    is_distance_less(a0, b0, b1, distance)
+        || is_distance_less(a1, b0, b1, distance)
+        || is_distance_less(b0, a0, a1, distance)
+        || is_distance_less(b1, a0, a1, distance)
+}
+
+// Convenience wrapper matching S2::CrossingSign in s2edge_crossings.cc.
+fn crossing_sign(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], d: &[f64; 3]) -> i32 {
+    let mut crosser = S2EdgeCrosser::new(a, b);
+    crosser.crossing_sign_two(c, d)
 }
 
 // Port of GetUpdateMinInteriorDistanceMaxError.
