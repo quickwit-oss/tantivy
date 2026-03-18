@@ -156,17 +156,15 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         let composite_agg_data = agg_data.take_composite_req_data(self.accessor_idx);
 
         for doc in docs {
-            let mut sub_level_values = SmallVec::new();
-            recursive_key_visitor(
-                *doc,
-                &composite_agg_data,
-                0,
-                &mut sub_level_values,
-                &mut self.parent_buckets[parent_bucket_id as usize],
-                true,
-                &mut self.sub_agg,
-                &mut self.bucket_id_provider,
-            )?;
+            let mut visitor = CompositeKeyVisitor {
+                doc_id: *doc,
+                composite_agg_data: &composite_agg_data,
+                buckets: &mut self.parent_buckets[parent_bucket_id as usize],
+                sub_agg: &mut self.sub_agg,
+                bucket_id_provider: &mut self.bucket_id_provider,
+                sub_level_values: SmallVec::new(),
+            };
+            visitor.visit(0, true)?;
         }
         agg_data.put_back_composite_req_data(self.accessor_idx, composite_agg_data);
 
@@ -305,6 +303,13 @@ fn validate_req(req_data: &mut AggregationsSegmentCtx, accessor_idx: usize) -> c
             "composite aggregation 'size' must be > 0".to_string(),
         ));
     }
+
+    if composite_data.composite_accessors.len() > MAX_DYN_ARRAY_SIZE {
+        return Err(TantivyError::InvalidArgument(format!(
+            "composite aggregation source supports maximum {MAX_DYN_ARRAY_SIZE} sources",
+        )));
+    }
+
     let column_types_for_sources = composite_data.composite_accessors.iter().map(|item| {
         item.accessors
             .iter()
@@ -313,11 +318,6 @@ fn validate_req(req_data: &mut AggregationsSegmentCtx, accessor_idx: usize) -> c
     });
 
     for column_types in column_types_for_sources {
-        if column_types.len() > MAX_DYN_ARRAY_SIZE {
-            return Err(TantivyError::InvalidArgument(format!(
-                "composite aggregation source supports maximum {MAX_DYN_ARRAY_SIZE} sources",
-            )));
-        }
         if column_types.contains(&ColumnType::Bytes) {
             return Err(TantivyError::InvalidArgument(
                 "composite aggregation does not support 'bytes' field type".to_string(),
@@ -480,195 +480,173 @@ fn resolve_term(
     Ok(key)
 }
 
-/// Depth-first walk of the accessors to build the composite key combinations
-/// and update the buckets.
-fn recursive_key_visitor(
+/// Browse through the cardinal product obtained by the different values of the doc composite key
+/// sources.
+///
+/// For each of those tuple-key, that are after the limit key, we call collect_bucket_with_limit.
+struct CompositeKeyVisitor<'a> {
     doc_id: crate::DocId,
-    composite_agg_data: &CompositeAggReqData,
-    source_idx_for_recursion: usize,
-    sub_level_values: &mut SmallVec<[InternalValueRepr; MAX_DYN_ARRAY_SIZE]>,
-    buckets: &mut DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>,
-    // whether we need to consider the after_key in the following levels
-    is_on_after_key: bool,
-    sub_agg: &mut Option<CachedSubAggs<HighCardSubAggCache>>,
-    bucket_id_provider: &mut BucketIdProvider,
-) -> crate::Result<()> {
-    if source_idx_for_recursion == composite_agg_data.req.sources.len() {
-        if !is_on_after_key {
-            collect_bucket_with_limit(
-                doc_id,
-                composite_agg_data.req.size as usize,
-                buckets,
-                sub_level_values,
-                sub_agg,
-                bucket_id_provider,
-            );
-        }
-        return Ok(());
-    }
+    composite_agg_data: &'a CompositeAggReqData,
+    buckets: &'a mut DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>,
+    sub_agg: &'a mut Option<CachedSubAggs<HighCardSubAggCache>>,
+    bucket_id_provider: &'a mut BucketIdProvider,
+    sub_level_values: SmallVec<[InternalValueRepr; MAX_DYN_ARRAY_SIZE]>,
+}
 
-    let current_level_accessors = &composite_agg_data.composite_accessors[source_idx_for_recursion];
-    let current_level_source = &composite_agg_data.req.sources[source_idx_for_recursion];
-    let mut missing = true;
-    for (accessor_idx, accessor) in current_level_accessors.accessors.iter().enumerate() {
-        let values = accessor.column.values_for_doc(doc_id);
-        for value in values {
-            missing = false;
-            match current_level_source {
-                CompositeAggregationSource::Terms(_) => {
-                    let preceeds_after_key_type =
-                        accessor_idx < current_level_accessors.after_key_accessor_idx;
-                    if is_on_after_key && preceeds_after_key_type {
-                        break;
-                    }
-                    let matches_after_key_type =
-                        accessor_idx == current_level_accessors.after_key_accessor_idx;
-
-                    if matches_after_key_type && is_on_after_key {
-                        let should_skip = match current_level_source.order() {
-                            Order::Asc => current_level_accessors.after_key.gt(value),
-                            Order::Desc => current_level_accessors.after_key.lt(value),
-                        };
-                        if should_skip {
-                            continue;
-                        }
-                    }
-                    sub_level_values.push(InternalValueRepr::new_term(
-                        value,
-                        accessor_idx as u8,
-                        current_level_source.order(),
-                    ));
-                    let still_on_after_key =
-                        matches_after_key_type && current_level_accessors.after_key.equals(value);
-                    recursive_key_visitor(
-                        doc_id,
-                        composite_agg_data,
-                        source_idx_for_recursion + 1,
-                        sub_level_values,
-                        buckets,
-                        is_on_after_key && still_on_after_key,
-                        sub_agg,
-                        bucket_id_provider,
-                    )?;
-                    sub_level_values.pop();
-                }
-                CompositeAggregationSource::Histogram(source) => {
-                    let float_value = match accessor.column_type {
-                        ColumnType::U64 => value as f64,
-                        ColumnType::I64 => i64::from_u64(value) as f64,
-                        ColumnType::DateTime => i64::from_u64(value) as f64 / 1_000_000.,
-                        ColumnType::F64 => f64::from_u64(value),
-                        _ => {
-                            panic!(
-                                "unexpected type {:?}. This should not happen",
-                                accessor.column_type
-                            )
-                        }
-                    };
-                    let bucket_index = (float_value / source.interval).floor() as i64;
-                    let bucket_value = i64::to_u64(bucket_index);
-                    if is_on_after_key {
-                        let should_skip = match current_level_source.order() {
-                            Order::Asc => current_level_accessors.after_key.gt(bucket_value),
-                            Order::Desc => current_level_accessors.after_key.lt(bucket_value),
-                        };
-                        if should_skip {
-                            continue;
-                        }
-                    }
-                    sub_level_values.push(InternalValueRepr::new_histogram(
-                        bucket_value,
-                        current_level_source.order(),
-                    ));
-                    let still_on_after_key = current_level_accessors.after_key.equals(bucket_value);
-                    recursive_key_visitor(
-                        doc_id,
-                        composite_agg_data,
-                        source_idx_for_recursion + 1,
-                        sub_level_values,
-                        buckets,
-                        is_on_after_key && still_on_after_key,
-                        sub_agg,
-                        bucket_id_provider,
-                    )?;
-                    sub_level_values.pop();
-                }
-                CompositeAggregationSource::DateHistogram(_) => {
-                    let value_ns = match accessor.column_type {
-                        ColumnType::DateTime => i64::from_u64(value),
-                        _ => {
-                            panic!(
-                                "unexpected type {:?}. This should not happen",
-                                accessor.column_type
-                            )
-                        }
-                    };
-                    let bucket_index = match accessor.date_histogram_interval {
-                        PrecomputedDateInterval::FixedNanoseconds(fixed_interval_ns) => {
-                            (value_ns / fixed_interval_ns) * fixed_interval_ns
-                        }
-                        PrecomputedDateInterval::Calendar(CalendarInterval::Year) => {
-                            calendar_interval::try_year_bucket(value_ns)?
-                        }
-                        PrecomputedDateInterval::Calendar(CalendarInterval::Month) => {
-                            calendar_interval::try_month_bucket(value_ns)?
-                        }
-                        PrecomputedDateInterval::Calendar(CalendarInterval::Week) => {
-                            calendar_interval::week_bucket(value_ns)
-                        }
-                        PrecomputedDateInterval::NotApplicable => {
-                            panic!("interval not precomputed for date histogram source")
-                        }
-                    };
-                    let bucket_value = i64::to_u64(bucket_index);
-                    if is_on_after_key {
-                        let should_skip = match current_level_source.order() {
-                            Order::Asc => current_level_accessors.after_key.gt(bucket_value),
-                            Order::Desc => current_level_accessors.after_key.lt(bucket_value),
-                        };
-                        if should_skip {
-                            continue;
-                        }
-                    }
-                    sub_level_values.push(InternalValueRepr::new_histogram(
-                        bucket_value,
-                        current_level_source.order(),
-                    ));
-                    let still_on_after_key = current_level_accessors.after_key.equals(bucket_value);
-                    recursive_key_visitor(
-                        doc_id,
-                        composite_agg_data,
-                        source_idx_for_recursion + 1,
-                        sub_level_values,
-                        buckets,
-                        is_on_after_key && still_on_after_key,
-                        sub_agg,
-                        bucket_id_provider,
-                    )?;
-                    sub_level_values.pop();
-                }
-            };
-        }
-    }
-    if missing && current_level_source.missing_bucket() {
-        if is_on_after_key && current_level_accessors.skip_missing {
+impl CompositeKeyVisitor<'_> {
+    /// Depth-first walk of the accessors to build the composite key combinations
+    /// and update the buckets.
+    ///
+    /// `source_idx` is the current source index in the recursion.
+    /// `is_on_after_key` tracks whether we still need to consider the after_key
+    /// for pruning at this level and below.
+    fn visit(&mut self, source_idx: usize, is_on_after_key: bool) -> crate::Result<()> {
+        if source_idx == self.composite_agg_data.req.sources.len() {
+            if !is_on_after_key {
+                collect_bucket_with_limit(
+                    self.doc_id,
+                    self.composite_agg_data.req.size as usize,
+                    self.buckets,
+                    &self.sub_level_values,
+                    self.sub_agg,
+                    self.bucket_id_provider,
+                );
+            }
             return Ok(());
         }
-        sub_level_values.push(InternalValueRepr::new_missing(
-            current_level_source.order(),
-            current_level_source.missing_order(),
-        ));
-        recursive_key_visitor(
-            doc_id,
-            composite_agg_data,
-            source_idx_for_recursion + 1,
-            sub_level_values,
-            buckets,
-            is_on_after_key && current_level_accessors.is_after_key_explicit_missing,
-            sub_agg,
-            bucket_id_provider,
-        )?;
-        sub_level_values.pop();
+
+        let current_level_accessors = &self.composite_agg_data.composite_accessors[source_idx];
+        let current_level_source = &self.composite_agg_data.req.sources[source_idx];
+        let mut missing = true;
+        for (accessor_idx, accessor) in current_level_accessors.accessors.iter().enumerate() {
+            let values = accessor.column.values_for_doc(self.doc_id);
+            for value in values {
+                missing = false;
+                match current_level_source {
+                    CompositeAggregationSource::Terms(_) => {
+                        let preceeds_after_key_type =
+                            accessor_idx < current_level_accessors.after_key_accessor_idx;
+                        if is_on_after_key && preceeds_after_key_type {
+                            break;
+                        }
+                        let matches_after_key_type =
+                            accessor_idx == current_level_accessors.after_key_accessor_idx;
+
+                        if matches_after_key_type && is_on_after_key {
+                            let should_skip = match current_level_source.order() {
+                                Order::Asc => current_level_accessors.after_key.gt(value),
+                                Order::Desc => current_level_accessors.after_key.lt(value),
+                            };
+                            if should_skip {
+                                continue;
+                            }
+                        }
+                        self.sub_level_values.push(InternalValueRepr::new_term(
+                            value,
+                            accessor_idx as u8,
+                            current_level_source.order(),
+                        ));
+                        let still_on_after_key = matches_after_key_type
+                            && current_level_accessors.after_key.equals(value);
+                        self.visit(source_idx + 1, is_on_after_key && still_on_after_key)?;
+                        self.sub_level_values.pop();
+                    }
+                    CompositeAggregationSource::Histogram(source) => {
+                        let float_value = match accessor.column_type {
+                            ColumnType::U64 => value as f64,
+                            ColumnType::I64 => i64::from_u64(value) as f64,
+                            ColumnType::DateTime => i64::from_u64(value) as f64 / 1_000_000.,
+                            ColumnType::F64 => f64::from_u64(value),
+                            _ => {
+                                panic!(
+                                    "unexpected type {:?}. This should not happen",
+                                    accessor.column_type
+                                )
+                            }
+                        };
+                        let bucket_index = (float_value / source.interval).floor() as i64;
+                        let bucket_value = i64::to_u64(bucket_index);
+                        if is_on_after_key {
+                            let should_skip = match current_level_source.order() {
+                                Order::Asc => current_level_accessors.after_key.gt(bucket_value),
+                                Order::Desc => current_level_accessors.after_key.lt(bucket_value),
+                            };
+                            if should_skip {
+                                continue;
+                            }
+                        }
+                        self.sub_level_values.push(InternalValueRepr::new_histogram(
+                            bucket_value,
+                            current_level_source.order(),
+                        ));
+                        let still_on_after_key =
+                            current_level_accessors.after_key.equals(bucket_value);
+                        self.visit(source_idx + 1, is_on_after_key && still_on_after_key)?;
+                        self.sub_level_values.pop();
+                    }
+                    CompositeAggregationSource::DateHistogram(_) => {
+                        let value_ns = match accessor.column_type {
+                            ColumnType::DateTime => i64::from_u64(value),
+                            _ => {
+                                panic!(
+                                    "unexpected type {:?}. This should not happen",
+                                    accessor.column_type
+                                )
+                            }
+                        };
+                        let bucket_index = match accessor.date_histogram_interval {
+                            PrecomputedDateInterval::FixedNanoseconds(fixed_interval_ns) => {
+                                (value_ns / fixed_interval_ns) * fixed_interval_ns
+                            }
+                            PrecomputedDateInterval::Calendar(CalendarInterval::Year) => {
+                                calendar_interval::try_year_bucket(value_ns)?
+                            }
+                            PrecomputedDateInterval::Calendar(CalendarInterval::Month) => {
+                                calendar_interval::try_month_bucket(value_ns)?
+                            }
+                            PrecomputedDateInterval::Calendar(CalendarInterval::Week) => {
+                                calendar_interval::week_bucket(value_ns)
+                            }
+                            PrecomputedDateInterval::NotApplicable => {
+                                panic!("interval not precomputed for date histogram source")
+                            }
+                        };
+                        let bucket_value = i64::to_u64(bucket_index);
+                        if is_on_after_key {
+                            let should_skip = match current_level_source.order() {
+                                Order::Asc => current_level_accessors.after_key.gt(bucket_value),
+                                Order::Desc => current_level_accessors.after_key.lt(bucket_value),
+                            };
+                            if should_skip {
+                                continue;
+                            }
+                        }
+                        self.sub_level_values.push(InternalValueRepr::new_histogram(
+                            bucket_value,
+                            current_level_source.order(),
+                        ));
+                        let still_on_after_key =
+                            current_level_accessors.after_key.equals(bucket_value);
+                        self.visit(source_idx + 1, is_on_after_key && still_on_after_key)?;
+                        self.sub_level_values.pop();
+                    }
+                };
+            }
+        }
+        if missing && current_level_source.missing_bucket() {
+            if is_on_after_key && current_level_accessors.skip_missing {
+                return Ok(());
+            }
+            self.sub_level_values.push(InternalValueRepr::new_missing(
+                current_level_source.order(),
+                current_level_source.missing_order(),
+            ));
+            self.visit(
+                source_idx + 1,
+                is_on_after_key && current_level_accessors.is_after_key_explicit_missing,
+            )?;
+            self.sub_level_values.pop();
+        }
+        Ok(())
     }
-    Ok(())
 }

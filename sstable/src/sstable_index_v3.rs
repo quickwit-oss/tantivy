@@ -553,7 +553,7 @@ impl FixedSize for BlockAddrBlockMetadata {
     const SIZE_IN_BYTES: usize = u64::SIZE_IN_BYTES
         + BlockStartAddr::SIZE_IN_BYTES
         + 2 * u32::SIZE_IN_BYTES
-        + 2 * u8::SIZE_IN_BYTES
+        + 2
         + u16::SIZE_IN_BYTES;
 }
 

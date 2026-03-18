@@ -48,8 +48,7 @@ impl BinarySerializable for TermInfoBlockMeta {
 }
 
 impl FixedSize for TermInfoBlockMeta {
-    const SIZE_IN_BYTES: usize =
-        u64::SIZE_IN_BYTES + TermInfo::SIZE_IN_BYTES + 3;
+    const SIZE_IN_BYTES: usize = u64::SIZE_IN_BYTES + TermInfo::SIZE_IN_BYTES + 3;
 }
 
 impl TermInfoBlockMeta {

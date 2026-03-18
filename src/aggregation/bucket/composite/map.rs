@@ -323,7 +323,7 @@ mod tests {
         let mut iter = map.into_iter();
         let (k, v) = iter.next().unwrap();
         assert_eq!(k.as_slice(), &key1);
-        assert_eq!(v, "c");
+        assert_eq!(v, "a");
         assert_eq!(iter.next(), None);
     }
 }

@@ -820,7 +820,7 @@ mod tests {
                 {"key": {"myterm": "apple"}, "doc_count": 1}
             ])
         );
-        assert!(res["my_composite"].get("after_key").is_none());
+        assert!(res["fruity_aggreg"].get("after_key").is_none());
 
         Ok(())
     }
