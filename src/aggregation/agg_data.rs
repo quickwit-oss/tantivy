@@ -10,9 +10,10 @@ use crate::aggregation::accessor_helpers::{
 };
 use crate::aggregation::agg_req::{Aggregation, AggregationVariants, Aggregations};
 use crate::aggregation::bucket::{
-    build_segment_filter_collector, build_segment_range_collector, FilterAggReqData,
-    HistogramAggReqData, HistogramBounds, IncludeExcludeParam, MissingTermAggReqData,
-    RangeAggReqData, SegmentHistogramCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
+    build_segment_filter_collector, build_segment_range_collector, CompositeAggReqData,
+    CompositeAggregation, CompositeSourceAccessors, FilterAggReqData, HistogramAggReqData,
+    HistogramBounds, IncludeExcludeParam, MissingTermAggReqData, RangeAggReqData,
+    SegmentHistogramCollector, TermMissingAgg, TermsAggReqData, TermsAggregation,
     TermsAggregationInternal,
 };
 use crate::aggregation::metric::{
@@ -73,6 +74,12 @@ impl AggregationsSegmentCtx {
         self.per_request.filter_req_data.push(Some(Box::new(data)));
         self.per_request.filter_req_data.len() - 1
     }
+    pub(crate) fn push_composite_req_data(&mut self, data: CompositeAggReqData) -> usize {
+        self.per_request
+            .composite_req_data
+            .push(Some(Box::new(data)));
+        self.per_request.composite_req_data.len() - 1
+    }
 
     #[inline]
     pub(crate) fn get_term_req_data(&self, idx: usize) -> &TermsAggReqData {
@@ -107,6 +114,12 @@ impl AggregationsSegmentCtx {
         self.per_request.range_req_data[idx]
             .as_deref()
             .expect("range_req_data slot is empty (taken)")
+    }
+    #[inline]
+    pub(crate) fn get_composite_req_data(&self, idx: usize) -> &CompositeAggReqData {
+        self.per_request.composite_req_data[idx]
+            .as_deref()
+            .expect("composite_req_data slot is empty (taken)")
     }
 
     // ---------- mutable getters ----------
@@ -181,6 +194,25 @@ impl AggregationsSegmentCtx {
         debug_assert!(self.per_request.filter_req_data[idx].is_none());
         self.per_request.filter_req_data[idx] = Some(value);
     }
+
+    /// Move out the Composite request at `idx`.
+    #[inline]
+    pub(crate) fn take_composite_req_data(&mut self, idx: usize) -> Box<CompositeAggReqData> {
+        self.per_request.composite_req_data[idx]
+            .take()
+            .expect("composite_req_data slot is empty (taken)")
+    }
+
+    /// Put back a Composite request into an empty slot at `idx`.
+    #[inline]
+    pub(crate) fn put_back_composite_req_data(
+        &mut self,
+        idx: usize,
+        value: Box<CompositeAggReqData>,
+    ) {
+        debug_assert!(self.per_request.composite_req_data[idx].is_none());
+        self.per_request.composite_req_data[idx] = Some(value);
+    }
 }
 
 /// Each type of aggregation has its own request data struct. This struct holds
@@ -208,6 +240,8 @@ pub struct PerRequestAggSegCtx {
     pub top_hits_req_data: Vec<TopHitsAggReqData>,
     /// MissingTermAggReqData contains the request data for a missing term aggregation.
     pub missing_term_req_data: Vec<MissingTermAggReqData>,
+    /// CompositeAggReqData contains the request data for a composite aggregation.
+    pub composite_req_data: Vec<Option<Box<CompositeAggReqData>>>,
 
     /// Request tree used to build collectors.
     pub agg_tree: Vec<AggRefNode>,
@@ -255,6 +289,11 @@ impl PerRequestAggSegCtx {
                 .iter()
                 .map(|t| t.get_memory_consumption())
                 .sum::<usize>()
+            + self
+                .composite_req_data
+                .iter()
+                .map(|b| b.as_ref().map(|d| d.get_memory_consumption()).unwrap_or(0))
+                .sum::<usize>()
             + self.agg_tree.len() * std::mem::size_of::<AggRefNode>()
     }
 
@@ -289,6 +328,11 @@ impl PerRequestAggSegCtx {
             AggKind::Filter => self.filter_req_data[idx]
                 .as_deref()
                 .expect("filter_req_data slot is empty (taken)")
+                .name
+                .as_str(),
+            AggKind::Composite => self.composite_req_data[idx]
+                .as_deref()
+                .expect("composite_req_data slot is empty (taken)")
                 .name
                 .as_str(),
         }
@@ -417,6 +461,11 @@ pub(crate) fn build_segment_agg_collector(
         )?)),
         AggKind::Range => Ok(build_segment_range_collector(req, node)?),
         AggKind::Filter => build_segment_filter_collector(req, node),
+        AggKind::Composite => Ok(Box::new(
+            crate::aggregation::bucket::SegmentCompositeCollector::from_req_and_validate(
+                req, node,
+            )?,
+        )),
     }
 }
 
@@ -447,6 +496,7 @@ pub enum AggKind {
     DateHistogram,
     Range,
     Filter,
+    Composite,
 }
 
 impl AggKind {
@@ -462,6 +512,7 @@ impl AggKind {
             AggKind::DateHistogram => "DateHistogram",
             AggKind::Range => "Range",
             AggKind::Filter => "Filter",
+            AggKind::Composite => "Composite",
         }
     }
 }
@@ -709,6 +760,14 @@ fn build_nodes(
                 children,
             }])
         }
+        AggregationVariants::Composite(composite_req) => Ok(vec![build_composite_node(
+            agg_name,
+            reader,
+            segment_ordinal,
+            data,
+            &req.sub_aggregation,
+            composite_req,
+        )?]),
         AggregationVariants::Filter(filter_req) => {
             // Build the query and evaluator upfront
             let schema = reader.schema();
@@ -741,6 +800,35 @@ fn build_nodes(
             }])
         }
     }
+}
+
+fn build_composite_node(
+    agg_name: &str,
+    reader: &SegmentReader,
+    _segment_ordinal: SegmentOrdinal,
+    data: &mut AggregationsSegmentCtx,
+    sub_aggs: &Aggregations,
+    req: &CompositeAggregation,
+) -> crate::Result<AggRefNode> {
+    let mut composite_accessors = Vec::with_capacity(req.sources.len());
+    for source in &req.sources {
+        let source_after_key_opt = req.after.get(source.name()).map(|k| &k.0);
+        let source_accessor =
+            CompositeSourceAccessors::build_for_source(reader, source, source_after_key_opt)?;
+        composite_accessors.push(source_accessor);
+    }
+    let agg = CompositeAggReqData {
+        name: agg_name.to_string(),
+        req: req.clone(),
+        composite_accessors,
+    };
+    let idx = data.push_composite_req_data(agg);
+    let children = build_children(sub_aggs, reader, _segment_ordinal, data)?;
+    Ok(AggRefNode {
+        kind: AggKind::Composite,
+        idx_in_req_data: idx,
+        children,
+    })
 }
 
 fn build_children(

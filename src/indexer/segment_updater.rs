@@ -649,9 +649,6 @@ impl SegmentUpdater {
                                     merge_operation.segment_ids(),
                                     advance_deletes_err
                                 );
-                                assert!(!cfg!(test), "Merge failed.");
-
-                                // ... cancel merge
                                 // `merge_operations` are tracked. As it is dropped, the
                                 // the segment_ids will be available again for merge.
                                 return Err(advance_deletes_err);
@@ -719,7 +716,7 @@ mod tests {
         // Regression test: -(max_doc as i32) overflows for max_doc >= 2^31.
         // Using std::cmp::Reverse avoids this.
         let inventory = SegmentMetaInventory::default();
-        let mut metas = vec![
+        let mut metas = [
             inventory.new_segment_meta(SegmentId::generate_random(), 100),
             inventory.new_segment_meta(SegmentId::generate_random(), (1u32 << 31) - 1),
             inventory.new_segment_meta(SegmentId::generate_random(), 50_000),
