@@ -58,6 +58,49 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         }
     }
 
+    /// Like `fetch_block_with_missing`, but deduplicates (doc_id, value) pairs
+    /// so that each unique value per document is returned only once.
+    ///
+    /// This is necessary for correct document counting in aggregations,
+    /// where multi-valued fields can produce duplicate entries that inflate counts.
+    #[inline]
+    pub fn fetch_block_with_missing_unique_per_doc(
+        &mut self,
+        docs: &[u32],
+        accessor: &Column<T>,
+        missing: Option<T>,
+    ) {
+        self.fetch_block_with_missing(docs, accessor, missing);
+        if !accessor.index.get_cardinality().is_full() {
+            self.dedup_docid_val_pairs();
+        }
+    }
+
+    /// Removes consecutive duplicate (doc_id, value) pairs from the caches.
+    ///
+    /// After `fetch_block`, entries for the same doc are adjacent, so duplicates
+    /// (same doc, same value) are consecutive and can be removed in O(n).
+    fn dedup_docid_val_pairs(&mut self) {
+        if self.docid_cache.len() <= 1 {
+            return;
+        }
+        let mut write = 0;
+        for read in 1..self.docid_cache.len() {
+            if self.docid_cache[read] != self.docid_cache[write]
+                || self.val_cache[read] != self.val_cache[write]
+            {
+                write += 1;
+                if write != read {
+                    self.docid_cache[write] = self.docid_cache[read];
+                    self.val_cache[write] = self.val_cache[read];
+                }
+            }
+        }
+        let new_len = write + 1;
+        self.docid_cache.truncate(new_len);
+        self.val_cache.truncate(new_len);
+    }
+
     #[inline]
     pub fn iter_vals(&self) -> impl Iterator<Item = T> + '_ {
         self.val_cache.iter().cloned()
