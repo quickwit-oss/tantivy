@@ -71,7 +71,7 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         missing: Option<T>,
     ) {
         self.fetch_block_with_missing(docs, accessor, missing);
-        if !accessor.index.get_cardinality().is_full() {
+        if accessor.index.get_cardinality().is_multivalue() {
             self.dedup_docid_val_pairs();
         }
     }
