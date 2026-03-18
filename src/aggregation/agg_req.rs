@@ -32,8 +32,8 @@ use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 use super::bucket::{
-    DateHistogramAggregationReq, FilterAggregation, HistogramAggregation, RangeAggregation,
-    TermsAggregation,
+    CompositeAggregation, DateHistogramAggregationReq, FilterAggregation, HistogramAggregation,
+    RangeAggregation, TermsAggregation,
 };
 use super::metric::{
     AverageAggregation, CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation,
@@ -134,6 +134,9 @@ pub enum AggregationVariants {
     /// Filter documents into a single bucket.
     #[serde(rename = "filter")]
     Filter(FilterAggregation),
+    /// Multi-dimensional, paginable bucket aggregation.
+    #[serde(rename = "composite")]
+    Composite(CompositeAggregation),
 
     // Metric aggregation types
     /// Computes the average of the extracted values.
@@ -180,6 +183,11 @@ impl AggregationVariants {
             AggregationVariants::Histogram(histogram) => vec![histogram.field.as_str()],
             AggregationVariants::DateHistogram(histogram) => vec![histogram.field.as_str()],
             AggregationVariants::Filter(filter) => filter.get_fast_field_names(),
+            AggregationVariants::Composite(composite) => composite
+                .sources
+                .iter()
+                .map(|source| source.field())
+                .collect(),
             AggregationVariants::Average(avg) => vec![avg.field_name()],
             AggregationVariants::Count(count) => vec![count.field_name()],
             AggregationVariants::Max(max) => vec![max.field_name()],
@@ -211,6 +219,12 @@ impl AggregationVariants {
     pub(crate) fn as_term(&self) -> Option<&TermsAggregation> {
         match &self {
             AggregationVariants::Terms(terms) => Some(terms),
+            _ => None,
+        }
+    }
+    pub(crate) fn as_composite(&self) -> Option<&CompositeAggregation> {
+        match &self {
+            AggregationVariants::Composite(composite) => Some(composite),
             _ => None,
         }
     }
