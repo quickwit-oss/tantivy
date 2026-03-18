@@ -6,17 +6,20 @@
 //! S2Cell from s2cell.h and s2cell.cc.
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
+use super::crossings::S2EdgeCrosser;
 use super::latlng_rect::S2LatLngRect;
-use super::math::{ldexp, neg, normalize};
+use super::math::{dot, ldexp, neg, normalize};
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
+use super::s1chord_angle::S1ChordAngle;
 use super::s1interval::S1Interval;
 use super::s2cap::S2Cap;
 use super::s2cell_id::S2CellId;
 use super::s2coords::{
-    self, face_uv_to_xyz, get_u_axis, get_u_norm, get_v_axis, get_v_norm, ij_to_st_min, st_to_uv,
-    MAX_CELL_LEVEL,
+    self, face_uv_to_xyz, face_xyz_to_uvw, get_u_axis, get_u_norm, get_v_axis, get_v_norm,
+    ij_to_st_min, st_to_uv, MAX_CELL_LEVEL,
 };
+use super::s2edge_distances::update_min_distance;
 
 /// An S2Cell represents a cell in the S2 cell decomposition.
 #[derive(Clone, Copy, Debug)]
@@ -224,6 +227,164 @@ impl S2Cell {
         ldexp(AVG_AREA_BASE, -2 * level)
     }
 
+    /// Returns the minimum distance from the cell to the given point. All
+    /// arguments should be unit length. Returns zero if the point is inside
+    /// the cell.
+    ///
+    /// Port of S2Cell::GetDistance(const S2Point&) in s2cell.cc.
+    pub fn get_distance_to_point(&self, target: &[f64; 3]) -> S1ChordAngle {
+        self.get_distance_internal(target, true)
+    }
+
+    /// Returns the minimum distance from the cell boundary to the given point.
+    /// Returns zero if the point is on the boundary.
+    ///
+    /// Port of S2Cell::GetBoundaryDistance in s2cell.cc.
+    pub fn get_boundary_distance(&self, target: &[f64; 3]) -> S1ChordAngle {
+        self.get_distance_internal(target, false)
+    }
+
+    /// Returns the minimum distance from the cell to the edge ab. Returns zero
+    /// if the edge intersects the cell or if either endpoint is inside.
+    ///
+    /// Port of S2Cell::GetDistance(const S2Point& a, const S2Point& b) in s2cell.cc.
+    pub fn get_distance_to_edge(&self, a: &[f64; 3], b: &[f64; 3]) -> S1ChordAngle {
+        // First, check the minimum distance to the edge endpoints A and B.
+        // (This also detects whether either endpoint is inside the cell.)
+        let mut min_dist = self.get_distance_to_point(a);
+        let d = self.get_distance_to_point(b);
+        if d < min_dist {
+            min_dist = d;
+        }
+        if min_dist == S1ChordAngle::zero() {
+            return min_dist;
+        }
+
+        // Otherwise, check whether the edge crosses the cell boundary.
+        let v: [[f64; 3]; 4] = [
+            self.get_vertex(0),
+            self.get_vertex(1),
+            self.get_vertex(2),
+            self.get_vertex(3),
+        ];
+        let mut crosser = S2EdgeCrosser::new(a, b);
+        crosser.restart_at(&v[3]);
+        for i in 0..4 {
+            if crosser.crossing_sign(&v[i]) >= 0 {
+                return S1ChordAngle::zero();
+            }
+        }
+        // Finally, check whether the minimum distance occurs between a cell vertex
+        // and the interior of the edge AB.  (Some of this work is redundant, since
+        // it also checks the distance to the endpoints A and B again.)
+        //
+        // Note that we don't need to check the distance from the interior of AB to
+        // the interior of a cell edge, because the only way that this distance can
+        // be minimal is if the two edges cross (already checked above).
+        for i in 0..4 {
+            update_min_distance(&v[i], a, b, &mut min_dist);
+        }
+        min_dist
+    }
+
+    // All calculations are done in the (u,v,w) coordinates of this cell's face.
+    //
+    // Port of S2Cell::GetDistanceInternal in s2cell.cc.
+    fn get_distance_internal(&self, target_xyz: &[f64; 3], to_interior: bool) -> S1ChordAngle {
+        let target = face_xyz_to_uvw(self.face as i32, target_xyz);
+
+        // Compute dot products with all four upward or rightward-facing edge
+        // normals.  "dirIJ" is the dot product for the edge corresponding to axis
+        // I, endpoint J.  For example, dir01 is the right edge of the S2Cell
+        // (corresponding to the upper endpoint of the u-axis).
+        let dir00 = target[0] - target[2] * self.uv[0].lo();
+        let dir01 = target[0] - target[2] * self.uv[0].hi();
+        let dir10 = target[1] - target[2] * self.uv[1].lo();
+        let dir11 = target[1] - target[2] * self.uv[1].hi();
+        let mut inside = true;
+        if dir00 < 0.0 {
+            inside = false; // Target is to the left of the cell
+            if self.v_edge_is_closest(&target, 0) {
+                return edge_distance(-dir00, self.uv[0].lo());
+            }
+        }
+        if dir01 > 0.0 {
+            inside = false; // Target is to the right of the cell
+            if self.v_edge_is_closest(&target, 1) {
+                return edge_distance(dir01, self.uv[0].hi());
+            }
+        }
+        if dir10 < 0.0 {
+            inside = false; // Target is below the cell
+            if self.u_edge_is_closest(&target, 0) {
+                return edge_distance(-dir10, self.uv[1].lo());
+            }
+        }
+        if dir11 > 0.0 {
+            inside = false; // Target is above the cell
+            if self.u_edge_is_closest(&target, 1) {
+                return edge_distance(dir11, self.uv[1].hi());
+            }
+        }
+        if inside {
+            if to_interior {
+                return S1ChordAngle::zero();
+            }
+            // Although you might think of S2Cells as rectangles, they are actually
+            // arbitrary quadrilaterals after they are projected onto the sphere.
+            // Therefore the simplest approach is just to find the minimum distance to
+            // any of the four edges.
+            return edge_distance(-dir00, self.uv[0].lo())
+                .min(edge_distance(dir01, self.uv[0].hi()))
+                .min(edge_distance(-dir10, self.uv[1].lo()))
+                .min(edge_distance(dir11, self.uv[1].hi()));
+        }
+        // Otherwise, the closest point is one of the four cell vertices.  Note that
+        // it is *not* trivial to narrow down the candidates based on the edge sign
+        // tests above, because (1) the edges don't meet at right angles and (2)
+        // there are points on the far side of the sphere that are both above *and*
+        // below the cell, etc.
+        self.vertex_chord_dist(&target, 0, 0)
+            .min(self.vertex_chord_dist(&target, 1, 0))
+            .min(self.vertex_chord_dist(&target, 0, 1))
+            .min(self.vertex_chord_dist(&target, 1, 1))
+    }
+
+    // Return the squared chord distance from point P to corner vertex (i,j).
+    // Port of S2Cell::VertexChordDist in s2cell.cc.
+    fn vertex_chord_dist(&self, p: &[f64; 3], i: usize, j: usize) -> S1ChordAngle {
+        let vertex = normalize(&[self.uv[0].get_bound(i), self.uv[1].get_bound(j), 1.0]);
+        S1ChordAngle::from_points(p, &vertex)
+    }
+
+    // Given a point P and either the lower or upper edge of the S2Cell (specified
+    // by setting "v_end" to 0 or 1 respectively), return true if P is closer to
+    // the interior of that edge than it is to either endpoint.
+    // Port of S2Cell::UEdgeIsClosest in s2cell.cc.
+    fn u_edge_is_closest(&self, p: &[f64; 3], v_end: usize) -> bool {
+        let u0 = self.uv[0].lo();
+        let u1 = self.uv[0].hi();
+        let v = self.uv[1].get_bound(v_end);
+        // These are the normals to the planes that are perpendicular to the edge
+        // and pass through one of its two endpoints.
+        let dir0 = [v * v + 1.0, -u0 * v, -u0];
+        let dir1 = [v * v + 1.0, -u1 * v, -u1];
+        dot(p, &dir0) > 0.0 && dot(p, &dir1) < 0.0
+    }
+
+    // Given a point P and either the left or right edge of the S2Cell (specified
+    // by setting "u_end" to 0 or 1 respectively), return true if P is closer to
+    // the interior of that edge than it is to either endpoint.
+    // Port of S2Cell::VEdgeIsClosest in s2cell.cc.
+    fn v_edge_is_closest(&self, p: &[f64; 3], u_end: usize) -> bool {
+        let v0 = self.uv[1].lo();
+        let v1 = self.uv[1].hi();
+        let u = self.uv[0].get_bound(u_end);
+        let dir0 = [-u * v0, u * u + 1.0, -v0];
+        let dir1 = [-u * v1, u * u + 1.0, -v1];
+        dot(p, &dir0) > 0.0 && dot(p, &dir1) < 0.0
+    }
+
     /// Returns the latitude of the cell vertex at (i, j) where i, j in {0, 1}.
     fn get_latitude(&self, i: usize, j: usize) -> f64 {
         let p = face_uv_to_xyz(
@@ -321,6 +482,25 @@ impl S2Cell {
         }
         cap
     }
+}
+
+// Given the dot product of a point P with the normal of a u- or v-edge at the
+// given coordinate value, return the distance from P to that edge.
+// Port of EdgeDistance in s2cell.cc.
+fn edge_distance(dir_ij: f64, uv: f64) -> S1ChordAngle {
+    // Let P be the target point and let R be the closest point on the given
+    // edge AB.  The desired distance PR can be expressed as PR^2 = PQ^2 + QR^2
+    // where Q is the point P projected onto the plane through the great circle
+    // through AB.  We can compute the distance PQ^2 perpendicular to the plane
+    // from "dirIJ" (the dot product of the target point P with the edge
+    // normal) and the squared length of the edge normal (1 + uv**2).
+    let pq2 = (dir_ij * dir_ij) / (1.0 + uv * uv);
+
+    // We can compute the distance QR as (1 - OQ) where O is the sphere origin,
+    // and we can compute OQ^2 = 1 - PQ^2 using the Pythagorean theorem.
+    // (This calculation loses accuracy as angle POQ approaches Pi/2.)
+    let qr = 1.0 - (1.0 - pq2).sqrt();
+    S1ChordAngle::from_length2(pq2 + qr * qr)
 }
 
 /// Computes the (u,v) bounding rectangle for a cell at level `level` whose (i,j) coordinates are
