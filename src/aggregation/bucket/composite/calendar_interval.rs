@@ -8,9 +8,8 @@ const NS_IN_DAY: i64 = Nanosecond::per_t::<i128>(Day) as i64;
 pub(super) fn try_year_bucket(timestamp_ns: i64) -> crate::Result<i64> {
     year_bucket_using_time_crate(timestamp_ns).map_err(|e| {
         crate::TantivyError::InvalidArgument(format!(
-            "Failed to compute year bucket for timestamp {}: {}",
-            timestamp_ns,
-            e.to_string()
+            "Failed to compute year bucket for timestamp {}: {e}",
+            timestamp_ns
         ))
     })
 }
@@ -20,9 +19,8 @@ pub(super) fn try_year_bucket(timestamp_ns: i64) -> crate::Result<i64> {
 pub(super) fn try_month_bucket(timestamp_ns: i64) -> crate::Result<i64> {
     month_bucket_using_time_crate(timestamp_ns).map_err(|e| {
         crate::TantivyError::InvalidArgument(format!(
-            "Failed to compute month bucket for timestamp {}: {}",
-            timestamp_ns,
-            e.to_string()
+            "Failed to compute month bucket for timestamp {}: {e}",
+            timestamp_ns
         ))
     })
 }

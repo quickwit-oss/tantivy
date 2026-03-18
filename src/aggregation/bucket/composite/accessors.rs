@@ -150,7 +150,7 @@ impl CompositeSourceAccessors {
                 {
                     match source_after_key_opt {
                         Some(after_key) => PrecomputedAfterKey::precompute(
-                            &first_col,
+                            first_col,
                             after_key,
                             &source.field,
                             source.missing_order,
@@ -342,7 +342,7 @@ impl PrecomputedDateInterval {
                     .to_string(),
             )),
             (Some(fixed_interval), None) => {
-                let fixed_interval_ms = parse_into_milliseconds(&fixed_interval)?;
+                let fixed_interval_ms = parse_into_milliseconds(fixed_interval)?;
                 Ok(PrecomputedDateInterval::FixedNanoseconds(
                     fixed_interval_ms * 1_000_000,
                 ))

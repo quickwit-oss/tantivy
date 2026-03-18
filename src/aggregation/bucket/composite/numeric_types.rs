@@ -138,9 +138,9 @@ pub(super) mod num_proj {
 
     pub fn f64_to_i64(value: f64) -> ProjectedNumber<i64> {
         if value < (i64::MIN as f64) {
-            return ProjectedNumber::Next(i64::MIN);
+            ProjectedNumber::Next(i64::MIN)
         } else if value >= (i64::MAX as f64) {
-            return ProjectedNumber::AfterLast;
+            ProjectedNumber::AfterLast
         } else if value.fract() == 0.0 {
             ProjectedNumber::Exact(value as i64)
         } else if value > 0.0 {

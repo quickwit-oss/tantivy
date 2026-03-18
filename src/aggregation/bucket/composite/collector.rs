@@ -137,7 +137,7 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
             .name
             .clone();
 
-        let buckets = self.into_intermediate_bucket_result(agg_data, parent_bucket_id)?;
+        let buckets = self.add_intermediate_bucket_result(agg_data, parent_bucket_id)?;
         results.push(
             name,
             IntermediateAggregationResult::Bucket(IntermediateBucketResult::Composite { buckets }),
@@ -238,7 +238,7 @@ impl SegmentCompositeCollector {
     }
 
     #[inline]
-    fn into_intermediate_bucket_result(
+    fn add_intermediate_bucket_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
         parent_bucket_id: BucketId,
