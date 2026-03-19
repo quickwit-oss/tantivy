@@ -69,21 +69,44 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         docs: &[u32],
         accessor: &Column<T>,
         missing: Option<T>,
-    ) {
+    ) where
+        T: Ord,
+    {
         self.fetch_block_with_missing(docs, accessor, missing);
         if accessor.index.get_cardinality().is_multivalue() {
             self.dedup_docid_val_pairs();
         }
     }
 
-    /// Removes consecutive duplicate (doc_id, value) pairs from the caches.
+    /// Removes duplicate (doc_id, value) pairs from the caches.
     ///
-    /// After `fetch_block`, entries for the same doc are adjacent, so duplicates
-    /// (same doc, same value) are consecutive and can be removed in O(n).
-    fn dedup_docid_val_pairs(&mut self) {
+    /// After `fetch_block`, entries are sorted by doc_id, but values within
+    /// the same doc may not be sorted (e.g. `(0,1), (0,2), (0,1)`).
+    /// We group consecutive entries by doc_id, sort values within each group
+    /// if it has more than 2 elements, then deduplicate adjacent pairs.
+    fn dedup_docid_val_pairs(&mut self)
+    where T: Ord {
         if self.docid_cache.len() <= 1 {
             return;
         }
+
+        // Sort values within each doc_id group so duplicates become adjacent.
+        let mut start = 0;
+        while start < self.docid_cache.len() {
+            let doc = self.docid_cache[start];
+            let mut end = start + 1;
+            while end < self.docid_cache.len() && self.docid_cache[end] == doc {
+                end += 1;
+            }
+            if end - start > 2 {
+                self.val_cache[start..end].sort();
+            } else if end - start == 2 && self.val_cache[start] > self.val_cache[start + 1] {
+                self.val_cache.swap(start, start + 1);
+            }
+            start = end;
+        }
+
+        // Now duplicates are adjacent — deduplicate in place.
         let mut write = 0;
         for read in 1..self.docid_cache.len() {
             if self.docid_cache[read] != self.docid_cache[write]
@@ -205,5 +228,57 @@ mod tests {
         });
 
         assert_eq!(missing_docs, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_consecutive() {
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 2, 3];
+        accessor.val_cache = vec![10, 10, 10, 10];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 2, 3]);
+        assert_eq!(accessor.val_cache, vec![10, 10, 10]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_non_consecutive() {
+        // (0,1), (0,2), (0,1) — duplicate value not adjacent
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 0];
+        accessor.val_cache = vec![1, 2, 1];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 0]);
+        assert_eq!(accessor.val_cache, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_multi_doc() {
+        // doc 0: values [3, 1, 3], doc 1: values [5, 5]
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 0, 1, 1];
+        accessor.val_cache = vec![3, 1, 3, 5, 5];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 0, 1]);
+        assert_eq!(accessor.val_cache, vec![1, 3, 5]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_no_duplicates() {
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0, 0, 1];
+        accessor.val_cache = vec![1, 2, 3];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0, 0, 1]);
+        assert_eq!(accessor.val_cache, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_dedup_docid_val_pairs_single_element() {
+        let mut accessor = ColumnBlockAccessor::<u64>::default();
+        accessor.docid_cache = vec![0];
+        accessor.val_cache = vec![1];
+        accessor.dedup_docid_val_pairs();
+        assert_eq!(accessor.docid_cache, vec![0]);
+        assert_eq!(accessor.val_cache, vec![1]);
     }
 }
