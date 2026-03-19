@@ -265,6 +265,36 @@ pub(crate) mod tests {
 
     #[cfg(feature = "stemmer")]
     #[test]
+    fn test_cs_stemmer() {
+        let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register(
+            "cs_stem",
+            TextAnalyzer::builder(SimpleTokenizer::default())
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser)
+                .filter(Stemmer::new(Language::Czech))
+                .build(),
+        );
+
+        let mut cs_tokenizer = tokenizer_manager.get("cs_stem").unwrap();
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            cs_tokenizer
+                .token_stream("Novinka počasí funguje.")
+                .process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 3);
+        assert_token(&tokens[0], 0, "novink", 0, 7);
+        assert_token(&tokens[1], 1, "počas", 8, 16);
+        assert_token(&tokens[2], 2, "funguj", 17, 24);
+    }
+
+    #[cfg(feature = "stemmer")]
+    #[test]
     fn test_non_en_stemmer() {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(

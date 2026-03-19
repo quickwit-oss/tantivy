@@ -36,6 +36,7 @@ impl StopWordFilter {
     #[cfg(feature = "stopwords")]
     pub fn new(language: Language) -> Option<Self> {
         let words = match language {
+            Language::Czech => stopwords::CZECH,
             Language::Danish => stopwords::DANISH,
             Language::Dutch => stopwords::DUTCH,
             Language::English => {
@@ -133,6 +134,8 @@ impl<T: TokenStream> TokenStream for StopWordFilterStream<T> {
 #[cfg(test)]
 mod tests {
     use crate::tokenizer::tests::assert_token;
+    #[cfg(all(feature = "stemmer", feature = "stopwords"))]
+    use crate::tokenizer::Language;
     use crate::tokenizer::{SimpleTokenizer, StopWordFilter, TextAnalyzer, Token};
 
     #[test]
@@ -163,5 +166,23 @@ mod tests {
         };
         token_stream.process(&mut add_token);
         tokens
+    }
+
+    #[cfg(all(feature = "stemmer", feature = "stopwords"))]
+    #[test]
+    fn test_stop_word_czech_language() {
+        let mut analyzer = TextAnalyzer::builder(SimpleTokenizer::default())
+            .filter(StopWordFilter::new(Language::Czech).expect("Czech stopwords should exist"))
+            .build();
+        let mut token_stream = analyzer.token_stream("bez jablek a vody");
+        let mut tokens: Vec<Token> = vec![];
+        let mut add_token = |token: &Token| {
+            tokens.push(token.clone());
+        };
+        token_stream.process(&mut add_token);
+
+        assert_eq!(tokens.len(), 2);
+        assert_token(&tokens[0], 1, "jablek", 4, 10);
+        assert_token(&tokens[1], 3, "vody", 13, 17);
     }
 }
