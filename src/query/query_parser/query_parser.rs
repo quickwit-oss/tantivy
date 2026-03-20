@@ -1016,6 +1016,7 @@ fn convert_literal_to_query(
                 SpatialPredicateKind::Between(inner, outer) => {
                     SpatialPredicate::Between(inner.0, outer.0)
                 }
+                SpatialPredicateKind::Knn(k) => SpatialPredicate::Knn(k),
             };
             Box::new(SpatialQuery::with_predicate(
                 field,

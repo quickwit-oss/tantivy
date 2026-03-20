@@ -10,6 +10,7 @@ use crate::query::explanation::does_not_match;
 use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
 use crate::schema::Field;
 use crate::spatial::cell_index_reader::CellIndexReader;
+use crate::spatial::closest_edge_query::ClosestEdgeQuery;
 use crate::spatial::contains_query::ContainsQuery;
 use crate::spatial::distance_query::DistanceQuery;
 use crate::spatial::edge_reader::EdgeReader;
@@ -34,6 +35,8 @@ pub enum SpatialPredicate {
     Within(f64),
     /// Return geometries between two distances of a point. Distances in radians.
     Between(f64, f64),
+    /// Return the K nearest geometries to a point.
+    Knn(usize),
 }
 
 /// Spatial query.
@@ -136,6 +139,12 @@ impl Query for SpatialQuery {
                 let outer = S1ChordAngle::from_radians(*outer_radians);
                 Box::new(DistanceQuery::between(center, inner, outer, CovererOptions::default()))
             }
+            SpatialPredicate::Knn(k) => {
+                let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
+                let projected = query_geometry.project::<Sphere>();
+                let set = to_geometry_set(&projected, 0);
+                Box::new(ClosestEdgeQuery::knn(set, *k))
+            }
         };
         Ok(Box::new(SpatialWeight {
             field: self.field,
@@ -180,6 +189,19 @@ impl PreparedSpatialQuery for DistanceQuery {
         edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
         DistanceQuery::search_segment(self, cell_reader, edge_reader)
+    }
+}
+
+impl PreparedSpatialQuery for ClosestEdgeQuery {
+    fn search_segment<'a>(
+        &self,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
+    ) -> Vec<u32> {
+        ClosestEdgeQuery::search_segment(self, cell_reader, edge_reader)
+            .into_iter()
+            .map(|r| r.doc_id)
+            .collect()
     }
 }
 

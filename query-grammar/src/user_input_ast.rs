@@ -13,6 +13,7 @@ pub enum SpatialPredicateKind {
     Contains,
     Within(ordered_float::OrderedFloat<f64>),
     Between(ordered_float::OrderedFloat<f64>, ordered_float::OrderedFloat<f64>),
+    Knn(usize),
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Serialize)]
@@ -184,6 +185,10 @@ impl Debug for UserInputLeaf {
                             "$between({}rad, {}rad, {} {})",
                             inner.0, outer.0, lon.0, lat.0
                         )
+                    }
+                    SpatialPredicateKind::Knn(k) => {
+                        let (lon, lat) = &coordinates[0];
+                        write!(formatter, "$knn({}, {} {})", k, lon.0, lat.0)
                     }
                 }
             }

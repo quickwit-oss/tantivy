@@ -15,6 +15,7 @@
 pub mod cell_index;
 pub mod cell_index_reader;
 pub mod cell_union;
+pub mod closest_edge_query;
 pub mod containment;
 pub mod contains_query;
 pub mod crossings;

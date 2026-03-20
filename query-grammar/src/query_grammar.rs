@@ -406,9 +406,9 @@ fn spatial_distance(inp: &str) -> IResult<&str, f64> {
     Ok((inp, radians))
 }
 
-/// Parse a spatial predicate: $intersects, $contains, $within, or $between.
+/// Parse a spatial predicate: $intersects, $contains, $within, $between, or $knn.
 fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
-    alt((spatial_polygon, spatial_within, spatial_between))(inp)
+    alt((spatial_polygon, spatial_within, spatial_between, spatial_knn))(inp)
 }
 
 fn spatial_polygon(inp: &str) -> IResult<&str, UserInputLeaf> {
@@ -494,6 +494,29 @@ fn spatial_between(inp: &str) -> IResult<&str, UserInputLeaf> {
                 ordered_float::OrderedFloat(inner),
                 ordered_float::OrderedFloat(outer),
             ),
+            coordinates: vec![(
+                ordered_float::OrderedFloat(lon),
+                ordered_float::OrderedFloat(lat),
+            )],
+        },
+    ))
+}
+
+fn spatial_knn(inp: &str) -> IResult<&str, UserInputLeaf> {
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
+
+    let (inp, _) = tag("$knn")(inp)?;
+    let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+    let (inp, k) = nom::character::complete::u32(inp)?;
+    let (inp, _) = delimited(multispace0, char(','), multispace0)(inp)?;
+    let (inp, (lon, lat)) = coord_pair(inp)?;
+    let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+
+    Ok((
+        inp,
+        UserInputLeaf::Spatial {
+            field: None,
+            predicate: SpatialPredicateKind::Knn(k as usize),
             coordinates: vec![(
                 ordered_float::OrderedFloat(lon),
                 ordered_float::OrderedFloat(lat),
