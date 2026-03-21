@@ -18,6 +18,7 @@ static HILBERT_START: LazyLock<[f64; 3]> = LazyLock::new(|| normalize(&face_uv_t
 
 /// One smashed geometry's edges. After smashing, the type distinctions (point, line string,
 /// polygon) are gone. Everything is consecutive vertex pairs and a closed flag.
+#[derive(Clone)]
 pub struct EdgeSet {
     /// Flattened vertex array. Edges are consecutive pairs: vertices[i] to vertices[i+1].
     pub vertices: Vec<[f64; 3]>,
@@ -29,8 +30,9 @@ pub struct EdgeSet {
     pub ring_offsets: Vec<usize>,
 }
 
-/// Smashed geometry set: all members for one field of one document. The geometry_id is not
-/// carried here — it is arrival order, assigned by the builder or writer that receives the set.
+/// Smashed geometry set for one field of one document. The geometry_id is assigned by the
+/// builder or writer that receives the set, not carried here.
+#[derive(Clone)]
 pub struct GeometrySet {
     /// The smashed members of this document's geometry field.
     pub members: Vec<EdgeSet>,

@@ -22,6 +22,7 @@ pub mod crossings;
 pub mod delta;
 pub mod distance_query;
 pub mod edge_reader;
+pub mod executor;
 pub mod edge_writer;
 pub mod exact;
 pub mod geometry;

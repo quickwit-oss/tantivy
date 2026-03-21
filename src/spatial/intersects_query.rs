@@ -1,10 +1,11 @@
 //! Polygon-intersects-polygon query.
 //!
-//! Sibling of contains_query. Shares the same infrastructure -- query-local CellIndex,
-//! RegionCoverer, covering classification, candidate collection -- and differs only in
-//! verification logic. Any overlap between the query polygon and a candidate is sufficient.
+//! Shares infrastructure with contains_query. Differs in verification: any overlap between the
+//! query polygon and a candidate is sufficient.
 
 use std::collections::HashMap;
+
+use common::BitSet;
 
 use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
@@ -61,11 +62,27 @@ impl IntersectsQuery {
         cell_reader: &'a CellIndexReader<'a>,
         edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
-        let candidates = self.collect_candidates(cell_reader);
+        let candidates = self.collect_candidates(cell_reader, None, edge_reader);
         self.verify_candidates(candidates, cell_reader, edge_reader)
     }
 
-    fn collect_candidates(&self, reader: &CellIndexReader) -> HashMap<u32, CandidateInfo> {
+    /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
+    pub fn search_segment_filtered<'a>(
+        &self,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
+        terms_filter: &BitSet,
+    ) -> Vec<u32> {
+        let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_reader);
+        self.verify_candidates(candidates, cell_reader, edge_reader)
+    }
+
+    fn collect_candidates(
+        &self,
+        reader: &CellIndexReader,
+        terms_filter: Option<&BitSet>,
+        edge_reader: &EdgeReader,
+    ) -> HashMap<u32, CandidateInfo> {
         let mut candidates: HashMap<u32, CandidateInfo> = HashMap::new();
 
         for (i, &covering_cell_id) in self.covering.iter().enumerate() {
@@ -75,6 +92,13 @@ impl IntersectsQuery {
                 let cell_is_interior = is_interior && covering_cell_id.contains(index_cell.cell_id);
 
                 for clipped in &index_cell.shapes {
+                    if let Some(filter) = terms_filter {
+                        let doc_id = edge_reader.doc_id_for(clipped.geometry_id);
+                        if !filter.contains(doc_id) {
+                            continue;
+                        }
+                    }
+
                     let info = candidates
                         .entry(clipped.geometry_id)
                         .or_insert_with(CandidateInfo::new);

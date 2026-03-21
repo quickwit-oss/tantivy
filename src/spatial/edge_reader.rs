@@ -35,7 +35,7 @@ struct EntryHeader {
 
 /// Cached geometry set with the head position for member index resolution.
 struct CachedSet {
-    /// The head position — first member of the set in the edge index.
+    /// Position of the head entry for this set.
     head_position: u32,
     /// The decoded geometry set.
     set: GeometrySet,
@@ -66,7 +66,7 @@ pub struct EdgeReader<'a> {
 
 impl<'a> EdgeReader<'a> {
     /// Construct a reader from the raw bytes of an edge index segment. Reads the 16-byte footer to
-    /// locate the skip list directory. `max_vertices` bounds the decode cache -- eviction kicks in
+    /// locate the skip list directory. `max_vertices` bounds the decode cache; eviction kicks in
     /// when the total cached vertex count exceeds this.
     pub fn open(data: &'a [u8], max_vertices: usize) -> Self {
         let n = data.len();
@@ -89,6 +89,51 @@ impl<'a> EdgeReader<'a> {
     /// Total number of geometry entries in this segment.
     pub fn geometry_count(&self) -> u32 {
         self.geometry_count
+    }
+
+    /// Resolve a geometry position to its doc_id without decoding vertices or caching. Reads only
+    /// the skip list, entry headers, and the doc_id field. Useful for checking a terms bitset
+    /// before committing to a full geometry decode.
+    pub fn doc_id_for(&self, position: u32) -> u32 {
+        // Resolve byte offset via skip list + forward walk.
+        let skip_index = (position / self.skip_interval) as usize;
+        let remainder = position % self.skip_interval;
+
+        let dir_entry = self.dir_offset as usize + skip_index * 8;
+        let mut current =
+            u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
+
+        if remainder > 0 {
+            let mut steps = 0u32;
+            while steps < remainder {
+                let h = self.read_header(current);
+                let advance = if h.is_member { 8 } else { 12 } + h.data_len as u64;
+                current += advance;
+                steps += 1;
+            }
+        }
+
+        // Now at the target entry. Follow back pointers to the head if it's a member.
+        let header = self.read_header(current);
+        let head_offset = if header.is_member {
+            let mut cur = current - header.set_value as u64;
+            loop {
+                let h = self.read_header(cur);
+                if !h.is_member {
+                    break cur;
+                }
+                cur -= h.set_value as u64;
+            }
+        } else {
+            current
+        };
+
+        // Read the doc_id from the head entry: 4 bytes at head_offset + 8 (after len and set).
+        u32::from_le_bytes(
+            self.data[head_offset as usize + 8..head_offset as usize + 12]
+                .try_into()
+                .unwrap(),
+        )
     }
 
     /// Retrieve one member's edges and the document's doc_id.
