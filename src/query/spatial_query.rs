@@ -12,7 +12,6 @@ use crate::schema::Field;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::closest_edge_query::ClosestEdgeQuery;
 use crate::spatial::contains_query::ContainsQuery;
-use crate::spatial::distance_query::DistanceQuery;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::geometry_set::to_geometry_set;
@@ -21,7 +20,6 @@ use crate::spatial::plane::Plane;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::s1chord_angle::S1ChordAngle;
 use crate::spatial::sphere::Sphere;
-use crate::spatial::surface::Surface;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// The spatial predicate to apply.
@@ -129,15 +127,19 @@ impl Query for SpatialQuery {
                 }
             }
             SpatialPredicate::Within(radius_radians) => {
-                let center = Sphere::project(self.coordinates[0][0], self.coordinates[0][1]);
+                let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
+                let projected = query_geometry.project::<Sphere>();
+                let set = to_geometry_set(&projected, 0);
                 let radius = S1ChordAngle::from_radians(*radius_radians);
-                Box::new(DistanceQuery::within(center, radius, CovererOptions::default()))
+                Box::new(ClosestEdgeQuery::within(set, radius))
             }
             SpatialPredicate::Between(inner_radians, outer_radians) => {
-                let center = Sphere::project(self.coordinates[0][0], self.coordinates[0][1]);
+                let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
+                let projected = query_geometry.project::<Sphere>();
+                let set = to_geometry_set(&projected, 0);
                 let inner = S1ChordAngle::from_radians(*inner_radians);
                 let outer = S1ChordAngle::from_radians(*outer_radians);
-                Box::new(DistanceQuery::between(center, inner, outer, CovererOptions::default()))
+                Box::new(ClosestEdgeQuery::between(set, inner, outer))
             }
             SpatialPredicate::Knn(k) => {
                 let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
@@ -179,16 +181,6 @@ impl PreparedSpatialQuery for IntersectsQuery {
         edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
         IntersectsQuery::search_segment(self, cell_reader, edge_reader)
-    }
-}
-
-impl PreparedSpatialQuery for DistanceQuery {
-    fn search_segment<'a>(
-        &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
-    ) -> Vec<u32> {
-        DistanceQuery::search_segment(self, cell_reader, edge_reader)
     }
 }
 

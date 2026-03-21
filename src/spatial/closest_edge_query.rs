@@ -38,6 +38,7 @@ pub struct ClosestEdgeQuery {
     query_edges: QueryEdgeProvider,
     max_results: usize,
     max_distance: S1ChordAngle,
+    min_distance: S1ChordAngle,
     first_only: bool,
 }
 
@@ -57,6 +58,13 @@ impl ClosestEdgeQuery {
         Self::build(set, 1, max_distance, true)
     }
 
+    /// Build a range distance query: results between inner and outer distance.
+    pub fn between(set: GeometrySet, min_distance: S1ChordAngle, max_distance: S1ChordAngle) -> Self {
+        let mut q = Self::build(set, usize::MAX, max_distance, false);
+        q.min_distance = min_distance;
+        q
+    }
+
     fn build(set: GeometrySet, max_results: usize, max_distance: S1ChordAngle, first_only: bool) -> Self {
         let builder = IndexBuilder::new(BuildOptions::default());
         let query_index = builder.build_from_sets(std::slice::from_ref(&set));
@@ -66,6 +74,7 @@ impl ClosestEdgeQuery {
             query_edges,
             max_results,
             max_distance,
+            min_distance: S1ChordAngle::zero(),
             first_only,
         }
     }
@@ -236,7 +245,18 @@ impl ClosestEdgeQuery {
                 }
             }
 
-            // For each stored edge, check against query edges from overlapping query cells.
+            // Skip shapes with no edges and no vertices to check. A ClippedShape with
+            // contains_center but empty edge_indices means the cell center is inside the
+            // geometry but no edges cross the cell. Without edges to compare, we cannot
+            // compute an actual distance.
+            if clipped.edge_indices.is_empty() && candidate_vertices.len() > 1 {
+                continue;
+            }
+
+            // For each stored edge, check against query edges. Use overlapping query cells
+            // when available; fall back to all query edges when no query cells overlap
+            // this stored cell (common for point queries where the query CellIndex has
+            // one cell at a fine level).
             for &edge_idx in &clipped.edge_indices {
                 let ci = edge_idx as usize;
                 if ci + 1 >= candidate_vertices.len() {
@@ -245,18 +265,35 @@ impl ClosestEdgeQuery {
                 let cv0 = &candidate_vertices[ci];
                 let cv1 = &candidate_vertices[ci + 1];
 
-                for query_cell in query_cells {
-                    for qclipped in &query_cell.shapes {
-                        let qedges = self.query_edges.get_edge_set(qclipped.geometry_id);
-                        let qverts = &qedges.vertices;
-                        for &qeidx in &qclipped.edge_indices {
-                            let qi = qeidx as usize;
-                            if qi + 1 < qverts.len() {
-                                update_edge_pair_min_distance(
-                                    cv0, cv1, &qverts[qi], &qverts[qi + 1],
-                                    &mut min_dist,
-                                );
+                if !query_cells.is_empty() {
+                    for query_cell in query_cells {
+                        for qclipped in &query_cell.shapes {
+                            let qedges = self.query_edges.get_edge_set(qclipped.geometry_id);
+                            let qverts = &qedges.vertices;
+                            for &qeidx in &qclipped.edge_indices {
+                                let qi = qeidx as usize;
+                                if qi + 1 < qverts.len() {
+                                    update_edge_pair_min_distance(
+                                        cv0, cv1, &qverts[qi], &qverts[qi + 1],
+                                        &mut min_dist,
+                                    );
+                                }
                             }
+                        }
+                    }
+                } else {
+                    for member in &self.query_edges.set.members {
+                        let qverts = &member.vertices;
+                        for i in 0..qverts.len().saturating_sub(1) {
+                            update_edge_pair_min_distance(
+                                cv0, cv1, &qverts[i], &qverts[i + 1],
+                                &mut min_dist,
+                            );
+                        }
+                        if qverts.len() == 1 {
+                            update_min_distance(
+                                &qverts[0], cv0, cv1, &mut min_dist,
+                            );
                         }
                     }
                 }
@@ -281,13 +318,9 @@ impl ClosestEdgeQuery {
                 }
             }
 
-            // Containment short-circuit: if the query polygon contains the candidate
-            // or the candidate contains a query vertex, distance is zero.
-            if edge_set.closed && clipped.contains_center {
-                min_dist = S1ChordAngle::zero();
+            if min_dist < *distance_limit {
+                self.update_best(doc_id, min_dist, best, distance_limit);
             }
-
-            self.update_best(doc_id, min_dist, best, distance_limit);
         }
     }
 
@@ -316,6 +349,7 @@ impl ClosestEdgeQuery {
     fn collect_results(&self, best: &HashMap<u32, S1ChordAngle>) -> Vec<ClosestEdgeResult> {
         let mut out: Vec<ClosestEdgeResult> = best
             .iter()
+            .filter(|(_, &distance)| distance >= self.min_distance)
             .map(|(&doc_id, &distance)| ClosestEdgeResult { doc_id, distance })
             .collect();
         out.sort_by(|a, b| a.distance.cmp(&b.distance));
