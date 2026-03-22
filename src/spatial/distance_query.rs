@@ -2,10 +2,12 @@
 //!
 //! Builds an S2Cap from a center point and radius, covers it with RegionCoverer, and scans the
 //! segment's cell index for candidates. Verification computes the minimum distance from the
-//! center to each candidate geometry. For polygons, containment is checked first -- if the
+//! center to each candidate geometry. For polygons, containment is checked first. If the
 //! center is inside the polygon, the distance is zero.
 
 use std::collections::HashSet;
+
+use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
 use super::edge_reader::EdgeReader;
@@ -85,11 +87,27 @@ impl DistanceQuery {
         cell_reader: &'a CellIndexReader<'a>,
         edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<u32> {
-        let candidates = self.collect_candidates(cell_reader);
+        let candidates = self.collect_candidates(cell_reader, None, edge_reader);
         self.verify_candidates(candidates, cell_reader, edge_reader)
     }
 
-    fn collect_candidates(&self, reader: &CellIndexReader) -> HashSet<u32> {
+    /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
+    pub fn search_segment_filtered<'a>(
+        &self,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
+        terms_filter: &BitSet,
+    ) -> Vec<u32> {
+        let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_reader);
+        self.verify_candidates(candidates, cell_reader, edge_reader)
+    }
+
+    fn collect_candidates(
+        &self,
+        reader: &CellIndexReader,
+        terms_filter: Option<&BitSet>,
+        edge_reader: &EdgeReader,
+    ) -> HashSet<u32> {
         let mut candidates = HashSet::new();
 
         for (i, &covering_cell_id) in self.covering.iter().enumerate() {
@@ -100,9 +118,15 @@ impl DistanceQuery {
                     is_interior && covering_cell_id.contains(index_cell.cell_id);
 
                 for clipped in &index_cell.shapes {
+                    if let Some(filter) = terms_filter {
+                        let doc_id = edge_reader.doc_id_for(clipped.geometry_id);
+                        if !filter.contains(doc_id) {
+                            continue;
+                        }
+                    }
+
                     if cell_is_interior && self.inner_radius.length2() == 0.0 {
-                        // Interior cell, no inner bound -- geometry is within radius.
-                        // Still collect it; we skip verification for interior-only hits below.
+                        // Interior cell with no inner bound. Geometry is within radius.
                     }
                     candidates.insert(clipped.geometry_id);
                 }

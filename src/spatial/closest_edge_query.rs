@@ -12,6 +12,8 @@
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
+use common::BitSet;
+
 use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::QueryEdgeProvider;
@@ -85,6 +87,25 @@ impl ClosestEdgeQuery {
         cell_reader: &'a CellIndexReader<'a>,
         edge_reader: &mut EdgeReader<'a>,
     ) -> Vec<ClosestEdgeResult> {
+        self.search_impl(cell_reader, edge_reader, None)
+    }
+
+    /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
+    pub fn search_segment_filtered<'a>(
+        &self,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
+        terms_filter: &BitSet,
+    ) -> Vec<ClosestEdgeResult> {
+        self.search_impl(cell_reader, edge_reader, Some(terms_filter))
+    }
+
+    fn search_impl<'a>(
+        &self,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_reader: &mut EdgeReader<'a>,
+        terms_filter: Option<&BitSet>,
+    ) -> Vec<ClosestEdgeResult> {
         if cell_reader.cell_count() == 0 {
             return Vec::new();
         }
@@ -125,7 +146,7 @@ impl ClosestEdgeQuery {
             if should_process {
                 for index_cell in &index_cells {
                     self.process_edges(
-                        index_cell, edge_reader,
+                        index_cell, edge_reader, terms_filter,
                         &mut best, &mut distance_limit,
                     );
                     if self.first_only && !best.is_empty() {
@@ -224,6 +245,7 @@ impl ClosestEdgeQuery {
         &self,
         index_cell: &super::cell_index::IndexCell,
         edge_reader: &mut EdgeReader<'a>,
+        terms_filter: Option<&BitSet>,
         best: &mut HashMap<u32, S1ChordAngle>,
         distance_limit: &mut S1ChordAngle,
     ) {
@@ -232,6 +254,14 @@ impl ClosestEdgeQuery {
 
         for clipped in &index_cell.shapes {
             let geometry_id = clipped.geometry_id;
+
+            if let Some(filter) = terms_filter {
+                let doc_id = edge_reader.doc_id_for(geometry_id);
+                if !filter.contains(doc_id) {
+                    continue;
+                }
+            }
+
             let (doc_id, edge_set) = edge_reader.get_edge_set(geometry_id);
             let candidate_vertices = &edge_set.vertices;
             if candidate_vertices.is_empty() {

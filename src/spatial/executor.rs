@@ -16,10 +16,12 @@ use crate::schema::Field;
 use crate::{DocId, Score, SegmentReader};
 
 use super::cell_index_reader::CellIndexReader;
+use super::closest_edge_query::ClosestEdgeQuery;
 use super::edge_reader::EdgeReader;
 use super::geometry_set::GeometrySet;
 use super::intersects_query::IntersectsQuery;
 use super::region_coverer::CovererOptions;
+use super::s1chord_angle::S1ChordAngle;
 
 /// Spatial relationship for a join predicate.
 #[derive(Clone, Debug)]
@@ -57,6 +59,18 @@ pub enum PlanNode {
         field: Field,
         /// The query geometry (smashed).
         geometry: GeometrySet,
+        /// Documents passing this node are eligible candidates.
+        filter: Box<PlanNode>,
+    },
+
+    /// Distance query filtered by a terms bitset during traversal.
+    Within {
+        /// The spatial field.
+        field: Field,
+        /// The query geometry (smashed).
+        geometry: GeometrySet,
+        /// Maximum distance (chord angle length2).
+        radius: f64,
         /// Documents passing this node are eligible candidates.
         filter: Box<PlanNode>,
     },
@@ -169,6 +183,46 @@ fn evaluate(
                     let mut bitset = BitSet::with_max_value(reader.max_doc());
                     for doc_id in doc_ids {
                         bitset.insert(doc_id);
+                    }
+                    results.insert(reader.segment_id(), SegmentResult::Match(bitset));
+                }
+            }
+            Ok(StageOutput { results })
+        }
+
+        PlanNode::Within {
+            field,
+            geometry,
+            radius,
+            filter,
+        } => {
+            let filter_output = evaluate(filter, searcher, segments)?;
+
+            let query = ClosestEdgeQuery::within(
+                geometry.clone(),
+                S1ChordAngle::from_length2(*radius),
+            );
+
+            let mut results = HashMap::new();
+            for reader in segments {
+                let spatial = reader.spatial_fields().get_field(*field)?;
+                if let Some(spatial_reader) = spatial {
+                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
+                    let mut edge_reader =
+                        EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+
+                    let filter_bitset =
+                        filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
+
+                    let hits = query.search_segment_filtered(
+                        &cell_reader,
+                        &mut edge_reader,
+                        &filter_bitset,
+                    );
+
+                    let mut bitset = BitSet::with_max_value(reader.max_doc());
+                    for result in hits {
+                        bitset.insert(result.doc_id);
                     }
                     results.insert(reader.segment_id(), SegmentResult::Match(bitset));
                 }
