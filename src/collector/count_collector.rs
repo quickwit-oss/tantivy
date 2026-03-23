@@ -1,5 +1,6 @@
 use super::Collector;
 use crate::collector::SegmentCollector;
+use crate::query::Weight;
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 
 /// `CountCollector` collector only counts how many
@@ -55,6 +56,15 @@ impl Collector for Count {
     fn merge_fruits(&self, segment_counts: Vec<usize>) -> crate::Result<usize> {
         Ok(segment_counts.into_iter().sum())
     }
+
+    fn collect_segment(
+        &self,
+        weight: &dyn Weight,
+        _segment_ord: u32,
+        reader: &SegmentReader,
+    ) -> crate::Result<usize> {
+        Ok(weight.count(reader)? as usize)
+    }
 }
 
 #[derive(Default)]
@@ -72,6 +82,7 @@ impl SegmentCollector for SegmentCountCollector {
     fn harvest(self) -> usize {
         self.count
     }
+
 }
 
 #[cfg(test)]
