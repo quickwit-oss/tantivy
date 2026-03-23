@@ -250,38 +250,94 @@ fn evaluate(
         }
 
         PlanNode::Join {
-            field: _field,
+            field,
             outer,
             inner,
-            relation: _relation,
+            relation,
         } => {
-            // Evaluate both sides. Innermost resolves first.
+            // Phase 1: collect inner bitsets across all segments.
             let inner_output = evaluate(inner, searcher, segments)?;
+
+            // Phase 2: collect outer bitsets across all segments.
             let outer_output = evaluate(outer, searcher, segments)?;
 
-            // Compare sizes, pick driver.
-            let _inner_count: usize = inner_output
-                .results
-                .values()
-                .map(|r| match r {
-                    SegmentResult::Match(b) => b.len(),
-                    SegmentResult::Scored(v) => v.len(),
-                })
-                .sum();
-            let _outer_count: usize = outer_output
-                .results
-                .values()
-                .map(|r| match r {
-                    SegmentResult::Match(b) => b.len(),
-                    SegmentResult::Scored(v) => v.len(),
-                })
-                .sum();
+            let max_distance = match relation {
+                SpatialRelation::Near(r) => S1ChordAngle::from_radians(*r),
+                _ => S1ChordAngle::infinity(),
+            };
 
-            // Stage: build cell bitsets from filter terms bitset.
-            // Stage: for each driver doc, probe all segments.
-            // TODO: join implementation.
+            // Phase 3: for each segment, walk its cell index for outer geometries,
+            // probe all segments for inner matches.
+            let mut results = HashMap::new();
+            for reader in segments.iter() {
+                let outer_bitset = outer_output.bitset_for(&reader.segment_id(), reader.max_doc());
+                let mut result_bitset = BitSet::with_max_value(reader.max_doc());
+                let mut visited = std::collections::HashSet::new();
 
-            Ok(StageOutput::empty())
+                let spatial = reader.spatial_fields().get_field(*field)?;
+                if spatial.is_none() {
+                    results.insert(reader.segment_id(), SegmentResult::Match(result_bitset));
+                    continue;
+                }
+                let spatial_reader = spatial.unwrap();
+                let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
+                let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+
+                for cell in cell_reader.iter() {
+                    for clipped in &cell.shapes {
+                        let geometry_id = clipped.geometry_id;
+                        if !visited.insert(geometry_id) {
+                            continue;
+                        }
+                        let doc_id = edge_reader.doc_id_for(geometry_id);
+                        if !outer_bitset.contains(doc_id) {
+                            continue;
+                        }
+
+                        // Read the outer geometry.
+                        let (_, outer_set) = edge_reader.get_geometry_set(geometry_id);
+                        let outer_geometry = outer_set.clone();
+
+                        // Build a probe from the outer geometry.
+                        let probe = ClosestEdgeQuery::any_within(
+                            outer_geometry,
+                            max_distance,
+                        );
+
+                        // Probe all segments for inner matches.
+                        let mut found = false;
+                        for probe_reader in segments.iter() {
+                            let probe_spatial = probe_reader.spatial_fields().get_field(*field)?;
+                            if let Some(probe_spatial_reader) = probe_spatial {
+                                let probe_cell_reader =
+                                    CellIndexReader::open(probe_spatial_reader.cells_bytes());
+                                let mut probe_edge_reader =
+                                    EdgeReader::open(probe_spatial_reader.edges_bytes(), 100_000);
+                                let inner_bitset = inner_output
+                                    .bitset_for(&probe_reader.segment_id(), probe_reader.max_doc());
+
+                                let hits = probe.search_segment_filtered(
+                                    &probe_cell_reader,
+                                    &mut probe_edge_reader,
+                                    &inner_bitset,
+                                );
+                                if !hits.is_empty() {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if found {
+                            result_bitset.insert(doc_id);
+                        }
+                    }
+                }
+
+                results.insert(reader.segment_id(), SegmentResult::Match(result_bitset));
+            }
+
+            Ok(StageOutput { results })
         }
     }
 }
