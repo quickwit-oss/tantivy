@@ -25,30 +25,40 @@ Filter out any PRs whose number already appears in the unreleased section of the
 
 ## Step 3: Consolidate related PRs
 
-Before categorizing, group PRs that belong to the same logical change. This is critical for producing a clean changelog.
+Before categorizing, group PRs that belong to the same logical change. This is critical for producing a clean changelog. Use PR descriptions, titles, cross-references, and the files touched to identify relationships.
 
 **Merge follow-up PRs into the original:**
-- If a PR is a bugfix, refinement, or follow-up to another PR in the same unreleased cycle, combine them into a single changelog entry with multiple `[#N](url)` links. Look at PR descriptions, titles, and cross-references to identify these relationships.
-- Example: PR #2760 "Fix edge case in AllScorer optimization" is a follow-up to PR #2745 "Replace saturated posting lists with AllScorer" → single entry referencing both.
+- If a PR is a bugfix, refinement, or follow-up to another PR in the same unreleased cycle, combine them into a single changelog entry with multiple `[#N](url)` links.
+- Also consolidate PRs that touch the same feature area even if not explicitly linked — e.g., a PR fixing an edge case in a new API should be folded into the entry for the PR that introduced that API.
 
 **Filter out bugfixes on unreleased features:**
 - If a bugfix PR fixes something introduced by another PR in the **same unreleased version**, it must NOT appear as a separate Bugfixes entry. Instead, silently fold it into the original feature/improvement entry. The changelog should describe the final shipped state, not the development history.
-- Example: PR #100 adds a new aggregation type, PR #110 fixes a crash in that new aggregation → only one Features entry mentioning both PRs, nothing in Bugfixes.
 - To detect this: check if the bugfix PR references or reverts changes from another PR in the same release cycle, or if it touches code that was newly added (not present in the previous release).
 
-## Step 4: Categorize each PR group
+## Step 4: Review the actual code diff
 
-For each PR (or consolidated group), determine its category based on title, labels, and (if needed) a brief look at the PR description:
+**Do not rely on PR titles or descriptions alone.** For every candidate PR, run `gh pr diff <number> --repo quickwit-oss/tantivy` and read the actual changes. PR titles are often misleading — the diff is the source of truth.
+
+**What to look for in the diff:**
+- Does it change observable behavior, public API surface, or performance characteristics?
+- Is the change something a user of the library would notice or need to know about?
+- Could the change break existing code (API changes, removed features)?
+
+**Skip PRs where the diff reveals the change is not meaningful enough for the changelog** — e.g., cosmetic renames, trivial visibility tweaks, test-only changes, etc.
+
+## Step 5: Categorize each PR group
+
+For each PR (or consolidated group) that survived the diff review, determine its category:
 
 - **Bugfixes** — fixes to behavior that existed in the **previous release**. NOT fixes to features introduced in this release cycle.
-- **Features/Improvements** — new features, API additions, new options, improvements
-- **Performance** — optimizations, speed improvements, memory reductions
+- **Features/Improvements** — new features, API additions, new options, improvements that change user-facing behavior or add new capabilities.
+- **Performance** — optimizations, speed improvements, memory reductions. **If a PR adds new API whose primary purpose is enabling a performance optimization, categorize it as Performance, not Features.** The deciding question is: does a user benefit from this because of new functionality, or because things got faster/leaner? For example, a new trait method that exists solely to enable cheaper intersection ordering is Performance, not a Feature.
 
 If a PR doesn't clearly fit any category (e.g., CI-only changes, internal refactors with no user-facing impact, dependency bumps with no behavior change), skip it — not everything belongs in the changelog.
 
 When unclear, use your best judgment or ask the user.
 
-## Step 5: Format entries
+## Step 6: Format entries
 
 Each entry must follow this exact format:
 
@@ -62,16 +72,16 @@ Rules:
 - Author is the GitHub username from the PR, prefixed with `@`. For consolidated entries, include all contributing authors.
 - For consolidated PRs, list all PR links in a single entry: `[#100](url) [#110](url)` (see existing entries for examples).
 
-## Step 6: Present changes to the user
+## Step 7: Present changes to the user
 
 Show the user the proposed changelog entries grouped by category **before** editing the file. Ask for confirmation or adjustments.
 
-## Step 7: Update CHANGELOG.md
+## Step 8: Update CHANGELOG.md
 
 Insert the new entries into the appropriate sections of the unreleased version block. If a section doesn't exist yet, create it following the order: Bugfixes, Features/Improvements, Performance.
 
 Append new entries at the end of each section (before the next section header or version header).
 
-## Step 8: Verify
+## Step 9: Verify
 
 Read back the updated unreleased section and display it to the user for final review.

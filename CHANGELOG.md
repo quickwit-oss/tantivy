@@ -17,20 +17,24 @@ Tantivy 0.26 (Unreleased)
     - Add include/exclude filtering for term aggregations [#2717](https://github.com/quickwit-oss/tantivy/pull/2717)(@PSeitz)
     - Add public accessors for intermediate aggregation results [#2829](https://github.com/quickwit-oss/tantivy/pull/2829)(@congx4)
     - Replace HyperLogLog++ with Apache DataSketches HLL for cardinality aggregation [#2837](https://github.com/quickwit-oss/tantivy/pull/2837) [#2842](https://github.com/quickwit-oss/tantivy/pull/2842)(@congx4)
+    - Add composite aggregation [#2856](https://github.com/quickwit-oss/tantivy/pull/2856)(@fulmicoton)
 - **Fast Fields**
     - Add fast field fallback for `TermQuery` when the field is not indexed [#2693](https://github.com/quickwit-oss/tantivy/pull/2693)(@PSeitz-dd)
     - Add fast field support for `Bytes` values [#2830](https://github.com/quickwit-oss/tantivy/pull/2830)(@mdashti)
-- Add support for regexes in the query grammar [#2677](https://github.com/quickwit-oss/tantivy/pull/2677) [#2818](https://github.com/quickwit-oss/tantivy/pull/2818)(@Darkheir)
+- **Query Parser**
+    - Add support for regexes in the query grammar [#2677](https://github.com/quickwit-oss/tantivy/pull/2677) [#2818](https://github.com/quickwit-oss/tantivy/pull/2818)(@Darkheir)
+    - Deduplicate queries in query parser [#2698](https://github.com/quickwit-oss/tantivy/pull/2698)(@PSeitz-dd)
 - Add erased `SortKeyComputer` for sorting on column types unknown until runtime [#2770](https://github.com/quickwit-oss/tantivy/pull/2770) [#2790](https://github.com/quickwit-oss/tantivy/pull/2790)(@stuhood @PSeitz)
 - Add natural-order-with-none-highest support in `TopDocs::order_by` [#2780](https://github.com/quickwit-oss/tantivy/pull/2780)(@stuhood)
 - Move stemming behing `stemmer` feature flag [#2791](https://github.com/quickwit-oss/tantivy/pull/2791)(@fulmicoton)
-- Make `DeleteMeta`, `advance_deletes`, `with_max_doc`, `serializer` module, and `delete_queue` public [#2765](https://github.com/quickwit-oss/tantivy/pull/2765) [#2766](https://github.com/quickwit-oss/tantivy/pull/2766) [#2835](https://github.com/quickwit-oss/tantivy/pull/2835)(@philippemnoel @PSeitz)
+- Make `DeleteMeta`, `AddOperation`, `advance_deletes`, `with_max_doc`, `serializer` module, and `delete_queue` public [#2762](https://github.com/quickwit-oss/tantivy/pull/2762) [#2765](https://github.com/quickwit-oss/tantivy/pull/2765) [#2766](https://github.com/quickwit-oss/tantivy/pull/2766) [#2835](https://github.com/quickwit-oss/tantivy/pull/2835)(@philippemnoel @PSeitz)
 - Make `Language` hashable [#2763](https://github.com/quickwit-oss/tantivy/pull/2763)(@philippemnoel)
 - Improve `space_usage` reporting for JSON fields and columnar data [#2761](https://github.com/quickwit-oss/tantivy/pull/2761)(@PSeitz-dd)
+- Split `Term` into `Term` and `IndexingTerm` [#2744](https://github.com/quickwit-oss/tantivy/pull/2744) [#2750](https://github.com/quickwit-oss/tantivy/pull/2750)(@PSeitz-dd @PSeitz)
 
 ## Performance
 - **Aggregation**
-    - Large speed up for nested high cardinality aggregations by using one collector per request instead of one per bucket, and add `PagedTermMap` for faster medium cardinality term aggregations [#2759](https://github.com/quickwit-oss/tantivy/pull/2759)(@PSeitz-dd)
+    - Large speed up and memory reduction for nested high cardinality aggregations by using one collector per request instead of one per bucket, and adding `PagedTermMap` for faster medium cardinality term aggregations [#2715](https://github.com/quickwit-oss/tantivy/pull/2715) [#2759](https://github.com/quickwit-oss/tantivy/pull/2759)(@PSeitz @PSeitz-dd)
     - Optimize low-cardinality term aggregations by using a `Vec` instead of a `HashMap` [#2740](https://github.com/quickwit-oss/tantivy/pull/2740)(@fulmicoton-dd)
 - Optimize `ExistsQuery` for a high number of dynamic columns [#2694](https://github.com/quickwit-oss/tantivy/pull/2694)(@PSeitz-dd)
 - Add lazy scorers to stop score evaluation early when a doc won't reach the top-K threshold [#2726](https://github.com/quickwit-oss/tantivy/pull/2726) [#2777](https://github.com/quickwit-oss/tantivy/pull/2777)(@fulmicoton @stuhood)
@@ -40,7 +44,6 @@ Tantivy 0.26 (Unreleased)
 - Add `seek_danger` on `DocSet` for more efficient intersections [#2538](https://github.com/quickwit-oss/tantivy/pull/2538) [#2810](https://github.com/quickwit-oss/tantivy/pull/2810)(@PSeitz @stuhood @fulmicoton)
 - Skip column traversal in `RangeDocSet` when query range does not overlap with column bounds [#2783](https://github.com/quickwit-oss/tantivy/pull/2783)(@ChangRui-Ryan)
 - Speed up exclude queries by supporting multiple excluded `DocSet`s without intermediate union [#2825](https://github.com/quickwit-oss/tantivy/pull/2825)(@PSeitz)
-- Deduplicate queries in query parser [#2698](https://github.com/quickwit-oss/tantivy/pull/2698)(@PSeitz-dd)
 
 Tantivy 0.25
 ================================
