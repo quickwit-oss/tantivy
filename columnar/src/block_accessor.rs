@@ -84,9 +84,17 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
     /// the same doc may not be sorted (e.g. `(0,1), (0,2), (0,1)`).
     /// We group consecutive entries by doc_id, sort values within each group
     /// if it has more than 2 elements, then deduplicate adjacent pairs.
+    ///
+    /// Skips entirely if no doc_id appears more than once in the block.
     fn dedup_docid_val_pairs(&mut self)
     where T: Ord {
         if self.docid_cache.len() <= 1 {
+            return;
+        }
+
+        // Quick check: if no consecutive doc_ids are equal, no dedup needed.
+        let has_multivalue = self.docid_cache.windows(2).any(|w| w[0] == w[1]);
+        if !has_multivalue {
             return;
         }
 
@@ -100,8 +108,6 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
             }
             if end - start > 2 {
                 self.val_cache[start..end].sort();
-            } else if end - start == 2 && self.val_cache[start] > self.val_cache[start + 1] {
-                self.val_cache.swap(start, start + 1);
             }
             start = end;
         }
