@@ -20,7 +20,6 @@ pub mod containment;
 pub mod contains_query;
 pub mod crossings;
 pub mod delta;
-pub mod distance_query;
 pub mod edge_reader;
 pub mod edge_writer;
 pub mod exact;
