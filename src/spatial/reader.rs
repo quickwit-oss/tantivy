@@ -9,7 +9,7 @@ use common::file_slice::FileSlice;
 use common::OwnedBytes;
 
 use crate::directory::CompositeFile;
-use crate::schema::Field;
+use crate::schema::{Field, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
 
 /// Per-field spatial index readers for a segment.
@@ -52,8 +52,8 @@ impl SpatialReaders {
     }
 
     /// Return a break down of the space usage per field.
-    pub fn space_usage(&self) -> PerFieldSpaceUsage {
-        self.cells.space_usage()
+    pub fn space_usage(&self, schema: &Schema) -> PerFieldSpaceUsage {
+        self.cells.space_usage(schema)
     }
 }
 

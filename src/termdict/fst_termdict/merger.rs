@@ -95,7 +95,7 @@ impl<'a> TermMerger<'a> {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
     use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
+    use rand::{rng, Rng};
     use test::{self, Bencher};
 
     use super::TermMerger;
@@ -117,9 +117,9 @@ mod bench {
         let buffer: Vec<u8> = {
             let mut terms = vec![];
             for _i in 0..num_terms {
-                let rand_string: String = thread_rng()
+                let rand_string: String = rng()
                     .sample_iter(&Alphanumeric)
-                    .take(thread_rng().gen_range(30..42))
+                    .take(rng().random_range(30..42))
                     .map(char::from)
                     .collect();
                 terms.push(rand_string);

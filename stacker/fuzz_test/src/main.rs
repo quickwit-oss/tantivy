@@ -14,7 +14,7 @@ fn test_with_seed(seed: u64) {
     let mut hash_map = AHashMap::new();
     let mut arena_hashmap = ArenaHashMap::default();
     let mut rng = StdRng::seed_from_u64(seed);
-    let key_count = rng.gen_range(1_000..=1_000_000);
+    let key_count = rng.random_range(1_000..=1_000_000);
     let exp = Exp::new(0.05).unwrap();
 
     for _ in 0..key_count {

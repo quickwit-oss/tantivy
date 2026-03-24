@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::docset::DocSet;
+use crate::docset::{DocSet, SeekDangerResult};
 use crate::query::score_combiner::ScoreCombiner;
 use crate::query::Scorer;
 use crate::{DocId, Score};
@@ -56,6 +56,11 @@ where
         self.req_scorer.seek(target)
     }
 
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        self.score_cache = None;
+        self.req_scorer.seek_danger(target)
+    }
+
     fn doc(&self) -> DocId {
         self.req_scorer.doc()
     }
@@ -76,6 +81,7 @@ where
     TOptScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
+    #[inline]
     fn score(&mut self) -> Score {
         if let Some(score) = self.score_cache {
             return score;

@@ -8,7 +8,7 @@ use crate::column_values::ColumnValues;
 const MID_POINT: u64 = (1u64 << 32) - 1u64;
 
 /// `Line` describes a line function `y: ax + b` using integer
-/// arithmetics.
+/// arithmetic.
 ///
 /// The slope is in fact a decimal split into a 32 bit integer value,
 /// and a 32-bit decimal value.
@@ -94,7 +94,7 @@ impl Line {
         // `(i, ys[])`.
         //
         // The best intercept therefore has the form
-        // `y[i] - line.eval(i)` (using wrapping arithmetics).
+        // `y[i] - line.eval(i)` (using wrapping arithmetic).
         // In other words, the best intercept is one of the `y - Line::eval(ys[i])`
         // and our task is just to pick the one that minimizes our error.
         //

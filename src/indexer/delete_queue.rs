@@ -4,38 +4,37 @@ use std::sync::{Arc, RwLock, Weak};
 use super::operation::DeleteOperation;
 use crate::Opstamp;
 
-// The DeleteQueue is similar in conceptually to a multiple
-// consumer single producer broadcast channel.
-//
-// All consumer will receive all messages.
-//
-// Consumer of the delete queue are holding a `DeleteCursor`,
-// which points to a specific place of the `DeleteQueue`.
-//
-// New consumer can be created in two ways
-// - calling `delete_queue.cursor()` returns a cursor, that will include all future delete operation
-//   (and some or none of the past operations... The client is in charge of checking the opstamps.).
-// - cloning an existing cursor returns a new cursor, that is at the exact same position, and can
-//   now advance independently from the original cursor.
+/// The DeleteQueue is similar in conceptually to a multiple
+/// consumer single producer broadcast channel.
+///
+/// All consumer will receive all messages.
+///
+/// Consumer of the delete queue are holding a `DeleteCursor`,
+/// which points to a specific place of the `DeleteQueue`.
+///
+/// New consumer can be created in two ways
+/// - calling `delete_queue.cursor()` returns a cursor, that will include all future delete
+///   operation (and some or none of the past operations... The client is in charge of checking the
+///   opstamps.).
+/// - cloning an existing cursor returns a new cursor, that is at the exact same position, and can
+///   now advance independently from the original cursor.
 #[derive(Default)]
 struct InnerDeleteQueue {
     writer: Vec<DeleteOperation>,
     last_block: Weak<Block>,
 }
 
-#[derive(Clone)]
+/// The delete queue is a linked list storing delete operations.
+///
+/// Several consumers can hold a reference to it. Delete operations
+/// get dropped/gc'ed when no more consumers are holding a reference
+/// to them.
+#[derive(Clone, Default)]
 pub struct DeleteQueue {
     inner: Arc<RwLock<InnerDeleteQueue>>,
 }
 
 impl DeleteQueue {
-    // Creates a new delete queue.
-    pub fn new() -> DeleteQueue {
-        DeleteQueue {
-            inner: Arc::default(),
-        }
-    }
-
     fn get_last_block(&self) -> Arc<Block> {
         {
             // try get the last block with simply acquiring the read lock.
@@ -58,10 +57,10 @@ impl DeleteQueue {
         block
     }
 
-    // Creates a new cursor that makes it possible to
-    // consume future delete operations.
-    //
-    // Past delete operations are not accessible.
+    /// Creates a new cursor that makes it possible to
+    /// consume future delete operations.
+    ///
+    /// Past delete operations are not accessible.
     pub fn cursor(&self) -> DeleteCursor {
         let last_block = self.get_last_block();
         let operations_len = last_block.operations.len();
@@ -71,7 +70,7 @@ impl DeleteQueue {
         }
     }
 
-    // Appends a new delete operations.
+    /// Appends a new delete operations.
     pub fn push(&self, delete_operation: DeleteOperation) {
         self.inner
             .write()
@@ -169,6 +168,7 @@ struct Block {
     next: NextBlock,
 }
 
+/// As we process delete operations, keeps track of our position.
 #[derive(Clone)]
 pub struct DeleteCursor {
     block: Arc<Block>,
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_deletequeue() {
-        let delete_queue = DeleteQueue::new();
+        let delete_queue = DeleteQueue::default();
 
         let make_op = |i: usize| DeleteOperation {
             opstamp: i as u64,

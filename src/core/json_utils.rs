@@ -3,6 +3,7 @@ use common::json_path_writer::{JSON_END_OF_PATH, JSON_PATH_SEGMENT_SEP};
 use common::{replace_in_place, JsonPathWriter};
 use rustc_hash::FxHashMap;
 
+use crate::indexer::indexing_term::IndexingTerm;
 use crate::postings::{IndexingContext, IndexingPosition, PostingsWriter};
 use crate::schema::document::{ReferenceValue, ReferenceValueLeaf, Value};
 use crate::schema::{Type, DATE_TIME_PRECISION_INDEXED};
@@ -77,7 +78,7 @@ fn index_json_object<'a, V: Value<'a>>(
     doc: DocId,
     json_visitor: V::ObjectIter,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
@@ -107,17 +108,17 @@ pub(crate) fn index_json_value<'a, V: Value<'a>>(
     doc: DocId,
     json_value: V,
     text_analyzer: &mut TextAnalyzer,
-    term_buffer: &mut Term,
+    term_buffer: &mut IndexingTerm,
     json_path_writer: &mut JsonPathWriter,
     postings_writer: &mut dyn PostingsWriter,
     ctx: &mut IndexingContext,
     positions_per_path: &mut IndexingPositionsPerPath,
 ) {
-    let set_path_id = |term_buffer: &mut Term, unordered_id: u32| {
+    let set_path_id = |term_buffer: &mut IndexingTerm, unordered_id: u32| {
         term_buffer.truncate_value_bytes(0);
         term_buffer.append_bytes(&unordered_id.to_be_bytes());
     };
-    let set_type = |term_buffer: &mut Term, typ: Type| {
+    let set_type = |term_buffer: &mut IndexingTerm, typ: Type| {
         term_buffer.append_bytes(&[typ.to_code()]);
     };
 
@@ -408,7 +409,7 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_str("red");
 
-        assert_eq!(term.serialized_term(), b"\x00\x00\x00\x01jcolor\x00sred")
+        assert_eq!(term.serialized_value_bytes(), b"color\x00sred".to_vec())
     }
 
     #[test]
@@ -418,8 +419,8 @@ mod tests {
         term.append_type_and_fast_value(-4i64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc"
+            term.serialized_value_bytes(),
+            b"color\x00i\x7f\xff\xff\xff\xff\xff\xff\xfc".to_vec()
         )
     }
 
@@ -430,8 +431,8 @@ mod tests {
         term.append_type_and_fast_value(4u64);
 
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00u\x00\x00\x00\x00\x00\x00\x00\x04"
+            term.serialized_value_bytes(),
+            b"color\x00u\x00\x00\x00\x00\x00\x00\x00\x04".to_vec()
         )
     }
 
@@ -441,8 +442,8 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(4.0f64);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00f\xc0\x10\x00\x00\x00\x00\x00\x00"
+            term.serialized_value_bytes(),
+            b"color\x00f\xc0\x10\x00\x00\x00\x00\x00\x00".to_vec()
         )
     }
 
@@ -452,8 +453,8 @@ mod tests {
         let mut term = Term::from_field_json_path(field, "color", false);
         term.append_type_and_fast_value(true);
         assert_eq!(
-            term.serialized_term(),
-            b"\x00\x00\x00\x01jcolor\x00o\x00\x00\x00\x00\x00\x00\x00\x01"
+            term.serialized_value_bytes(),
+            b"color\x00o\x00\x00\x00\x00\x00\x00\x00\x01".to_vec()
         )
     }
 

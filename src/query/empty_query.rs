@@ -55,6 +55,7 @@ impl DocSet for EmptyScorer {
 }
 
 impl Scorer for EmptyScorer {
+    #[inline]
     fn score(&mut self) -> Score {
         0.0
     }

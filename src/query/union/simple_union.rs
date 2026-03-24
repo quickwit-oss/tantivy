@@ -92,6 +92,7 @@ impl<TDocSet: DocSet> DocSet for SimpleUnion<TDocSet> {
     }
 
     fn size_hint(&self) -> u32 {
+        // TODO: use estimate_union
         self.docsets
             .iter()
             .map(|docset| docset.size_hint())

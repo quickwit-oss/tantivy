@@ -181,6 +181,14 @@ pub struct BitSet {
     len: u64,
     max_value: u32,
 }
+impl std::fmt::Debug for BitSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BitSet")
+            .field("len", &self.len)
+            .field("max_value", &self.max_value)
+            .finish()
+    }
+}
 
 fn num_buckets(max_val: u32) -> u32 {
     max_val.div_ceil(64u32)
@@ -408,7 +416,7 @@ mod tests {
     use std::collections::HashSet;
 
     use ownedbytes::OwnedBytes;
-    use rand::distributions::Bernoulli;
+    use rand::distr::Bernoulli;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 

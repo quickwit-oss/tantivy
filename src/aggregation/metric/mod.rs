@@ -31,7 +31,7 @@ use std::collections::HashMap;
 
 pub use average::*;
 pub use cardinality::*;
-use columnar::{Column, ColumnBlockAccessor, ColumnType};
+use columnar::{Column, ColumnType};
 pub use count::*;
 pub use extended_stats::*;
 pub use max::*;
@@ -55,8 +55,6 @@ pub struct MetricAggReqData {
     pub field_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
     pub missing_u64: Option<u64>,
-    /// The column block accessor to access the fast field values.
-    pub column_block_accessor: ColumnBlockAccessor<u64>,
     /// The column accessor to access the fast field values.
     pub accessor: Column<u64>,
     /// Used when converting to intermediate result
@@ -109,8 +107,11 @@ pub enum PercentileValues {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// The entry when requesting percentiles with keyed: false
 pub struct PercentileValuesVecEntry {
-    key: f64,
-    value: f64,
+    /// Percentile
+    pub key: f64,
+
+    /// Value at the percentile
+    pub value: f64,
 }
 
 /// Single-metric aggregations use this common result structure.

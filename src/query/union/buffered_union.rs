@@ -1,6 +1,6 @@
 use common::TinySet;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
@@ -15,7 +15,7 @@ const HORIZON: u32 = 64u32 * 64u32;
 // This function is similar except that it does is not unstable, and
 // it does not keep the original vector ordering.
 //
-// Also, it does not "yield" any elements.
+// Elements are dropped and not yielded.
 fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
 where P: FnMut(&mut T) -> bool {
     let mut i = 0;
@@ -128,6 +128,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         }
     }
 
+    #[inline]
     fn advance_buffered(&mut self) -> bool {
         while self.bucket_idx < HORIZON_NUM_TINYBITSETS {
             if let Some(val) = self.bitsets[self.bucket_idx].pop_lowest() {
@@ -143,6 +144,12 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         }
         false
     }
+
+    fn is_in_horizon(&self, target: DocId) -> bool {
+        // wrapping_sub, because target may be < window_start_doc
+        let gap = target.wrapping_sub(self.window_start_doc);
+        gap < HORIZON
+    }
 }
 
 impl<TScorer, TScoreCombiner> DocSet for BufferedUnionScorer<TScorer, TScoreCombiner>
@@ -150,6 +157,7 @@ where
     TScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
+    #[inline]
     fn advance(&mut self) -> DocId {
         if self.advance_buffered() {
             return self.doc;
@@ -217,8 +225,51 @@ where
         }
     }
 
-    // TODO Also implement `count` with deletes efficiently.
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        if target >= TERMINATED {
+            return SeekDangerResult::SeekLowerBound(TERMINATED);
+        }
+        if self.is_in_horizon(target) {
+            // Our value is within the buffered horizon and the docset may already have been
+            // processed and removed, so we need to use seek, which uses the regular advance.
+            let seek_doc = self.seek(target);
+            if seek_doc == target {
+                return SeekDangerResult::Found;
+            } else {
+                return SeekDangerResult::SeekLowerBound(seek_doc);
+            };
+        }
 
+        // The docsets are not in the buffered range, so we can use seek_into_the_danger_zone
+        // of the underlying docsets
+        let mut is_hit = false;
+        let mut min_new_target = TERMINATED;
+
+        for docset in self.docsets.iter_mut() {
+            match docset.seek_danger(target) {
+                SeekDangerResult::Found => {
+                    is_hit = true;
+                    break;
+                }
+                SeekDangerResult::SeekLowerBound(new_target) => {
+                    min_new_target = min_new_target.min(new_target);
+                }
+            }
+        }
+
+        // The API requires the DocSet to be in a valid state when `seek_into_the_danger_zone`
+        // returns Found.
+        if is_hit {
+            // The doc is found. Let's make sure we position the union on the target
+            // to bring it back to a valid state.
+            self.seek(target);
+            SeekDangerResult::Found
+        } else {
+            SeekDangerResult::SeekLowerBound(min_new_target)
+        }
+    }
+
+    #[inline]
     fn doc(&self) -> DocId {
         self.doc
     }
@@ -231,6 +282,7 @@ where
         self.docsets.iter().map(|docset| docset.cost()).sum()
     }
 
+    // TODO Also implement `count` with deletes efficiently.
     fn count_including_deleted(&mut self) -> u32 {
         if self.doc == TERMINATED {
             return 0;
@@ -259,6 +311,7 @@ where
     TScoreCombiner: ScoreCombiner,
     TScorer: Scorer,
 {
+    #[inline]
     fn score(&mut self) -> Score {
         self.score
     }

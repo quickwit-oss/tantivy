@@ -470,12 +470,12 @@ impl SegmentReader {
     pub fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
         Ok(SegmentSpaceUsage::new(
             self.num_docs(),
-            self.termdict_composite.space_usage(),
-            self.postings_composite.space_usage(),
-            self.positions_composite.space_usage(),
-            self.fast_fields_readers.space_usage(self.schema())?,
-            self.fieldnorm_readers.space_usage(),
-            self.spatial_readers.space_usage(),
+            self.termdict_composite.space_usage(self.schema()),
+            self.postings_composite.space_usage(self.schema()),
+            self.positions_composite.space_usage(self.schema()),
+            self.fast_fields_readers.space_usage()?,
+            self.fieldnorm_readers.space_usage(self.schema()),
+            self.spatial_readers.space_usage(self.schema()),
             self.get_store_reader(0)?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
@@ -624,7 +624,7 @@ mod test {
             term_dictionary_size: Some(ByteCount::from(100u64)),
             postings_size: Some(ByteCount::from(1_000u64)),
             positions_size: Some(ByteCount::from(2_000u64)),
-            fast_size: Some(ByteCount::from(1_000u64).into()),
+            fast_size: Some(ByteCount::from(1_000u64)),
         };
         let field_metadata2 = FieldMetadata {
             field_name: "a".to_string(),
@@ -633,7 +633,7 @@ mod test {
             term_dictionary_size: Some(ByteCount::from(80u64)),
             postings_size: Some(ByteCount::from(1_500u64)),
             positions_size: Some(ByteCount::from(2_500u64)),
-            fast_size: Some(ByteCount::from(3_000u64).into()),
+            fast_size: Some(ByteCount::from(3_000u64)),
         };
         let expected = FieldMetadata {
             field_name: "a".to_string(),
@@ -642,7 +642,7 @@ mod test {
             term_dictionary_size: Some(ByteCount::from(180u64)),
             postings_size: Some(ByteCount::from(2_500u64)),
             positions_size: Some(ByteCount::from(4_500u64)),
-            fast_size: Some(ByteCount::from(4_000u64).into()),
+            fast_size: Some(ByteCount::from(4_000u64)),
         };
         assert_merge(
             &[vec![field_metadata1.clone()], vec![field_metadata2]],

@@ -97,8 +97,9 @@ impl UserInputLeaf {
             }
             UserInputLeaf::Range { field, .. } if field.is_none() => *field = Some(default_field),
             UserInputLeaf::Set { field, .. } if field.is_none() => *field = Some(default_field),
-            UserInputLeaf::Spatial { .. } => (), // spatial requires explicit field
-            _ => (),                             // field was already set, do nothing
+            UserInputLeaf::Regex { field, .. } if field.is_none() => *field = Some(default_field),
+            UserInputLeaf::Spatial { .. } => (),
+            _ => (),
         }
     }
 }

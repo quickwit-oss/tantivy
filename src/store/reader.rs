@@ -465,7 +465,7 @@ mod tests {
         let directory = RamDirectory::create();
         let path = Path::new("store");
         let writer = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(writer, 500, Compressor::default(), BLOCK_SIZE, true);
+        let schema = write_lorem_ipsum_store(writer, 500, Compressor::None, BLOCK_SIZE, true);
         let title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(store.cache_stats().cache_hits, 1);
         assert_eq!(store.cache_stats().cache_misses, 2);
 
-        assert_eq!(store.cache.peek_lru(), Some(11207));
+        assert_eq!(store.cache.peek_lru(), Some(232206));
 
         Ok(())
     }

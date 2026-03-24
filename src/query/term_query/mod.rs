@@ -10,7 +10,10 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::docset::DocSet;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-    use crate::query::{EnableScoring, Query, QueryParser, Scorer, TermQuery};
+    use crate::query::term_query::TermScorer;
+    use crate::query::{
+        AllScorer, EmptyScorer, EnableScoring, Query, QueryParser, Scorer, TermQuery,
+    };
     use crate::schema::{Field, IndexRecordOption, Schema, FAST, STRING, TEXT};
     use crate::{assert_nearly_equals, DocAddress, Index, IndexWriter, Term, TERMINATED};
 
@@ -97,7 +100,7 @@ mod tests {
         {
             let term = Term::from_field_text(left_field, "left2");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            let topdocs = searcher.search(&term_query, &TopDocs::with_limit(2))?;
+            let topdocs = searcher.search(&term_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(topdocs.len(), 1);
             let (score, _) = topdocs[0];
             assert_nearly_equals!(0.77802235, score);
@@ -105,7 +108,8 @@ mod tests {
         {
             let term = Term::from_field_text(left_field, "left1");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            let top_docs = searcher.search(&term_query, &TopDocs::with_limit(2))?;
+            let top_docs =
+                searcher.search(&term_query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 2);
             let (score1, _) = top_docs[0];
             assert_nearly_equals!(0.27101856, score1);
@@ -115,7 +119,7 @@ mod tests {
         {
             let query_parser = QueryParser::for_index(&index, Vec::new());
             let query = query_parser.parse_query("left:left2 left:left1")?;
-            let top_docs = searcher.search(&query, &TopDocs::with_limit(2))?;
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(2).order_by_score())?;
             assert_eq!(top_docs.len(), 2);
             let (score1, _) = top_docs[0];
             assert_nearly_equals!(0.9153879, score1);
@@ -435,9 +439,87 @@ mod tests {
 
         // Using TopDocs requires scoring; since the field is not indexed,
         // TermQuery cannot score and should return a SchemaError.
-        let res = searcher.search(&tq, &TopDocs::with_limit(1));
+        let res = searcher.search(&tq, &TopDocs::with_limit(1).order_by_score());
         assert!(matches!(res, Err(crate::TantivyError::SchemaError(_))));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_term_weight_all_query_optimization() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", crate::schema::TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello"))
+            .unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello happy"))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let get_scorer_for_term = |term: &str| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, term),
+                IndexRecordOption::Basic,
+            );
+            let term_weight = term_query
+                .weight(EnableScoring::disabled_from_schema(&schema))
+                .unwrap();
+            term_weight
+                .scorer(searcher.segment_reader(0u32), 1.0f32)
+                .unwrap()
+        };
+        // Should be an allscorer
+        let match_all_scorer = get_scorer_for_term("hello");
+        // Should be a term scorer
+        let match_some_scorer = get_scorer_for_term("happy");
+        // Should be an empty scorer
+        let empty_scorer = get_scorer_for_term("tax");
+        assert!(match_all_scorer.is::<AllScorer>());
+        assert!(match_some_scorer.is::<TermScorer>());
+        assert!(empty_scorer.is::<EmptyScorer>());
+    }
+
+    #[test]
+    fn test_term_weight_all_query_optimization_disable_when_scoring_enabled() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", crate::schema::TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello"))
+            .unwrap();
+        index_writer
+            .add_document(doc!(text_field=>"hello happy"))
+            .unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let get_scorer_for_term = |term: &str| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, term),
+                IndexRecordOption::Basic,
+            );
+            let term_weight = term_query
+                .weight(EnableScoring::enabled_from_searcher(&searcher))
+                .unwrap();
+            term_weight
+                .scorer(searcher.segment_reader(0u32), 1.0f32)
+                .unwrap()
+        };
+        // Should be an allscorer
+        let match_all_scorer = get_scorer_for_term("hello");
+        // Should be a term scorer
+        let one_scorer = get_scorer_for_term("happy");
+        // Should be an empty scorer
+        let empty_scorer = get_scorer_for_term("tax");
+        assert!(match_all_scorer.is::<TermScorer>());
+        assert!(one_scorer.is::<TermScorer>());
+        assert!(empty_scorer.is::<EmptyScorer>());
     }
 }

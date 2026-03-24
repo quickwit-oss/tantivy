@@ -51,7 +51,7 @@ mod sstable_index_v3;
 pub use sstable_index_v3::{BlockAddr, SSTableIndex, SSTableIndexBuilder, SSTableIndexV3};
 mod sstable_index_v2;
 pub(crate) mod vint;
-pub use dictionary::Dictionary;
+pub use dictionary::{Dictionary, TermOrdHit};
 pub use streamer::{Streamer, StreamerBuilder};
 
 mod block_reader;
@@ -302,8 +302,9 @@ where
             || self.previous_key[keep_len] < key[keep_len];
         assert!(
             increasing_keys,
-            "Keys should be increasing. ({:?} > {key:?})",
-            self.previous_key
+            "Keys should be increasing. ({:?} > {:?})",
+            String::from_utf8_lossy(&self.previous_key),
+            String::from_utf8_lossy(key),
         );
         self.previous_key.resize(key.len(), 0u8);
         self.previous_key[keep_len..].copy_from_slice(&key[keep_len..]);

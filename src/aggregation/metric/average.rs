@@ -52,11 +52,15 @@ pub struct IntermediateAverage {
 
 impl IntermediateAverage {
     /// Creates a new [`IntermediateAverage`] instance from a [`SegmentStatsCollector`].
-    pub(crate) fn from_collector(collector: SegmentStatsCollector) -> Self {
-        Self {
-            stats: collector.stats,
-        }
+    pub(crate) fn from_stats(stats: IntermediateStats) -> Self {
+        Self { stats }
     }
+
+    /// Returns a reference to the underlying [`IntermediateStats`].
+    pub fn stats(&self) -> &IntermediateStats {
+        &self.stats
+    }
+
     /// Merges the other intermediate result into self.
     pub fn merge_fruits(&mut self, other: IntermediateAverage) {
         self.stats.merge_fruits(other.stats);

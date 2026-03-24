@@ -1,5 +1,5 @@
-use crate::docset::{DocSet, TERMINATED};
-use crate::query::size_hint::estimate_intersection;
+use super::size_hint::estimate_intersection;
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::query::term_query::TermScorer;
 use crate::query::{EmptyScorer, Scorer};
 use crate::{DocId, Score};
@@ -12,6 +12,9 @@ use crate::{DocId, Score};
 /// For better performance, the function uses a
 /// specialized implementation if the two
 /// shortest scorers are `TermScorer`s.
+///
+/// num_docs_segment is the number of documents in the segment. It is used for estimating the
+/// `size_hint` of the intersection.
 pub fn intersect_scorers(
     mut scorers: Vec<Box<dyn Scorer>>,
     num_docs_segment: u32,
@@ -81,6 +84,14 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
         docsets.sort_by_key(|docset| docset.cost());
         go_to_first_doc(&mut docsets);
         let left = docsets.remove(0);
+        debug_assert!({
+            let doc = left.doc();
+            if doc == TERMINATED {
+                true
+            } else {
+                docsets.iter().all(|docset| docset.doc() == doc)
+            }
+        });
         let right = docsets.remove(0);
         Intersection {
             left,
@@ -102,36 +113,64 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
 }
 
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
+    #[inline]
     fn advance(&mut self) -> DocId {
         let (left, right) = (&mut self.left, &mut self.right);
-        let mut candidate = left.advance();
 
-        'outer: loop {
-            // In the first part we look for a document in the intersection
-            // of the two rarest `DocSet` in the intersection.
+        // Invariant:
+        // - candidate is always <= to the next document in the intersection.
+        // - candidate strictly increases at every occurence of the loop.
+        let mut candidate = left.doc() + 1;
 
-            loop {
-                let right_doc = right.seek(candidate);
-                candidate = left.seek(right_doc);
-                if candidate == right_doc {
-                    break;
-                }
+        // Termination: candidate strictly increases.
+        'outer: while candidate < TERMINATED {
+            // As we enter the loop, we should always have candidate < next_doc.
+
+            candidate = left.seek(candidate);
+
+            // Left is positionned on `candidate`.
+            debug_assert_eq!(left.doc(), candidate);
+
+            if let SeekDangerResult::SeekLowerBound(seek_lower_bound) = right.seek_danger(candidate)
+            {
+                debug_assert!(
+                    seek_lower_bound == TERMINATED || seek_lower_bound > candidate,
+                    "seek_lower_bound {seek_lower_bound} must be greater than candidate \
+                     {candidate}"
+                );
+                candidate = seek_lower_bound;
+                continue;
             }
 
-            debug_assert_eq!(left.doc(), right.doc());
-            // test the remaining scorers;
-            for docset in self.others.iter_mut() {
-                let seek_doc = docset.seek(candidate);
-                if seek_doc > candidate {
-                    candidate = left.seek(seek_doc);
+            // Left and right are positionned on `candidate`.
+            debug_assert_eq!(right.doc(), candidate);
+
+            for other in &mut self.others {
+                if let SeekDangerResult::SeekLowerBound(seek_lower_bound) =
+                    other.seek_danger(candidate)
+                {
+                    // One of the scorer does not match, let's restart at the top of the loop.
+                    debug_assert!(
+                        seek_lower_bound == TERMINATED || seek_lower_bound > candidate,
+                        "seek_lower_bound {seek_lower_bound} must be greater than candidate \
+                         {candidate}"
+                    );
+                    candidate = seek_lower_bound;
                     continue 'outer;
                 }
             }
-            debug_assert_eq!(candidate, self.left.doc());
-            debug_assert_eq!(candidate, self.right.doc());
+
+            // At this point all scorers are in a valid state, aligned on the next document in the
+            // intersection.
             debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));
             return candidate;
         }
+
+        // We make sure our docset is in a valid state.
+        // In particular, we want .doc() to return TERMINATED.
+        left.seek(TERMINATED);
+
+        TERMINATED
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
@@ -146,6 +185,26 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
         doc
     }
 
+    /// Seeks to the target if necessary and checks if the target is an exact match.
+    ///
+    /// Some implementations may choose to advance past the target if beneficial for performance.
+    /// The return value is `true` if the target is in the docset, and `false` otherwise.
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        if let SeekDangerResult::SeekLowerBound(new_target) = self.left.seek_danger(target) {
+            return SeekDangerResult::SeekLowerBound(new_target);
+        }
+        if let SeekDangerResult::SeekLowerBound(new_target) = self.right.seek_danger(target) {
+            return SeekDangerResult::SeekLowerBound(new_target);
+        }
+        for docset in &mut self.others {
+            if let SeekDangerResult::SeekLowerBound(new_target) = docset.seek_danger(target) {
+                return SeekDangerResult::SeekLowerBound(new_target);
+            }
+        }
+        SeekDangerResult::Found
+    }
+
+    #[inline]
     fn doc(&self) -> DocId {
         self.left.doc()
     }
@@ -172,6 +231,7 @@ where
     TScorer: Scorer,
     TOtherScorer: Scorer,
 {
+    #[inline]
     fn score(&mut self) -> Score {
         self.left.score()
             + self.right.score()
@@ -181,10 +241,15 @@ where
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::Intersection;
+    use crate::collector::Count;
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
-    use crate::query::VecDocSet;
+    use crate::query::{QueryParser, VecDocSet};
+    use crate::schema::{Schema, TEXT};
+    use crate::Index;
 
     #[test]
     fn test_intersection() {
@@ -269,5 +334,115 @@ mod tests {
         let c = VecDocSet::from(vec![3, 9]);
         let intersection = Intersection::new(vec![a, b, c], 10);
         assert_eq!(intersection.doc(), TERMINATED);
+    }
+
+    #[test]
+    fn test_intersection_abc() {
+        let a = VecDocSet::from(vec![2, 3, 6]);
+        let b = VecDocSet::from(vec![1, 3, 5]);
+        let c = VecDocSet::from(vec![1, 3, 5]);
+        let mut intersection = Intersection::new(vec![c, b, a], 10);
+        let mut docs = Vec::new();
+        use crate::DocSet;
+        while intersection.doc() != TERMINATED {
+            docs.push(intersection.doc());
+            intersection.advance();
+        }
+        assert_eq!(&docs, &[3]);
+    }
+
+    #[test]
+    fn test_intersection_termination() {
+        use crate::query::score_combiner::DoNothingCombiner;
+        use crate::query::{BufferedUnionScorer, ConstScorer, VecDocSet};
+
+        let a1 = ConstScorer::new(VecDocSet::from(vec![0u32, 10000]), 1.0);
+        let a2 = ConstScorer::new(VecDocSet::from(vec![0u32, 10000]), 1.0);
+
+        let mut b_scorers = vec![];
+        for _ in 0..2 {
+            // Union matches 0 and 10000.
+            b_scorers.push(ConstScorer::new(VecDocSet::from(vec![0, 10000]), 1.0));
+        }
+        // That's the union of two scores matching 0, and 10_000.
+        let union = BufferedUnionScorer::build(b_scorers, DoNothingCombiner::default, 30000);
+
+        // Mismatching scorer: matches 0 and 20000. We then append more docs at the end to ensure it
+        // is last.
+        let mut m_docs = vec![0, 20000];
+        for i in 30000..30100 {
+            m_docs.push(i);
+        }
+        let m = ConstScorer::new(VecDocSet::from(m_docs), 1.0);
+
+        // Costs: A1=2, A2=2, Union=4, M=102.
+        // Sorted: A1, A2, Union, M.
+        // Left=A1, Right=A2, Others=[Union, M].
+        let mut intersection = crate::query::intersect_scorers(
+            vec![Box::new(a1), Box::new(a2), Box::new(union), Box::new(m)],
+            40000,
+        );
+
+        while intersection.doc() != TERMINATED {
+            intersection.advance();
+        }
+    }
+
+    // Strategy to generate sorted and deduplicated vectors of u32 document IDs
+    fn sorted_deduped_vec(max_val: u32, max_size: usize) -> impl Strategy<Value = Vec<u32>> {
+        prop::collection::vec(0..max_val, 0..max_size).prop_map(|mut vec| {
+            vec.sort();
+            vec.dedup();
+            vec
+        })
+    }
+
+    proptest! {
+        #[test]
+        fn prop_test_intersection_consistency(
+            a in sorted_deduped_vec(100, 10),
+            b in sorted_deduped_vec(100, 10),
+            num_docs in 100u32..500u32
+        ) {
+            let left = VecDocSet::from(a.clone());
+            let right = VecDocSet::from(b.clone());
+            let mut intersection = Intersection::new(vec![left, right], num_docs);
+
+            let expected: Vec<u32> = a.iter()
+                .cloned()
+                .filter(|doc| b.contains(doc))
+                .collect();
+
+            for expected_doc in expected {
+                assert_eq!(intersection.doc(), expected_doc);
+                intersection.advance();
+            }
+            assert_eq!(intersection.doc(), TERMINATED);
+        }
+    }
+
+    #[test]
+    fn test_bug_2811_intersection_candidate_should_increase() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer
+            .add_document(doc!(text_field=>"hello happy tax"))
+            .unwrap();
+        writer.add_document(doc!(text_field=>"hello")).unwrap();
+        writer.add_document(doc!(text_field=>"hello")).unwrap();
+        writer.add_document(doc!(text_field=>"happy tax")).unwrap();
+
+        writer.commit().unwrap();
+        let query_parser = QueryParser::for_index(&index, Vec::new());
+        let query = query_parser
+            .parse_query(r#"+text:hello +text:"happy tax""#)
+            .unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let c = searcher.search(&*query, &Count).unwrap();
+        assert_eq!(c, 1);
     }
 }

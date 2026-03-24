@@ -16,15 +16,16 @@ use crate::index::SegmentReader;
 /// That way we can use it the same way as if it would come from the fastfield.
 pub(crate) fn get_missing_val_as_u64_lenient(
     column_type: ColumnType,
+    column_max_value: u64,
     missing: &Key,
     field_name: &str,
 ) -> crate::Result<Option<u64>> {
     let missing_val = match missing {
-        Key::Str(_) if column_type == ColumnType::Str => Some(u64::MAX),
+        Key::Str(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
         // Allow fallback to number on text fields
-        Key::F64(_) if column_type == ColumnType::Str => Some(u64::MAX),
-        Key::U64(_) if column_type == ColumnType::Str => Some(u64::MAX),
-        Key::I64(_) if column_type == ColumnType::Str => Some(u64::MAX),
+        Key::F64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
+        Key::U64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
+        Key::I64(_) if column_type == ColumnType::Str => Some(column_max_value + 1),
         Key::F64(val) if column_type.numerical_type().is_some() => {
             f64_to_fastfield_u64(*val, &column_type)
         }

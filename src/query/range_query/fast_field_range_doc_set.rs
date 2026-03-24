@@ -62,6 +62,17 @@ pub(crate) struct RangeDocSet<T> {
 const DEFAULT_FETCH_HORIZON: u32 = 128;
 impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     pub(crate) fn new(value_range: RangeInclusive<T>, column: Column<T>) -> Self {
+        if *value_range.start() > column.max_value() || *value_range.end() < column.min_value() {
+            return Self {
+                value_range,
+                column,
+                loaded_docs: VecCursor::new(),
+                next_fetch_start: TERMINATED,
+                fetch_horizon: DEFAULT_FETCH_HORIZON,
+                last_seek_pos_opt: None,
+            };
+        }
+
         let mut range_docset = Self {
             value_range,
             column,
@@ -81,6 +92,9 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
 
     /// Returns true if more data could be fetched
     fn fetch_block(&mut self) {
+        if self.next_fetch_start >= self.column.num_docs() {
+            return;
+        }
         const MAX_HORIZON: u32 = 100_000;
         while self.loaded_docs.is_empty() {
             let finished_to_end = self.fetch_horizon(self.fetch_horizon);
@@ -105,10 +119,10 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
     fn fetch_horizon(&mut self, horizon: u32) -> bool {
         let mut finished_to_end = false;
 
-        let limit = self.column.num_docs();
-        let mut end = self.next_fetch_start + horizon;
-        if end >= limit {
-            end = limit;
+        let num_docs = self.column.num_docs();
+        let mut fetch_end = self.next_fetch_start + horizon;
+        if fetch_end >= num_docs {
+            fetch_end = num_docs;
             finished_to_end = true;
         }
 
@@ -116,7 +130,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
         let doc_buffer: &mut Vec<DocId> = self.loaded_docs.get_cleared_data();
         self.column.get_docids_for_value_range(
             self.value_range.clone(),
-            self.next_fetch_start..end,
+            self.next_fetch_start..fetch_end,
             doc_buffer,
         );
         if let Some(last_doc) = last_doc {
@@ -124,7 +138,7 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> RangeDocSet<T> {
                 self.loaded_docs.next();
             }
         }
-        self.next_fetch_start = end;
+        self.next_fetch_start = fetch_end;
 
         finished_to_end
     }
@@ -135,9 +149,6 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     fn advance(&mut self) -> DocId {
         if let Some(docid) = self.loaded_docs.next() {
             return docid;
-        }
-        if self.next_fetch_start >= self.column.num_docs() {
-            return TERMINATED;
         }
         self.fetch_block();
         self.loaded_docs.current().unwrap_or(TERMINATED)
@@ -174,15 +185,25 @@ impl<T: Send + Sync + PartialOrd + Copy + Debug + 'static> DocSet for RangeDocSe
     }
 
     fn size_hint(&self) -> u32 {
-        self.column.num_docs()
+        // TODO: Implement a better size hint
+        self.column.num_docs() / 10
     }
 
     /// Returns a best-effort hint of the
     /// cost to drive the docset.
     fn cost(&self) -> u64 {
-        // Advancing the docset is relatively expensive since it scans the column.
-        // Keep cost relative to a term query driver; use num_docs as baseline.
-        self.column.num_docs() as u64
+        // Advancing the docset is pretty expensive since it scans the whole column, there is no
+        // index currently (will change with an kd-tree)
+        // Since we use SIMD to scan the fast field range query we lower the cost a little bit,
+        // assuming that we hit 10% of the docs like in size_hint.
+        //
+        // If we would return a cost higher than num_docs, we would never choose ff range query as
+        // the driver in a DocSet, when intersecting a term query with a fast field. But
+        // it's the faster choice when the term query has a lot of docids and the range
+        // query has not.
+        //
+        // Ideally this would take the fast field codec into account
+        (self.column.num_docs() as f64 * 0.8) as u64
     }
 }
 
@@ -235,5 +256,53 @@ mod tests {
 
         let count = searcher.search(&query, &Count).unwrap();
         assert_eq!(count, 500);
+    }
+
+    #[test]
+    fn range_query_no_overlap_optimization() {
+        let mut schema_builder = schema::SchemaBuilder::new();
+        let id_field = schema_builder.add_text_field("id", schema::STRING);
+        let value_field = schema_builder.add_u64_field("value", schema::FAST | schema::INDEXED);
+
+        let dir = RamDirectory::default();
+        let index = IndexBuilder::new()
+            .schema(schema_builder.build())
+            .open_or_create(dir)
+            .unwrap();
+
+        {
+            let mut writer = index.writer(15_000_000).unwrap();
+
+            // Add documents with values in the range [10, 20]
+            for i in 0..100 {
+                let mut doc = TantivyDocument::new();
+                doc.add_text(id_field, format!("doc{i}"));
+                doc.add_u64(value_field, 10 + (i % 11) as u64); // values in range 10-20
+
+                writer.add_document(doc).unwrap();
+            }
+            writer.commit().unwrap();
+        }
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+
+        // Test a range query [100, 200] that has no overlap with data range [10, 20]
+        let query = RangeQuery::new(
+            Bound::Included(Term::from_field_u64(value_field, 100)),
+            Bound::Included(Term::from_field_u64(value_field, 200)),
+        );
+
+        let count = searcher.search(&query, &Count).unwrap();
+        assert_eq!(count, 0); // should return 0 results since there's no overlap
+
+        // Test another non-overlapping range: [0, 5] while data range is [10, 20]
+        let query2 = RangeQuery::new(
+            Bound::Included(Term::from_field_u64(value_field, 0)),
+            Bound::Included(Term::from_field_u64(value_field, 5)),
+        );
+
+        let count2 = searcher.search(&query2, &Count).unwrap();
+        assert_eq!(count2, 0); // should return 0 results since there's no overlap
     }
 }

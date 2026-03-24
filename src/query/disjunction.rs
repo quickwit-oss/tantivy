@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use crate::docset::SeekDangerResult;
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{ScoreCombiner, Scorer};
 use crate::{DocId, DocSet, Score, TERMINATED};
@@ -61,6 +62,18 @@ impl<T: Scorer> DocSet for ScorerWrapper<T> {
         let doc_id = self.scorer.advance();
         self.current_doc = doc_id;
         doc_id
+    }
+    fn seek(&mut self, target: DocId) -> DocId {
+        let doc_id = self.scorer.seek(target);
+        self.current_doc = doc_id;
+        doc_id
+    }
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        let result = self.scorer.seek_danger(target);
+        if result == SeekDangerResult::Found {
+            self.current_doc = target;
+        }
+        result
     }
 
     fn doc(&self) -> DocId {
@@ -163,6 +176,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> DocSet
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Scorer
     for Disjunction<TScorer, TScoreCombiner>
 {
+    #[inline]
     fn score(&mut self) -> Score {
         self.current_score
     }
@@ -297,6 +311,7 @@ mod tests {
     }
 
     impl Scorer for DummyScorer {
+        #[inline]
         fn score(&mut self) -> Score {
             self.foo.get(self.cursor).map(|x| x.1).unwrap_or(0.0)
         }

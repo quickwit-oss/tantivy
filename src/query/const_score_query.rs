@@ -137,6 +137,7 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
 }
 
 impl<TDocSet: DocSet + 'static> Scorer for ConstScorer<TDocSet> {
+    #[inline]
     fn score(&mut self) -> Score {
         self.score
     }

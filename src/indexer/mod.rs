@@ -4,6 +4,7 @@
 //! `IndexWriter` is the main entry point for that, which created from
 //! [`Index::writer`](crate::Index::writer).
 
+/// Delete queue implementation for broadcasting delete operations to consumers.
 pub(crate) mod delete_queue;
 pub(crate) mod path_to_unordered_id;
 
@@ -12,6 +13,7 @@ mod doc_opstamp_mapping;
 mod flat_map_with_buffer;
 pub(crate) mod index_writer;
 pub(crate) mod index_writer_status;
+pub(crate) mod indexing_term;
 mod log_merge_policy;
 mod merge_index_test;
 mod merge_operation;
@@ -31,12 +33,11 @@ mod stamper;
 use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
-pub use self::index_writer::{IndexWriter, IndexWriterOptions};
+pub use self::index_writer::{advance_deletes, IndexWriter, IndexWriterOptions};
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
-use self::operation::AddOperation;
-pub use self::operation::UserOperation;
+pub use self::operation::{AddOperation, DeleteOperation, UserOperation};
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub(crate) use self::segment_serializer::SegmentSerializer;
@@ -181,6 +182,7 @@ mod tests_mmap {
         let field_name_out = ".";
         test_json_field_name(field_name_in, field_name_out);
     }
+
     #[test]
     fn test_json_field_dot() {
         // Test when field name contains a '.'
@@ -587,7 +589,9 @@ mod tests_mmap {
             };
             let query_str = &format!("{}:{}", indexed_field.field_name, val);
             let query = query_parser.parse_query(query_str).unwrap();
-            let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
+            let count_docs = searcher
+                .search(&*query, &TopDocs::with_limit(2).order_by_score())
+                .unwrap();
             if indexed_field.field_name.contains("empty") || indexed_field.typ == Type::Json {
                 assert_eq!(count_docs.len(), 0);
             } else {
@@ -659,7 +663,9 @@ mod tests_mmap {
         for (indexed_field, val) in fields_and_vals.iter() {
             let query_str = &format!("{indexed_field}:{val}");
             let query = query_parser.parse_query(query_str).unwrap();
-            let count_docs = searcher.search(&*query, &TopDocs::with_limit(2)).unwrap();
+            let count_docs = searcher
+                .search(&*query, &TopDocs::with_limit(2).order_by_score())
+                .unwrap();
             assert!(!count_docs.is_empty(), "{indexed_field}:{val}");
         }
         // Test if field name can be used for aggregation
