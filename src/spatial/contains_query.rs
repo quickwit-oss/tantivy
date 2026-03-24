@@ -9,6 +9,8 @@
 
 use std::collections::HashMap;
 
+use common::BitSet;
+
 use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
 use super::crossings::S2EdgeCrosser;
@@ -83,13 +85,27 @@ impl ContainsQuery {
         cell_reader: &CellIndexReader,
         edge_reader: &mut EdgeReader,
     ) -> Vec<u32> {
-        let candidates = self.collect_candidates(cell_reader);
+        let candidates = self.collect_candidates(cell_reader, None, edge_reader);
         self.verify_candidates(candidates, edge_reader)
     }
 
-    /// Scan covering cells against the segment's cell index to collect candidate geometries. For
-    /// each candidate, track whether it appeared in boundary cells and which edges it has there.
-    fn collect_candidates(&self, reader: &CellIndexReader) -> HashMap<u32, CandidateInfo> {
+    /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
+    pub fn search_segment_filtered(
+        &self,
+        cell_reader: &CellIndexReader,
+        edge_reader: &mut EdgeReader,
+        terms_filter: &BitSet,
+    ) -> Vec<u32> {
+        let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_reader);
+        self.verify_candidates(candidates, edge_reader)
+    }
+
+    fn collect_candidates(
+        &self,
+        reader: &CellIndexReader,
+        terms_filter: Option<&BitSet>,
+        edge_reader: &EdgeReader,
+    ) -> HashMap<u32, CandidateInfo> {
         let mut candidates: HashMap<u32, CandidateInfo> = HashMap::new();
 
         for (i, &covering_cell_id) in self.covering.iter().enumerate() {
@@ -99,6 +115,13 @@ impl ContainsQuery {
                 let cell_is_interior = is_interior && covering_cell_id.contains(index_cell.cell_id);
 
                 for clipped in &index_cell.shapes {
+                    if let Some(filter) = terms_filter {
+                        let doc_id = edge_reader.doc_id_for(clipped.geometry_id);
+                        if !filter.contains(doc_id) {
+                            continue;
+                        }
+                    }
+
                     let info = candidates
                         .entry(clipped.geometry_id)
                         .or_insert_with(CandidateInfo::new);

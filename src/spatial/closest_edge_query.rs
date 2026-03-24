@@ -71,6 +71,17 @@ impl ClosestEdgeQuery {
         q
     }
 
+    /// Build a boolean range distance query. Returns at most one result.
+    pub fn any_between(
+        set: GeometrySet,
+        min_distance: S1ChordAngle,
+        max_distance: S1ChordAngle,
+    ) -> Self {
+        let mut q = Self::build(set, 1, max_distance, true);
+        q.min_distance = min_distance;
+        q
+    }
+
     fn build(
         set: GeometrySet,
         max_results: usize,

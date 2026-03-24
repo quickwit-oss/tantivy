@@ -10,6 +10,7 @@ use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
 use super::closest_edge_query::ClosestEdgeQuery;
+use super::contains_query::ContainsQuery;
 use super::edge_reader::EdgeReader;
 use super::geometry_set::GeometrySet;
 use super::intersects_query::IntersectsQuery;
@@ -256,11 +257,6 @@ fn evaluate(
             // Phase 2: collect outer bitsets across all segments.
             let outer_output = evaluate(outer, searcher, segments)?;
 
-            let max_distance = match relation {
-                SpatialRelation::Near(r) => S1ChordAngle::from_radians(*r),
-                _ => S1ChordAngle::infinity(),
-            };
-
             // Phase 3: for each segment, walk its cell index for outer geometries,
             // probe all segments for inner matches.
             let mut results = HashMap::new();
@@ -293,9 +289,6 @@ fn evaluate(
                         let (_, outer_set) = edge_reader.get_geometry_set(geometry_id);
                         let outer_geometry = outer_set.clone();
 
-                        // Build a probe from the outer geometry.
-                        let probe = ClosestEdgeQuery::any_within(outer_geometry, max_distance);
-
                         // Probe all segments for inner matches.
                         let mut found = false;
                         for probe_reader in segments.iter() {
@@ -308,13 +301,62 @@ fn evaluate(
                                 let inner_bitset = inner_output
                                     .bitset_for(&probe_reader.segment_id(), probe_reader.max_doc());
 
-                                let hits = probe.search_segment_filtered(
-                                    &probe_cell_reader,
-                                    &mut probe_edge_reader,
-                                    &inner_bitset,
-                                );
-                                if !hits.is_empty() {
-                                    found = true;
+                                found = match relation {
+                                    SpatialRelation::Near(r) => {
+                                        let probe = ClosestEdgeQuery::any_within(
+                                            outer_geometry.clone(),
+                                            S1ChordAngle::from_radians(*r),
+                                        );
+                                        !probe
+                                            .search_segment_filtered(
+                                                &probe_cell_reader,
+                                                &mut probe_edge_reader,
+                                                &inner_bitset,
+                                            )
+                                            .is_empty()
+                                    }
+                                    SpatialRelation::Intersects => {
+                                        let probe = IntersectsQuery::new(
+                                            outer_geometry.clone(),
+                                            CovererOptions::default(),
+                                        );
+                                        !probe
+                                            .search_segment_filtered(
+                                                &probe_cell_reader,
+                                                &mut probe_edge_reader,
+                                                &inner_bitset,
+                                            )
+                                            .is_empty()
+                                    }
+                                    SpatialRelation::Contains => {
+                                        let probe = ContainsQuery::new(
+                                            outer_geometry.clone(),
+                                            CovererOptions::default(),
+                                        );
+                                        !probe
+                                            .search_segment_filtered(
+                                                &probe_cell_reader,
+                                                &mut probe_edge_reader,
+                                                &inner_bitset,
+                                            )
+                                            .is_empty()
+                                    }
+                                    SpatialRelation::Between(inner_r, outer_r) => {
+                                        let probe = ClosestEdgeQuery::any_between(
+                                            outer_geometry.clone(),
+                                            S1ChordAngle::from_radians(*inner_r),
+                                            S1ChordAngle::from_radians(*outer_r),
+                                        );
+                                        !probe
+                                            .search_segment_filtered(
+                                                &probe_cell_reader,
+                                                &mut probe_edge_reader,
+                                                &inner_bitset,
+                                            )
+                                            .is_empty()
+                                    }
+                                };
+                                if found {
                                     break;
                                 }
                             }
