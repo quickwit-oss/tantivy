@@ -10,6 +10,7 @@ Tantivy 0.26 (Unreleased)
 - Fix integer overflow in `ExpUnrolledLinkedList` for large datasets [#2735](https://github.com/quickwit-oss/tantivy/pull/2735)(@mdashti)
 - Fix integer overflow in segment sorting and merge policy truncation [#2846](https://github.com/quickwit-oss/tantivy/pull/2846)(@anaslimem)
 - Fix merging of intermediate aggregation results [#2719](https://github.com/quickwit-oss/tantivy/pull/2719)(@PSeitz)
+- Fix deduplicate doc counts in term aggregation for multi-valued fields [#2854](https://github.com/quickwit-oss/tantivy/pull/2854)(@nuri-yoo)
 
 ## Features/Improvements
 - **Aggregation**
