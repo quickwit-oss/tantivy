@@ -70,15 +70,27 @@ impl<'a> EdgeWriter<'a> {
             let data_bytes = ring_boundary_bytes + vertex_bytes;
             let len_word = (data_bytes as u32)
                 | if closed { 0x80000000 } else { 0 }
-                | if contains_hilbert_start { 0x40000000 } else { 0 };
+                | if contains_hilbert_start {
+                    0x40000000
+                } else {
+                    0
+                };
 
             // set field: bit 31 = has_holes, bit 30 = is_member, bits 0-29 = count or distance.
             let is_member = count > 1 && member_idx > 0;
             let set_word: u32 = if count == 1 {
-                if has_holes { 0x80000000 | 1 } else { 1 }
+                if has_holes {
+                    0x80000000 | 1
+                } else {
+                    1
+                }
             } else if member_idx == 0 {
                 let c = count as u32;
-                if has_holes { 0x80000000 | c } else { c }
+                if has_holes {
+                    0x80000000 | c
+                } else {
+                    c
+                }
             } else {
                 let delta = pos - prev_pos;
                 debug_assert!(delta <= 0x3FFFFFFF, "back pointer exceeds 30-bit range");

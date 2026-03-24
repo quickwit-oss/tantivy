@@ -54,9 +54,9 @@ impl Geometry<Plane> {
                 Geometry::MultiPoint(points.iter().map(|p| S::project(p[0], p[1])).collect())
             }
             Geometry::LineString(line) => Geometry::LineString(Self::project_ring::<S>(line)),
-            Geometry::MultiLineString(lines) => {
-                Geometry::MultiLineString(lines.iter().map(|l| Self::project_ring::<S>(l)).collect())
-            }
+            Geometry::MultiLineString(lines) => Geometry::MultiLineString(
+                lines.iter().map(|l| Self::project_ring::<S>(l)).collect(),
+            ),
             Geometry::Polygon(rings) => {
                 Geometry::Polygon(rings.iter().map(|r| Self::project_ring::<S>(r)).collect())
             }

@@ -7,8 +7,8 @@ use std::io::Write;
 use common::CountingWriter;
 
 use super::containment::brute_force_contains;
-use super::geometry_set::GeometrySet;
 use super::crossings::S2EdgeCrosser;
+use super::geometry_set::GeometrySet;
 use super::math::normalize;
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
@@ -563,7 +563,15 @@ impl IndexBuilder {
                         if ring_len == 1 {
                             let v = vertices[ring_start];
                             let max_level = self.get_edge_max_level(&v, &v);
-                            self.add_face_edge(gid, edge_id, max_level, false, &v, &v, &mut face_edges);
+                            self.add_face_edge(
+                                gid,
+                                edge_id,
+                                max_level,
+                                false,
+                                &v,
+                                &v,
+                                &mut face_edges,
+                            );
                             edge_id += 1;
                         }
                         continue;
@@ -574,7 +582,15 @@ impl IndexBuilder {
                         let v0 = vertices[ring_start + i];
                         let v1 = vertices[ring_start + i + 1];
                         let max_level = self.get_edge_max_level(&v0, &v1);
-                        self.add_face_edge(gid, edge_id, max_level, closed, &v0, &v1, &mut face_edges);
+                        self.add_face_edge(
+                            gid,
+                            edge_id,
+                            max_level,
+                            closed,
+                            &v0,
+                            &v1,
+                            &mut face_edges,
+                        );
                         edge_id += 1;
                     }
 

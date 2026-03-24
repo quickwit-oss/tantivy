@@ -388,13 +388,7 @@ const EARTH_RADIUS_FT: f64 = 20_902_464.0;
 /// Parse a distance with unit: 50mi, 75km, 200ft, 1000m, 0.5rad.
 fn spatial_distance(inp: &str) -> IResult<&str, f64> {
     let (inp, value) = spatial_float(inp)?;
-    let (inp, unit) = alt((
-        tag("mi"),
-        tag("km"),
-        tag("ft"),
-        tag("m"),
-        tag("rad"),
-    ))(inp)?;
+    let (inp, unit) = alt((tag("mi"), tag("km"), tag("ft"), tag("m"), tag("rad")))(inp)?;
     let radians = match unit {
         "mi" => value / EARTH_RADIUS_MI,
         "km" => value / EARTH_RADIUS_KM,
@@ -408,7 +402,12 @@ fn spatial_distance(inp: &str) -> IResult<&str, f64> {
 
 /// Parse a spatial predicate: $intersects, $contains, $within, $between, or $knn.
 fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
-    alt((spatial_polygon, spatial_within, spatial_between, spatial_knn))(inp)
+    alt((
+        spatial_polygon,
+        spatial_within,
+        spatial_between,
+        spatial_knn,
+    ))(inp)
 }
 
 fn spatial_polygon(inp: &str) -> IResult<&str, UserInputLeaf> {

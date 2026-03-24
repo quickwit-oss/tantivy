@@ -12,7 +12,10 @@ pub enum SpatialPredicateKind {
     Intersects,
     Contains,
     Within(ordered_float::OrderedFloat<f64>),
-    Between(ordered_float::OrderedFloat<f64>, ordered_float::OrderedFloat<f64>),
+    Between(
+        ordered_float::OrderedFloat<f64>,
+        ordered_float::OrderedFloat<f64>,
+    ),
     Knn(usize),
 }
 

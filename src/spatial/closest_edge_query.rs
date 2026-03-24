@@ -61,13 +61,22 @@ impl ClosestEdgeQuery {
     }
 
     /// Build a range distance query: results between inner and outer distance.
-    pub fn between(set: GeometrySet, min_distance: S1ChordAngle, max_distance: S1ChordAngle) -> Self {
+    pub fn between(
+        set: GeometrySet,
+        min_distance: S1ChordAngle,
+        max_distance: S1ChordAngle,
+    ) -> Self {
         let mut q = Self::build(set, usize::MAX, max_distance, false);
         q.min_distance = min_distance;
         q
     }
 
-    fn build(set: GeometrySet, max_results: usize, max_distance: S1ChordAngle, first_only: bool) -> Self {
+    fn build(
+        set: GeometrySet,
+        max_results: usize,
+        max_distance: S1ChordAngle,
+        first_only: bool,
+    ) -> Self {
         let builder = IndexBuilder::new(BuildOptions::default());
         let query_index = builder.build_from_sets(std::slice::from_ref(&set));
         let query_edges = QueryEdgeProvider { set };
@@ -146,8 +155,11 @@ impl ClosestEdgeQuery {
             if should_process {
                 for index_cell in &index_cells {
                     self.process_edges(
-                        index_cell, edge_reader, terms_filter,
-                        &mut best, &mut distance_limit,
+                        index_cell,
+                        edge_reader,
+                        terms_filter,
+                        &mut best,
+                        &mut distance_limit,
                     );
                     if self.first_only && !best.is_empty() {
                         return self.collect_results(&best);
@@ -304,7 +316,10 @@ impl ClosestEdgeQuery {
                                 let qi = qeidx as usize;
                                 if qi + 1 < qverts.len() {
                                     update_edge_pair_min_distance(
-                                        cv0, cv1, &qverts[qi], &qverts[qi + 1],
+                                        cv0,
+                                        cv1,
+                                        &qverts[qi],
+                                        &qverts[qi + 1],
                                         &mut min_dist,
                                     );
                                 }
@@ -316,14 +331,15 @@ impl ClosestEdgeQuery {
                         let qverts = &member.vertices;
                         for i in 0..qverts.len().saturating_sub(1) {
                             update_edge_pair_min_distance(
-                                cv0, cv1, &qverts[i], &qverts[i + 1],
+                                cv0,
+                                cv1,
+                                &qverts[i],
+                                &qverts[i + 1],
                                 &mut min_dist,
                             );
                         }
                         if qverts.len() == 1 {
-                            update_min_distance(
-                                &qverts[0], cv0, cv1, &mut min_dist,
-                            );
+                            update_min_distance(&qverts[0], cv0, cv1, &mut min_dist);
                         }
                     }
                 }
@@ -335,7 +351,9 @@ impl ClosestEdgeQuery {
                     let qverts = &member.vertices;
                     for i in 0..qverts.len().saturating_sub(1) {
                         update_min_distance(
-                            &candidate_vertices[0], &qverts[i], &qverts[i + 1],
+                            &candidate_vertices[0],
+                            &qverts[i],
+                            &qverts[i + 1],
                             &mut min_dist,
                         );
                     }

@@ -8,13 +8,6 @@ use std::fmt;
 
 use common::BitSet;
 
-use crate::core::Searcher;
-use crate::docset::{DocSet, TERMINATED};
-use crate::index::SegmentId;
-use crate::query::{BitSetDocSet, EnableScoring, Explanation, Query, Scorer, Weight};
-use crate::schema::Field;
-use crate::{DocId, Score, SegmentReader};
-
 use super::cell_index_reader::CellIndexReader;
 use super::closest_edge_query::ClosestEdgeQuery;
 use super::edge_reader::EdgeReader;
@@ -22,6 +15,12 @@ use super::geometry_set::GeometrySet;
 use super::intersects_query::IntersectsQuery;
 use super::region_coverer::CovererOptions;
 use super::s1chord_angle::S1ChordAngle;
+use crate::core::Searcher;
+use crate::docset::{DocSet, TERMINATED};
+use crate::index::SegmentId;
+use crate::query::{BitSetDocSet, EnableScoring, Explanation, Query, Scorer, Weight};
+use crate::schema::Field;
+use crate::{DocId, Score, SegmentReader};
 
 /// Spatial relationship for a join predicate.
 #[derive(Clone, Debug)]
@@ -168,8 +167,7 @@ fn evaluate(
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader =
-                        EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+                    let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -198,18 +196,15 @@ fn evaluate(
         } => {
             let filter_output = evaluate(filter, searcher, segments)?;
 
-            let query = ClosestEdgeQuery::within(
-                geometry.clone(),
-                S1ChordAngle::from_length2(*radius),
-            );
+            let query =
+                ClosestEdgeQuery::within(geometry.clone(), S1ChordAngle::from_length2(*radius));
 
             let mut results = HashMap::new();
             for reader in segments {
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader =
-                        EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+                    let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -299,10 +294,7 @@ fn evaluate(
                         let outer_geometry = outer_set.clone();
 
                         // Build a probe from the outer geometry.
-                        let probe = ClosestEdgeQuery::any_within(
-                            outer_geometry,
-                            max_distance,
-                        );
+                        let probe = ClosestEdgeQuery::any_within(outer_geometry, max_distance);
 
                         // Probe all segments for inner matches.
                         let mut found = false;

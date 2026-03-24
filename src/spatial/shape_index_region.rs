@@ -30,7 +30,6 @@ use super::s2edge_clipping::{
 pub trait EdgeProvider {
     /// Returns the two endpoints of the given edge.
     fn get_edge(&self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]);
-
 }
 
 /// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between

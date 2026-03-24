@@ -23,7 +23,8 @@ struct EntryHeader {
     data_len: u32,
     /// Whether this geometry is closed (has interior). Bit 31 of len word.
     closed: bool,
-    /// Whether this geometry's interior contains the Hilbert curve start point. Bit 30 of len word.
+    /// Whether this geometry's interior contains the Hilbert curve start point. Bit 30 of len
+    /// word.
     contains_hilbert_start: bool,
     /// Whether ring boundary entries precede vertex data. Bit 31 of set word.
     has_holes: bool,
@@ -242,17 +243,18 @@ impl<'a> EdgeReader<'a> {
             head_position,
             CachedSet {
                 head_position,
-                set: GeometrySet {
-                    members,
-                    doc_id,
-                },
+                set: GeometrySet { members, doc_id },
             },
         );
 
         while self.cached_vertices > self.max_vertices && self.sets.len() > 1 {
             if let Some((evicted_id, evicted_set)) = self.sets.pop_lru() {
-                let evicted_verts: usize =
-                    evicted_set.set.members.iter().map(|m| m.vertices.len()).sum();
+                let evicted_verts: usize = evicted_set
+                    .set
+                    .members
+                    .iter()
+                    .map(|m| m.vertices.len())
+                    .sum();
                 self.cached_vertices -= evicted_verts;
                 for i in 0..evicted_set.set.members.len() as u32 {
                     self.index.remove(&(evicted_id + i));

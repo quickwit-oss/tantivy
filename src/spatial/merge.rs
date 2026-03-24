@@ -340,7 +340,8 @@ impl<'a> CellIndexMerge<'a> {
         let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
         let member_offset = old_id - head;
         let doc_id = geo_set.doc_id;
-        let vertices: Vec<Vec<[f64; 3]>> = geo_set.members.iter().map(|m| m.vertices.clone()).collect();
+        let vertices: Vec<Vec<[f64; 3]>> =
+            geo_set.members.iter().map(|m| m.vertices.clone()).collect();
         let closed: Vec<bool> = geo_set.members.iter().map(|m| m.closed).collect();
         (seg, member_offset, doc_id, vertices, closed)
     }
@@ -454,7 +455,8 @@ impl<'a> CellIndexMerge<'a> {
         // set is first encountered, assign IDs for all members starting from
         // the head so they get consecutive new IDs in the correct order.
         for shape in &mut cell.shapes {
-            let (head_old_id, geo_set) = self.edge_readers[segment].get_geometry_set(shape.geometry_id);
+            let (head_old_id, geo_set) =
+                self.edge_readers[segment].get_geometry_set(shape.geometry_id);
             let set_size = geo_set.members.len() as u32;
             for i in 0..set_size {
                 self.geo_map.get_or_assign(segment, head_old_id + i);

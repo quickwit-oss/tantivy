@@ -14,7 +14,8 @@ use super::s2coords::face_uv_to_xyz;
 use super::sphere::Sphere;
 
 /// The Hilbert curve start point: face 0, UV (-1, -1), normalized to the unit sphere.
-static HILBERT_START: LazyLock<[f64; 3]> = LazyLock::new(|| normalize(&face_uv_to_xyz(0, -1.0, -1.0)));
+static HILBERT_START: LazyLock<[f64; 3]> =
+    LazyLock::new(|| normalize(&face_uv_to_xyz(0, -1.0, -1.0)));
 
 /// One smashed geometry's edges. After smashing, the type distinctions (point, line string,
 /// polygon) are gone. Everything is consecutive vertex pairs and a closed flag.
@@ -43,19 +44,13 @@ pub struct GeometrySet {
 /// Smash a projected geometry into a GeometrySet in stored format. Reverses CW hole rings per
 /// RFC 7946, computes contains_hilbert_start, and flattens rings into a single vertex array per
 /// member. One Geometry in, one GeometrySet out.
-pub fn to_geometry_set(
-    geometry: &Geometry<Sphere>,
-    doc_id: u32,
-) -> GeometrySet {
+pub fn to_geometry_set(geometry: &Geometry<Sphere>, doc_id: u32) -> GeometrySet {
     let mut members = Vec::new();
     smash(&mut members, geometry);
     GeometrySet { members, doc_id }
 }
 
-fn smash(
-    members: &mut Vec<EdgeSet>,
-    geometry: &Geometry<Sphere>,
-) {
+fn smash(members: &mut Vec<EdgeSet>, geometry: &Geometry<Sphere>) {
     match geometry {
         Geometry::Point(v) => {
             members.push(EdgeSet {

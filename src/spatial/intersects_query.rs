@@ -177,8 +177,11 @@ impl IntersectsQuery {
                 cell_reader,
                 edge_reader,
             };
-            if contains_point(&mut seg, geometry_id, &self.query_edges.get_edge_set(0).vertices[0])
-            {
+            if contains_point(
+                &mut seg,
+                geometry_id,
+                &self.query_edges.get_edge_set(0).vertices[0],
+            ) {
                 return true;
             }
         }
