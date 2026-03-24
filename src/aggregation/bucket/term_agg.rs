@@ -807,11 +807,13 @@ impl<TermMap: TermAggregationMap, C: SubAggCache> SegmentAggregationCollector
 
         let req_data = &mut self.terms_req_data;
 
-        agg_data.column_block_accessor.fetch_block_with_missing(
-            docs,
-            &req_data.accessor,
-            req_data.missing_value_for_accessor,
-        );
+        agg_data
+            .column_block_accessor
+            .fetch_block_with_missing_unique_per_doc(
+                docs,
+                &req_data.accessor,
+                req_data.missing_value_for_accessor,
+            );
 
         if let Some(sub_agg) = &mut self.sub_agg {
             let term_buckets = &mut self.parent_buckets[parent_bucket_id as usize];
@@ -2347,7 +2349,7 @@ mod tests {
 
         // text field
         assert_eq!(res["my_texts"]["buckets"][0]["key"], "Hello Hello");
-        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(res["my_texts"]["buckets"][0]["doc_count"], 4);
         assert_eq!(res["my_texts"]["buckets"][1]["key"], "Empty");
         assert_eq!(res["my_texts"]["buckets"][1]["doc_count"], 2);
         assert_eq!(
@@ -2356,7 +2358,7 @@ mod tests {
         );
         // text field with number as missing fallback
         assert_eq!(res["my_texts2"]["buckets"][0]["key"], "Hello Hello");
-        assert_eq!(res["my_texts2"]["buckets"][0]["doc_count"], 5);
+        assert_eq!(res["my_texts2"]["buckets"][0]["doc_count"], 4);
         assert_eq!(res["my_texts2"]["buckets"][1]["key"], 1337.0);
         assert_eq!(res["my_texts2"]["buckets"][1]["doc_count"], 2);
         assert_eq!(
@@ -2370,7 +2372,7 @@ mod tests {
         assert_eq!(res["my_ids"]["buckets"][0]["key"], 1337.0);
         assert_eq!(res["my_ids"]["buckets"][0]["doc_count"], 4);
         assert_eq!(res["my_ids"]["buckets"][1]["key"], 1.0);
-        assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 3);
+        assert_eq!(res["my_ids"]["buckets"][1]["doc_count"], 2);
         assert_eq!(res["my_ids"]["buckets"][2]["key"], serde_json::Value::Null);
 
         Ok(())
