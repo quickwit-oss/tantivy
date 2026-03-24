@@ -34,7 +34,6 @@ pub mod merge;
 pub mod plane;
 pub mod r1interval;
 pub mod r2rect;
-pub mod radix_select;
 pub mod reader;
 pub mod region;
 pub mod region_coverer;
