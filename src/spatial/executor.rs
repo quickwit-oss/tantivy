@@ -436,9 +436,61 @@ impl fmt::Debug for SpatialExecutor {
     }
 }
 
+impl Clone for PlanNode {
+    fn clone(&self) -> Self {
+        match self {
+            PlanNode::Query(q) => PlanNode::Query(q.box_clone()),
+            PlanNode::Knn {
+                field,
+                geometry,
+                k,
+                filter,
+            } => PlanNode::Knn {
+                field: *field,
+                geometry: geometry.clone(),
+                k: *k,
+                filter: filter.clone(),
+            },
+            PlanNode::Intersects {
+                field,
+                geometry,
+                filter,
+            } => PlanNode::Intersects {
+                field: *field,
+                geometry: geometry.clone(),
+                filter: filter.clone(),
+            },
+            PlanNode::Within {
+                field,
+                geometry,
+                radius,
+                filter,
+            } => PlanNode::Within {
+                field: *field,
+                geometry: geometry.clone(),
+                radius: *radius,
+                filter: filter.clone(),
+            },
+            PlanNode::Join {
+                field,
+                outer,
+                inner,
+                relation,
+            } => PlanNode::Join {
+                field: *field,
+                outer: outer.clone(),
+                inner: inner.clone(),
+                relation: relation.clone(),
+            },
+        }
+    }
+}
+
 impl Clone for SpatialExecutor {
     fn clone(&self) -> Self {
-        panic!("SpatialExecutor should not be cloned")
+        Self {
+            root: self.root.clone(),
+        }
     }
 }
 
