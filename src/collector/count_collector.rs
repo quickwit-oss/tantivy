@@ -82,7 +82,6 @@ impl SegmentCollector for SegmentCountCollector {
     fn harvest(self) -> usize {
         self.count
     }
-
 }
 
 #[cfg(test)]
