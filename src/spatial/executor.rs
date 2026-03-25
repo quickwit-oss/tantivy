@@ -103,13 +103,6 @@ pub enum SegmentResult {
 }
 
 impl StageOutput {
-    /// Create an empty output.
-    fn empty() -> Self {
-        Self {
-            results: HashMap::new(),
-        }
-    }
-
     /// Extract the bitset for a segment, building one from scored results if necessary.
     fn bitset_for(&self, segment_id: &SegmentId, max_doc: u32) -> BitSet {
         match self.results.get(segment_id) {
@@ -227,22 +220,70 @@ fn evaluate(
         }
 
         PlanNode::Knn {
-            field: _field,
-            geometry: _geometry,
-            k: _k,
+            field,
+            geometry,
+            k,
             filter,
         } => {
-            // Evaluate the filter node if present.
-            let _filter_output = match filter {
+            let filter_output = match filter {
                 Some(node) => Some(evaluate(node, searcher, segments)?),
                 None => None,
             };
 
-            // Stage: per-segment branch-and-bound with filter bitsets.
-            // Stage: merge across segments, keep global top K.
-            // TODO: branch-and-bound implementation.
+            let query = ClosestEdgeQuery::knn(geometry.clone(), *k);
 
-            Ok(StageOutput::empty())
+            // Run branch-and-bound per segment, collecting up to K results with
+            // distances. Each result is tagged with its segment ID for redistribution
+            // after the cross-segment merge.
+            let mut all_results: Vec<(SegmentId, u32, f64)> = Vec::new();
+            for reader in segments {
+                let spatial = reader.spatial_fields().get_field(*field)?;
+                if let Some(spatial_reader) = spatial {
+                    let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
+                    let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+
+                    let hits = match &filter_output {
+                        Some(fo) => {
+                            let filter_bitset =
+                                fo.bitset_for(&reader.segment_id(), reader.max_doc());
+                            query.search_segment_filtered(
+                                &cell_reader,
+                                &mut edge_reader,
+                                &filter_bitset,
+                            )
+                        }
+                        None => query.search_segment(&cell_reader, &mut edge_reader),
+                    };
+
+                    for hit in hits {
+                        all_results.push((reader.segment_id(), hit.doc_id, hit.distance.length2()));
+                    }
+                }
+            }
+
+            // Merge across segments: sort by distance, keep global top K.
+            all_results.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+            all_results.truncate(*k);
+
+            // Redistribute to per-segment scored results.
+            let mut results: HashMap<SegmentId, Vec<(DocId, f32)>> = HashMap::new();
+            for (seg_id, doc_id, distance) in all_results {
+                results
+                    .entry(seg_id)
+                    .or_default()
+                    .push((doc_id, distance as f32));
+            }
+
+            // Sort each segment's results by doc_id for DocSet ordering.
+            let mut final_results = HashMap::new();
+            for (seg_id, mut docs) in results {
+                docs.sort_by_key(|&(doc_id, _)| doc_id);
+                final_results.insert(seg_id, SegmentResult::Scored(docs));
+            }
+
+            Ok(StageOutput {
+                results: final_results,
+            })
         }
 
         PlanNode::Join {
@@ -457,7 +498,6 @@ enum ReplayInner {
     Scored {
         results: Vec<(DocId, f32)>,
         index: usize,
-        started: bool,
     },
     /// No results for this segment.
     Empty,
@@ -478,11 +518,7 @@ impl ReplayScorer {
 
     fn from_scored(results: Vec<(DocId, f32)>) -> Self {
         Self {
-            inner: ReplayInner::Scored {
-                results,
-                index: 0,
-                started: false,
-            },
+            inner: ReplayInner::Scored { results, index: 0 },
         }
     }
 
@@ -519,16 +555,8 @@ impl DocSet for ReplayScorer {
                 *doc_id = docs.advance();
                 *doc_id
             }
-            ReplayInner::Scored {
-                results,
-                index,
-                started,
-            } => {
-                if !*started {
-                    *started = true;
-                } else {
-                    *index += 1;
-                }
+            ReplayInner::Scored { results, index, .. } => {
+                *index += 1;
                 if *index < results.len() {
                     results[*index].0
                 } else {
@@ -542,15 +570,9 @@ impl DocSet for ReplayScorer {
     fn doc(&self) -> DocId {
         match &self.inner {
             ReplayInner::BitSet { doc_id, .. } => *doc_id,
-            ReplayInner::Scored {
-                results,
-                index,
-                started,
-            } => {
-                if *started && *index < results.len() {
+            ReplayInner::Scored { results, index, .. } => {
+                if *index < results.len() {
                     results[*index].0
-                } else if !*started && !results.is_empty() {
-                    results[0].0
                 } else {
                     TERMINATED
                 }
