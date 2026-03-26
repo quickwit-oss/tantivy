@@ -45,7 +45,7 @@ impl<'a> EdgeWriter<'a> {
             let is_head = member_idx == 0;
             let has_holes = member.ring_offsets.len() > 2;
 
-            // Flags byte: bit 0 = closed, bit 1 = contains_origin, bit 2 = has_holes,
+            // Flags byte: bit 0 = closed, bit 1 = contains_hilbert_start, bit 2 = has_holes,
             // bit 3 = is_head.
             let flags: u8 = (if member.closed { 0x01 } else { 0 })
                 | (if member.contains_hilbert_start {

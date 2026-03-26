@@ -5,7 +5,7 @@
 //! Between skip list entries, a forward walk bridges the gap.
 //!
 //! Geometry entry format per 004_edge_index.md:
-//!   flags (u8): bit 0 = closed, bit 1 = contains_origin, bit 2 = has_holes, bit 3 = is_head
+//!   flags (u8): bit 0 = closed, bit 1 = contains_hilbert_start, bit 2 = has_holes, bit 3 = is_head
 //!   len (u32): byte length of data section
 //!   Head: [flags] [len] [doc_id] [ring boundaries?] [vertex data]
 //!   Member: [flags] [len] [ring boundaries?] [vertex data]
@@ -42,9 +42,9 @@ pub struct EdgeReader<'a> {
 }
 
 impl<'a> EdgeReader<'a> {
-    /// Construct a reader from the raw bytes of an edge index segment. Reads the 16-byte footer
-    /// to locate the skip list directory. `max_vertices` bounds the decode cache; eviction kicks
-    /// in when the total cached vertex count exceeds this.
+    /// Construct a reader from the raw bytes of an edge index segment. Reads the 16-byte footer to
+    /// locate the skip list directory. `max_vertices` bounds the decode cache; eviction kicks in
+    /// when the total cached vertex count exceeds this.
     pub fn open(data: &'a [u8], max_vertices: usize) -> Self {
         let n = data.len();
         let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
@@ -113,8 +113,8 @@ impl<'a> EdgeReader<'a> {
         (set.doc_id, &set.members[member_idx])
     }
 
-    /// Retrieve the full geometry set containing the given position. Returns the head position
-    /// and the set.
+    /// Retrieve the full geometry set containing the given position. Returns the head position and
+    /// the set.
     pub fn get_geometry_set(&mut self, position: u32) -> (u32, &GeometrySet) {
         debug_assert!(position < self.geometry_count);
 
@@ -209,8 +209,8 @@ impl<'a> EdgeReader<'a> {
         (cached.head_position, &cached.set)
     }
 
-    /// Walk forward from the skip list to find the head entry for the given position.
-    /// Returns (head_position, head_byte_offset, doc_id).
+    /// Walk forward from the skip list to find the head entry for the given position. Returns
+    /// (head_position, head_byte_offset, doc_id).
     fn find_head(&self, position: u32) -> (u32, u64, u32) {
         let mut skip_index = (position / self.skip_interval) as usize;
 
