@@ -22,14 +22,13 @@ use crate::query::{
     PhraseQuery, Query, RegexQuery, SpatialPredicate, SpatialQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
-    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr,
-    JsonObjectOptions,
+    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
     Schema, Term, TextFieldIndexing, Type,
 };
+use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::{DateTime, Score};
 
 /// Possible error that may happen when parsing a query.
@@ -1028,7 +1027,9 @@ fn convert_literal_to_query(
                         return Box::new(EmptyQuery);
                     }
                 };
-                let inner_query = query_parser.parse_query(&inner_text).unwrap_or(Box::new(EmptyQuery));
+                let inner_query = query_parser
+                    .parse_query(&inner_text)
+                    .unwrap_or(Box::new(EmptyQuery));
                 Box::new(SpatialExecutor::new(PlanNode::Join {
                     field,
                     outer: Box::new(PlanNode::Query(Box::new(AllQuery))),
