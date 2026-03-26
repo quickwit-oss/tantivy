@@ -533,7 +533,7 @@ mod tests {
         let expected_buckets_vec = expected_buckets.as_array().unwrap();
 
         for page_size in 1..=expected_buckets_vec.len() {
-            let page_count = (expected_buckets_vec.len() + page_size - 1) / page_size;
+            let page_count = expected_buckets_vec.len().div_ceil(page_size);
             let mut after_key = None;
             for page_idx in 0..page_count {
                 let mut agg_req_json = json!({
@@ -565,7 +565,7 @@ mod tests {
                         "expected after_key on all but last page"
                     );
                     after_key = Some(res["my_composite"]["after_key"].clone());
-                } else if let Some(_) = res["my_composite"].get("after_key") {
+                } else if res["my_composite"].get("after_key").is_some() {
                     // currently we sometime have an after_key on the last page,
                     // check that the next "page" is empty
                     let agg_req_json = json!({
