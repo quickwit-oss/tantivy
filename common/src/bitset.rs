@@ -153,11 +153,19 @@ impl TinySet {
             None
         } else {
             let lowest = self.0.trailing_zeros();
-            // Kernighan's trick: clears the lowest set bit without depending on
-            // `lowest`. On ARM64 the naive `self.0 ^= 1 << lowest` creates a
-            // 4-cycle loop-carried dependency (rbit→clz→lsl→eor) whereas
-            // `sub→and` is only 2 cycles, letting trailing_zeros run in parallel.
-            // On x86 LLVM already maps both forms to the single-cycle BLSR instruction.
+            // Kernighan's trick: `n &= n - 1` clears the lowest set bit
+            // without depending on `lowest`. This lets the CPU execute
+            // `trailing_zeros` and the bit-clear in parallel instead of
+            // serializing them.
+            //
+            // The previous form `self.0 ^= 1 << lowest` needs the result of
+            // `trailing_zeros` before it can shift, creating a dependency chain:
+            //   ARM64: rbit → clz → lsl → eor
+            //   x86:   tzcnt → btc
+            //
+            // With Kernighan's trick the clear path is independent of the count:
+            //   ARM64: sub → and  (trailing_zeros runs in parallel)
+            //   x86:   blsr       (tzcnt runs in parallel)
             //
             // https://godbolt.org/z/fnfrP1T5f
             self.0 &= self.0 - 1;
