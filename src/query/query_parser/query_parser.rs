@@ -1161,7 +1161,7 @@ fn convert_to_query(
 ) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAst::Clause(trimmed_clause)) => {
-            let occur_subqueries = trimmed_clause
+            let mut occur_subqueries = trimmed_clause
                 .into_iter()
                 .map(|(occur, subquery)| (occur, convert_to_query(fuzzy, subquery, query_parser)))
                 .collect::<Vec<_>>();
@@ -1169,7 +1169,26 @@ fn convert_to_query(
                 !occur_subqueries.is_empty(),
                 "Should not be empty after trimming"
             );
-            Box::new(BooleanQuery::new(occur_subqueries))
+
+            // If the clause contains a spatial join, absorb the siblings as its outer.
+            let join_idx = occur_subqueries
+                .iter()
+                .position(|(_, q)| q.is::<SpatialExecutor>());
+            if let Some(idx) = join_idx {
+                let (_, join_query) = occur_subqueries.remove(idx);
+                let mut executor = *join_query.downcast::<SpatialExecutor>().unwrap();
+                let outer: Box<dyn Query> = if occur_subqueries.is_empty() {
+                    Box::new(AllQuery)
+                } else if occur_subqueries.len() == 1 {
+                    occur_subqueries.pop().unwrap().1
+                } else {
+                    Box::new(BooleanQuery::new(occur_subqueries))
+                };
+                executor.set_outer(outer);
+                Box::new(executor)
+            } else {
+                Box::new(BooleanQuery::new(occur_subqueries))
+            }
         }
         Some(LogicalAst::Leaf(trimmed_logical_literal)) => {
             convert_literal_to_query(fuzzy, *trimmed_logical_literal, query_parser)
