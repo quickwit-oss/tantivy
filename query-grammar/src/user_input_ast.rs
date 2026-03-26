@@ -48,6 +48,8 @@ pub enum UserInputLeaf {
             ordered_float::OrderedFloat<f64>,
             ordered_float::OrderedFloat<f64>,
         )>,
+        /// If set, this spatial predicate is a join. The string is the inner query text.
+        inner_query: Option<String>,
     },
 }
 
@@ -77,10 +79,12 @@ impl UserInputLeaf {
                 field: _,
                 predicate,
                 coordinates,
+                inner_query,
             } => UserInputLeaf::Spatial {
                 field,
                 predicate,
                 coordinates,
+                inner_query,
             },
         }
     }
@@ -153,6 +157,7 @@ impl Debug for UserInputLeaf {
                 field,
                 predicate,
                 coordinates,
+                inner_query: _,
             } => {
                 if let Some(field) = field {
                     write!(formatter, "\"{field}\":")?;

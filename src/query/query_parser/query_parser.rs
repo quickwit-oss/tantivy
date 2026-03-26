@@ -22,12 +22,14 @@ use crate::query::{
     PhraseQuery, Query, RegexQuery, SpatialPredicate, SpatialQuery, TermQuery, TermSetQuery,
 };
 use crate::schema::{
-    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr, JsonObjectOptions,
+    Facet, FacetParseError, Field, FieldType, IndexRecordOption, IntoIpv6Addr,
+    JsonObjectOptions,
     Schema, Term, TextFieldIndexing, Type,
 };
 use crate::time::format_description::well_known::Rfc3339;
 use crate::time::OffsetDateTime;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::spatial::executor::{PlanNode, SpatialExecutor, SpatialRelation};
 use crate::{DateTime, Score};
 
 /// Possible error that may happen when parsing a query.
@@ -337,7 +339,7 @@ impl QueryParser {
     /// is not a valid query.
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(&self.fuzzy, logical_ast))
+        Ok(convert_to_query(&self.fuzzy, logical_ast, self))
     }
 
     /// Parse a query leniently
@@ -350,7 +352,7 @@ impl QueryParser {
     /// In case it encountered such issues, they are reported as a Vec of errors.
     pub fn parse_query_lenient(&self, query: &str) -> (Box<dyn Query>, Vec<QueryParserError>) {
         let (logical_ast, errors) = self.parse_query_to_logical_ast_lenient(query);
-        (convert_to_query(&self.fuzzy, logical_ast), errors)
+        (convert_to_query(&self.fuzzy, logical_ast, self), errors)
     }
 
     /// Build a query from an already parsed user input AST
@@ -366,7 +368,7 @@ impl QueryParser {
         if !err.is_empty() {
             return Err(err.swap_remove(0));
         }
-        Ok(convert_to_query(&self.fuzzy, logical_ast))
+        Ok(convert_to_query(&self.fuzzy, logical_ast, self))
     }
 
     /// Build leniently a query from an already parsed user input AST.
@@ -377,7 +379,7 @@ impl QueryParser {
         user_input_ast: UserInputAst,
     ) -> (Box<dyn Query>, Vec<QueryParserError>) {
         let (logical_ast, errors) = self.compute_logical_ast_lenient(user_input_ast);
-        (convert_to_query(&self.fuzzy, logical_ast), errors)
+        (convert_to_query(&self.fuzzy, logical_ast, self), errors)
     }
 
     /// Parse the user query into an AST.
@@ -875,6 +877,7 @@ impl QueryParser {
                 field,
                 predicate,
                 coordinates,
+                inner_query,
             } => {
                 let full_path = try_tuple!(field.ok_or_else(|| {
                     QueryParserError::UnsupportedQuery(
@@ -911,6 +914,7 @@ impl QueryParser {
                     field,
                     predicate,
                     coordinates: coords,
+                    inner_query,
                 }));
                 (Some(logical_ast), Vec::new())
             }
@@ -966,6 +970,7 @@ impl QueryParser {
 fn convert_literal_to_query(
     fuzzy: &FxHashMap<Field, Fuzzy>,
     logical_literal: LogicalLiteral,
+    query_parser: &QueryParser,
 ) -> Box<dyn Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => {
@@ -1008,21 +1013,44 @@ fn convert_literal_to_query(
             field,
             predicate,
             coordinates,
+            inner_query,
         } => {
-            let spatial_predicate = match predicate {
-                SpatialPredicateKind::Intersects => SpatialPredicate::Intersects,
-                SpatialPredicateKind::Contains => SpatialPredicate::Contains,
-                SpatialPredicateKind::Within(r) => SpatialPredicate::Within(r.0),
-                SpatialPredicateKind::Between(inner, outer) => {
-                    SpatialPredicate::Between(inner.0, outer.0)
-                }
-                SpatialPredicateKind::Knn(k) => SpatialPredicate::Knn(k),
-            };
-            Box::new(SpatialQuery::with_predicate(
-                field,
-                coordinates,
-                spatial_predicate,
-            ))
+            if let Some(inner_text) = inner_query {
+                let relation = match predicate {
+                    SpatialPredicateKind::Intersects => SpatialRelation::Intersects,
+                    SpatialPredicateKind::Contains => SpatialRelation::Contains,
+                    SpatialPredicateKind::Within(r) => SpatialRelation::Near(r.0),
+                    SpatialPredicateKind::Between(inner, outer) => {
+                        SpatialRelation::Between(inner.0, outer.0)
+                    }
+                    SpatialPredicateKind::Knn(_) => {
+                        // kNN join not yet supported through query language.
+                        return Box::new(EmptyQuery);
+                    }
+                };
+                let inner_query = query_parser.parse_query(&inner_text).unwrap_or(Box::new(EmptyQuery));
+                Box::new(SpatialExecutor::new(PlanNode::Join {
+                    field,
+                    outer: Box::new(PlanNode::Query(Box::new(AllQuery))),
+                    inner: Box::new(PlanNode::Query(inner_query)),
+                    relation,
+                }))
+            } else {
+                let spatial_predicate = match predicate {
+                    SpatialPredicateKind::Intersects => SpatialPredicate::Intersects,
+                    SpatialPredicateKind::Contains => SpatialPredicate::Contains,
+                    SpatialPredicateKind::Within(r) => SpatialPredicate::Within(r.0),
+                    SpatialPredicateKind::Between(inner, outer) => {
+                        SpatialPredicate::Between(inner.0, outer.0)
+                    }
+                    SpatialPredicateKind::Knn(k) => SpatialPredicate::Knn(k),
+                };
+                Box::new(SpatialQuery::with_predicate(
+                    field,
+                    coordinates,
+                    spatial_predicate,
+                ))
+            }
         }
     }
 }
@@ -1126,12 +1154,16 @@ fn generate_literals_for_json_object(
     Ok(logical_literals)
 }
 
-fn convert_to_query(fuzzy: &FxHashMap<Field, Fuzzy>, logical_ast: LogicalAst) -> Box<dyn Query> {
+fn convert_to_query(
+    fuzzy: &FxHashMap<Field, Fuzzy>,
+    logical_ast: LogicalAst,
+    query_parser: &QueryParser,
+) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAst::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
                 .into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(fuzzy, subquery)))
+                .map(|(occur, subquery)| (occur, convert_to_query(fuzzy, subquery, query_parser)))
                 .collect::<Vec<_>>();
             assert!(
                 !occur_subqueries.is_empty(),
@@ -1140,10 +1172,10 @@ fn convert_to_query(fuzzy: &FxHashMap<Field, Fuzzy>, logical_ast: LogicalAst) ->
             Box::new(BooleanQuery::new(occur_subqueries))
         }
         Some(LogicalAst::Leaf(trimmed_logical_literal)) => {
-            convert_literal_to_query(fuzzy, *trimmed_logical_literal)
+            convert_literal_to_query(fuzzy, *trimmed_logical_literal, query_parser)
         }
         Some(LogicalAst::Boost(ast, boost)) => {
-            let query = convert_to_query(fuzzy, *ast);
+            let query = convert_to_query(fuzzy, *ast, query_parser);
             let boosted_query = BoostQuery::new(query, boost);
             Box::new(boosted_query)
         }

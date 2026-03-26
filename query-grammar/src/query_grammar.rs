@@ -400,6 +400,31 @@ fn spatial_distance(inp: &str) -> IResult<&str, f64> {
     Ok((inp, radians))
 }
 
+/// Extract the content of a $query(...) argument, handling balanced parentheses.
+fn query_arg(inp: &str) -> IResult<&str, String> {
+    let (inp, _) = tag("$query(")(inp)?;
+    let mut depth = 1usize;
+    let mut end = 0;
+    for (i, c) in inp.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        return Err(nom::Err::Failure(Error::new(inp, ErrorKind::Verify)));
+    }
+    let query_str = inp[..end].trim().to_string();
+    Ok((&inp[end + 1..], query_str))
+}
+
 /// Parse a spatial predicate: $intersects, $contains, $within, $between, or $knn.
 fn spatial(inp: &str) -> IResult<&str, UserInputLeaf> {
     alt((
@@ -416,11 +441,25 @@ fn spatial_polygon(inp: &str) -> IResult<&str, UserInputLeaf> {
         value(SpatialPredicateKind::Contains, tag("$contains")),
     ));
 
-    let coord_sep = || delimited(multispace0, char(','), multispace0);
-    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
-
     let (inp, predicate) = predicate_tag(inp)?;
     let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
+
+    // Try $query(...) for a join.
+    if let Ok((inp, inner)) = query_arg(inp) {
+        let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+        return Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate,
+                coordinates: vec![],
+                inner_query: Some(inner),
+            },
+        ));
+    }
+
+    let coord_sep = || delimited(multispace0, char(','), multispace0);
+    let mut coord_pair = separated_pair(spatial_float, multispace1, spatial_float);
     let (inp, pairs) = separated_list0(coord_sep(), &mut coord_pair)(inp)?;
     let (inp, _) = tuple((multispace0, char(')')))(inp)?;
 
@@ -444,6 +483,7 @@ fn spatial_polygon(inp: &str) -> IResult<&str, UserInputLeaf> {
             field: None,
             predicate,
             coordinates,
+            inner_query: None,
         },
     ))
 }
@@ -456,6 +496,21 @@ fn spatial_within(inp: &str) -> IResult<&str, UserInputLeaf> {
     let (inp, _) = tuple((multispace0, char('('), multispace0))(inp)?;
     let (inp, radius) = spatial_distance(inp)?;
     let (inp, _) = coord_sep()(inp)?;
+
+    // Try $query(...) for a join.
+    if let Ok((inp, inner)) = query_arg(inp) {
+        let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+        return Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate: SpatialPredicateKind::Within(ordered_float::OrderedFloat(radius)),
+                coordinates: vec![],
+                inner_query: Some(inner),
+            },
+        ));
+    }
+
     let (inp, (lon, lat)) = coord_pair(inp)?;
     let (inp, _) = tuple((multispace0, char(')')))(inp)?;
 
@@ -468,6 +523,7 @@ fn spatial_within(inp: &str) -> IResult<&str, UserInputLeaf> {
                 ordered_float::OrderedFloat(lon),
                 ordered_float::OrderedFloat(lat),
             )],
+            inner_query: None,
         },
     ))
 }
@@ -482,6 +538,24 @@ fn spatial_between(inp: &str) -> IResult<&str, UserInputLeaf> {
     let (inp, _) = coord_sep()(inp)?;
     let (inp, outer) = spatial_distance(inp)?;
     let (inp, _) = coord_sep()(inp)?;
+
+    // Try $query(...) for a join.
+    if let Ok((inp, inner_q)) = query_arg(inp) {
+        let (inp, _) = tuple((multispace0, char(')')))(inp)?;
+        return Ok((
+            inp,
+            UserInputLeaf::Spatial {
+                field: None,
+                predicate: SpatialPredicateKind::Between(
+                    ordered_float::OrderedFloat(inner),
+                    ordered_float::OrderedFloat(outer),
+                ),
+                coordinates: vec![],
+                inner_query: Some(inner_q),
+            },
+        ));
+    }
+
     let (inp, (lon, lat)) = coord_pair(inp)?;
     let (inp, _) = tuple((multispace0, char(')')))(inp)?;
 
@@ -497,6 +571,7 @@ fn spatial_between(inp: &str) -> IResult<&str, UserInputLeaf> {
                 ordered_float::OrderedFloat(lon),
                 ordered_float::OrderedFloat(lat),
             )],
+            inner_query: None,
         },
     ))
 }
@@ -520,6 +595,7 @@ fn spatial_knn(inp: &str) -> IResult<&str, UserInputLeaf> {
                 ordered_float::OrderedFloat(lon),
                 ordered_float::OrderedFloat(lat),
             )],
+            inner_query: None,
         },
     ))
 }

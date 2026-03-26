@@ -33,6 +33,7 @@ pub enum LogicalLiteral {
         field: Field,
         predicate: SpatialPredicateKind,
         coordinates: Vec<[f64; 2]>,
+        inner_query: Option<String>,
     },
 }
 
@@ -169,11 +170,18 @@ impl fmt::Debug for LogicalLiteral {
                 ref field,
                 ref predicate,
                 ref coordinates,
-            } => write!(
-                formatter,
-                "Spatial({field:?}, {predicate:?}, {} coords)",
-                coordinates.len()
-            ),
+                ref inner_query,
+            } => {
+                if let Some(q) = inner_query {
+                    write!(formatter, "Spatial({field:?}, {predicate:?}, $query({q}))")
+                } else {
+                    write!(
+                        formatter,
+                        "Spatial({field:?}, {predicate:?}, {} coords)",
+                        coordinates.len()
+                    )
+                }
+            }
         }
     }
 }
