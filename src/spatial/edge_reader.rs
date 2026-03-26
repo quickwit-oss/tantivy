@@ -1,14 +1,14 @@
 //! Edge index deserialization.
 //!
-//! Reads geometry entries from a byte slice, typically mmap'd segment data. The 16-byte footer at
-//! the end locates the skip list directory, and the directory provides random access by geometry
-//! position. Between skip list entries, a forward walk bridges the gap using entry len fields.
+//! Reads geometry entries from a byte slice, typically mmap'd segment data. The 16-byte footer
+//! locates the skip list directory. The directory provides random access by geometry position.
+//! Between skip list entries, a forward walk bridges the gap.
 //!
 //! Geometry entry format per 004_edge_index.md:
-//!   len (u32): bit 31 = closed, bit 30 = contains_hilbert_start, bits 0-29 = data byte length
-//!   set (u32): bit 31 = has_holes, bit 30 = is_member, bits 0-29 = count or back distance
-//!   Head/standalone: [len] [set] [doc_id] [ring boundaries?] [vertex data]
-//!   Member:          [len] [set] [ring boundaries?] [vertex data]
+//!   flags (u8): bit 0 = closed, bit 1 = contains_origin, bit 2 = has_holes, bit 3 = is_head
+//!   len (u32): byte length of data section
+//!   Head: [flags] [len] [doc_id] [ring boundaries?] [vertex data]
+//!   Member: [flags] [len] [ring boundaries?] [vertex data]
 
 use std::collections::HashMap;
 
@@ -16,59 +16,35 @@ use lru::LruCache;
 
 use super::geometry_set::{EdgeSet, GeometrySet};
 
-/// A geometry entry's header as stored on disk.
 struct EntryHeader {
-    /// Byte length of data section (bits 0-29 of len word). Includes ring boundary entries
-    /// and vertex data.
     data_len: u32,
-    /// Whether this geometry is closed (has interior). Bit 31 of len word.
     closed: bool,
-    /// Whether this geometry's interior contains the Hilbert curve start point. Bit 30 of len
-    /// word.
     contains_hilbert_start: bool,
-    /// Whether ring boundary entries precede vertex data. Bit 31 of set word.
     has_holes: bool,
-    /// Whether this is a member entry (not head or standalone). Bit 30 of set word.
-    is_member: bool,
-    /// Bits 0-29 of set word: member count (head/standalone) or byte distance back (member).
-    set_value: u32,
+    is_head: bool,
 }
 
-/// Cached geometry set with the head position for member index resolution.
 struct CachedSet {
-    /// Position of the head entry for this set.
     head_position: u32,
-    /// The decoded geometry set.
     set: GeometrySet,
 }
 
-/// Reads geometry entries from a serialized edge index segment. Constructed from a byte slice,
-/// reads the footer to locate the skip list directory, and provides random access to vertices and
-/// doc_ids by geometry position. Caches decoded geometry sets in an LRU evicted by total vertex
-/// count so large polygons cost proportionally more than small ones.
+/// Reads geometry entries from a serialized edge index segment.
 pub struct EdgeReader<'a> {
-    /// The raw bytes of the edge index segment, typically mmap'd.
     data: &'a [u8],
-    /// Total number of geometry entries in this segment.
     geometry_count: u32,
-    /// Every Nth geometry's offset is recorded in the skip list directory.
     skip_interval: u32,
-    /// Byte offset where the skip list directory begins.
     dir_offset: u64,
-    /// Maps any member position to the head's position for set lookup.
     index: HashMap<u32, u32>,
-    /// LRU cache of decoded geometry sets, keyed by head position.
     sets: LruCache<u32, CachedSet>,
-    /// Running total of vertices across all cached sets, for eviction decisions.
     cached_vertices: usize,
-    /// Eviction kicks in when `cached_vertices` exceeds this bound.
     max_vertices: usize,
 }
 
 impl<'a> EdgeReader<'a> {
-    /// Construct a reader from the raw bytes of an edge index segment. Reads the 16-byte footer to
-    /// locate the skip list directory. `max_vertices` bounds the decode cache; eviction kicks in
-    /// when the total cached vertex count exceeds this.
+    /// Construct a reader from the raw bytes of an edge index segment. Reads the 16-byte footer
+    /// to locate the skip list directory. `max_vertices` bounds the decode cache; eviction kicks
+    /// in when the total cached vertex count exceeds this.
     pub fn open(data: &'a [u8], max_vertices: usize) -> Self {
         let n = data.len();
         let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
@@ -92,49 +68,42 @@ impl<'a> EdgeReader<'a> {
         self.geometry_count
     }
 
-    /// Resolve a geometry position to its doc_id without decoding vertices or caching. Reads only
-    /// the skip list, entry headers, and the doc_id field. Useful for checking a terms bitset
-    /// before committing to a full geometry decode.
+    /// Resolve a geometry position to its doc_id without decoding vertices or caching. Walks
+    /// forward from the nearest skip list entry, noting doc_ids from head entries. If the target
+    /// is reached without a head, backs up one skip list entry and retries.
     pub fn doc_id_for(&self, position: u32) -> u32 {
-        // Resolve byte offset via skip list + forward walk.
-        let skip_index = (position / self.skip_interval) as usize;
-        let remainder = position % self.skip_interval;
+        let mut skip_index = (position / self.skip_interval) as usize;
 
-        let dir_entry = self.dir_offset as usize + skip_index * 8;
-        let mut current =
-            u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
+        loop {
+            let dir_entry = self.dir_offset as usize + skip_index * 8;
+            let mut current =
+                u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
+            let start_pos = skip_index as u32 * self.skip_interval;
+            let mut doc_id: Option<u32> = None;
 
-        if remainder > 0 {
-            let mut steps = 0u32;
-            while steps < remainder {
+            for i in 0..=(position - start_pos) {
                 let h = self.read_header(current);
-                let advance = if h.is_member { 8 } else { 12 } + h.data_len as u64;
-                current += advance;
-                steps += 1;
-            }
-        }
-
-        // Now at the target entry. Follow back pointers to the head if it's a member.
-        let header = self.read_header(current);
-        let head_offset = if header.is_member {
-            let mut cur = current - header.set_value as u64;
-            loop {
-                let h = self.read_header(cur);
-                if !h.is_member {
-                    break cur;
+                if h.is_head {
+                    doc_id = Some(u32::from_le_bytes(
+                        self.data[current as usize + 5..current as usize + 9]
+                            .try_into()
+                            .unwrap(),
+                    ));
                 }
-                cur -= h.set_value as u64;
+                if start_pos + i == position {
+                    if let Some(id) = doc_id {
+                        return id;
+                    }
+                    break;
+                }
+                let advance = if h.is_head { 9 } else { 5 } + h.data_len as u64;
+                current += advance;
             }
-        } else {
-            current
-        };
 
-        // Read the doc_id from the head entry: 4 bytes at head_offset + 8 (after len and set).
-        u32::from_le_bytes(
-            self.data[head_offset as usize + 8..head_offset as usize + 12]
-                .try_into()
-                .unwrap(),
-        )
+            // Head was before the skip list entry. Retry from the previous entry.
+            debug_assert!(skip_index > 0, "doc_id_for: no head found");
+            skip_index -= 1;
+        }
     }
 
     /// Retrieve one member's edges and the document's doc_id.
@@ -145,7 +114,7 @@ impl<'a> EdgeReader<'a> {
     }
 
     /// Retrieve the full geometry set containing the given position. Returns the head position
-    /// and the set. Used by the merge path which needs all members.
+    /// and the set.
     pub fn get_geometry_set(&mut self, position: u32) -> (u32, &GeometrySet) {
         debug_assert!(position < self.geometry_count);
 
@@ -154,58 +123,27 @@ impl<'a> EdgeReader<'a> {
             return (cached.head_position, &cached.set);
         }
 
-        // Resolve the byte offset via skip list directory and forward walk.
-        let skip_index = (position / self.skip_interval) as usize;
-        let remainder = position % self.skip_interval;
+        // Walk forward from the skip list to find the head and decode the set.
+        let (head_position, head_offset, doc_id) = self.find_head(position);
 
-        let dir_entry = self.dir_offset as usize + skip_index * 8;
-        let mut current =
-            u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
-
-        if remainder > 0 {
-            let mut steps = 0u32;
-            while steps < remainder {
-                let h = self.read_header(current);
-                let advance = if h.is_member { 8 } else { 12 } + h.data_len as u64;
-                current += advance;
-                steps += 1;
-            }
-        }
-
-        // Resolve the set head and member count.
-        let offset = current;
-        let header = self.read_header(offset);
-
-        let (head_position, head_offset, count) = if header.is_member {
-            let mut cur = offset - header.set_value as u64;
-            let mut hops = 1u32;
-            loop {
-                let h = self.read_header(cur);
-                if !h.is_member {
-                    break (position - hops, cur, h.set_value);
-                }
-                cur -= h.set_value as u64;
-                hops += 1;
-            }
-        } else {
-            (position, offset, header.set_value)
-        };
-
-        // Read the inline doc_id from the head entry (at head_offset + 8).
-        let doc_id = u32::from_le_bytes(
-            self.data[head_offset as usize + 8..head_offset as usize + 12]
-                .try_into()
-                .unwrap(),
-        );
-
-        // Decode all members.
-        let mut members: Vec<EdgeSet> = Vec::with_capacity(count as usize);
+        // Decode members by walking forward from the head until the next head or end.
+        let mut members: Vec<EdgeSet> = Vec::new();
         let mut cur = head_offset;
-        for _ in 0..count {
+        let mut pos = head_position;
+        loop {
+            if pos > position && members.is_empty() {
+                break;
+            }
             let h = self.read_header(cur);
-            let data_start = if h.is_member { cur + 8 } else { cur + 12 };
+            if !h.is_head && !members.is_empty() && pos > position {
+                // Reached a member beyond the target and we have the set.
+                // But we need to keep going until the next head to get all members.
+            }
+            if h.is_head && !members.is_empty() {
+                break; // Next set starts here.
+            }
+            let data_start = if h.is_head { cur + 9 } else { cur + 5 };
 
-            // Decode ring boundaries if has_holes, then vertex data.
             let (hole_starts, vertex_start) = if h.has_holes {
                 self.decode_ring_boundaries(data_start as usize, h.data_len as usize)
             } else {
@@ -215,7 +153,6 @@ impl<'a> EdgeReader<'a> {
             let vertex_end = data_start as usize + h.data_len as usize;
             let vertices = self.decode_vertices(&self.data[vertex_start..vertex_end]);
 
-            // Build the full ring_offsets vec: always [0, ..., vertex_count].
             let mut offsets = vec![0usize];
             for &hole_start in &hole_starts {
                 offsets.push(hole_start);
@@ -228,14 +165,20 @@ impl<'a> EdgeReader<'a> {
                 contains_hilbert_start: h.contains_hilbert_start,
                 ring_offsets: offsets,
             });
+
             cur = data_start + h.data_len as u64;
+            pos += 1;
+
+            if pos >= self.geometry_count {
+                break;
+            }
         }
 
-        // Cache the set and evict if over budget.
+        let member_count = members.len() as u32;
         let vertex_count: usize = members.iter().map(|m| m.vertices.len()).sum();
         self.cached_vertices += vertex_count;
 
-        for i in 0..count {
+        for i in 0..member_count {
             self.index.insert(head_position + i, head_position);
         }
 
@@ -266,22 +209,59 @@ impl<'a> EdgeReader<'a> {
         (cached.head_position, &cached.set)
     }
 
-    fn read_header(&self, offset: u64) -> EntryHeader {
-        let o = offset as usize;
-        let raw_len = u32::from_le_bytes(self.data[o..o + 4].try_into().unwrap());
-        let raw_set = u32::from_le_bytes(self.data[o + 4..o + 8].try_into().unwrap());
-        EntryHeader {
-            data_len: raw_len & 0x3FFFFFFF,
-            closed: raw_len & 0x80000000 != 0,
-            contains_hilbert_start: raw_len & 0x40000000 != 0,
-            has_holes: raw_set & 0x80000000 != 0,
-            is_member: raw_set & 0x40000000 != 0,
-            set_value: raw_set & 0x3FFFFFFF,
+    /// Walk forward from the skip list to find the head entry for the given position.
+    /// Returns (head_position, head_byte_offset, doc_id).
+    fn find_head(&self, position: u32) -> (u32, u64, u32) {
+        let mut skip_index = (position / self.skip_interval) as usize;
+
+        loop {
+            let dir_entry = self.dir_offset as usize + skip_index * 8;
+            let mut current =
+                u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
+            let start_pos = skip_index as u32 * self.skip_interval;
+
+            let mut head_position: Option<u32> = None;
+            let mut head_offset: Option<u64> = None;
+            let mut doc_id: Option<u32> = None;
+
+            let end = std::cmp::min(position + 1, self.geometry_count);
+            for i in 0..(end - start_pos) {
+                let h = self.read_header(current);
+                if h.is_head {
+                    head_position = Some(start_pos + i);
+                    head_offset = Some(current);
+                    doc_id = Some(u32::from_le_bytes(
+                        self.data[current as usize + 5..current as usize + 9]
+                            .try_into()
+                            .unwrap(),
+                    ));
+                }
+                let advance = if h.is_head { 9 } else { 5 } + h.data_len as u64;
+                current += advance;
+            }
+
+            if let (Some(hp), Some(ho), Some(id)) = (head_position, head_offset, doc_id) {
+                return (hp, ho, id);
+            }
+
+            debug_assert!(skip_index > 0, "find_head: no head found");
+            skip_index -= 1;
         }
     }
 
-    /// Decode ring boundary entries from the data section. Returns the hole ring start vertex
-    /// indices and the byte offset where vertex data begins.
+    fn read_header(&self, offset: u64) -> EntryHeader {
+        let o = offset as usize;
+        let flags = self.data[o];
+        let data_len = u32::from_le_bytes(self.data[o + 1..o + 5].try_into().unwrap());
+        EntryHeader {
+            data_len,
+            closed: flags & 0x01 != 0,
+            contains_hilbert_start: flags & 0x02 != 0,
+            has_holes: flags & 0x04 != 0,
+            is_head: flags & 0x08 != 0,
+        }
+    }
+
     fn decode_ring_boundaries(&self, data_start: usize, data_len: usize) -> (Vec<usize>, usize) {
         let mut hole_starts = Vec::new();
         let mut pos = data_start;
@@ -300,7 +280,6 @@ impl<'a> EdgeReader<'a> {
         (hole_starts, pos)
     }
 
-    // 24 bytes per vertex, 3 * f64.
     fn decode_vertices(&self, data: &[u8]) -> Vec<[f64; 3]> {
         let mut vertices: Vec<[f64; 3]> = data
             .chunks_exact(24)
