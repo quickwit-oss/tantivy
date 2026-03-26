@@ -153,7 +153,14 @@ impl TinySet {
             None
         } else {
             let lowest = self.0.trailing_zeros();
-            self.0 ^= TinySet::singleton(lowest).0;
+            // Kernighan's trick: clears the lowest set bit without depending on
+            // `lowest`. On ARM64 the naive `self.0 ^= 1 << lowest` creates a
+            // 4-cycle loop-carried dependency (rbit→clz→lsl→eor) whereas
+            // `sub→and` is only 2 cycles, letting trailing_zeros run in parallel.
+            // On x86 LLVM already maps both forms to the single-cycle BLSR instruction.
+            //
+            // https://godbolt.org/z/fnfrP1T5f
+            self.0 &= self.0 - 1;
             Some(lowest)
         }
     }

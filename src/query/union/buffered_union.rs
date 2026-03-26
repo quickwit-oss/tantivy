@@ -1,6 +1,6 @@
 use common::TinySet;
 
-use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::size_hint::estimate_union;
 use crate::query::Scorer;
@@ -109,6 +109,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         union
     }
 
+    #[inline(never)]
     fn refill(&mut self) -> bool {
         if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
             // Reset the sliding window to start at the smallest doc
@@ -170,6 +171,43 @@ where
             return TERMINATED;
         }
         self.doc
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [DocId; COLLECT_BLOCK_BUFFER_LEN]) -> usize {
+        if self.doc == TERMINATED {
+            return 0;
+        }
+        buffer[0] = self.doc;
+        let mut count = 1;
+
+        loop {
+            // Drain docs directly from the pre-computed bitsets.
+            while self.bucket_idx < HORIZON_NUM_TINYBITSETS {
+                // Move bitset to a local variable to avoid read/store on self.bitsets while
+                // iterating through the bits.
+                let mut tinyset = self.bitsets[self.bucket_idx];
+                while let Some(val) = tinyset.pop_lowest() {
+                    let delta = val + (self.bucket_idx as u32) * 64;
+                    self.doc = self.window_start_doc + delta;
+
+                    if count == COLLECT_BLOCK_BUFFER_LEN {
+                        // Buffer full; put remaining bits back.
+                        self.bitsets[self.bucket_idx] = tinyset;
+                        return COLLECT_BLOCK_BUFFER_LEN;
+                    }
+                    buffer[count] = self.doc;
+                    count += 1;
+                }
+                self.bitsets[self.bucket_idx] = TinySet::empty();
+                self.bucket_idx += 1;
+            }
+
+            // Current window exhausted, refill.
+            if !self.refill() {
+                self.doc = TERMINATED;
+                return count;
+            }
+        }
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
