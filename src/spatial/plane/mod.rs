@@ -1,4 +1,6 @@
-//! Implementation of a planar surface.
+//! Planar surface implementation and predicates for 2D spatial indexing.
+
+pub mod math;
 
 use crate::spatial::surface::Surface;
 
@@ -14,6 +16,6 @@ impl Surface for Plane {
     }
 
     fn origin_inside(_ring: &[Self::Point]) -> bool {
-        todo!("2D origin_inside")
+        false
     }
 }
