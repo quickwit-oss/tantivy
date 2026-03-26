@@ -177,6 +177,8 @@ where
         if self.doc == TERMINATED {
             return 0;
         }
+        // The current doc (self.doc) has already been popped from the bitsets,
+        // so the loop below won't yield it. Emit it here first.
         buffer[0] = self.doc;
         let mut count = 1;
 
