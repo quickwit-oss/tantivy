@@ -109,7 +109,6 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> BufferedUnionScorer<TScorer
         union
     }
 
-    #[inline(never)]
     fn refill(&mut self) -> bool {
         if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
             // Reset the sliding window to start at the smallest doc
@@ -187,12 +186,13 @@ where
             while self.bucket_idx < HORIZON_NUM_TINYBITSETS {
                 // Move bitset to a local variable to avoid read/store on self.bitsets while
                 // iterating through the bits.
-                let mut tinyset = self.bitsets[self.bucket_idx];
+                let mut tinyset: TinySet = self.bitsets[self.bucket_idx];
+
                 while let Some(val) = tinyset.pop_lowest() {
                     let delta = val + (self.bucket_idx as u32) * 64;
                     self.doc = self.window_start_doc + delta;
 
-                    if count == COLLECT_BLOCK_BUFFER_LEN {
+                    if count >= COLLECT_BLOCK_BUFFER_LEN {
                         // Buffer full; put remaining bits back.
                         self.bitsets[self.bucket_idx] = tinyset;
                         return COLLECT_BLOCK_BUFFER_LEN;
