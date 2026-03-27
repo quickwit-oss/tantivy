@@ -20,6 +20,7 @@ use super::s2cell_id::S2CellId;
 use super::shape_index_region::{
     contains_point, index_contains_point, CellIndexRegion, SegmentIndex,
 };
+use super::sphere::Sphere;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
 pub struct IntersectsQuery {
@@ -60,7 +61,7 @@ impl IntersectsQuery {
     pub fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> Vec<u32> {
         let candidates = self.collect_candidates(cell_reader, None, edge_reader);
         self.verify_candidates(candidates, cell_reader, edge_reader)
@@ -70,7 +71,7 @@ impl IntersectsQuery {
     pub fn search_segment_filtered<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
         terms_filter: &BitSet,
     ) -> Vec<u32> {
         let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_reader);
@@ -81,7 +82,7 @@ impl IntersectsQuery {
         &self,
         reader: &CellIndexReader,
         terms_filter: Option<&BitSet>,
-        edge_reader: &EdgeReader,
+        edge_reader: &EdgeReader<'_, Sphere>,
     ) -> HashMap<u32, CandidateInfo> {
         let mut candidates: HashMap<u32, CandidateInfo> = HashMap::new();
 
@@ -125,7 +126,7 @@ impl IntersectsQuery {
         &self,
         candidates: HashMap<u32, CandidateInfo>,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> Vec<u32> {
         let mut doc_ids = Vec::new();
 
@@ -144,7 +145,7 @@ impl IntersectsQuery {
         geometry_id: u32,
         info: &CandidateInfo,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> bool {
         if info.has_interior {
             let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
@@ -193,7 +194,7 @@ impl IntersectsQuery {
         &self,
         geometry_id: u32,
         info: &CandidateInfo,
-        edge_reader: &mut EdgeReader,
+        edge_reader: &mut EdgeReader<'_, Sphere>,
     ) -> bool {
         let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
         let candidate_vertices = &edge_set.vertices;

@@ -9,6 +9,7 @@ use crate::spatial::surface::Surface;
 pub struct Plane;
 
 impl Surface for Plane {
+    const DIMENSIONS: usize = 2;
     type Point = [f64; 2];
 
     fn project(lon: f64, lat: f64) -> [f64; 2] {

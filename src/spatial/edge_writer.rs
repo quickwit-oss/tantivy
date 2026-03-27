@@ -5,22 +5,25 @@
 //! memory. The skip list directory records every Nth geometry offset.
 
 use std::io::Write;
+use std::marker::PhantomData;
 
 use common::CountingWriter;
 
 use crate::directory::WritePtr;
 use crate::spatial::geometry_set::GeometrySet;
+use crate::spatial::surface::Surface;
 
-/// Streams geometry entries to disk. Vertices write through immediately. `offsets` records every
-/// Nth geometry's start position for the skip list directory, where N is the skip interval.
-pub struct EdgeWriter<'a> {
+/// Streams geometry entries to disk. The Surface type parameter determines how many f64
+/// coordinates are written per vertex.
+pub struct EdgeWriter<'a, S: Surface> {
     write: &'a mut CountingWriter<WritePtr>,
     offsets: Vec<u64>,
     geometry_count: u32,
     skip_interval: u32,
+    _surface: PhantomData<S>,
 }
 
-impl<'a> EdgeWriter<'a> {
+impl<'a, S: Surface> EdgeWriter<'a, S> {
     /// Creates a new writer backed by the given output.
     pub fn new(write: &'a mut CountingWriter<WritePtr>, skip_interval: u32) -> Self {
         EdgeWriter {
@@ -28,11 +31,11 @@ impl<'a> EdgeWriter<'a> {
             offsets: Vec::new(),
             geometry_count: 0,
             skip_interval,
+            _surface: PhantomData,
         }
     }
 
-    /// Write all geometries for one document from a smashed GeometrySet. The first member is the
-    /// head (is_head flag set, doc_id written). Subsequent members have is_head clear, no doc_id.
+    /// Write all geometries for one document from a smashed GeometrySet.
     pub fn insert(&mut self, set: &GeometrySet) {
         for (member_idx, member) in set.members.iter().enumerate() {
             let pos = self.write.written_bytes();
@@ -45,8 +48,6 @@ impl<'a> EdgeWriter<'a> {
             let is_head = member_idx == 0;
             let has_holes = member.ring_offsets.len() > 2;
 
-            // Flags byte: bit 0 = closed, bit 1 = contains_hilbert_start, bit 2 = has_holes,
-            // bit 3 = is_head.
             let flags: u8 = (if member.closed { 0x01 } else { 0 })
                 | (if member.contains_hilbert_start {
                     0x02
@@ -61,7 +62,7 @@ impl<'a> EdgeWriter<'a> {
             } else {
                 0
             };
-            let vertex_bytes = member.vertices.len() * 24;
+            let vertex_bytes = member.vertices.len() * S::DIMENSIONS * 8;
             let data_bytes = (ring_boundary_bytes + vertex_bytes) as u32;
 
             self.write.write_all(&[flags]).unwrap();
@@ -83,7 +84,7 @@ impl<'a> EdgeWriter<'a> {
             }
 
             for v in &member.vertices {
-                for &coord in v {
+                for &coord in &v[..S::DIMENSIONS] {
                     self.write.write_all(&coord.to_le_bytes()).unwrap();
                 }
             }

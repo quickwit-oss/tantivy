@@ -23,6 +23,7 @@ use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::geometry_set::{EdgeSet, GeometrySet};
 use crate::spatial::merge::CellIndexMerge;
+use crate::spatial::sphere::Sphere;
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{DocAddress, DocId, InvertedIndexReader};
@@ -559,20 +560,20 @@ impl IndexMerger {
 
             // Open source cell index readers and edge readers.
             let mut cell_readers: Vec<CellIndexReader> = Vec::new();
-            let mut edge_readers: Vec<EdgeReader> = Vec::new();
+            let mut edge_readers: Vec<EdgeReader<'_, Sphere>> = Vec::new();
             let mut geometry_counts: Vec<u32> = Vec::new();
 
             for sr in &spatial_readers {
                 if let Some(spatial_reader) = sr {
                     let cr = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
                     geometry_counts.push(er.geometry_count());
                     cell_readers.push(cr);
                     edge_readers.push(er);
                 } else {
                     geometry_counts.push(0);
                     cell_readers.push(CellIndexReader::open(&[]));
-                    edge_readers.push(EdgeReader::open(&[], 100_000));
+                    edge_readers.push(EdgeReader::<Sphere>::open(&[], 100_000));
                 }
             }
 
@@ -643,7 +644,7 @@ impl IndexMerger {
             // Write edges in new_id order so edge positions match geometry IDs.
             let edges_out = edges_composite.for_field(field);
             {
-                let mut edge_writer = EdgeWriter::new(edges_out, 16);
+                let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, 16);
                 let mut new_id: u32 = 0;
 
                 while new_id < max_new_id {

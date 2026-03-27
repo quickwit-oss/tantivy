@@ -43,9 +43,7 @@ pub fn point_in_polygon(p: &[f64; 2], vertices: &[[f64; 2]]) -> bool {
     for i in 0..n {
         let vi = &vertices[i];
         let vj = &vertices[j];
-        if ((vi[1] > p[1]) != (vj[1] > p[1]))
-            && (orient2d(vi, vj, p) > 0.0) == (vi[1] > vj[1])
-        {
+        if ((vi[1] > p[1]) != (vj[1] > p[1])) && (orient2d(vi, vj, p) > 0.0) == (vi[1] > vj[1]) {
             inside = !inside;
         }
         j = i;
@@ -73,12 +71,7 @@ pub fn point_to_segment_distance(p: &[f64; 2], a: &[f64; 2], b: &[f64; 2]) -> f6
 }
 
 /// Minimum distance between segments AB and CD. Euclidean.
-pub fn segment_to_segment_distance(
-    a: &[f64; 2],
-    b: &[f64; 2],
-    c: &[f64; 2],
-    d: &[f64; 2],
-) -> f64 {
+pub fn segment_to_segment_distance(a: &[f64; 2], b: &[f64; 2], c: &[f64; 2], d: &[f64; 2]) -> f64 {
     if segments_cross(a, b, c, d) {
         return 0.0;
     }

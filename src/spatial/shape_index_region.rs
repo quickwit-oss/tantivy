@@ -21,6 +21,7 @@ use super::s2cell_id::S2CellId;
 use super::s2edge_clipping::{
     clip_to_padded_face, intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSECTS_RECT_ERROR_UV_DIST,
 };
+use super::sphere::Sphere;
 
 /// Provides vertex access for edge intersection tests.
 ///
@@ -106,7 +107,7 @@ pub struct SegmentIndex<'a, 'b> {
     /// The serialized cell index reader.
     pub cell_reader: &'a CellIndexReader<'a>,
     /// The edge reader for vertex resolution.
-    pub edge_reader: &'b mut EdgeReader<'a>,
+    pub edge_reader: &'b mut EdgeReader<'a, Sphere>,
 }
 
 impl ContainmentIndex for SegmentIndex<'_, '_> {

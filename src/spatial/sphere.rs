@@ -22,6 +22,7 @@ pub const ORIGIN: [f64; 3] = [
 pub struct Sphere;
 
 impl Surface for Sphere {
+    const DIMENSIONS: usize = 3;
     type Point = [f64; 3];
 
     fn project(lon: f64, lat: f64) -> [f64; 3] {

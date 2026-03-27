@@ -21,6 +21,7 @@ use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
 use super::shape_index_region::{index_contains_point, CellIndexRegion, EdgeProvider};
+use super::sphere::Sphere;
 
 /// In-memory edge provider wrapping a smashed GeometrySet. Resolves edge indices into the
 /// smashed vertex arrays. No modulo wrapping — smashed vertices include the closure vertex.
@@ -83,7 +84,7 @@ impl ContainsQuery {
     pub fn search_segment(
         &self,
         cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader,
+        edge_reader: &mut EdgeReader<'_, Sphere>,
     ) -> Vec<u32> {
         let candidates = self.collect_candidates(cell_reader, None, edge_reader);
         self.verify_candidates(candidates, edge_reader)
@@ -93,7 +94,7 @@ impl ContainsQuery {
     pub fn search_segment_filtered(
         &self,
         cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader,
+        edge_reader: &mut EdgeReader<'_, Sphere>,
         terms_filter: &BitSet,
     ) -> Vec<u32> {
         let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_reader);
@@ -104,7 +105,7 @@ impl ContainsQuery {
         &self,
         reader: &CellIndexReader,
         terms_filter: Option<&BitSet>,
-        edge_reader: &EdgeReader,
+        edge_reader: &EdgeReader<'_, Sphere>,
     ) -> HashMap<u32, CandidateInfo> {
         let mut candidates: HashMap<u32, CandidateInfo> = HashMap::new();
 
@@ -148,7 +149,7 @@ impl ContainsQuery {
     fn verify_candidates(
         &self,
         candidates: HashMap<u32, CandidateInfo>,
-        edge_reader: &mut EdgeReader,
+        edge_reader: &mut EdgeReader<'_, Sphere>,
     ) -> Vec<u32> {
         let mut doc_ids = Vec::new();
 
@@ -170,7 +171,7 @@ impl ContainsQuery {
         &self,
         geometry_id: u32,
         info: &CandidateInfo,
-        edge_reader: &mut EdgeReader,
+        edge_reader: &mut EdgeReader<'_, Sphere>,
     ) -> bool {
         if info.has_boundary && self.has_crossing(geometry_id, info, edge_reader) {
             return false;
@@ -192,7 +193,7 @@ impl ContainsQuery {
         &self,
         geometry_id: u32,
         info: &CandidateInfo,
-        edge_reader: &mut EdgeReader,
+        edge_reader: &mut EdgeReader<'_, Sphere>,
     ) -> bool {
         let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
         let candidate_vertices = &edge_set.vertices;

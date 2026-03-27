@@ -160,7 +160,7 @@ trait PreparedSpatialQuery: Send + Sync {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> Vec<u32>;
 }
 
@@ -168,7 +168,7 @@ impl PreparedSpatialQuery for ContainsQuery {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> Vec<u32> {
         ContainsQuery::search_segment(self, cell_reader, edge_reader)
     }
@@ -178,7 +178,7 @@ impl PreparedSpatialQuery for IntersectsQuery {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> Vec<u32> {
         IntersectsQuery::search_segment(self, cell_reader, edge_reader)
     }
@@ -188,7 +188,7 @@ impl PreparedSpatialQuery for ClosestEdgeQuery {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> Vec<u32> {
         ClosestEdgeQuery::search_segment(self, cell_reader, edge_reader)
             .into_iter()
@@ -217,7 +217,7 @@ impl Weight for SpatialWeight {
         };
 
         let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-        let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+        let mut edge_reader = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
 
         let doc_ids = self.query.search_segment(&cell_reader, &mut edge_reader);
 

@@ -22,6 +22,7 @@ use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
 use super::s2coords::valid_face_xyz_to_uv;
 use super::s2padded_cell::S2PaddedCell;
+use super::sphere::Sphere;
 
 // ---------------------------------------------------------------------------
 // Geometry ID mapping
@@ -213,7 +214,7 @@ pub struct CellIndexMerge<'a> {
     /// Peekable iterators over each source segment's cell index.
     sources: Vec<PeekableCell<'a>>,
     /// Edge readers for each source segment. Mmap'd, read-only.
-    edge_readers: Vec<EdgeReader<'a>>,
+    edge_readers: Vec<EdgeReader<'a, Sphere>>,
     /// Tracks old-to-new and new-to-old geometry ID mappings.
     geo_map: GeometryMap,
     /// Per-segment alive bitsets from Tantivy's delete-and-merge. `None`
@@ -296,7 +297,7 @@ impl<'a> CellIndexMerge<'a> {
     /// Creates a merge iterator over multiple segment cell indexes.
     pub fn new(
         iters: Vec<CellIndexIter<'a>>,
-        edge_readers: Vec<EdgeReader<'a>>,
+        edge_readers: Vec<EdgeReader<'a, Sphere>>,
         segment_geometry_counts: &[u32],
         alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     ) -> Self {

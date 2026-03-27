@@ -8,6 +8,9 @@
 /// coordinates on a single face. For spherical geometry, points are 3D unit vectors on the six
 /// faces of a cube projection.
 pub trait Surface {
+    /// Number of f64 coordinates per vertex. 2 for Plane, 3 for Sphere.
+    const DIMENSIONS: usize;
+
     /// The point type of the surface.
     type Point: Copy;
 

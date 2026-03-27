@@ -16,6 +16,7 @@ use super::geometry_set::GeometrySet;
 use super::intersects_query::IntersectsQuery;
 use super::region_coverer::CovererOptions;
 use super::s1chord_angle::S1ChordAngle;
+use super::sphere::Sphere;
 use crate::core::Searcher;
 use crate::docset::{DocSet, TERMINATED};
 use crate::index::SegmentId;
@@ -161,7 +162,8 @@ fn evaluate(
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+                    let mut edge_reader =
+                        EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -198,7 +200,8 @@ fn evaluate(
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+                    let mut edge_reader =
+                        EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
@@ -240,7 +243,8 @@ fn evaluate(
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+                    let mut edge_reader =
+                        EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
 
                     let hits = match &filter_output {
                         Some(fo) => {
@@ -313,7 +317,8 @@ fn evaluate(
                 }
                 let spatial_reader = spatial.unwrap();
                 let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                let mut edge_reader = EdgeReader::open(spatial_reader.edges_bytes(), 100_000);
+                let mut edge_reader =
+                    EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
 
                 for cell in cell_reader.iter() {
                     for clipped in &cell.shapes {
@@ -337,8 +342,10 @@ fn evaluate(
                             if let Some(probe_spatial_reader) = probe_spatial {
                                 let probe_cell_reader =
                                     CellIndexReader::open(probe_spatial_reader.cells_bytes());
-                                let mut probe_edge_reader =
-                                    EdgeReader::open(probe_spatial_reader.edges_bytes(), 100_000);
+                                let mut probe_edge_reader = EdgeReader::<Sphere>::open(
+                                    probe_spatial_reader.edges_bytes(),
+                                    100_000,
+                                );
                                 let inner_bitset = inner_output
                                     .bitset_for(&probe_reader.segment_id(), probe_reader.max_doc());
 

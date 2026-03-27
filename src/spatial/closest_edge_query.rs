@@ -23,6 +23,7 @@ use super::s1chord_angle::S1ChordAngle;
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
 use super::s2edge_distances::{update_edge_pair_min_distance, update_min_distance};
+use super::sphere::Sphere;
 
 /// A result from the closest edge query: document ID and distance.
 #[derive(Clone, Debug)]
@@ -105,7 +106,7 @@ impl ClosestEdgeQuery {
     pub fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
     ) -> Vec<ClosestEdgeResult> {
         self.search_impl(cell_reader, edge_reader, None)
     }
@@ -114,7 +115,7 @@ impl ClosestEdgeQuery {
     pub fn search_segment_filtered<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
         terms_filter: &BitSet,
     ) -> Vec<ClosestEdgeResult> {
         self.search_impl(cell_reader, edge_reader, Some(terms_filter))
@@ -123,7 +124,7 @@ impl ClosestEdgeQuery {
     fn search_impl<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
         terms_filter: Option<&BitSet>,
     ) -> Vec<ClosestEdgeResult> {
         if cell_reader.cell_count() == 0 {
@@ -267,7 +268,7 @@ impl ClosestEdgeQuery {
     fn process_edges<'a>(
         &self,
         index_cell: &super::cell_index::IndexCell,
-        edge_reader: &mut EdgeReader<'a>,
+        edge_reader: &mut EdgeReader<'a, Sphere>,
         terms_filter: Option<&BitSet>,
         best: &mut HashMap<u32, S1ChordAngle>,
         distance_limit: &mut S1ChordAngle,
