@@ -22,7 +22,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tantivy::collector::sort_key::SortByStaticFastValue;
 use tantivy::collector::{Collector, Count, TopDocs};
-use tantivy::query::{Query, QueryParser};
+use tantivy::query::QueryParser;
 use tantivy::schema::{Schema, FAST, TEXT};
 use tantivy::{doc, Index, Order, ReloadPolicy, Searcher};
 
@@ -38,7 +38,7 @@ struct BenchIndex {
 /// return two BenchIndex views:
 /// - single_field: QueryParser defaults to only "body"
 /// - multi_field:  QueryParser defaults to ["title", "body"]
-fn build_shared_indices(num_docs: usize, p_a: f32, p_b: f32, p_c: f32) -> (BenchIndex, BenchIndex) {
+fn build_index(num_docs: usize, terms: &[(&str, f32)]) -> (BenchIndex, BenchIndex) {
     // Unified schema (two text fields)
     let mut schema_builder = Schema::builder();
     let f_title = schema_builder.add_text_field("title", TEXT);
@@ -55,32 +55,17 @@ fn build_shared_indices(num_docs: usize, p_a: f32, p_b: f32, p_c: f32) -> (Bench
     {
         let mut writer = index.writer_with_num_threads(1, 500_000_000).unwrap();
         for _ in 0..num_docs {
-            let has_a = rng.random_bool(p_a as f64);
-            let has_b = rng.random_bool(p_b as f64);
-            let has_c = rng.random_bool(p_c as f64);
             let score = rng.random_range(0u64..100u64);
             let score2 = rng.random_range(0u64..100_000u64);
             let mut title_tokens: Vec<&str> = Vec::new();
             let mut body_tokens: Vec<&str> = Vec::new();
-            if has_a {
-                if rng.random_bool(0.1) {
-                    title_tokens.push("a");
-                } else {
-                    body_tokens.push("a");
-                }
-            }
-            if has_b {
-                if rng.random_bool(0.1) {
-                    title_tokens.push("b");
-                } else {
-                    body_tokens.push("b");
-                }
-            }
-            if has_c {
-                if rng.random_bool(0.1) {
-                    title_tokens.push("c");
-                } else {
-                    body_tokens.push("c");
+            for &(tok, prob) in terms {
+                if rng.random_bool(prob as f64) {
+                    if rng.random_bool(0.1) {
+                        title_tokens.push(tok);
+                    } else {
+                        body_tokens.push(tok);
+                    }
                 }
             }
             if title_tokens.is_empty() && body_tokens.is_empty() {
@@ -110,59 +95,97 @@ fn build_shared_indices(num_docs: usize, p_a: f32, p_b: f32, p_c: f32) -> (Bench
     let qp_single = QueryParser::for_index(&index, vec![f_body]);
     let qp_multi = QueryParser::for_index(&index, vec![f_title, f_body]);
 
-    let single_view = BenchIndex {
+    let only_title = BenchIndex {
         index: index.clone(),
         searcher: searcher.clone(),
         query_parser: qp_single,
     };
-    let multi_view = BenchIndex {
+    let title_and_body = BenchIndex {
         index,
         searcher,
         query_parser: qp_multi,
     };
-    (single_view, multi_view)
+    (only_title, title_and_body)
+}
+
+fn format_pct(p: f32) -> String {
+    let pct = (p as f64) * 100.0;
+    let rounded = (pct * 1_000_000.0).round() / 1_000_000.0;
+    if rounded.fract() <= 0.001 {
+        format!("{}%", rounded as u64)
+    } else {
+        format!("{}%", rounded)
+    }
+}
+
+fn query_label(query_str: &str, term_pcts: &[(&str, String)]) -> String {
+    let mut label = query_str.to_string();
+    for (term, pct) in term_pcts {
+        label = label.replace(term, pct);
+    }
+    label.replace(' ', "_")
 }
 
 fn main() {
-    // Prepare corpora with varying selectivity. Build one index per corpus
-    // and derive two views (single-field vs multi-field) from it.
-    let scenarios = vec![
+    // terms with varying selectivity, ordered from rarest to most common.
+    // With 1M docs, we expect:
+    // a: 0.01% (100), b: 1% (10k), c: 5% (50k), d: 15% (150k), e: 30% (300k)
+    let num_docs = 1_000_000;
+    let terms: &[(&str, f32)] = &[
+        ("a", 0.0001),
+        ("b", 0.01),
+        ("c", 0.05),
+        ("d", 0.15),
+        ("e", 0.30),
+    ];
+
+    let queries: &[(&str, &[&str])] = &[
         (
-            "N=1M, p(a)=5%, p(b)=1%, p(c)=15%".to_string(),
-            1_000_000,
-            0.05,
-            0.01,
-            0.15,
+            "only_union",
+            &["c OR b", "c OR b OR d", "c OR e", "e OR a"] as &[&str],
         ),
         (
-            "N=1M, p(a)=1%, p(b)=1%, p(c)=15%".to_string(),
-            1_000_000,
-            0.01,
-            0.01,
-            0.15,
+            "only_intersection",
+            &["+c +b", "+c +b +d", "+c +e", "+e +a"] as &[&str],
+        ),
+        (
+            "union_intersection",
+            &["+c +(b OR d)", "+e +(c OR a)", "+(c OR b) +(d OR e)"] as &[&str],
         ),
     ];
 
-    let queries = &["a", "+a +b", "+a +b +c", "a OR b", "a OR b OR c"];
-
     let mut runner = BenchRunner::new();
-    for (label, n, pa, pb, pc) in scenarios {
-        let (single_view, multi_view) = build_shared_indices(n, pa, pb, pc);
+    let (only_title, title_and_body) = build_index(num_docs, terms);
+    let term_pcts: Vec<(&str, String)> = terms
+        .iter()
+        .map(|&(term, p)| (term, format_pct(p)))
+        .collect();
 
-        for (view_name, bench_index) in [("single_field", single_view), ("multi_field", multi_view)]
-        {
-            // Single-field group: default field is body only
-            let mut group = runner.new_group();
-            group.set_name(format!("{} — {}", view_name, label));
-            for query_str in queries {
+    for (view_name, bench_index) in [
+        ("single_field", only_title),
+        ("multi_field", title_and_body),
+    ] {
+        for (category_name, category_queries) in queries {
+            for query_str in *category_queries {
+                let mut group = runner.new_group();
+                let query_label = query_label(query_str, &term_pcts);
+                group.set_name(format!("{}_{}_{}", view_name, category_name, query_label));
                 add_bench_task(&mut group, &bench_index, query_str, Count, "count");
                 add_bench_task(
                     &mut group,
                     &bench_index,
                     query_str,
                     TopDocs::with_limit(10).order_by_score(),
-                    "top10",
+                    "top10_inv_idx",
                 );
+                add_bench_task(
+                    &mut group,
+                    &bench_index,
+                    query_str,
+                    (Count, TopDocs::with_limit(10).order_by_score()),
+                    "count+top10",
+                );
+
                 add_bench_task(
                     &mut group,
                     &bench_index,
@@ -180,9 +203,32 @@ fn main() {
                     )),
                     "top10_by_2ff",
                 );
+
+                group.run();
             }
-            group.run();
         }
+    }
+}
+
+trait FruitCount {
+    fn count(&self) -> usize;
+}
+
+impl FruitCount for usize {
+    fn count(&self) -> usize {
+        *self
+    }
+}
+
+impl<T> FruitCount for Vec<T> {
+    fn count(&self) -> usize {
+        self.len()
+    }
+}
+
+impl<A: FruitCount, B> FruitCount for (A, B) {
+    fn count(&self) -> usize {
+        self.0.count()
     }
 }
 
@@ -192,27 +238,12 @@ fn add_bench_task<C: Collector + 'static>(
     query_str: &str,
     collector: C,
     collector_name: &str,
-) {
-    let task_name = format!("{}_{}", query_str.replace(" ", "_"), collector_name);
+) where
+    C::Fruit: FruitCount,
+{
     let query = bench_index.query_parser.parse_query(query_str).unwrap();
-    let search_task = SearchTask {
-        searcher: bench_index.searcher.clone(),
-        collector,
-        query,
-    };
-    bench_group.register(task_name, move |_| black_box(search_task.run()));
-}
-
-struct SearchTask<C: Collector> {
-    searcher: Searcher,
-    collector: C,
-    query: Box<dyn Query>,
-}
-
-impl<C: Collector> SearchTask<C> {
-    #[inline(never)]
-    pub fn run(&self) -> usize {
-        self.searcher.search(&self.query, &self.collector).unwrap();
-        1
-    }
+    let searcher = bench_index.searcher.clone();
+    bench_group.register(collector_name.to_string(), move |_| {
+        black_box(searcher.search(&query, &collector).unwrap().count())
+    });
 }
