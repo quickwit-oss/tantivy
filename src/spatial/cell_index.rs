@@ -345,11 +345,15 @@ impl CellIndex {
     }
 
     /// Writes the cell index to a CountingWriter with a dictionary at the end.
+    /// Offsets are recorded relative to the start of this write, not the global
+    /// stream position, because CompositeFile shares one CountingWriter across
+    /// all fields but the reader sees a per-field slice starting at zero.
     pub fn write<W: Write>(&self, write: &mut CountingWriter<W>) {
+        let base = write.written_bytes();
         let mut offsets: Vec<(u64, u64)> = Vec::with_capacity(self.cells.len());
 
         for cell in &self.cells {
-            let offset = write.written_bytes();
+            let offset = write.written_bytes() - base;
 
             write.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
             write
@@ -371,7 +375,7 @@ impl CellIndex {
         }
 
         // Dictionary: (cell_id, offset) pairs.
-        let dir_offset = write.written_bytes();
+        let dir_offset = write.written_bytes() - base;
         for &(cell_id, offset) in &offsets {
             write.write_all(&cell_id.to_le_bytes()).unwrap();
             write.write_all(&offset.to_le_bytes()).unwrap();

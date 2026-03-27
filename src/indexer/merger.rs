@@ -596,9 +596,11 @@ impl IndexMerger {
                 merged_cells.push(cell);
             }
 
-            // Write cells.
+            // Write cells. Offsets are relative to the start of this field's
+            // data because the reader sees a per-field slice starting at zero.
+            let cells_base = cells_out.written_bytes();
             for cell in &merged_cells {
-                let offset = cells_out.written_bytes();
+                let offset = cells_out.written_bytes() - cells_base;
                 cells_out.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
                 cells_out
                     .write_all(&(cell.shapes.len() as u16).to_le_bytes())
@@ -619,7 +621,7 @@ impl IndexMerger {
             }
 
             // Write cell index dictionary and footer.
-            let dir_offset = cells_out.written_bytes();
+            let dir_offset = cells_out.written_bytes() - cells_base;
             for &(cell_id, offset) in &offsets {
                 cells_out.write_all(&cell_id.to_le_bytes()).unwrap();
                 cells_out.write_all(&offset.to_le_bytes()).unwrap();

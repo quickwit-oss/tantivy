@@ -503,7 +503,16 @@ impl<'a> CellIndexMerge<'a> {
 
             for &edge_idx in &clipped.edge_indices {
                 let v0 = vertices[edge_idx as usize];
-                let v1 = vertices[(edge_idx as usize) + 1];
+                let v1 = if (edge_idx as usize) + 1 < vertices.len() {
+                    vertices[(edge_idx as usize) + 1]
+                } else {
+                    // Point geometry: single vertex, degenerate edge [A, A].
+                    assert_eq!(
+                        edge_idx, 0,
+                        "edge index past vertex count is only valid for single-vertex points"
+                    );
+                    v0
+                };
 
                 let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
                 let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
@@ -578,15 +587,18 @@ impl<'a> CellIndexMerge<'a> {
 
             for &edge_idx in &shape.edge_indices {
                 let v0 = vertices[edge_idx as usize];
-                let v1 = vertices[(edge_idx as usize) + 1];
+                let v1 = if (edge_idx as usize) + 1 < vertices.len() {
+                    vertices[(edge_idx as usize) + 1]
+                } else {
+                    assert_eq!(
+                        edge_idx, 0,
+                        "edge index past vertex count is only valid for single-vertex points"
+                    );
+                    v0
+                };
                 let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
                 let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
 
-                // Recompute max_level the same way the build path does in
-                // get_edge_max_level. Long edges (those longer than the cell
-                // at a given level) don't count toward the subdivision
-                // threshold — subdividing won't help because the edge
-                // appears in every child.
                 let max_level = get_edge_max_level(&v0, &v1);
 
                 merge_edges.push(MergeEdge {

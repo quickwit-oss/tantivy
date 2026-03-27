@@ -20,17 +20,20 @@ pub struct EdgeWriter<'a, S: Surface> {
     offsets: Vec<u64>,
     geometry_count: u32,
     skip_interval: u32,
+    base: u64,
     _surface: PhantomData<S>,
 }
 
 impl<'a, S: Surface> EdgeWriter<'a, S> {
     /// Creates a new writer backed by the given output.
     pub fn new(write: &'a mut CountingWriter<WritePtr>, skip_interval: u32) -> Self {
+        let base = write.written_bytes();
         EdgeWriter {
             write,
             offsets: Vec::new(),
             geometry_count: 0,
             skip_interval,
+            base,
             _surface: PhantomData,
         }
     }
@@ -38,7 +41,7 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
     /// Write all geometries for one document from a smashed GeometrySet.
     pub fn insert(&mut self, set: &GeometrySet) {
         for (member_idx, member) in set.members.iter().enumerate() {
-            let pos = self.write.written_bytes();
+            let pos = self.write.written_bytes() - self.base;
 
             if self.geometry_count % self.skip_interval == 0 {
                 self.offsets.push(pos);
@@ -93,7 +96,7 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
 
     /// Write the skip list directory and footer.
     pub fn finish(&mut self) {
-        let dir_offset = self.write.written_bytes();
+        let dir_offset = self.write.written_bytes() - self.base;
 
         for &offset in &self.offsets {
             self.write.write_all(&offset.to_le_bytes()).unwrap();
