@@ -21,7 +21,6 @@ use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
-use crate::spatial::geometry_set::{EdgeSet, GeometrySet};
 use crate::spatial::merge::CellIndexMerge;
 use crate::spatial::sphere::Sphere;
 use crate::store::StoreWriter;
@@ -650,28 +649,13 @@ impl IndexMerger {
                 let mut new_id: u32 = 0;
 
                 while new_id < max_new_id {
-                    let (seg, member_offset, old_doc_id, all_vertices, all_closed) =
-                        merge.read_set(new_id);
+                    let (seg, member_offset, mut set) = merge.read_set(new_id);
                     let head_new_id = new_id - member_offset;
-                    let new_doc_id = doc_id_inverse[seg][old_doc_id as usize].unwrap();
-                    let set_size = all_vertices.len();
-
-                    let members: Vec<EdgeSet> = all_vertices
-                        .into_iter()
-                        .zip(all_closed.into_iter())
-                        .map(|(vertices, closed)| EdgeSet {
-                            vertices,
-                            closed,
-                            contains_hilbert_start: false,
-                            ring_offsets: Vec::new(),
-                        })
-                        .collect();
-                    let set = GeometrySet {
-                        members,
-                        doc_id: new_doc_id as u32,
-                    };
+                    let new_doc_id = doc_id_inverse[seg][set.doc_id as usize].unwrap();
+                    let set_size = set.members.len() as u32;
+                    set.doc_id = new_doc_id as u32;
                     edge_writer.insert(&set);
-                    new_id = head_new_id + set_size as u32;
+                    new_id = head_new_id + set_size;
                 }
 
                 edge_writer.finish();

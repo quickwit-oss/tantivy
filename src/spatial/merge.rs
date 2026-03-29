@@ -18,31 +18,27 @@ use super::cell_index::{get_edge_max_level, BuildOptions, ClippedShape, IndexCel
 use super::cell_index_reader::CellIndexIter;
 use super::crossings::S2EdgeCrosser;
 use super::edge_reader::EdgeReader;
+use super::geometry_set::GeometrySet;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
 use super::s2coords::valid_face_xyz_to_uv;
 use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
 
-// ---------------------------------------------------------------------------
-// Geometry ID mapping
-// ---------------------------------------------------------------------------
-
 /// Maps between old per-segment geometry IDs and new merged geometry IDs.
 ///
-/// Source segments' geometry spaces are concatenated into a flat address
-/// space. Segment 0 occupies [0, n0), segment 1 occupies [n0, n0+n1), etc.
-/// A flat position uniquely identifies a geometry across all source segments.
+/// Source segments' geometry spaces are concatenated into a flat address space. Segment 0 occupies
+/// [0, n0), segment 1 occupies [n0, n0+n1), etc. A flat position uniquely identifies a geometry
+/// across all source segments.
 ///
-/// The new-to-old vec grows as geometries are first encountered during the
-/// Hilbert-order walk. At one geometry per document with 10M documents,
-/// this is 40 MB.
+/// The new-to-old vec grows as geometries are first encountered during the Hilbert-order walk. At
+/// one geometry per document with 10M documents, this is 40 MB.
 pub struct GeometryMap {
-    /// Cumulative geometry counts. `segment_offsets[i]` is the start of
-    /// segment i's range in the flat space.
+    /// Cumulative geometry counts. `segment_offsets[i]` is the start of segment i's range in the
+    /// flat space.
     segment_offsets: Vec<u32>,
-    /// Indexed by flat old position. `Some(new_id)` if the geometry has been
-    /// encountered and assigned a new ID, `None` otherwise.
+    /// Indexed by flat old position. `Some(new_id)` if the geometry has been encountered and
+    /// assigned a new ID, `None` otherwise.
     old_to_new: Vec<Option<u32>>,
     /// Indexed by new geometry ID. Value is the flat old position.
     new_to_old: Vec<u32>,
@@ -81,10 +77,9 @@ impl GeometryMap {
         (seg, flat - self.segment_offsets[seg])
     }
 
-    /// Look up or assign a new geometry ID for the given source geometry.
-    /// Returns (new_id, true) on first encounter, (new_id, false) if already
-    /// assigned. The `true` case is the signal for the edge writer to write
-    /// this geometry — it won't be encountered again as "new."
+    /// Look up or assign a new geometry ID for the given source geometry. Returns (new_id, true)
+    /// on first encounter, (new_id, false) if already assigned. The `true` case is the signal for
+    /// the edge writer to write this geometry. It will not be encountered again as new.
     pub fn get_or_assign(&mut self, segment: usize, old_geometry_id: u32) -> (u32, bool) {
         let flat = self.flat_pos(segment, old_geometry_id);
         if let Some(new_id) = self.old_to_new[flat as usize] {
@@ -106,10 +101,6 @@ impl GeometryMap {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Coarse cell distribution
-// ---------------------------------------------------------------------------
-
 /// A single edge held from a coarse cell for distribution into fine cells.
 struct HeldEdge {
     v0: [f64; 3],
@@ -129,8 +120,8 @@ struct HeldShape {
     _uv_bound: R2Rect,
 }
 
-/// A coarse cell whose edges are being distributed into the fine stream.
-/// Lives in the `held` vec until the merge walks past its range.
+/// A coarse cell whose edges are being distributed into the fine stream. Lives in the `held` vec
+/// until the merge walks past its range.
 struct HeldCoarse {
     cell_id: S2CellId,
     /// 3D center of the coarse cell, for contains_center ray-casting.
@@ -161,7 +152,7 @@ impl HeldCoarse {
             let mut intersecting = Vec::new();
             for edge in &shape.edges {
                 let edge_bound = R2Rect::from_point_pair(edge.a_uv, edge.b_uv);
-                // Bounding box intersection is conservative — it may include
+                // Bounding box intersection is conservative. It may include
                 // edges that don't actually cross the cell. This matches the
                 // build path's behavior. Extra edges are harmless for
                 // crossing tests; they just won't produce any crossings.
@@ -172,8 +163,8 @@ impl HeldCoarse {
 
             // Compute contains_center by ray-casting from the coarse cell's
             // center to the fine cell's center, counting crossings of ALL
-            // edges in this shape. Not just the ones near the fine cell —
-            // an edge far from the fine cell can still cross the ray between
+            // edges in this shape. Not just the ones near the fine cell.
+            // An edge far from the fine cell can still cross the ray between
             // the two centers.
             let contains = self.compute_contains_center(shape, &fine_center_3d);
 
@@ -331,29 +322,29 @@ impl<'a> CellIndexMerge<'a> {
     }
 
     /// Read the full geometry set for a given new geometry ID. Returns the
-    /// source segment, the member offset within the set, the doc_id, and
-    /// all members' vertices.
-    pub fn read_set(
-        &mut self,
-        new_geometry_id: u32,
-    ) -> (usize, u32, u32, Vec<Vec<[f64; 3]>>, Vec<bool>) {
+    /// source segment, the member offset within the set, and a cloned
+    /// GeometrySet with the source doc_id. The caller remaps the doc_id.
+    pub fn read_set(&mut self, new_geometry_id: u32) -> (usize, u32, GeometrySet) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
         let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
         let member_offset = old_id - head;
-        let doc_id = geo_set.doc_id;
-        let vertices: Vec<Vec<[f64; 3]>> =
-            geo_set.members.iter().map(|m| m.vertices.clone()).collect();
-        let closed: Vec<bool> = geo_set.members.iter().map(|m| m.closed).collect();
-        (seg, member_offset, doc_id, vertices, closed)
+        (seg, member_offset, geo_set.clone())
     }
 
-    // -------------------------------------------------------------------
-    // Stage 1: Interleave with coarse-into-fine distribution
-    // -------------------------------------------------------------------
+    // Stage 1: Interleave
+    //
+    // Source segments have cell indexes at different levels of the S2 hierarchy. When two sources
+    // contribute cells at the same Hilbert position but different levels, the finer cell passes
+    // through and the coarser cell is held in memory. As fine cells stream past within the coarse
+    // cell's range, the coarse cell's edges are tested against each fine cell and distributed
+    // where they intersect. The coarse cell is released once the walk moves past its range.
 
     fn next_interleaved(&mut self) -> Option<IndexCell> {
         loop {
-            // Find the minimum range_min among all source fronts.
+            // Find the minimum range_min among all source fronts. Cells at different levels can
+            // overlap in Hilbert range even though their cell_ids differ. range_min is the
+            // leftmost leaf in the subtree, so comparing range_mins gives correct Hilbert ordering
+            // across levels.
             let mut min_rm: Option<S2CellId> = None;
             for source in &mut self.sources {
                 if let Some(cell) = source.peek() {
@@ -397,16 +388,16 @@ impl<'a> CellIndexMerge<'a> {
                 }
             }
 
-            // Hold coarse cells for distribution. Read their edge vertices
-            // now so we can distribute into fine cells as they stream past.
+            // Hold coarse cells for distribution. Read their edge vertices now so we can
+            // distribute into fine cells as they stream past.
             for &i in &coarse_indices {
                 let cell = self.sources[i].next().unwrap();
                 let held = self.make_held_coarse(i, &cell);
                 self.held.push(held);
             }
 
-            // Combine fine cells. Multiple sources at the same level with
-            // the same cell_id means the same cell from different segments.
+            // Combine fine cells. Multiple sources at the same level with the same cell_id means
+            // the same cell from different segments.
             let first = fine_indices[0];
             let mut combined = self.sources[first].next().unwrap();
             self.remap_shapes(first, &mut combined);
@@ -426,8 +417,8 @@ impl<'a> CellIndexMerge<'a> {
                 }
             }
 
-            // Deletion filtering can remove all shapes from a cell.
-            // Skip empty cells rather than yielding them downstream.
+            // Deletion filtering can remove all shapes from a cell. Skip empty cells rather than
+            // yielding them downstream.
             if combined.shapes.is_empty() {
                 continue;
             }
@@ -436,13 +427,12 @@ impl<'a> CellIndexMerge<'a> {
         }
     }
 
-    /// Remap geometry IDs in a cell's shapes from source-segment IDs to
-    /// new merged IDs. Shapes for deleted documents are dropped — the
-    /// edge reader gives us the doc_id and the alive bitset says whether
-    /// the document survived Tantivy's delete-and-merge.
+    /// Remap geometry IDs in a cell's shapes from source-segment IDs to new merged IDs. Shapes for
+    /// deleted documents are dropped. The edge reader gives us the doc_id and the alive bitset
+    /// says whether the document survived Tantivy's delete-and-merge.
     fn remap_shapes(&mut self, segment: usize, cell: &mut IndexCell) {
-        // Drop shapes whose documents were deleted. The alive bitset
-        // for the segment is None when all documents are alive.
+        // Drop shapes whose documents were deleted. The alive bitset for the segment is None when
+        // all documents are alive.
         if let Some(bitset) = &self.alive_bitsets[segment] {
             let reader = &mut self.edge_readers[segment];
             cell.shapes.retain(|shape| {
@@ -452,9 +442,9 @@ impl<'a> CellIndexMerge<'a> {
             });
         }
 
-        // Remap surviving shapes to new geometry IDs. When any member of a
-        // set is first encountered, assign IDs for all members starting from
-        // the head so they get consecutive new IDs in the correct order.
+        // Remap surviving shapes to new geometry IDs. When any member of a set is first
+        // encountered, assign IDs for all members starting from the head so they get consecutive
+        // new IDs in the correct order.
         for shape in &mut cell.shapes {
             let (head_old_id, geo_set) =
                 self.edge_readers[segment].get_geometry_set(shape.geometry_id);
@@ -467,9 +457,8 @@ impl<'a> CellIndexMerge<'a> {
         }
     }
 
-    /// Build a HeldCoarse from a coarse cell. Reads edge vertices from the
-    /// source segment's edge reader, projects to UV, and stores for
-    /// distribution.
+    /// Build a HeldCoarse from a coarse cell. Reads edge vertices from the source segment's edge
+    /// reader, projects to UV, and stores for distribution.
     fn make_held_coarse(&mut self, segment: usize, cell: &IndexCell) -> HeldCoarse {
         let face = cell.cell_id.face();
         let pcell = S2PaddedCell::new(cell.cell_id, CELL_PADDING);
@@ -489,13 +478,10 @@ impl<'a> CellIndexMerge<'a> {
 
             let (new_id, _) = self.geo_map.get_or_assign(segment, clipped.geometry_id);
 
-            // Read vertices from the source edge reader. Second cache
-            // lookup is a hit — we just called get() for the doc_id check.
+            // Read vertices from the source edge reader. Second cache lookup is a hit. We just
+            // called get() for the doc_id check.
             let (head, geo_set) = self.edge_readers[segment].get_geometry_set(clipped.geometry_id);
             let member_idx = (clipped.geometry_id - head) as usize;
-            // EdgeReader::get returns a borrow tied to the reader's LRU
-            // cache. Clone the vertices so they outlive the borrow. A
-            // coarse cell has at most 10 edges, so the clone is small.
             let vertices = geo_set.members[member_idx].vertices.clone();
 
             let mut edges = Vec::new();
@@ -506,7 +492,6 @@ impl<'a> CellIndexMerge<'a> {
                 let v1 = if (edge_idx as usize) + 1 < vertices.len() {
                     vertices[(edge_idx as usize) + 1]
                 } else {
-                    // Point geometry: single vertex, degenerate edge [A, A].
                     assert_eq!(
                         edge_idx, 0,
                         "edge index past vertex count is only valid for single-vertex points"
@@ -783,7 +768,7 @@ impl<'a> CellIndexMerge<'a> {
             let child_pcell = S2PaddedCell::from_parent(pcell, i, j);
 
             if child_edges[i][j].is_empty() {
-                // Empty child — no edges clipped into it. It still
+                // Empty child. No edges clipped into it. It still
                 // matters if a geometry's interior covers it entirely.
                 // Ray-cast from this cell's center to the child's center
                 // for each tracked geometry. An edge in a sibling child
@@ -872,7 +857,7 @@ impl<'a> CellIndexMerge<'a> {
                     slot.cells.iter().any(|b| cell.cell_id.contains(b.cell_id))
                 })
             }),
-            "incoming cell contains a buffered cell — upstream ordering bug"
+            "incoming cell contains a buffered cell, upstream ordering bug"
         );
 
         let is_sibling = self.sibling_slots[level]
@@ -925,7 +910,7 @@ impl<'a> CellIndexMerge<'a> {
     }
 
     /// Push a collapsed parent cell into the sibling vector at its
-    /// level. This is how recursive merging works — a merged level 25
+    /// level. This is how recursive merging works. A merged level 25
     /// parent waits for three more level 25 siblings, which may
     /// themselves have merged up from level 26.
     fn push_merged_parent(&mut self, cell: IndexCell) {
@@ -956,7 +941,7 @@ impl<'a> CellIndexMerge<'a> {
     /// Collapse four sibling cells into their parent. Unions edge
     /// indices per geometry, deduplicates, and computes contains_center
     /// at the parent center by ray-casting with the full sibling edge
-    /// set — not just the anchor child's edges.
+    /// set, not just the anchor child's edges.
     fn collapse_siblings(&mut self, slot: SiblingSlot) -> IndexCell {
         let parent_id = slot.parent_id;
         let parent_pcell = S2PaddedCell::new(parent_id, CELL_PADDING);
@@ -1002,7 +987,15 @@ impl<'a> CellIndexMerge<'a> {
             let mut crossings = 0u32;
             for &edge_idx in &entry.edge_indices {
                 let v0 = vertices[edge_idx as usize];
-                let v1 = vertices[(edge_idx as usize) + 1];
+                let v1 = if (edge_idx as usize) + 1 < vertices.len() {
+                    vertices[(edge_idx as usize) + 1]
+                } else {
+                    assert_eq!(
+                        edge_idx, 0,
+                        "edge index past vertex count is only valid for single-vertex points"
+                    );
+                    v0
+                };
                 if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
                     crossings += 1;
                 }
@@ -1068,7 +1061,7 @@ struct MergeEdge {
     b_uv: [f64; 2],
 }
 
-/// A clipped edge during subdivision — just an index into the MergeEdge vec
+/// A clipped edge during subdivision. An index into the MergeEdge vec
 /// plus a UV bounding box that gets narrowed as we descend.
 #[derive(Clone)]
 struct MergeClippedEdge {
@@ -1083,7 +1076,7 @@ struct MergeClippedEdge {
 // ---------------------------------------------------------------------------
 
 /// Distribute a clipped edge to the four children of a cell.
-/// Same math as clip_to_children in cell_index.rs — the clipping logic
+/// Same math as clip_to_children in cell_index.rs. The clipping logic
 /// should eventually be extracted into shared free functions taking
 /// (a_uv, b_uv, bound) tuples rather than duplicated here.
 fn clip_to_children_merge(
