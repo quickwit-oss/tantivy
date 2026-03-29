@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -18,6 +19,7 @@ use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
+use crate::spatial::cell_index::GeometryId;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
@@ -579,88 +581,85 @@ impl IndexMerger {
 
             let edge_cache = EdgeCache::new(edge_readers, 100_000);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-            let mut merge = CellIndexMerge::new(
-                iters,
-                edge_cache,
-                &geometry_counts,
-                &doc_id_mapping.alive_bitsets,
-            );
+            let mut merge = CellIndexMerge::new(iters, edge_cache, &doc_id_mapping.alive_bitsets);
 
-            let cells_out = cells_composite.for_field(field);
-            let mut offsets: Vec<(u64, u64)> = Vec::new();
-
-            // Collect cells first, then write edges. We can't hold mutable borrows on both
-            // composite writes simultaneously through the same loop, so we buffer cells and write
-            // edges after.
+            // Collect all merged cells. Shapes carry (segment, old_id) source identity.
             let mut merged_cells: Vec<super::super::spatial::cell_index::IndexCell> = Vec::new();
             while let Some(cell) = merge.next() {
                 merged_cells.push(cell);
             }
 
-            // Write cells. Offsets are relative to the start of this field's
-            // data because the reader sees a per-field slice starting at zero.
-            let cells_base = cells_out.written_bytes();
-            for cell in &merged_cells {
-                let offset = cells_out.written_bytes() - cells_base;
-                cells_out.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
-                cells_out
-                    .write_all(&(cell.shapes.len() as u16).to_le_bytes())
-                    .unwrap();
-                for shape in &cell.shapes {
-                    cells_out
-                        .write_all(&shape.geometry_id.1.to_le_bytes())
-                        .unwrap();
-                    cells_out.write_all(&[shape.contains_center as u8]).unwrap();
-                    cells_out
-                        .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
-                        .unwrap();
-                    for &edge_id in &shape.edge_indices {
-                        cells_out.write_all(&edge_id.to_le_bytes()).unwrap();
-                    }
-                }
-                offsets.push((cell.cell_id.0, offset));
-            }
-
-            // Write cell index dictionary and footer.
-            let dir_offset = cells_out.written_bytes() - cells_base;
-            for &(cell_id, offset) in &offsets {
-                cells_out.write_all(&cell_id.to_le_bytes()).unwrap();
-                cells_out.write_all(&offset.to_le_bytes()).unwrap();
-            }
-            cells_out
-                .write_all(&(offsets.len() as u32).to_le_bytes())
-                .unwrap();
-            cells_out.write_all(&dir_offset.to_le_bytes()).unwrap();
-            cells_out.flush()?;
-
-            // Write edges for first-encountered geometries.
-            // Collect all new geometry IDs that appear in the merged cells.
-            let mut max_new_id: u32 = 0;
-            for cell in &merged_cells {
-                for shape in &cell.shapes {
-                    if shape.geometry_id.1 >= max_new_id {
-                        max_new_id = shape.geometry_id.1 + 1;
-                    }
-                }
-            }
-
-            // Write edges in new_id order so edge positions match geometry IDs.
+            // Write edges first. Walk cells in order, write each geometry set on first encounter,
+            // assign new IDs sequentially. New IDs follow Hilbert encounter order so spatial
+            // locality flows into ID locality.
             let edges_out = edges_composite.for_field(field);
             {
                 let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, 16);
-                let mut new_id: u32 = 0;
+                let mut old_to_new: HashMap<GeometryId, u32> = HashMap::new();
+                let mut next_new_id: u32 = 0;
 
-                while new_id < max_new_id {
-                    let (seg, member_offset, mut set) = merge.read_set(new_id);
-                    let head_new_id = new_id - member_offset;
-                    let new_doc_id = doc_id_inverse[seg][set.doc_id as usize].unwrap();
-                    let set_size = set.members.len() as u32;
-                    set.doc_id = new_doc_id as u32;
-                    edge_writer.insert(&set);
-                    new_id = head_new_id + set_size;
+                for cell in &merged_cells {
+                    for shape in &cell.shapes {
+                        if old_to_new.contains_key(&shape.geometry_id) {
+                            continue;
+                        }
+                        let ec = merge.edge_cache();
+                        let (head, geo_set) = ec.get_geometry_set(shape.geometry_id);
+                        let seg = shape.geometry_id.0;
+                        let set_size = geo_set.members.len() as u32;
+                        for i in 0..set_size {
+                            let member_id = (seg, head + i);
+                            old_to_new.entry(member_id).or_insert_with(|| {
+                                let id = next_new_id;
+                                next_new_id += 1;
+                                id
+                            });
+                        }
+                        let old_doc_id = geo_set.doc_id;
+                        let new_doc_id = doc_id_inverse[seg as usize][old_doc_id as usize].unwrap();
+                        let mut set = geo_set.clone();
+                        set.doc_id = new_doc_id as u32;
+                        edge_writer.insert(&set);
+                    }
                 }
 
                 edge_writer.finish();
+
+                // Write cells with new IDs substituted from the encounter map.
+                let cells_out = cells_composite.for_field(field);
+                let mut offsets: Vec<(u64, u64)> = Vec::new();
+                let cells_base = cells_out.written_bytes();
+
+                for cell in &merged_cells {
+                    let offset = cells_out.written_bytes() - cells_base;
+                    cells_out.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
+                    cells_out
+                        .write_all(&(cell.shapes.len() as u16).to_le_bytes())
+                        .unwrap();
+                    for shape in &cell.shapes {
+                        let new_id = old_to_new[&shape.geometry_id];
+                        cells_out.write_all(&new_id.to_le_bytes()).unwrap();
+                        cells_out.write_all(&[shape.contains_center as u8]).unwrap();
+                        cells_out
+                            .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
+                            .unwrap();
+                        for &edge_id in &shape.edge_indices {
+                            cells_out.write_all(&edge_id.to_le_bytes()).unwrap();
+                        }
+                    }
+                    offsets.push((cell.cell_id.0, offset));
+                }
+
+                let dir_offset = cells_out.written_bytes() - cells_base;
+                for &(cell_id, offset) in &offsets {
+                    cells_out.write_all(&cell_id.to_le_bytes()).unwrap();
+                    cells_out.write_all(&offset.to_le_bytes()).unwrap();
+                }
+                cells_out
+                    .write_all(&(offsets.len() as u32).to_le_bytes())
+                    .unwrap();
+                cells_out.write_all(&dir_offset.to_le_bytes()).unwrap();
+                cells_out.flush()?;
             }
             edges_out.flush()?;
         }
