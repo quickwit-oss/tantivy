@@ -12,6 +12,7 @@ use crate::schema::Field;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::closest_edge_query::ClosestEdgeQuery;
 use crate::spatial::contains_query::ContainsQuery;
+use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::geometry_set::to_geometry_set;
@@ -160,7 +161,7 @@ trait PreparedSpatialQuery: Send + Sync {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
     ) -> Vec<u32>;
 }
 
@@ -168,9 +169,9 @@ impl PreparedSpatialQuery for ContainsQuery {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
     ) -> Vec<u32> {
-        ContainsQuery::search_segment(self, cell_reader, edge_reader)
+        ContainsQuery::search_segment(self, cell_reader, edge_cache)
     }
 }
 
@@ -178,9 +179,9 @@ impl PreparedSpatialQuery for IntersectsQuery {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
     ) -> Vec<u32> {
-        IntersectsQuery::search_segment(self, cell_reader, edge_reader)
+        IntersectsQuery::search_segment(self, cell_reader, edge_cache)
     }
 }
 
@@ -188,9 +189,9 @@ impl PreparedSpatialQuery for ClosestEdgeQuery {
     fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
     ) -> Vec<u32> {
-        ClosestEdgeQuery::search_segment(self, cell_reader, edge_reader)
+        ClosestEdgeQuery::search_segment(self, cell_reader, edge_cache)
             .into_iter()
             .map(|r| r.doc_id)
             .collect()
@@ -217,9 +218,10 @@ impl Weight for SpatialWeight {
         };
 
         let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-        let mut edge_reader = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
+        let edge_reader = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
 
-        let doc_ids = self.query.search_segment(&cell_reader, &mut edge_reader);
+        let doc_ids = self.query.search_segment(&cell_reader, &mut edge_cache);
 
         let mut include = BitSet::with_max_value(reader.max_doc());
         for doc_id in doc_ids {

@@ -19,6 +19,7 @@ use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
 use crate::spatial::cell_index_reader::CellIndexReader;
+use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::merge::CellIndexMerge;
@@ -565,21 +566,22 @@ impl IndexMerger {
             for sr in &spatial_readers {
                 if let Some(spatial_reader) = sr {
                     let cr = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
                     geometry_counts.push(er.geometry_count());
                     cell_readers.push(cr);
                     edge_readers.push(er);
                 } else {
                     geometry_counts.push(0);
                     cell_readers.push(CellIndexReader::open(&[]));
-                    edge_readers.push(EdgeReader::<Sphere>::open(&[], 100_000));
+                    edge_readers.push(EdgeReader::<Sphere>::open(&[]));
                 }
             }
 
+            let edge_cache = EdgeCache::new(edge_readers, 100_000);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
             let mut merge = CellIndexMerge::new(
                 iters,
-                edge_readers,
+                edge_cache,
                 &geometry_counts,
                 &doc_id_mapping.alive_bitsets,
             );

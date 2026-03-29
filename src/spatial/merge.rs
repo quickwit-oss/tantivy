@@ -17,7 +17,7 @@ use common::ReadOnlyBitSet;
 use super::cell_index::{get_edge_max_level, BuildOptions, ClippedShape, IndexCell, CELL_PADDING};
 use super::cell_index_reader::CellIndexIter;
 use super::crossings::S2EdgeCrosser;
-use super::edge_reader::EdgeReader;
+use super::edge_cache::EdgeCache;
 use super::geometry_set::GeometrySet;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
@@ -204,8 +204,8 @@ impl HeldCoarse {
 pub struct CellIndexMerge<'a> {
     /// Peekable iterators over each source segment's cell index.
     sources: Vec<PeekableCell<'a>>,
-    /// Edge readers for each source segment. Mmap'd, read-only.
-    edge_readers: Vec<EdgeReader<'a, Sphere>>,
+    /// Shared cache over all source segment edge readers.
+    edge_cache: EdgeCache<'a, Sphere>,
     /// Tracks old-to-new and new-to-old geometry ID mappings.
     geo_map: GeometryMap,
     /// Per-segment alive bitsets from Tantivy's delete-and-merge. `None`
@@ -288,14 +288,14 @@ impl<'a> CellIndexMerge<'a> {
     /// Creates a merge iterator over multiple segment cell indexes.
     pub fn new(
         iters: Vec<CellIndexIter<'a>>,
-        edge_readers: Vec<EdgeReader<'a, Sphere>>,
+        edge_cache: EdgeCache<'a, Sphere>,
         segment_geometry_counts: &[u32],
         alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     ) -> Self {
         let options = BuildOptions::default();
         CellIndexMerge {
             sources: iters.into_iter().map(PeekableCell::new).collect(),
-            edge_readers,
+            edge_cache,
             geo_map: GeometryMap::new(segment_geometry_counts),
             alive_bitsets,
             held: Vec::new(),
@@ -316,7 +316,7 @@ impl<'a> CellIndexMerge<'a> {
     /// Read vertices for a geometry from its source segment's edge reader.
     pub fn read_vertices(&mut self, new_geometry_id: u32) -> (u32, Vec<[f64; 3]>) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
-        let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+        let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
         let member_idx = (old_id - head) as usize;
         (geo_set.doc_id, geo_set.members[member_idx].vertices.clone())
     }
@@ -326,7 +326,7 @@ impl<'a> CellIndexMerge<'a> {
     /// GeometrySet with the source doc_id. The caller remaps the doc_id.
     pub fn read_set(&mut self, new_geometry_id: u32) -> (usize, u32, GeometrySet) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
-        let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+        let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
         let member_offset = old_id - head;
         (seg, member_offset, geo_set.clone())
     }
@@ -434,10 +434,8 @@ impl<'a> CellIndexMerge<'a> {
         // Drop shapes whose documents were deleted. The alive bitset for the segment is None when
         // all documents are alive.
         if let Some(bitset) = &self.alive_bitsets[segment] {
-            let reader = &mut self.edge_readers[segment];
             cell.shapes.retain(|shape| {
-                let (_, set) = reader.get_geometry_set(shape.geometry_id);
-                let doc_id = set.doc_id;
+                let doc_id = self.edge_cache.doc_id_for(segment, shape.geometry_id);
                 bitset.contains(doc_id)
             });
         }
@@ -447,7 +445,7 @@ impl<'a> CellIndexMerge<'a> {
         // new IDs in the correct order.
         for shape in &mut cell.shapes {
             let (head_old_id, geo_set) =
-                self.edge_readers[segment].get_geometry_set(shape.geometry_id);
+                self.edge_cache.get_geometry_set(segment, shape.geometry_id);
             let set_size = geo_set.members.len() as u32;
             for i in 0..set_size {
                 self.geo_map.get_or_assign(segment, head_old_id + i);
@@ -468,7 +466,9 @@ impl<'a> CellIndexMerge<'a> {
 
         for clipped in &cell.shapes {
             // Skip shapes for deleted documents.
-            let (_, clipped_set) = self.edge_readers[segment].get_geometry_set(clipped.geometry_id);
+            let (_, clipped_set) = self
+                .edge_cache
+                .get_geometry_set(segment, clipped.geometry_id);
             let doc_id = clipped_set.doc_id;
             if let Some(bitset) = &self.alive_bitsets[segment] {
                 if !bitset.contains(doc_id) {
@@ -480,7 +480,9 @@ impl<'a> CellIndexMerge<'a> {
 
             // Read vertices from the source edge reader. Second cache lookup is a hit. We just
             // called get() for the doc_id check.
-            let (head, geo_set) = self.edge_readers[segment].get_geometry_set(clipped.geometry_id);
+            let (head, geo_set) = self
+                .edge_cache
+                .get_geometry_set(segment, clipped.geometry_id);
             let member_idx = (clipped.geometry_id - head) as usize;
             let vertices = geo_set.members[member_idx].vertices.clone();
 
@@ -566,7 +568,7 @@ impl<'a> CellIndexMerge<'a> {
 
         for shape in &cell.shapes {
             let (seg, old_id) = self.geo_map.source(shape.geometry_id);
-            let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+            let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
             let member_idx = (old_id - head) as usize;
             let vertices = geo_set.members[member_idx].vertices.clone();
 
@@ -979,7 +981,7 @@ impl<'a> CellIndexMerge<'a> {
 
         for entry in &entries {
             let (seg, old_id) = self.geo_map.source(entry.geometry_id);
-            let (head, geo_set) = self.edge_readers[seg].get_geometry_set(old_id);
+            let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
             let member_idx = (old_id - head) as usize;
             let vertices = geo_set.members[member_idx].vertices.clone();
 

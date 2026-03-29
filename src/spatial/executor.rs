@@ -11,6 +11,7 @@ use common::BitSet;
 use super::cell_index_reader::CellIndexReader;
 use super::closest_edge_query::ClosestEdgeQuery;
 use super::contains_query::ContainsQuery;
+use super::edge_cache::EdgeCache;
 use super::edge_reader::EdgeReader;
 use super::geometry_set::GeometrySet;
 use super::intersects_query::IntersectsQuery;
@@ -162,15 +163,15 @@ fn evaluate(
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader =
-                        EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                    let mut edge_cache = EdgeCache::new(vec![er], 100_000);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
 
                     let doc_ids = intersects.search_segment_filtered(
                         &cell_reader,
-                        &mut edge_reader,
+                        &mut edge_cache,
                         &filter_bitset,
                     );
 
@@ -200,15 +201,15 @@ fn evaluate(
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader =
-                        EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                    let mut edge_cache = EdgeCache::new(vec![er], 100_000);
 
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
 
                     let hits = query.search_segment_filtered(
                         &cell_reader,
-                        &mut edge_reader,
+                        &mut edge_cache,
                         &filter_bitset,
                     );
 
@@ -243,8 +244,8 @@ fn evaluate(
                 let spatial = reader.spatial_fields().get_field(*field)?;
                 if let Some(spatial_reader) = spatial {
                     let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let mut edge_reader =
-                        EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
+                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                    let mut edge_cache = EdgeCache::new(vec![er], 100_000);
 
                     let hits = match &filter_output {
                         Some(fo) => {
@@ -252,11 +253,11 @@ fn evaluate(
                                 fo.bitset_for(&reader.segment_id(), reader.max_doc());
                             query.search_segment_filtered(
                                 &cell_reader,
-                                &mut edge_reader,
+                                &mut edge_cache,
                                 &filter_bitset,
                             )
                         }
-                        None => query.search_segment(&cell_reader, &mut edge_reader),
+                        None => query.search_segment(&cell_reader, &mut edge_cache),
                     };
 
                     for hit in hits {
@@ -317,8 +318,8 @@ fn evaluate(
                 }
                 let spatial_reader = spatial.unwrap();
                 let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-                let mut edge_reader =
-                    EdgeReader::<Sphere>::open(spatial_reader.edges_bytes(), 100_000);
+                let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
+                let mut edge_cache = EdgeCache::new(vec![er], 100_000);
 
                 for cell in cell_reader.iter() {
                     for clipped in &cell.shapes {
@@ -326,13 +327,13 @@ fn evaluate(
                         if !visited.insert(geometry_id) {
                             continue;
                         }
-                        let doc_id = edge_reader.doc_id_for(geometry_id);
+                        let doc_id = edge_cache.doc_id_for(0, geometry_id);
                         if !outer_bitset.contains(doc_id) {
                             continue;
                         }
 
                         // Read the outer geometry.
-                        let (_, outer_set) = edge_reader.get_geometry_set(geometry_id);
+                        let (_, outer_set) = edge_cache.get_geometry_set(0, geometry_id);
                         let outer_geometry = outer_set.clone();
 
                         // Probe all segments for inner matches.
@@ -342,10 +343,9 @@ fn evaluate(
                             if let Some(probe_spatial_reader) = probe_spatial {
                                 let probe_cell_reader =
                                     CellIndexReader::open(probe_spatial_reader.cells_bytes());
-                                let mut probe_edge_reader = EdgeReader::<Sphere>::open(
-                                    probe_spatial_reader.edges_bytes(),
-                                    100_000,
-                                );
+                                let probe_er =
+                                    EdgeReader::<Sphere>::open(probe_spatial_reader.edges_bytes());
+                                let mut probe_edge_cache = EdgeCache::new(vec![probe_er], 100_000);
                                 let inner_bitset = inner_output
                                     .bitset_for(&probe_reader.segment_id(), probe_reader.max_doc());
 
@@ -358,7 +358,7 @@ fn evaluate(
                                         !probe
                                             .search_segment_filtered(
                                                 &probe_cell_reader,
-                                                &mut probe_edge_reader,
+                                                &mut probe_edge_cache,
                                                 &inner_bitset,
                                             )
                                             .is_empty()
@@ -371,7 +371,7 @@ fn evaluate(
                                         !probe
                                             .search_segment_filtered(
                                                 &probe_cell_reader,
-                                                &mut probe_edge_reader,
+                                                &mut probe_edge_cache,
                                                 &inner_bitset,
                                             )
                                             .is_empty()
@@ -384,7 +384,7 @@ fn evaluate(
                                         !probe
                                             .search_segment_filtered(
                                                 &probe_cell_reader,
-                                                &mut probe_edge_reader,
+                                                &mut probe_edge_cache,
                                                 &inner_bitset,
                                             )
                                             .is_empty()
@@ -398,7 +398,7 @@ fn evaluate(
                                         !probe
                                             .search_segment_filtered(
                                                 &probe_cell_reader,
-                                                &mut probe_edge_reader,
+                                                &mut probe_edge_cache,
                                                 &inner_bitset,
                                             )
                                             .is_empty()

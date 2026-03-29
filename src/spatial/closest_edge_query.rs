@@ -17,7 +17,7 @@ use common::BitSet;
 use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::QueryEdgeProvider;
-use super::edge_reader::EdgeReader;
+use super::edge_cache::EdgeCache;
 use super::geometry_set::GeometrySet;
 use super::s1chord_angle::S1ChordAngle;
 use super::s2cell::S2Cell;
@@ -106,25 +106,25 @@ impl ClosestEdgeQuery {
     pub fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
     ) -> Vec<ClosestEdgeResult> {
-        self.search_impl(cell_reader, edge_reader, None)
+        self.search_impl(cell_reader, edge_cache, None)
     }
 
     /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
     pub fn search_segment_filtered<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
         terms_filter: &BitSet,
     ) -> Vec<ClosestEdgeResult> {
-        self.search_impl(cell_reader, edge_reader, Some(terms_filter))
+        self.search_impl(cell_reader, edge_cache, Some(terms_filter))
     }
 
     fn search_impl<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
         terms_filter: Option<&BitSet>,
     ) -> Vec<ClosestEdgeResult> {
         if cell_reader.cell_count() == 0 {
@@ -168,7 +168,7 @@ impl ClosestEdgeQuery {
                 for index_cell in &index_cells {
                     self.process_edges(
                         index_cell,
-                        edge_reader,
+                        edge_cache,
                         terms_filter,
                         &mut best,
                         &mut distance_limit,
@@ -268,7 +268,7 @@ impl ClosestEdgeQuery {
     fn process_edges<'a>(
         &self,
         index_cell: &super::cell_index::IndexCell,
-        edge_reader: &mut EdgeReader<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, Sphere>,
         terms_filter: Option<&BitSet>,
         best: &mut HashMap<u32, S1ChordAngle>,
         distance_limit: &mut S1ChordAngle,
@@ -280,13 +280,13 @@ impl ClosestEdgeQuery {
             let geometry_id = clipped.geometry_id;
 
             if let Some(filter) = terms_filter {
-                let doc_id = edge_reader.doc_id_for(geometry_id);
+                let doc_id = edge_cache.doc_id_for(0, geometry_id);
                 if !filter.contains(doc_id) {
                     continue;
                 }
             }
 
-            let (doc_id, edge_set) = edge_reader.get_edge_set(geometry_id);
+            let (doc_id, edge_set) = edge_cache.get_edge_set(0, geometry_id);
             let candidate_vertices = &edge_set.vertices;
             if candidate_vertices.is_empty() {
                 continue;

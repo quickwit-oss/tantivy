@@ -12,7 +12,7 @@ use super::cell_index::{CellIndex, ClippedShape};
 use super::cell_index_reader::CellIndexReader;
 use super::cell_union::CellUnion;
 use super::crossings::S2EdgeCrosser;
-use super::edge_reader::EdgeReader;
+use super::edge_cache::EdgeCache;
 use super::latlng_rect::S2LatLngRect;
 use super::region::Region;
 use super::s2cap::S2Cap;
@@ -26,7 +26,7 @@ use super::sphere::Sphere;
 /// Provides vertex access for edge intersection tests.
 ///
 /// Implementors resolve a (geometry_id, edge_index) pair to the two endpoints of that edge. For
-/// ingest-side indexes backed by EdgeReader, this reads from disk. For query-local indexes, this
+/// ingest-side indexes backed by EdgeCache, this reads from disk. For query-local indexes, this
 /// indexes into an in-memory vertex array.
 pub trait EdgeProvider {
     /// Returns the two endpoints of the given edge.
@@ -45,7 +45,7 @@ pub struct ClippedInfo {
 }
 
 /// Abstracts cell lookup and edge resolution for indexed point-in-polygon. Takes &mut self because
-/// the segment-side EdgeReader mutates its LRU cache.
+/// the segment-side EdgeCache mutates its LRU cache.
 pub trait ContainmentIndex {
     /// Finds the cell containing the test point and returns the clipped shape data
     /// for the given geometry, or None if the geometry is not present in that cell.
@@ -102,12 +102,12 @@ impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
     }
 }
 
-/// Segment containment index wrapping a CellIndexReader and an EdgeReader.
+/// Segment containment index wrapping a CellIndexReader and an EdgeCache.
 pub struct SegmentIndex<'a, 'b> {
     /// The serialized cell index reader.
     pub cell_reader: &'a CellIndexReader<'a>,
-    /// The edge reader for vertex resolution.
-    pub edge_reader: &'b mut EdgeReader<'a, Sphere>,
+    /// The edge cache for vertex resolution.
+    pub edge_cache: &'b mut EdgeCache<'a, Sphere>,
 }
 
 impl ContainmentIndex for SegmentIndex<'_, '_> {
@@ -126,7 +126,7 @@ impl ContainmentIndex for SegmentIndex<'_, '_> {
     }
 
     fn resolve_edge(&mut self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
-        let (_, edge_set) = self.edge_reader.get_edge_set(geometry_id);
+        let (_, edge_set) = self.edge_cache.get_edge_set(0, geometry_id);
         let i = edge_idx as usize;
         (edge_set.vertices[i], edge_set.vertices[i + 1])
     }

@@ -10,10 +10,7 @@
 //!   Head: [flags] [len] [doc_id] [ring boundaries?] [vertex data]
 //!   Member: [flags] [len] [ring boundaries?] [vertex data]
 
-use std::collections::HashMap;
 use std::marker::PhantomData;
-
-use lru::LruCache;
 
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::surface::Surface;
@@ -26,28 +23,29 @@ struct EntryHeader {
     is_head: bool,
 }
 
-struct CachedSet {
-    head_position: u32,
-    set: GeometrySet,
-}
-
-/// Reads geometry entries from a serialized edge index segment. The Surface type parameter
-/// determines how many f64 coordinates are read per vertex.
+/// Reads geometry entries from a serialized edge index segment. Pure deserialization with no
+/// mutable state. The Surface type parameter determines how many f64 coordinates are read per
+/// vertex.
 pub struct EdgeReader<'a, S: Surface> {
     data: &'a [u8],
     geometry_count: u32,
     skip_interval: u32,
     dir_offset: u64,
-    index: HashMap<u32, u32>,
-    sets: LruCache<u32, CachedSet>,
-    cached_vertices: usize,
-    max_vertices: usize,
     _surface: PhantomData<S>,
 }
 
 impl<'a, S: Surface> EdgeReader<'a, S> {
     /// Construct a reader from the raw bytes of an edge index segment.
-    pub fn open(data: &'a [u8], max_vertices: usize) -> Self {
+    pub fn open(data: &'a [u8]) -> Self {
+        if data.len() < 16 {
+            return EdgeReader {
+                data,
+                geometry_count: 0,
+                skip_interval: 1,
+                dir_offset: 0,
+                _surface: PhantomData,
+            };
+        }
         let n = data.len();
         let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
         let skip_interval = u32::from_le_bytes(data[n - 12..n - 8].try_into().unwrap());
@@ -58,10 +56,6 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
             geometry_count,
             skip_interval,
             dir_offset,
-            index: HashMap::new(),
-            sets: LruCache::unbounded(),
-            cached_vertices: 0,
-            max_vertices,
             _surface: PhantomData,
         }
     }
@@ -71,7 +65,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         self.geometry_count
     }
 
-    /// Resolve a geometry position to its doc_id without decoding vertices or caching.
+    /// Resolve a geometry position to its doc_id without decoding vertices.
     pub fn doc_id_for(&self, position: u32) -> u32 {
         let mut skip_index = (position / self.skip_interval) as usize;
 
@@ -106,21 +100,10 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         }
     }
 
-    /// Retrieve one member's edges and the document's doc_id.
-    pub fn get_edge_set(&mut self, position: u32) -> (u32, &EdgeSet) {
-        let (head, set) = self.get_geometry_set(position);
-        let member_idx = (position - head) as usize;
-        (set.doc_id, &set.members[member_idx])
-    }
-
-    /// Retrieve the full geometry set containing the given position.
-    pub fn get_geometry_set(&mut self, position: u32) -> (u32, &GeometrySet) {
+    /// Read the full geometry set containing the given position. Returns (head_position, set). No
+    /// caching. Every call decodes from the byte stream.
+    pub fn read_geometry_set(&self, position: u32) -> (u32, GeometrySet) {
         debug_assert!(position < self.geometry_count);
-
-        if let Some(&head) = self.index.get(&position) {
-            let cached = self.sets.get(&head).unwrap();
-            return (cached.head_position, &cached.set);
-        }
 
         let (head_position, head_offset, doc_id) = self.find_head(position);
 
@@ -164,39 +147,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
             }
         }
 
-        let member_count = members.len() as u32;
-        let vertex_count: usize = members.iter().map(|m| m.vertices.len()).sum();
-        self.cached_vertices += vertex_count;
-
-        for i in 0..member_count {
-            self.index.insert(head_position + i, head_position);
-        }
-
-        self.sets.put(
-            head_position,
-            CachedSet {
-                head_position,
-                set: GeometrySet { members, doc_id },
-            },
-        );
-
-        while self.cached_vertices > self.max_vertices && self.sets.len() > 1 {
-            if let Some((evicted_id, evicted_set)) = self.sets.pop_lru() {
-                let evicted_verts: usize = evicted_set
-                    .set
-                    .members
-                    .iter()
-                    .map(|m| m.vertices.len())
-                    .sum();
-                self.cached_vertices -= evicted_verts;
-                for i in 0..evicted_set.set.members.len() as u32 {
-                    self.index.remove(&(evicted_id + i));
-                }
-            }
-        }
-
-        let cached = self.sets.get(&head_position).unwrap();
-        (cached.head_position, &cached.set)
+        (head_position, GeometrySet { members, doc_id })
     }
 
     fn find_head(&self, position: u32) -> (u32, u64, u32) {

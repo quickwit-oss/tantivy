@@ -14,7 +14,7 @@ use common::BitSet;
 use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
 use super::crossings::S2EdgeCrosser;
-use super::edge_reader::EdgeReader;
+use super::edge_cache::EdgeCache;
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::region::Region;
 use super::region_coverer::{CovererOptions, RegionCoverer};
@@ -84,28 +84,28 @@ impl ContainsQuery {
     pub fn search_segment(
         &self,
         cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader<'_, Sphere>,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
-        let candidates = self.collect_candidates(cell_reader, None, edge_reader);
-        self.verify_candidates(candidates, edge_reader)
+        let candidates = self.collect_candidates(cell_reader, None, edge_cache);
+        self.verify_candidates(candidates, edge_cache)
     }
 
     /// Search one segment, skipping shapes whose doc_id is not in the filter bitset.
     pub fn search_segment_filtered(
         &self,
         cell_reader: &CellIndexReader,
-        edge_reader: &mut EdgeReader<'_, Sphere>,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
         terms_filter: &BitSet,
     ) -> Vec<u32> {
-        let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_reader);
-        self.verify_candidates(candidates, edge_reader)
+        let candidates = self.collect_candidates(cell_reader, Some(terms_filter), edge_cache);
+        self.verify_candidates(candidates, edge_cache)
     }
 
     fn collect_candidates(
         &self,
         reader: &CellIndexReader,
         terms_filter: Option<&BitSet>,
-        edge_reader: &EdgeReader<'_, Sphere>,
+        edge_cache: &EdgeCache<'_, Sphere>,
     ) -> HashMap<u32, CandidateInfo> {
         let mut candidates: HashMap<u32, CandidateInfo> = HashMap::new();
 
@@ -117,7 +117,7 @@ impl ContainsQuery {
 
                 for clipped in &index_cell.shapes {
                     if let Some(filter) = terms_filter {
-                        let doc_id = edge_reader.doc_id_for(clipped.geometry_id);
+                        let doc_id = edge_cache.doc_id_for(0, clipped.geometry_id);
                         if !filter.contains(doc_id) {
                             continue;
                         }
@@ -149,13 +149,13 @@ impl ContainsQuery {
     fn verify_candidates(
         &self,
         candidates: HashMap<u32, CandidateInfo>,
-        edge_reader: &mut EdgeReader<'_, Sphere>,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
         let mut doc_ids = Vec::new();
 
         for (geometry_id, info) in candidates {
-            if self.verify_one(geometry_id, &info, edge_reader) {
-                let (doc_id, _) = edge_reader.get_edge_set(geometry_id);
+            if self.verify_one(geometry_id, &info, edge_cache) {
+                let (doc_id, _) = edge_cache.get_edge_set(0, geometry_id);
                 doc_ids.push(doc_id);
             }
         }
@@ -171,13 +171,13 @@ impl ContainsQuery {
         &self,
         geometry_id: u32,
         info: &CandidateInfo,
-        edge_reader: &mut EdgeReader<'_, Sphere>,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> bool {
-        if info.has_boundary && self.has_crossing(geometry_id, info, edge_reader) {
+        if info.has_boundary && self.has_crossing(geometry_id, info, edge_cache) {
             return false;
         }
 
-        let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
+        let (_, edge_set) = edge_cache.get_edge_set(0, geometry_id);
         let vertices = &edge_set.vertices;
 
         if vertices.is_empty() {
@@ -193,9 +193,9 @@ impl ContainsQuery {
         &self,
         geometry_id: u32,
         info: &CandidateInfo,
-        edge_reader: &mut EdgeReader<'_, Sphere>,
+        edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> bool {
-        let (_, edge_set) = edge_reader.get_edge_set(geometry_id);
+        let (_, edge_set) = edge_cache.get_edge_set(0, geometry_id);
         let candidate_vertices = &edge_set.vertices;
         let n_candidate = candidate_vertices.len();
 
