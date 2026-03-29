@@ -327,13 +327,13 @@ fn evaluate(
                         if !visited.insert(geometry_id) {
                             continue;
                         }
-                        let doc_id = edge_cache.doc_id_for(0, geometry_id);
+                        let doc_id = edge_cache.doc_id_for(geometry_id);
                         if !outer_bitset.contains(doc_id) {
                             continue;
                         }
 
                         // Read the outer geometry.
-                        let (_, outer_set) = edge_cache.get_geometry_set(0, geometry_id);
+                        let (_, outer_set) = edge_cache.get_geometry_set(geometry_id);
                         let outer_geometry = outer_set.clone();
 
                         // Probe all segments for inner matches.

@@ -280,13 +280,13 @@ impl ClosestEdgeQuery {
             let geometry_id = clipped.geometry_id;
 
             if let Some(filter) = terms_filter {
-                let doc_id = edge_cache.doc_id_for(0, geometry_id);
+                let doc_id = edge_cache.doc_id_for(geometry_id);
                 if !filter.contains(doc_id) {
                     continue;
                 }
             }
 
-            let (doc_id, edge_set) = edge_cache.get_edge_set(0, geometry_id);
+            let (doc_id, edge_set) = edge_cache.get_edge_set(geometry_id);
             let candidate_vertices = &edge_set.vertices;
             if candidate_vertices.is_empty() {
                 continue;

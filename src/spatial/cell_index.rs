@@ -67,12 +67,17 @@ pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
 /// It consists of the set of edge ids that intersect that cell, and a boolean indicating whether
 /// the center of the cell is inside the shape (for shapes that have an interior).
 ///
+/// Identifies a geometry member within a segment or across segments during merge. The first
+/// element is the segment index (0 for single-segment operations). The second is the geometry
+/// position within that segment's edge index.
+pub type GeometryId = (u16, u32);
+
 /// Note that the edges themselves are not clipped; we always use the original edges for
 /// intersection tests so that the results will be the same as the original shape.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClippedShape {
-    /// The geometry id maps back to a doc id through the edge index.
-    pub geometry_id: u32,
+    /// Identifies the geometry member. (segment, position) during merge, (0, position) otherwise.
+    pub geometry_id: GeometryId,
     /// True if the geometry contains the center of the cell.
     pub contains_center: bool,
     /// Indicies of the edges stored per geometry id in the edge index.
@@ -106,7 +111,7 @@ impl IndexCell {
 
     /// Returns the clipped shape corresponding to the given geometry ID, or None if the geometry
     /// does not intersect this cell.
-    pub fn find_shape(&self, geometry_id: u32) -> Option<&ClippedShape> {
+    pub fn find_shape(&self, geometry_id: GeometryId) -> Option<&ClippedShape> {
         self.shapes.iter().find(|s| s.geometry_id == geometry_id)
     }
 
@@ -125,7 +130,7 @@ impl IndexCell {
 
 impl ClippedShape {
     /// Creates a new ClippedShape with the given geometry ID and contains_center flag.
-    pub fn new(geometry_id: u32, contains_center: bool) -> Self {
+    pub fn new(geometry_id: GeometryId, contains_center: bool) -> Self {
         Self {
             geometry_id,
             contains_center,
@@ -361,7 +366,7 @@ impl CellIndex {
                 .unwrap();
 
             for shape in &cell.shapes {
-                write.write_all(&shape.geometry_id.to_le_bytes()).unwrap();
+                write.write_all(&shape.geometry_id.1.to_le_bytes()).unwrap();
                 write.write_all(&[shape.contains_center as u8]).unwrap();
                 write
                     .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
@@ -1014,11 +1019,11 @@ impl IndexBuilder {
             let containing_geo_id = containing_iter.peek().copied().copied().unwrap_or(u32::MAX);
 
             if containing_geo_id < edge_geo_id {
-                cell.add_shape(ClippedShape::new(containing_geo_id, true));
+                cell.add_shape(ClippedShape::new((0, containing_geo_id), true));
                 containing_iter.next();
             } else {
                 let geo_id = edge_geo_id;
-                let mut shape = ClippedShape::new(geo_id, false);
+                let mut shape = ClippedShape::new((0, geo_id), false);
 
                 while edge_idx < edges.len()
                     && face_edges[edges[edge_idx].face_edge_index].geometry_id == geo_id

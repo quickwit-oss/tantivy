@@ -608,7 +608,7 @@ impl IndexMerger {
                     .unwrap();
                 for shape in &cell.shapes {
                     cells_out
-                        .write_all(&shape.geometry_id.to_le_bytes())
+                        .write_all(&shape.geometry_id.1.to_le_bytes())
                         .unwrap();
                     cells_out.write_all(&[shape.contains_center as u8]).unwrap();
                     cells_out
@@ -638,8 +638,8 @@ impl IndexMerger {
             let mut max_new_id: u32 = 0;
             for cell in &merged_cells {
                 for shape in &cell.shapes {
-                    if shape.geometry_id >= max_new_id {
-                        max_new_id = shape.geometry_id + 1;
+                    if shape.geometry_id.1 >= max_new_id {
+                        max_new_id = shape.geometry_id.1 + 1;
                     }
                 }
             }

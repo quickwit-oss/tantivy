@@ -14,7 +14,9 @@ use std::collections::VecDeque;
 
 use common::ReadOnlyBitSet;
 
-use super::cell_index::{get_edge_max_level, BuildOptions, ClippedShape, IndexCell, CELL_PADDING};
+use super::cell_index::{
+    get_edge_max_level, BuildOptions, ClippedShape, GeometryId, IndexCell, CELL_PADDING,
+};
 use super::cell_index_reader::CellIndexIter;
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
@@ -112,7 +114,7 @@ struct HeldEdge {
 
 /// A geometry from a coarse cell, held for distribution.
 struct HeldShape {
-    new_geometry_id: u32,
+    new_geometry_id: GeometryId,
     /// Whether this geometry contains the coarse cell's center.
     contains_center: bool,
     edges: Vec<HeldEdge>,
@@ -275,7 +277,7 @@ struct SiblingSlot {
 
 /// Per-geometry state accumulated during sibling collapse.
 struct CollapseEntry {
-    geometry_id: u32,
+    geometry_id: GeometryId,
     /// contains_center flag at the anchor child's center.
     anchor_flag: bool,
     /// 3D center of the anchor child (first child encountered).
@@ -316,7 +318,8 @@ impl<'a> CellIndexMerge<'a> {
     /// Read vertices for a geometry from its source segment's edge reader.
     pub fn read_vertices(&mut self, new_geometry_id: u32) -> (u32, Vec<[f64; 3]>) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
-        let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
+        let src_id = (seg as u16, old_id);
+        let (head, geo_set) = self.edge_cache.get_geometry_set(src_id);
         let member_idx = (old_id - head) as usize;
         (geo_set.doc_id, geo_set.members[member_idx].vertices.clone())
     }
@@ -326,7 +329,8 @@ impl<'a> CellIndexMerge<'a> {
     /// GeometrySet with the source doc_id. The caller remaps the doc_id.
     pub fn read_set(&mut self, new_geometry_id: u32) -> (usize, u32, GeometrySet) {
         let (seg, old_id) = self.geo_map.source(new_geometry_id);
-        let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
+        let src_id = (seg as u16, old_id);
+        let (head, geo_set) = self.edge_cache.get_geometry_set(src_id);
         let member_offset = old_id - head;
         (seg, member_offset, geo_set.clone())
     }
@@ -434,8 +438,10 @@ impl<'a> CellIndexMerge<'a> {
         // Drop shapes whose documents were deleted. The alive bitset for the segment is None when
         // all documents are alive.
         if let Some(bitset) = &self.alive_bitsets[segment] {
+            let seg = segment as u16;
             cell.shapes.retain(|shape| {
-                let doc_id = self.edge_cache.doc_id_for(segment, shape.geometry_id);
+                let id = (seg, shape.geometry_id.1);
+                let doc_id = self.edge_cache.doc_id_for(id);
                 bitset.contains(doc_id)
             });
         }
@@ -444,14 +450,15 @@ impl<'a> CellIndexMerge<'a> {
         // encountered, assign IDs for all members starting from the head so they get consecutive
         // new IDs in the correct order.
         for shape in &mut cell.shapes {
-            let (head_old_id, geo_set) =
-                self.edge_cache.get_geometry_set(segment, shape.geometry_id);
+            let old_pos = shape.geometry_id.1;
+            let src_id = (segment as u16, old_pos);
+            let (head_old_id, geo_set) = self.edge_cache.get_geometry_set(src_id);
             let set_size = geo_set.members.len() as u32;
             for i in 0..set_size {
                 self.geo_map.get_or_assign(segment, head_old_id + i);
             }
-            let (new_id, _) = self.geo_map.get_or_assign(segment, shape.geometry_id);
-            shape.geometry_id = new_id;
+            let (new_id, _) = self.geo_map.get_or_assign(segment, old_pos);
+            shape.geometry_id = (0, new_id);
         }
     }
 
@@ -464,11 +471,13 @@ impl<'a> CellIndexMerge<'a> {
 
         let mut shapes = Vec::new();
 
+        let seg = segment as u16;
         for clipped in &cell.shapes {
+            let old_pos = clipped.geometry_id.1;
+            let src_id = (seg, old_pos);
+
             // Skip shapes for deleted documents.
-            let (_, clipped_set) = self
-                .edge_cache
-                .get_geometry_set(segment, clipped.geometry_id);
+            let (_, clipped_set) = self.edge_cache.get_geometry_set(src_id);
             let doc_id = clipped_set.doc_id;
             if let Some(bitset) = &self.alive_bitsets[segment] {
                 if !bitset.contains(doc_id) {
@@ -476,14 +485,12 @@ impl<'a> CellIndexMerge<'a> {
                 }
             }
 
-            let (new_id, _) = self.geo_map.get_or_assign(segment, clipped.geometry_id);
+            let (new_id, _) = self.geo_map.get_or_assign(segment, old_pos);
 
             // Read vertices from the source edge reader. Second cache lookup is a hit. We just
             // called get() for the doc_id check.
-            let (head, geo_set) = self
-                .edge_cache
-                .get_geometry_set(segment, clipped.geometry_id);
-            let member_idx = (clipped.geometry_id - head) as usize;
+            let (head, geo_set) = self.edge_cache.get_geometry_set(src_id);
+            let member_idx = (old_pos - head) as usize;
             let vertices = geo_set.members[member_idx].vertices.clone();
 
             let mut edges = Vec::new();
@@ -519,7 +526,7 @@ impl<'a> CellIndexMerge<'a> {
             }
 
             shapes.push(HeldShape {
-                new_geometry_id: new_id,
+                new_geometry_id: (0, new_id),
                 contains_center: clipped.contains_center,
                 edges,
                 _uv_bound: uv_bound,
@@ -567,8 +574,9 @@ impl<'a> CellIndexMerge<'a> {
         let mut merge_edges: Vec<MergeEdge> = Vec::new();
 
         for shape in &cell.shapes {
-            let (seg, old_id) = self.geo_map.source(shape.geometry_id);
-            let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
+            let (seg, old_id) = self.geo_map.source(shape.geometry_id.1);
+            let src_id = (seg as u16, old_id);
+            let (head, geo_set) = self.edge_cache.get_geometry_set(src_id);
             let member_idx = (old_id - head) as usize;
             let vertices = geo_set.members[member_idx].vertices.clone();
 
@@ -611,7 +619,7 @@ impl<'a> CellIndexMerge<'a> {
             .collect();
 
         // Collect parent contains_center flags for the ray-cast base.
-        let parent_contains: Vec<(u32, bool)> = cell
+        let parent_contains: Vec<(GeometryId, bool)> = cell
             .shapes
             .iter()
             .map(|s| (s.geometry_id, s.contains_center))
@@ -644,7 +652,7 @@ impl<'a> CellIndexMerge<'a> {
         all_edges: &[MergeEdge],
         clipped: &[MergeClippedEdge],
         parent_clipped: &[MergeClippedEdge],
-        parent_contains: &[(u32, bool)],
+        parent_contains: &[(GeometryId, bool)],
     ) {
         // Stop subdivision when:
         //  - we've reached MAX_LEVEL (no children to create), or
@@ -674,7 +682,7 @@ impl<'a> CellIndexMerge<'a> {
 
             // Group edges by geometry_id. Use a map to handle
             // non-contiguous geometry_ids in the clipped list.
-            let mut edge_map: Vec<(u32, Vec<u16>)> = Vec::new();
+            let mut edge_map: Vec<(GeometryId, Vec<u16>)> = Vec::new();
             for ce in clipped {
                 let me = &all_edges[ce.edge_index];
                 if let Some((_, edges)) =
@@ -687,7 +695,7 @@ impl<'a> CellIndexMerge<'a> {
             }
 
             // Emit shapes that have edges in this cell.
-            let mut emitted_gids: Vec<u32> = Vec::new();
+            let mut emitted_gids: Vec<GeometryId> = Vec::new();
             for (geometry_id, edge_indices) in &edge_map {
                 let parent_flag = parent_contains
                     .iter()
@@ -750,7 +758,7 @@ impl<'a> CellIndexMerge<'a> {
         // Compute contains_center at this level for propagation.
         // Uses all parent edges, not just the child's subset.
         let this_center = pcell.get_center();
-        let this_contains: Vec<(u32, bool)> = parent_contains
+        let this_contains: Vec<(GeometryId, bool)> = parent_contains
             .iter()
             .map(|&(gid, parent_flag)| {
                 let contains = compute_contains_center_local(
@@ -927,7 +935,7 @@ impl<'a> CellIndexMerge<'a> {
     /// uses total edge count as proxy for short edges since we don't
     /// read vertices for max_level here.
     fn merge_threshold(&self, slot: &SiblingSlot) -> usize {
-        let mut unique_gids: Vec<u32> = Vec::new();
+        let mut unique_gids: Vec<GeometryId> = Vec::new();
         for cell in &slot.cells {
             for shape in &cell.shapes {
                 if !unique_gids.contains(&shape.geometry_id) {
@@ -980,8 +988,9 @@ impl<'a> CellIndexMerge<'a> {
         let mut parent_cell = IndexCell::new(parent_id);
 
         for entry in &entries {
-            let (seg, old_id) = self.geo_map.source(entry.geometry_id);
-            let (head, geo_set) = self.edge_cache.get_geometry_set(seg, old_id);
+            let (seg, old_id) = self.geo_map.source(entry.geometry_id.1);
+            let src_id = (seg as u16, old_id);
+            let (head, geo_set) = self.edge_cache.get_geometry_set(src_id);
             let member_idx = (old_id - head) as usize;
             let vertices = geo_set.members[member_idx].vertices.clone();
 
@@ -1054,7 +1063,7 @@ impl<'a> Iterator for CellIndexMerge<'a> {
 /// the split stage knows when to stop subdividing. Without this, long
 /// edges that span many levels would recurse to MAX_LEVEL.
 struct MergeEdge {
-    geometry_id: u32,
+    geometry_id: GeometryId,
     edge_index: u16,
     max_level: i32,
     v0: [f64; 3],
@@ -1256,7 +1265,7 @@ fn compute_contains_center_local(
     from_flag: bool,
     all_edges: &[MergeEdge],
     clipped: &[MergeClippedEdge],
-    geometry_id: u32,
+    geometry_id: GeometryId,
 ) -> bool {
     let mut crosser = S2EdgeCrosser::new(from, to);
     let mut crossings = 0u32;

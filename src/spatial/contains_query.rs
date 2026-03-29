@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 use common::BitSet;
 
-use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
+use super::cell_index::{BuildOptions, CellIndex, GeometryId, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
@@ -31,14 +31,14 @@ pub struct QueryEdgeProvider {
 
 impl QueryEdgeProvider {
     /// Returns the EdgeSet for the given geometry_id.
-    pub fn get_edge_set(&self, geometry_id: u32) -> &EdgeSet {
-        &self.set.members[geometry_id as usize]
+    pub fn get_edge_set(&self, geometry_id: GeometryId) -> &EdgeSet {
+        &self.set.members[geometry_id.1 as usize]
     }
 }
 
 impl EdgeProvider for QueryEdgeProvider {
-    fn get_edge(&self, geometry_id: u32, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
-        let vertices = &self.set.members[geometry_id as usize].vertices;
+    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
+        let vertices = &self.set.members[geometry_id.1 as usize].vertices;
         let i = edge_idx as usize;
         (vertices[i], vertices[i + 1])
     }
@@ -106,8 +106,8 @@ impl ContainsQuery {
         reader: &CellIndexReader,
         terms_filter: Option<&BitSet>,
         edge_cache: &EdgeCache<'_, Sphere>,
-    ) -> HashMap<u32, CandidateInfo> {
-        let mut candidates: HashMap<u32, CandidateInfo> = HashMap::new();
+    ) -> HashMap<GeometryId, CandidateInfo> {
+        let mut candidates: HashMap<GeometryId, CandidateInfo> = HashMap::new();
 
         for (i, &covering_cell_id) in self.covering.iter().enumerate() {
             let is_interior = self.interior[i];
@@ -117,7 +117,7 @@ impl ContainsQuery {
 
                 for clipped in &index_cell.shapes {
                     if let Some(filter) = terms_filter {
-                        let doc_id = edge_cache.doc_id_for(0, clipped.geometry_id);
+                        let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
                         if !filter.contains(doc_id) {
                             continue;
                         }
@@ -148,14 +148,14 @@ impl ContainsQuery {
     /// Verify each candidate using the cascade.
     fn verify_candidates(
         &self,
-        candidates: HashMap<u32, CandidateInfo>,
+        candidates: HashMap<GeometryId, CandidateInfo>,
         edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> Vec<u32> {
         let mut doc_ids = Vec::new();
 
         for (geometry_id, info) in candidates {
             if self.verify_one(geometry_id, &info, edge_cache) {
-                let (doc_id, _) = edge_cache.get_edge_set(0, geometry_id);
+                let (doc_id, _) = edge_cache.get_edge_set(geometry_id);
                 doc_ids.push(doc_id);
             }
         }
@@ -169,7 +169,7 @@ impl ContainsQuery {
     /// interior-only), classify by testing a candidate vertex against the query polygon.
     fn verify_one(
         &self,
-        geometry_id: u32,
+        geometry_id: GeometryId,
         info: &CandidateInfo,
         edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> bool {
@@ -177,25 +177,25 @@ impl ContainsQuery {
             return false;
         }
 
-        let (_, edge_set) = edge_cache.get_edge_set(0, geometry_id);
+        let (_, edge_set) = edge_cache.get_edge_set(geometry_id);
         let vertices = &edge_set.vertices;
 
         if vertices.is_empty() {
             return false;
         }
 
-        index_contains_point(&self.query_index, &self.query_edges, 0, &vertices[0])
+        index_contains_point(&self.query_index, &self.query_edges, (0, 0), &vertices[0])
     }
 
     /// Tests whether any candidate edge crosses any query polygon edge, narrowed to edges sharing
     /// a boundary covering cell.
     fn has_crossing(
         &self,
-        geometry_id: u32,
+        geometry_id: GeometryId,
         info: &CandidateInfo,
         edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> bool {
-        let (_, edge_set) = edge_cache.get_edge_set(0, geometry_id);
+        let (_, edge_set) = edge_cache.get_edge_set(geometry_id);
         let candidate_vertices = &edge_set.vertices;
         let n_candidate = candidate_vertices.len();
 
@@ -203,7 +203,7 @@ impl ContainsQuery {
             return false;
         }
 
-        let query_vertices = &self.query_edges.get_edge_set(0).vertices;
+        let query_vertices = &self.query_edges.get_edge_set((0, 0)).vertices;
 
         for boundary in &info.boundary_edges {
             let query_cell = self.query_index.find_cell(boundary.covering_cell_id);

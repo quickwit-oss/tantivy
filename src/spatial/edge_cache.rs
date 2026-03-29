@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use lru::LruCache;
 
+use super::cell_index::GeometryId;
 use super::edge_reader::EdgeReader;
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::surface::Surface;
@@ -46,14 +47,16 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
         self.readers[segment].geometry_count()
     }
 
-    /// Resolve a geometry position to its doc_id without decoding vertices or touching the cache.
-    pub fn doc_id_for(&self, segment: usize, position: u32) -> u32 {
-        self.readers[segment].doc_id_for(position)
+    /// Resolve a geometry to its doc_id without decoding vertices or touching the cache.
+    pub fn doc_id_for(&self, id: GeometryId) -> u32 {
+        self.readers[id.0 as usize].doc_id_for(id.1)
     }
 
-    /// Retrieve the full geometry set containing the given position. Returns (head_position, set).
+    /// Retrieve the full geometry set containing the given geometry. Returns (head_position, set).
     /// Cached. The returned reference is valid until the next call that triggers eviction.
-    pub fn get_geometry_set(&mut self, segment: usize, position: u32) -> (u32, &GeometrySet) {
+    pub fn get_geometry_set(&mut self, id: GeometryId) -> (u32, &GeometrySet) {
+        let segment = id.0 as usize;
+        let position = id.1;
         let key = (segment, position);
         if let Some(&head_key) = self.index.get(&key) {
             let cached = self.sets.get(&head_key).unwrap();
@@ -93,9 +96,9 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
     }
 
     /// Retrieve one member's edges and the document's doc_id.
-    pub fn get_edge_set(&mut self, segment: usize, position: u32) -> (u32, &EdgeSet) {
-        let (head, set) = self.get_geometry_set(segment, position);
-        let member_idx = (position - head) as usize;
+    pub fn get_edge_set(&mut self, id: GeometryId) -> (u32, &EdgeSet) {
+        let (head, set) = self.get_geometry_set(id);
+        let member_idx = (id.1 - head) as usize;
         (set.doc_id, &set.members[member_idx])
     }
 }

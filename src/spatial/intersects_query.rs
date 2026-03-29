@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use common::BitSet;
 
-use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
+use super::cell_index::{BuildOptions, CellIndex, GeometryId, IndexBuilder};
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::{BoundaryEdges, CandidateInfo, QueryEdgeProvider};
 use super::crossings::S2EdgeCrosser;
@@ -83,8 +83,8 @@ impl IntersectsQuery {
         reader: &CellIndexReader,
         terms_filter: Option<&BitSet>,
         edge_cache: &EdgeCache<'_, Sphere>,
-    ) -> HashMap<u32, CandidateInfo> {
-        let mut candidates: HashMap<u32, CandidateInfo> = HashMap::new();
+    ) -> HashMap<GeometryId, CandidateInfo> {
+        let mut candidates: HashMap<GeometryId, CandidateInfo> = HashMap::new();
 
         for (i, &covering_cell_id) in self.covering.iter().enumerate() {
             let is_interior = self.interior[i];
@@ -94,7 +94,7 @@ impl IntersectsQuery {
 
                 for clipped in &index_cell.shapes {
                     if let Some(filter) = terms_filter {
-                        let doc_id = edge_cache.doc_id_for(0, clipped.geometry_id);
+                        let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
                         if !filter.contains(doc_id) {
                             continue;
                         }
@@ -124,7 +124,7 @@ impl IntersectsQuery {
 
     fn verify_candidates<'a>(
         &self,
-        candidates: HashMap<u32, CandidateInfo>,
+        candidates: HashMap<GeometryId, CandidateInfo>,
         cell_reader: &'a CellIndexReader<'a>,
         edge_cache: &mut EdgeCache<'a, Sphere>,
     ) -> Vec<u32> {
@@ -132,7 +132,7 @@ impl IntersectsQuery {
 
         for (geometry_id, info) in candidates {
             if self.verify_one(geometry_id, &info, cell_reader, edge_cache) {
-                let (doc_id, _) = edge_cache.get_edge_set(0, geometry_id);
+                let (doc_id, _) = edge_cache.get_edge_set(geometry_id);
                 doc_ids.push(doc_id);
             }
         }
@@ -142,16 +142,16 @@ impl IntersectsQuery {
 
     fn verify_one<'a>(
         &self,
-        geometry_id: u32,
+        geometry_id: GeometryId,
         info: &CandidateInfo,
         cell_reader: &'a CellIndexReader<'a>,
         edge_cache: &mut EdgeCache<'a, Sphere>,
     ) -> bool {
         if info.has_interior {
-            let (_, edge_set) = edge_cache.get_edge_set(0, geometry_id);
+            let (_, edge_set) = edge_cache.get_edge_set(geometry_id);
             let vertices = &edge_set.vertices;
             if !vertices.is_empty()
-                && index_contains_point(&self.query_index, &self.query_edges, 0, &vertices[0])
+                && index_contains_point(&self.query_index, &self.query_edges, (0, 0), &vertices[0])
             {
                 return true;
             }
@@ -161,7 +161,7 @@ impl IntersectsQuery {
             return true;
         }
 
-        let (_, edge_set) = edge_cache.get_edge_set(0, geometry_id);
+        let (_, edge_set) = edge_cache.get_edge_set(geometry_id);
         let vertices = &edge_set.vertices;
         let closed = edge_set.closed;
 
@@ -169,7 +169,7 @@ impl IntersectsQuery {
             return false;
         }
 
-        if index_contains_point(&self.query_index, &self.query_edges, 0, &vertices[0]) {
+        if index_contains_point(&self.query_index, &self.query_edges, (0, 0), &vertices[0]) {
             return true;
         }
 
@@ -181,7 +181,7 @@ impl IntersectsQuery {
             if contains_point(
                 &mut seg,
                 geometry_id,
-                &self.query_edges.get_edge_set(0).vertices[0],
+                &self.query_edges.get_edge_set((0, 0)).vertices[0],
             ) {
                 return true;
             }
@@ -192,11 +192,11 @@ impl IntersectsQuery {
 
     fn has_crossing(
         &self,
-        geometry_id: u32,
+        geometry_id: GeometryId,
         info: &CandidateInfo,
         edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> bool {
-        let (_, edge_set) = edge_cache.get_edge_set(0, geometry_id);
+        let (_, edge_set) = edge_cache.get_edge_set(geometry_id);
         let candidate_vertices = &edge_set.vertices;
         let n_candidate = candidate_vertices.len();
 
@@ -204,7 +204,7 @@ impl IntersectsQuery {
             return false;
         }
 
-        let query_vertices = &self.query_edges.get_edge_set(0).vertices;
+        let query_vertices = &self.query_edges.get_edge_set((0, 0)).vertices;
 
         for boundary in &info.boundary_edges {
             let query_cell = self.query_index.find_cell(boundary.covering_cell_id);

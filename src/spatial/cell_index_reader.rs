@@ -128,7 +128,7 @@ impl<'a> CellIndexReader<'a> {
             }
 
             shapes.push(ClippedShape {
-                geometry_id,
+                geometry_id: (0, geometry_id),
                 contains_center,
                 edge_indices,
             });
