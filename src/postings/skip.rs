@@ -96,7 +96,7 @@ pub(crate) struct SkipReader {
     owned_read: OwnedBytes,
     skip_info: IndexRecordOption,
     byte_offset: usize,
-    pub remaining_docs: u32, // number of docs remaining, including the
+    remaining_docs: u32, // number of docs remaining, including the
     // documents in the current block.
     block_info: BlockInfo,
 
@@ -144,6 +144,11 @@ impl SkipReader {
             skip_reader.read_block_info();
         }
         skip_reader
+    }
+
+    #[inline(always)]
+    pub fn has_remaining_docs(&self) -> bool {
+        self.remaining_docs != 0
     }
 
     pub fn reset(&mut self, data: OwnedBytes, doc_freq: u32) {

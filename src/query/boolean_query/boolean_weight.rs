@@ -9,8 +9,8 @@ use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
 use crate::query::{
-    intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
-    RequiredOptionalScorer, Scorer, Weight,
+    intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation,
+    Intersection, Occur, RequiredOptionalScorer, Scorer, Weight,
 };
 use crate::{DocId, Score};
 
@@ -574,7 +574,12 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                 super::block_wand(term_scorers, threshold, callback);
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
-                super::block_wand_intersection(term_scorers, threshold, callback);
+                if term_scorers.len() >= 16 {
+                    let mut intersection = Intersection::new(term_scorers, reader.max_doc());
+                    for_each_pruning_scorer(&mut intersection, threshold, callback);
+                } else {
+                    super::block_wand_intersection(term_scorers, threshold, callback);
+                }
             }
             SpecializedScorer::Other(mut scorer) => {
                 for_each_pruning_scorer(scorer.as_mut(), threshold, callback);

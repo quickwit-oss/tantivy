@@ -1,6 +1,7 @@
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::query::term_query::TermScorer;
-use crate::query::Scorer;
+use crate::query::weight::for_each_pruning_scorer;
+use crate::query::{Intersection, Scorer};
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// Block-max pruning for top-K over intersection of term scorers.
@@ -15,13 +16,15 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 ///
 /// # Preconditions
 /// - `scorers` has at least 2 elements
+/// - `scorers` has less than 16 elements
 /// - All scorers read frequencies (`FreqReadingOption::ReadFreq`)
-pub fn block_wand_intersection(
+pub(crate) fn block_wand_intersection(
     mut scorers: Vec<TermScorer>,
     mut threshold: Score,
     callback: &mut dyn FnMut(DocId, Score) -> Score,
 ) {
     assert!(scorers.len() >= 2);
+    assert!(scorers.len() <= 16);
 
     // Sort by cost (ascending). scorers[0] becomes the "leader" (rarest term).
     scorers.sort_by_key(TermScorer::size_hint);
@@ -61,12 +64,28 @@ pub fn block_wand_intersection(
         let mut window_end: DocId = leader.last_doc_in_block();
 
         let mut secondary_block_max_sum: Score = 0.0;
-        for secondary in secondaries.iter_mut() {
+        let mut secondary_block_max_scores = [0.0f32; 16];
+        let num_secondaries = secondaries.len();
+        for (idx, secondary) in secondaries.iter_mut().enumerate() {
             if !secondary.block_cursor().seek_block(doc) {
                 return;
             }
             window_end = window_end.min(secondary.last_doc_in_block());
-            secondary_block_max_sum += secondary.block_max_score();
+            let bms = secondary.block_max_score();
+            secondary_block_max_scores[idx] = bms;
+            secondary_block_max_sum += bms;
+        }
+
+        // Precompute suffix sums: suffix[i] = sum of block_max for secondaries[i+1..].
+        // Used in Phase 2 to prune candidates that can't beat threshold even with
+        // remaining secondaries contributing their block_max.
+        let mut secondary_suffix_block_max = [0.0f32; 16];
+        {
+            let mut running = 0.0f32;
+            for idx in (0..num_secondaries).rev() {
+                secondary_suffix_block_max[idx] = running;
+                running += secondary_block_max_scores[idx];
+            }
         }
 
         if leader_block_max + secondary_block_max_sum <= threshold {
@@ -122,7 +141,7 @@ pub fn block_wand_intersection(
             let candidate_doc = candidate_doc_ids[candidate_idx];
             let mut total_score: Score = candidate_scores[candidate_idx];
 
-            for secondary in secondaries.iter_mut() {
+            for (secondary_idx, secondary) in secondaries.iter_mut().enumerate() {
                 // If a previous candidate already advanced this secondary past
                 // candidate_doc, the candidate can't be in the intersection.
                 if secondary.doc() > candidate_doc {
@@ -133,6 +152,12 @@ pub fn block_wand_intersection(
                     continue 'next_candidate;
                 }
                 total_score += secondary.score();
+
+                // Prune: even if all remaining secondaries score at their block max,
+                // can we still beat the threshold?
+                if total_score + secondary_suffix_block_max[secondary_idx] <= threshold {
+                    continue 'next_candidate;
+                }
             }
 
             // All secondaries matched.

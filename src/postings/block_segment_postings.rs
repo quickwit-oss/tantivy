@@ -291,13 +291,12 @@ impl BlockSegmentPostings {
     /// `.load_block()` needs to be called manually afterwards.
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
-    #[inline]
     pub(crate) fn seek_block(&mut self, target_doc: DocId) -> bool {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
             self.block_loaded = false;
         }
-        self.skip_reader.remaining_docs != 0
+        self.skip_reader.has_remaining_docs()
     }
 
     pub(crate) fn block_is_loaded(&self) -> bool {
