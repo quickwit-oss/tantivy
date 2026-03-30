@@ -75,7 +75,7 @@ impl CompositeSourceAccessors {
     ///
     /// Precomputes some values to make collection faster.
     pub fn build_for_source(
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         source: &CompositeAggregationSource,
         // First option is None when no after key was set in the query, the
         // second option is None when the after key was set but its value for

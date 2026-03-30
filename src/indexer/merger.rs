@@ -1,3 +1,4 @@
+use std::io;
 use std::sync::Arc;
 
 use columnar::{
@@ -15,11 +16,11 @@ use crate::fieldnorm::{FieldNormReader, FieldNormReaders, FieldNormsSerializer, 
 use crate::index::{Segment, SegmentComponent, SegmentReader};
 use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
-use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
-use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
+use crate::postings::{InvertedIndexSerializer, Postings, TermInfo};
+use crate::schema::{value_type_to_column_type, Field, FieldType, IndexRecordOption, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
-use crate::{DocAddress, DocId, InvertedIndexReader};
+use crate::{DocAddress, DocId, DynInvertedIndexReader};
 
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
 ///
@@ -27,7 +28,7 @@ use crate::{DocAddress, DocId, InvertedIndexReader};
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
 fn estimate_total_num_tokens_in_single_segment(
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     field: Field,
 ) -> crate::Result<u64> {
     // There are no deletes. We can simply use the exact value saved into the posting list.
@@ -39,7 +40,7 @@ fn estimate_total_num_tokens_in_single_segment(
 
     // When there are deletes, we use an approximation either
     // by using the fieldnorm.
-    if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(field)? {
+    if let Ok(fieldnorm_reader) = reader.get_fieldnorms_reader(field) {
         let mut count: [usize; 256] = [0; 256];
         for doc in reader.doc_ids_alive() {
             let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
@@ -68,17 +69,20 @@ fn estimate_total_num_tokens_in_single_segment(
     Ok((segment_num_tokens as f64 * ratio) as u64)
 }
 
-fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
+fn estimate_total_num_tokens(
+    readers: &[Arc<dyn SegmentReader>],
+    field: Field,
+) -> crate::Result<u64> {
     let mut total_num_tokens: u64 = 0;
     for reader in readers {
-        total_num_tokens += estimate_total_num_tokens_in_single_segment(reader, field)?;
+        total_num_tokens += estimate_total_num_tokens_in_single_segment(reader.as_ref(), field)?;
     }
     Ok(total_num_tokens)
 }
 
 pub struct IndexMerger {
     schema: Schema,
-    pub(crate) readers: Vec<SegmentReader>,
+    pub(crate) readers: Vec<Arc<dyn SegmentReader>>,
     max_doc: u32,
 }
 
@@ -162,16 +166,25 @@ impl IndexMerger {
     // This can be used to merge but also apply an additional filter.
     // One use case is demux, which is basically taking a list of
     // segments and partitions them e.g. by a value in a field.
+    //
+    // # Panics if segments is empty.
     pub fn open_with_custom_alive_set(
         schema: Schema,
         segments: &[Segment],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
     ) -> crate::Result<IndexMerger> {
+        assert!(!segments.is_empty());
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
                 let reader =
-                    SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;
+                    crate::TantivySegmentReader::open_with_custom_alive_set_from_directory(
+                        segment.index().directory(),
+                        segment.meta(),
+                        segment.schema(),
+                        new_alive_bitset_opt,
+                    )?;
+                let reader: Arc<dyn SegmentReader> = Arc::new(reader);
                 readers.push(reader);
             }
         }
@@ -262,7 +275,7 @@ impl IndexMerger {
                 }),
         );
 
-        let has_deletes: bool = self.readers.iter().any(SegmentReader::has_deletes);
+        let has_deletes: bool = self.readers.iter().any(|reader| reader.has_deletes());
         let mapping_type = if has_deletes {
             MappingType::StackedWithDeletes
         } else {
@@ -297,7 +310,7 @@ impl IndexMerger {
 
         let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
 
-        let field_readers: Vec<Arc<InvertedIndexReader>> = self
+        let field_readers: Vec<Arc<dyn DynInvertedIndexReader>> = self
             .readers
             .iter()
             .map(|reader| reader.inverted_index(indexed_field))
@@ -355,7 +368,8 @@ impl IndexMerger {
                          indexed. Have you modified the schema?",
         );
 
-        let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
+        let mut segment_postings_containing_the_term: Vec<(usize, Box<dyn Postings>)> =
+            Vec::with_capacity(self.readers.len());
 
         while merged_terms.advance() {
             segment_postings_containing_the_term.clear();
@@ -366,18 +380,15 @@ impl IndexMerger {
             // Let's compute the list of non-empty posting lists
             for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
-                let inverted_index: &InvertedIndexReader = &field_readers[segment_ord];
-                let segment_postings = inverted_index
-                    .read_postings_from_terminfo(&term_info, segment_postings_option)?;
-                let alive_bitset_opt = segment_reader.alive_bitset();
-                let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
-                    segment_postings.doc_freq_given_deletes(alive_bitset)
-                } else {
-                    segment_postings.doc_freq()
-                };
-                if doc_freq > 0u32 {
+                let inverted_index = &field_readers[segment_ord];
+                if let Some((doc_freq, postings)) = postings_for_merge(
+                    inverted_index.as_ref(),
+                    &term_info,
+                    segment_postings_option,
+                    segment_reader.alive_bitset(),
+                )? {
                     total_doc_freq += doc_freq;
-                    segment_postings_containing_the_term.push((segment_ord, segment_postings));
+                    segment_postings_containing_the_term.push((segment_ord, postings));
                 }
             }
 
@@ -395,11 +406,7 @@ impl IndexMerger {
             assert!(!segment_postings_containing_the_term.is_empty());
 
             let has_term_freq = {
-                let has_term_freq = !segment_postings_containing_the_term[0]
-                    .1
-                    .block_cursor
-                    .freqs()
-                    .is_empty();
+                let has_term_freq = segment_postings_containing_the_term[0].1.has_freq();
                 for (_, postings) in &segment_postings_containing_the_term[1..] {
                     // This may look at a strange way to test whether we have term freq or not.
                     // With JSON object, the schema is not sufficient to know whether a term
@@ -415,7 +422,7 @@ impl IndexMerger {
                     //
                     // Overall the reliable way to know if we have actual frequencies loaded or not
                     // is to check whether the actual decoded array is empty or not.
-                    if has_term_freq == postings.block_cursor.freqs().is_empty() {
+                    if postings.has_freq() != has_term_freq {
                         return Err(DataCorruption::comment_only(
                             "Term freqs are inconsistent across segments",
                         )
@@ -490,33 +497,7 @@ impl IndexMerger {
         debug_time!("write-storable-fields");
         debug!("write-storable-field");
 
-        for reader in &self.readers {
-            let store_reader = reader.get_store_reader(1)?;
-            if reader.has_deletes()
-                    // If there is not enough data in the store, we avoid stacking in order to
-                    // avoid creating many small blocks in the doc store. Once we have 5 full blocks,
-                    // we start stacking. In the worst case 2/7 of the blocks would be very small.
-                    // [segment 1 - {1 doc}][segment 2 - {fullblock * 5}{1doc}]
-                    // => 5 * full blocks, 2 * 1 document blocks
-                    //
-                    // In a more realistic scenario the segments are of the same size, so 1/6 of
-                    // the doc stores would be on average half full, given total randomness (which
-                    // is not the case here, but not sure how it behaves exactly).
-                    //
-                    // https://github.com/quickwit-oss/tantivy/issues/1053
-                    //
-                    // take 7 in order to not walk over all checkpoints.
-                    || store_reader.block_checkpoints().take(7).count() < 6
-                    || store_reader.decompressor() != store_writer.compressor().into()
-            {
-                for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
-                    let doc_bytes = doc_bytes_res?;
-                    store_writer.store_bytes(&doc_bytes)?;
-                }
-            } else {
-                store_writer.stack(store_reader)?;
-            }
-        }
+        store_writer.merge_segment_readers(&self.readers)?;
         Ok(())
     }
 
@@ -553,6 +534,75 @@ impl IndexMerger {
     }
 }
 
+/// Compute the number of non-deleted documents.
+///
+/// This method will scan through the posting lists, consuming them.
+/// (this is a rather expensive operation).
+pub(crate) fn doc_freq_given_deletes(
+    mut postings: Box<dyn Postings>,
+    alive_bitset: &AliveBitSet,
+) -> u32 {
+    let mut doc_freq = 0;
+    loop {
+        let doc = postings.doc();
+        if doc == TERMINATED {
+            return doc_freq;
+        }
+        if alive_bitset.is_alive(doc) {
+            doc_freq += 1u32;
+        }
+        postings.advance();
+    }
+}
+
+fn read_postings_for_merge(
+    inverted_index: &dyn DynInvertedIndexReader,
+    term_info: &TermInfo,
+    option: IndexRecordOption,
+) -> io::Result<Box<dyn Postings>> {
+    crate::index::load_postings_from_terminfo(inverted_index, term_info, option)
+}
+
+fn postings_for_merge(
+    inverted_index: &dyn DynInvertedIndexReader,
+    term_info: &TermInfo,
+    option: IndexRecordOption,
+    alive_bitset_opt: Option<&AliveBitSet>,
+) -> io::Result<Option<(u32, Box<dyn Postings>)>> {
+    // TODO: avoid loading postings twice — once for counting, once for writing
+    let count_postings = read_postings_for_merge(inverted_index, term_info, option)?;
+    let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
+        doc_freq_given_deletes(count_postings, alive_bitset)
+    } else {
+        // We do not need an exact document frequency here.
+        match count_postings.doc_freq() {
+            crate::postings::DocFreq::Exact(doc_freq) => doc_freq,
+            crate::postings::DocFreq::Approximate(_) => exact_doc_freq(count_postings),
+        }
+    };
+
+    if doc_freq == 0u32 {
+        return Ok(None);
+    }
+
+    let postings = read_postings_for_merge(inverted_index, term_info, option)?;
+    Ok(Some((doc_freq, postings)))
+}
+
+/// If the postings is not able to inform us of the document frequency,
+/// we just scan through it.
+pub(crate) fn exact_doc_freq(mut postings: Box<dyn Postings>) -> u32 {
+    let mut doc_freq = 0;
+    loop {
+        let doc = postings.doc();
+        if doc == TERMINATED {
+            return doc_freq;
+        }
+        doc_freq += 1u32;
+        postings.advance();
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -565,8 +615,10 @@ mod tests {
         BytesFastFieldTestCollector, FastFieldTestCollector, TEST_COLLECTOR_WITH_SCORE,
     };
     use crate::collector::{Count, FacetCollector};
+    use crate::fastfield::AliveBitSet;
     use crate::index::{Index, SegmentId};
     use crate::indexer::NoMergePolicy;
+    use crate::postings::{DocFreq, Postings as _, SegmentPostings};
     use crate::query::{AllQuery, BooleanQuery, EnableScoring, Scorer, TermQuery};
     use crate::schema::{
         Facet, FacetOptions, IndexRecordOption, NumericOptions, TantivyDocument, Term,
@@ -681,32 +733,32 @@ mod tests {
                 );
             }
             {
-                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 0))?;
+                let doc = searcher.doc(DocAddress::new(0, 0))?;
                 assert_eq!(
                     doc.get_first(text_field).unwrap().as_value().as_str(),
                     Some("af b")
                 );
             }
             {
-                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 1))?;
+                let doc = searcher.doc(DocAddress::new(0, 1))?;
                 assert_eq!(
                     doc.get_first(text_field).unwrap().as_value().as_str(),
                     Some("a b c")
                 );
             }
             {
-                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 2))?;
+                let doc = searcher.doc(DocAddress::new(0, 2))?;
                 assert_eq!(
                     doc.get_first(text_field).unwrap().as_value().as_str(),
                     Some("a b c d")
                 );
             }
             {
-                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 3))?;
+                let doc = searcher.doc(DocAddress::new(0, 3))?;
                 assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("af b"));
             }
             {
-                let doc = searcher.doc::<TantivyDocument>(DocAddress::new(0, 4))?;
+                let doc = searcher.doc(DocAddress::new(0, 4))?;
                 assert_eq!(doc.get_first(text_field).unwrap().as_str(), Some("a b c g"));
             }
 
@@ -1518,10 +1570,10 @@ mod tests {
         let searcher = reader.searcher();
         let mut term_scorer = term_query
             .specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?
-            .term_scorer_for_test(searcher.segment_reader(0u32), 1.0)?
+            .term_scorer_for_test(searcher.segment_reader(0u32), 1.0)
             .unwrap();
         assert_eq!(term_scorer.doc(), 0);
-        assert_nearly_equals!(term_scorer.block_max_score(), 0.0079681855);
+        assert_nearly_equals!(term_scorer.seek_block_max(0), 0.0079681855);
         assert_nearly_equals!(term_scorer.score(), 0.0079681855);
         for _ in 0..81 {
             writer.add_document(doc!(text=>"hello happy tax payer"))?;
@@ -1534,13 +1586,13 @@ mod tests {
         for segment_reader in searcher.segment_readers() {
             let mut term_scorer = term_query
                 .specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?
-                .term_scorer_for_test(segment_reader, 1.0)?
+                .term_scorer_for_test(segment_reader.as_ref(), 1.0)
                 .unwrap();
             // the difference compared to before is intrinsic to the bm25 formula. no worries
             // there.
             for doc in segment_reader.doc_ids_alive() {
                 assert_eq!(term_scorer.doc(), doc);
-                assert_nearly_equals!(term_scorer.block_max_score(), 0.003478312);
+                assert_nearly_equals!(term_scorer.seek_block_max(doc), 0.003478312);
                 assert_nearly_equals!(term_scorer.score(), 0.003478312);
                 term_scorer.advance();
             }
@@ -1560,12 +1612,12 @@ mod tests {
         let segment_reader = searcher.segment_reader(0u32);
         let mut term_scorer = term_query
             .specialized_weight(EnableScoring::enabled_from_searcher(&searcher))?
-            .term_scorer_for_test(segment_reader, 1.0)?
+            .term_scorer_for_test(segment_reader, 1.0)
             .unwrap();
         // the difference compared to before is intrinsic to the bm25 formula. no worries there.
         for doc in segment_reader.doc_ids_alive() {
             assert_eq!(term_scorer.doc(), doc);
-            assert_nearly_equals!(term_scorer.block_max_score(), 0.003478312);
+            assert_nearly_equals!(term_scorer.seek_block_max(doc), 0.003478312);
             assert_nearly_equals!(term_scorer.score(), 0.003478312);
             term_scorer.advance();
         }
@@ -1578,5 +1630,20 @@ mod tests {
         // this is the first time I write a unit test for a constant.
         assert!(((super::MAX_DOC_LIMIT - 1) as i32) >= 0);
         assert!((super::MAX_DOC_LIMIT as i32) < 0);
+    }
+
+    #[test]
+    fn test_doc_freq_given_delete() {
+        let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
+        assert_eq!(docs.doc_freq(), DocFreq::Exact(3));
+        let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
+        let docs_boxed: Box<dyn crate::postings::Postings> =
+            Box::new(SegmentPostings::create_from_docs(&[0, 2, 10]));
+        assert_eq!(super::doc_freq_given_deletes(docs_boxed, &alive_bitset), 2);
+        let all_deleted =
+            AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
+        let docs_boxed: Box<dyn crate::postings::Postings> =
+            Box::new(SegmentPostings::create_from_docs(&[0, 2, 10]));
+        assert_eq!(super::doc_freq_given_deletes(docs_boxed, &all_deleted), 0);
     }
 }

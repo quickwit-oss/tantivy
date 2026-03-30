@@ -1,12 +1,17 @@
-use super::term_scorer::TermScorer;
+use std::io;
+
 use crate::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN};
 use crate::fieldnorm::FieldNormReader;
-use crate::index::SegmentReader;
-use crate::postings::SegmentPostings;
+use crate::index::{
+    try_downcast_and_call, InvertedIndexReader, SegmentReader, TypedInvertedIndexReaderCb,
+};
+use crate::postings::TermInfo;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
-use crate::query::weight::{for_each_docset_buffered, for_each_scorer};
-use crate::query::{AllScorer, AllWeight, EmptyScorer, Explanation, Scorer, Weight};
+use crate::query::weight::for_each_docset_buffered;
+use crate::query::{
+    box_scorer, AllScorer, AllWeight, BoxedTermScorer, EmptyScorer, Explanation, Scorer, Weight,
+};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TantivyError, Term};
 
@@ -18,29 +23,58 @@ pub struct TermWeight {
 }
 
 enum TermOrEmptyOrAllScorer {
-    TermScorer(Box<TermScorer>),
+    TermScorer(BoxedTermScorer),
     Empty,
     AllMatch(AllScorer),
+}
+
+struct BuildTermScorer<'a> {
+    term_info: &'a TermInfo,
+    option: IndexRecordOption,
+    fieldnorm_reader: FieldNormReader,
+    similarity_weight: Bm25Weight,
+}
+
+impl TypedInvertedIndexReaderCb<io::Result<BoxedTermScorer>> for BuildTermScorer<'_> {
+    fn call<I: InvertedIndexReader + ?Sized>(&mut self, reader: &I) -> io::Result<BoxedTermScorer> {
+        let postings = reader.read_postings_from_terminfo(self.term_info, self.option)?;
+        self.build_scorer(postings)
+    }
+}
+
+impl BuildTermScorer<'_> {
+    fn build_scorer<TPostings: crate::postings::Postings>(
+        &self,
+        postings: TPostings,
+    ) -> io::Result<BoxedTermScorer> {
+        let term_scorer = super::TermScorer::new(
+            postings,
+            self.fieldnorm_reader.clone(),
+            self.similarity_weight.clone(),
+        );
+        Ok(BoxedTermScorer::new(term_scorer))
+    }
 }
 
 impl TermOrEmptyOrAllScorer {
     pub fn into_boxed_scorer(self) -> Box<dyn Scorer> {
         match self {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => scorer,
-            TermOrEmptyOrAllScorer::Empty => Box::new(EmptyScorer),
-            TermOrEmptyOrAllScorer::AllMatch(scorer) => Box::new(scorer),
+            TermOrEmptyOrAllScorer::TermScorer(scorer) => scorer.into_boxed_scorer(),
+            TermOrEmptyOrAllScorer::Empty => box_scorer(EmptyScorer),
+            TermOrEmptyOrAllScorer::AllMatch(scorer) => box_scorer(scorer),
         }
     }
 }
 
 impl Weight for TermWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         Ok(self.specialized_scorer(reader, boost)?.into_boxed_scorer())
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         match self.specialized_scorer(reader, 1.0)? {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut term_scorer = term_scorer.into_boxed_scorer();
                 if term_scorer.doc() > doc || term_scorer.seek(doc) != doc {
                     return Err(does_not_match(doc));
                 }
@@ -53,7 +87,7 @@ impl Weight for TermWeight {
         }
     }
 
-    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
+    fn count(&self, reader: &dyn SegmentReader) -> crate::Result<u32> {
         if let Some(alive_bitset) = reader.alive_bitset() {
             Ok(self.scorer(reader, 1.0)?.count(alive_bitset))
         } else {
@@ -68,16 +102,17 @@ impl Weight for TermWeight {
     /// `DocSet` and push the scored documents to the collector.
     fn for_each(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
-                for_each_scorer(&mut *term_scorer, callback);
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut term_scorer = term_scorer.into_boxed_scorer();
+                term_scorer.for_each(callback);
             }
             TermOrEmptyOrAllScorer::Empty => {}
             TermOrEmptyOrAllScorer::AllMatch(mut all_scorer) => {
-                for_each_scorer(&mut all_scorer, callback);
+                all_scorer.for_each(callback);
             }
         }
         Ok(())
@@ -87,11 +122,12 @@ impl Weight for TermWeight {
     /// `DocSet` and push the scored documents to the collector.
     fn for_each_no_score(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(&[DocId]),
     ) -> crate::Result<()> {
         match self.specialized_scorer(reader, 1.0)? {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let mut term_scorer = term_scorer.into_boxed_scorer();
                 let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
                 for_each_docset_buffered(&mut term_scorer, &mut buffer, callback);
             }
@@ -118,17 +154,13 @@ impl Weight for TermWeight {
     fn for_each_pruning(
         &self,
         threshold: Score,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
             TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
-                crate::query::boolean_query::block_wand_single_scorer(
-                    *term_scorer,
-                    threshold,
-                    callback,
-                );
+                reader.for_each_pruning(threshold, term_scorer.into_boxed_scorer(), callback);
             }
             TermOrEmptyOrAllScorer::Empty => {}
             TermOrEmptyOrAllScorer::AllMatch(_) => {
@@ -166,19 +198,25 @@ impl TermWeight {
     #[cfg(test)]
     pub(crate) fn term_scorer_for_test(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
-    ) -> crate::Result<Option<TermScorer>> {
-        let scorer = self.specialized_scorer(reader, boost)?;
-        Ok(match scorer {
-            TermOrEmptyOrAllScorer::TermScorer(scorer) => Some(*scorer),
+    ) -> Option<super::TermScorer> {
+        let scorer = self.specialized_scorer(reader, boost).unwrap();
+        match scorer {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
+                let term_scorer = term_scorer
+                    .into_boxed_scorer()
+                    .downcast::<super::TermScorer>()
+                    .ok()?;
+                Some(*term_scorer)
+            }
             _ => None,
-        })
+        }
     }
 
     fn specialized_scorer(
         &self,
-        reader: &SegmentReader,
+        reader: &dyn SegmentReader,
         boost: Score,
     ) -> crate::Result<TermOrEmptyOrAllScorer> {
         let field = self.term.field();
@@ -196,22 +234,25 @@ impl TermWeight {
             )));
         }
 
-        let segment_postings: SegmentPostings =
-            inverted_index.read_postings_from_terminfo(&term_info, self.index_record_option)?;
-
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);
-        Ok(TermOrEmptyOrAllScorer::TermScorer(Box::new(
-            TermScorer::new(segment_postings, fieldnorm_reader, similarity_weight),
-        )))
+        let mut term_scorer_builder = BuildTermScorer {
+            term_info: &term_info,
+            option: self.index_record_option,
+            fieldnorm_reader,
+            similarity_weight,
+        };
+        let term_scorer = try_downcast_and_call(inverted_index.as_ref(), &mut term_scorer_builder)?;
+
+        Ok(TermOrEmptyOrAllScorer::TermScorer(term_scorer))
     }
 
-    fn fieldnorm_reader(&self, segment_reader: &SegmentReader) -> crate::Result<FieldNormReader> {
+    fn fieldnorm_reader(
+        &self,
+        segment_reader: &dyn SegmentReader,
+    ) -> crate::Result<FieldNormReader> {
         if self.scoring_enabled {
-            if let Some(field_norm_reader) = segment_reader
-                .fieldnorms_readers()
-                .get_field(self.term.field())?
-            {
+            if let Ok(field_norm_reader) = segment_reader.get_fieldnorms_reader(self.term.field()) {
                 return Ok(field_norm_reader);
             }
         }

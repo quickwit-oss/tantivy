@@ -5,17 +5,20 @@ use std::num::NonZeroUsize;
 use std::ops::{AddAssign, Range};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "quickwit")]
+use std::{future::Future, pin::Pin};
 
 use common::{BinarySerializable, OwnedBytes};
 use lru::LruCache;
 
 use super::footer::DocStoreFooter;
 use super::index::SkipIndex;
-use super::Decompressor;
+use super::{Compressor, Decompressor, StoreWriter};
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
 use crate::schema::document::{BinaryDocumentDeserializer, DocumentDeserialize};
+use crate::schema::TantivyDocument;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
@@ -26,9 +29,33 @@ pub(crate) const DOCSTORE_CACHE_CAPACITY: usize = 100;
 
 type Block = OwnedBytes;
 
+/// Object-safe API for reading documents from the store.
+pub trait StoreReader: Send + Sync {
+    /// Reads and deserializes a given document.
+    fn get(&self, doc_id: DocId) -> crate::Result<TantivyDocument>;
+
+    /// Returns the cache hit and miss statistics of this reader.
+    fn cache_stats(&self) -> CacheStats;
+
+    /// Merges this store into `store_writer`, filtering deletes via `alive_bitset`.
+    fn merge_into(
+        &self,
+        store_writer: &mut StoreWriter,
+        alive_bitset: Option<&AliveBitSet>,
+    ) -> crate::Result<()>;
+
+    /// Fetches a document asynchronously.
+    #[cfg(feature = "quickwit")]
+    fn get_async<'a>(
+        &'a self,
+        doc_id: DocId,
+        executor: &'a Executor,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<TantivyDocument>> + 'a>>;
+}
+
 /// The format version of the document store.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-pub(crate) enum DocStoreVersion {
+pub enum DocStoreVersion {
     V1 = 1,
     V2 = 2,
 }
@@ -60,7 +87,7 @@ impl BinarySerializable for DocStoreVersion {
 }
 
 /// Reads document off tantivy's [`Store`](./index.html)
-pub struct StoreReader {
+pub struct TantivyStoreReader {
     decompressor: Decompressor,
     doc_store_version: DocStoreVersion,
     data: FileSlice,
@@ -119,7 +146,7 @@ impl BlockCache {
 }
 
 #[derive(Debug, Default)]
-/// CacheStats for the `StoreReader`.
+/// CacheStats for the `TantivyStoreReader`.
 pub struct CacheStats {
     /// The number of entries in the cache
     pub num_entries: usize,
@@ -149,12 +176,12 @@ impl Sum for CacheStats {
     }
 }
 
-impl StoreReader {
+impl TantivyStoreReader {
     /// Opens a store reader
     ///
     /// `cache_num_blocks` sets the number of decompressed blocks to be cached in an LRU.
     /// The size of blocks is configurable, this should be reflexted in the
-    pub fn open(store_file: FileSlice, cache_num_blocks: usize) -> io::Result<StoreReader> {
+    pub fn open(store_file: FileSlice, cache_num_blocks: usize) -> io::Result<TantivyStoreReader> {
         let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
 
         let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
@@ -162,7 +189,7 @@ impl StoreReader {
         let space_usage =
             StoreSpaceUsage::new(data_file.num_bytes(), offset_index_file.num_bytes());
         let skip_index = SkipIndex::open(index_data);
-        Ok(StoreReader {
+        Ok(TantivyStoreReader {
             decompressor: footer.decompressor,
             doc_store_version: footer.doc_store_version,
             data: data_file,
@@ -177,12 +204,8 @@ impl StoreReader {
         })
     }
 
-    pub(crate) fn block_checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {
+    fn block_checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {
         self.skip_index.checkpoints()
-    }
-
-    pub(crate) fn decompressor(&self) -> Decompressor {
-        self.decompressor
     }
 
     /// Returns the cache hit and miss statistics of the store reader.
@@ -202,6 +225,26 @@ impl StoreReader {
 
     pub(crate) fn block_data(&self) -> io::Result<OwnedBytes> {
         self.data.read_bytes()
+    }
+
+    fn can_stack_for_merge(&self, target_compressor: Compressor) -> bool {
+        // If there is not enough data in the store, we avoid stacking in order to
+        // avoid creating many small blocks in the doc store.
+        // https://github.com/quickwit-oss/tantivy/issues/1053
+        const MIN_BLOCKS_REQUIRED: usize = 6;
+        self.decompressor == target_compressor.into()
+            && self
+                .block_checkpoints()
+                // to not count all blocks in the store
+                .take(MIN_BLOCKS_REQUIRED + 1)
+                .count()
+                >= MIN_BLOCKS_REQUIRED
+    }
+
+    fn block_ranges(&self) -> Vec<(Range<DocId>, Range<usize>)> {
+        self.block_checkpoints()
+            .map(|checkpoint| (checkpoint.doc_range, checkpoint.byte_range))
+            .collect()
     }
 
     fn get_compressed_block(&self, checkpoint: &Checkpoint) -> io::Result<OwnedBytes> {
@@ -236,25 +279,15 @@ impl StoreReader {
     ///
     /// It should not be called to score documents
     /// for instance.
-    pub fn get<D: DocumentDeserialize>(&self, doc_id: DocId) -> crate::Result<D> {
-        let mut doc_bytes = self.get_document_bytes(doc_id)?;
+    pub fn get(&self, doc_id: DocId) -> crate::Result<TantivyDocument> {
+        let checkpoint = self.block_checkpoint(doc_id)?;
+        let block = self.read_block(&checkpoint)?;
+        let mut doc_bytes = Self::get_document_bytes_from_block(block, doc_id, &checkpoint)?;
 
         let deserializer =
             BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
                 .map_err(crate::TantivyError::from)?;
-        D::deserialize(deserializer).map_err(crate::TantivyError::from)
-    }
-
-    /// Returns raw bytes of a given document.
-    ///
-    /// Calling `.get(doc)` is relatively costly as it requires
-    /// decompressing a compressed block. The store utilizes a LRU cache,
-    /// so accessing docs from the same compressed block should be faster.
-    /// For that reason a store reader should be kept and reused.
-    pub fn get_document_bytes(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
-        let checkpoint = self.block_checkpoint(doc_id)?;
-        let block = self.read_block(&checkpoint)?;
-        Self::get_document_bytes_from_block(block, doc_id, &checkpoint)
+        TantivyDocument::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
 
     /// Advanced API.
@@ -354,6 +387,44 @@ impl StoreReader {
     }
 }
 
+impl StoreReader for TantivyStoreReader {
+    fn get(&self, doc_id: DocId) -> crate::Result<TantivyDocument> {
+        TantivyStoreReader::get(self, doc_id)
+    }
+
+    fn cache_stats(&self) -> CacheStats {
+        TantivyStoreReader::cache_stats(self)
+    }
+
+    fn merge_into(
+        &self,
+        store_writer: &mut StoreWriter,
+        alive_bitset: Option<&AliveBitSet>,
+    ) -> crate::Result<()> {
+        if alive_bitset.is_some() || !self.can_stack_for_merge(store_writer.compressor()) {
+            for doc_bytes_res in self.iter_raw(alive_bitset) {
+                let doc_bytes = doc_bytes_res?;
+                store_writer.store_bytes(&doc_bytes)?;
+            }
+            Ok(())
+        } else {
+            let block_data = self.block_data()?;
+            let block_ranges = self.block_ranges();
+            store_writer.stack_parts(block_data, block_ranges)?;
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "quickwit")]
+    fn get_async<'a>(
+        &'a self,
+        doc_id: DocId,
+        executor: &'a Executor,
+    ) -> Pin<Box<dyn Future<Output = crate::Result<TantivyDocument>> + 'a>> {
+        Box::pin(TantivyStoreReader::get_async(self, doc_id, executor))
+    }
+}
+
 fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
     let doc_pos = doc_pos as usize;
     let size_of_u32 = std::mem::size_of::<u32>();
@@ -377,7 +448,7 @@ fn block_read_index(block: &[u8], doc_pos: u32) -> crate::Result<Range<usize>> {
 }
 
 #[cfg(feature = "quickwit")]
-impl StoreReader {
+impl TantivyStoreReader {
     /// Advanced API.
     ///
     /// In most cases use [`get_async`](Self::get_async)
@@ -413,7 +484,7 @@ impl StoreReader {
     }
 
     /// Reads raw bytes of a given document asynchronously.
-    pub async fn get_document_bytes_async(
+    async fn get_document_bytes_async(
         &self,
         doc_id: DocId,
         executor: &Executor,
@@ -424,17 +495,17 @@ impl StoreReader {
     }
 
     /// Fetches a document asynchronously. Async version of [`get`](Self::get).
-    pub async fn get_async<D: DocumentDeserialize>(
+    pub async fn get_async(
         &self,
         doc_id: DocId,
         executor: &Executor,
-    ) -> crate::Result<D> {
+    ) -> crate::Result<TantivyDocument> {
         let mut doc_bytes = self.get_document_bytes_async(doc_id, executor).await?;
 
         let deserializer =
             BinaryDocumentDeserializer::from_reader(&mut doc_bytes, self.doc_store_version)
                 .map_err(crate::TantivyError::from)?;
-        D::deserialize(deserializer).map_err(crate::TantivyError::from)
+        TantivyDocument::deserialize(deserializer).map_err(crate::TantivyError::from)
     }
 }
 
@@ -468,7 +539,7 @@ mod tests {
         let schema = write_lorem_ipsum_store(writer, 500, Compressor::None, BLOCK_SIZE, true);
         let title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
-        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
+        let store = TantivyStoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
 
         assert_eq!(store.cache.len(), 0);
         assert_eq!(store.cache_stats().cache_hits, 0);

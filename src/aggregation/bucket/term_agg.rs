@@ -61,7 +61,7 @@ impl TermsAggReqData {
             + self
                 .allowed_term_ids
                 .as_ref()
-                .map(|bs| bs.len() / 8)
+                .map(|bs| bs.get_memory_consumption())
                 .unwrap_or(0)
     }
 }

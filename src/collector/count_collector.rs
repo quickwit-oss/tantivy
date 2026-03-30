@@ -43,7 +43,7 @@ impl Collector for Count {
     fn for_segment(
         &self,
         _: SegmentOrdinal,
-        _: &SegmentReader,
+        _: &dyn SegmentReader,
     ) -> crate::Result<SegmentCountCollector> {
         Ok(SegmentCountCollector::default())
     }

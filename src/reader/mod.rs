@@ -7,7 +7,7 @@ use arc_swap::ArcSwap;
 pub use warming::Warmer;
 
 use self::warming::WarmingState;
-use crate::core::searcher::{SearcherGeneration, SearcherInner};
+use crate::core::searcher::{SearcherContext, SearcherGeneration, SearcherInner};
 use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
 use crate::store::DOCSTORE_CACHE_CAPACITY;
 use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
@@ -189,19 +189,28 @@ impl InnerIndexReader {
     ///
     /// This function acquires a lock to prevent GC from removing files
     /// as we are opening our index.
-    fn open_segment_readers(index: &Index) -> crate::Result<Vec<SegmentReader>> {
+    fn open_segment_readers(index: &Index) -> crate::Result<Vec<Arc<dyn SegmentReader>>> {
         // Prevents segment files from getting deleted while we are in the process of opening them
         let _meta_lock = index.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = index.searchable_segments()?;
         let segment_readers = searchable_segments
             .iter()
-            .map(SegmentReader::open)
+            .map(|segment| {
+                let reader =
+                    crate::TantivySegmentReader::open_with_custom_alive_set_from_directory(
+                        segment.index().directory(),
+                        segment.meta(),
+                        segment.schema(),
+                        None,
+                    )?;
+                Ok(Arc::new(reader) as Arc<dyn SegmentReader>)
+            })
             .collect::<crate::Result<_>>()?;
         Ok(segment_readers)
     }
 
     fn track_segment_readers_in_inventory(
-        segment_readers: &[SegmentReader],
+        segment_readers: &[Arc<dyn SegmentReader>],
         searcher_generation_counter: &Arc<AtomicU64>,
         searcher_generation_inventory: &Inventory<SearcherGeneration>,
     ) -> TrackedObject<SearcherGeneration> {
@@ -225,10 +234,9 @@ impl InnerIndexReader {
             searcher_generation_inventory,
         );
 
-        let schema = index.schema();
+        let context = SearcherContext::from_index(index);
         let searcher = Arc::new(SearcherInner::new(
-            schema,
-            index.clone(),
+            context,
             segment_readers,
             searcher_generation,
             doc_store_cache_num_blocks,

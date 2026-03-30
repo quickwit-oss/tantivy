@@ -1,9 +1,16 @@
 //! Postings module (also called inverted index)
 
+use std::io;
+
+use common::OwnedBytes;
+
+use crate::fieldnorm::FieldNormReader;
+use crate::positions::PositionReader;
+use crate::query::Bm25Weight;
+use crate::schema::IndexRecordOption;
+use crate::Score;
+
 mod block_search;
-
-pub(crate) use self::block_search::branchless_binary_search;
-
 mod block_segment_postings;
 pub(crate) mod compression;
 mod indexing_context;
@@ -16,21 +23,52 @@ mod recorder;
 mod segment_postings;
 /// Serializer module for the inverted index
 pub mod serializer;
-mod skip;
+pub(crate) mod skip;
 mod term_info;
 
 pub(crate) use loaded_postings::LoadedPostings;
 pub(crate) use stacker::compute_table_memory_size;
 
+pub(crate) use self::block_search::branchless_binary_search;
 pub use self::block_segment_postings::BlockSegmentPostings;
 pub(crate) use self::indexing_context::IndexingContext;
 pub(crate) use self::per_field_postings_writer::PerFieldPostingsWriter;
-pub use self::postings::Postings;
-pub(crate) use self::postings_writer::{serialize_postings, IndexingPosition, PostingsWriter};
+pub use self::postings::{DocFreq, Postings};
+pub(crate) use self::postings_writer::{
+    serialize_postings, IndexingPosition, PostingsWriter, PostingsWriterEnum,
+};
 pub use self::segment_postings::SegmentPostings;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
-pub(crate) use self::skip::{BlockInfo, SkipReader};
 pub use self::term_info::TermInfo;
+
+/// Raw postings bytes and metadata read from storage.
+#[derive(Debug, Clone)]
+pub struct RawPostingsData {
+    /// Raw postings bytes for the term.
+    pub postings_data: OwnedBytes,
+    /// Raw positions bytes for the term, if positions are available.
+    pub positions_data: Option<OwnedBytes>,
+    /// Record option of the indexed field.
+    pub record_option: IndexRecordOption,
+    /// Effective record option after downgrading to the indexed field capability.
+    pub effective_option: IndexRecordOption,
+}
+
+/// A light complement interface to Postings to allow block-max wand acceleration.
+pub trait PostingsWithBlockMax: Postings {
+    /// Moves the postings to the block containing `target_doc` and returns
+    /// an upperbound of the score for documents in the block.
+    fn seek_block_max(
+        &mut self,
+        target_doc: crate::DocId,
+        fieldnorm_reader: &FieldNormReader,
+        similarity_weight: &Bm25Weight,
+    ) -> Score;
+
+    /// Returns the last document in the current block (or Terminated if this
+    /// is the last block).
+    fn last_doc_in_block(&self) -> crate::DocId;
+}
 
 #[expect(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
@@ -40,6 +78,27 @@ pub(crate) enum FreqReadingOption {
     ReadFreq,
 }
 
+/// Load postings from raw data bytes into a `SegmentPostings` object.
+pub fn load_postings_from_raw_data(
+    doc_freq: u32,
+    postings_data: RawPostingsData,
+) -> io::Result<SegmentPostings> {
+    let RawPostingsData {
+        postings_data,
+        positions_data: positions_data_opt,
+        record_option,
+        effective_option,
+    } = postings_data;
+    let requested_option = effective_option;
+    let block_segment_postings =
+        BlockSegmentPostings::open(doc_freq, postings_data, record_option, requested_option)?;
+    let position_reader = positions_data_opt.map(PositionReader::open).transpose()?;
+    Ok(SegmentPostings::from_block_postings(
+        block_segment_postings,
+        position_reader,
+    ))
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::mem;
@@ -47,9 +106,10 @@ pub(crate) mod tests {
     use super::{InvertedIndexSerializer, Postings};
     use crate::docset::{DocSet, TERMINATED};
     use crate::fieldnorm::FieldNormReader;
-    use crate::index::{Index, SegmentComponent, SegmentReader};
+    use crate::index::{Index, SegmentComponent};
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
+    use crate::postings::DocFreq;
     use crate::query::Scorer;
     use crate::schema::{
         Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, INDEXED, TEXT,
@@ -259,7 +319,7 @@ pub(crate) mod tests {
             segment_writer.finalize()?;
         }
         {
-            let segment_reader = SegmentReader::open(&segment)?;
+            let segment_reader = crate::TantivySegmentReader::open(&segment)?;
             {
                 let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);
@@ -280,11 +340,11 @@ pub(crate) mod tests {
             }
             {
                 let term_a = Term::from_field_text(text_field, "a");
-                let mut postings_a = segment_reader
+                let mut postings_a: Box<dyn Postings> = segment_reader
                     .inverted_index(term_a.field())?
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)?
                     .unwrap();
-                assert_eq!(postings_a.len(), 1000);
+                assert_eq!(postings_a.doc_freq(), DocFreq::Exact(1000));
                 assert_eq!(postings_a.doc(), 0);
                 assert_eq!(postings_a.term_freq(), 6);
                 postings_a.positions(&mut positions);
@@ -307,7 +367,7 @@ pub(crate) mod tests {
                     .inverted_index(term_e.field())?
                     .read_postings(&term_e, IndexRecordOption::WithFreqsAndPositions)?
                     .unwrap();
-                assert_eq!(postings_e.len(), 1000 - 2);
+                assert_eq!(postings_e.doc_freq(), DocFreq::Exact(1000 - 2));
                 for i in 2u32..1000u32 {
                     assert_eq!(postings_e.term_freq(), i);
                     postings_e.positions(&mut positions);

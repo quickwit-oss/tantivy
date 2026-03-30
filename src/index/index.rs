@@ -3,11 +3,12 @@ use std::fmt;
 #[cfg(feature = "mmap")]
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::thread::available_parallelism;
 
 use super::segment::Segment;
 use super::segment_reader::merge_field_meta_data;
-use super::{FieldMetadata, IndexSettings};
+use super::{FieldMetadata, IndexSettings, TantivySegmentReader};
 use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
@@ -24,7 +25,6 @@ use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::SegmentReader;
 
 fn load_metas(
     directory: &dyn Directory,
@@ -244,9 +244,12 @@ impl IndexBuilder {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+    pub fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        self.create_avoid_monomorphization(dir.into())
+    }
+
+    fn create_avoid_monomorphization(self, dir: Box<dyn Directory>) -> crate::Result<Index> {
         self.validate()?;
-        let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
         save_new_metas(
             self.get_expect_schema()?,
@@ -255,7 +258,7 @@ impl IndexBuilder {
         )?;
         let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
         metas.index_settings = self.index_settings;
-        let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
+        let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default())?;
         index.set_tokenizers(self.tokenizer_manager);
         index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
         Ok(index)
@@ -381,9 +384,9 @@ impl Index {
         directory: ManagedDirectory,
         metas: &IndexMeta,
         inventory: SegmentMetaInventory,
-    ) -> Index {
+    ) -> crate::Result<Index> {
         let schema = metas.schema.clone();
-        Index {
+        Ok(Index {
             settings: metas.index_settings.clone(),
             directory,
             schema,
@@ -391,7 +394,7 @@ impl Index {
             fast_field_tokenizers: TokenizerManager::default(),
             executor: Executor::single_thread(),
             inventory,
-        }
+        })
     }
 
     /// Setter for the tokenizer manager.
@@ -492,7 +495,16 @@ impl Index {
         let segments = self.searchable_segments()?;
         let fields_metadata: Vec<Vec<FieldMetadata>> = segments
             .into_iter()
-            .map(|segment| SegmentReader::open(&segment)?.fields_metadata())
+            .map(|segment| {
+                let reader = TantivySegmentReader::open_with_custom_alive_set_from_directory(
+                    segment.index().directory(),
+                    segment.meta(),
+                    segment.schema(),
+                    None,
+                )?;
+                let reader: Arc<dyn crate::index::SegmentReader> = Arc::new(reader);
+                reader.fields_metadata()
+            })
             .collect::<Result<_, _>>()?;
         Ok(merge_field_meta_data(fields_metadata))
     }
@@ -512,8 +524,7 @@ impl Index {
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;
-        let index = Index::open_from_metas(directory, &metas, inventory);
-        Ok(index)
+        Index::open_from_metas(directory, &metas, inventory)
     }
 
     /// Reads the index meta file from the directory.

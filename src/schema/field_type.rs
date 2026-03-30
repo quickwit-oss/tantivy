@@ -702,7 +702,10 @@ mod tests {
         let date_time = PrimitiveDateTime::new(naive_date, naive_time);
         doc.add_date(date_field, DateTime::from_primitive(date_time));
         let doc_json = doc.to_json(&schema);
-        assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00Z"]}"#);
+        assert_eq!(
+            doc_json,
+            serde_json::json!({"date": "1982-09-17T13:20:00Z"})
+        );
     }
 
     #[test]

@@ -126,7 +126,7 @@ impl PhraseQuery {
         };
         let mut weight = PhraseWeight::new(self.phrase_terms.clone(), bm25_weight_opt);
         if self.slop > 0 {
-            weight.slop(self.slop);
+            weight.set_slop(self.slop);
         }
         Ok(weight)
     }

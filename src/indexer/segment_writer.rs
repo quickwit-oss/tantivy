@@ -12,7 +12,7 @@ use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::json_utils::{index_json_value, IndexingPositionsPerPath};
 use crate::postings::{
     compute_table_memory_size, serialize_postings, IndexingContext, IndexingPosition,
-    PerFieldPostingsWriter, PostingsWriter,
+    PerFieldPostingsWriter, PostingsWriter, PostingsWriterEnum,
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
@@ -169,7 +169,7 @@ impl SegmentWriter {
             }
 
             let (term_buffer, ctx) = (&mut self.term_buffer, &mut self.ctx);
-            let postings_writer: &mut dyn PostingsWriter =
+            let postings_writer: &mut PostingsWriterEnum =
                 self.per_field_postings_writers.get_for_field_mut(field);
             term_buffer.clear_with_field(field);
 
@@ -434,7 +434,7 @@ mod tests {
         Document, IndexRecordOption, OwnedValue, Schema, TextFieldIndexing, TextOptions, Value,
         DATE_TIME_PRECISION_INDEXED, FAST, STORED, STRING, TEXT,
     };
-    use crate::store::{Compressor, StoreReader, StoreWriter};
+    use crate::store::{Compressor, StoreWriter, TantivyStoreReader};
     use crate::time::format_description::well_known::Rfc3339;
     use crate::time::OffsetDateTime;
     use crate::tokenizer::{PreTokenizedString, Token};
@@ -482,8 +482,8 @@ mod tests {
         store_writer.store(&doc, &schema).unwrap();
         store_writer.close().unwrap();
 
-        let reader = StoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
-        let doc = reader.get::<TantivyDocument>(0).unwrap();
+        let reader = TantivyStoreReader::open(directory.open_read(path).unwrap(), 0).unwrap();
+        let doc = reader.get(0).unwrap();
 
         assert_eq!(doc.field_values().count(), 2);
         assert_eq!(
@@ -600,16 +600,12 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let doc = searcher
-            .doc::<TantivyDocument>(DocAddress {
+            .doc(DocAddress {
                 segment_ord: 0u32,
                 doc_id: 0u32,
             })
             .unwrap();
-        let serdeser_json_val = serde_json::from_str::<serde_json::Value>(&doc.to_json(&schema))
-            .unwrap()
-            .get("json")
-            .unwrap()[0]
-            .clone();
+        let serdeser_json_val = doc.to_json(&schema).get("json").unwrap().clone();
         assert_eq!(json_val, serdeser_json_val);
         let segment_reader = searcher.segment_reader(0u32);
         let inv_idx = segment_reader.inverted_index(json_field).unwrap();
@@ -871,7 +867,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0u32);
 
-        fn assert_type(reader: &SegmentReader, field: &str, typ: ColumnType) {
+        fn assert_type(reader: &dyn SegmentReader, field: &str, typ: ColumnType) {
             let cols = reader.fast_fields().dynamic_column_handles(field).unwrap();
             assert_eq!(cols.len(), 1, "{field}");
             assert_eq!(cols[0].column_type(), typ, "{field}");
@@ -890,7 +886,7 @@ mod tests {
         assert_type(segment_reader, "json.my_arr", ColumnType::I64);
         assert_type(segment_reader, "json.my_arr.my_key", ColumnType::Str);
 
-        fn assert_empty(reader: &SegmentReader, field: &str) {
+        fn assert_empty(reader: &dyn SegmentReader, field: &str) {
             let cols = reader.fast_fields().dynamic_column_handles(field).unwrap();
             assert_eq!(cols.len(), 0);
         }

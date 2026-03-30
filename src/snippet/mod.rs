@@ -422,7 +422,7 @@ impl SnippetGenerator {
                 terms_text.insert(term_str.to_string(), score);
             }
         }
-        let tokenizer = searcher.index().tokenizer_for_field(field)?;
+        let tokenizer = searcher.tokenizer_for_field(field)?;
         Ok(SnippetGenerator {
             terms_text,
             tokenizer,
