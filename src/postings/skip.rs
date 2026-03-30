@@ -96,7 +96,7 @@ pub(crate) struct SkipReader {
     owned_read: OwnedBytes,
     skip_info: IndexRecordOption,
     byte_offset: usize,
-    remaining_docs: u32, // number of docs remaining, including the
+    pub remaining_docs: u32, // number of docs remaining, including the
     // documents in the current block.
     block_info: BlockInfo,
 

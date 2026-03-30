@@ -25,7 +25,7 @@ fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
 pub struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
     block_loaded: bool,
-    freq_decoder: BlockDecoder,
+    pub(crate) freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
     block_max_score_cache: Option<Score>,
     doc_freq: u32,
@@ -291,11 +291,13 @@ impl BlockSegmentPostings {
     /// `.load_block()` needs to be called manually afterwards.
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
-    pub(crate) fn seek_block(&mut self, target_doc: DocId) {
+    #[inline]
+    pub(crate) fn seek_block(&mut self, target_doc: DocId) -> bool {
         if self.skip_reader.seek(target_doc) {
             self.block_max_score_cache = None;
             self.block_loaded = false;
         }
+        self.skip_reader.remaining_docs != 0
     }
 
     pub(crate) fn block_is_loaded(&self) -> bool {

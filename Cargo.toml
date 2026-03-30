@@ -205,3 +205,7 @@ harness = false
 [[bench]]
 name = "query_parser_nested"
 harness = false
+
+[[bench]]
+name = "intersection_bench"
+harness = false
