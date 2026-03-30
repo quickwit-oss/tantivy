@@ -92,7 +92,7 @@ postcard = { version = "1.0.4", features = [
 ], default-features = false }
 
 [target.'cfg(not(windows))'.dev-dependencies]
-criterion = { version = "0.5", default-features = false }
+criterion = { version = "0.8", default-features = false }
 
 [dev-dependencies.fail]
 version = "0.5.0"
