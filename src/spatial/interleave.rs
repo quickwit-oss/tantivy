@@ -38,6 +38,7 @@ struct HeapEntry {
     cell_id: S2CellId,
     source: Option<usize>,
     cells: Vec<CoarseIndexCell>,
+    geometries: FxHashSet<GeometryId>,
 }
 
 impl CoarseIndexCell {
@@ -120,7 +121,6 @@ pub struct HeapInterleave<'a> {
     sources: Vec<CellIndexIter<'a>>,
     edge_cache: &'a RefCell<EdgeCache<'a, Sphere>>,
     edge_counter: FxHashSet<(GeometryId, u16)>,
-    geometry_counter: FxHashSet<GeometryId>,
     alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     heap: BinaryHeap<HeapEntry>,
     max_edges: usize,
@@ -139,7 +139,6 @@ impl<'a> HeapInterleave<'a> {
             sources: iters,
             edge_cache,
             edge_counter: FxHashSet::default(),
-            geometry_counter: FxHashSet::default(),
             alive_bitsets,
             heap: BinaryHeap::new(),
             max_edges: options.max_edges_per_cell,
@@ -166,10 +165,13 @@ impl<'a> HeapInterleave<'a> {
                 shape.geometry_id.0 = segment;
             }
             if !cell.shapes.is_empty() {
+                let mut geometries = FxHashSet::default();
+                geometries.extend(cell.shapes.iter().map(|s| s.geometry_id));
                 self.heap.push(HeapEntry {
                     cell_id: cell.cell_id,
                     source: Some(source_idx),
                     cells: vec![CoarseIndexCell::new(cell, self.edge_cache)],
+                    geometries,
                 });
                 return;
             }
@@ -186,10 +188,13 @@ impl<'a> HeapInterleave<'a> {
             .into_iter()
             .map(|child_cell| {
                 let child_cell_id = child_cell.cell_id;
+                let mut geometries = FxHashSet::default();
+                geometries.extend(child_cell.shapes.iter().map(|s| s.geometry_id));
                 HeapEntry {
                     cell_id: child_cell_id,
                     source: None,
                     cells: vec![CoarseIndexCell::new(child_cell, self.edge_cache)],
+                    geometries,
                 }
             })
             .collect();
@@ -203,12 +208,16 @@ impl<'a> HeapInterleave<'a> {
                 .iter_mut()
                 .find(|e| e.cell_id.contains(coarse_cell_id))
             {
+                parent_entry.geometries.extend(&coarse_cell.geometry_ids);
                 parent_entry.cells.push(coarse_cell);
             } else {
+                let mut geometries = FxHashSet::default();
+                geometries.extend(&coarse_cell.geometry_ids);
                 self.heap.push(HeapEntry {
                     cell_id: coarse_cell_id,
                     source: None,
                     cells: vec![coarse_cell],
+                    geometries,
                 });
             }
         }
@@ -239,18 +248,16 @@ impl<'a> Iterator for HeapInterleave<'a> {
                     self.push_next_from_source(source);
                 }
                 if sponge.cell_id.contains(entry.cell_id) || sponge.cell_id == entry.cell_id {
+                    sponge.geometries.extend(&entry.geometries);
                     sponge.cells.extend(entry.cells);
                     let mut edges = std::mem::take(&mut self.edge_counter);
                     edges.clear();
                     count_short_edges(&sponge.cells, sponge.cell_id.level(), &mut edges);
-                    let mut geometries = std::mem::take(&mut self.geometry_counter);
-                    geometries.clear();
-                    count_geometries(&sponge.cells, &mut geometries);
                     let threshold = self.max_edges.max(
-                        (self.min_short_edge_fraction * (edges.len() + geometries.len()) as f64)
+                        (self.min_short_edge_fraction
+                            * (edges.len() + sponge.geometries.len()) as f64)
                             as usize,
                     );
-                    self.geometry_counter = geometries;
                     if edges.len() > threshold {
                         self.coarse_split(sponge);
                     } else {
@@ -331,12 +338,6 @@ fn flatten(sponge: HeapEntry, edge_cache: &RefCell<EdgeCache<'_, Sphere>>) -> Op
     }
 
     Some(result)
-}
-
-fn count_geometries(cells: &[CoarseIndexCell], counter: &mut FxHashSet<GeometryId>) {
-    for cell in cells {
-        counter.extend(&cell.geometry_ids);
-    }
 }
 
 fn count_short_edges(
