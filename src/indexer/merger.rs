@@ -23,7 +23,6 @@ use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
-use crate::spatial::merge::CellIndexMerge;
 use crate::spatial::sphere::Sphere;
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
@@ -578,81 +577,13 @@ impl IndexMerger {
                 }
             }
 
-            // Time the interleave alone by draining a dummy HeapInterleave.
-            {
-                let mut dummy_readers: Vec<EdgeReader<'_, Sphere>> = Vec::new();
-                for sr in &spatial_readers {
-                    if let Some(spatial_reader) = sr {
-                        dummy_readers
-                            .push(EdgeReader::<Sphere>::open(spatial_reader.edges_bytes()));
-                    } else {
-                        dummy_readers.push(EdgeReader::<Sphere>::open(&[]));
-                    }
-                }
-                let dummy_cache = RefCell::new(EdgeCache::new(dummy_readers, 100_000_000));
-                let dummy_iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-                let mut interleave = crate::spatial::interleave::HeapInterleave::new(
-                    dummy_iters,
-                    &dummy_cache,
-                    &doc_id_mapping.alive_bitsets,
-                );
-                let interleave_start = std::time::Instant::now();
-                let mut interleave_cells = 0u64;
-                while interleave.next().is_some() {
-                    interleave_cells += 1;
-                }
-                eprintln!(
-                    "interleave only: {} cells, {:.2}s",
-                    interleave_cells,
-                    interleave_start.elapsed().as_secs_f64()
-                );
-            }
-
-            // Time the interleave + collapse alone by draining a dummy Collapse.
-            {
-                let mut dummy_readers: Vec<EdgeReader<'_, Sphere>> = Vec::new();
-                for sr in &spatial_readers {
-                    if let Some(spatial_reader) = sr {
-                        dummy_readers
-                            .push(EdgeReader::<Sphere>::open(spatial_reader.edges_bytes()));
-                    } else {
-                        dummy_readers.push(EdgeReader::<Sphere>::open(&[]));
-                    }
-                }
-                let dummy_cache = RefCell::new(EdgeCache::new(dummy_readers, 100_000_000));
-                let dummy_iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-                let dummy_interleave = crate::spatial::interleave::HeapInterleave::new(
-                    dummy_iters,
-                    &dummy_cache,
-                    &doc_id_mapping.alive_bitsets,
-                );
-                let mut collapse =
-                    crate::spatial::collapse::Collapse::new(dummy_interleave, &dummy_cache);
-                let collapse_start = std::time::Instant::now();
-                let mut group_count = 0u64;
-                let mut group_cells = 0u64;
-                while let Some((_parent, cells)) = collapse.next() {
-                    group_count += 1;
-                    group_cells += cells.len() as u64;
-                }
-                eprintln!(
-                    "collapse only: {} cells in, {} groups, {} cells out, {:.2}s",
-                    collapse.cells_in(),
-                    group_count,
-                    group_cells,
-                    collapse_start.elapsed().as_secs_f64()
-                );
-            }
-
             let edge_cache = RefCell::new(EdgeCache::new(edge_readers, 100_000_000));
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-            let interleave = crate::spatial::interleave::HeapInterleave::new(
+            let mut interleave = crate::spatial::interleave::HeapInterleave::new(
                 iters,
                 &edge_cache,
                 &doc_id_mapping.alive_bitsets,
             );
-            let collapse = crate::spatial::collapse::Collapse::new(interleave, &edge_cache);
-            let mut merge = CellIndexMerge::new(collapse, &edge_cache);
 
             const NOT_ASSIGNED: u32 = u32::MAX;
             let mut old_to_new: Vec<Vec<u32>> = geometry_counts
@@ -671,7 +602,7 @@ impl IndexMerger {
             let mut offsets: Vec<(u64, u64)> = Vec::new();
             let mut cell_count: u64 = 0;
 
-            while let Some(cell) = merge.next() {
+            while let Some(cell) = interleave.next() {
                 cell_count += 1;
                 for shape in &cell.shapes {
                     let segment = shape.geometry_id.0 as usize;
@@ -721,13 +652,11 @@ impl IndexMerger {
             edge_writer.finish();
 
             let elapsed = merge_start.elapsed();
-            let cells_in = merge.inner().cells_in();
             eprintln!(
-                "spatial merge: {} source geometries, {} output geometries, {} cells in, {} cells \
-                 out, {:.2}s",
+                "spatial merge (interleave only): {} source geometries, {} output geometries, {} \
+                 cells, {:.2}s",
                 total_source_geometries,
                 next_new_id,
-                cells_in,
                 cell_count,
                 elapsed.as_secs_f64()
             );
