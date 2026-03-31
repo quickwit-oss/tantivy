@@ -13,7 +13,7 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Rust
         run: rustup toolchain install nightly-2025-12-01 --profile minimal --component llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
