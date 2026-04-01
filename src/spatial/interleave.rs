@@ -37,7 +37,7 @@ struct HeapEntry {
     cell_id: S2CellId,
     source: Option<usize>,
     cells: Vec<CoarseIndexCell>,
-    geometries: FxHashSet<GeometryId>,
+    geometry_ids: FxHashSet<GeometryId>,
 }
 
 impl CoarseIndexCell {
@@ -188,7 +188,7 @@ impl<'a> HeapInterleave<'a> {
                     cell_id: cell.cell_id,
                     source: Some(source_idx),
                     cells: vec![CoarseIndexCell::new(cell, self.edge_cache)],
-                    geometries,
+                    geometry_ids: geometries,
                 });
                 return;
             }
@@ -206,13 +206,13 @@ impl<'a> HeapInterleave<'a> {
             .into_iter()
             .map(|child_cell| {
                 let child_cell_id = child_cell.cell_id;
-                let mut geometries = FxHashSet::default();
-                geometries.extend(child_cell.shapes.iter().map(|s| s.geometry_id));
+                let mut geometry_ids = FxHashSet::default();
+                geometry_ids.extend(child_cell.shapes.iter().map(|s| s.geometry_id));
                 HeapEntry {
                     cell_id: child_cell_id,
                     source: None,
                     cells: vec![CoarseIndexCell::new(child_cell, self.edge_cache)],
-                    geometries,
+                    geometry_ids: geometry_ids,
                 }
             })
             .collect();
@@ -226,7 +226,7 @@ impl<'a> HeapInterleave<'a> {
                 .iter_mut()
                 .find(|e| e.cell_id.contains(coarse_cell_id))
             {
-                parent_entry.geometries.extend(&coarse_cell.geometry_ids);
+                parent_entry.geometry_ids.extend(&coarse_cell.geometry_ids);
                 parent_entry.cells.push(coarse_cell);
             } else {
                 let mut geometries = FxHashSet::default();
@@ -235,7 +235,7 @@ impl<'a> HeapInterleave<'a> {
                     cell_id: coarse_cell_id,
                     source: None,
                     cells: vec![coarse_cell],
-                    geometries,
+                    geometry_ids: geometries,
                 });
             }
         }
@@ -267,7 +267,7 @@ impl<'a> Iterator for HeapInterleave<'a> {
                 }
                 if sponge.cell_id.contains(entry.cell_id) || sponge.cell_id == entry.cell_id {
                     self.absorptions += 1;
-                    sponge.geometries.extend(&entry.geometries);
+                    sponge.geometry_ids.extend(&entry.geometry_ids);
                     sponge.cells.extend(entry.cells);
                     let sponge_size = sponge.cells.len() as u64;
                     if sponge_size > self.max_sponge_cells {
@@ -279,7 +279,7 @@ impl<'a> Iterator for HeapInterleave<'a> {
                         count_short_edges(&sponge.cells, sponge.cell_id.level(), &mut edges);
                     let threshold = self.max_edges.max(
                         (self.min_short_edge_fraction
-                            * (edges.len() + sponge.geometries.len()) as f64)
+                            * (edges.len() + sponge.geometry_ids.len()) as f64)
                             as usize,
                     );
                     if edges.len() > threshold {
