@@ -1,42 +1,11 @@
-use std::io;
-
 use crate::fieldnorm::FieldNormReader;
-use crate::index::{
-    try_downcast_and_call, InvertedIndexReader, SegmentReader, TypedInvertedIndexReaderCb,
-};
+use crate::index::SegmentReader;
 use crate::postings::TermInfo;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::{box_scorer, EmptyScorer, Explanation, Scorer, Weight};
 use crate::schema::Term;
-use crate::{DocId, DocSet, Score};
-
-struct BuildPhraseScorer<'a> {
-    term_infos: &'a [(usize, TermInfo)],
-    similarity_weight_opt: Option<Bm25Weight>,
-    fieldnorm_reader: FieldNormReader,
-    slop: u32,
-}
-
-impl TypedInvertedIndexReaderCb<io::Result<Box<dyn Scorer>>> for BuildPhraseScorer<'_> {
-    fn call<I: InvertedIndexReader + ?Sized>(&mut self, reader: &I) -> io::Result<Box<dyn Scorer>> {
-        let mut offset_and_term_postings = Vec::with_capacity(self.term_infos.len());
-        for (offset, term_info) in self.term_infos {
-            let postings = reader.read_postings_from_terminfo(
-                term_info,
-                crate::schema::IndexRecordOption::WithFreqsAndPositions,
-            )?;
-            offset_and_term_postings.push((*offset, postings));
-        }
-        let scorer = super::PhraseScorer::new(
-            offset_and_term_postings,
-            self.similarity_weight_opt.clone(),
-            self.fieldnorm_reader.clone(),
-            self.slop,
-        );
-        Ok(box_scorer(scorer))
-    }
-}
+use crate::{try_downcast_and_call, DocId, DocSet, Score};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -105,14 +74,24 @@ impl PhraseWeight {
             term_infos.push((offset, term_info));
         }
 
-        let mut phrase_scorer_builder = BuildPhraseScorer {
-            term_infos: &term_infos,
-            similarity_weight_opt,
-            fieldnorm_reader,
-            slop: self.slop,
-        };
-        let scorer =
-            try_downcast_and_call(inverted_index_reader.as_ref(), &mut phrase_scorer_builder)?;
+        let slop = self.slop;
+        let scorer = try_downcast_and_call!(inverted_index_reader.as_ref(), |reader| {
+            let mut offset_and_term_postings = Vec::with_capacity(term_infos.len());
+            for (offset, term_info) in &term_infos {
+                let postings = reader.read_postings_from_terminfo(
+                    term_info,
+                    crate::schema::IndexRecordOption::WithFreqsAndPositions,
+                )?;
+                offset_and_term_postings.push((*offset, postings));
+            }
+            let scorer = super::PhraseScorer::new(
+                offset_and_term_postings,
+                similarity_weight_opt.clone(),
+                fieldnorm_reader.clone(),
+                slop,
+            );
+            std::io::Result::Ok(box_scorer(scorer))
+        })?;
 
         Ok(Some(scorer))
     }

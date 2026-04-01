@@ -210,24 +210,9 @@ impl Searcher {
         self.context()
     }
 
-    /// Access the search executor associated with this searcher.
-    pub fn search_executor(&self) -> &Executor {
-        self.context().search_executor()
-    }
-
-    /// Access the tokenizer manager associated with this searcher.
-    pub fn tokenizers(&self) -> &TokenizerManager {
-        self.context().tokenizers()
-    }
-
-    /// Access the fast field tokenizer manager associated with this searcher.
-    pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
-        self.context().fast_field_tokenizer()
-    }
-
-    /// Get the tokenizer associated with a specific field.
-    pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<TextAnalyzer> {
-        self.context().tokenizer_for_field(field)
+    /// Access the schema associated with the index of this searcher.
+    pub fn schema(&self) -> &Schema {
+        self.context().schema()
     }
 
     /// [`SearcherGeneration`] which identifies the version of the snapshot held by this `Searcher`.
@@ -260,14 +245,9 @@ impl Searcher {
     /// Fetches a document in an asynchronous manner.
     #[cfg(feature = "quickwit")]
     pub async fn doc_async(&self, doc_address: DocAddress) -> crate::Result<TantivyDocument> {
-        let executor = self.search_executor();
+        let executor = self.context().search_executor();
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get_async(doc_address.doc_id, executor).await
-    }
-
-    /// Access the schema associated with the index of this searcher.
-    pub fn schema(&self) -> &Schema {
-        self.context().schema()
     }
 
     /// Returns the overall number of documents in the index.
@@ -352,7 +332,7 @@ impl Searcher {
         } else {
             EnableScoring::disabled_from_searcher(self)
         };
-        let executor = self.search_executor();
+        let executor = self.context().search_executor();
         self.search_with_executor(query, collector, executor, enabled_scoring)
     }
 

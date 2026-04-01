@@ -197,34 +197,38 @@ impl InvertedIndexReader for dyn DynInvertedIndexReader + '_ {
     }
 }
 
-/// Handler interface used by [`try_downcast_and_call`] to build query objects.
-pub trait TypedInvertedIndexReaderCb<R> {
-    /// Invokes the handler with either Tantivy's built-in typed reader or the dynamic fallback.
-    fn call<I: InvertedIndexReader + ?Sized>(&mut self, reader: &I) -> R;
-}
-
-/// Tries Tantivy's built-in reader downcast before falling back to the dynamic reader path.
-pub fn try_downcast_and_call<R, C>(reader: &dyn DynInvertedIndexReader, handler: &mut C) -> R
-where C: TypedInvertedIndexReaderCb<R> {
-    if let Some(reader) = reader.as_any().downcast_ref::<TantivyInvertedIndexReader>() {
-        return handler.call(reader);
-    }
-    handler.call(reader)
-}
-
-struct LoadPostingsFromTermInfo<'a> {
-    term_info: &'a TermInfo,
-    option: IndexRecordOption,
-}
-
-impl TypedInvertedIndexReaderCb<io::Result<Box<dyn Postings>>> for LoadPostingsFromTermInfo<'_> {
-    fn call<I: InvertedIndexReader + ?Sized>(
-        &mut self,
-        reader: &I,
-    ) -> io::Result<Box<dyn Postings>> {
-        let postings = reader.read_postings_from_terminfo(self.term_info, self.option)?;
-        Ok(Box::new(postings))
-    }
+/// Attempts to downcast a `DynInvertedIndexReader` to tantivy's concrete
+/// `TantivyInvertedIndexReader` before falling back to the dynamic path.
+///
+/// The body is compiled twice: once with the concrete reader (yielding typed
+/// postings such as `SegmentPostings`) and once with the dynamic reader
+/// (yielding `Box<dyn Postings>`).  The body must therefore be generic
+/// enough to work with both postings types.
+///
+/// # Example
+///
+/// ```ignore
+/// let postings = try_downcast_and_call!(inverted_index.as_ref(), |reader| {
+///     let postings = reader.read_postings_from_terminfo(&term_info, option)?;
+///     io::Result::Ok(Box::new(postings) as Box<dyn Postings>)
+/// })?;
+/// ```
+#[macro_export]
+macro_rules! try_downcast_and_call {
+    ($reader:expr, |$reader_var:ident| $body:expr) => {{
+        #[allow(unused_imports)]
+        use $crate::index::InvertedIndexReader as _;
+        let __dyn_reader: &dyn $crate::index::DynInvertedIndexReader = $reader;
+        if let Some($reader_var) = __dyn_reader
+            .as_any()
+            .downcast_ref::<$crate::index::TantivyInvertedIndexReader>()
+        {
+            $body
+        } else {
+            let $reader_var = __dyn_reader;
+            $body
+        }
+    }};
 }
 
 pub(crate) fn load_postings_from_terminfo(
@@ -232,8 +236,10 @@ pub(crate) fn load_postings_from_terminfo(
     term_info: &TermInfo,
     option: IndexRecordOption,
 ) -> io::Result<Box<dyn Postings>> {
-    let mut postings_loader = LoadPostingsFromTermInfo { term_info, option };
-    try_downcast_and_call(reader, &mut postings_loader)
+    try_downcast_and_call!(reader, |reader| {
+        let postings = InvertedIndexReader::read_postings_from_terminfo(reader, term_info, option)?;
+        Ok(Box::new(postings) as Box<dyn Postings>)
+    })
 }
 
 /// Tantivy's default inverted index reader implementation.
@@ -624,28 +630,7 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
     use super::*;
-
-    #[derive(Default)]
-    struct RecordDispatch {
-        used_concrete_reader: bool,
-        used_dynamic_fallback: bool,
-    }
-
-    impl TypedInvertedIndexReaderCb<()> for RecordDispatch {
-        fn call<I: InvertedIndexReader + ?Sized>(&mut self, _reader: &I) {
-            let postings_type = TypeId::of::<I::Postings>();
-            if postings_type == TypeId::of::<SegmentPostings>() {
-                self.used_concrete_reader = true;
-            } else if postings_type == TypeId::of::<Box<dyn Postings>>() {
-                self.used_dynamic_fallback = true;
-            } else {
-                panic!("unexpected postings type in downcast helper test");
-            }
-        }
-    }
 
     struct OnlyDynReader {
         termdict: TermDictionary,
@@ -737,23 +722,21 @@ mod tests {
     #[test]
     fn try_downcast_and_call_uses_tantivy_reader() {
         let reader = TantivyInvertedIndexReader::empty(IndexRecordOption::Basic);
-        let mut dispatch_recorder = RecordDispatch::default();
-
-        try_downcast_and_call(&reader, &mut dispatch_recorder);
-
-        assert!(dispatch_recorder.used_concrete_reader);
-        assert!(!dispatch_recorder.used_dynamic_fallback);
+        let dyn_reader: &dyn DynInvertedIndexReader = &reader;
+        let used_concrete = try_downcast_and_call!(dyn_reader, |r| {
+            r.as_any().is::<TantivyInvertedIndexReader>()
+        });
+        assert!(used_concrete);
     }
 
     #[test]
     fn try_downcast_and_call_uses_dynamic_fallback_for_other_readers() {
         let reader = OnlyDynReader::default();
-        let mut dispatch_recorder = RecordDispatch::default();
-
-        try_downcast_and_call(&reader, &mut dispatch_recorder);
-
-        assert!(!dispatch_recorder.used_concrete_reader);
-        assert!(dispatch_recorder.used_dynamic_fallback);
+        let dyn_reader: &dyn DynInvertedIndexReader = &reader;
+        let used_concrete = try_downcast_and_call!(dyn_reader, |r| {
+            r.as_any().is::<TantivyInvertedIndexReader>()
+        });
+        assert!(!used_concrete);
     }
 }
 

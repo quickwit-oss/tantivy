@@ -1,8 +1,8 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::postings::PostingsWithBlockMax;
+use crate::postings::{PostingsWithBlockMax, SegmentPostings};
 use crate::query::term_query::TermScorer;
-use crate::query::Scorer;
+use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// Takes a term_scorers sorted by their current doc() and a threshold and returns
@@ -263,6 +263,39 @@ pub fn block_wand_single_scorer(
         }
         doc += 1;
         block_max_score = scorer.seek_block_max(doc);
+    }
+}
+
+/// Attempts WAND acceleration by downcasting to concrete scorer types,
+/// falling back to generic scoring if the downcast fails.
+pub fn for_each_pruning_with_wand(
+    mut threshold: Score,
+    mut scorer: Box<dyn Scorer>,
+    callback: &mut dyn FnMut(DocId, Score) -> Score,
+) {
+    scorer = match scorer.downcast::<TermScorer<SegmentPostings>>() {
+        Ok(term_scorer) => {
+            block_wand_single_scorer(*term_scorer, threshold, callback);
+            return;
+        }
+        Err(scorer) => scorer,
+    };
+    match scorer.downcast::<BufferedUnionScorer<TermScorer<SegmentPostings>, SumCombiner>>() {
+        Ok(mut union_scorer) => {
+            let doc = union_scorer.doc();
+            if doc == TERMINATED {
+                return;
+            }
+            let score = union_scorer.score();
+            if score > threshold {
+                threshold = callback(doc, score);
+            }
+            let scorers: Vec<TermScorer<SegmentPostings>> = union_scorer.into_scorers();
+            block_wand(scorers, threshold, callback);
+        }
+        Err(mut scorer) => {
+            scorer.for_each_pruning(threshold, callback);
+        }
     }
 }
 

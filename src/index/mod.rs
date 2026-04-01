@@ -15,8 +15,8 @@ pub(crate) use self::index_meta::SegmentMetaInventory;
 pub use self::index_meta::{IndexMeta, IndexSettings, Order, SegmentMeta};
 pub(crate) use self::inverted_index_reader::load_postings_from_terminfo;
 pub use self::inverted_index_reader::{
-    try_downcast_and_call, DynInvertedIndexReader, InvertedIndexFieldSpace, InvertedIndexReader,
-    TantivyInvertedIndexReader, TypedInvertedIndexReaderCb,
+    DynInvertedIndexReader, InvertedIndexFieldSpace, InvertedIndexReader,
+    TantivyInvertedIndexReader,
 };
 pub use self::segment::Segment;
 pub use self::segment_component::SegmentComponent;

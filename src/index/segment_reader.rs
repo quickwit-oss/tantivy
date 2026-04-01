@@ -15,15 +15,11 @@ use crate::index::{
     TantivyInvertedIndexReader,
 };
 use crate::json_utils::json_path_sep_to_dot;
-use crate::postings::SegmentPostings;
-use crate::query::boolean_query::block_wand::{block_wand, block_wand_single_scorer};
-use crate::query::term_query::TermScorer;
-use crate::query::{BufferedUnionScorer, Scorer, SumCombiner};
 use crate::schema::{Field, IndexRecordOption, Schema, Type};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::{StoreReader, TantivyStoreReader};
 use crate::termdict::TermDictionary;
-use crate::{DocId, DocSet as _, Opstamp, Score, TERMINATED};
+use crate::{DocId, Opstamp};
 
 /// Trait defining the contract for a segment reader.
 pub trait SegmentReader: Send + Sync {
@@ -35,14 +31,6 @@ pub trait SegmentReader: Send + Sync {
 
     /// Returns the schema of the index this segment belongs to.
     fn schema(&self) -> &Schema;
-
-    /// Performs a for_each_pruning operation on the given scorer.
-    fn for_each_pruning(
-        &self,
-        threshold: Score,
-        scorer: Box<dyn Scorer>,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
-    );
 
     /// Return the number of documents that have been deleted in the segment.
     fn num_deleted_docs(&self) -> DocId;
@@ -235,40 +223,6 @@ impl SegmentReader for TantivySegmentReader {
 
     fn schema(&self) -> &Schema {
         &self.schema
-    }
-
-    fn for_each_pruning(
-        &self,
-        mut threshold: Score,
-        mut scorer: Box<dyn Scorer>,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
-    ) {
-        // Try WAND acceleration with concrete postings types
-        scorer = match scorer.downcast::<TermScorer<SegmentPostings>>() {
-            Ok(term_scorer) => {
-                block_wand_single_scorer(*term_scorer, threshold, callback);
-                return;
-            }
-            Err(scorer) => scorer,
-        };
-        match scorer.downcast::<BufferedUnionScorer<TermScorer<SegmentPostings>, SumCombiner>>() {
-            Ok(mut union_scorer) => {
-                let doc = union_scorer.doc();
-                if doc == TERMINATED {
-                    return;
-                }
-                let score = union_scorer.score();
-                if score > threshold {
-                    threshold = callback(doc, score);
-                }
-                let scorers: Vec<TermScorer<SegmentPostings>> = union_scorer.into_scorers();
-                block_wand(scorers, threshold, callback);
-            }
-            Err(mut scorer) => {
-                // No acceleration available. Fall back to default.
-                scorer.for_each_pruning(threshold, callback);
-            }
-        }
     }
 
     fn num_deleted_docs(&self) -> DocId {

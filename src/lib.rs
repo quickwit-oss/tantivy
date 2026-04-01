@@ -227,9 +227,8 @@ pub use self::docset::{DocSet, COLLECT_BLOCK_BUFFER_LEN, TERMINATED};
 pub use crate::core::{json_utils, Executor, Searcher, SearcherContext, SearcherGeneration};
 pub use crate::directory::Directory;
 pub use crate::index::{
-    try_downcast_and_call, DynInvertedIndexReader, Index, IndexBuilder, IndexMeta, IndexSettings,
-    InvertedIndexReader, Order, Segment, SegmentMeta, SegmentReader, TantivyInvertedIndexReader,
-    TantivySegmentReader, TypedInvertedIndexReaderCb,
+    DynInvertedIndexReader, Index, IndexBuilder, IndexMeta, IndexSettings, InvertedIndexReader,
+    Order, Segment, SegmentMeta, SegmentReader, TantivyInvertedIndexReader, TantivySegmentReader,
 };
 pub use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 pub use crate::schema::{Document, TantivyDocument, Term};

@@ -8,6 +8,7 @@
 - [Index Sorting](./index_sorting.md)
 - [Innerworkings](./innerworkings.md)
   - [Inverted index](./inverted_index.md)
+  - [Storage Abstraction](./storage_abstraction.md)
 - [Best practise](./inverted_index.md)
 
 [Frequently Asked Questions](./faq.md)

@@ -5,14 +5,12 @@ use common::BitSet;
 use tantivy_fst::Automaton;
 
 use super::phrase_prefix_query::prefix_end;
-use crate::index::{
-    try_downcast_and_call, InvertedIndexReader, SegmentReader, TypedInvertedIndexReaderCb,
-};
+use crate::index::SegmentReader;
 use crate::postings::TermInfo;
 use crate::query::{BitSetDocSet, ConstScorer, Explanation, Scorer, Weight};
 use crate::schema::Field;
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::{DocId, DocSet, Score, TantivyError};
+use crate::{try_downcast_and_call, DocId, DocSet, Score, TantivyError};
 
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A> {
@@ -92,30 +90,13 @@ where
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
         let mut term_stream = self.automaton_stream(term_dict)?;
-        struct FillBitsetLoop<'a, 'b, A: Automaton>
-        where A::State: Clone
-        {
-            term_stream: &'a mut TermStreamer<'b, &'b A>,
-            bitset: &'a mut BitSet,
-        }
-        impl<A: Automaton> TypedInvertedIndexReaderCb<io::Result<()>> for FillBitsetLoop<'_, '_, A>
-        where A::State: Clone
-        {
-            fn call<I: InvertedIndexReader + ?Sized>(&mut self, reader: &I) -> io::Result<()> {
-                while self.term_stream.advance() {
-                    let term_info = self.term_stream.value();
-                    reader.fill_bitset_from_terminfo(term_info, self.bitset)?;
-                }
-                Ok(())
+        try_downcast_and_call!(inverted_index.as_ref(), |reader| {
+            while term_stream.advance() {
+                let term_info = term_stream.value();
+                reader.fill_bitset_from_terminfo(term_info, &mut doc_bitset)?;
             }
-        }
-        try_downcast_and_call(
-            inverted_index.as_ref(),
-            &mut FillBitsetLoop {
-                term_stream: &mut term_stream,
-                bitset: &mut doc_bitset,
-            },
-        )?;
+            io::Result::Ok(())
+        })?;
         let doc_bitset = BitSetDocSet::from(doc_bitset);
         let const_scorer = ConstScorer::new(doc_bitset, boost);
         Ok(Box::new(const_scorer))
