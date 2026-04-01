@@ -122,6 +122,7 @@ pub struct HeapInterleave<'a> {
     cells_emitted: u64,
     short_edge_checks: u64,
     max_sponge_cells: u64,
+    crossing_checks: u64,
 }
 
 impl<'a> HeapInterleave<'a> {
@@ -146,6 +147,7 @@ impl<'a> HeapInterleave<'a> {
             cells_emitted: 0,
             short_edge_checks: 0,
             max_sponge_cells: 0,
+            crossing_checks: 0,
         };
         let n = merge.sources.len();
         for i in 0..n {
@@ -157,12 +159,13 @@ impl<'a> HeapInterleave<'a> {
     /// Log interleave metrics to stderr.
     pub fn report(&self) {
         eprintln!(
-            "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} edge checks, {} max sponge",
+            "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} edge checks, {} crossing checks, {} max sponge",
             self.cells_from_source,
             self.absorptions,
             self.splits,
             self.cells_emitted,
             self.short_edge_checks,
+            self.crossing_checks,
             self.max_sponge_cells,
         );
     }
@@ -199,7 +202,7 @@ impl<'a> HeapInterleave<'a> {
         self.splits += 1;
         let mut cells = sponge.cells;
         let head = cells.remove(0);
-        let children = subdivide_cell(&head.cell, self.edge_cache);
+        let children = subdivide_cell(&head.cell, self.edge_cache, &mut self.crossing_checks);
 
         // Build four HeapEntries from the subdivided children.
         let mut entries: Vec<HeapEntry> = children
@@ -396,14 +399,18 @@ fn compute_contains_center(
     all_edges: &[MergeEdge],
     clipped: &[MergeClippedEdge],
     geometry_id: GeometryId,
+    crossing_checks: &mut u64,
 ) -> bool {
     use super::crossings::S2EdgeCrosser;
     let mut crosser = S2EdgeCrosser::new(from, to);
     let mut crossings = 0u32;
     for ce in clipped {
         let me = &all_edges[ce.edge_index];
-        if me.geometry_id == geometry_id && crosser.edge_or_vertex_crossing_two(&me.v0, &me.v1) {
-            crossings += 1;
+        if me.geometry_id == geometry_id {
+            *crossing_checks += 1;
+            if crosser.edge_or_vertex_crossing_two(&me.v0, &me.v1) {
+                crossings += 1;
+            }
         }
     }
     from_flag ^ (crossings % 2 != 0)
@@ -508,7 +515,7 @@ fn interpolate(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 }
 
-fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Vec<IndexCell> {
+fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>, crossing_checks: &mut u64) -> Vec<IndexCell> {
     let face = cell.cell_id.face();
     let pcell = S2PaddedCell::new(cell.cell_id, CELL_PADDING);
     let parent_center = pcell.get_center();
@@ -573,6 +580,7 @@ fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Vec<I
                     &merge_edges,
                     &clipped,
                     gid,
+                    crossing_checks,
                 );
                 if contains {
                     index_cell.add_shape(ClippedShape::new(gid, true));
@@ -606,6 +614,7 @@ fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Vec<I
                     &merge_edges,
                     &clipped,
                     *geometry_id,
+                    crossing_checks,
                 );
 
                 let mut shape = ClippedShape::new(*geometry_id, contains);
@@ -625,6 +634,7 @@ fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Vec<I
                     &merge_edges,
                     &clipped,
                     gid,
+                    crossing_checks,
                 );
                 if contains {
                     index_cell.add_shape(ClippedShape::new(gid, true));
