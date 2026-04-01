@@ -21,6 +21,8 @@ use super::sphere::Sphere;
 struct CoarseEdge {
     edge_index: u16,
     max_level: i32,
+    v0: [f64; 3],
+    v1: [f64; 3],
 }
 
 struct CoarseGeometry {
@@ -63,6 +65,8 @@ impl CoarseIndexCell {
                 level_geometry.edges.push(CoarseEdge {
                     edge_index,
                     max_level,
+                    v0,
+                    v1,
                 });
             }
         }
@@ -203,7 +207,7 @@ impl<'a> HeapInterleave<'a> {
         self.splits += 1;
         let mut cells = sponge.cells;
         let head = cells.remove(0);
-        let children = subdivide_cell(&head.cell, self.edge_cache, &mut self.crossing_checks);
+        let children = subdivide_cell(&head, &mut self.crossing_checks);
 
         // Build four HeapEntries from the subdivided children.
         let mut entries: Vec<HeapEntry> = children
@@ -295,17 +299,17 @@ impl<'a> Iterator for HeapInterleave<'a> {
                 } else {
                     self.cells_emitted += 1;
                     self.heap.push(entry);
-                    return flatten(sponge, self.edge_cache);
+                    return flatten(sponge);
                 }
             } else {
                 self.cells_emitted += 1;
-                return flatten(sponge, self.edge_cache);
+                return flatten(sponge);
             }
         }
     }
 }
 
-fn flatten(sponge: HeapEntry, edge_cache: &EdgeCache<'_, Sphere>) -> Option<IndexCell> {
+fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
     if sponge.cells.len() == 1 {
         return Some(sponge.cells.into_iter().next().unwrap().cell);
     }
@@ -313,38 +317,43 @@ fn flatten(sponge: HeapEntry, edge_cache: &EdgeCache<'_, Sphere>) -> Option<Inde
     let sponge_pcell = S2PaddedCell::new(sponge.cell_id, CELL_PADDING);
     let sponge_center = sponge_pcell.get_center();
 
-    // Build per-geometry union of edge indices with anchor info for the ray-cast.
-    let mut edge_unions: FxHashMap<GeometryId, (Vec<u16>, bool, [f64; 3])> = FxHashMap::default();
+    // Build per-geometry union of edges with anchor info for the ray-cast.
+    let mut edge_unions: FxHashMap<GeometryId, (Vec<(u16, [f64; 3], [f64; 3])>, bool, [f64; 3])> =
+        FxHashMap::default();
 
     for coarse_cell in &sponge.cells {
         let cell_center = S2PaddedCell::new(coarse_cell.cell.cell_id, CELL_PADDING).get_center();
 
         for shape in &coarse_cell.cell.shapes {
-            let entry = edge_unions
+            let union_entry = edge_unions
                 .entry(shape.geometry_id)
                 .or_insert_with(|| (Vec::new(), shape.contains_center, cell_center));
-            entry.0.extend_from_slice(&shape.edge_indices);
+            if let Some(geo) = coarse_cell.geometries.get(&shape.geometry_id) {
+                for &edge_idx in &shape.edge_indices {
+                    if let Some(ce) = geo.edges.iter().find(|e| e.edge_index == edge_idx) {
+                        union_entry.0.push((edge_idx, ce.v0, ce.v1));
+                    }
+                }
+            }
         }
     }
 
     for (edges, _, _) in edge_unions.values_mut() {
-        edges.sort_unstable();
-        edges.dedup();
+        edges.sort_unstable_by_key(|(idx, _, _)| *idx);
+        edges.dedup_by_key(|(idx, _, _)| *idx);
     }
 
     let mut result = IndexCell::new(sponge.cell_id);
 
-    for (geometry_id, (edge_indices, anchor_flag, anchor_center)) in &edge_unions {
-        if edge_indices.is_empty() {
+    for (geometry_id, (edges, anchor_flag, anchor_center)) in &edge_unions {
+        if edges.is_empty() {
             result.add_shape(ClippedShape::new(*geometry_id, *anchor_flag));
             continue;
         }
 
-        let entry = edge_cache.get(*geometry_id);
         let mut crosser = super::crossings::S2EdgeCrosser::new(anchor_center, &sponge_center);
         let mut crossings = 0u32;
-        for &edge_idx in edge_indices {
-            let (v0, v1) = entry.edge(edge_idx);
+        for &(_, v0, v1) in edges {
             if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
                 crossings += 1;
             }
@@ -352,7 +361,7 @@ fn flatten(sponge: HeapEntry, edge_cache: &EdgeCache<'_, Sphere>) -> Option<Inde
         let contains = anchor_flag ^ (crossings % 2 != 0);
 
         let mut shape = ClippedShape::new(*geometry_id, contains);
-        shape.edge_indices = edge_indices.clone();
+        shape.edge_indices = edges.iter().map(|(idx, _, _)| *idx).collect();
         result.add_shape(shape);
     }
 
@@ -516,30 +525,24 @@ fn interpolate(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 }
 
-fn subdivide_cell(
-    cell: &IndexCell,
-    edge_cache: &EdgeCache<'_, Sphere>,
-    crossing_checks: &mut u64,
-) -> Vec<IndexCell> {
+fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> Vec<IndexCell> {
+    let cell = &coarse_cell.cell;
     let face = cell.cell_id.face();
     let pcell = S2PaddedCell::new(cell.cell_id, CELL_PADDING);
     let parent_center = pcell.get_center();
 
     let mut merge_edges: Vec<MergeEdge> = Vec::new();
 
-    for shape in &cell.shapes {
-        let entry = edge_cache.get(shape.geometry_id);
-
-        for &edge_idx in &shape.edge_indices {
-            let (v0, v1) = entry.edge(edge_idx);
-            let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
-            let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
+    for (&gid, geo) in &coarse_cell.geometries {
+        for edge in &geo.edges {
+            let (a_u, a_v) = valid_face_xyz_to_uv(face, &edge.v0);
+            let (b_u, b_v) = valid_face_xyz_to_uv(face, &edge.v1);
 
             merge_edges.push(MergeEdge {
-                geometry_id: shape.geometry_id,
-                edge_index: edge_idx,
-                v0,
-                v1,
+                geometry_id: gid,
+                edge_index: edge.edge_index,
+                v0: edge.v0,
+                v1: edge.v1,
                 a_uv: [a_u, a_v],
                 b_uv: [b_u, b_v],
             });
