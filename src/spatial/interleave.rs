@@ -377,8 +377,6 @@ fn count_short_edges(
 struct MergeEdge {
     geometry_id: GeometryId,
     edge_index: u16,
-    #[allow(unused)]
-    max_level: i32,
     v0: [f64; 3],
     v1: [f64; 3],
     a_uv: [f64; 2],
@@ -528,8 +526,6 @@ fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Vec<I
             merge_edges.push(MergeEdge {
                 geometry_id: shape.geometry_id,
                 edge_index: edge_idx,
-                #[allow(unused)]
-                max_level: get_edge_max_level(&v0, &v1),
                 v0,
                 v1,
                 a_uv: [a_u, a_v],
