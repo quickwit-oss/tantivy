@@ -295,11 +295,11 @@ impl<'a> Iterator for HeapInterleave<'a> {
                 } else {
                     self.cells_emitted += 1;
                     self.heap.push(entry);
-                    return flatten(sponge, &self.edge_cache);
+                    return flatten(sponge, self.edge_cache);
                 }
             } else {
                 self.cells_emitted += 1;
-                return flatten(sponge, &self.edge_cache);
+                return flatten(sponge, self.edge_cache);
             }
         }
     }
