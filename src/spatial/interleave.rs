@@ -125,6 +125,12 @@ pub struct HeapInterleave<'a> {
     heap: BinaryHeap<HeapEntry>,
     max_edges: usize,
     min_short_edge_fraction: f64,
+    cells_from_source: u64,
+    absorptions: u64,
+    splits: u64,
+    cells_emitted: u64,
+    short_edge_checks: u64,
+    max_sponge_cells: u64,
 }
 
 impl<'a> HeapInterleave<'a> {
@@ -143,12 +149,31 @@ impl<'a> HeapInterleave<'a> {
             heap: BinaryHeap::new(),
             max_edges: options.max_edges_per_cell,
             min_short_edge_fraction: options.min_short_edge_fraction,
+            cells_from_source: 0,
+            absorptions: 0,
+            splits: 0,
+            cells_emitted: 0,
+            short_edge_checks: 0,
+            max_sponge_cells: 0,
         };
         let n = merge.sources.len();
         for i in 0..n {
             merge.push_next_from_source(i);
         }
         merge
+    }
+
+    /// Log interleave metrics to stderr.
+    pub fn report(&self) {
+        eprintln!(
+            "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} edge checks, {} max sponge",
+            self.cells_from_source,
+            self.absorptions,
+            self.splits,
+            self.cells_emitted,
+            self.short_edge_checks,
+            self.max_sponge_cells,
+        );
     }
 
     fn push_next_from_source(&mut self, source_idx: usize) {
@@ -165,6 +190,7 @@ impl<'a> HeapInterleave<'a> {
                 shape.geometry_id.0 = segment;
             }
             if !cell.shapes.is_empty() {
+                self.cells_from_source += 1;
                 let mut geometries = FxHashSet::default();
                 geometries.extend(cell.shapes.iter().map(|s| s.geometry_id));
                 self.heap.push(HeapEntry {
@@ -179,6 +205,7 @@ impl<'a> HeapInterleave<'a> {
     }
 
     fn coarse_split(&mut self, sponge: HeapEntry) {
+        self.splits += 1;
         let mut cells = sponge.cells;
         let head = cells.remove(0);
         let children = subdivide_cell(&head.cell, self.edge_cache);
@@ -248,11 +275,17 @@ impl<'a> Iterator for HeapInterleave<'a> {
                     self.push_next_from_source(source);
                 }
                 if sponge.cell_id.contains(entry.cell_id) || sponge.cell_id == entry.cell_id {
+                    self.absorptions += 1;
                     sponge.geometries.extend(&entry.geometries);
                     sponge.cells.extend(entry.cells);
+                    let sponge_size = sponge.cells.len() as u64;
+                    if sponge_size > self.max_sponge_cells {
+                        self.max_sponge_cells = sponge_size;
+                    }
                     let mut edges = std::mem::take(&mut self.edge_counter);
                     edges.clear();
-                    count_short_edges(&sponge.cells, sponge.cell_id.level(), &mut edges);
+                    self.short_edge_checks +=
+                        count_short_edges(&sponge.cells, sponge.cell_id.level(), &mut edges);
                     let threshold = self.max_edges.max(
                         (self.min_short_edge_fraction
                             * (edges.len() + sponge.geometries.len()) as f64)
@@ -265,10 +298,12 @@ impl<'a> Iterator for HeapInterleave<'a> {
                     }
                     self.edge_counter = edges;
                 } else {
+                    self.cells_emitted += 1;
                     self.heap.push(entry);
                     return flatten(sponge, &self.edge_cache);
                 }
             } else {
+                self.cells_emitted += 1;
                 return flatten(sponge, &self.edge_cache);
             }
         }
@@ -344,16 +379,19 @@ fn count_short_edges(
     cells: &[CoarseIndexCell],
     level: i32,
     counter: &mut FxHashSet<(GeometryId, u16)>,
-) {
+) -> u64 {
+    let mut checked = 0u64;
     for cell in cells {
         for (&gid, geo) in &cell.geometries {
             for edge in &geo.edges {
+                checked += 1;
                 if level < edge.max_level {
                     counter.insert((gid, edge.edge_index));
                 }
             }
         }
     }
+    checked
 }
 
 struct MergeEdge {

@@ -660,6 +660,7 @@ impl IndexMerger {
                 cell_count,
                 elapsed.as_secs_f64()
             );
+            interleave.report();
 
             // Cell index dictionary and footer.
             let dir_offset = cells_out.written_bytes() - cells_base;
