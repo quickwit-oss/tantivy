@@ -94,7 +94,7 @@ impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
         let size_sorted_segments = segments
             .iter()
-            .filter(|seg| seg.num_docs() <= (self.max_docs_before_merge as u32))
+            .filter(|seg| (seg.num_docs() as usize) <= self.max_docs_before_merge)
             .sorted_by_key(|seg| std::cmp::Reverse(seg.max_doc()))
             .collect::<Vec<&SegmentMeta>>();
 
@@ -371,5 +371,22 @@ mod tests {
         assert_eq!(merge_candidates.len(), 1);
         assert_eq!(merge_candidates[0].0.len(), 1);
         assert_eq!(merge_candidates[0].0[0], test_input[1].id());
+    }
+
+    #[test]
+    fn test_max_docs_before_merge_large_value() {
+        // Regression test: (max_docs_before_merge as u32) truncates values > u32::MAX.
+        // Casting num_docs() to usize instead avoids the truncation.
+        let mut policy = LogMergePolicy::default();
+        policy.set_min_num_segments(2);
+        policy.set_max_docs_before_merge(5_000_000_000usize);
+        let test_input = vec![
+            create_random_segment_meta(100_000),
+            create_random_segment_meta(100_000),
+        ];
+        let result = policy.compute_merge_candidates(&test_input);
+        // Both segments should be eligible (100_000 < 5_000_000_000)
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0.len(), 2);
     }
 }

@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io;
 use std::sync::Arc;
 
 mod set;
@@ -11,7 +11,7 @@ use set_block::{
 };
 
 use crate::iterable::Iterable;
-use crate::{DocId, InvalidData, RowId};
+use crate::{DocId, RowId};
 
 /// The threshold for for number of elements after which we switch to dense block encoding.
 ///
@@ -88,7 +88,7 @@ pub struct OptionalIndex {
 
 impl Iterable<u32> for &OptionalIndex {
     fn boxed_iter(&self) -> Box<dyn Iterator<Item = u32> + '_> {
-        Box::new(self.iter_docs())
+        Box::new(self.iter_non_null_docs())
     }
 }
 
@@ -280,8 +280,9 @@ impl OptionalIndex {
         self.num_non_null_docs
     }
 
-    pub fn iter_docs(&self) -> impl Iterator<Item = RowId> + '_ {
-        // TODO optimize
+    pub fn iter_non_null_docs(&self) -> impl Iterator<Item = RowId> + '_ {
+        // TODO optimize. We could iterate over the blocks directly.
+        // We use the dense value ids and retrieve the doc ids via select.
         let mut select_batch = self.select_cursor();
         (0..self.num_non_null_docs).map(move |rank| select_batch.select(rank))
     }
@@ -332,38 +333,6 @@ impl OptionalIndex {
 enum Block<'a> {
     Dense(DenseBlock<'a>),
     Sparse(SparseBlock<'a>),
-}
-
-#[derive(Debug, Copy, Clone)]
-enum OptionalIndexCodec {
-    Dense = 0,
-    Sparse = 1,
-}
-
-impl OptionalIndexCodec {
-    fn to_code(self) -> u8 {
-        self as u8
-    }
-
-    fn try_from_code(code: u8) -> Result<Self, InvalidData> {
-        match code {
-            0 => Ok(Self::Dense),
-            1 => Ok(Self::Sparse),
-            _ => Err(InvalidData),
-        }
-    }
-}
-
-impl BinarySerializable for OptionalIndexCodec {
-    fn serialize<W: Write + ?Sized>(&self, writer: &mut W) -> io::Result<()> {
-        writer.write_all(&[self.to_code()])
-    }
-
-    fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let optional_codec_code = u8::deserialize(reader)?;
-        let optional_codec = Self::try_from_code(optional_codec_code)?;
-        Ok(optional_codec)
-    }
 }
 
 fn serialize_optional_index_block(block_els: &[u16], out: &mut impl io::Write) -> io::Result<()> {

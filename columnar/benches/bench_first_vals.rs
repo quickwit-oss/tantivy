@@ -89,13 +89,6 @@ fn main() {
         black_box(sum);
     });
 
-    group.register("first_block_fetch", |column| {
-        let mut block: Vec<Option<u64>> = vec![None; 64];
-        let fetch_docids = (0..64).collect::<Vec<_>>();
-        column.first_vals(&fetch_docids, &mut block);
-        black_box(block[0]);
-    });
-
     group.register("first_block_single_calls", |column| {
         let mut block: Vec<Option<u64>> = vec![None; 64];
         let fetch_docids = (0..64).collect::<Vec<_>>();

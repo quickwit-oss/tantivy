@@ -17,6 +17,9 @@ pub struct VecDocSet {
 
 impl From<Vec<DocId>> for VecDocSet {
     fn from(doc_ids: Vec<DocId>) -> VecDocSet {
+        // We do not use `slice::is_sorted`, as we want to check for doc ids to be strictly
+        // sorted.
+        assert!(doc_ids.windows(2).all(|w| w[0] < w[1]));
         VecDocSet { doc_ids, cursor: 0 }
     }
 }

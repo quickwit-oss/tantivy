@@ -20,17 +20,16 @@ Contains all metric aggregations, like average aggregation. Metric aggregations 
 #### agg_req
 agg_req contains the users aggregation request. Deserialization from json is compatible with elasticsearch aggregation requests.
 
-#### agg_req_with_accessor
-agg_req_with_accessor contains the users aggregation request enriched with fast field accessors etc, which are
+#### agg_data
+agg_data contains the users aggregation request enriched with fast field accessors etc, which are
 used during collection.
 
 #### segment_agg_result
 segment_agg_result contains the aggregation result tree, which is used for collection of a segment.
-The tree from agg_req_with_accessor is passed during collection.
+agg_data is passed during collection.
 
 #### intermediate_agg_result
 intermediate_agg_result contains the aggregation tree for merging with other trees.
 
 #### agg_result
 agg_result contains the final aggregation tree.
-

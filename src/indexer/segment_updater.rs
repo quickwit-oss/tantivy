@@ -403,7 +403,8 @@ impl SegmentUpdater {
             // from the different drives.
             //
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
-            committed_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
+            committed_segment_metas
+                .sort_by_key(|segment_meta| std::cmp::Reverse(segment_meta.max_doc()));
             let index_meta = IndexMeta {
                 index_settings: index.settings().clone(),
                 segments: committed_segment_metas,
@@ -648,9 +649,6 @@ impl SegmentUpdater {
                                     merge_operation.segment_ids(),
                                     advance_deletes_err
                                 );
-                                assert!(!cfg!(test), "Merge failed.");
-
-                                // ... cancel merge
                                 // `merge_operations` are tracked. As it is dropped, the
                                 // the segment_ids will be available again for merge.
                                 return Err(advance_deletes_err);
@@ -705,12 +703,29 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::directory::RamDirectory;
     use crate::fastfield::AliveBitSet;
+    use crate::index::{SegmentId, SegmentMetaInventory};
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::indexer::merger::IndexMerger;
     use crate::indexer::segment_updater::merge_filtered_segments;
     use crate::query::QueryParser;
     use crate::schema::*;
     use crate::{Directory, DocAddress, Index, Segment};
+
+    #[test]
+    fn test_segment_sort_large_max_doc() {
+        // Regression test: -(max_doc as i32) overflows for max_doc >= 2^31.
+        // Using std::cmp::Reverse avoids this.
+        let inventory = SegmentMetaInventory::default();
+        let mut metas = [
+            inventory.new_segment_meta(SegmentId::generate_random(), 100),
+            inventory.new_segment_meta(SegmentId::generate_random(), (1u32 << 31) - 1),
+            inventory.new_segment_meta(SegmentId::generate_random(), 50_000),
+        ];
+        metas.sort_by_key(|m| std::cmp::Reverse(m.max_doc()));
+        assert_eq!(metas[0].max_doc(), (1u32 << 31) - 1);
+        assert_eq!(metas[1].max_doc(), 50_000);
+        assert_eq!(metas[2].max_doc(), 100);
+    }
 
     #[test]
     fn test_delete_during_merge() -> crate::Result<()> {
@@ -1052,8 +1067,9 @@ mod tests {
                 let query = QueryParser::for_index(&index, vec![text_field])
                     .parse_query(term)
                     .unwrap();
-                let top_docs: Vec<(f32, DocAddress)> =
-                    searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+                let top_docs: Vec<(f32, DocAddress)> = searcher
+                    .search(&query, &TopDocs::with_limit(3).order_by_score())
+                    .unwrap();
 
                 top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>()
             };

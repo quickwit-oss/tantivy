@@ -102,7 +102,7 @@ fn can_block_match_automaton_with_start(
     let end_range = end_key[common_prefix_len];
 
     // things starting with start_range were handled in match_range_start
-    // this starting with end_range are handled bellow.
+    // this starting with end_range are handled below.
     // this can run for 0 iteration in cases such as (abc, abd]
     for rb in (start_range + 1)..end_range {
         let new_state = automaton.accept(&base_state, rb);

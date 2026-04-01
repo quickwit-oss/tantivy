@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use common::bounds::{TransformBound, transform_bound_inner_res};
 use common::file_slice::FileSlice;
-use common::{BinarySerializable, OwnedBytes};
+use common::{BinarySerializable, ByteCount, OwnedBytes};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use itertools::Itertools;
 use tantivy_fst::Automaton;
@@ -43,6 +43,7 @@ use crate::{
 pub struct Dictionary<TSSTable: SSTable = VoidSSTable> {
     pub sstable_slice: FileSlice,
     pub sstable_index: SSTableIndex,
+    num_bytes: ByteCount,
     num_terms: u64,
     phantom_data: PhantomData<TSSTable>,
 }
@@ -141,7 +142,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             Ok(TSSTable::delta_reader(data))
         } else {
             // if operations are sync, we assume latency is almost null, and there is no point in
-            // merging accross holes
+            // merging across holes
             let blocks = self.get_block_iterator_for_range_and_automaton(key_range, automaton, 0);
             let data = blocks
                 .map(|block_addr| self.sstable_slice.read_bytes_slice(block_addr.byte_range))
@@ -278,6 +279,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Opens a `TermDictionary`.
     pub fn open(term_dictionary_file: FileSlice) -> io::Result<Self> {
+        let num_bytes = term_dictionary_file.num_bytes();
         let (main_slice, footer_len_slice) = term_dictionary_file.split_from_end(20);
         let mut footer_len_bytes: OwnedBytes = footer_len_slice.read_bytes()?;
         let index_offset = u64::deserialize(&mut footer_len_bytes)?;
@@ -308,16 +310,16 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 }
             }
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Unsupported sstable version, expected one of [2, 3], found {version}"),
-                ));
+                return Err(io::Error::other(format!(
+                    "Unsupported sstable version, expected one of [2, 3], found {version}"
+                )));
             }
         };
 
         Ok(Dictionary {
             sstable_slice,
             sstable_index,
+            num_bytes,
             num_terms,
             phantom_data: PhantomData,
         })
@@ -342,6 +344,11 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Term ordinals range from 0 to `num_terms() - 1`.
     pub fn num_terms(&self) -> usize {
         self.num_terms as usize
+    }
+
+    /// Returns the total number of bytes used by the dictionary on disk.
+    pub fn num_bytes(&self) -> ByteCount {
+        self.num_bytes
     }
 
     /// Decode a DeltaReader up to key, returning the number of terms traversed
@@ -609,12 +616,12 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
-    pub fn range(&self) -> StreamerBuilder<TSSTable> {
+    pub fn range(&self) -> StreamerBuilder<'_, TSSTable> {
         StreamerBuilder::new(self, AlwaysMatch)
     }
 
     /// Returns a range builder filtered with a prefix.
-    pub fn prefix_range<K: AsRef<[u8]>>(&self, prefix: K) -> StreamerBuilder<TSSTable> {
+    pub fn prefix_range<K: AsRef<[u8]>>(&self, prefix: K) -> StreamerBuilder<'_, TSSTable> {
         let lower_bound = prefix.as_ref();
         let mut upper_bound = lower_bound.to_vec();
         for idx in (0..upper_bound.len()).rev() {
@@ -633,7 +640,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     }
 
     /// A stream of all the sorted terms.
-    pub fn stream(&self) -> io::Result<Streamer<TSSTable>> {
+    pub fn stream(&self) -> io::Result<Streamer<'_, TSSTable>> {
         self.range().into_stream()
     }
 
@@ -697,10 +704,9 @@ mod tests {
         fn read_bytes(&self, range: Range<usize>) -> std::io::Result<OwnedBytes> {
             let allowed_range = self.allowed_range.lock().unwrap();
             if !allowed_range.contains(&range.start) || !allowed_range.contains(&(range.end - 1)) {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("invalid range, allowed {allowed_range:?}, requested {range:?}"),
-                ));
+                return Err(std::io::Error::other(format!(
+                    "invalid range, allowed {allowed_range:?}, requested {range:?}"
+                )));
             }
 
             Ok(self.bytes.slice(range))

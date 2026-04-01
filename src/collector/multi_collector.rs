@@ -3,6 +3,7 @@ use std::ops::Deref;
 
 use super::{Collector, SegmentCollector};
 use crate::collector::Fruit;
+use crate::schema::Schema;
 use crate::{DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 /// MultiFruit keeps Fruits from every nested Collector
@@ -15,6 +16,10 @@ pub struct CollectorWrapper<TCollector: Collector>(TCollector);
 impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     type Fruit = Box<dyn Fruit>;
     type Child = Box<dyn BoxableSegmentCollector>;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.0.check_schema(schema)
+    }
 
     fn for_segment(
         &self,
@@ -147,7 +152,7 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// let searcher = reader.searcher();
 ///
 /// let mut collectors = MultiCollector::new();
-/// let top_docs_handle = collectors.add_collector(TopDocs::with_limit(2));
+/// let top_docs_handle = collectors.add_collector(TopDocs::with_limit(2).order_by_score());
 /// let count_handle = collectors.add_collector(Count);
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary").unwrap();
@@ -193,6 +198,13 @@ impl<'a> MultiCollector<'a> {
 impl Collector for MultiCollector<'_> {
     type Fruit = MultiFruit;
     type Child = MultiCollectorChild;
+
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        for collector in &self.collector_wrappers {
+            collector.check_schema(schema)?;
+        }
+        Ok(())
+    }
 
     fn for_segment(
         &self,
@@ -250,6 +262,12 @@ impl SegmentCollector for MultiCollectorChild {
         }
     }
 
+    fn collect_block(&mut self, docs: &[DocId]) {
+        for child in &mut self.children {
+            child.collect_block(docs);
+        }
+    }
+
     fn harvest(self) -> MultiFruit {
         MultiFruit {
             sub_fruits: self
@@ -293,7 +311,7 @@ mod tests {
         let query = TermQuery::new(term, IndexRecordOption::Basic);
 
         let mut collectors = MultiCollector::new();
-        let topdocs_handler = collectors.add_collector(TopDocs::with_limit(2));
+        let topdocs_handler = collectors.add_collector(TopDocs::with_limit(2).order_by_score());
         let count_handler = collectors.add_collector(Count);
         let mut multifruits = searcher.search(&query, &collectors).unwrap();
 

@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::{DocSet, SeekDangerResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
@@ -81,6 +81,7 @@ impl<TPostings: Postings> DocSet for PhraseKind<TPostings> {
 }
 
 impl<TPostings: Postings> Scorer for PhraseKind<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         match self {
             PhraseKind::SinglePrefix { positions, .. } => {
@@ -193,6 +194,19 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
         self.advance()
     }
 
+    fn seek_danger(&mut self, target: DocId) -> SeekDangerResult {
+        let seek_res = self.phrase_scorer.seek_danger(target);
+        if seek_res != SeekDangerResult::Found {
+            return seek_res;
+        }
+        // The intersection matched. Now let's see if we match the prefix.
+        if self.matches_prefix() {
+            SeekDangerResult::Found
+        } else {
+            SeekDangerResult::SeekLowerBound(target + 1)
+        }
+    }
+
     fn doc(&self) -> DocId {
         self.phrase_scorer.doc()
     }
@@ -200,9 +214,14 @@ impl<TPostings: Postings> DocSet for PhrasePrefixScorer<TPostings> {
     fn size_hint(&self) -> u32 {
         self.phrase_scorer.size_hint()
     }
+
+    fn cost(&self) -> u64 {
+        self.phrase_scorer.cost()
+    }
 }
 
 impl<TPostings: Postings> Scorer for PhrasePrefixScorer<TPostings> {
+    #[inline]
     fn score(&mut self) -> Score {
         // TODO modify score??
         self.phrase_scorer.score()

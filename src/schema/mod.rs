@@ -98,6 +98,10 @@
 //! make it possible to access the value given the doc id rapidly. This is useful if the value
 //! of the field is required during scoring or collection for instance.
 //!
+//! Some queries may leverage Fast fields when run on a field that is not indexed. This can be
+//! handy if that kind of request is infrequent, however note that searching on a Fast field is
+//! generally much slower than searching in an index.
+//!
 //! ```
 //! use tantivy::schema::*;
 //! let mut schema_builder = Schema::builder();

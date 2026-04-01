@@ -23,8 +23,6 @@ pub enum SegmentComponent {
     /// Accessing a document from the store is relatively slow, as it
     /// requires to decompress the entire block it belongs to.
     Store,
-    /// Temporary storage of the documents, before streamed to `Store`.
-    TempStore,
     /// Bitset describing which document of the segment is alive.
     /// (It was representing deleted docs but changed to represent alive docs from v0.17)
     Delete,
@@ -33,14 +31,13 @@ pub enum SegmentComponent {
 impl SegmentComponent {
     /// Iterates through the components.
     pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
+        static SEGMENT_COMPONENTS: [SegmentComponent; 7] = [
             SegmentComponent::Postings,
             SegmentComponent::Positions,
             SegmentComponent::FastFields,
             SegmentComponent::FieldNorms,
             SegmentComponent::Terms,
             SegmentComponent::Store,
-            SegmentComponent::TempStore,
             SegmentComponent::Delete,
         ];
         SEGMENT_COMPONENTS.iter()

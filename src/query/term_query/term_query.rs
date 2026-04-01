@@ -1,8 +1,10 @@
 use std::fmt;
+use std::ops::Bound;
 
 use super::term_weight::TermWeight;
 use crate::query::bm25::Bm25Weight;
-use crate::query::{EnableScoring, Explanation, Query, Weight};
+use crate::query::range_query::is_type_valid_for_fastfield_range_query;
+use crate::query::{EnableScoring, Explanation, Query, RangeQuery, Weight};
 use crate::schema::IndexRecordOption;
 use crate::Term;
 
@@ -48,7 +50,7 @@ use crate::Term;
 ///     Term::from_field_text(title, "diary"),
 ///     IndexRecordOption::Basic,
 /// );
-/// let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
+/// let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))?;
 /// assert_eq!(count, 2);
 /// Ok(())
 /// # }
@@ -99,7 +101,7 @@ impl TermQuery {
             EnableScoring::Enabled {
                 statistics_provider,
                 ..
-            } => Bm25Weight::for_terms(statistics_provider, &[self.term.clone()])?,
+            } => Bm25Weight::for_terms(statistics_provider, std::slice::from_ref(&self.term))?,
             EnableScoring::Disabled { .. } => {
                 Bm25Weight::new(Explanation::new("<no score>", 1.0f32), 1.0f32)
             }
@@ -122,6 +124,24 @@ impl TermQuery {
 
 impl Query for TermQuery {
     fn weight(&self, enable_scoring: EnableScoring<'_>) -> crate::Result<Box<dyn Weight>> {
+        // If the field is not indexed but is a suitable fast field, fall back to a range query
+        // on the fast field matching exactly this term.
+        //
+        // Note: This is considerable slower since it requires to scan the entire fast field.
+        // TODO: The range query would gain from having a single-value optimization
+        let schema = enable_scoring.schema();
+        let field_entry = schema.get_field_entry(self.term.field());
+        if !field_entry.is_indexed()
+            && field_entry.is_fast()
+            && is_type_valid_for_fastfield_range_query(self.term.typ())
+            && !enable_scoring.is_scoring_enabled()
+        {
+            let range_query = RangeQuery::new(
+                Bound::Included(self.term.clone()),
+                Bound::Included(self.term.clone()),
+            );
+            return range_query.weight(enable_scoring);
+        }
         Ok(Box::new(self.specialized_weight(enable_scoring)?))
     }
     fn query_terms<'a>(&'a self, visitor: &mut dyn FnMut(&'a Term, bool)) {
@@ -170,7 +190,7 @@ mod tests {
 
         let assert_single_hit = |query| {
             let (_top_docs, count) = searcher
-                .search(&query, &(TopDocs::with_limit(2), Count))
+                .search(&query, &(TopDocs::with_limit(2).order_by_score(), Count))
                 .unwrap();
             assert_eq!(count, 1);
         };

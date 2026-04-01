@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use common::DateTime;
 
 use crate::InvalidData;
@@ -7,6 +9,23 @@ pub enum NumericalValue {
     I64(i64),
     U64(u64),
     F64(f64),
+}
+
+impl FromStr for NumericalValue {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, ()> {
+        if let Ok(val_i64) = s.parse::<i64>() {
+            return Ok(val_i64.into());
+        }
+        if let Ok(val_u64) = s.parse::<u64>() {
+            return Ok(val_u64.into());
+        }
+        if let Ok(val_f64) = s.parse::<f64>() {
+            return Ok(NumericalValue::from(val_f64).normalize());
+        }
+        Err(())
+    }
 }
 
 impl NumericalValue {
@@ -26,7 +45,7 @@ impl NumericalValue {
                 if val <= i64::MAX as u64 {
                     NumericalValue::I64(val as i64)
                 } else {
-                    NumericalValue::F64(val as f64)
+                    NumericalValue::U64(val)
                 }
             }
             NumericalValue::I64(val) => NumericalValue::I64(val),
@@ -141,6 +160,7 @@ impl Coerce for DateTime {
 #[cfg(test)]
 mod tests {
     use super::NumericalType;
+    use crate::NumericalValue;
 
     #[test]
     fn test_numerical_type_code() {
@@ -152,5 +172,59 @@ mod tests {
             }
         }
         assert_eq!(num_numerical_type, 3);
+    }
+
+    #[test]
+    fn test_parse_numerical() {
+        assert_eq!(
+            "123".parse::<NumericalValue>().unwrap(),
+            NumericalValue::I64(123)
+        );
+        assert_eq!(
+            "18446744073709551615".parse::<NumericalValue>().unwrap(),
+            NumericalValue::U64(18446744073709551615u64)
+        );
+        assert_eq!(
+            "1.0".parse::<NumericalValue>().unwrap(),
+            NumericalValue::I64(1i64)
+        );
+        assert_eq!(
+            "1.1".parse::<NumericalValue>().unwrap(),
+            NumericalValue::F64(1.1f64)
+        );
+        assert_eq!(
+            "-1.0".parse::<NumericalValue>().unwrap(),
+            NumericalValue::I64(-1i64)
+        );
+    }
+
+    #[test]
+    fn test_normalize_numerical() {
+        assert_eq!(
+            NumericalValue::from(1u64).normalize(),
+            NumericalValue::I64(1i64),
+        );
+        let limit_val = i64::MAX as u64 + 1u64;
+        assert_eq!(
+            NumericalValue::from(limit_val).normalize(),
+            NumericalValue::U64(limit_val),
+        );
+        assert_eq!(
+            NumericalValue::from(-1i64).normalize(),
+            NumericalValue::I64(-1i64),
+        );
+        assert_eq!(
+            NumericalValue::from(-2.0f64).normalize(),
+            NumericalValue::I64(-2i64),
+        );
+        assert_eq!(
+            NumericalValue::from(-2.1f64).normalize(),
+            NumericalValue::F64(-2.1f64),
+        );
+        let large_float = 2.0f64.powf(70.0f64);
+        assert_eq!(
+            NumericalValue::from(large_float).normalize(),
+            NumericalValue::F64(large_float),
+        );
     }
 }

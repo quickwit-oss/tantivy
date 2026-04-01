@@ -14,7 +14,8 @@ mod postings;
 mod postings_writer;
 mod recorder;
 mod segment_postings;
-mod serializer;
+/// Serializer module for the inverted index
+pub mod serializer;
 mod skip;
 mod term_info;
 
@@ -527,6 +528,7 @@ pub(crate) mod tests {
     }
 
     impl<TScorer: Scorer> Scorer for UnoptimizedDocSet<TScorer> {
+        #[inline]
         fn score(&mut self) -> Score {
             self.0.score()
         }
@@ -603,13 +605,13 @@ mod bench {
             let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
             for _ in 0..posting_list_size {
                 let mut doc = TantivyDocument::default();
-                if rng.gen_bool(1f64 / 15f64) {
+                if rng.random_bool(1f64 / 15f64) {
                     doc.add_text(text_field, "a");
                 }
-                if rng.gen_bool(1f64 / 10f64) {
+                if rng.random_bool(1f64 / 10f64) {
                     doc.add_text(text_field, "b");
                 }
-                if rng.gen_bool(1f64 / 5f64) {
+                if rng.random_bool(1f64 / 5f64) {
                     doc.add_text(text_field, "c");
                 }
                 doc.add_text(text_field, "d");
@@ -667,12 +669,15 @@ mod bench {
                 .read_postings(&TERM_D, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
-            let mut intersection = Intersection::new(vec![
-                segment_postings_a,
-                segment_postings_b,
-                segment_postings_c,
-                segment_postings_d,
-            ]);
+            let mut intersection = Intersection::new(
+                vec![
+                    segment_postings_a,
+                    segment_postings_b,
+                    segment_postings_c,
+                    segment_postings_d,
+                ],
+                reader.searcher().num_docs() as u32,
+            );
             while intersection.advance() != TERMINATED {}
         });
     }

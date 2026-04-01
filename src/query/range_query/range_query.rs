@@ -266,8 +266,9 @@ mod tests {
     use super::RangeQuery;
     use crate::collector::{Count, TopDocs};
     use crate::indexer::NoMergePolicy;
+    use crate::query::range_query::fast_field_range_doc_set::RangeDocSet;
     use crate::query::range_query::range_query::InvertedIndexRangeQuery;
-    use crate::query::QueryParser;
+    use crate::query::{AllScorer, ConstScorer, EmptyScorer, EnableScoring, Query, QueryParser};
     use crate::schema::{
         Field, IntoIpv6Addr, Schema, TantivyDocument, FAST, INDEXED, STORED, TEXT,
     };
@@ -428,7 +429,7 @@ mod tests {
                 docs.push(doc);
             }
 
-            docs.shuffle(&mut rand::thread_rng());
+            docs.shuffle(&mut rand::rng());
             let mut docs_it = docs.into_iter();
             for doc in (&mut docs_it).take(50) {
                 index_writer.add_document(doc)?;
@@ -495,7 +496,7 @@ mod tests {
         let searcher = reader.searcher();
         let query_parser = QueryParser::for_index(&index, vec![title]);
         let query = query_parser.parse_query("hemoglobin AND year:[1970 TO 1990]")?;
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
         assert_eq!(top_docs.len(), 1);
         Ok(())
     }
@@ -549,7 +550,7 @@ mod tests {
 
         let get_num_hits = |query| {
             let (_top_docs, count) = searcher
-                .search(&query, &(TopDocs::with_limit(10), Count))
+                .search(&query, &(TopDocs::with_limit(10).order_by_score(), Count))
                 .unwrap();
             count
         };
@@ -659,5 +660,47 @@ mod tests {
             )),
             0
         );
+    }
+
+    #[test]
+    fn test_range_query_simplified() {
+        // This test checks that if the targeted column values are entirely
+        // within the range, and the column is full, we end up with a AllScorer.
+        let mut schema_builder = Schema::builder();
+        let u64_field = schema_builder.add_u64_field("u64_field", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(u64_field=> 2u64)).unwrap();
+        index_writer.add_document(doc!(u64_field=> 4u64)).unwrap();
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let make_term = |value: u64| Term::from_field_u64(u64_field, value);
+        let make_scorer = move |lower_bound: Bound<u64>, upper_bound: Bound<u64>| {
+            let lower_bound_term = lower_bound.map(make_term);
+            let upper_bound_term = upper_bound.map(make_term);
+            let range_query = RangeQuery::new(lower_bound_term, upper_bound_term);
+            let range_weight = range_query
+                .weight(EnableScoring::disabled_from_schema(&schema))
+                .unwrap();
+            let range_scorer = range_weight
+                .scorer(&searcher.segment_readers()[0], 1.0f32)
+                .unwrap();
+            range_scorer
+        };
+        let range_scorer = make_scorer(Bound::Included(1), Bound::Included(4));
+        assert!(range_scorer.is::<AllScorer>());
+        let range_scorer = make_scorer(Bound::Included(0), Bound::Included(2));
+        assert!(range_scorer.is::<ConstScorer<RangeDocSet<u64>>>());
+        let range_scorer = make_scorer(Bound::Included(3), Bound::Included(10));
+        assert!(range_scorer.is::<ConstScorer<RangeDocSet<u64>>>());
+        let range_scorer = make_scorer(Bound::Included(10), Bound::Included(12));
+        assert!(range_scorer.is::<ConstScorer<RangeDocSet<u64>>>());
+        let range_scorer = make_scorer(Bound::Included(0), Bound::Included(1));
+        assert!(range_scorer.is::<EmptyScorer>());
+        let range_scorer = make_scorer(Bound::Included(0), Bound::Excluded(2));
+        assert!(range_scorer.is::<EmptyScorer>());
     }
 }

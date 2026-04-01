@@ -10,9 +10,9 @@ use tantivy_sstable::{Dictionary, MonotonicU64SSTable};
 const CHARSET: &[u8] = b"abcdefghij";
 
 fn generate_key(rng: &mut impl Rng) -> String {
-    let len = rng.gen_range(3..12);
+    let len = rng.random_range(3..12);
     std::iter::from_fn(|| {
-        let idx = rng.gen_range(0..CHARSET.len());
+        let idx = rng.random_range(0..CHARSET.len());
         Some(CHARSET[idx] as char)
     })
     .take(len)

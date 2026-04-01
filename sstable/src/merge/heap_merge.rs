@@ -54,14 +54,14 @@ pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
             }
         }
         for _ in 0..len - 1 {
-            if let Some(mut head) = heap.peek_mut() {
-                if head.0.key() == writer.last_inserted_key() {
-                    value_merger.add(head.0.value());
-                    if !head.0.advance()? {
-                        PeekMut::pop(head);
-                    }
-                    continue;
+            if let Some(mut head) = heap.peek_mut()
+                && head.0.key() == writer.last_inserted_key()
+            {
+                value_merger.add(head.0.value());
+                if !head.0.advance()? {
+                    PeekMut::pop(head);
                 }
+                continue;
             }
             break;
         }

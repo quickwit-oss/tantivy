@@ -90,10 +90,10 @@ fn bench_vint() {
             }
             // benchmark zipfs distribution numbers
             {
-                use rand::distributions::Distribution;
+                use rand::distr::Distribution;
                 use rand::rngs::StdRng;
                 let mut rng = StdRng::from_seed([3u8; 32]);
-                let zipf = zipf::ZipfDistribution::new(10_000, 1.03).unwrap();
+                let zipf = rand_distr::Zipf::new(10_000.0f64, 1.03).unwrap();
                 let numbers: Vec<[u8; 8]> = (0..num_numbers)
                     .map(|_| zipf.sample(&mut rng).to_le_bytes())
                     .collect();

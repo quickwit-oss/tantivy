@@ -117,6 +117,22 @@ where F: nom::Parser<I, (O, ErrorList), Infallible> {
     }
 }
 
+pub(crate) fn terminated_infallible<I, O1, O2, F, G>(
+    mut first: F,
+    mut second: G,
+) -> impl FnMut(I) -> JResult<I, O1>
+where
+    F: nom::Parser<I, (O1, ErrorList), Infallible>,
+    G: nom::Parser<I, (O2, ErrorList), Infallible>,
+{
+    move |input: I| {
+        let (input, (o1, mut err)) = first.parse(input)?;
+        let (input, (_, mut err2)) = second.parse(input)?;
+        err.append(&mut err2);
+        Ok((input, (o1, err)))
+    }
+}
+
 pub(crate) fn delimited_infallible<I, O1, O2, O3, F, G, H>(
     mut first: F,
     mut second: G,

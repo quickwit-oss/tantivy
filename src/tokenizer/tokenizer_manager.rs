@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::tokenizer::stemmer::Language;
 use crate::tokenizer::tokenizer::TextAnalyzer;
 use crate::tokenizer::{
-    LowerCaser, RawTokenizer, RemoveLongFilter, SimpleTokenizer, Stemmer, WhitespaceTokenizer,
+    LowerCaser, RawTokenizer, RemoveLongFilter, SimpleTokenizer, WhitespaceTokenizer,
 };
 
 /// The tokenizer manager serves as a store for
@@ -64,14 +63,18 @@ impl Default for TokenizerManager {
                 .filter(LowerCaser)
                 .build(),
         );
-        manager.register(
-            "en_stem",
-            TextAnalyzer::builder(SimpleTokenizer::default())
-                .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
-                .filter(Stemmer::new(Language::English))
-                .build(),
-        );
+        #[cfg(feature = "stemmer")]
+        {
+            use crate::tokenizer::stemmer::{Language, Stemmer};
+            manager.register(
+                "en_stem",
+                TextAnalyzer::builder(SimpleTokenizer::default())
+                    .filter(RemoveLongFilter::limit(40))
+                    .filter(LowerCaser) // The stemmer does not lowercase
+                    .filter(Stemmer::new(Language::English))
+                    .build(),
+            );
+        }
         manager.register("whitespace", WhitespaceTokenizer::default());
         manager
     }

@@ -1,24 +1,48 @@
 use std::cmp::Ordering;
 
+use columnar::{Column, ColumnType};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tantivy_bitpacker::minmax;
 
-use crate::aggregation::agg_limits::MemoryConsumption;
-use crate::aggregation::agg_req::Aggregations;
-use crate::aggregation::agg_req_with_accessor::{
-    AggregationWithAccessor, AggregationsWithAccessor,
+use crate::aggregation::agg_data::{
+    build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
+use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::agg_result::BucketEntry;
+use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardCachedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateHistogramBucketEntry,
 };
-use crate::aggregation::segment_agg_result::{
-    build_segment_agg_collector, SegmentAggregationCollector,
-};
+use crate::aggregation::segment_agg_result::{BucketIdProvider, SegmentAggregationCollector};
 use crate::aggregation::*;
 use crate::TantivyError;
+
+/// Contains all information required by the SegmentHistogramCollector to perform the
+/// histogram or date_histogram aggregation on a segment.
+pub struct HistogramAggReqData {
+    /// The column accessor to access the fast field values.
+    pub accessor: Column<u64>,
+    /// The field type of the fast field.
+    pub field_type: ColumnType,
+    /// The name of the aggregation.
+    pub name: String,
+    /// The histogram aggregation request.
+    pub req: HistogramAggregation,
+    /// True if this is a date_histogram aggregation.
+    pub is_date_histogram: bool,
+    /// The bounds to limit the buckets to.
+    pub bounds: HistogramBounds,
+    /// The offset used to calculate the bucket position.
+    pub offset: f64,
+}
+impl HistogramAggReqData {
+    /// Estimate the memory consumption of this struct in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
 
 /// Histogram is a bucket aggregation, where buckets are created dynamically for given `interval`.
 /// Each document value is rounded down to its bucket.
@@ -228,18 +252,24 @@ impl HistogramBounds {
 pub(crate) struct SegmentHistogramBucketEntry {
     pub key: f64,
     pub doc_count: u64,
+    pub bucket_id: BucketId,
 }
 
 impl SegmentHistogramBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        sub_aggregation: Option<Box<dyn SegmentAggregationCollector>>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        sub_aggregation: &mut Option<HighCardCachedSubAggs>,
+        agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
         if let Some(sub_aggregation) = sub_aggregation {
             sub_aggregation
-                .add_intermediate_aggregation_result(agg_with_accessor, &mut sub_aggregation_res)?;
+                .get_sub_agg_collector()
+                .add_intermediate_aggregation_result(
+                    agg_data,
+                    &mut sub_aggregation_res,
+                    self.bucket_id,
+                )?;
         }
         Ok(IntermediateHistogramBucketEntry {
             key: self.key,
@@ -249,31 +279,38 @@ impl SegmentHistogramBucketEntry {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+struct HistogramBuckets {
+    pub buckets: FxHashMap<i64, SegmentHistogramBucketEntry>,
+}
+
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
-    buckets: FxHashMap<i64, SegmentHistogramBucketEntry>,
-    sub_aggregations: FxHashMap<i64, Box<dyn SegmentAggregationCollector>>,
-    sub_aggregation_blueprint: Option<Box<dyn SegmentAggregationCollector>>,
-    column_type: ColumnType,
-    interval: f64,
-    offset: f64,
-    bounds: HistogramBounds,
+    /// One Histogram bucket per parent bucket id.
+    parent_buckets: Vec<HistogramBuckets>,
+    sub_agg: Option<HighCardCachedSubAggs>,
     accessor_idx: usize,
+    bucket_id_provider: BucketIdProvider,
 }
 
 impl SegmentAggregationCollector for SegmentHistogramCollector {
     fn add_intermediate_aggregation_result(
-        self: Box<Self>,
-        agg_with_accessor: &AggregationsWithAccessor,
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
         results: &mut IntermediateAggregationResults,
+        parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_with_accessor.aggs.keys[self.accessor_idx].to_string();
-        let agg_with_accessor = &agg_with_accessor.aggs.values[self.accessor_idx];
-
-        let bucket = self.into_intermediate_bucket_result(agg_with_accessor)?;
+        let name = agg_data
+            .get_histogram_req_data(self.accessor_idx)
+            .name
+            .clone();
+        // TODO: avoid prepare_max_bucket here and handle empty buckets.
+        self.prepare_max_bucket(parent_bucket_id, agg_data)?;
+        let histogram = std::mem::take(&mut self.parent_buckets[parent_bucket_id as usize]);
+        let bucket = self.add_intermediate_bucket_result(agg_data, histogram)?;
         results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
 
         Ok(())
@@ -282,72 +319,77 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
     #[inline]
     fn collect(
         &mut self,
-        doc: crate::DocId,
-        agg_with_accessor: &mut AggregationsWithAccessor,
-    ) -> crate::Result<()> {
-        self.collect_block(&[doc], agg_with_accessor)
-    }
-
-    #[inline]
-    fn collect_block(
-        &mut self,
+        parent_bucket_id: BucketId,
         docs: &[crate::DocId],
-        agg_with_accessor: &mut AggregationsWithAccessor,
+        agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let bucket_agg_accessor = &mut agg_with_accessor.aggs.values[self.accessor_idx];
-
+        let req = agg_data.take_histogram_req_data(self.accessor_idx);
         let mem_pre = self.get_memory_consumption();
+        let buckets = &mut self.parent_buckets[parent_bucket_id as usize].buckets;
 
-        let bounds = self.bounds;
-        let interval = self.interval;
-        let offset = self.offset;
-        let get_bucket_pos = |val| (get_bucket_pos_f64(val, interval, offset) as i64);
+        let bounds = req.bounds;
+        let interval = req.req.interval;
+        let offset = req.offset;
+        let get_bucket_pos = |val| get_bucket_pos_f64(val, interval, offset) as i64;
 
-        bucket_agg_accessor
+        agg_data
             .column_block_accessor
-            .fetch_block(docs, &bucket_agg_accessor.accessor);
-
-        for (doc, val) in bucket_agg_accessor
+            .fetch_block(docs, &req.accessor);
+        for (doc, val) in agg_data
             .column_block_accessor
-            .iter_docid_vals(docs, &bucket_agg_accessor.accessor)
+            .iter_docid_vals(docs, &req.accessor)
         {
-            let val = self.f64_from_fastfield_u64(val);
-
+            let val = f64_from_fastfield_u64(val, req.field_type);
             let bucket_pos = get_bucket_pos(val);
-
             if bounds.contains(val) {
-                let bucket = self.buckets.entry(bucket_pos).or_insert_with(|| {
+                let bucket = buckets.entry(bucket_pos).or_insert_with(|| {
                     let key = get_bucket_key_from_pos(bucket_pos as f64, interval, offset);
-                    SegmentHistogramBucketEntry { key, doc_count: 0 }
+                    SegmentHistogramBucketEntry {
+                        key,
+                        doc_count: 0,
+                        bucket_id: self.bucket_id_provider.next_bucket_id(),
+                    }
                 });
                 bucket.doc_count += 1;
-                if let Some(sub_aggregation_blueprint) = self.sub_aggregation_blueprint.as_mut() {
-                    self.sub_aggregations
-                        .entry(bucket_pos)
-                        .or_insert_with(|| sub_aggregation_blueprint.clone())
-                        .collect(doc, &mut bucket_agg_accessor.sub_aggregation)?;
+                if let Some(sub_agg) = &mut self.sub_agg {
+                    sub_agg.push(bucket.bucket_id, doc);
                 }
             }
         }
+        agg_data.put_back_histogram_req_data(self.accessor_idx, req);
 
         let mem_delta = self.get_memory_consumption() - mem_pre;
         if mem_delta > 0 {
-            bucket_agg_accessor
+            agg_data
+                .context
                 .limits
                 .add_memory_consumed(mem_delta as u64)?;
+        }
+
+        if let Some(sub_agg) = &mut self.sub_agg {
+            sub_agg.check_flush_local(agg_data)?;
         }
 
         Ok(())
     }
 
-    fn flush(&mut self, agg_with_accessor: &mut AggregationsWithAccessor) -> crate::Result<()> {
-        let sub_aggregation_accessor =
-            &mut agg_with_accessor.aggs.values[self.accessor_idx].sub_aggregation;
-
-        for sub_aggregation in self.sub_aggregations.values_mut() {
-            sub_aggregation.flush(sub_aggregation_accessor)?;
+    fn flush(&mut self, agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
+        if let Some(sub_aggregation) = &mut self.sub_agg {
+            sub_aggregation.flush(agg_data)?;
         }
+        Ok(())
+    }
 
+    fn prepare_max_bucket(
+        &mut self,
+        max_bucket: BucketId,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> crate::Result<()> {
+        while self.parent_buckets.len() <= max_bucket as usize {
+            self.parent_buckets.push(HistogramBuckets {
+                buckets: FxHashMap::default(),
+            });
+        }
         Ok(())
     }
 }
@@ -355,71 +397,61 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
 impl SegmentHistogramCollector {
     fn get_memory_consumption(&self) -> usize {
         let self_mem = std::mem::size_of::<Self>();
-        let sub_aggs_mem = self.sub_aggregations.memory_consumption();
-        let buckets_mem = self.buckets.memory_consumption();
-        self_mem + sub_aggs_mem + buckets_mem
+        let buckets_mem = self.parent_buckets.len() * std::mem::size_of::<HistogramBuckets>();
+        self_mem + buckets_mem
     }
     /// Converts the collector result into a intermediate bucket result.
-    pub fn into_intermediate_bucket_result(
-        self,
-        agg_with_accessor: &AggregationWithAccessor,
+    fn add_intermediate_bucket_result(
+        &mut self,
+        agg_data: &AggregationsSegmentCtx,
+        histogram: HistogramBuckets,
     ) -> crate::Result<IntermediateBucketResult> {
-        let mut buckets = Vec::with_capacity(self.buckets.len());
+        let mut buckets = Vec::with_capacity(histogram.buckets.len());
 
-        for (bucket_pos, bucket) in self.buckets {
-            let bucket_res = bucket.into_intermediate_bucket_entry(
-                self.sub_aggregations.get(&bucket_pos).cloned(),
-                &agg_with_accessor.sub_aggregation,
-            );
+        for bucket in histogram.buckets.into_values() {
+            let bucket_res = bucket.into_intermediate_bucket_entry(&mut self.sub_agg, agg_data);
 
             buckets.push(bucket_res?);
         }
         buckets.sort_unstable_by(|b1, b2| b1.key.total_cmp(&b2.key));
 
+        let is_date_agg = agg_data
+            .get_histogram_req_data(self.accessor_idx)
+            .field_type
+            == ColumnType::DateTime;
         Ok(IntermediateBucketResult::Histogram {
             buckets,
-            is_date_agg: self.column_type == ColumnType::DateTime,
+            is_date_agg,
         })
     }
 
     pub(crate) fn from_req_and_validate(
-        mut req: HistogramAggregation,
-        sub_aggregation: &mut AggregationsWithAccessor,
-        field_type: ColumnType,
-        accessor_idx: usize,
+        agg_data: &mut AggregationsSegmentCtx,
+        node: &AggRefNode,
     ) -> crate::Result<Self> {
-        req.validate()?;
-        if field_type == ColumnType::DateTime {
-            req.normalize_date_time();
-        }
-
-        let sub_aggregation_blueprint = if sub_aggregation.is_empty() {
-            None
+        let sub_agg = if !node.children.is_empty() {
+            Some(build_segment_agg_collectors(agg_data, &node.children)?)
         } else {
-            let sub_aggregation = build_segment_agg_collector(sub_aggregation)?;
-            Some(sub_aggregation)
+            None
         };
-
-        let bounds = req.hard_bounds.unwrap_or(HistogramBounds {
+        let req_data = agg_data.get_histogram_req_data_mut(node.idx_in_req_data);
+        req_data.req.validate()?;
+        if req_data.field_type == ColumnType::DateTime && !req_data.is_date_histogram {
+            req_data.req.normalize_date_time();
+        }
+        req_data.bounds = req_data.req.hard_bounds.unwrap_or(HistogramBounds {
             min: f64::MIN,
             max: f64::MAX,
         });
+        req_data.offset = req_data.req.offset.unwrap_or(0.0);
+        let sub_agg = sub_agg.map(CachedSubAggs::new);
 
         Ok(Self {
-            buckets: Default::default(),
-            column_type: field_type,
-            interval: req.interval,
-            offset: req.offset.unwrap_or(0.0),
-            bounds,
-            sub_aggregations: Default::default(),
-            sub_aggregation_blueprint,
-            accessor_idx,
+            parent_buckets: Default::default(),
+            sub_agg,
+            accessor_idx: node.idx_in_req_data,
+            bucket_id_provider: BucketIdProvider::default(),
         })
-    }
-
-    #[inline]
-    fn f64_from_fastfield_u64(&self, val: u64) -> f64 {
-        f64_from_fastfield_u64(val, &self.column_type)
     }
 }
 

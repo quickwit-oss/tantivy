@@ -1,8 +1,6 @@
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +11,9 @@ use crate::store::Compressor;
 use crate::{Inventory, Opstamp, TrackedObject};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct DeleteMeta {
+pub struct DeleteMeta {
     num_deleted_docs: u32,
-    opstamp: Opstamp,
+    pub opstamp: Opstamp,
 }
 
 #[derive(Clone, Default)]
@@ -37,7 +35,6 @@ impl SegmentMetaInventory {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
-            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: None,
         };
         SegmentMeta::from(self.inventory.track(inner))
@@ -85,15 +82,6 @@ impl SegmentMeta {
         self.tracked.segment_id
     }
 
-    /// Removes the Component::TempStore from the alive list and
-    /// therefore marks the temp docstore file to be deleted by
-    /// the garbage collection.
-    pub fn untrack_temp_docstore(&self) {
-        self.tracked
-            .include_temp_doc_store
-            .store(false, std::sync::atomic::Ordering::Relaxed);
-    }
-
     /// Returns the number of deleted documents.
     pub fn num_deleted_docs(&self) -> u32 {
         self.tracked
@@ -111,20 +99,9 @@ impl SegmentMeta {
     /// is by removing all files that have been created by tantivy
     /// and are not used by any segment anymore.
     pub fn list_files(&self) -> HashSet<PathBuf> {
-        if self
-            .tracked
-            .include_temp_doc_store
-            .load(std::sync::atomic::Ordering::Relaxed)
-        {
-            SegmentComponent::iterator()
-                .map(|component| self.relative_path(*component))
-                .collect::<HashSet<PathBuf>>()
-        } else {
-            SegmentComponent::iterator()
-                .filter(|comp| *comp != &SegmentComponent::TempStore)
-                .map(|component| self.relative_path(*component))
-                .collect::<HashSet<PathBuf>>()
-        }
+        SegmentComponent::iterator()
+            .map(|component| self.relative_path(*component))
+            .collect::<HashSet<PathBuf>>()
     }
 
     /// Returns the relative path of a component of our segment.
@@ -138,7 +115,6 @@ impl SegmentMeta {
             SegmentComponent::Positions => ".pos".to_string(),
             SegmentComponent::Terms => ".term".to_string(),
             SegmentComponent::Store => ".store".to_string(),
-            SegmentComponent::TempStore => ".store.temp".to_string(),
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
@@ -183,7 +159,6 @@ impl SegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc,
             deletes: None,
-            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
         });
         SegmentMeta { tracked }
     }
@@ -202,7 +177,6 @@ impl SegmentMeta {
         let tracked = self.tracked.map(move |inner_meta| InnerSegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc: inner_meta.max_doc,
-            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: Some(delete_meta),
         });
         SegmentMeta { tracked }
@@ -213,15 +187,7 @@ impl SegmentMeta {
 struct InnerSegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,
-    deletes: Option<DeleteMeta>,
-    /// If you want to avoid the SegmentComponent::TempStore file to be covered by
-    /// garbage collection and deleted, set this to true. This is used during merge.
-    #[serde(skip)]
-    #[serde(default = "default_temp_store")]
-    pub(crate) include_temp_doc_store: Arc<AtomicBool>,
-}
-fn default_temp_store() -> Arc<AtomicBool> {
-    Arc::new(AtomicBool::new(false))
+    pub deletes: Option<DeleteMeta>,
 }
 
 impl InnerSegmentMeta {
@@ -276,13 +242,14 @@ impl Default for IndexSettings {
 }
 
 /// The order to sort by
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Order {
     /// Ascending Order
     Asc,
     /// Descending Order
     Desc,
 }
+
 impl Order {
     /// return if the Order is ascending
     pub fn is_asc(&self) -> bool {
@@ -403,7 +370,10 @@ mod tests {
             schema_builder.build()
         };
         let index_metas = IndexMeta {
-            index_settings: IndexSettings::default(),
+            index_settings: IndexSettings {
+                docstore_compression: Compressor::None,
+                ..Default::default()
+            },
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -412,7 +382,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"docstore_compression":"lz4","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -493,6 +463,8 @@ mod tests {
     #[test]
     #[cfg(feature = "lz4-compression")]
     fn test_index_settings_default() {
+        use crate::store::Compressor;
+
         let mut index_settings = IndexSettings::default();
         assert_eq!(
             index_settings,

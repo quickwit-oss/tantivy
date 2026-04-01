@@ -48,7 +48,7 @@ pub use columnar::{
 use sstable::VoidSSTable;
 pub use value::{NumericalType, NumericalValue};
 
-pub use self::dynamic_column::{DynamicColumn, DynamicColumnHandle};
+pub use self::dynamic_column::{ColumnSpaceUsage, DynamicColumn, DynamicColumnHandle};
 
 pub type RowId = u32;
 pub type DocId = u32;
@@ -59,7 +59,7 @@ pub struct RowAddr {
     pub row_id: RowId,
 }
 
-pub use sstable::Dictionary;
+pub use sstable::{Dictionary, TermOrdHit};
 pub type Streamer<'a> = sstable::Streamer<'a, VoidSSTable>;
 
 pub use common::DateTime;

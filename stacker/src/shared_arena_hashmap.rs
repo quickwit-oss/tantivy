@@ -274,13 +274,12 @@ impl SharedArenaHashMap {
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
                 return None;
-            } else if kv.hash == hash {
-                if let Some(val_addr) =
+            } else if kv.hash == hash
+                && let Some(val_addr) =
                     self.get_value_addr_if_key_match(key, kv.key_value_addr, memory_arena)
-                {
-                    let v = memory_arena.read(val_addr);
-                    return Some(v);
-                }
+            {
+                let v = memory_arena.read(val_addr);
+                return Some(v);
             }
         }
     }
@@ -334,15 +333,14 @@ impl SharedArenaHashMap {
                 self.set_bucket(hash, key_addr, bucket);
                 return val;
             }
-            if kv.hash == hash {
-                if let Some(val_addr) =
+            if kv.hash == hash
+                && let Some(val_addr) =
                     self.get_value_addr_if_key_match(key, kv.key_value_addr, memory_arena)
-                {
-                    let v = memory_arena.read(val_addr);
-                    let new_v = updater(Some(v));
-                    memory_arena.write_at(val_addr, new_v);
-                    return new_v;
-                }
+            {
+                let v = memory_arena.read(val_addr);
+                let new_v = updater(Some(v));
+                memory_arena.write_at(val_addr, new_v);
+                return new_v;
             }
             // This allows fetching the next bucket before the loop jmp
             bucket = probe.next_probe();

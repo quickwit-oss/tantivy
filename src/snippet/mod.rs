@@ -483,7 +483,7 @@ mod tests {
 
     use super::{collapse_overlapped_ranges, search_fragments, select_best_fragment_combination};
     use crate::query::QueryParser;
-    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
+    use crate::schema::{Schema, TEXT};
     use crate::snippet::SnippetGenerator;
     use crate::tokenizer::{NgramTokenizer, SimpleTokenizer};
     use crate::Index;
@@ -727,8 +727,10 @@ Survey in 2016, 2017, and 2018."#;
         Ok(())
     }
 
+    #[cfg(feature = "stemmer")]
     #[test]
     fn test_snippet_generator() -> crate::Result<()> {
+        use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
         let mut schema_builder = Schema::builder();
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()

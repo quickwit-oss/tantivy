@@ -12,6 +12,7 @@ use std::marker::PhantomData;
 use columnar::{BytesColumn, Column, DynamicColumn, HasAssociatedColumnType};
 
 use crate::collector::{Collector, SegmentCollector};
+use crate::schema::Schema;
 use crate::{DocId, Score, SegmentReader};
 
 /// The `FilterCollector` filters docs using a fast field value and a predicate.
@@ -49,13 +50,13 @@ use crate::{DocId, Score, SegmentReader};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary")?;
-/// let no_filter_collector = FilterCollector::new("price".to_string(), |value: u64| value > 20_120u64, TopDocs::with_limit(2));
+/// let no_filter_collector = FilterCollector::new("price".to_string(), |value: u64| value > 20_120u64, TopDocs::with_limit(2).order_by_score());
 /// let top_docs = searcher.search(&query, &no_filter_collector)?;
 ///
 /// assert_eq!(top_docs.len(), 1);
 /// assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
 ///
-/// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new("price".to_string(), |value| value < 5u64, TopDocs::with_limit(2));
+/// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new("price".to_string(), |value| value < 5u64, TopDocs::with_limit(2).order_by_score());
 /// let filtered_top_docs = searcher.search(&query, &filter_all_collector)?;
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
@@ -104,6 +105,11 @@ where
 
     type Child = FilterSegmentCollector<TCollector::Child, TPredicate, TPredicateValue>;
 
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.collector.check_schema(schema)?;
+        Ok(())
+    }
+
     fn for_segment(
         &self,
         segment_local_id: u32,
@@ -120,6 +126,7 @@ where
             segment_collector,
             predicate: self.predicate.clone(),
             t_predicate_value: PhantomData,
+            filtered_docs: Vec::with_capacity(crate::COLLECT_BLOCK_BUFFER_LEN),
         })
     }
 
@@ -140,6 +147,7 @@ pub struct FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,
+    filtered_docs: Vec<DocId>,
 }
 
 impl<TSegmentCollector, TPredicate, TPredicateValue>
@@ -173,6 +181,20 @@ where
     fn collect(&mut self, doc: u32, score: Score) {
         if self.accept_document(doc) {
             self.segment_collector.collect(doc, score);
+        }
+    }
+
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.filtered_docs.clear();
+        for &doc in docs {
+            // TODO: `accept_document` could be further optimized to do batch lookups of column
+            // values for single-valued columns.
+            if self.accept_document(doc) {
+                self.filtered_docs.push(doc);
+            }
+        }
+        if !self.filtered_docs.is_empty() {
+            self.segment_collector.collect_block(&self.filtered_docs);
         }
     }
 
@@ -218,7 +240,7 @@ where
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary")?;
-/// let filter_collector = BytesFilterCollector::new("barcode".to_string(), |bytes: &[u8]| bytes.starts_with(b"01"), TopDocs::with_limit(2));
+/// let filter_collector = BytesFilterCollector::new("barcode".to_string(), |bytes: &[u8]| bytes.starts_with(b"01"), TopDocs::with_limit(2).order_by_score());
 /// let top_docs = searcher.search(&query, &filter_collector)?;
 ///
 /// assert_eq!(top_docs.len(), 1);
@@ -258,6 +280,10 @@ where
 
     type Child = BytesFilterSegmentCollector<TCollector::Child, TPredicate>;
 
+    fn check_schema(&self, schema: &Schema) -> crate::Result<()> {
+        self.collector.check_schema(schema)
+    }
+
     fn for_segment(
         &self,
         segment_local_id: u32,
@@ -274,6 +300,7 @@ where
             segment_collector,
             predicate: self.predicate.clone(),
             buffer: Vec::new(),
+            filtered_docs: Vec::with_capacity(crate::COLLECT_BLOCK_BUFFER_LEN),
         })
     }
 
@@ -296,6 +323,7 @@ where TPredicate: 'static
     segment_collector: TSegmentCollector,
     predicate: TPredicate,
     buffer: Vec<u8>,
+    filtered_docs: Vec<DocId>,
 }
 
 impl<TSegmentCollector, TPredicate> BytesFilterSegmentCollector<TSegmentCollector, TPredicate>
@@ -331,6 +359,20 @@ where
     fn collect(&mut self, doc: u32, score: Score) {
         if self.accept_document(doc) {
             self.segment_collector.collect(doc, score);
+        }
+    }
+
+    fn collect_block(&mut self, docs: &[DocId]) {
+        self.filtered_docs.clear();
+        for &doc in docs {
+            // TODO: `accept_document` could be further optimized to do batch lookups of column
+            // values for single-valued columns.
+            if self.accept_document(doc) {
+                self.filtered_docs.push(doc);
+            }
+        }
+        if !self.filtered_docs.is_empty() {
+            self.segment_collector.collect_block(&self.filtered_docs);
         }
     }
 

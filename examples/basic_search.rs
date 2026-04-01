@@ -208,7 +208,7 @@ fn main() -> tantivy::Result<()> {
     // is the role of the `TopDocs` collector.
 
     // We can now perform our query.
-    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10).order_by_score())?;
 
     // The actual documents still need to be
     // retrieved from Tantivy's store.
@@ -226,7 +226,7 @@ fn main() -> tantivy::Result<()> {
     let query = query_parser.parse_query("title:sea^20 body:whale^70")?;
 
     let (_score, doc_address) = searcher
-        .search(&query, &TopDocs::with_limit(1))?
+        .search(&query, &TopDocs::with_limit(1).order_by_score())?
         .into_iter()
         .next()
         .unwrap();

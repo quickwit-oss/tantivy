@@ -153,7 +153,22 @@ impl TinySet {
             None
         } else {
             let lowest = self.0.trailing_zeros();
-            self.0 ^= TinySet::singleton(lowest).0;
+            // Kernighan's trick: `n &= n - 1` clears the lowest set bit
+            // without depending on `lowest`. This lets the CPU execute
+            // `trailing_zeros` and the bit-clear in parallel instead of
+            // serializing them.
+            //
+            // The previous form `self.0 ^= 1 << lowest` needs the result of
+            // `trailing_zeros` before it can shift, creating a dependency chain:
+            //   ARM64: rbit → clz → lsl → eor
+            //   x86:   tzcnt → btc
+            //
+            // With Kernighan's trick the clear path is independent of the count:
+            //   ARM64: sub → and  (trailing_zeros runs in parallel)
+            //   x86:   blsr       (tzcnt runs in parallel)
+            //
+            // https://godbolt.org/z/fnfrP1T5f
+            self.0 &= self.0 - 1;
             Some(lowest)
         }
     }
@@ -181,9 +196,17 @@ pub struct BitSet {
     len: u64,
     max_value: u32,
 }
+impl std::fmt::Debug for BitSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BitSet")
+            .field("len", &self.len)
+            .field("max_value", &self.max_value)
+            .finish()
+    }
+}
 
 fn num_buckets(max_val: u32) -> u32 {
-    (max_val + 63u32) / 64u32
+    max_val.div_ceil(64u32)
 }
 
 impl BitSet {
@@ -408,7 +431,7 @@ mod tests {
     use std::collections::HashSet;
 
     use ownedbytes::OwnedBytes;
-    use rand::distributions::Bernoulli;
+    use rand::distr::Bernoulli;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 

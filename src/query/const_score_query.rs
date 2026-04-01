@@ -130,9 +130,14 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
     fn size_hint(&self) -> u32 {
         self.docset.size_hint()
     }
+
+    fn cost(&self) -> u64 {
+        self.docset.cost()
+    }
 }
 
 impl<TDocSet: DocSet + 'static> Scorer for ConstScorer<TDocSet> {
+    #[inline]
     fn score(&mut self) -> Score {
         self.score
     }
