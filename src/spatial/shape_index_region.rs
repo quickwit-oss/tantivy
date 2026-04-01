@@ -126,9 +126,10 @@ impl ContainmentIndex for SegmentIndex<'_, '_> {
     }
 
     fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
-        let (_, edge_set) = self.edge_cache.get_edge_set(geometry_id);
+        let entry = self.edge_cache.get(geometry_id);
+        let vertices = entry.vertices();
         let i = edge_idx as usize;
-        (edge_set.vertices[i], edge_set.vertices[i + 1])
+        (vertices[i], vertices[i + 1])
     }
 }
 

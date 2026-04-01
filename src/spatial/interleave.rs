@@ -1,7 +1,6 @@
 //! Heap-based merge of N source cell indexes. Produces cells in Hilbert order. Subdivides coarse
 //! cells on demand when they overlap finer cells or exceed the edge limit.
 
-use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -42,7 +41,7 @@ struct HeapEntry {
 }
 
 impl CoarseIndexCell {
-    pub fn new(cell: IndexCell, edge_cache: &RefCell<EdgeCache<'_, Sphere>>) -> Self {
+    pub fn new(cell: IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Self {
         let mut geometries = FxHashMap::default();
         let mut geometry_ids = Vec::with_capacity(cell.shapes.len());
         for shape in &cell.shapes {
@@ -52,22 +51,14 @@ impl CoarseIndexCell {
                 continue;
             }
 
-            let mut cache = edge_cache.borrow_mut();
-            let (head, geo_set) = cache.get_geometry_set(shape.geometry_id);
-            let member_idx = (shape.geometry_id.1 - head) as usize;
-            let vertices = &geo_set.members[member_idx].vertices;
+            let entry = edge_cache.get(shape.geometry_id);
 
             let level_geometry = geometries
                 .entry(shape.geometry_id)
                 .or_insert_with(|| CoarseGeometry { edges: Vec::new() });
 
             for &edge_index in &shape.edge_indices {
-                let v0 = vertices[edge_index as usize];
-                let v1 = if (edge_index as usize) + 1 < vertices.len() {
-                    vertices[(edge_index as usize) + 1]
-                } else {
-                    v0
-                };
+                let (v0, v1) = entry.edge(edge_index);
                 let max_level = get_edge_max_level(&v0, &v1);
                 level_geometry.edges.push(CoarseEdge {
                     edge_index,
@@ -119,7 +110,7 @@ impl Ord for HeapEntry {
 /// Heap-based merge of N source cell indexes. Produces cells in Hilbert order.
 pub struct HeapInterleave<'a> {
     sources: Vec<CellIndexIter<'a>>,
-    edge_cache: &'a RefCell<EdgeCache<'a, Sphere>>,
+    edge_cache: &'a EdgeCache<'a, Sphere>,
     edge_counter: FxHashSet<(GeometryId, u16)>,
     alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     heap: BinaryHeap<HeapEntry>,
@@ -137,7 +128,7 @@ impl<'a> HeapInterleave<'a> {
     /// Creates a heap merge from source iterators and a shared edge cache.
     pub fn new(
         iters: Vec<CellIndexIter<'a>>,
-        edge_cache: &'a RefCell<EdgeCache<'a, Sphere>>,
+        edge_cache: &'a EdgeCache<'a, Sphere>,
         alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     ) -> Self {
         let options = BuildOptions::default();
@@ -182,7 +173,7 @@ impl<'a> HeapInterleave<'a> {
             if let Some(bitset) = &self.alive_bitsets[source_idx] {
                 cell.shapes.retain(|shape| {
                     let id = (segment, shape.geometry_id.1);
-                    let doc_id = self.edge_cache.borrow().doc_id_for(id);
+                    let doc_id = self.edge_cache.doc_id_for(id);
                     bitset.contains(doc_id)
                 });
             }
@@ -310,7 +301,7 @@ impl<'a> Iterator for HeapInterleave<'a> {
     }
 }
 
-fn flatten(sponge: HeapEntry, edge_cache: &RefCell<EdgeCache<'_, Sphere>>) -> Option<IndexCell> {
+fn flatten(sponge: HeapEntry, edge_cache: &EdgeCache<'_, Sphere>) -> Option<IndexCell> {
     if sponge.cells.len() == 1 {
         return Some(sponge.cells.into_iter().next().unwrap().cell);
     }
@@ -345,22 +336,11 @@ fn flatten(sponge: HeapEntry, edge_cache: &RefCell<EdgeCache<'_, Sphere>>) -> Op
             continue;
         }
 
-        let vertices = {
-            let mut cache = edge_cache.borrow_mut();
-            let (head, geo_set) = cache.get_geometry_set(*geometry_id);
-            let member_idx = (geometry_id.1 - head) as usize;
-            geo_set.members[member_idx].vertices.clone()
-        };
-
+        let entry = edge_cache.get(*geometry_id);
         let mut crosser = super::crossings::S2EdgeCrosser::new(anchor_center, &sponge_center);
         let mut crossings = 0u32;
         for &edge_idx in edge_indices {
-            let v0 = vertices[edge_idx as usize];
-            let v1 = if (edge_idx as usize) + 1 < vertices.len() {
-                vertices[(edge_idx as usize) + 1]
-            } else {
-                v0
-            };
+            let (v0, v1) = entry.edge(edge_idx);
             if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
                 crossings += 1;
             }
@@ -530,7 +510,7 @@ fn interpolate(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 }
 
-fn subdivide_cell(cell: &IndexCell, edge_cache: &RefCell<EdgeCache<'_, Sphere>>) -> Vec<IndexCell> {
+fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Vec<IndexCell> {
     let face = cell.cell_id.face();
     let pcell = S2PaddedCell::new(cell.cell_id, CELL_PADDING);
     let parent_center = pcell.get_center();
@@ -538,24 +518,10 @@ fn subdivide_cell(cell: &IndexCell, edge_cache: &RefCell<EdgeCache<'_, Sphere>>)
     let mut merge_edges: Vec<MergeEdge> = Vec::new();
 
     for shape in &cell.shapes {
-        let vertices = {
-            let mut cache = edge_cache.borrow_mut();
-            let (head, geo_set) = cache.get_geometry_set(shape.geometry_id);
-            let member_idx = (shape.geometry_id.1 - head) as usize;
-            geo_set.members[member_idx].vertices.clone()
-        };
+        let entry = edge_cache.get(shape.geometry_id);
 
         for &edge_idx in &shape.edge_indices {
-            let v0 = vertices[edge_idx as usize];
-            let v1 = if (edge_idx as usize) + 1 < vertices.len() {
-                vertices[(edge_idx as usize) + 1]
-            } else {
-                assert_eq!(
-                    edge_idx, 0,
-                    "edge index past vertex count is only valid for single-vertex points"
-                );
-                v0
-            };
+            let (v0, v1) = entry.edge(edge_idx);
             let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
             let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
 

@@ -319,7 +319,7 @@ fn evaluate(
                 let spatial_reader = spatial.unwrap();
                 let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
                 let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
-                let mut edge_cache = EdgeCache::new(vec![er], 100_000);
+                let edge_cache = EdgeCache::new(vec![er], 100_000);
 
                 for cell in cell_reader.iter() {
                     for clipped in &cell.shapes {
@@ -333,8 +333,7 @@ fn evaluate(
                         }
 
                         // Read the outer geometry.
-                        let (_, outer_set) = edge_cache.get_geometry_set(geometry_id);
-                        let outer_geometry = outer_set.clone();
+                        let outer_geometry = edge_cache.get(geometry_id).geometry_set().clone();
 
                         // Probe all segments for inner matches.
                         let mut found = false;

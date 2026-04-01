@@ -286,8 +286,9 @@ impl ClosestEdgeQuery {
                 }
             }
 
-            let (doc_id, edge_set) = edge_cache.get_edge_set(geometry_id);
-            let candidate_vertices = &edge_set.vertices;
+            let cache_entry = edge_cache.get(geometry_id);
+            let doc_id = cache_entry.doc_id();
+            let candidate_vertices = cache_entry.vertices();
             if candidate_vertices.is_empty() {
                 continue;
             }

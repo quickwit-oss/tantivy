@@ -2,8 +2,6 @@
 //! does the work. `CellIndexMerge` wraps an iterator of `(S2CellId, Vec<IndexCell>)` groups and
 //! emits `IndexCell`s, collapsing groups with more than one cell.
 
-use std::cell::RefCell;
-
 use super::cell_index::{ClippedShape, GeometryId, IndexCell, CELL_PADDING};
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
@@ -21,7 +19,7 @@ struct CollapseEntry {
 fn merge_siblings(
     parent_id: S2CellId,
     cells: &[IndexCell],
-    edge_cache: &RefCell<EdgeCache<'_, Sphere>>,
+    edge_cache: &EdgeCache<'_, Sphere>,
 ) -> IndexCell {
     let parent_pcell = S2PaddedCell::new(parent_id, CELL_PADDING);
     let parent_center = parent_pcell.get_center();
@@ -62,26 +60,12 @@ fn merge_siblings(
             continue;
         }
 
-        let vertices = {
-            let mut cache = edge_cache.borrow_mut();
-            let (head, geo_set) = cache.get_geometry_set(entry.geometry_id);
-            let member_idx = (entry.geometry_id.1 - head) as usize;
-            geo_set.members[member_idx].vertices.clone()
-        };
+        let entry_geo = edge_cache.get(entry.geometry_id);
 
         let mut crosser = S2EdgeCrosser::new(&entry.anchor_center, &parent_center);
         let mut crossings = 0u32;
         for &edge_idx in &entry.edge_indices {
-            let v0 = vertices[edge_idx as usize];
-            let v1 = if (edge_idx as usize) + 1 < vertices.len() {
-                vertices[(edge_idx as usize) + 1]
-            } else {
-                assert_eq!(
-                    edge_idx, 0,
-                    "edge index past vertex count is only valid for single-vertex points"
-                );
-                v0
-            };
+            let (v0, v1) = entry_geo.edge(edge_idx);
             if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
                 crossings += 1;
             }
@@ -100,12 +84,12 @@ fn merge_siblings(
 /// with more than one cell are collapsed into a parent. Single-cell groups pass through.
 pub struct CellIndexMerge<'a, I: Iterator<Item = (S2CellId, Vec<IndexCell>)>> {
     inner: I,
-    edge_cache: &'a RefCell<EdgeCache<'a, Sphere>>,
+    edge_cache: &'a EdgeCache<'a, Sphere>,
 }
 
 impl<'a, I: Iterator<Item = (S2CellId, Vec<IndexCell>)>> CellIndexMerge<'a, I> {
     /// Creates a merge from source cell index iterators and a shared edge cache.
-    pub fn new(iter: I, edge_cache: &'a RefCell<EdgeCache<'a, Sphere>>) -> Self {
+    pub fn new(iter: I, edge_cache: &'a EdgeCache<'a, Sphere>) -> Self {
         CellIndexMerge {
             inner: iter,
             edge_cache,

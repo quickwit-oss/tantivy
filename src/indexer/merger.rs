@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -577,7 +576,7 @@ impl IndexMerger {
                 }
             }
 
-            let edge_cache = RefCell::new(EdgeCache::new(edge_readers, 100_000_000));
+            let edge_cache = EdgeCache::new(edge_readers, 100_000_000);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
             let mut interleave = crate::spatial::interleave::HeapInterleave::new(
                 iters,
@@ -610,19 +609,18 @@ impl IndexMerger {
                     if old_to_new[segment][position] != NOT_ASSIGNED {
                         continue;
                     }
-                    let mut ec = edge_cache.borrow_mut();
-                    let (head, geo_set) = ec.get_geometry_set(shape.geometry_id);
-                    let set_size = geo_set.members.len() as u32;
+                    let entry = edge_cache.get(shape.geometry_id);
+                    let set_size = entry.member_count();
                     for i in 0..set_size {
-                        let pos = (head + i) as usize;
+                        let pos = (entry.head() + i) as usize;
                         if old_to_new[segment][pos] == NOT_ASSIGNED {
                             old_to_new[segment][pos] = next_new_id;
                             next_new_id += 1;
                         }
                     }
-                    let old_doc_id = geo_set.doc_id;
+                    let old_doc_id = entry.doc_id();
                     let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
-                    let mut set = geo_set.clone();
+                    let mut set = entry.geometry_set().clone();
                     set.doc_id = new_doc_id as u32;
                     edge_writer.insert(&set);
                 }

@@ -1,7 +1,6 @@
 //! Sibling grouper with dynamic ceiling. Groups cells by parent, promotes when the short edge
 //! count allows, clamps when promotion overflows.
 
-use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
 
 use rustc_hash::FxHashSet;
@@ -51,7 +50,7 @@ impl Level {
 /// short edge count stays under threshold. Produces (parent_id, cells) pairs for the merge stage.
 pub struct Collapse<'a, I: Iterator<Item = IndexCell>> {
     inner: I,
-    edge_cache: &'a RefCell<EdgeCache<'a, Sphere>>,
+    edge_cache: &'a EdgeCache<'a, Sphere>,
     levels: Vec<Level>,
     queue: VecDeque<(S2CellId, Vec<IndexCell>)>,
     last_face: Option<i32>,
@@ -63,7 +62,7 @@ pub struct Collapse<'a, I: Iterator<Item = IndexCell>> {
 
 impl<'a, I: Iterator<Item = IndexCell>> Collapse<'a, I> {
     /// Creates a new grouper over the given cell iterator with a shared edge cache.
-    pub fn new(inner: I, edge_cache: &'a RefCell<EdgeCache<'a, Sphere>>) -> Self {
+    pub fn new(inner: I, edge_cache: &'a EdgeCache<'a, Sphere>) -> Self {
         let options = BuildOptions::default();
         let levels = S2CellId::MAX_LEVEL as usize + 1;
         Collapse {
@@ -95,22 +94,14 @@ impl<'a, I: Iterator<Item = IndexCell>> Collapse<'a, I> {
                 continue;
             }
 
-            let mut cache = self.edge_cache.borrow_mut();
-            let (head, geo_set) = cache.get_geometry_set(shape.geometry_id);
-            let member_idx = (shape.geometry_id.1 - head) as usize;
-            let vertices = &geo_set.members[member_idx].vertices;
+            let entry = self.edge_cache.get(shape.geometry_id);
 
             let level_geometry = geometries
                 .entry(shape.geometry_id)
                 .or_insert_with(|| LevelGeometry { edges: Vec::new() });
 
             for &edge_index in &shape.edge_indices {
-                let v0 = vertices[edge_index as usize];
-                let v1 = if (edge_index as usize) + 1 < vertices.len() {
-                    vertices[(edge_index as usize) + 1]
-                } else {
-                    v0
-                };
+                let (v0, v1) = entry.edge(edge_index);
                 let max_level = get_edge_max_level(&v0, &v1);
                 level_geometry.edges.push(LeveledEdge {
                     edge_index,

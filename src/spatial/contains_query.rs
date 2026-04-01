@@ -155,8 +155,7 @@ impl ContainsQuery {
 
         for (geometry_id, info) in candidates {
             if self.verify_one(geometry_id, &info, edge_cache) {
-                let (doc_id, _) = edge_cache.get_edge_set(geometry_id);
-                doc_ids.push(doc_id);
+                doc_ids.push(edge_cache.get(geometry_id).doc_id());
             }
         }
 
@@ -177,8 +176,8 @@ impl ContainsQuery {
             return false;
         }
 
-        let (_, edge_set) = edge_cache.get_edge_set(geometry_id);
-        let vertices = &edge_set.vertices;
+        let entry = edge_cache.get(geometry_id);
+        let vertices = entry.vertices();
 
         if vertices.is_empty() {
             return false;
@@ -195,8 +194,8 @@ impl ContainsQuery {
         info: &CandidateInfo,
         edge_cache: &mut EdgeCache<'_, Sphere>,
     ) -> bool {
-        let (_, edge_set) = edge_cache.get_edge_set(geometry_id);
-        let candidate_vertices = &edge_set.vertices;
+        let entry = edge_cache.get(geometry_id);
+        let candidate_vertices = entry.vertices();
         let n_candidate = candidate_vertices.len();
 
         if n_candidate < 2 {
