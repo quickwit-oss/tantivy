@@ -159,7 +159,8 @@ impl<'a> HeapInterleave<'a> {
     /// Log interleave metrics to stderr.
     pub fn report(&self) {
         eprintln!(
-            "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} edge checks, {} crossing checks, {} max sponge",
+            "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} edge checks, {} \
+             crossing checks, {} max sponge",
             self.cells_from_source,
             self.absorptions,
             self.splits,
@@ -515,7 +516,11 @@ fn interpolate(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 }
 
-fn subdivide_cell(cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>, crossing_checks: &mut u64) -> Vec<IndexCell> {
+fn subdivide_cell(
+    cell: &IndexCell,
+    edge_cache: &EdgeCache<'_, Sphere>,
+    crossing_checks: &mut u64,
+) -> Vec<IndexCell> {
     let face = cell.cell_id.face();
     let pcell = S2PaddedCell::new(cell.cell_id, CELL_PADDING);
     let parent_center = pcell.get_center();

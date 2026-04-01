@@ -79,7 +79,10 @@ impl GeometryEntry {
         let v1 = if i + 1 < vertices.len() {
             vertices[i + 1]
         } else {
-            debug_assert_eq!(i, 0, "edge index past vertex count is only valid for points");
+            debug_assert_eq!(
+                i, 0,
+                "edge index past vertex count is only valid for points"
+            );
             v0
         };
         (v0, v1)
