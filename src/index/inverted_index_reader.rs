@@ -20,6 +20,8 @@ use crate::postings::{
     load_postings_from_raw_data, Postings, RawPostingsData, SegmentPostings, TermInfo,
 };
 use crate::schema::{IndexRecordOption, Term, Type};
+#[cfg(feature = "quickwit")]
+pub use crate::termdict::BoxedAutomaton;
 use crate::termdict::TermDictionary;
 
 #[cfg(feature = "quickwit")]
@@ -134,13 +136,10 @@ pub trait DynInvertedIndexReader: Send + Sync {
     ///
     /// Returns whether at least one matching term was found.
     #[cfg(feature = "quickwit")]
-    fn warm_postings_automaton<'a, A: Automaton + Clone + Send + Sync + 'static>(
+    fn warm_postings_automaton<'a>(
         &'a self,
-        automaton: A,
-    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>
-    where
-        A::State: Clone + Send,
-        Self: Sized;
+        automaton: BoxedAutomaton,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>;
 }
 
 /// Trait defining the contract for a typed inverted index reader.
@@ -549,14 +548,10 @@ impl DynInvertedIndexReader for TantivyInvertedIndexReader {
     }
 
     #[cfg(feature = "quickwit")]
-    fn warm_postings_automaton<'a, A: Automaton + Clone + Send + Sync + 'static>(
+    fn warm_postings_automaton<'a>(
         &'a self,
-        automaton: A,
-    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>
-    where
-        A::State: Clone + Send,
-        Self: Sized,
-    {
+        automaton: BoxedAutomaton,
+    ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>> {
         Box::pin(async move {
             // merge holes under 4MiB, that's how many bytes we can hope to receive during a TTFB
             // from S3 (~80MiB/s, and 50ms latency)
@@ -591,15 +586,16 @@ impl DynInvertedIndexReader for TantivyInvertedIndexReader {
                 return Ok(false);
             }
 
-            let slices_downloaded = futures_util::stream::iter(merged_posting_ranges.into_iter())
-                .map(|posting_slice| {
-                    self.postings_file_slice
-                        .read_bytes_slice_async(posting_slice)
-                        .map(|result| result.map(|_slice| ()))
-                })
-                .buffer_unordered(5)
-                .try_collect::<Vec<()>>()
-                .await?;
+            let slices_downloaded: Vec<()> =
+                futures_util::stream::iter(merged_posting_ranges.into_iter())
+                    .map(|posting_slice| {
+                        self.postings_file_slice
+                            .read_bytes_slice_async(posting_slice)
+                            .map(|result| result.map(|_slice| ()))
+                    })
+                    .buffer_unordered(5)
+                    .try_collect()
+                    .await?;
 
             Ok(!slices_downloaded.is_empty())
         })
@@ -708,13 +704,10 @@ mod tests {
         }
 
         #[cfg(feature = "quickwit")]
-        fn warm_postings_automaton<'a, A: Automaton + Clone + Send + Sync + 'static>(
+        fn warm_postings_automaton<'a>(
             &'a self,
-            _automaton: A,
-        ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>>
-        where
-            A::State: Clone + Send,
-        {
+            _automaton: BoxedAutomaton,
+        ) -> Pin<Box<dyn Future<Output = io::Result<bool>> + Send + 'a>> {
             Box::pin(async { Ok(false) })
         }
     }
