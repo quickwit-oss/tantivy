@@ -128,7 +128,7 @@ pub trait DynInvertedIndexReader: Send + Sync {
 }
 
 /// Trait defining the contract for a typed inverted index reader.
-pub trait InvertedIndexReader: Send + Sync {
+pub trait InvertedIndexReader: DynInvertedIndexReader {
     /// The concrete postings type returned by this reader.
     type Postings: Postings;
 
