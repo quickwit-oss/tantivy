@@ -50,7 +50,7 @@ pub trait StoreReader: Send + Sync {
         &'a self,
         doc_id: DocId,
         executor: &'a Executor,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<TantivyDocument>> + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = crate::Result<TantivyDocument>> + Send + 'a>>;
 }
 
 /// The format version of the document store.
@@ -420,7 +420,7 @@ impl StoreReader for TantivyStoreReader {
         &'a self,
         doc_id: DocId,
         executor: &'a Executor,
-    ) -> Pin<Box<dyn Future<Output = crate::Result<TantivyDocument>> + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = crate::Result<TantivyDocument>> + Send + 'a>> {
         Box::pin(TantivyStoreReader::get_async(self, doc_id, executor))
     }
 }
