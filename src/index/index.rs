@@ -466,13 +466,7 @@ impl Index {
         let fields_metadata: Vec<Vec<FieldMetadata>> = segments
             .into_iter()
             .map(|segment| {
-                let reader = TantivySegmentReader::open_with_custom_alive_set_from_directory(
-                    segment.index().directory(),
-                    segment.meta(),
-                    segment.schema(),
-                    None,
-                )?;
-                let reader: Arc<dyn crate::index::SegmentReader> = Arc::new(reader);
+                let reader = TantivySegmentReader::open(&segment)?;
                 reader.fields_metadata()
             })
             .collect::<Result<_, _>>()?;

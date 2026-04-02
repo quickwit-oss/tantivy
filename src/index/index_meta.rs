@@ -287,6 +287,7 @@ pub struct IndexMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
 }
+
 #[derive(Deserialize, Debug)]
 struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
