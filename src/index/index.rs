@@ -3,7 +3,6 @@ use std::fmt;
 #[cfg(feature = "mmap")]
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::thread::available_parallelism;
 
 use super::segment::Segment;

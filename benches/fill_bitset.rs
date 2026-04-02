@@ -4,7 +4,9 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use tantivy::postings::BlockSegmentPostings;
 use tantivy::schema::*;
-use tantivy::{doc, DocSet as _, Index, InvertedIndexReader as _, TantivyDocument};
+use tantivy::{
+    doc, DocSet, Index, InvertedIndexReader, TantivyDocument, TantivyInvertedIndexReader,
+};
 
 #[global_allocator]
 pub static GLOBAL: &PeakMemAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
@@ -53,8 +55,12 @@ fn main() {
         let inverted_index = &inverted_index;
         let term_info = &term_info;
         // This uses BlockSegmentPostings directly, bypassing SegmentPostings entirely.
+        let concrete_reader = inverted_index
+            .as_any()
+            .downcast_ref::<TantivyInvertedIndexReader>()
+            .expect("expected TantivyInvertedIndexReader");
         group.register("BlockSegmentPostings direct", move |_| {
-            let raw = inverted_index
+            let raw = concrete_reader
                 .read_raw_postings_data(term_info, IndexRecordOption::Basic)
                 .unwrap();
             let mut block_postings = BlockSegmentPostings::open(

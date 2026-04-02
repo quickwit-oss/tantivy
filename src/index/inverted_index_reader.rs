@@ -46,13 +46,6 @@ pub trait DynInvertedIndexReader: Send + Sync {
     /// Notice: This requires a full scan and therefore **very expensive**.
     fn list_encoded_json_fields(&self) -> io::Result<Vec<InvertedIndexFieldSpace>>;
 
-    /// Returns the raw postings bytes and metadata for a term.
-    fn read_raw_postings_data(
-        &self,
-        term_info: &TermInfo,
-        option: IndexRecordOption,
-    ) -> io::Result<RawPostingsData>;
-
     /// Returns the total number of tokens recorded for all documents
     /// (including deleted documents).
     fn total_num_tokens(&self) -> u64;
@@ -70,19 +63,11 @@ pub trait DynInvertedIndexReader: Send + Sync {
     }
 
     /// Returns the postings for a given `TermInfo`.
-    ///
-    /// The default implementation decodes via [`read_raw_postings_data`]. Custom readers
-    /// that cannot produce valid raw postings bytes (e.g. merged/union posting sources)
-    /// should override this method.
     fn read_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-    ) -> io::Result<Box<dyn Postings>> {
-        let postings_data = self.read_raw_postings_data(term_info, option)?;
-        let postings = load_postings_from_raw_data(term_info.doc_freq, postings_data)?;
-        Ok(Box::new(postings))
-    }
+    ) -> io::Result<Box<dyn Postings>>;
 
     /// Returns the number of documents containing the term.
     fn doc_freq(&self, term: &Term) -> io::Result<u32>;
@@ -298,7 +283,8 @@ impl InvertedIndexFieldSpace {
 }
 
 impl TantivyInvertedIndexReader {
-    pub(crate) fn read_raw_postings_data_inner(
+    /// Returns the raw postings bytes and metadata for a term.
+    pub fn read_raw_postings_data(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
@@ -424,12 +410,14 @@ impl DynInvertedIndexReader for TantivyInvertedIndexReader {
         Ok(fields)
     }
 
-    fn read_raw_postings_data(
+    fn read_postings_from_terminfo(
         &self,
         term_info: &TermInfo,
         option: IndexRecordOption,
-    ) -> io::Result<RawPostingsData> {
-        self.read_raw_postings_data_inner(term_info, option)
+    ) -> io::Result<Box<dyn Postings>> {
+        let postings_data = self.read_raw_postings_data(term_info, option)?;
+        let postings = load_postings_from_raw_data(term_info.doc_freq, postings_data)?;
+        Ok(Box::new(postings))
     }
 
     fn total_num_tokens(&self) -> u64 {
@@ -612,14 +600,13 @@ impl InvertedIndexReader for TantivyInvertedIndexReader {
         term_info: &TermInfo,
         option: IndexRecordOption,
     ) -> io::Result<Self::Postings> {
-        let postings_data = self.read_raw_postings_data_inner(term_info, option)?;
+        let postings_data = self.read_raw_postings_data(term_info, option)?;
         load_postings_from_raw_data(term_info.doc_freq, postings_data)
     }
 
     #[inline]
     fn read_docset_from_terminfo(&self, term_info: &TermInfo) -> io::Result<Self::DocSet> {
-        let postings_data =
-            self.read_raw_postings_data_inner(term_info, IndexRecordOption::Basic)?;
+        let postings_data = self.read_raw_postings_data(term_info, IndexRecordOption::Basic)?;
         load_postings_from_raw_data(term_info.doc_freq, postings_data)
     }
 }
@@ -653,11 +640,11 @@ mod tests {
             Ok(Vec::new())
         }
 
-        fn read_raw_postings_data(
+        fn read_postings_from_terminfo(
             &self,
             _term_info: &TermInfo,
             _option: IndexRecordOption,
-        ) -> io::Result<RawPostingsData> {
+        ) -> io::Result<Box<dyn Postings>> {
             unreachable!("not used in downcast helper tests")
         }
 
