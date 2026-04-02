@@ -79,7 +79,7 @@ fn split_into_skips_and_postings(
 }
 
 impl BlockSegmentPostings {
-    /// Opens a `StandardPostingsReader`.
+    /// Opens a `BlockSegmentPostings`.
     /// `doc_freq` is the number of documents in the posting list.
     /// `record_option` represents the amount of data available according to the schema.
     /// `requested_option` is the amount of data requested by the user.

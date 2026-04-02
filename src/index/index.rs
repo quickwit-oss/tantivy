@@ -23,8 +23,8 @@ use crate::indexer::segment_updater::save_metas;
 use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
-use crate::schema::{Field, FieldType, Schema};
-use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::schema::Schema;
+use crate::tokenizer::TokenizerManager;
 
 fn load_metas(
     directory: &dyn Directory,
@@ -415,36 +415,6 @@ impl Index {
     /// Accessor for the fast field tokenizer manager.
     pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
         &self.fast_field_tokenizers
-    }
-
-    /// Get the tokenizer associated with a specific field.
-    pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<TextAnalyzer> {
-        let field_entry = self.schema.get_field_entry(field);
-        let field_type = field_entry.field_type();
-        let tokenizer_manager: &TokenizerManager = self.tokenizers();
-        let indexing_options_opt = match field_type {
-            FieldType::JsonObject(options) => options.get_text_indexing_options(),
-            FieldType::Str(options) => options.get_indexing_options(),
-            _ => {
-                return Err(TantivyError::SchemaError(format!(
-                    "{:?} is not a text field.",
-                    field_entry.name()
-                )))
-            }
-        };
-        let indexing_options = indexing_options_opt.ok_or_else(|| {
-            TantivyError::InvalidArgument(format!(
-                "No indexing options set for field {field_entry:?}"
-            ))
-        })?;
-
-        tokenizer_manager
-            .get(indexing_options.tokenizer())
-            .ok_or_else(|| {
-                TantivyError::InvalidArgument(format!(
-                    "No Tokenizer found for field {field_entry:?}"
-                ))
-            })
     }
 
     /// Create a default [`IndexReader`] for the given index.
