@@ -5,7 +5,7 @@ pub mod regex_phrase_query;
 mod regex_phrase_weight;
 
 pub use self::phrase_query::PhraseQuery;
-pub(crate) use self::phrase_scorer::intersection_count;
+pub(crate) use self::phrase_scorer::intersection_exists;
 pub use self::phrase_scorer::PhraseScorer;
 pub use self::phrase_weight::PhraseWeight;
 

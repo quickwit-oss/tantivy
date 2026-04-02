@@ -1,15 +1,16 @@
 use std::io::Write;
+use std::ops::Range;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::thread::JoinHandle;
 use std::{io, thread};
 
-use common::{BinarySerializable, CountingWriter, TerminatingWrite};
+use common::{BinarySerializable, CountingWriter, OwnedBytes, TerminatingWrite};
 
 use super::DOC_STORE_VERSION;
 use crate::directory::WritePtr;
 use crate::store::footer::DocStoreFooter;
 use crate::store::index::{Checkpoint, SkipIndexBuilder};
-use crate::store::{Compressor, Decompressor, StoreReader};
+use crate::store::{Compressor, Decompressor};
 use crate::DocId;
 
 pub struct BlockCompressor(BlockCompressorVariants);
@@ -54,16 +55,19 @@ impl BlockCompressor {
         Ok(())
     }
 
-    pub fn stack_reader(&mut self, store_reader: StoreReader) -> io::Result<()> {
+    pub fn stack_parts(
+        &mut self,
+        block_data: OwnedBytes,
+        block_ranges: Vec<(Range<DocId>, Range<usize>)>,
+    ) -> io::Result<()> {
         match &mut self.0 {
             BlockCompressorVariants::SameThread(block_compressor) => {
-                block_compressor.stack(store_reader)?;
+                block_compressor.stack_parts(block_data, block_ranges)
             }
             BlockCompressorVariants::DedicatedThread(different_thread_block_compressor) => {
-                different_thread_block_compressor.stack_reader(store_reader)?;
+                different_thread_block_compressor.stack_parts(block_data, block_ranges)
             }
         }
-        Ok(())
     }
 
     pub fn close(self) -> io::Result<()> {
@@ -122,22 +126,24 @@ impl BlockCompressorImpl {
     /// This method is an optimization compared to iterating over the documents
     /// in the store and adding them one by one, as the store's data will
     /// not be decompressed and then recompressed.
-    fn stack(&mut self, store_reader: StoreReader) -> io::Result<()> {
+    fn stack_parts(
+        &mut self,
+        block_data: OwnedBytes,
+        block_ranges: Vec<(Range<DocId>, Range<usize>)>,
+    ) -> io::Result<()> {
         let doc_shift = self.first_doc_in_block;
         let start_shift = self.writer.written_bytes() as usize;
 
         // just bulk write all of the block of the given reader.
-        self.writer
-            .write_all(store_reader.block_data()?.as_slice())?;
+        self.writer.write_all(block_data.as_slice())?;
 
         // concatenate the index of the `store_reader`, after translating
         // its start doc id and its start file offset.
-        for mut checkpoint in store_reader.block_checkpoints() {
-            checkpoint.doc_range.start += doc_shift;
-            checkpoint.doc_range.end += doc_shift;
-            checkpoint.byte_range.start += start_shift;
-            checkpoint.byte_range.end += start_shift;
-            self.register_checkpoint(checkpoint);
+        for (doc_range, byte_range) in block_ranges {
+            self.register_checkpoint(Checkpoint {
+                doc_range: (doc_range.start + doc_shift)..(doc_range.end + doc_shift),
+                byte_range: (byte_range.start + start_shift)..(byte_range.end + start_shift),
+            });
         }
         Ok(())
     }
@@ -161,7 +167,10 @@ enum BlockCompressorMessage {
         block_data: Vec<u8>,
         num_docs_in_block: u32,
     },
-    Stack(StoreReader),
+    Stack {
+        block_data: OwnedBytes,
+        block_ranges: Vec<(Range<DocId>, Range<usize>)>,
+    },
 }
 
 struct DedicatedThreadBlockCompressorImpl {
@@ -187,8 +196,11 @@ impl DedicatedThreadBlockCompressorImpl {
                             block_compressor
                                 .compress_block_and_write(&block_data[..], num_docs_in_block)?;
                         }
-                        BlockCompressorMessage::Stack(store_reader) => {
-                            block_compressor.stack(store_reader)?;
+                        BlockCompressorMessage::Stack {
+                            block_data,
+                            block_ranges,
+                        } => {
+                            block_compressor.stack_parts(block_data, block_ranges)?;
                         }
                     }
                 }
@@ -208,8 +220,15 @@ impl DedicatedThreadBlockCompressorImpl {
         })
     }
 
-    fn stack_reader(&mut self, store_reader: StoreReader) -> io::Result<()> {
-        self.send(BlockCompressorMessage::Stack(store_reader))
+    fn stack_parts(
+        &mut self,
+        block_data: OwnedBytes,
+        block_ranges: Vec<(Range<DocId>, Range<usize>)>,
+    ) -> io::Result<()> {
+        self.send(BlockCompressorMessage::Stack {
+            block_data,
+            block_ranges,
+        })
     }
 
     fn send(&mut self, msg: BlockCompressorMessage) -> io::Result<()> {

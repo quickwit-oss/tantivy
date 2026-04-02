@@ -201,3 +201,8 @@ harness = false
 [[bench]]
 name = "regex_all_terms"
 harness = false
+
+[[bench]]
+name = "fill_bitset"
+harness = false
+

@@ -1,8 +1,7 @@
-mod block_wand;
+pub(crate) mod block_wand;
 mod boolean_query;
 mod boolean_weight;
 
-pub(crate) use self::block_wand::{block_wand, block_wand_single_scorer};
 pub use self::boolean_query::BooleanQuery;
 pub use self::boolean_weight::BooleanWeight;
 
@@ -16,8 +15,8 @@ mod tests {
     use crate::collector::{Count, TopDocs};
     use crate::query::term_query::TermScorer;
     use crate::query::{
-        AllScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query, QueryParser, RangeQuery,
-        RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
+        AllScorer, BufferedUnionScorer, EmptyScorer, EnableScoring, Intersection, Occur, Query,
+        QueryParser, RangeQuery, RequiredOptionalScorer, Scorer, SumCombiner, TermQuery,
     };
     use crate::schema::*;
     use crate::{assert_nearly_equals, DocAddress, DocId, Index, IndexWriter, Score};
@@ -59,6 +58,19 @@ mod tests {
         let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
         let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert!(scorer.is::<TermScorer>());
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_boolean_termonly_union_specialization() -> crate::Result<()> {
+        let (index, text_field) = aux_test_helper()?;
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let query = query_parser.parse_query("a b")?;
+        let searcher = index.reader()?.searcher();
+        let weight = query.weight(EnableScoring::enabled_from_searcher(&searcher))?;
+        let scorer = weight.scorer(searcher.segment_reader(0u32), 1.0)?;
+        assert!(scorer.is::<BufferedUnionScorer<TermScorer, SumCombiner>>());
+        assert_eq!(query.count(&searcher)?, 4);
         Ok(())
     }
 

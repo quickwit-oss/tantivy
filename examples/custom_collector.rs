@@ -70,7 +70,7 @@ impl Collector for StatsCollector {
     fn for_segment(
         &self,
         _segment_local_id: u32,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> tantivy::Result<StatsSegmentCollector> {
         let fast_field_reader = segment_reader.fast_fields().u64(&self.field)?;
         Ok(StatsSegmentCollector {

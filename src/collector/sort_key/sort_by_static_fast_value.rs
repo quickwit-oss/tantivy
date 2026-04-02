@@ -61,7 +61,7 @@ impl<T: FastValue> SortKeyComputer for SortByStaticFastValue<T> {
 
     fn segment_sort_key_computer(
         &self,
-        segment_reader: &SegmentReader,
+        segment_reader: &dyn SegmentReader,
     ) -> crate::Result<Self::Child> {
         let sort_column_opt = segment_reader.fast_fields().u64_lenient(&self.field)?;
         let (sort_column, _sort_column_type) =

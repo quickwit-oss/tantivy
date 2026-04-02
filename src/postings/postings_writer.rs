@@ -7,7 +7,10 @@ use stacker::Addr;
 use crate::fieldnorm::FieldNormReaders;
 use crate::indexer::indexing_term::IndexingTerm;
 use crate::indexer::path_to_unordered_id::OrderedPathId;
-use crate::postings::recorder::{BufferLender, Recorder};
+use crate::postings::json_postings_writer::JsonPostingsWriter;
+use crate::postings::recorder::{
+    BufferLender, DocIdRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
+};
 use crate::postings::{
     FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
 };
@@ -100,6 +103,141 @@ pub(crate) struct IndexingPosition {
     pub end_position: u32,
 }
 
+pub enum PostingsWriterEnum {
+    DocId(SpecializedPostingsWriter<DocIdRecorder>),
+    DocIdTf(SpecializedPostingsWriter<TermFrequencyRecorder>),
+    DocTfAndPosition(SpecializedPostingsWriter<TfAndPositionRecorder>),
+    JsonDocId(JsonPostingsWriter<DocIdRecorder>),
+    JsonDocIdTf(JsonPostingsWriter<TermFrequencyRecorder>),
+    JsonDocTfAndPosition(JsonPostingsWriter<TfAndPositionRecorder>),
+}
+
+impl From<SpecializedPostingsWriter<DocIdRecorder>> for PostingsWriterEnum {
+    fn from(doc_id_recorder_writer: SpecializedPostingsWriter<DocIdRecorder>) -> Self {
+        PostingsWriterEnum::DocId(doc_id_recorder_writer)
+    }
+}
+
+impl From<SpecializedPostingsWriter<TermFrequencyRecorder>> for PostingsWriterEnum {
+    fn from(doc_id_tf_recorder_writer: SpecializedPostingsWriter<TermFrequencyRecorder>) -> Self {
+        PostingsWriterEnum::DocIdTf(doc_id_tf_recorder_writer)
+    }
+}
+
+impl From<SpecializedPostingsWriter<TfAndPositionRecorder>> for PostingsWriterEnum {
+    fn from(
+        doc_id_tf_and_positions_recorder_writer: SpecializedPostingsWriter<TfAndPositionRecorder>,
+    ) -> Self {
+        PostingsWriterEnum::DocTfAndPosition(doc_id_tf_and_positions_recorder_writer)
+    }
+}
+
+impl From<JsonPostingsWriter<DocIdRecorder>> for PostingsWriterEnum {
+    fn from(doc_id_recorder_writer: JsonPostingsWriter<DocIdRecorder>) -> Self {
+        PostingsWriterEnum::JsonDocId(doc_id_recorder_writer)
+    }
+}
+
+impl From<JsonPostingsWriter<TermFrequencyRecorder>> for PostingsWriterEnum {
+    fn from(doc_id_tf_recorder_writer: JsonPostingsWriter<TermFrequencyRecorder>) -> Self {
+        PostingsWriterEnum::JsonDocIdTf(doc_id_tf_recorder_writer)
+    }
+}
+
+impl From<JsonPostingsWriter<TfAndPositionRecorder>> for PostingsWriterEnum {
+    fn from(
+        doc_id_tf_and_positions_recorder_writer: JsonPostingsWriter<TfAndPositionRecorder>,
+    ) -> Self {
+        PostingsWriterEnum::JsonDocTfAndPosition(doc_id_tf_and_positions_recorder_writer)
+    }
+}
+
+impl PostingsWriter for PostingsWriterEnum {
+    fn subscribe(&mut self, doc: DocId, pos: u32, term: &IndexingTerm, ctx: &mut IndexingContext) {
+        match self {
+            PostingsWriterEnum::DocId(writer) => writer.subscribe(doc, pos, term, ctx),
+            PostingsWriterEnum::DocIdTf(writer) => writer.subscribe(doc, pos, term, ctx),
+            PostingsWriterEnum::DocTfAndPosition(writer) => writer.subscribe(doc, pos, term, ctx),
+            PostingsWriterEnum::JsonDocId(writer) => writer.subscribe(doc, pos, term, ctx),
+            PostingsWriterEnum::JsonDocIdTf(writer) => writer.subscribe(doc, pos, term, ctx),
+            PostingsWriterEnum::JsonDocTfAndPosition(writer) => {
+                writer.subscribe(doc, pos, term, ctx)
+            }
+        }
+    }
+
+    fn serialize(
+        &self,
+        term_addrs: &[(Field, OrderedPathId, &[u8], Addr)],
+        ordered_id_to_path: &[&str],
+        ctx: &IndexingContext,
+        serializer: &mut FieldSerializer,
+    ) -> io::Result<()> {
+        match self {
+            PostingsWriterEnum::DocId(writer) => {
+                writer.serialize(term_addrs, ordered_id_to_path, ctx, serializer)
+            }
+            PostingsWriterEnum::DocIdTf(writer) => {
+                writer.serialize(term_addrs, ordered_id_to_path, ctx, serializer)
+            }
+            PostingsWriterEnum::DocTfAndPosition(writer) => {
+                writer.serialize(term_addrs, ordered_id_to_path, ctx, serializer)
+            }
+            PostingsWriterEnum::JsonDocId(writer) => {
+                writer.serialize(term_addrs, ordered_id_to_path, ctx, serializer)
+            }
+            PostingsWriterEnum::JsonDocIdTf(writer) => {
+                writer.serialize(term_addrs, ordered_id_to_path, ctx, serializer)
+            }
+            PostingsWriterEnum::JsonDocTfAndPosition(writer) => {
+                writer.serialize(term_addrs, ordered_id_to_path, ctx, serializer)
+            }
+        }
+    }
+
+    /// Tokenize a text and subscribe all of its token.
+    fn index_text(
+        &mut self,
+        doc_id: DocId,
+        token_stream: &mut dyn TokenStream,
+        term_buffer: &mut IndexingTerm,
+        ctx: &mut IndexingContext,
+        indexing_position: &mut IndexingPosition,
+    ) {
+        match self {
+            PostingsWriterEnum::DocId(writer) => {
+                writer.index_text(doc_id, token_stream, term_buffer, ctx, indexing_position)
+            }
+            PostingsWriterEnum::DocIdTf(writer) => {
+                writer.index_text(doc_id, token_stream, term_buffer, ctx, indexing_position)
+            }
+            PostingsWriterEnum::DocTfAndPosition(writer) => {
+                writer.index_text(doc_id, token_stream, term_buffer, ctx, indexing_position)
+            }
+            PostingsWriterEnum::JsonDocId(writer) => {
+                writer.index_text(doc_id, token_stream, term_buffer, ctx, indexing_position)
+            }
+            PostingsWriterEnum::JsonDocIdTf(writer) => {
+                writer.index_text(doc_id, token_stream, term_buffer, ctx, indexing_position)
+            }
+            PostingsWriterEnum::JsonDocTfAndPosition(writer) => {
+                writer.index_text(doc_id, token_stream, term_buffer, ctx, indexing_position)
+            }
+        }
+    }
+
+    fn total_num_tokens(&self) -> u64 {
+        match self {
+            PostingsWriterEnum::DocId(writer) => writer.total_num_tokens(),
+            PostingsWriterEnum::DocIdTf(writer) => writer.total_num_tokens(),
+            PostingsWriterEnum::DocTfAndPosition(writer) => writer.total_num_tokens(),
+            PostingsWriterEnum::JsonDocId(writer) => writer.total_num_tokens(),
+            PostingsWriterEnum::JsonDocIdTf(writer) => writer.total_num_tokens(),
+            PostingsWriterEnum::JsonDocTfAndPosition(writer) => writer.total_num_tokens(),
+        }
+    }
+}
+
 /// The `PostingsWriter` is in charge of receiving documenting
 /// and building a `Segment` in anonymous memory.
 ///
@@ -169,14 +307,6 @@ pub(crate) trait PostingsWriter: Send + Sync {
 pub(crate) struct SpecializedPostingsWriter<Rec: Recorder> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
-}
-
-impl<Rec: Recorder> From<SpecializedPostingsWriter<Rec>> for Box<dyn PostingsWriter> {
-    fn from(
-        specialized_postings_writer: SpecializedPostingsWriter<Rec>,
-    ) -> Box<dyn PostingsWriter> {
-        Box::new(specialized_postings_writer)
-    }
 }
 
 impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {

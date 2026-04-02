@@ -8,7 +8,7 @@ use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
 use crate::index::Segment;
 use crate::positions::PositionSerializer;
-use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
+use crate::postings::compression::{BlockEncoder, VIntEncoder as _, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
 use crate::query::Bm25Weight;
 use crate::schema::{Field, FieldEntry, IndexRecordOption, Schema};

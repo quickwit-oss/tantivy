@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 ///  * describe in the schema the amount of information that should be retained during indexing (See
 ///    [`TextFieldIndexing::set_index_option()`](crate::schema::TextFieldIndexing::set_index_option))
 ///  * request that a given amount of information to be decoded as one goes through a posting list.
-///    (See [`InvertedIndexReader::read_postings()`](crate::InvertedIndexReader::read_postings))
+///    (See [`DynInvertedIndexReader::read_postings()`](crate::DynInvertedIndexReader::read_postings))
 #[derive(
     Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash, Serialize, Deserialize, Default,
 )]

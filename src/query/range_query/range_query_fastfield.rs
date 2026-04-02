@@ -13,7 +13,8 @@ use common::bounds::{BoundsRange, TransformBound};
 
 use super::fast_field_range_doc_set::RangeDocSet;
 use crate::query::{
-    AllScorer, ConstScorer, EmptyScorer, EnableScoring, Explanation, Query, Scorer, Weight,
+    box_scorer, AllScorer, ConstScorer, EmptyScorer, EnableScoring, Explanation, Query, Scorer,
+    Weight,
 };
 use crate::schema::{Type, ValueBytes};
 use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term};
@@ -52,10 +53,10 @@ impl FastFieldRangeWeight {
 }
 
 impl Weight for FastFieldRangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &dyn SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         // Check if both bounds are Bound::Unbounded
         if self.bounds.is_unbounded() {
-            return Ok(Box::new(AllScorer::new(reader.max_doc())));
+            return Ok(box_scorer(AllScorer::new(reader.max_doc())));
         }
 
         let term = self
@@ -95,7 +96,7 @@ impl Weight for FastFieldRangeWeight {
                     let Some(str_dict_column): Option<StrColumn> =
                         reader.fast_fields().str(&field_name)?
                     else {
-                        return Ok(Box::new(EmptyScorer));
+                        return Ok(box_scorer(EmptyScorer));
                     };
                     let dict = str_dict_column.dictionary();
 
@@ -107,7 +108,7 @@ impl Weight for FastFieldRangeWeight {
                     let Some((column, _col_type)) = fast_field_reader
                         .u64_lenient_for_type(Some(&[ColumnType::Str]), &field_name)?
                     else {
-                        return Ok(Box::new(EmptyScorer));
+                        return Ok(box_scorer(EmptyScorer));
                     };
                     search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
                 }
@@ -119,7 +120,7 @@ impl Weight for FastFieldRangeWeight {
                     let Some((column, _col_type)) = fast_field_reader
                         .u64_lenient_for_type(Some(&[ColumnType::DateTime]), &field_name)?
                     else {
-                        return Ok(Box::new(EmptyScorer));
+                        return Ok(box_scorer(EmptyScorer));
                     };
                     let bounds = bounds.map_bound(|term| term.as_date().unwrap().to_u64());
                     search_on_u64_ff(
@@ -146,7 +147,7 @@ impl Weight for FastFieldRangeWeight {
             let Some(ip_addr_column): Option<Column<Ipv6Addr>> =
                 reader.fast_fields().column_opt(&field_name)?
             else {
-                return Ok(Box::new(EmptyScorer));
+                return Ok(box_scorer(EmptyScorer));
             };
             let value_range = bound_range_inclusive_ip(
                 &bounds.lower_bound,
@@ -155,11 +156,11 @@ impl Weight for FastFieldRangeWeight {
                 ip_addr_column.max_value(),
             );
             let docset = RangeDocSet::new(value_range, ip_addr_column);
-            Ok(Box::new(ConstScorer::new(docset, boost)))
+            Ok(box_scorer(ConstScorer::new(docset, boost)))
         } else if field_type.is_str() {
             let Some(str_dict_column): Option<StrColumn> = reader.fast_fields().str(&field_name)?
             else {
-                return Ok(Box::new(EmptyScorer));
+                return Ok(box_scorer(EmptyScorer));
             };
             let dict = str_dict_column.dictionary();
 
@@ -171,7 +172,7 @@ impl Weight for FastFieldRangeWeight {
             let Some((column, _col_type)) =
                 fast_field_reader.u64_lenient_for_type(None, &field_name)?
             else {
-                return Ok(Box::new(EmptyScorer));
+                return Ok(box_scorer(EmptyScorer));
             };
             search_on_u64_ff(column, boost, BoundsRange::new(lower_bound, upper_bound))
         } else if field_type.is_bytes() {
@@ -228,7 +229,7 @@ impl Weight for FastFieldRangeWeight {
                 &field_name,
             )?
             else {
-                return Ok(Box::new(EmptyScorer));
+                return Ok(box_scorer(EmptyScorer));
             };
             search_on_u64_ff(
                 column,
@@ -238,7 +239,7 @@ impl Weight for FastFieldRangeWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
+    fn explain(&self, reader: &dyn SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(TantivyError::InvalidArgument(format!(
@@ -255,7 +256,7 @@ impl Weight for FastFieldRangeWeight {
 ///
 /// Convert into fast field value space and search.
 fn search_on_json_numerical_field(
-    reader: &SegmentReader,
+    reader: &dyn SegmentReader,
     field_name: &str,
     typ: Type,
     bounds: BoundsRange<ValueBytes<Vec<u8>>>,
@@ -269,7 +270,7 @@ fn search_on_json_numerical_field(
     let Some((column, col_type)) =
         fast_field_reader.u64_lenient_for_type(allowed_column_types, field_name)?
     else {
-        return Ok(Box::new(EmptyScorer));
+        return Ok(box_scorer(EmptyScorer));
     };
     let actual_column_type: NumericalType = col_type
         .numerical_type()
@@ -427,18 +428,18 @@ fn search_on_u64_ff(
     )
     .unwrap_or(1..=0); // empty range
     if value_range.is_empty() {
-        return Ok(Box::new(EmptyScorer));
+        return Ok(box_scorer(EmptyScorer));
     }
     if col_min_value >= *value_range.start() && col_max_value <= *value_range.end() {
         // all values in the column are within the range.
         if column.index.get_cardinality() == Cardinality::Full {
             if boost != 1.0f32 {
-                return Ok(Box::new(ConstScorer::new(
+                return Ok(box_scorer(ConstScorer::new(
                     AllScorer::new(column.num_docs()),
                     boost,
                 )));
             } else {
-                return Ok(Box::new(AllScorer::new(column.num_docs())));
+                return Ok(box_scorer(AllScorer::new(column.num_docs())));
             }
         } else {
             // TODO Make it a field presence request for that specific column
@@ -446,7 +447,7 @@ fn search_on_u64_ff(
     }
 
     let docset = RangeDocSet::new(value_range, column);
-    Ok(Box::new(ConstScorer::new(docset, boost)))
+    Ok(box_scorer(ConstScorer::new(docset, boost)))
 }
 
 /// Returns true if the type maps to a u64 fast field

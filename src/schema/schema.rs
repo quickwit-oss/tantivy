@@ -590,7 +590,8 @@ mod tests {
         }"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
 
-        let doc_serdeser = TantivyDocument::parse_json(&schema, &doc.to_json(&schema)).unwrap();
+        let doc_serdeser =
+            TantivyDocument::parse_json(&schema, &doc.to_serialized_json(&schema)).unwrap();
         assert_eq!(doc, doc_serdeser);
     }
 
@@ -605,8 +606,8 @@ mod tests {
                 "ip": "127.0.0.1"
         }"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
-        let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
-        assert_eq!(value["ip"][0], "127.0.0.1");
+        let value = doc.to_json(&schema);
+        assert_eq!(value["ip"], "127.0.0.1");
 
         // Special case IpV6 loopback. We don't want to map that to IPv4
         let doc_json = r#"{
@@ -614,8 +615,8 @@ mod tests {
         }"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
 
-        let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
-        assert_eq!(value["ip"][0], "::1");
+        let value = doc.to_json(&schema);
+        assert_eq!(value["ip"], "::1");
 
         // testing ip address of every router in the world
         let doc_json = r#"{
@@ -623,8 +624,8 @@ mod tests {
         }"#;
         let doc = TantivyDocument::parse_json(&schema, doc_json).unwrap();
 
-        let value: serde_json::Value = serde_json::from_str(&doc.to_json(&schema)).unwrap();
-        assert_eq!(value["ip"][0], "192.168.0.1");
+        let value = doc.to_json(&schema);
+        assert_eq!(value["ip"], "192.168.0.1");
     }
 
     #[test]

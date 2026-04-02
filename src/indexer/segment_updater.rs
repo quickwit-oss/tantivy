@@ -139,9 +139,9 @@ fn merge(
 /// meant to work if you have an `IndexWriter` running for the origin indices, or
 /// the destination `Index`.
 #[doc(hidden)]
-pub fn merge_indices<T: Into<Box<dyn Directory>>>(
+pub fn merge_indices(
     indices: &[Index],
-    output_directory: T,
+    output_directory: Box<dyn Directory>,
 ) -> crate::Result<Index> {
     if indices.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
@@ -211,11 +211,11 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
         ));
     }
 
-    let mut merged_index = Index::create(
-        output_directory,
-        target_schema.clone(),
-        target_settings.clone(),
-    )?;
+    let mut merged_index: Index = Index::builder()
+        .schema(target_schema.clone())
+        .settings(target_settings.clone())
+        .create(output_directory.into())?;
+
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
     let merger: IndexMerger =
@@ -235,7 +235,6 @@ pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
             ))
             .trim_end()
     );
-
     let index_meta = IndexMeta {
         index_settings: target_settings, // index_settings of all segments should be the same
         segments: vec![segment_meta],
@@ -275,7 +274,7 @@ impl SegmentUpdater {
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
         num_merge_threads: usize,
-    ) -> crate::Result<SegmentUpdater> {
+    ) -> crate::Result<Self> {
         let segments = index.searchable_segment_metas()?;
         let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
         let pool = ThreadPoolBuilder::new()
@@ -930,7 +929,7 @@ mod tests {
 
     #[test]
     fn test_merge_empty_indices_array() {
-        let merge_result = merge_indices(&[], RamDirectory::default());
+        let merge_result = merge_indices(&[], Box::new(RamDirectory::default()));
         assert!(merge_result.is_err());
     }
 
@@ -957,7 +956,10 @@ mod tests {
         };
 
         // mismatched schema index list
-        let result = merge_indices(&[first_index, second_index], RamDirectory::default());
+        let result = merge_indices(
+            &[first_index, second_index],
+            Box::new(RamDirectory::default()),
+        );
         assert!(result.is_err());
 
         Ok(())

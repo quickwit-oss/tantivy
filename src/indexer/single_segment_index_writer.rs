@@ -11,7 +11,7 @@ pub struct SingleSegmentIndexWriter<D: Document = TantivyDocument> {
     segment_writer: SegmentWriter,
     segment: Segment,
     opstamp: Opstamp,
-    _phantom: PhantomData<D>,
+    _doc: PhantomData<D>,
 }
 
 impl<D: Document> SingleSegmentIndexWriter<D> {
@@ -22,7 +22,7 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
             segment_writer,
             segment,
             opstamp: 0,
-            _phantom: PhantomData,
+            _doc: PhantomData,
         })
     }
 
@@ -40,7 +40,7 @@ impl<D: Document> SingleSegmentIndexWriter<D> {
     pub fn finalize(self) -> crate::Result<Index> {
         let max_doc = self.segment_writer.max_doc();
         self.segment_writer.finalize()?;
-        let segment: Segment = self.segment.with_max_doc(max_doc);
+        let segment = self.segment.with_max_doc(max_doc);
         let index = segment.index();
         let index_meta = IndexMeta {
             index_settings: index.settings().clone(),

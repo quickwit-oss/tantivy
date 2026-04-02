@@ -12,7 +12,9 @@ use super::{AddBatch, AddBatchReceiver, AddBatchSender, PreparedCommit};
 use crate::directory::{DirectoryLock, GarbageCollectionResult, TerminatingWrite};
 use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
-use crate::index::{Index, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader};
+use crate::index::{
+    Index, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader, TantivySegmentReader,
+};
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::index_writer_status::IndexWriterStatus;
@@ -94,7 +96,7 @@ pub struct IndexWriter<D: Document = TantivyDocument> {
 
 fn compute_deleted_bitset(
     alive_bitset: &mut BitSet,
-    segment_reader: &SegmentReader,
+    segment_reader: &dyn SegmentReader,
     delete_cursor: &mut DeleteCursor,
     doc_opstamps: &DocToOpstampMapping,
     target_opstamp: Opstamp,
@@ -143,7 +145,13 @@ pub fn advance_deletes(
         return Ok(());
     }
 
-    let segment_reader = SegmentReader::open(&segment)?;
+    let segment_reader = TantivySegmentReader::open_with_custom_alive_set_from_directory(
+        segment.index().directory(),
+        segment.meta(),
+        segment.schema(),
+        None,
+    )?;
+    let segment_reader: Arc<dyn SegmentReader> = Arc::new(segment_reader);
 
     let max_doc = segment_reader.max_doc();
     let mut alive_bitset: BitSet = match segment_entry.alive_bitset() {
@@ -155,7 +163,7 @@ pub fn advance_deletes(
 
     compute_deleted_bitset(
         &mut alive_bitset,
-        &segment_reader,
+        segment_reader.as_ref(),
         segment_entry.delete_cursor(),
         &DocToOpstampMapping::None,
         target_opstamp,
@@ -243,14 +251,20 @@ fn apply_deletes(
         .max()
         .expect("Empty DocOpstamp is forbidden");
 
-    let segment_reader = SegmentReader::open(segment)?;
+    let segment_reader = TantivySegmentReader::open_with_custom_alive_set_from_directory(
+        segment.index().directory(),
+        segment.meta(),
+        segment.schema(),
+        None,
+    )?;
+    let segment_reader: Arc<dyn SegmentReader> = Arc::new(segment_reader);
     let doc_to_opstamps = DocToOpstampMapping::WithMap(doc_opstamps);
 
     let max_doc = segment.meta().max_doc();
     let mut deleted_bitset = BitSet::with_max_value_and_full(max_doc);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
-        &segment_reader,
+        segment_reader.as_ref(),
         delete_cursor,
         &doc_to_opstamps,
         max_doc_opstamp,
@@ -1965,9 +1979,9 @@ mod tests {
                 .get_store_reader(DOCSTORE_CACHE_CAPACITY)
                 .unwrap();
             // test store iterator
-            for doc in store_reader.iter::<TantivyDocument>(segment_reader.alive_bitset()) {
+            for doc_id in segment_reader.doc_ids_alive() {
+                let doc = store_reader.get(doc_id).unwrap();
                 let id = doc
-                    .unwrap()
                     .get_first(id_field)
                     .unwrap()
                     .as_value()
@@ -1978,7 +1992,7 @@ mod tests {
             // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
                 let id = store_reader
-                    .get::<TantivyDocument>(doc_id)
+                    .get(doc_id)
                     .unwrap()
                     .get_first(id_field)
                     .unwrap()
@@ -1987,7 +2001,7 @@ mod tests {
                 assert!(expected_ids_and_num_occurrences.contains_key(&id));
                 if id_is_full_doc(id) {
                     let id2 = store_reader
-                        .get::<TantivyDocument>(doc_id)
+                        .get(doc_id)
                         .unwrap()
                         .get_first(multi_numbers)
                         .unwrap()
@@ -1995,13 +2009,13 @@ mod tests {
                         .unwrap();
                     assert_eq!(id, id2);
                     let bool = store_reader
-                        .get::<TantivyDocument>(doc_id)
+                        .get(doc_id)
                         .unwrap()
                         .get_first(bool_field)
                         .unwrap()
                         .as_bool()
                         .unwrap();
-                    let doc = store_reader.get::<TantivyDocument>(doc_id).unwrap();
+                    let doc = store_reader.get(doc_id).unwrap();
                     let mut bool2 = doc.get_all(multi_bools);
                     assert_eq!(bool, bool2.next().unwrap().as_bool().unwrap());
                     assert_ne!(bool, bool2.next().unwrap().as_bool().unwrap());

@@ -28,6 +28,11 @@ mod sstable_termdict;
 #[cfg(feature = "quickwit")]
 use sstable_termdict as termdict;
 
+#[cfg(feature = "quickwit")]
+mod dyn_automaton;
+#[cfg(feature = "quickwit")]
+pub use dyn_automaton::BoxedAutomaton;
+
 #[cfg(test)]
 mod tests;
 

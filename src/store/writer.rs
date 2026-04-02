@@ -1,10 +1,12 @@
 use std::io;
+use std::ops::Range;
+use std::sync::Arc;
 
-use common::BinarySerializable;
+use common::{BinarySerializable, OwnedBytes};
 
 use super::compressors::Compressor;
-use super::StoreReader;
 use crate::directory::WritePtr;
+use crate::index::SegmentReader;
 use crate::schema::document::{BinaryDocumentSerializer, Document};
 use crate::schema::Schema;
 use crate::store::store_compressor::BlockCompressor;
@@ -119,14 +121,24 @@ impl StoreWriter {
         Ok(())
     }
 
-    /// Stacks a store reader on top of the documents written so far.
-    /// This method is an optimization compared to iterating over the documents
-    /// in the store and adding them one by one, as the store's data will
-    /// not be decompressed and then recompressed.
-    pub fn stack(&mut self, store_reader: StoreReader) -> io::Result<()> {
-        // We flush the current block first before stacking
+    pub(crate) fn stack_parts(
+        &mut self,
+        block_data: OwnedBytes,
+        block_ranges: Vec<(Range<DocId>, Range<usize>)>,
+    ) -> io::Result<()> {
         self.send_current_block_to_compressor()?;
-        self.block_compressor.stack_reader(store_reader)?;
+        self.block_compressor.stack_parts(block_data, block_ranges)
+    }
+
+    pub(crate) fn merge_segment_readers(
+        &mut self,
+        segment_readers: &[Arc<dyn SegmentReader>],
+    ) -> crate::Result<()> {
+        const MERGE_DOCSTORE_CACHE_NUM_BLOCKS: usize = 1;
+        for segment_reader in segment_readers {
+            let store_reader = segment_reader.get_store_reader(MERGE_DOCSTORE_CACHE_NUM_BLOCKS)?;
+            store_reader.merge_into(self, segment_reader.alive_bitset())?;
+        }
         Ok(())
     }
 

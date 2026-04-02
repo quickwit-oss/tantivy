@@ -193,6 +193,8 @@ impl TinySet {
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
+    // Tracking `len` on every insert/remove adds overhead even when `len()` is never called.
+    // Consider removing if `len()` usage is rare or not on a hot path.
     len: u64,
     max_value: u32,
 }
@@ -252,6 +254,7 @@ impl BitSet {
 
     /// Removes all elements from the `BitSet`.
     pub fn clear(&mut self) {
+        self.len = 0;
         for tinyset in self.tinysets.iter_mut() {
             *tinyset = TinySet::empty();
         }
@@ -269,6 +272,11 @@ impl BitSet {
             *left = left.intersect(right);
             self.len += left.len() as u64;
         }
+    }
+
+    /// Estimate the heap memory consumption of this `BitSet` in bytes.
+    pub fn get_memory_consumption(&self) -> usize {
+        self.tinysets.len() * std::mem::size_of::<TinySet>()
     }
 
     /// Returns the number of elements in the `BitSet`.
@@ -314,6 +322,9 @@ impl BitSet {
             .map(|delta_bucket| bucket + delta_bucket as u32)
     }
 
+    /// Returns the maximum number of elements in the bitset.
+    ///
+    /// Warning: The largest element the bitset can contain is `max_value - 1`.
     #[inline]
     pub fn max_value(&self) -> u32 {
         self.max_value
