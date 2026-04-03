@@ -142,8 +142,10 @@ impl TopNHeap {
             }
         } else if let Some(threshold) = self.threshold {
             if score > threshold {
-                self.heap.pop();
-                self.heap.push(Reverse(ScoreHeapEntry { score, doc }));
+                // peek_mut + assign is a single sift-down, vs pop + push = two sifts.
+                if let Some(mut min) = self.heap.peek_mut() {
+                    *min = Reverse(ScoreHeapEntry { score, doc });
+                }
                 self.threshold = self.heap.peek().map(|Reverse(entry)| entry.score);
             }
         }
@@ -160,7 +162,11 @@ impl TopNHeap {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+
     use super::*;
+    use crate::collector::sort_key::NaturalComparator;
+    use crate::collector::TopNComputer;
 
     #[test]
     fn test_top_n_heap_zero_capacity() {
@@ -238,5 +244,40 @@ mod tests {
         let mut results = heap.into_vec();
         results.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap().then_with(|| a.1.cmp(&b.1)));
         assert_eq!(results, vec![(3.0, 0), (2.0, 2), (1.0, 1)]);
+    }
+
+    proptest! {
+        #[test]
+        fn test_top_n_heap_matches_top_n_computer(
+            limit in 0..20_usize,
+            mut docs in proptest::collection::vec((0..1000_u32, 0..1000_u32), 0..200_usize),
+        ) {
+            // Both require ascending doc order.
+            docs.sort_by_key(|(_, doc_id)| *doc_id);
+            docs.dedup_by_key(|(_, doc_id)| *doc_id);
+
+            let mut heap = TopNHeap::new(limit);
+            let mut computer: TopNComputer<Score, DocId, NaturalComparator> =
+                TopNComputer::new_with_comparator(limit, NaturalComparator);
+
+            for &(score_u32, doc) in &docs {
+                let score = score_u32 as Score;
+                heap.push(score, doc);
+                computer.push(score, doc);
+            }
+
+            let mut heap_results = heap.into_vec();
+            heap_results.sort_by(|a, b| {
+                b.0.partial_cmp(&a.0).unwrap().then_with(|| a.1.cmp(&b.1))
+            });
+
+            let computer_results: Vec<(Score, DocId)> = computer
+                .into_sorted_vec()
+                .into_iter()
+                .map(|cd| (cd.sort_key, cd.doc))
+                .collect();
+
+            prop_assert_eq!(heap_results, computer_results);
+        }
     }
 }
