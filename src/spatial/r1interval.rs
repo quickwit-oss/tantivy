@@ -204,6 +204,18 @@ impl R1Interval {
     pub fn clamp(&self, v: f64) -> f64 {
         v.max(self.lo()).min(self.hi())
     }
+
+    /// Sets the low endpoint.
+    #[inline]
+    pub fn set_lo(&mut self, v: f64) {
+        self.lo = v;
+    }
+
+    /// Sets the high endpoint.
+    #[inline]
+    pub fn set_hi(&mut self, v: f64) {
+        self.hi = v;
+    }
 }
 
 impl std::fmt::Display for R1Interval {

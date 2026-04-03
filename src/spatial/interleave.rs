@@ -5,7 +5,6 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 use common::ReadOnlyBitSet;
-use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::cell_index::{
     get_edge_max_level, BuildOptions, ClippedShape, GeometryId, IndexCell, CELL_PADDING,
@@ -15,76 +14,208 @@ use super::edge_cache::EdgeCache;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
 use super::s2coords::valid_face_xyz_to_uv;
+use super::s2edge_clipping::{clip_edge, clip_edge_bound};
 use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
 
-struct CoarseEdge {
+struct SpongeEdge {
+    geometry_id: GeometryId,
     edge_index: u16,
     max_level: i32,
     v0: [f64; 3],
     v1: [f64; 3],
+    a_uv: [f64; 2],
+    b_uv: [f64; 2],
+    bound: R2Rect,
 }
 
-struct CoarseGeometry {
-    edges: Vec<CoarseEdge>,
-}
-
-struct CoarseIndexCell {
-    cell: IndexCell,
-    geometries: FxHashMap<GeometryId, CoarseGeometry>,
-    geometry_ids: Vec<GeometryId>,
-}
-
-struct HeapEntry {
+// Anchors represent the presence of a geometry in a particular cell so that anchors are unique by
+// geometry id and cell id. Anchors do not need de-duplication.
+#[derive(Clone)]
+struct SpongeAnchor {
+    geometry_id: GeometryId,
     cell_id: S2CellId,
-    source: Option<usize>,
-    cells: Vec<CoarseIndexCell>,
-    geometry_ids: FxHashSet<GeometryId>,
+    center: [f64; 3],
+    contains_center: bool,
 }
 
-impl CoarseIndexCell {
-    pub fn new(cell: IndexCell, edge_cache: &EdgeCache<'_, Sphere>) -> Self {
-        let mut geometries = FxHashMap::default();
-        let mut geometry_ids = Vec::with_capacity(cell.shapes.len());
-        for shape in &cell.shapes {
-            geometry_ids.push(shape.geometry_id);
+// Exploded view of an IndexCell.
+//
+// Edges are de-duplicated upon insert so we can maintain an accurate count of edges and short
+// edges in the pending cell for our threshold checks. We split based on short edge count.
+// De-duplication is necessary because, of course, the same (geometry_id, edge_index) edge can
+// appear in multiple cells.
+//
+// Anchors represent the presence of a geometry in a particular cell so that anchors are unique by
+// geometry id and cell id. Anchors do not need de-duplication.
+struct SpongeCell {
+    cell_id: S2CellId,
+    edges: Vec<SpongeEdge>,
+    anchors: Vec<SpongeAnchor>,
+    edge_count: usize,
+    short_edge_count: usize,
+    cell_bound: R2Rect,
+    split_count: u32,
+}
 
+// We explode the IndexCell into a sponge cell as necessary.
+enum InterleavedCell {
+    Source(IndexCell),
+    Sponge(SpongeCell),
+}
+
+impl SpongeCell {
+    fn new(cell_id: S2CellId, cell_bound: R2Rect) -> Self {
+        SpongeCell {
+            cell_id,
+            edges: Vec::new(),
+            anchors: Vec::new(),
+            edge_count: 0,
+            short_edge_count: 0,
+            cell_bound,
+            split_count: 0,
+        }
+    }
+
+    // Both paths clip edge UV endpoints to this sponge's cell bound using clip_edge. This produces
+    // endpoints within the sponge's region, consistent with the build path's ClipToPaddedFace. The
+    // clipped endpoints are stable through subsequent splits. Only the bound narrows at each split
+    // level.
+    fn absorb_index_cell_edges(&mut self, cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) {
+        let face = cell.cell_id.face();
+        // Fresh source cell. Read from edge cache, clip to sponge bound.
+        for shape in &cell.shapes {
             if shape.edge_indices.is_empty() {
                 continue;
             }
-
-            let entry = edge_cache.get(shape.geometry_id);
-
-            let level_geometry = geometries
-                .entry(shape.geometry_id)
-                .or_insert_with(|| CoarseGeometry { edges: Vec::new() });
-
+            let cache_entry = edge_cache.get(shape.geometry_id);
             for &edge_index in &shape.edge_indices {
-                let (v0, v1) = entry.edge(edge_index);
-                let max_level = get_edge_max_level(&v0, &v1);
-                level_geometry.edges.push(CoarseEdge {
-                    edge_index,
-                    max_level,
-                    v0,
-                    v1,
-                });
+                let key = (shape.geometry_id, edge_index);
+                match self
+                    .edges
+                    .binary_search_by_key(&key, |e| (e.geometry_id, e.edge_index))
+                {
+                    Ok(_) => {}
+                    Err(pos) => {
+                        let (v0, v1) = cache_entry.edge(edge_index);
+                        let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
+                        let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
+                        let (a_uv, b_uv) = match clip_edge([a_u, a_v], [b_u, b_v], &self.cell_bound)
+                        {
+                            Some(ab) => ab,
+                            None => continue,
+                        };
+                        let max_level = get_edge_max_level(&v0, &v1);
+                        self.edge_count += 1;
+                        if self.cell_id.level() < max_level {
+                            self.short_edge_count += 1;
+                        }
+                        self.edges.insert(
+                            pos,
+                            SpongeEdge {
+                                geometry_id: shape.geometry_id,
+                                edge_index,
+                                max_level,
+                                v0,
+                                v1,
+                                a_uv,
+                                b_uv,
+                                bound: R2Rect::from_point_pair(a_uv, b_uv),
+                            },
+                        );
+                    }
+                }
             }
         }
-        CoarseIndexCell {
-            cell,
-            geometries,
-            geometry_ids,
+    }
+
+    fn absorb_sponge_cell_edges(&mut self, merged: &SpongeCell) {
+        let face = merged.cell_id.face();
+        // Sponged entry. Re-clip from original v0/v1 against this sponge.
+        for other_edge in &merged.edges {
+            let key = (other_edge.geometry_id, other_edge.edge_index);
+            match self
+                .edges
+                .binary_search_by_key(&key, |e| (e.geometry_id, e.edge_index))
+            {
+                Ok(_) => {}
+                Err(pos) => {
+                    let (a_u, a_v) = valid_face_xyz_to_uv(face, &other_edge.v0);
+                    let (b_u, b_v) = valid_face_xyz_to_uv(face, &other_edge.v1);
+                    let (a_uv, b_uv) = match clip_edge([a_u, a_v], [b_u, b_v], &self.cell_bound) {
+                        Some(ab) => ab,
+                        None => continue,
+                    };
+                    self.edge_count += 1;
+                    if self.cell_id.level() < other_edge.max_level {
+                        self.short_edge_count += 1;
+                    }
+                    self.edges.insert(
+                        pos,
+                        SpongeEdge {
+                            geometry_id: other_edge.geometry_id,
+                            edge_index: other_edge.edge_index,
+                            max_level: other_edge.max_level,
+                            v0: other_edge.v0,
+                            v1: other_edge.v1,
+                            a_uv,
+                            b_uv,
+                            bound: R2Rect::from_point_pair(a_uv, b_uv),
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    // The same center that you would use if you were searching. We going to do an ordinary search
+    // edge crossing to move a child geometry into a parent.
+    fn absorb_index_cell_anchors(&mut self, cell: &IndexCell) {
+        let mut cell_center: Option<[f64; 3]> = None;
+        for shape in &cell.shapes {
+            let center = *cell_center
+                .get_or_insert_with(|| S2PaddedCell::new(cell.cell_id, CELL_PADDING).get_center());
+            let anchor = SpongeAnchor {
+                geometry_id: shape.geometry_id,
+                cell_id: cell.cell_id,
+                center,
+                contains_center: shape.contains_center,
+            };
+            self.anchors.push(anchor);
+        }
+    }
+
+    fn absorb_sponge_cell_anchors(&mut self, cell: &SpongeCell) {
+        for a in &cell.anchors {
+            self.anchors.push(SpongeAnchor {
+                geometry_id: a.geometry_id,
+                cell_id: a.cell_id,
+                center: a.center,
+                contains_center: a.contains_center,
+            });
         }
     }
 }
 
+struct HeapEntry {
+    source: Option<usize>,
+    cell: InterleavedCell,
+}
+
 impl HeapEntry {
+    fn cell_id(&self) -> S2CellId {
+        match &self.cell {
+            InterleavedCell::Source(cell) => cell.cell_id,
+            InterleavedCell::Sponge(ref merged) => merged.cell_id,
+        }
+    }
+
     fn range_min(&self) -> S2CellId {
-        self.cell_id.range_min()
+        self.cell_id().range_min()
     }
 
     fn level(&self) -> i32 {
-        self.cell_id.level()
+        self.cell_id().level()
     }
 }
 
@@ -115,7 +246,6 @@ impl Ord for HeapEntry {
 pub struct HeapInterleave<'a> {
     sources: Vec<CellIndexIter<'a>>,
     edge_cache: &'a EdgeCache<'a, Sphere>,
-    edge_counter: FxHashSet<(GeometryId, u16)>,
     alive_bitsets: &'a [Option<ReadOnlyBitSet>],
     heap: BinaryHeap<HeapEntry>,
     max_edges: usize,
@@ -124,9 +254,9 @@ pub struct HeapInterleave<'a> {
     absorptions: u64,
     splits: u64,
     cells_emitted: u64,
-    short_edge_checks: u64,
     max_sponge_cells: u64,
-    crossing_checks: u64,
+    crossings: u64,
+    crossers: u64,
 }
 
 impl<'a> HeapInterleave<'a> {
@@ -140,7 +270,6 @@ impl<'a> HeapInterleave<'a> {
         let mut merge = HeapInterleave {
             sources: iters,
             edge_cache,
-            edge_counter: FxHashSet::default(),
             alive_bitsets,
             heap: BinaryHeap::new(),
             max_edges: options.max_edges_per_cell,
@@ -149,9 +278,9 @@ impl<'a> HeapInterleave<'a> {
             absorptions: 0,
             splits: 0,
             cells_emitted: 0,
-            short_edge_checks: 0,
             max_sponge_cells: 0,
-            crossing_checks: 0,
+            crossings: 0,
+            crossers: 0,
         };
         let n = merge.sources.len();
         for i in 0..n {
@@ -163,14 +292,14 @@ impl<'a> HeapInterleave<'a> {
     /// Log interleave metrics to stderr.
     pub fn report(&self) {
         eprintln!(
-            "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} edge checks, {} \
-             crossing checks, {} max sponge",
+            "interleave: {} from source, {} absorbed, {} splits, {} emitted, {} crossings, {} \
+             crossers, {} max sponge",
             self.cells_from_source,
             self.absorptions,
             self.splits,
             self.cells_emitted,
-            self.short_edge_checks,
-            self.crossing_checks,
+            self.crossings,
+            self.crossers,
             self.max_sponge_cells,
         );
     }
@@ -190,69 +319,11 @@ impl<'a> HeapInterleave<'a> {
             }
             if !cell.shapes.is_empty() {
                 self.cells_from_source += 1;
-                let mut geometries = FxHashSet::default();
-                geometries.extend(cell.shapes.iter().map(|s| s.geometry_id));
                 self.heap.push(HeapEntry {
-                    cell_id: cell.cell_id,
                     source: Some(source_idx),
-                    cells: vec![CoarseIndexCell::new(cell, self.edge_cache)],
-                    geometry_ids: geometries,
+                    cell: InterleavedCell::Source(cell),
                 });
                 return;
-            }
-        }
-    }
-
-    fn coarse_split(&mut self, sponge: HeapEntry) {
-        self.splits += 1;
-        let mut cells = sponge.cells;
-        let head = cells.remove(0);
-        let children = subdivide_cell(&head, &mut self.crossing_checks);
-
-        // Build four HeapEntries from the subdivided children.
-        let mut entries: Vec<HeapEntry> = children
-            .into_iter()
-            .map(|child_cell| {
-                let child_cell_id = child_cell.cell_id;
-                let mut geometry_ids = FxHashSet::default();
-                geometry_ids.extend(child_cell.shapes.iter().map(|s| s.geometry_id));
-                HeapEntry {
-                    cell_id: child_cell_id,
-                    source: None,
-                    cells: vec![CoarseIndexCell::new(child_cell, self.edge_cache)],
-                    geometry_ids: geometry_ids,
-                }
-            })
-            .collect();
-
-        // Distribute remaining coarse cells to their parent child. If a coarse cell is at the
-        // same level as the children it can't be assigned as a descendant. Push it onto the heap
-        // as its own entry.
-        for coarse_cell in cells {
-            let coarse_cell_id = coarse_cell.cell.cell_id;
-            if let Some(parent_entry) = entries
-                .iter_mut()
-                .find(|e| e.cell_id.contains(coarse_cell_id))
-            {
-                parent_entry.geometry_ids.extend(&coarse_cell.geometry_ids);
-                parent_entry.cells.push(coarse_cell);
-            } else {
-                let mut geometries = FxHashSet::default();
-                geometries.extend(&coarse_cell.geometry_ids);
-                self.heap.push(HeapEntry {
-                    cell_id: coarse_cell_id,
-                    source: None,
-                    cells: vec![coarse_cell],
-                    geometry_ids: geometries,
-                });
-            }
-        }
-
-        // Push non-empty entries onto the heap.
-        for entry in entries {
-            let has_geometries = entry.cells.iter().any(|c| !c.geometry_ids.is_empty());
-            if has_geometries {
-                self.heap.push(entry);
             }
         }
     }
@@ -261,6 +332,9 @@ impl<'a> HeapInterleave<'a> {
 impl<'a> Iterator for HeapInterleave<'a> {
     type Item = IndexCell;
 
+    // Curious as to the performance penalty of explode and push for the sponge and sponged cells
+    // since it would simplify this code. One function to explode, one to merge. Would accept some
+    // slow down for that simplification.
     fn next(&mut self) -> Option<IndexCell> {
         loop {
             let mut sponge = self.heap.pop()?;
@@ -273,29 +347,57 @@ impl<'a> Iterator for HeapInterleave<'a> {
                     entry.source = None;
                     self.push_next_from_source(source);
                 }
-                if sponge.cell_id.contains(entry.cell_id) || sponge.cell_id == entry.cell_id {
+                if sponge.cell_id().contains(entry.cell_id()) || sponge.cell_id() == entry.cell_id()
+                {
                     self.absorptions += 1;
-                    sponge.geometry_ids.extend(&entry.geometry_ids);
-                    sponge.cells.extend(entry.cells);
-                    let sponge_size = sponge.cells.len() as u64;
-                    if sponge_size > self.max_sponge_cells {
-                        self.max_sponge_cells = sponge_size;
+                    // First absorption: Source becomes Sponge.
+                    let mut merged = match sponge.cell {
+                        InterleavedCell::Source(cell) => {
+                            let cell_bound = S2PaddedCell::new(cell.cell_id, CELL_PADDING).bound();
+                            let mut m = SpongeCell::new(cell.cell_id, cell_bound);
+                            m.absorb_index_cell_anchors(&cell);
+                            m.absorb_index_cell_edges(&cell, self.edge_cache);
+                            m
+                        }
+                        InterleavedCell::Sponge(m) => m,
+                    };
+                    // Absorb the entry.
+                    match &entry.cell {
+                        InterleavedCell::Sponge(ref entry_merged) => {
+                            merged.absorb_sponge_cell_edges(entry_merged);
+                            merged.absorb_sponge_cell_anchors(entry_merged);
+                        }
+                        InterleavedCell::Source(cell) => {
+                            merged.absorb_index_cell_anchors(cell);
+                            merged.absorb_index_cell_edges(cell, self.edge_cache);
+                        }
                     }
-                    let mut edges = std::mem::take(&mut self.edge_counter);
-                    edges.clear();
-                    self.short_edge_checks +=
-                        count_short_edges(&sponge.cells, sponge.cell_id.level(), &mut edges);
-                    let threshold = self.max_edges.max(
-                        (self.min_short_edge_fraction
-                            * (edges.len() + sponge.geometry_ids.len()) as f64)
-                            as usize,
-                    );
-                    if edges.len() > threshold {
-                        self.coarse_split(sponge);
+                    if merged.edge_count <= self.max_edges {
+                        self.heap.push(HeapEntry {
+                            source: None,
+                            cell: InterleavedCell::Sponge(merged),
+                        });
                     } else {
-                        self.heap.push(sponge);
+                        let short_edges = merged.short_edge_count;
+                        let geometry_count = merged.anchors.len();
+                        let threshold = self.max_edges.max(
+                            (self.min_short_edge_fraction * (short_edges + geometry_count) as f64)
+                                as usize,
+                        );
+                        if short_edges > threshold {
+                            self.splits += 1;
+                            for entry in
+                                coarse_split(merged, &mut self.crossings, &mut self.crossers)
+                            {
+                                self.heap.push(entry);
+                            }
+                        } else {
+                            self.heap.push(HeapEntry {
+                                source: None,
+                                cell: InterleavedCell::Sponge(merged),
+                            });
+                        }
                     }
-                    self.edge_counter = edges;
                 } else {
                     self.cells_emitted += 1;
                     self.heap.push(entry);
@@ -310,88 +412,92 @@ impl<'a> Iterator for HeapInterleave<'a> {
 }
 
 fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
-    if sponge.cells.len() == 1 {
-        return Some(sponge.cells.into_iter().next().unwrap().cell);
-    }
+    let mut merged = match sponge.cell {
+        InterleavedCell::Source(cell) => return Some(cell),
+        InterleavedCell::Sponge(merged) => merged,
+    };
 
-    let sponge_pcell = S2PaddedCell::new(sponge.cell_id, CELL_PADDING);
-    let sponge_center = sponge_pcell.get_center();
+    let cell_id = merged.cell_id;
+    let sponge_center = S2PaddedCell::new(cell_id, CELL_PADDING).get_center();
+    let mut result = IndexCell::new(cell_id);
+    merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
 
-    // Build per-geometry union of edges with anchor info for the ray-cast.
-    let mut edge_unions: FxHashMap<GeometryId, (Vec<(u16, [f64; 3], [f64; 3])>, bool, [f64; 3])> =
-        FxHashMap::default();
+    let mut edge_index = 0;
+    let mut anchor_index = 0;
+    while anchor_index < merged.anchors.len() {
+        let anchor = &merged.anchors[anchor_index];
+        let geometry_id = anchor.geometry_id;
+        let mut contains_center = anchor.contains_center;
+        let mut edge_indices: Vec<u16> = Vec::new();
 
-    for coarse_cell in &sponge.cells {
-        let cell_center = S2PaddedCell::new(coarse_cell.cell.cell_id, CELL_PADDING).get_center();
+        // Advance past edges with geometry_id less than ours.
+        while edge_index < merged.edges.len() && merged.edges[edge_index].geometry_id < geometry_id
+        {
+            edge_index += 1;
+        }
 
-        for shape in &coarse_cell.cell.shapes {
-            let union_entry = edge_unions
-                .entry(shape.geometry_id)
-                .or_insert_with(|| (Vec::new(), shape.contains_center, cell_center));
-            if let Some(geo) = coarse_cell.geometries.get(&shape.geometry_id) {
-                for &edge_idx in &shape.edge_indices {
-                    if let Some(ce) = geo.edges.iter().find(|e| e.edge_index == edge_idx) {
-                        union_entry.0.push((edge_idx, ce.v0, ce.v1));
-                    }
+        // Collect edges matching our geometry_id.
+        if edge_index < merged.edges.len() && merged.edges[edge_index].geometry_id == geometry_id {
+            let mut crosser = super::crossings::S2EdgeCrosser::new(&anchor.center, &sponge_center);
+            while edge_index < merged.edges.len()
+                && merged.edges[edge_index].geometry_id == geometry_id
+            {
+                let edge = &merged.edges[edge_index];
+                edge_indices.push(edge.edge_index);
+                if crosser.edge_or_vertex_crossing_two(&edge.v0, &edge.v1) {
+                    contains_center = !contains_center;
                 }
+                edge_index += 1;
             }
+        }
+
+        if contains_center || !edge_indices.is_empty() {
+            let mut shape = ClippedShape::new(geometry_id, contains_center);
+            shape.edge_indices = edge_indices;
+            result.add_shape(shape);
+        }
+
+        // Skip past remaining anchors with the same geometry_id.
+        anchor_index += 1;
+        while anchor_index < merged.anchors.len()
+            && merged.anchors[anchor_index].geometry_id == geometry_id
+        {
+            anchor_index += 1;
         }
     }
 
-    for (edges, _, _) in edge_unions.values_mut() {
-        edges.sort_unstable_by_key(|(idx, _, _)| *idx);
-        edges.dedup_by_key(|(idx, _, _)| *idx);
-    }
-
-    let mut result = IndexCell::new(sponge.cell_id);
-
-    for (geometry_id, (edges, anchor_flag, anchor_center)) in &edge_unions {
-        if edges.is_empty() {
-            result.add_shape(ClippedShape::new(*geometry_id, *anchor_flag));
-            continue;
-        }
-
-        let mut crosser = super::crossings::S2EdgeCrosser::new(anchor_center, &sponge_center);
-        let mut crossings = 0u32;
-        for &(_, v0, v1) in edges {
-            if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
-                crossings += 1;
-            }
-        }
-        let contains = anchor_flag ^ (crossings % 2 != 0);
-
-        let mut shape = ClippedShape::new(*geometry_id, contains);
-        shape.edge_indices = edges.iter().map(|(idx, _, _)| *idx).collect();
-        result.add_shape(shape);
+    if edge_index < merged.edges.len() {
+        let orphans: Vec<_> = merged.edges[edge_index..]
+            .iter()
+            .map(|e| (e.geometry_id, e.edge_index, e.max_level))
+            .collect();
+        let anchor_gids: Vec<_> = merged
+            .anchors
+            .iter()
+            .map(|a| (a.geometry_id, a.cell_id.0, a.cell_id.level()))
+            .collect();
+        panic!(
+            "flatten: {} orphan edges at cell {} level {}\n  orphans: {:?}\n  anchors: {:?}\n  \
+             total_edges: {} total_anchors: {}",
+            orphans.len(),
+            cell_id.0,
+            cell_id.level(),
+            orphans,
+            &anchor_gids[..anchor_gids.len().min(30)],
+            merged.edges.len(),
+            merged.anchors.len(),
+        );
     }
 
     Some(result)
 }
 
-fn count_short_edges(
-    cells: &[CoarseIndexCell],
-    level: i32,
-    counter: &mut FxHashSet<(GeometryId, u16)>,
-) -> u64 {
-    let mut checked = 0u64;
-    for cell in cells {
-        for (&gid, geo) in &cell.geometries {
-            for edge in &geo.edges {
-                checked += 1;
-                if level < edge.max_level {
-                    counter.insert((gid, edge.edge_index));
-                }
-            }
-        }
-    }
-    checked
-}
-
-struct MergeEdge {
+// Flat index into the geometries map for clipping. Each entry pairs a geometry_id with a
+// SpongeEdge reference so the clipping and crossing test code can work with a flat array indexed
+// by position.
+struct FlatEdge<'a> {
     geometry_id: GeometryId,
-    edge_index: u16,
-    v0: [f64; 3],
-    v1: [f64; 3],
+    edge: &'a SpongeEdge,
     a_uv: [f64; 2],
     b_uv: [f64; 2],
 }
@@ -402,33 +508,9 @@ struct MergeClippedEdge {
     bound: R2Rect,
 }
 
-fn compute_contains_center(
-    from: &[f64; 3],
-    to: &[f64; 3],
-    from_flag: bool,
-    all_edges: &[MergeEdge],
-    clipped: &[MergeClippedEdge],
-    geometry_id: GeometryId,
-    crossing_checks: &mut u64,
-) -> bool {
-    use super::crossings::S2EdgeCrosser;
-    let mut crosser = S2EdgeCrosser::new(from, to);
-    let mut crossings = 0u32;
-    for ce in clipped {
-        let me = &all_edges[ce.edge_index];
-        if me.geometry_id == geometry_id {
-            *crossing_checks += 1;
-            if crosser.edge_or_vertex_crossing_two(&me.v0, &me.v1) {
-                crossings += 1;
-            }
-        }
-    }
-    from_flag ^ (crossings % 2 != 0)
-}
-
 fn clip_to_children(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
+    clipped_edge: &MergeClippedEdge,
+    flat_edge: &FlatEdge,
     middle: &R2Rect,
     child_edges: &mut [[Vec<MergeClippedEdge>; 2]; 2],
 ) {
@@ -437,223 +519,430 @@ fn clip_to_children(
     let v_mid_lo = middle[1].lo();
     let v_mid_hi = middle[1].hi();
 
-    if ce.bound[0].hi() <= u_mid_lo {
-        clip_v_axis(ce, me, v_mid_lo, v_mid_hi, &mut child_edges[0]);
-    } else if ce.bound[0].lo() >= u_mid_hi {
-        clip_v_axis(ce, me, v_mid_lo, v_mid_hi, &mut child_edges[1]);
-    } else if ce.bound[1].hi() <= v_mid_lo {
-        child_edges[0][0].push(clip_u_bound(ce, me, u_mid_hi, true));
-        child_edges[1][0].push(clip_u_bound(ce, me, u_mid_lo, false));
-    } else if ce.bound[1].lo() >= v_mid_hi {
-        child_edges[0][1].push(clip_u_bound(ce, me, u_mid_hi, true));
-        child_edges[1][1].push(clip_u_bound(ce, me, u_mid_lo, false));
+    if clipped_edge.bound[0].hi() <= u_mid_lo {
+        clip_v_axis(
+            clipped_edge,
+            flat_edge,
+            v_mid_lo,
+            v_mid_hi,
+            &mut child_edges[0],
+        );
+    } else if clipped_edge.bound[0].lo() >= u_mid_hi {
+        clip_v_axis(
+            clipped_edge,
+            flat_edge,
+            v_mid_lo,
+            v_mid_hi,
+            &mut child_edges[1],
+        );
+    } else if clipped_edge.bound[1].hi() <= v_mid_lo {
+        child_edges[0][0].push(clip_u_bound(clipped_edge, flat_edge, u_mid_hi, true));
+        child_edges[1][0].push(clip_u_bound(clipped_edge, flat_edge, u_mid_lo, false));
+    } else if clipped_edge.bound[1].lo() >= v_mid_hi {
+        child_edges[0][1].push(clip_u_bound(clipped_edge, flat_edge, u_mid_hi, true));
+        child_edges[1][1].push(clip_u_bound(clipped_edge, flat_edge, u_mid_lo, false));
     } else {
-        let left = clip_u_bound(ce, me, u_mid_hi, true);
-        let right = clip_u_bound(ce, me, u_mid_lo, false);
-        child_edges[0][0].push(clip_v_bound(&left, me, v_mid_hi, true));
-        child_edges[0][1].push(clip_v_bound(&left, me, v_mid_lo, false));
-        child_edges[1][0].push(clip_v_bound(&right, me, v_mid_hi, true));
-        child_edges[1][1].push(clip_v_bound(&right, me, v_mid_lo, false));
+        let left = clip_u_bound(clipped_edge, flat_edge, u_mid_hi, true);
+        if !left.bound.is_empty() {
+            let lower = clip_v_bound(&left, flat_edge, v_mid_hi, true);
+            if !lower.bound.is_empty() {
+                child_edges[0][0].push(lower);
+            }
+            let upper = clip_v_bound(&left, flat_edge, v_mid_lo, false);
+            if !upper.bound.is_empty() {
+                child_edges[0][1].push(upper);
+            }
+        }
+        let right = clip_u_bound(clipped_edge, flat_edge, u_mid_lo, false);
+        if !right.bound.is_empty() {
+            let lower = clip_v_bound(&right, flat_edge, v_mid_hi, true);
+            if !lower.bound.is_empty() {
+                child_edges[1][0].push(lower);
+            }
+            let upper = clip_v_bound(&right, flat_edge, v_mid_lo, false);
+            if !upper.bound.is_empty() {
+                child_edges[1][1].push(upper);
+            }
+        }
     }
 }
 
 fn clip_v_axis(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
+    clipped_edge: &MergeClippedEdge,
+    flat_edge: &FlatEdge,
     v_mid_lo: f64,
     v_mid_hi: f64,
     children: &mut [Vec<MergeClippedEdge>; 2],
 ) {
-    if ce.bound[1].hi() <= v_mid_lo {
-        children[0].push(ce.clone());
-    } else if ce.bound[1].lo() >= v_mid_hi {
-        children[1].push(ce.clone());
+    if clipped_edge.bound[1].hi() <= v_mid_lo {
+        children[0].push(clipped_edge.clone());
+    } else if clipped_edge.bound[1].lo() >= v_mid_hi {
+        children[1].push(clipped_edge.clone());
     } else {
-        children[0].push(clip_v_bound(ce, me, v_mid_hi, true));
-        children[1].push(clip_v_bound(ce, me, v_mid_lo, false));
+        let lower = clip_v_bound(clipped_edge, flat_edge, v_mid_hi, true);
+        if !lower.bound.is_empty() {
+            children[0].push(lower);
+        }
+        let upper = clip_v_bound(clipped_edge, flat_edge, v_mid_lo, false);
+        if !upper.bound.is_empty() {
+            children[1].push(upper);
+        }
     }
 }
 
 fn clip_u_bound(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
-    u_edge: f64,
-    upper: bool,
+    clipped_edge: &MergeClippedEdge,
+    flat_edge: &FlatEdge,
+    u: f64,
+    clip_hi: bool,
 ) -> MergeClippedEdge {
-    let a = me.a_uv;
-    let b = me.b_uv;
-    let v_at_u = interpolate(u_edge, a[0], b[0], a[1], b[1]);
-    let u_bound = if upper {
-        super::r1interval::R1Interval::new(ce.bound[0].lo(), u_edge)
+    if clip_hi {
+        if clipped_edge.bound[0].hi() <= u {
+            return clipped_edge.clone();
+        }
+    } else if clipped_edge.bound[0].lo() >= u {
+        return clipped_edge.clone();
+    }
+
+    let a = flat_edge.a_uv;
+    let b = flat_edge.b_uv;
+    let v = interpolate_double(u, a[0], b[0], a[1], b[1]);
+    let v_clamped = clipped_edge.bound[1].clamp(v);
+
+    let slopes_same_sign = (a[0] > b[0]) == (a[1] > b[1]);
+    let clip_v_hi = if clip_hi {
+        slopes_same_sign
     } else {
-        super::r1interval::R1Interval::new(u_edge, ce.bound[0].hi())
+        !slopes_same_sign
     };
-    let v_lo = ce.bound[1].lo().min(v_at_u);
-    let v_hi = ce.bound[1].hi().max(v_at_u);
+
+    let u_interval = if clip_hi {
+        super::r1interval::R1Interval::new(clipped_edge.bound[0].lo(), u)
+    } else {
+        super::r1interval::R1Interval::new(u, clipped_edge.bound[0].hi())
+    };
+    let v_interval = if clip_v_hi {
+        super::r1interval::R1Interval::new(clipped_edge.bound[1].lo(), v_clamped)
+    } else {
+        super::r1interval::R1Interval::new(v_clamped, clipped_edge.bound[1].hi())
+    };
+    if u_interval.is_empty() || v_interval.is_empty() {
+        return MergeClippedEdge {
+            edge_index: clipped_edge.edge_index,
+            bound: R2Rect::empty(),
+        };
+    }
+
     MergeClippedEdge {
-        edge_index: ce.edge_index,
-        bound: R2Rect::new(u_bound, super::r1interval::R1Interval::new(v_lo, v_hi)),
+        edge_index: clipped_edge.edge_index,
+        bound: R2Rect::new(u_interval, v_interval),
     }
 }
 
 fn clip_v_bound(
-    ce: &MergeClippedEdge,
-    me: &MergeEdge,
-    v_edge: f64,
-    upper: bool,
+    clipped_edge: &MergeClippedEdge,
+    flat_edge: &FlatEdge,
+    v: f64,
+    clip_hi: bool,
 ) -> MergeClippedEdge {
-    let a = me.a_uv;
-    let b = me.b_uv;
-    let u_at_v = interpolate(v_edge, a[1], b[1], a[0], b[0]);
-    let v_bound = if upper {
-        super::r1interval::R1Interval::new(ce.bound[1].lo(), v_edge)
+    if clip_hi {
+        if clipped_edge.bound[1].hi() <= v {
+            return clipped_edge.clone();
+        }
+    } else if clipped_edge.bound[1].lo() >= v {
+        return clipped_edge.clone();
+    }
+
+    let a = flat_edge.a_uv;
+    let b = flat_edge.b_uv;
+    let u = interpolate_double(v, a[1], b[1], a[0], b[0]);
+    let u_clamped = clipped_edge.bound[0].clamp(u);
+
+    let slopes_same_sign = (a[0] > b[0]) == (a[1] > b[1]);
+    let clip_u_hi = if clip_hi {
+        slopes_same_sign
     } else {
-        super::r1interval::R1Interval::new(v_edge, ce.bound[1].hi())
+        !slopes_same_sign
     };
-    let u_lo = ce.bound[0].lo().min(u_at_v);
-    let u_hi = ce.bound[0].hi().max(u_at_v);
+
+    let u_interval = if clip_u_hi {
+        super::r1interval::R1Interval::new(clipped_edge.bound[0].lo(), u_clamped)
+    } else {
+        super::r1interval::R1Interval::new(u_clamped, clipped_edge.bound[0].hi())
+    };
+    let v_interval = if clip_hi {
+        super::r1interval::R1Interval::new(clipped_edge.bound[1].lo(), v)
+    } else {
+        super::r1interval::R1Interval::new(v, clipped_edge.bound[1].hi())
+    };
+    if u_interval.is_empty() || v_interval.is_empty() {
+        return MergeClippedEdge {
+            edge_index: clipped_edge.edge_index,
+            bound: R2Rect::empty(),
+        };
+    }
+
     MergeClippedEdge {
-        edge_index: ce.edge_index,
-        bound: R2Rect::new(super::r1interval::R1Interval::new(u_lo, u_hi), v_bound),
+        edge_index: clipped_edge.edge_index,
+        bound: R2Rect::new(u_interval, v_interval),
     }
 }
 
-fn interpolate(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
-    if (x0 - x1).abs() < f64::EPSILON {
-        return (y0 + y1) * 0.5;
+fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
+    if x0 == x1 {
+        assert!(x == x0 && y0 == y1);
+        return y0;
     }
-    y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    if (x0 - x).abs() <= (x1 - x).abs() {
+        y0 + (y1 - y0) * ((x - x0) / (x1 - x0))
+    } else {
+        y1 + (y0 - y1) * ((x - x1) / (x0 - x1))
+    }
 }
 
-fn subdivide_cell(coarse_cell: &CoarseIndexCell, crossing_checks: &mut u64) -> Vec<IndexCell> {
-    let cell = &coarse_cell.cell;
-    let face = cell.cell_id.face();
-    let pcell = S2PaddedCell::new(cell.cell_id, CELL_PADDING);
-    let parent_center = pcell.get_center();
+fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64) -> Vec<HeapEntry> {
+    let cell_id = merged.cell_id;
+    let parent_split_count = merged.split_count;
+    merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
+    let anchors = &merged.anchors;
 
-    let mut merge_edges: Vec<MergeEdge> = Vec::new();
+    let sponge_level = cell_id.level();
+    let child_cell_ids = cell_id.children();
 
-    for (&gid, geo) in &coarse_cell.geometries {
-        for edge in &geo.edges {
-            let (a_u, a_v) = valid_face_xyz_to_uv(face, &edge.v0);
-            let (b_u, b_v) = valid_face_xyz_to_uv(face, &edge.v1);
+    // SpongeAnchor at the sponge level need crossing tests because their edges are about to be
+    // distributed to children. Finer anchors are distributed to the child that contains them.
+    let mut sponge_anchors: Vec<SpongeAnchor> = Vec::new();
+    let mut child_anchors: [Vec<SpongeAnchor>; 4] = Default::default();
+    for anchor in anchors {
+        if anchor.cell_id.level() == sponge_level {
+            sponge_anchors.push(anchor.clone());
+        } else {
+            for (idx, cell_id) in child_cell_ids.iter().enumerate() {
+                if cell_id.contains(anchor.cell_id) || *cell_id == anchor.cell_id {
+                    child_anchors[idx].push(anchor.clone());
+                    break;
+                }
+            }
+        }
+    }
+    let padded_cell = S2PaddedCell::new(cell_id, CELL_PADDING);
+    let parent_center = padded_cell.get_center();
 
-            merge_edges.push(MergeEdge {
-                geometry_id: gid,
-                edge_index: edge.edge_index,
-                v0: edge.v0,
-                v1: edge.v1,
-                a_uv: [a_u, a_v],
-                b_uv: [b_u, b_v],
+    let mut flat_edges: Vec<FlatEdge> = Vec::new();
+    let mut clipped: Vec<MergeClippedEdge> = Vec::new();
+    for edge in &merged.edges {
+        let geometry_id = edge.geometry_id;
+        let index = flat_edges.len();
+        flat_edges.push(FlatEdge {
+            geometry_id,
+            edge,
+            a_uv: edge.a_uv,
+            b_uv: edge.b_uv,
+        });
+        clipped.push(MergeClippedEdge {
+            edge_index: index,
+            bound: edge.bound,
+        });
+    }
+
+    // Tighten each edge's bound to this sponge's padded cell before clipping to children. The
+    // bound may have come from a coarser level.
+    let sponge_bound = padded_cell.bound();
+    for (ce, fe) in clipped.iter_mut().zip(flat_edges.iter()) {
+        if !clip_edge_bound(fe.a_uv, fe.b_uv, &sponge_bound, &mut ce.bound) {
+            ce.bound = R2Rect::empty();
+        }
+    }
+
+    let middle = padded_cell.middle();
+    let mut child_edges: [[Vec<MergeClippedEdge>; 2]; 2] = Default::default();
+    for clipped_edge in &clipped {
+        if clipped_edge.bound.is_empty() {
+            continue;
+        }
+        let flat_edge = &flat_edges[clipped_edge.edge_index];
+        clip_to_children(clipped_edge, flat_edge, &middle, &mut child_edges);
+    }
+
+    let mut entries = Vec::new();
+
+    for pos in 0..4i32 {
+        let (i, j) = padded_cell.get_child_ij(pos);
+        let child_padded_cell = S2PaddedCell::from_parent(&padded_cell, i, j);
+        let child_center = child_padded_cell.get_center();
+        let child_cell_id = child_padded_cell.id();
+        let mut child_merged = SpongeCell::new(child_cell_id, child_padded_cell.bound());
+
+        let mut sponge_edges: Vec<usize> = Vec::new();
+
+        child_edges[i][j].sort_unstable_by(|a, b| {
+            let a_gid = flat_edges[a.edge_index].geometry_id;
+            let b_gid = flat_edges[b.edge_index].geometry_id;
+            b_gid.cmp(&a_gid)
+        });
+
+        child_anchors[pos as usize].sort_unstable_by_key(|a| a.geometry_id);
+        let mut seen_geometry_id: Option<GeometryId> = None;
+        for anchor in &child_anchors[pos as usize] {
+            if seen_geometry_id == Some(anchor.geometry_id) {
+                continue;
+            }
+            seen_geometry_id = Some(anchor.geometry_id);
+            while let Some(last) = child_edges[i][j].last() {
+                let flat_edge = &flat_edges[last.edge_index];
+                if flat_edge.geometry_id < anchor.geometry_id {
+                    sponge_edges.push(last.edge_index);
+                    child_edges[i][j].pop();
+                } else {
+                    break;
+                }
+            }
+            let contains_center = anchor.contains_center;
+            let mut edge_indices: Vec<u16> = Vec::new();
+            let child_level = sponge_level + 1;
+            while let Some(last) = child_edges[i][j].last() {
+                let flat_edge = &flat_edges[last.edge_index];
+                if flat_edge.geometry_id != anchor.geometry_id {
+                    break;
+                }
+                let clipped_bound = last.bound;
+                edge_indices.push(flat_edge.edge.edge_index);
+                child_merged.edge_count += 1;
+                if child_level < flat_edge.edge.max_level {
+                    child_merged.short_edge_count += 1;
+                }
+                child_merged.edges.push(SpongeEdge {
+                    geometry_id: anchor.geometry_id,
+                    edge_index: flat_edge.edge.edge_index,
+                    max_level: flat_edge.edge.max_level,
+                    v0: flat_edge.edge.v0,
+                    v1: flat_edge.edge.v1,
+                    a_uv: flat_edge.a_uv,
+                    b_uv: flat_edge.b_uv,
+                    bound: clipped_bound,
+                });
+                child_edges[i][j].pop();
+            }
+            assert!(contains_center || !edge_indices.is_empty());
+        }
+
+        // Remaining child_edges are sponge-level edges not claimed by child anchors.
+        while let Some(last) = child_edges[i][j].last() {
+            sponge_edges.push(last.edge_index);
+            child_edges[i][j].pop();
+        }
+        sponge_edges.sort_unstable_by_key(|&idx| flat_edges[idx].geometry_id);
+
+        let mut sponge_edge_index = 0;
+        for anchor in &sponge_anchors {
+            if seen_geometry_id == Some(anchor.geometry_id) {
+                continue;
+            }
+            seen_geometry_id = Some(anchor.geometry_id);
+            let mut contains_center = anchor.contains_center;
+            let mut edge_indices: Vec<u16> = Vec::new();
+
+            while sponge_edge_index < sponge_edges.len()
+                && flat_edges[sponge_edges[sponge_edge_index]].geometry_id < anchor.geometry_id
+            {
+                sponge_edge_index += 1;
+            }
+
+            let child_level = sponge_level + 1;
+            if sponge_edge_index < sponge_edges.len()
+                && flat_edges[sponge_edges[sponge_edge_index]].geometry_id == anchor.geometry_id
+            {
+                *crossers += 1;
+                let mut crosser =
+                    super::crossings::S2EdgeCrosser::new(&parent_center, &child_center);
+                while sponge_edge_index < sponge_edges.len()
+                    && flat_edges[sponge_edges[sponge_edge_index]].geometry_id == anchor.geometry_id
+                {
+                    let flat_edge = &flat_edges[sponge_edges[sponge_edge_index]];
+                    edge_indices.push(flat_edge.edge.edge_index);
+                    *crossings += 1;
+                    if crosser.edge_or_vertex_crossing_two(&flat_edge.edge.v0, &flat_edge.edge.v1) {
+                        contains_center = !contains_center;
+                    }
+                    child_merged.edge_count += 1;
+                    if child_level < flat_edge.edge.max_level {
+                        child_merged.short_edge_count += 1;
+                    }
+                    let mut child_bound = R2Rect::from_point_pair(flat_edge.a_uv, flat_edge.b_uv);
+                    if clip_edge_bound(
+                        flat_edge.a_uv,
+                        flat_edge.b_uv,
+                        &child_padded_cell.bound(),
+                        &mut child_bound,
+                    ) {
+                        child_merged.edges.push(SpongeEdge {
+                            geometry_id: anchor.geometry_id,
+                            edge_index: flat_edge.edge.edge_index,
+                            max_level: flat_edge.edge.max_level,
+                            v0: flat_edge.edge.v0,
+                            v1: flat_edge.edge.v1,
+                            a_uv: flat_edge.a_uv,
+                            b_uv: flat_edge.b_uv,
+                            bound: child_bound,
+                        });
+                    }
+                    sponge_edge_index += 1;
+                }
+            }
+            if contains_center || !edge_indices.is_empty() {
+                child_anchors[pos as usize].push(SpongeAnchor {
+                    geometry_id: anchor.geometry_id,
+                    cell_id: child_cell_id,
+                    center: child_center,
+                    contains_center,
+                });
+            }
+        }
+        // Orphan edges: sponge-level edges for geometries whose anchors haven't arrived yet. The
+        // sponge split before absorbing all overlapping cells. The remaining cells will arrive
+        // later in Hilbert order and bring the anchors. Add the edges to the child's merged set so
+        // they're ready.
+        let child_level = sponge_level + 1;
+        for &idx in &sponge_edges[sponge_edge_index..] {
+            let flat_edge = &flat_edges[idx];
+            let mut child_bound = R2Rect::from_point_pair(flat_edge.a_uv, flat_edge.b_uv);
+            if !clip_edge_bound(
+                flat_edge.a_uv,
+                flat_edge.b_uv,
+                &child_padded_cell.bound(),
+                &mut child_bound,
+            ) {
+                continue;
+            }
+            child_merged.edge_count += 1;
+            if child_level < flat_edge.edge.max_level {
+                child_merged.short_edge_count += 1;
+            }
+            child_merged.edges.push(SpongeEdge {
+                geometry_id: flat_edge.geometry_id,
+                edge_index: flat_edge.edge.edge_index,
+                max_level: flat_edge.edge.max_level,
+                v0: flat_edge.edge.v0,
+                v1: flat_edge.edge.v1,
+                a_uv: flat_edge.a_uv,
+                b_uv: flat_edge.b_uv,
+                bound: child_bound,
+            });
+        }
+
+        if child_merged.edge_count > 0 || !child_anchors[pos as usize].is_empty() {
+            child_merged
+                .edges
+                .sort_unstable_by_key(|e| (e.geometry_id, e.edge_index));
+            child_merged.anchors = std::mem::take(&mut child_anchors[pos as usize]);
+            child_merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
+            child_merged.split_count = parent_split_count + 1;
+            entries.push(HeapEntry {
+                source: None,
+                cell: InterleavedCell::Sponge(child_merged),
             });
         }
     }
 
-    let clipped: Vec<MergeClippedEdge> = merge_edges
-        .iter()
-        .enumerate()
-        .map(|(i, e)| MergeClippedEdge {
-            edge_index: i,
-            bound: R2Rect::from_point_pair(e.a_uv, e.b_uv),
-        })
-        .collect();
-
-    let parent_contains: Vec<(GeometryId, bool)> = cell
-        .shapes
-        .iter()
-        .map(|s| (s.geometry_id, s.contains_center))
-        .collect();
-
-    let middle = pcell.middle();
-    let mut child_edges: [[Vec<MergeClippedEdge>; 2]; 2] = Default::default();
-    for ce in &clipped {
-        let me = &merge_edges[ce.edge_index];
-        clip_to_children(ce, me, &middle, &mut child_edges);
-    }
-
-    let mut children = Vec::new();
-
-    for pos in 0..4i32 {
-        let (i, j) = pcell.get_child_ij(pos);
-        let child_pcell = S2PaddedCell::from_parent(&pcell, i, j);
-        let child_center = child_pcell.get_center();
-        let mut index_cell = IndexCell::new(child_pcell.id());
-
-        if child_edges[i][j].is_empty() {
-            for &(gid, parent_flag) in &parent_contains {
-                let contains = compute_contains_center(
-                    &parent_center,
-                    &child_center,
-                    parent_flag,
-                    &merge_edges,
-                    &clipped,
-                    gid,
-                    crossing_checks,
-                );
-                if contains {
-                    index_cell.add_shape(ClippedShape::new(gid, true));
-                }
-            }
-        } else {
-            let mut edge_map: Vec<(GeometryId, Vec<u16>)> = Vec::new();
-            for ce in &child_edges[i][j] {
-                let me = &merge_edges[ce.edge_index];
-                if let Some((_, edges)) =
-                    edge_map.iter_mut().find(|(gid, _)| *gid == me.geometry_id)
-                {
-                    edges.push(me.edge_index);
-                } else {
-                    edge_map.push((me.geometry_id, vec![me.edge_index]));
-                }
-            }
-
-            let mut emitted_gids: Vec<GeometryId> = Vec::new();
-            for (geometry_id, edge_indices) in &edge_map {
-                let parent_flag = parent_contains
-                    .iter()
-                    .find(|(gid, _)| gid == geometry_id)
-                    .map(|(_, c)| *c)
-                    .unwrap_or(false);
-
-                let contains = compute_contains_center(
-                    &parent_center,
-                    &child_center,
-                    parent_flag,
-                    &merge_edges,
-                    &clipped,
-                    *geometry_id,
-                    crossing_checks,
-                );
-
-                let mut shape = ClippedShape::new(*geometry_id, contains);
-                shape.edge_indices = edge_indices.clone();
-                index_cell.add_shape(shape);
-                emitted_gids.push(*geometry_id);
-            }
-
-            for &(gid, parent_flag) in &parent_contains {
-                if emitted_gids.contains(&gid) {
-                    continue;
-                }
-                let contains = compute_contains_center(
-                    &parent_center,
-                    &child_center,
-                    parent_flag,
-                    &merge_edges,
-                    &clipped,
-                    gid,
-                    crossing_checks,
-                );
-                if contains {
-                    index_cell.add_shape(ClippedShape::new(gid, true));
-                }
-            }
-        }
-
-        if !index_cell.is_empty() {
-            children.push(index_cell);
-        }
-    }
-
-    children
+    entries
 }
