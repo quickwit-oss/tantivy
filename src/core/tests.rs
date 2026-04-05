@@ -466,3 +466,215 @@ fn test_non_text_json_term_freq_bitpacked() {
         assert_eq!(postings.term_freq(), 1u32);
     }
 }
+
+#[test]
+fn test_search_parallel_count_matches_sequential() {
+    let mut schema_builder = Schema::builder();
+    let body_field = schema_builder.add_text_field("body", TEXT);
+    let schema = schema_builder.build();
+
+    let index = Index::create_in_ram(schema);
+    {
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        for i in 0..10_000u32 {
+            let body = if i % 3 == 0 { "hello world" } else { "goodbye" };
+            index_writer
+                .add_document(doc!(body_field => body))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+    }
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    let query = TermQuery::new(
+        Term::from_field_text(body_field, "hello"),
+        IndexRecordOption::Basic,
+    );
+
+    let sequential_count: usize = searcher.search(&query, &Count).unwrap();
+    let parallel_count: usize = searcher.search_parallel(&query, &Count, 4).unwrap();
+
+    assert_eq!(sequential_count, parallel_count);
+    // Every 3rd doc has "hello"
+    assert_eq!(sequential_count, 3334);
+}
+
+#[test]
+fn test_search_parallel_top_docs_matches_sequential() {
+    use crate::collector::TopDocs;
+
+    let mut schema_builder = Schema::builder();
+    let body_field = schema_builder.add_text_field("body", TEXT);
+    let schema = schema_builder.build();
+
+    let index = Index::create_in_ram(schema);
+    {
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        for i in 0..5_000u32 {
+            let body = format!("document number {i} with some text for scoring");
+            index_writer
+                .add_document(doc!(body_field => body))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+    }
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    let query = TermQuery::new(
+        Term::from_field_text(body_field, "document"),
+        IndexRecordOption::WithFreqs,
+    );
+
+    let collector = TopDocs::with_limit(10).order_by_score();
+    let sequential = searcher.search(&query, &collector).unwrap();
+    let parallel = searcher.search_parallel(&query, &collector, 4).unwrap();
+
+    assert_eq!(sequential.len(), parallel.len());
+    // All docs have the same score (single term, same freq), so verify counts match
+    assert_eq!(sequential.len(), 10);
+    assert_eq!(parallel.len(), 10);
+}
+
+#[test]
+fn test_search_parallel_with_deletes() {
+    let mut schema_builder = Schema::builder();
+    let body_field = schema_builder.add_text_field("body", TEXT);
+    let schema = schema_builder.build();
+
+    let index = Index::create_in_ram(schema);
+    {
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        for i in 0..1_000u32 {
+            let body = if i % 2 == 0 { "keep this" } else { "delete this" };
+            index_writer
+                .add_document(doc!(body_field => body))
+                .unwrap();
+        }
+        index_writer.delete_term(Term::from_field_text(body_field, "delete"));
+        index_writer.commit().unwrap();
+    }
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    let query = TermQuery::new(
+        Term::from_field_text(body_field, "this"),
+        IndexRecordOption::Basic,
+    );
+
+    let sequential_count: usize = searcher.search(&query, &Count).unwrap();
+    let parallel_count: usize = searcher.search_parallel(&query, &Count, 4).unwrap();
+
+    assert_eq!(sequential_count, parallel_count);
+    // Only "keep this" docs survive (even-numbered)
+    assert_eq!(sequential_count, 500);
+}
+
+#[test]
+fn test_search_parallel_multi_segment() {
+    let mut schema_builder = Schema::builder();
+    let body_field = schema_builder.add_text_field("body", TEXT);
+    let schema = schema_builder.build();
+
+    let index = Index::create_in_ram(schema);
+    {
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        for _ in 0..3 {
+            for i in 0..200u32 {
+                let body = if i % 5 == 0 {
+                    "target word here"
+                } else {
+                    "other text only"
+                };
+                index_writer
+                    .add_document(doc!(body_field => body))
+                    .unwrap();
+            }
+            index_writer.commit().unwrap();
+        }
+    }
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    assert_eq!(searcher.segment_readers().len(), 3);
+
+    let query = TermQuery::new(
+        Term::from_field_text(body_field, "target"),
+        IndexRecordOption::Basic,
+    );
+
+    let sequential_count: usize = searcher.search(&query, &Count).unwrap();
+    let parallel_count: usize = searcher.search_parallel(&query, &Count, 4).unwrap();
+
+    assert_eq!(sequential_count, parallel_count);
+    assert_eq!(sequential_count, 120); // 40 per segment × 3
+}
+
+#[test]
+fn test_search_parallel_single_thread_fallback() {
+    let mut schema_builder = Schema::builder();
+    let body_field = schema_builder.add_text_field("body", TEXT);
+    let schema = schema_builder.build();
+
+    let index = Index::create_in_ram(schema);
+    {
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        for _ in 0..100u32 {
+            index_writer
+                .add_document(doc!(body_field => "hello world"))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+    }
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    let query = TermQuery::new(
+        Term::from_field_text(body_field, "hello"),
+        IndexRecordOption::Basic,
+    );
+
+    // num_threads=1 should work identically to sequential
+    let count: usize = searcher.search_parallel(&query, &Count, 1).unwrap();
+    assert_eq!(count, 100);
+}
+
+#[test]
+fn test_search_parallel_above_split_threshold() {
+    // MIN_DOCS_FOR_SPLIT = 100_000, so we need > 100K docs in one segment
+    // to actually exercise the parallel split path.
+    let mut schema_builder = Schema::builder();
+    let body_field = schema_builder.add_text_field("body", TEXT);
+    let schema = schema_builder.build();
+
+    let index = Index::create_in_ram(schema);
+    {
+        let mut index_writer: IndexWriter = index.writer_for_tests().unwrap();
+        for i in 0..120_000u32 {
+            let body = if i % 4 == 0 { "target word" } else { "filler text" };
+            index_writer
+                .add_document(doc!(body_field => body))
+                .unwrap();
+        }
+        index_writer.commit().unwrap();
+    }
+
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    // Confirm single segment with > 100K docs
+    assert_eq!(searcher.segment_readers().len(), 1);
+    assert!(searcher.segment_readers()[0].max_doc() >= 100_000);
+
+    let query = TermQuery::new(
+        Term::from_field_text(body_field, "target"),
+        IndexRecordOption::Basic,
+    );
+
+    let sequential_count: usize = searcher.search(&query, &Count).unwrap();
+    let parallel_count: usize = searcher.search_parallel(&query, &Count, 4).unwrap();
+
+    assert_eq!(sequential_count, parallel_count);
+    assert_eq!(sequential_count, 30_000); // 120K / 4
+}

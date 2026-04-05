@@ -83,6 +83,44 @@ impl SkipIndex {
             .flat_map(|layer| layer.cursor())
     }
 
+    /// Returns checkpoints for a slice of doc_ids that are **sorted in ascending order**.
+    ///
+    /// This is more efficient than calling `seek()` repeatedly because it iterates
+    /// through the bottom-layer checkpoints only once (O(checkpoints + N)) instead of
+    /// O(N × checkpoints).
+    ///
+    /// The returned `Vec` has the same length as `sorted_doc_ids`.
+    /// Returns `None` for any doc_id that is beyond the last checkpoint.
+    pub fn seek_sorted(&self, sorted_doc_ids: &[DocId]) -> Vec<Option<Checkpoint>> {
+        if sorted_doc_ids.is_empty() {
+            return Vec::new();
+        }
+        let mut results = Vec::with_capacity(sorted_doc_ids.len());
+        let Some(last_layer) = self.layers.last() else {
+            return vec![None; sorted_doc_ids.len()];
+        };
+        let mut checkpoint_iter = last_layer.cursor();
+        let mut current_checkpoint: Option<Checkpoint> = checkpoint_iter.next();
+        for &doc_id in sorted_doc_ids {
+            // Advance the checkpoint iterator until we find one covering doc_id
+            while let Some(ref cp) = current_checkpoint {
+                if cp.doc_range.end > doc_id {
+                    break;
+                }
+                current_checkpoint = checkpoint_iter.next();
+            }
+            match &current_checkpoint {
+                Some(cp) if cp.doc_range.start <= doc_id && cp.doc_range.end > doc_id => {
+                    results.push(Some(cp.clone()));
+                }
+                _ => {
+                    results.push(None);
+                }
+            }
+        }
+        results
+    }
+
     pub fn seek(&self, target: DocId) -> Option<Checkpoint> {
         let first_layer_len = self
             .layers

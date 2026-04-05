@@ -81,10 +81,15 @@
 //!
 //! See the `custom_collector` example.
 
+use std::ops::Range;
+
 use downcast_rs::impl_downcast;
 
+use crate::docset::COLLECT_BLOCK_BUFFER_LEN;
+use crate::query::Weight;
 use crate::schema::Schema;
-use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
+use crate::query::Scorer;
+use crate::{DocId, Score, SegmentOrdinal, SegmentReader, TERMINATED};
 
 mod count_collector;
 pub use self::count_collector::Count;
@@ -108,7 +113,6 @@ mod sort_key_top_collector;
 pub use self::sort_key::{SegmentSortKeyComputer, SortKeyComputer};
 mod facet_collector;
 pub use self::facet_collector::{FacetCollector, FacetCounts};
-use crate::query::Weight;
 
 mod docset_collector;
 pub use self::docset_collector::DocSetCollector;
@@ -218,6 +222,158 @@ pub(crate) fn default_collect_segment_impl<TSegmentCollector: SegmentCollector>(
         }
     }
     Ok(())
+}
+
+/// Collects documents from a scorer within a limited doc_id range.
+///
+/// This is used by [`collect_segment_parallel`] to split a segment's doc space
+/// into ranges and collect each range independently.
+fn collect_in_doc_range<TSegmentCollector: SegmentCollector>(
+    segment_collector: &mut TSegmentCollector,
+    scorer: &mut dyn Scorer,
+    alive_bitset: Option<&crate::fastfield::AliveBitSet>,
+    doc_range: Range<DocId>,
+    with_scoring: bool,
+) -> crate::Result<()> {
+    // Seek to start of range
+    if scorer.doc() < doc_range.start {
+        scorer.seek(doc_range.start);
+    }
+
+    match (alive_bitset, with_scoring) {
+        (Some(alive_bitset), true) => {
+            let mut doc = scorer.doc();
+            while doc != TERMINATED && doc < doc_range.end {
+                if alive_bitset.is_alive(doc) {
+                    segment_collector.collect(doc, scorer.score());
+                }
+                doc = scorer.advance();
+            }
+        }
+        (Some(alive_bitset), false) => {
+            let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
+            loop {
+                let num = scorer.fill_buffer(&mut buffer);
+                if num == 0 {
+                    break;
+                }
+                let in_range = buffer[..num]
+                    .iter()
+                    .position(|&d| d >= doc_range.end)
+                    .unwrap_or(num);
+                for &doc in &buffer[..in_range] {
+                    if alive_bitset.is_alive(doc) {
+                        segment_collector.collect(doc, 0.0);
+                    }
+                }
+                if in_range < num {
+                    break;
+                }
+            }
+        }
+        (None, true) => {
+            let mut doc = scorer.doc();
+            while doc != TERMINATED && doc < doc_range.end {
+                segment_collector.collect(doc, scorer.score());
+                doc = scorer.advance();
+            }
+        }
+        (None, false) => {
+            let mut buffer = [0u32; COLLECT_BLOCK_BUFFER_LEN];
+            loop {
+                let num = scorer.fill_buffer(&mut buffer);
+                if num == 0 {
+                    break;
+                }
+                let in_range = buffer[..num]
+                    .iter()
+                    .position(|&d| d >= doc_range.end)
+                    .unwrap_or(num);
+                if in_range > 0 {
+                    segment_collector.collect_block(&buffer[..in_range]);
+                }
+                if in_range < num {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Collects documents from a single segment using multiple parallel scorers
+/// on disjoint doc_id ranges.
+///
+/// This enables intra-segment parallelism: a large segment (e.g., 10M docs)
+/// is split into `num_splits` ranges, each scored and collected independently
+/// via rayon.
+///
+/// Returns a `Vec` of per-range segment fruits (same type as
+/// [`Collector::collect_segment`] returns). The caller should merge these
+/// along with fruits from other segments via [`Collector::merge_fruits`].
+///
+/// # Arguments
+/// - `num_splits` — number of parallel ranges (typically = number of CPU cores)
+///
+/// # When to use
+/// This is beneficial for indices with few large segments where inter-segment
+/// parallelism alone is insufficient.
+pub(crate) fn collect_segment_parallel<C: Collector>(
+    collector: &C,
+    weight: &dyn Weight,
+    segment_ord: u32,
+    reader: &SegmentReader,
+    num_splits: usize,
+) -> crate::Result<Vec<<C::Child as SegmentCollector>::Fruit>> {
+    let max_doc = reader.max_doc();
+    let with_scoring = collector.requires_scoring();
+    let alive_bitset = reader.alive_bitset();
+    let range_size = (max_doc as usize + num_splits - 1) / num_splits;
+
+    // Use rayon's current thread pool for parallel collection
+    let (sender, receiver) = crossbeam_channel::unbounded();
+
+    rayon::scope(|scope| {
+        for split_idx in 0..num_splits {
+            let start = (split_idx * range_size) as DocId;
+            let end = std::cmp::min((split_idx + 1) * range_size, max_doc as usize) as DocId;
+            if start >= end {
+                continue;
+            }
+            let sender_ref = &sender;
+            scope.spawn(move |_| {
+                let result = (|| -> crate::Result<_> {
+                    let mut segment_collector = collector.for_segment(segment_ord, reader)?;
+                    let mut scorer = weight.scorer(reader, 1.0)?;
+                    collect_in_doc_range(
+                        &mut segment_collector,
+                        scorer.as_mut(),
+                        alive_bitset,
+                        start..end,
+                        with_scoring,
+                    )?;
+                    Ok(segment_collector.harvest())
+                })();
+                let _ = sender_ref.send((split_idx, result));
+            });
+        }
+    });
+    // Drop sender so the receiver iterator terminates
+    drop(sender);
+
+    let effective_splits = std::cmp::min(num_splits, max_doc as usize);
+    let mut results: Vec<Option<crate::Result<_>>> =
+        (0..effective_splits).map(|_| None).collect();
+    for (idx, result) in receiver {
+        if idx < results.len() {
+            results[idx] = Some(result);
+        }
+    }
+
+    results
+        .into_iter()
+        .flatten()
+        .collect::<crate::Result<Vec<_>>>()
 }
 
 impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCollector> {

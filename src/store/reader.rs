@@ -257,6 +257,105 @@ impl StoreReader {
         Self::get_document_bytes_from_block(block, doc_id, &checkpoint)
     }
 
+    /// Reads multiple documents in a single batch, minimizing block decompressions.
+    ///
+    /// Documents are returned in the **same order** as the input `doc_ids`.
+    /// Internally, doc_ids are sorted so that each compressed block is decompressed
+    /// at most once, regardless of how many documents it contains.
+    ///
+    /// This is significantly faster than calling [`get`](Self::get) in a loop
+    /// when fetching many documents (e.g., 500 search results), because:
+    /// - Each block is decompressed only once instead of potentially N times
+    /// - I/O access is sequential (blocks are read in order)
+    /// - SkipIndex is traversed once via `seek_sorted` instead of N separate seeks
+    pub fn get_batch<D: DocumentDeserialize>(
+        &self,
+        doc_ids: &[DocId],
+    ) -> crate::Result<Vec<D>> {
+        let byte_results = self.get_document_bytes_batch(doc_ids)?;
+        byte_results
+            .into_iter()
+            .map(|mut doc_bytes| {
+                let deserializer = BinaryDocumentDeserializer::from_reader(
+                    &mut doc_bytes,
+                    self.doc_store_version,
+                )
+                .map_err(crate::TantivyError::from)?;
+                D::deserialize(deserializer).map_err(crate::TantivyError::from)
+            })
+            .collect()
+    }
+
+    /// Returns raw bytes for multiple documents in a single batch.
+    ///
+    /// This is the low-level batch counterpart of
+    /// [`get_document_bytes`](Self::get_document_bytes).
+    /// Results are returned in the same order as the input `doc_ids`.
+    pub fn get_document_bytes_batch(
+        &self,
+        doc_ids: &[DocId],
+    ) -> crate::Result<Vec<OwnedBytes>> {
+        if doc_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        if doc_ids.len() == 1 {
+            return Ok(vec![self.get_document_bytes(doc_ids[0])?]);
+        }
+
+        let num_docs = doc_ids.len();
+
+        // Create index array sorted by doc_id (ascending) so we access blocks sequentially
+        let mut sorted_indices: Vec<usize> = (0..num_docs).collect();
+        sorted_indices.sort_unstable_by_key(|&i| doc_ids[i]);
+
+        let sorted_doc_ids: Vec<DocId> = sorted_indices.iter().map(|&i| doc_ids[i]).collect();
+
+        // Resolve all checkpoints in one linear scan of the skip index
+        let checkpoints = self.skip_index.seek_sorted(&sorted_doc_ids);
+
+        // Group by block (consecutive entries with the same byte_range.start)
+        // and decompress each block only once
+        let mut results: Vec<OwnedBytes> = vec![OwnedBytes::empty(); num_docs];
+        let mut group_start = 0;
+
+        while group_start < num_docs {
+            let checkpoint = checkpoints[group_start].as_ref().ok_or_else(|| {
+                crate::TantivyError::InvalidArgument(format!(
+                    "Failed to lookup Doc #{}.",
+                    sorted_doc_ids[group_start]
+                ))
+            })?;
+
+            // Find the end of this block group
+            let mut group_end = group_start + 1;
+            while group_end < num_docs {
+                if let Some(ref next_cp) = checkpoints[group_end] {
+                    if next_cp.byte_range.start == checkpoint.byte_range.start {
+                        group_end += 1;
+                        continue;
+                    }
+                }
+                break;
+            }
+
+            // Decompress this block once
+            let block = self.read_block(checkpoint)?;
+
+            // Extract all documents from this block
+            for idx in group_start..group_end {
+                let doc_id = sorted_doc_ids[idx];
+                let original_idx = sorted_indices[idx];
+                let doc_bytes =
+                    Self::get_document_bytes_from_block(block.clone(), doc_id, checkpoint)?;
+                results[original_idx] = doc_bytes;
+            }
+
+            group_start = group_end;
+        }
+
+        Ok(results)
+    }
+
     /// Advanced API.
     ///
     /// In most cases use [`get_document_bytes`](Self::get_document_bytes).
@@ -501,6 +600,179 @@ mod tests {
 
         assert_eq!(store.cache.peek_lru(), Some(232206));
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_batch_empty() -> crate::Result<()> {
+        let directory = RamDirectory::create();
+        let path = Path::new("store");
+        let writer = directory.open_write(path)?;
+        let _schema = write_lorem_ipsum_store(writer, 100, Compressor::None, BLOCK_SIZE, true);
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
+
+        let result: Vec<TantivyDocument> = store.get_batch(&[])?;
+        assert!(result.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_batch_single_doc() -> crate::Result<()> {
+        let directory = RamDirectory::create();
+        let path = Path::new("store");
+        let writer = directory.open_write(path)?;
+        let schema = write_lorem_ipsum_store(writer, 100, Compressor::None, BLOCK_SIZE, true);
+        let title = schema.get_field("title").unwrap();
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
+
+        let docs: Vec<TantivyDocument> = store.get_batch(&[42])?;
+        assert_eq!(docs.len(), 1);
+        assert_eq!(get_text_field(&docs[0], &title), Some("Doc 42"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_batch_preserves_order() -> crate::Result<()> {
+        let directory = RamDirectory::create();
+        let path = Path::new("store");
+        let writer = directory.open_write(path)?;
+        let schema = write_lorem_ipsum_store(writer, 500, Compressor::None, BLOCK_SIZE, true);
+        let title = schema.get_field("title").unwrap();
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
+
+        // Request docs in reverse order (simulating score-sorted results)
+        let doc_ids: Vec<u32> = vec![499, 200, 0, 150, 300, 50, 499];
+        let docs: Vec<TantivyDocument> = store.get_batch(&doc_ids)?;
+
+        assert_eq!(docs.len(), doc_ids.len());
+        for (doc, &doc_id) in docs.iter().zip(doc_ids.iter()) {
+            assert_eq!(
+                get_text_field(doc, &title),
+                Some(format!("Doc {doc_id}").as_str())
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_batch_all_docs() -> crate::Result<()> {
+        let directory = RamDirectory::create();
+        let path = Path::new("store");
+        let writer = directory.open_write(path)?;
+        let schema = write_lorem_ipsum_store(writer, 500, Compressor::None, BLOCK_SIZE, true);
+        let title = schema.get_field("title").unwrap();
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
+
+        // Fetch all 500 docs in one batch
+        let doc_ids: Vec<u32> = (0..500).collect();
+        let docs: Vec<TantivyDocument> = store.get_batch(&doc_ids)?;
+        assert_eq!(docs.len(), 500);
+        for (i, doc) in docs.iter().enumerate() {
+            assert_eq!(
+                get_text_field(doc, &title),
+                Some(format!("Doc {i}").as_str())
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_batch_matches_individual_get() -> crate::Result<()> {
+        let directory = RamDirectory::create();
+        let path = Path::new("store");
+        let writer = directory.open_write(path)?;
+        let schema = write_lorem_ipsum_store(writer, 500, Compressor::None, BLOCK_SIZE, true);
+        let title = schema.get_field("title").unwrap();
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
+
+        let doc_ids: Vec<u32> = vec![0, 1, 10, 50, 100, 250, 499, 300, 150];
+
+        // Get individually
+        let individual: Vec<String> = doc_ids
+            .iter()
+            .map(|&id| {
+                let doc: TantivyDocument = store.get(id).unwrap();
+                get_text_field(&doc, &title).unwrap().to_string()
+            })
+            .collect();
+
+        // Get as batch
+        let batch_docs: Vec<TantivyDocument> = store.get_batch(&doc_ids)?;
+        let batch: Vec<String> = batch_docs
+            .iter()
+            .map(|doc| get_text_field(doc, &title).unwrap().to_string())
+            .collect();
+
+        assert_eq!(individual, batch);
+        Ok(())
+    }
+
+    #[cfg(feature = "zstd-compression")]
+    #[test]
+    fn test_get_batch_with_zstd() -> crate::Result<()> {
+        use crate::store::ZstdCompressor;
+
+        let directory = RamDirectory::create();
+        let path = Path::new("store");
+        let writer = directory.open_write(path)?;
+        let schema = write_lorem_ipsum_store(
+            writer,
+            500,
+            Compressor::Zstd(ZstdCompressor::default()),
+            BLOCK_SIZE,
+            true,
+        );
+        let title = schema.get_field("title").unwrap();
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, DOCSTORE_CACHE_CAPACITY)?;
+
+        let doc_ids: Vec<u32> = vec![499, 0, 250, 100, 400];
+        let docs: Vec<TantivyDocument> = store.get_batch(&doc_ids)?;
+
+        assert_eq!(docs.len(), 5);
+        assert_eq!(get_text_field(&docs[0], &title), Some("Doc 499"));
+        assert_eq!(get_text_field(&docs[1], &title), Some("Doc 0"));
+        assert_eq!(get_text_field(&docs[2], &title), Some("Doc 250"));
+        assert_eq!(get_text_field(&docs[3], &title), Some("Doc 100"));
+        assert_eq!(get_text_field(&docs[4], &title), Some("Doc 400"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_batch_fewer_decompressions() -> crate::Result<()> {
+        let directory = RamDirectory::create();
+        let path = Path::new("store");
+        let writer = directory.open_write(path)?;
+        // Use small block size to create many blocks, with no cache
+        let _schema = write_lorem_ipsum_store(writer, 500, Compressor::None, 4096, true);
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file, 0)?; // cache disabled
+
+        // Fetch 500 docs individually — each miss causes a decompress
+        for i in 0..500u32 {
+            let _: TantivyDocument = store.get(i)?;
+        }
+        let individual_misses = store.cache_stats().cache_misses;
+
+        // Recreate store to reset cache stats
+        let store_file2 = directory.open_read(path)?;
+        let store2 = StoreReader::open(store_file2, 0)?;
+        let doc_ids: Vec<u32> = (0..500).collect();
+        let _: Vec<TantivyDocument> = store2.get_batch(&doc_ids)?;
+        let batch_misses = store2.cache_stats().cache_misses;
+
+        // Batch should have far fewer misses (= unique blocks)
+        // Individual with no cache: every call is a miss = 500
+        // Batch: one miss per unique block ≈ number of blocks
+        assert!(
+            batch_misses < individual_misses,
+            "batch_misses ({batch_misses}) should be less than individual_misses ({individual_misses})"
+        );
         Ok(())
     }
 }

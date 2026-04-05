@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::{fmt, io};
 
-use crate::collector::Collector;
+use crate::collector::{self, Collector};
 use crate::core::Executor;
 use crate::index::{SegmentId, SegmentReader};
 use crate::query::{Bm25StatisticsProvider, EnableScoring, Query};
@@ -88,6 +88,64 @@ impl Searcher {
     pub fn doc<D: DocumentDeserialize>(&self, doc_address: DocAddress) -> crate::Result<D> {
         let store_reader = &self.inner.store_readers[doc_address.segment_ord as usize];
         store_reader.get(doc_address.doc_id)
+    }
+
+    /// Fetches multiple documents in a batch, minimizing block decompressions.
+    ///
+    /// Documents are returned in the **same order** as the input `doc_addresses`.
+    /// Internally, requests are grouped by segment and each segment's store reader
+    /// uses [`StoreReader::get_batch`] to decompress each block at most once.
+    ///
+    /// This is much faster than calling [`doc`](Self::doc) in a loop when
+    /// fetching many documents (e.g., a page of 500 search results).
+    pub fn docs_batch<D: DocumentDeserialize>(
+        &self,
+        doc_addresses: &[DocAddress],
+    ) -> crate::Result<Vec<D>> {
+        if doc_addresses.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let num_docs = doc_addresses.len();
+
+        // Group by segment, preserving original indices
+        let num_segments = self.inner.store_readers.len();
+        let mut segment_groups: Vec<Vec<(usize, u32)>> = vec![Vec::new(); num_segments];
+        for (i, addr) in doc_addresses.iter().enumerate() {
+            let seg = addr.segment_ord as usize;
+            if seg >= num_segments {
+                return Err(crate::TantivyError::InvalidArgument(format!(
+                    "docs_batch: segment_ord {seg} out of range (num_segments={num_segments})"
+                )));
+            }
+            segment_groups[seg].push((i, addr.doc_id));
+        }
+
+        let mut results: Vec<Option<D>> = (0..num_docs).map(|_| None).collect();
+
+        for (segment_ord, group) in segment_groups.iter().enumerate() {
+            if group.is_empty() {
+                continue;
+            }
+            let store_reader = &self.inner.store_readers[segment_ord];
+            let doc_ids: Vec<u32> = group.iter().map(|&(_, doc_id)| doc_id).collect();
+            let docs: Vec<D> = store_reader.get_batch(&doc_ids)?;
+            for (doc, &(original_idx, _)) in docs.into_iter().zip(group.iter()) {
+                results[original_idx] = Some(doc);
+            }
+        }
+
+        results
+            .into_iter()
+            .enumerate()
+            .map(|(i, opt)| {
+                opt.ok_or_else(|| {
+                    crate::TantivyError::InternalError(format!(
+                        "docs_batch: missing result for doc_address at index {i}"
+                    ))
+                })
+            })
+            .collect()
     }
 
     /// The cache stats for the underlying store reader.
@@ -234,6 +292,80 @@ impl Searcher {
             segment_readers.iter().enumerate(),
         )?;
         collector.merge_fruits(fruits)
+    }
+
+    /// Searches with intra-segment parallelism using rayon.
+    ///
+    /// Unlike [`search_with_executor`](Self::search_with_executor) which creates one task
+    /// per segment (powerless for single-segment indices), this method splits each
+    /// segment's document space into ranges and scores them concurrently.
+    ///
+    /// This is effective for indices with few large segments where inter-segment
+    /// parallelism alone does not fully utilize available cores.
+    ///
+    /// # Arguments
+    /// - `num_threads` — number of parallel splits per segment (typically = CPU core count)
+    ///
+    /// # Notes
+    /// - Uses rayon's current thread pool (or install one via `rayon::ThreadPoolBuilder`)
+    /// - Each split creates its own `Scorer`, so query compilation cost is multiplied
+    /// - For indices with many small segments, regular `search_with_executor` with a
+    ///   `ThreadPool` executor may be more efficient
+    /// - Collectors with custom `collect_segment` implementations (e.g., `TopBySortKeyCollector`)
+    ///   will fall back to the default collection logic within each split, which may bypass
+    ///   collector-specific optimizations like `for_each_pruning`. For such collectors,
+    ///   prefer `search_with_executor` with a `ThreadPool` executor instead.
+    pub fn search_parallel<C: Collector>(
+        &self,
+        query: &dyn Query,
+        collector: &C,
+        num_threads: usize,
+    ) -> crate::Result<C::Fruit> {
+        let enabled_scoring = if collector.requires_scoring() {
+            EnableScoring::enabled_from_statistics_provider(self, self)
+        } else {
+            EnableScoring::disabled_from_searcher(self)
+        };
+        let weight = query.weight(enabled_scoring)?;
+        collector.check_schema(self.schema())?;
+        let segment_readers = self.segment_readers();
+
+        // Minimum docs per segment to justify parallel splitting.
+        // Set high enough that the rayon overhead is amortized and
+        // the loss of collector-specific optimizations is acceptable.
+        const MIN_DOCS_FOR_SPLIT: u32 = 100_000;
+
+        let num_threads = num_threads.max(1);
+
+        let mut all_fruits = Vec::new();
+        for (segment_ord, segment_reader) in segment_readers.iter().enumerate() {
+            let effective_splits =
+                if segment_reader.max_doc() >= MIN_DOCS_FOR_SPLIT && num_threads > 1 {
+                    num_threads
+                } else {
+                    1
+                };
+
+            if effective_splits == 1 {
+                let fruit = collector.collect_segment(
+                    weight.as_ref(),
+                    segment_ord as u32,
+                    segment_reader,
+                )?;
+                all_fruits.push(fruit);
+            } else {
+                let mut range_fruits = collector::collect_segment_parallel(
+                    collector,
+                    weight.as_ref(),
+                    segment_ord as u32,
+                    segment_reader,
+                    effective_splits,
+                )?;
+                all_fruits.append(&mut range_fruits);
+            }
+        }
+
+        collector.merge_fruits(all_fruits)
     }
 
     /// Summarize total space usage of this searcher.

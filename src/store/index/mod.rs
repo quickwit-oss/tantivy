@@ -243,4 +243,110 @@ mod tests {
              test_skip_index_aux(skip_index, &checkpoints[..]);
          }
     }
+
+    #[test]
+    fn test_seek_sorted_empty() -> io::Result<()> {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_index_builder = SkipIndexBuilder::new();
+        skip_index_builder.insert(Checkpoint {
+            doc_range: 0..5,
+            byte_range: 0..100,
+        });
+        skip_index_builder.serialize_into(&mut output)?;
+        let skip_index = SkipIndex::open(OwnedBytes::new(output));
+
+        let result = skip_index.seek_sorted(&[]);
+        assert!(result.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_seek_sorted_matches_individual_seek() -> io::Result<()> {
+        let checkpoints = vec![
+            Checkpoint {
+                doc_range: 0..3,
+                byte_range: 0..9,
+            },
+            Checkpoint {
+                doc_range: 3..4,
+                byte_range: 9..25,
+            },
+            Checkpoint {
+                doc_range: 4..6,
+                byte_range: 25..49,
+            },
+            Checkpoint {
+                doc_range: 6..8,
+                byte_range: 49..81,
+            },
+            Checkpoint {
+                doc_range: 8..10,
+                byte_range: 81..100,
+            },
+        ];
+
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_index_builder = SkipIndexBuilder::new();
+        for cp in &checkpoints {
+            skip_index_builder.insert(cp.clone());
+        }
+        skip_index_builder.serialize_into(&mut output)?;
+        let skip_index = SkipIndex::open(OwnedBytes::new(output));
+
+        let sorted_doc_ids: Vec<DocId> = vec![0, 1, 2, 3, 5, 7, 9];
+        let batch_results = skip_index.seek_sorted(&sorted_doc_ids);
+
+        for (i, &doc_id) in sorted_doc_ids.iter().enumerate() {
+            let individual = skip_index.seek(doc_id);
+            assert_eq!(
+                batch_results[i], individual,
+                "Mismatch for doc_id {doc_id}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_seek_sorted_beyond_range() -> io::Result<()> {
+        let mut output: Vec<u8> = Vec::new();
+        let mut skip_index_builder = SkipIndexBuilder::new();
+        skip_index_builder.insert(Checkpoint {
+            doc_range: 0..5,
+            byte_range: 0..100,
+        });
+        skip_index_builder.serialize_into(&mut output)?;
+        let skip_index = SkipIndex::open(OwnedBytes::new(output));
+
+        let results = skip_index.seek_sorted(&[0, 3, 5, 10]);
+        assert!(results[0].is_some());
+        assert!(results[1].is_some());
+        assert!(results[2].is_none()); // doc_id 5 is out of range [0..5)
+        assert!(results[3].is_none());
+        Ok(())
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        #[test]
+        fn test_proptest_seek_sorted(checkpoints in monotonic_checkpoints(100)) {
+            let mut skip_index_builder = SkipIndexBuilder::new();
+            for checkpoint in checkpoints.iter().cloned() {
+                skip_index_builder.insert(checkpoint);
+            }
+            let mut buffer = Vec::new();
+            skip_index_builder.serialize_into(&mut buffer).unwrap();
+            let skip_index = SkipIndex::open(OwnedBytes::new(buffer));
+
+            if let Some(last_cp) = checkpoints.last() {
+                // Test with all doc_ids in range + a few beyond
+                let sorted_doc_ids: Vec<DocId> =
+                    (0..last_cp.doc_range.end + 2).collect();
+                let batch = skip_index.seek_sorted(&sorted_doc_ids);
+                for (i, &doc_id) in sorted_doc_ids.iter().enumerate() {
+                    let individual = skip_index.seek(doc_id);
+                    assert_eq!(batch[i], individual, "Mismatch for doc_id {doc_id}");
+                }
+            }
+        }
+    }
 }
