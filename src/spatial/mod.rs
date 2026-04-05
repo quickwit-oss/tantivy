@@ -12,7 +12,9 @@
 //! https://proj.org/en/stable/operations/projections/s2.html
 //! https://s2geometry.io/resources/earthcube.html
 
-pub mod cell_index;
+pub mod shape_index;
+pub mod clip_options;
+pub mod clipper;
 pub mod cell_index_reader;
 pub mod clipped_shape;
 pub mod cell_union;
@@ -29,7 +31,7 @@ pub mod exact;
 pub mod executor;
 pub mod geometry;
 pub mod geometry_set;
-pub mod interleave;
+pub mod interleaver;
 pub mod intersects_query;
 pub mod latlng_rect;
 pub mod math;

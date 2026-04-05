@@ -578,10 +578,15 @@ impl IndexMerger {
 
             let edge_cache = EdgeCache::new(edge_readers, 100_000_000);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-            let mut interleave = crate::spatial::interleave::HeapInterleave::new(
+            let segment_names: Vec<String> = self.readers
+                .iter()
+                .map(|r| r.segment_id().uuid_string())
+                .collect();
+            let mut interleave = crate::spatial::interleaver::Interleaver::new(
                 iters,
                 &edge_cache,
                 &doc_id_mapping.alive_bitsets,
+                segment_names,
             );
 
             const NOT_ASSIGNED: u32 = u32::MAX;

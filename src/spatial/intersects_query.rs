@@ -7,7 +7,11 @@ use std::collections::HashMap;
 
 use common::BitSet;
 
-use super::cell_index::{BuildOptions, CellIndex, GeometryId, IndexBuilder};
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipper::Clipper;
+use crate::spatial::shape_index::ShapeIndex;
+
+use super::clipped_shape::{GeometryId};
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::{BoundaryEdges, CandidateInfo, QueryEdgeProvider};
 use super::crossings::S2EdgeCrosser;
@@ -24,7 +28,7 @@ use super::sphere::Sphere;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
 pub struct IntersectsQuery {
-    query_index: CellIndex,
+    query_index: ShapeIndex,
     query_edges: QueryEdgeProvider,
     covering: Vec<S2CellId>,
     interior: Vec<bool>,
@@ -33,8 +37,9 @@ pub struct IntersectsQuery {
 impl IntersectsQuery {
     /// Build the query from a smashed GeometrySet.
     pub fn new(set: GeometrySet, options: CovererOptions) -> Self {
-        let builder = IndexBuilder::new(BuildOptions::default());
+        let builder = Clipper::new(ClipOptions::default());
         let query_index = builder.build(std::slice::from_ref(&set));
+
         let query_edges = QueryEdgeProvider { set };
 
         let region = CellIndexRegion::new(&query_index, &query_edges);

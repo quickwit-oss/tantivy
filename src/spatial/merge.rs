@@ -1,8 +1,11 @@
 //! Merges sibling cell groups into parent cells. `merge_siblings` is the free function that
-//! does the work. `CellIndexMerge` wraps an iterator of `(S2CellId, Vec<IndexCell>)` groups and
-//! emits `IndexCell`s, collapsing groups with more than one cell.
+//! does the work. `CellIndexMerge` wraps an iterator of `(S2CellId, Vec<ShapeCell>)` groups and
+//! emits `ShapeCell`s, collapsing groups with more than one cell.
 
-use super::cell_index::{ClippedShape, GeometryId, IndexCell, CELL_PADDING};
+use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
+use crate::spatial::clipper::CELL_PADDING;
+use crate::spatial::shape_index::ShapeCell;
+
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
 use super::s2cell_id::S2CellId;
@@ -18,9 +21,9 @@ struct CollapseEntry {
 
 fn merge_siblings(
     parent_id: S2CellId,
-    cells: &[IndexCell],
+    cells: &[ShapeCell],
     edge_cache: &EdgeCache<'_, Sphere>,
-) -> IndexCell {
+) -> ShapeCell {
     let parent_pcell = S2PaddedCell::new(parent_id, CELL_PADDING);
     let parent_center = parent_pcell.get_center();
 
@@ -52,7 +55,7 @@ fn merge_siblings(
         entry.edge_indices.dedup();
     }
 
-    let mut parent_cell = IndexCell::new(parent_id);
+    let mut parent_cell = ShapeCell::new(parent_id);
 
     for entry in &entries {
         if entry.edge_indices.is_empty() {
@@ -80,14 +83,14 @@ fn merge_siblings(
     parent_cell
 }
 
-/// Consumes `(S2CellId, Vec<IndexCell>)` groups from a `Collapse` and emits `IndexCell`s. Groups
+/// Consumes `(S2CellId, Vec<ShapeCell>)` groups from a `Collapse` and emits `ShapeCell`s. Groups
 /// with more than one cell are collapsed into a parent. Single-cell groups pass through.
-pub struct CellIndexMerge<'a, I: Iterator<Item = (S2CellId, Vec<IndexCell>)>> {
+pub struct CellIndexMerge<'a, I: Iterator<Item = (S2CellId, Vec<ShapeCell>)>> {
     inner: I,
     edge_cache: &'a EdgeCache<'a, Sphere>,
 }
 
-impl<'a, I: Iterator<Item = (S2CellId, Vec<IndexCell>)>> CellIndexMerge<'a, I> {
+impl<'a, I: Iterator<Item = (S2CellId, Vec<ShapeCell>)>> CellIndexMerge<'a, I> {
     /// Creates a merge from source cell index iterators and a shared edge cache.
     pub fn new(iter: I, edge_cache: &'a EdgeCache<'a, Sphere>) -> Self {
         CellIndexMerge {
@@ -102,10 +105,10 @@ impl<'a, I: Iterator<Item = (S2CellId, Vec<IndexCell>)>> CellIndexMerge<'a, I> {
     }
 }
 
-impl<'a, I: Iterator<Item = (S2CellId, Vec<IndexCell>)>> Iterator for CellIndexMerge<'a, I> {
-    type Item = IndexCell;
+impl<'a, I: Iterator<Item = (S2CellId, Vec<ShapeCell>)>> Iterator for CellIndexMerge<'a, I> {
+    type Item = ShapeCell;
 
-    fn next(&mut self) -> Option<IndexCell> {
+    fn next(&mut self) -> Option<ShapeCell> {
         let (parent_id, cells) = self.inner.next()?;
         let mut cells = cells;
         if cells.len() == 1 {

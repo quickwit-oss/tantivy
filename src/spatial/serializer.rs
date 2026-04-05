@@ -8,7 +8,8 @@ use std::io::Write;
 
 use crate::directory::{CompositeWrite, WritePtr};
 use crate::schema::Field;
-use crate::spatial::cell_index::{BuildOptions, IndexBuilder};
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipper::Clipper;
 use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::geometry_set::GeometrySet;
 use crate::spatial::sphere::Sphere;
@@ -39,7 +40,7 @@ impl SpatialSerializer {
         }
 
         // Build the cell index from smashed sets.
-        let builder = IndexBuilder::new(BuildOptions::default());
+        let builder = Clipper::new(ClipOptions::default());
         let cell_index = builder.build(sets);
 
         // Write the cell index.

@@ -1,14 +1,16 @@
 //! ShapeIndexRegion: Query methods for shape-cell relationships.
 //!
-//! This module provides methods to determine whether shapes in a CellIndex intersect or contain a
-//! given S2Cell target. Used to implement the Region trait over a CellIndex, enabling
+//! This module provides methods to determine whether shapes in a ShapeIndex intersect or contain a
+//! given S2Cell target. Used to implement the Region trait over a ShapeIndex, enabling
 //! RegionCoverer to produce coverings.
 //!
 //! Corresponds to S2ShapeIndexRegion in the C++ implementation.
 //! From s2shape_index_region.h
 use std::collections::HashMap;
 
-use super::cell_index::{CellIndex, ClippedShape, GeometryId};
+use crate::spatial::shape_index::ShapeIndex;
+
+use super::clipped_shape::{ClippedShape, GeometryId};
 use super::cell_index_reader::CellIndexReader;
 use super::cell_union::CellUnion;
 use super::crossings::S2EdgeCrosser;
@@ -77,10 +79,10 @@ pub fn contains_point<T: ContainmentIndex>(
     inside
 }
 
-/// In-memory containment index wrapping a CellIndex and an EdgeProvider.
+/// In-memory containment index wrapping a ShapeIndex and an EdgeProvider.
 pub struct InMemoryIndex<'a, E: EdgeProvider> {
     /// The in-memory cell index.
-    pub index: &'a CellIndex,
+    pub index: &'a ShapeIndex,
     /// The edge provider for vertex resolution.
     pub edges: &'a E,
 }
@@ -177,7 +179,7 @@ pub fn any_edge_intersects<E: EdgeProvider>(
 ///
 /// Port of S2ContainsPointQuery::ShapeContains.
 pub fn index_contains_point<E: EdgeProvider>(
-    index: &CellIndex,
+    index: &ShapeIndex,
     edges: &E,
     geometry_id: GeometryId,
     point: &[f64; 3],
@@ -222,18 +224,18 @@ enum CellRelation {
     /// Target does not overlap any index cell.
     Disjoint,
     /// Target contains one or more index cells. The usize is the first overlapping cell's position
-    /// in `CellIndex.cells`.
+    /// in `ShapeIndex.cells`.
     Subdivided(usize),
     /// Target is within (or equals) an index cell. The usize is that cell's position in
-    /// `CellIndex.cells`.
+    /// `ShapeIndex.cells`.
     Indexed(usize),
 }
 
-/// Locates a target cell relative to the CellIndex.
+/// Locates a target cell relative to the ShapeIndex.
 ///
 /// Binary search on the sorted cells array. The three cases mirror S2's
 /// ShapeIndexIterator::Locate.
-fn locate(index: &CellIndex, target: S2CellId) -> CellRelation {
+fn locate(index: &ShapeIndex, target: S2CellId) -> CellRelation {
     let cells = &index.cells;
     if cells.is_empty() {
         return CellRelation::Disjoint;
@@ -268,7 +270,7 @@ fn locate(index: &CellIndex, target: S2CellId) -> CellRelation {
 /// geometry_id and whether the shape fully contains the target cell.  The visitor returns true to
 /// continue or false to terminate early.
 pub fn visit_intersecting_shapes<E, F>(
-    index: &CellIndex,
+    index: &ShapeIndex,
     edges: &E,
     target: &S2Cell,
     mut visitor: F,
@@ -357,7 +359,7 @@ where
 
 /// Convenience method: Returns all geometry IDs that intersect the target.
 pub fn get_intersecting_shapes<E: EdgeProvider>(
-    index: &CellIndex,
+    index: &ShapeIndex,
     edges: &E,
     target: &S2Cell,
 ) -> Vec<(GeometryId, bool)> {
@@ -372,7 +374,7 @@ pub fn get_intersecting_shapes<E: EdgeProvider>(
 /// Returns true if any shape in the index intersects the target cell.
 ///
 /// This is equivalent to S2ShapeIndexRegion::MayIntersect.
-pub fn may_intersect<E: EdgeProvider>(index: &CellIndex, edges: &E, target: &S2Cell) -> bool {
+pub fn may_intersect<E: EdgeProvider>(index: &ShapeIndex, edges: &E, target: &S2Cell) -> bool {
     let mut intersects = false;
     visit_intersecting_shapes(index, edges, target, |_geo_id, _contains| {
         intersects = true;
@@ -384,7 +386,7 @@ pub fn may_intersect<E: EdgeProvider>(index: &CellIndex, edges: &E, target: &S2C
 /// Returns true if any shape in the index contains the target cell.
 ///
 /// This is equivalent to S2ShapeIndexRegion::Contains(S2Cell).
-pub fn any_shape_contains<E: EdgeProvider>(index: &CellIndex, edges: &E, target: &S2Cell) -> bool {
+pub fn any_shape_contains<E: EdgeProvider>(index: &ShapeIndex, edges: &E, target: &S2Cell) -> bool {
     let mut contains = false;
     visit_intersecting_shapes(index, edges, target, |_geo_id, shape_contains| {
         if shape_contains {
@@ -396,19 +398,19 @@ pub fn any_shape_contains<E: EdgeProvider>(index: &CellIndex, edges: &E, target:
     contains
 }
 
-/// Region adapter over a CellIndex.
+/// Region adapter over a ShapeIndex.
 ///
-/// Wraps a CellIndex and an EdgeProvider to implement the Region trait, enabling RegionCoverer to
+/// Wraps a ShapeIndex and an EdgeProvider to implement the Region trait, enabling RegionCoverer to
 /// produce coverings of the indexed geometry. For the contains query, this wraps the query-local
-/// CellIndex built from the query polygon.
+/// ShapeIndex built from the query polygon.
 pub struct CellIndexRegion<'a, E: EdgeProvider> {
-    index: &'a CellIndex,
+    index: &'a ShapeIndex,
     edges: &'a E,
 }
 
 impl<'a, E: EdgeProvider> CellIndexRegion<'a, E> {
     /// Creates a region backed by a cell index and an edge provider.
-    pub fn new(index: &'a CellIndex, edges: &'a E) -> Self {
+    pub fn new(index: &'a ShapeIndex, edges: &'a E) -> Self {
         Self { index, edges }
     }
 }

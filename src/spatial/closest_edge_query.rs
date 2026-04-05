@@ -14,7 +14,10 @@ use std::collections::{BinaryHeap, HashMap};
 
 use common::BitSet;
 
-use super::cell_index::{BuildOptions, CellIndex, IndexBuilder};
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipper::Clipper;
+use crate::spatial::shape_index::{ShapeCell, ShapeIndex};
+
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::QueryEdgeProvider;
 use super::edge_cache::EdgeCache;
@@ -37,7 +40,7 @@ pub struct ClosestEdgeResult {
 /// Prepared closest-edge query. The query geometry is smashed into a GeometrySet and spatially
 /// indexed. The same CellIndex that contains and intersects build for the query polygon.
 pub struct ClosestEdgeQuery {
-    query_index: CellIndex,
+    query_index: ShapeIndex,
     query_edges: QueryEdgeProvider,
     max_results: usize,
     max_distance: S1ChordAngle,
@@ -89,7 +92,7 @@ impl ClosestEdgeQuery {
         max_distance: S1ChordAngle,
         first_only: bool,
     ) -> Self {
-        let builder = IndexBuilder::new(BuildOptions::default());
+        let builder = Clipper::new(ClipOptions::default());
         let query_index = builder.build(std::slice::from_ref(&set));
         let query_edges = QueryEdgeProvider { set };
         Self {
@@ -256,7 +259,7 @@ impl ClosestEdgeQuery {
     }
 
     /// Find query CellIndex cells that overlap a given stored cell's range.
-    fn query_cells_overlapping(&self, target: S2CellId) -> &[super::cell_index::IndexCell] {
+    fn query_cells_overlapping(&self, target: S2CellId) -> &[ShapeCell] {
         let range_min = target.range_min();
         let range_max = target.range_max();
         let cells = &self.query_index.cells;
@@ -267,7 +270,7 @@ impl ClosestEdgeQuery {
 
     fn process_edges<'a>(
         &self,
-        index_cell: &super::cell_index::IndexCell,
+        index_cell: &ShapeCell,
         edge_cache: &mut EdgeCache<'a, Sphere>,
         terms_filter: Option<&BitSet>,
         best: &mut HashMap<u32, S1ChordAngle>,

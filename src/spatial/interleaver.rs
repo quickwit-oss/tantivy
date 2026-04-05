@@ -6,9 +6,11 @@ use std::collections::BinaryHeap;
 
 use common::ReadOnlyBitSet;
 
-use super::cell_index::{
-    get_edge_max_level, BuildOptions, ClippedShape, GeometryId, IndexCell, CELL_PADDING,
-};
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
+use crate::spatial::clipper::{get_edge_max_level, CELL_PADDING};
+use crate::spatial::shape_index::ShapeCell;
+
 use super::cell_index_reader::CellIndexIter;
 use super::edge_cache::EdgeCache;
 use super::r2rect::R2Rect;
@@ -32,14 +34,14 @@ struct SpongeEdge {
 // Anchors represent the presence of a geometry in a particular cell so that anchors are unique by
 // geometry id and cell id. Anchors do not need de-duplication.
 #[derive(Clone)]
-struct SpongeAnchor {
+struct SpongeShape {
     geometry_id: GeometryId,
     cell_id: S2CellId,
     center: [f64; 3],
     contains_center: bool,
 }
 
-// Exploded view of an IndexCell.
+// Exploded view of an ShapeCell.
 //
 // Edges are de-duplicated upon insert so we can maintain an accurate count of edges and short
 // edges in the pending cell for our threshold checks. We split based on short edge count.
@@ -51,17 +53,11 @@ struct SpongeAnchor {
 struct SpongeCell {
     cell_id: S2CellId,
     edges: Vec<SpongeEdge>,
-    anchors: Vec<SpongeAnchor>,
+    anchors: Vec<SpongeShape>,
     edge_count: usize,
     short_edge_count: usize,
     cell_bound: R2Rect,
     split_count: u32,
-}
-
-// We explode the IndexCell into a sponge cell as necessary.
-enum InterleavedCell {
-    Source(IndexCell),
-    Sponge(SpongeCell),
 }
 
 impl SpongeCell {
@@ -81,7 +77,7 @@ impl SpongeCell {
     // endpoints within the sponge's region, consistent with the build path's ClipToPaddedFace. The
     // clipped endpoints are stable through subsequent splits. Only the bound narrows at each split
     // level.
-    fn absorb_index_cell_edges(&mut self, cell: &IndexCell, edge_cache: &EdgeCache<'_, Sphere>) {
+    fn absorb_index_cell_edges(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, Sphere>) {
         let face = cell.cell_id.face();
         // Fresh source cell. Read from edge cache, clip to sponge bound.
         for shape in &cell.shapes {
@@ -170,12 +166,20 @@ impl SpongeCell {
 
     // The same center that you would use if you were searching. We going to do an ordinary search
     // edge crossing to move a child geometry into a parent.
-    fn absorb_index_cell_anchors(&mut self, cell: &IndexCell) {
+    fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell) {
+        let bolo: GeometryId = (0, 2961);
         let mut cell_center: Option<[f64; 3]> = None;
         for shape in &cell.shapes {
+            if shape.geometry_id == bolo {
+                eprintln!(
+                    "BOLO absorb_anchor: sponge={} source_cell={} level={} contains_center={} edges={:?}",
+                    self.cell_id.0, cell.cell_id.0, cell.cell_id.level(),
+                    shape.contains_center, shape.edge_indices,
+                );
+            }
             let center = *cell_center
                 .get_or_insert_with(|| S2PaddedCell::new(cell.cell_id, CELL_PADDING).get_center());
-            let anchor = SpongeAnchor {
+            let anchor = SpongeShape {
                 geometry_id: shape.geometry_id,
                 cell_id: cell.cell_id,
                 center,
@@ -187,7 +191,7 @@ impl SpongeCell {
 
     fn absorb_sponge_cell_anchors(&mut self, cell: &SpongeCell) {
         for a in &cell.anchors {
-            self.anchors.push(SpongeAnchor {
+            self.anchors.push(SpongeShape {
                 geometry_id: a.geometry_id,
                 cell_id: a.cell_id,
                 center: a.center,
@@ -197,16 +201,16 @@ impl SpongeCell {
     }
 }
 
-struct HeapEntry {
-    source: Option<usize>,
-    cell: InterleavedCell,
+enum HeapEntry {
+    Source { cell: ShapeCell, source: usize },
+    Sponge(SpongeCell),
 }
 
 impl HeapEntry {
     fn cell_id(&self) -> S2CellId {
-        match &self.cell {
-            InterleavedCell::Source(cell) => cell.cell_id,
-            InterleavedCell::Sponge(ref merged) => merged.cell_id,
+        match self {
+            HeapEntry::Source { cell, .. } => cell.cell_id,
+            HeapEntry::Sponge(ref merged) => merged.cell_id,
         }
     }
 
@@ -243,7 +247,7 @@ impl Ord for HeapEntry {
 }
 
 /// Heap-based merge of N source cell indexes. Produces cells in Hilbert order.
-pub struct HeapInterleave<'a> {
+pub struct Interleaver<'a> {
     sources: Vec<CellIndexIter<'a>>,
     edge_cache: &'a EdgeCache<'a, Sphere>,
     alive_bitsets: &'a [Option<ReadOnlyBitSet>],
@@ -257,17 +261,19 @@ pub struct HeapInterleave<'a> {
     max_sponge_cells: u64,
     crossings: u64,
     crossers: u64,
+    segment_names: Vec<String>,
 }
 
-impl<'a> HeapInterleave<'a> {
+impl<'a> Interleaver<'a> {
     /// Creates a heap merge from source iterators and a shared edge cache.
     pub fn new(
         iters: Vec<CellIndexIter<'a>>,
         edge_cache: &'a EdgeCache<'a, Sphere>,
         alive_bitsets: &'a [Option<ReadOnlyBitSet>],
+        segment_names: Vec<String>,
     ) -> Self {
-        let options = BuildOptions::default();
-        let mut merge = HeapInterleave {
+        let options = ClipOptions::default();
+        let mut merge = Interleaver {
             sources: iters,
             edge_cache,
             alive_bitsets,
@@ -281,7 +287,9 @@ impl<'a> HeapInterleave<'a> {
             max_sponge_cells: 0,
             crossings: 0,
             crossers: 0,
+            segment_names,
         };
+        eprintln!("BOLO interleaver: new with {} sources, segments {:?}", merge.sources.len(), merge.segment_names);
         let n = merge.sources.len();
         for i in 0..n {
             merge.push_next_from_source(i);
@@ -319,64 +327,56 @@ impl<'a> HeapInterleave<'a> {
             }
             if !cell.shapes.is_empty() {
                 self.cells_from_source += 1;
-                self.heap.push(HeapEntry {
-                    source: Some(source_idx),
-                    cell: InterleavedCell::Source(cell),
-                });
+                self.heap.push(HeapEntry::Source { cell, source: source_idx });
                 return;
             }
         }
     }
 }
 
-impl<'a> Iterator for HeapInterleave<'a> {
-    type Item = IndexCell;
+impl<'a> Iterator for Interleaver<'a> {
+    type Item = ShapeCell;
 
     // Curious as to the performance penalty of explode and push for the sponge and sponged cells
     // since it would simplify this code. One function to explode, one to merge. Would accept some
     // slow down for that simplification.
-    fn next(&mut self) -> Option<IndexCell> {
+    fn next(&mut self) -> Option<ShapeCell> {
         loop {
-            let mut sponge = self.heap.pop()?;
-            if let Some(source) = sponge.source {
-                sponge.source = None;
-                self.push_next_from_source(source);
+            let sponge = self.heap.pop()?;
+            if let HeapEntry::Source { source, .. } = &sponge {
+                self.push_next_from_source(*source);
             }
-            if let Some(mut entry) = self.heap.pop() {
-                if let Some(source) = entry.source {
-                    entry.source = None;
-                    self.push_next_from_source(source);
+            if let Some(entry) = self.heap.pop() {
+                if let HeapEntry::Source { source, .. } = &entry {
+                    self.push_next_from_source(*source);
                 }
                 if sponge.cell_id().contains(entry.cell_id()) || sponge.cell_id() == entry.cell_id()
                 {
                     self.absorptions += 1;
                     // First absorption: Source becomes Sponge.
-                    let mut merged = match sponge.cell {
-                        InterleavedCell::Source(cell) => {
+                    let mut merged = match sponge {
+                        HeapEntry::Source { cell, .. } => {
                             let cell_bound = S2PaddedCell::new(cell.cell_id, CELL_PADDING).bound();
                             let mut m = SpongeCell::new(cell.cell_id, cell_bound);
                             m.absorb_index_cell_anchors(&cell);
                             m.absorb_index_cell_edges(&cell, self.edge_cache);
                             m
                         }
-                        InterleavedCell::Sponge(m) => m,
+                        HeapEntry::Sponge(m) => m,
                     };
                     // Absorb the entry.
-                    match &entry.cell {
-                        InterleavedCell::Sponge(ref entry_merged) => {
+                    match &entry {
+                        HeapEntry::Sponge(ref entry_merged) => {
                             merged.absorb_sponge_cell_edges(entry_merged);
                             merged.absorb_sponge_cell_anchors(entry_merged);
                         }
-                        InterleavedCell::Source(cell) => {
+                        HeapEntry::Source { cell, .. } => {
                             merged.absorb_index_cell_anchors(cell);
                             merged.absorb_index_cell_edges(cell, self.edge_cache);
                         }
                     }
                     if merged.edge_count <= self.max_edges {
-                        self.heap.push(HeapEntry {
-                            source: None,
-                            cell: InterleavedCell::Sponge(merged),
-                        });
+                        self.heap.push(HeapEntry::Sponge(merged));
                     } else {
                         let short_edges = merged.short_edge_count;
                         let geometry_count = merged.anchors.len();
@@ -387,15 +387,12 @@ impl<'a> Iterator for HeapInterleave<'a> {
                         if short_edges > threshold {
                             self.splits += 1;
                             for entry in
-                                coarse_split(merged, &mut self.crossings, &mut self.crossers)
+                                coarse_split(merged, &mut self.crossings, &mut self.crossers, &self.segment_names)
                             {
                                 self.heap.push(entry);
                             }
                         } else {
-                            self.heap.push(HeapEntry {
-                                source: None,
-                                cell: InterleavedCell::Sponge(merged),
-                            });
+                            self.heap.push(HeapEntry::Sponge(merged));
                         }
                     }
                 } else {
@@ -411,15 +408,15 @@ impl<'a> Iterator for HeapInterleave<'a> {
     }
 }
 
-fn flatten(sponge: HeapEntry) -> Option<IndexCell> {
-    let mut merged = match sponge.cell {
-        InterleavedCell::Source(cell) => return Some(cell),
-        InterleavedCell::Sponge(merged) => merged,
+fn flatten(sponge: HeapEntry) -> Option<ShapeCell> {
+    let mut merged = match sponge {
+        HeapEntry::Source { cell, .. } => return Some(cell),
+        HeapEntry::Sponge(merged) => merged,
     };
 
     let cell_id = merged.cell_id;
     let sponge_center = S2PaddedCell::new(cell_id, CELL_PADDING).get_center();
-    let mut result = IndexCell::new(cell_id);
+    let mut result = ShapeCell::new(cell_id);
     merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
 
     let mut edge_index = 0;
@@ -700,25 +697,36 @@ fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     }
 }
 
-fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64) -> Vec<HeapEntry> {
+fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64, segment_names: &[String]) -> Vec<HeapEntry> {
     let cell_id = merged.cell_id;
     let parent_split_count = merged.split_count;
+    let bolo: GeometryId = (0, 2961);
     merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
     let anchors = &merged.anchors;
 
     let sponge_level = cell_id.level();
     let child_cell_ids = cell_id.children();
 
-    // SpongeAnchor at the sponge level need crossing tests because their edges are about to be
+    // SpongeShape at the sponge level need crossing tests because their edges are about to be
     // distributed to children. Finer anchors are distributed to the child that contains them.
-    let mut sponge_anchors: Vec<SpongeAnchor> = Vec::new();
-    let mut child_anchors: [Vec<SpongeAnchor>; 4] = Default::default();
+    let mut sponge_anchors: Vec<SpongeShape> = Vec::new();
+    let mut child_anchors: [Vec<SpongeShape>; 4] = Default::default();
     for anchor in anchors {
+        if anchor.geometry_id == bolo {
+            eprintln!(
+                "BOLO split anchor_distribute: sponge={} level={} anchor_cell={} anchor_level={} contains_center={} is_sponge_level={}",
+                cell_id.0, sponge_level, anchor.cell_id.0, anchor.cell_id.level(),
+                anchor.contains_center, anchor.cell_id.level() == sponge_level,
+            );
+        }
         if anchor.cell_id.level() == sponge_level {
             sponge_anchors.push(anchor.clone());
         } else {
-            for (idx, cell_id) in child_cell_ids.iter().enumerate() {
-                if cell_id.contains(anchor.cell_id) || *cell_id == anchor.cell_id {
+            for (idx, child_cell_id) in child_cell_ids.iter().enumerate() {
+                if child_cell_id.contains(anchor.cell_id) || *child_cell_id == anchor.cell_id {
+                    if anchor.geometry_id == bolo {
+                        eprintln!("BOLO split anchor -> child[{}] cell={}", idx, child_cell_id.0);
+                    }
                     child_anchors[idx].push(anchor.clone());
                     break;
                 }
@@ -728,6 +736,15 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64)
     let padded_cell = S2PaddedCell::new(cell_id, CELL_PADDING);
     let parent_center = padded_cell.get_center();
 
+    let bolo_edge_count = merged.edges.iter().filter(|e| e.geometry_id == bolo).count();
+    if bolo_edge_count > 0 {
+        eprintln!("BOLO split: {} edges for {:?} in sponge {} level {}", bolo_edge_count, bolo, cell_id.0, sponge_level);
+        for edge in merged.edges.iter().filter(|e| e.geometry_id == bolo) {
+            eprintln!("  edge_index={} bound=[{},{}]x[{},{}] a_uv={:?} b_uv={:?}",
+                edge.edge_index, edge.bound[0].lo(), edge.bound[0].hi(),
+                edge.bound[1].lo(), edge.bound[1].hi(), edge.a_uv, edge.b_uv);
+        }
+    }
     let mut flat_edges: Vec<FlatEdge> = Vec::new();
     let mut clipped: Vec<MergeClippedEdge> = Vec::new();
     for edge in &merged.edges {
@@ -749,8 +766,19 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64)
     // bound may have come from a coarser level.
     let sponge_bound = padded_cell.bound();
     for (ce, fe) in clipped.iter_mut().zip(flat_edges.iter()) {
+        let before = ce.bound;
         if !clip_edge_bound(fe.a_uv, fe.b_uv, &sponge_bound, &mut ce.bound) {
+            if fe.geometry_id == bolo {
+                eprintln!("BOLO tighten: edge_index={} EMPTIED before=[{},{}]x[{},{}]",
+                    flat_edges[ce.edge_index].edge.edge_index,
+                    before[0].lo(), before[0].hi(), before[1].lo(), before[1].hi());
+            }
             ce.bound = R2Rect::empty();
+        } else if fe.geometry_id == bolo {
+            eprintln!("BOLO tighten: edge_index={} before=[{},{}]x[{},{}] after=[{},{}]x[{},{}]",
+                flat_edges[ce.edge_index].edge.edge_index,
+                before[0].lo(), before[0].hi(), before[1].lo(), before[1].hi(),
+                ce.bound[0].lo(), ce.bound[0].hi(), ce.bound[1].lo(), ce.bound[1].hi());
         }
     }
 
@@ -762,6 +790,19 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64)
         }
         let flat_edge = &flat_edges[clipped_edge.edge_index];
         clip_to_children(clipped_edge, flat_edge, &middle, &mut child_edges);
+    }
+
+    // Report which children got BOLO edges.
+    for ci in 0..2usize {
+        for cj in 0..2usize {
+            let bolo_in_child: Vec<_> = child_edges[ci][cj].iter()
+                .filter(|ce| flat_edges[ce.edge_index].geometry_id == bolo)
+                .map(|ce| flat_edges[ce.edge_index].edge.edge_index)
+                .collect();
+            if !bolo_in_child.is_empty() {
+                eprintln!("BOLO clip_to_children: child[{}][{}] got edges {:?}", ci, cj, bolo_in_child);
+            }
+        }
     }
 
     let mut entries = Vec::new();
@@ -823,7 +864,44 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64)
                 });
                 child_edges[i][j].pop();
             }
-            assert!(contains_center || !edge_indices.is_empty());
+            if !contains_center && edge_indices.is_empty() {
+                eprintln!("ABEND geometry {:?} anchor_cell {} anchor_level {} sponge {} sponge_level {} child {} split_count {} segments {:?}",
+                    anchor.geometry_id, anchor.cell_id.0, anchor.cell_id.level(),
+                    cell_id.0, sponge_level, child_cell_id.0, parent_split_count, segment_names);
+                let child_bound = child_padded_cell.bound();
+                eprintln!("  child_bound u=[{},{}] v=[{},{}]",
+                    child_bound[0].lo(), child_bound[0].hi(), child_bound[1].lo(), child_bound[1].hi());
+                eprintln!("  sponge_bound u=[{},{}] v=[{},{}]",
+                    sponge_bound[0].lo(), sponge_bound[0].hi(), sponge_bound[1].lo(), sponge_bound[1].hi());
+                eprintln!("  middle u=[{},{}] v=[{},{}]",
+                    middle[0].lo(), middle[0].hi(), middle[1].lo(), middle[1].hi());
+                let all_edges_for_geo: Vec<_> = flat_edges.iter().enumerate()
+                    .filter(|(_, fe)| fe.geometry_id == anchor.geometry_id)
+                    .collect();
+                eprintln!("  {} edges for this geometry in flat_edges:", all_edges_for_geo.len());
+                for (idx, fe) in &all_edges_for_geo {
+                    let ce = &clipped[*idx];
+                    eprintln!("    flat[{}] edge_index={} a_uv={:?} b_uv={:?} bound=[{},{}]x[{},{}] empty={}",
+                        idx, fe.edge.edge_index, fe.a_uv, fe.b_uv,
+                        ce.bound[0].lo(), ce.bound[0].hi(), ce.bound[1].lo(), ce.bound[1].hi(),
+                        ce.bound.is_empty());
+                }
+                let edges_in_child: Vec<_> = child_edges[i][j].iter()
+                    .filter(|ce| flat_edges[ce.edge_index].geometry_id == anchor.geometry_id)
+                    .collect();
+                eprintln!("  {} edges for this geometry in child[{}][{}]:", edges_in_child.len(), i, j);
+                for ce in &edges_in_child {
+                    let fe = &flat_edges[ce.edge_index];
+                    eprintln!("    edge_index={} bound=[{},{}]x[{},{}]",
+                        fe.edge.edge_index, ce.bound[0].lo(), ce.bound[0].hi(),
+                        ce.bound[1].lo(), ce.bound[1].hi());
+                }
+                let sponge_edges_for_geo: Vec<_> = sponge_edges.iter()
+                    .filter(|&&idx| flat_edges[idx].geometry_id == anchor.geometry_id)
+                    .collect();
+                eprintln!("  {} sponge_edges for this geometry", sponge_edges_for_geo.len());
+                panic!("coarse_split: anchor without edges");
+            }
         }
 
         // Remaining child_edges are sponge-level edges not claimed by child anchors.
@@ -890,7 +968,7 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64)
                 }
             }
             if contains_center || !edge_indices.is_empty() {
-                child_anchors[pos as usize].push(SpongeAnchor {
+                child_anchors[pos as usize].push(SpongeShape {
                     geometry_id: anchor.geometry_id,
                     cell_id: child_cell_id,
                     center: child_center,
@@ -937,10 +1015,7 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64)
             child_merged.anchors = std::mem::take(&mut child_anchors[pos as usize]);
             child_merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
             child_merged.split_count = parent_split_count + 1;
-            entries.push(HeapEntry {
-                source: None,
-                cell: InterleavedCell::Sponge(child_merged),
-            });
+            entries.push(HeapEntry::Sponge(child_merged));
         }
     }
 

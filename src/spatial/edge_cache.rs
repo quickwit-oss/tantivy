@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 use lru::LruCache;
 
-use super::cell_index::GeometryId;
+use super::clipped_shape::GeometryId;
 use super::edge_reader::EdgeReader;
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::surface::Surface;

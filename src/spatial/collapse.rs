@@ -5,7 +5,11 @@ use std::collections::{BTreeMap, VecDeque};
 
 use rustc_hash::FxHashSet;
 
-use super::cell_index::{get_edge_max_level, BuildOptions, GeometryId, IndexCell};
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipped_shape::GeometryId;
+use crate::spatial::shape_index::ShapeCell;
+
+use super::clipper::get_edge_max_level;
 use super::edge_cache::EdgeCache;
 use super::s2cell_id::S2CellId;
 use super::sphere::Sphere;
@@ -20,7 +24,7 @@ struct LevelGeometry {
 }
 
 struct LevelIndexCell {
-    cell: IndexCell,
+    cell: ShapeCell,
     geometries: BTreeMap<GeometryId, LevelGeometry>,
     geometry_ids: Vec<GeometryId>,
 }
@@ -48,11 +52,11 @@ impl Level {
 
 /// Groups cells by parent in Hilbert order and promotes groups up the level hierarchy when the
 /// short edge count stays under threshold. Produces (parent_id, cells) pairs for the merge stage.
-pub struct Collapse<'a, I: Iterator<Item = IndexCell>> {
+pub struct Collapse<'a, I: Iterator<Item = ShapeCell>> {
     inner: I,
     edge_cache: &'a EdgeCache<'a, Sphere>,
     levels: Vec<Level>,
-    queue: VecDeque<(S2CellId, Vec<IndexCell>)>,
+    queue: VecDeque<(S2CellId, Vec<ShapeCell>)>,
     last_face: Option<i32>,
     max_edges: usize,
     min_short_edge_fraction: f64,
@@ -60,10 +64,10 @@ pub struct Collapse<'a, I: Iterator<Item = IndexCell>> {
     edge_scratch: FxHashSet<(GeometryId, u16)>,
 }
 
-impl<'a, I: Iterator<Item = IndexCell>> Collapse<'a, I> {
+impl<'a, I: Iterator<Item = ShapeCell>> Collapse<'a, I> {
     /// Creates a new grouper over the given cell iterator with a shared edge cache.
     pub fn new(inner: I, edge_cache: &'a EdgeCache<'a, Sphere>) -> Self {
-        let options = BuildOptions::default();
+        let options = ClipOptions::default();
         let levels = S2CellId::MAX_LEVEL as usize + 1;
         Collapse {
             inner,
@@ -83,7 +87,7 @@ impl<'a, I: Iterator<Item = IndexCell>> Collapse<'a, I> {
         self.cells_in
     }
 
-    fn ingest_cell(&mut self, cell: IndexCell) {
+    fn ingest_cell(&mut self, cell: ShapeCell) {
         self.cells_in += 1;
         let mut geometries = BTreeMap::new();
         let mut geometry_ids = Vec::with_capacity(cell.shapes.len());
@@ -190,10 +194,10 @@ impl<'a, I: Iterator<Item = IndexCell>> Collapse<'a, I> {
     }
 }
 
-impl<'a, I: Iterator<Item = IndexCell>> Iterator for Collapse<'a, I> {
-    type Item = (S2CellId, Vec<IndexCell>);
+impl<'a, I: Iterator<Item = ShapeCell>> Iterator for Collapse<'a, I> {
+    type Item = (S2CellId, Vec<ShapeCell>);
 
-    fn next(&mut self) -> Option<(S2CellId, Vec<IndexCell>)> {
+    fn next(&mut self) -> Option<(S2CellId, Vec<ShapeCell>)> {
         loop {
             if let Some(batch) = self.queue.pop_front() {
                 return Some(batch);

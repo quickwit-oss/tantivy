@@ -2,13 +2,11 @@
 //!
 //! Maps S2CellIds to the shapes that intersect each cell. Cells are subdivided until no cell
 //! contains more than a configurable number of edges.
-use std::io::Write;
-
-use common::CountingWriter;
-
+use super::clipped_shape::ClippedShape;
 use super::crossings::S2EdgeCrosser;
 use super::geometry_set::GeometrySet;
 use super::math::normalize;
+use super::clip_options::ClipOptions;
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
@@ -18,14 +16,11 @@ use super::s2edge_clipping::{
 };
 use super::s2padded_cell::S2PaddedCell;
 use crate::spatial::s2coords::valid_face_xyz_to_uv;
+use crate::spatial::shape_index::{ShapeCell, ShapeIndex};
 
 /// The amount by which cells are "padded" to compensate for numerical errors
 /// when clipping line segments to cell boundaries.
 pub const CELL_PADDING: f64 = 2.0 * (FACE_CLIP_ERROR_UV_COORD + EDGE_CLIP_ERROR_UV_COORD);
-
-/// Default maximum number of edges per cell (not counting "long" edges). Reasonable values range
-/// from 10 to about 50 or so.
-pub const DEFAULT_MAX_EDGES_PER_CELL: usize = 10;
 
 /// Average edge length metric derivative for quadratic projection.
 /// From s2metrics.cc: kAvgEdge for S2_QUADRATIC_PROJECTION
@@ -61,58 +56,6 @@ pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
     get_level_for_max_value(max_cell_edge)
 }
 
-pub use super::clipped_shape::{ClippedShape, GeometryId};
-
-/// Stores the index contents for a particular S2CellId.
-///
-/// It consists of a set of clipped shapes.
-#[derive(Clone, Debug, PartialEq)]
-pub struct IndexCell {
-    /// Cell id.
-    pub cell_id: S2CellId,
-    /// Shapes stored in the cell.
-    pub shapes: Vec<ClippedShape>,
-}
-
-impl IndexCell {
-    /// Creates a new empty IndexCell for the given cell ID.
-    pub fn new(cell_id: S2CellId) -> Self {
-        Self {
-            cell_id,
-            shapes: Vec::new(),
-        }
-    }
-
-    /// Adds a clipped shape to this cell.
-    pub fn add_shape(&mut self, shape: ClippedShape) {
-        self.shapes.push(shape);
-    }
-
-    /// Returns the clipped shape corresponding to the given geometry ID, or None if the geometry
-    /// does not intersect this cell.
-    pub fn find_shape(&self, geometry_id: GeometryId) -> Option<&ClippedShape> {
-        self.shapes.iter().find(|s| s.geometry_id == geometry_id)
-    }
-
-    /// Returns the number of clipped shapes in this cell.
-    #[inline]
-    pub fn num_shapes(&self) -> usize {
-        self.shapes.len()
-    }
-
-    /// Returns true if this cell contains no clipped shapes.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.shapes.is_empty()
-    }
-}
-
-/// A spatial index mapping S2CellIds to the shapes that intersect each cell.
-#[derive(Clone, Debug, Default)]
-pub struct CellIndex {
-    /// Cells in the index.
-    pub cells: Vec<IndexCell>,
-}
 
 /// An edge projected onto a cube face.
 #[derive(Clone, Debug)]
@@ -225,27 +168,7 @@ impl InteriorTracker {
     }
 }
 
-/// Options that affect construction of the CellIndex.
-#[derive(Clone, Debug)]
-pub struct BuildOptions {
-    /// Maximum edges per cell before subdivision.
-    pub max_edges_per_cell: usize,
-    /// Minimum fraction of 'short' edges required for subdivision. If this parameter is non-zero
-    /// then the total index size and construction time are guaranteed to be linear in the number
-    /// of input edges. Default: 0.2 (from FLAGS_s2shape_index_min_short_edge_fraction)
-    pub min_short_edge_fraction: f64,
-}
-
-impl Default for BuildOptions {
-    fn default() -> Self {
-        Self {
-            max_edges_per_cell: DEFAULT_MAX_EDGES_PER_CELL,
-            min_short_edge_fraction: 0.2,
-        }
-    }
-}
-
-impl BuildOptions {
+impl ClipOptions {
     /// Creates new build options with default values.
     pub fn new() -> Self {
         Self::default()
@@ -267,102 +190,18 @@ impl BuildOptions {
     }
 }
 
-impl CellIndex {
-    /// Creates a new empty CellIndex.
-    pub fn new() -> Self {
-        Self { cells: Vec::new() }
-    }
-
-    /// Returns true if the index contains no cells.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.cells.is_empty()
-    }
-
-    /// Returns the number of cells in the index.
-    #[inline]
-    pub fn num_cells(&self) -> usize {
-        self.cells.len()
-    }
-
-    /// Returns the index cell containing the given cell ID, or None if not found.
-    pub fn find_cell(&self, target: S2CellId) -> Option<&IndexCell> {
-        let mut lo = 0;
-        let mut hi = self.cells.len();
-
-        while lo < hi {
-            let mid = lo + (hi - lo) / 2;
-            let cell = &self.cells[mid];
-
-            if target < cell.cell_id.range_min() {
-                hi = mid;
-            } else if target > cell.cell_id.range_max() {
-                lo = mid + 1;
-            } else {
-                return Some(cell);
-            }
-        }
-
-        None
-    }
-
-    /// Writes the cell index to a CountingWriter with a dictionary at the end.
-    /// Offsets are recorded relative to the start of this write, not the global
-    /// stream position, because CompositeFile shares one CountingWriter across
-    /// all fields but the reader sees a per-field slice starting at zero.
-    pub fn write<W: Write>(&self, write: &mut CountingWriter<W>) {
-        let base = write.written_bytes();
-        let mut offsets: Vec<(u64, u64)> = Vec::with_capacity(self.cells.len());
-
-        for cell in &self.cells {
-            let offset = write.written_bytes() - base;
-
-            write.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
-            write
-                .write_all(&(cell.shapes.len() as u16).to_le_bytes())
-                .unwrap();
-
-            for shape in &cell.shapes {
-                write.write_all(&shape.geometry_id.1.to_le_bytes()).unwrap();
-                write.write_all(&[shape.contains_center as u8]).unwrap();
-                write
-                    .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
-                    .unwrap();
-                for &edge_id in &shape.edge_indices {
-                    write.write_all(&edge_id.to_le_bytes()).unwrap();
-                }
-            }
-
-            offsets.push((cell.cell_id.0, offset));
-        }
-
-        // Dictionary: (cell_id, offset) pairs.
-        let dir_offset = write.written_bytes() - base;
-        for &(cell_id, offset) in &offsets {
-            write.write_all(&cell_id.to_le_bytes()).unwrap();
-            write.write_all(&offset.to_le_bytes()).unwrap();
-        }
-
-        // Footer: cell count, directory offset.
-        write
-            .write_all(&(self.cells.len() as u32).to_le_bytes())
-            .unwrap();
-        write.write_all(&dir_offset.to_le_bytes()).unwrap();
-    }
-}
-
-/// Builder for constructing a CellIndex from a collection of geometries.
-pub struct IndexBuilder {
-    options: BuildOptions,
+/// Builder for constructing a ShapeIndex from a collection of geometries.
+pub struct Clipper {
+    options: ClipOptions,
     /// Tracks which cells' centers are inside the polygon as we traverse in S2CellId order.
     tracker: InteriorTracker,
     /// The index as an array of cells.
-    cells: Vec<IndexCell>,
+    cells: Vec<ShapeCell>,
 }
 
-impl IndexBuilder {
+impl Clipper {
     /// Creates a new IndexBuilder with the given options.
-    pub fn new(options: BuildOptions) -> Self {
+    pub fn new(options: ClipOptions) -> Self {
         Self {
             options,
             tracker: InteriorTracker::new(),
@@ -370,11 +209,11 @@ impl IndexBuilder {
         }
     }
 
-    /// Build a CellIndex from smashed GeometrySets. Geometry IDs are arrival order — the first
+    /// Build a ShapeIndex from smashed GeometrySets. Geometry IDs are arrival order — the first
     /// member of the first set is 0, and the count increments from there.
-    pub fn build(mut self, sets: &[GeometrySet]) -> CellIndex {
+    pub fn build(mut self, sets: &[GeometrySet]) -> ShapeIndex {
         if sets.is_empty() {
-            return CellIndex { cells: Vec::new() };
+            return ShapeIndex { cells: Vec::new() };
         }
 
         // Seed the InteriorTracker from precomputed contains_hilbert_start flags.
@@ -456,7 +295,7 @@ impl IndexBuilder {
 
         self.cells.sort_by_key(|c| c.cell_id);
 
-        CellIndex { cells: self.cells }
+        ShapeIndex { cells: self.cells }
     }
 
     /// Delegates to the free function `get_edge_max_level`.
@@ -842,7 +681,7 @@ impl IndexBuilder {
             return;
         }
 
-        let mut cell = IndexCell::new(cell_id);
+        let mut cell = ShapeCell::new(cell_id);
 
         let mut edge_idx = 0;
         let mut containing_iter = containing_ids.iter().peekable();

@@ -4,8 +4,7 @@
 //! and the dictionary provides random access by cell_id. The iterator walks cells in sorted order
 //! for merge.
 
-use crate::spatial::cell_index::{ClippedShape, IndexCell};
-use crate::spatial::s2cell_id::S2CellId;
+use crate::spatial::{clipped_shape::ClippedShape, s2cell_id::S2CellId, shape_index::ShapeCell};
 
 /// Reads a serialized cell index from a byte slice.
 pub struct CellIndexReader<'a> {
@@ -33,7 +32,7 @@ impl<'a> CellIndexReader<'a> {
     }
 
     /// Finds the cell containing the given cell_id using the S2 range containment test.
-    pub fn find(&self, target: S2CellId) -> Option<IndexCell> {
+    pub fn find(&self, target: S2CellId) -> Option<ShapeCell> {
         let mut lo = 0u32;
         let mut hi = self.cell_count;
 
@@ -99,7 +98,7 @@ impl<'a> CellIndexReader<'a> {
         (cell_id, offset)
     }
 
-    fn read_cell(&self, offset: usize) -> IndexCell {
+    fn read_cell(&self, offset: usize) -> ShapeCell {
         let mut pos = offset;
 
         let cell_id = u64::from_le_bytes(self.data[pos..pos + 8].try_into().unwrap());
@@ -134,7 +133,7 @@ impl<'a> CellIndexReader<'a> {
             });
         }
 
-        IndexCell {
+        ShapeCell {
             cell_id: S2CellId(cell_id),
             shapes,
         }
@@ -150,9 +149,9 @@ pub struct CellIndexIter<'a> {
 }
 
 impl<'a> Iterator for CellIndexIter<'a> {
-    type Item = IndexCell;
+    type Item = ShapeCell;
 
-    fn next(&mut self) -> Option<IndexCell> {
+    fn next(&mut self) -> Option<ShapeCell> {
         if self.pos >= self.reader.cell_count {
             return None;
         }
