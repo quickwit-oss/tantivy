@@ -6,7 +6,6 @@ use std::io::Write;
 
 use common::CountingWriter;
 
-use super::containment::brute_force_contains;
 use super::crossings::S2EdgeCrosser;
 use super::geometry_set::GeometrySet;
 use super::math::normalize;
@@ -62,27 +61,7 @@ pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
     get_level_for_max_value(max_cell_edge)
 }
 
-/// Represents the part of a shape that intersects an S2Cell.
-///
-/// It consists of the set of edge ids that intersect that cell, and a boolean indicating whether
-/// the center of the cell is inside the shape (for shapes that have an interior).
-///
-/// Identifies a geometry member within a segment or across segments during merge. The first
-/// element is the segment index (0 for single-segment operations). The second is the geometry
-/// position within that segment's edge index.
-pub type GeometryId = (u16, u32);
-
-/// Note that the edges themselves are not clipped; we always use the original edges for
-/// intersection tests so that the results will be the same as the original shape.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ClippedShape {
-    /// Identifies the geometry member. (segment, position) during merge, (0, position) otherwise.
-    pub geometry_id: GeometryId,
-    /// True if the geometry contains the center of the cell.
-    pub contains_center: bool,
-    /// Indicies of the edges stored per geometry id in the edge index.
-    pub edge_indices: Vec<u16>,
-}
+pub use super::clipped_shape::{ClippedShape, GeometryId};
 
 /// Stores the index contents for a particular S2CellId.
 ///
@@ -125,28 +104,6 @@ impl IndexCell {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.shapes.is_empty()
-    }
-}
-
-impl ClippedShape {
-    /// Creates a new ClippedShape with the given geometry ID and contains_center flag.
-    pub fn new(geometry_id: GeometryId, contains_center: bool) -> Self {
-        Self {
-            geometry_id,
-            contains_center,
-            edge_indices: Vec::new(),
-        }
-    }
-
-    /// Adds an edge index to this clipped shape.
-    pub fn add_edge(&mut self, edge_id: u16) {
-        self.edge_indices.push(edge_id);
-    }
-
-    /// Returns the number of edges that intersect the S2CellId.
-    #[inline]
-    pub fn num_edges(&self) -> usize {
-        self.edge_indices.len()
     }
 }
 
@@ -394,22 +351,8 @@ impl CellIndex {
     }
 }
 
-/// Input geometry data for indexing, consisting of rings and metadata.
-#[derive(Clone)]
-pub struct GeometryData {
-    /// The rings that define the geometry. A simple polygon has one ring. A polygon with holes has
-    /// an outer ring followed by hole rings. A line string has one ring (open, not wrapped).
-    pub rings: Vec<Vec<[f64; 3]>>,
-    /// Whether the reference origin is inside each ring, parallel to `rings`.
-    pub origin_inside: Vec<bool>,
-    /// The geometry type.
-    pub dimension: u8,
-}
-
 /// Builder for constructing a CellIndex from a collection of geometries.
 pub struct IndexBuilder {
-    /// Geometries grouped by document. Each entry is (doc_id, geometries).
-    documents: Vec<(u32, Vec<GeometryData>)>,
     options: BuildOptions,
     /// Tracks which cells' centers are inside the polygon as we traverse in S2CellId order.
     tracker: InteriorTracker,
@@ -421,120 +364,15 @@ impl IndexBuilder {
     /// Creates a new IndexBuilder with the given options.
     pub fn new(options: BuildOptions) -> Self {
         Self {
-            documents: Vec::new(),
             options,
             tracker: InteriorTracker::new(),
             cells: Vec::new(),
         }
     }
 
-    /// Adds a document's geometries to the builder.
-    pub fn add(&mut self, doc_id: u32, geometries: Vec<GeometryData>) {
-        self.documents.push((doc_id, geometries));
-    }
-
-    /// Consumes the builder and returns the constructed CellIndex.
-    pub fn build(mut self) -> CellIndex {
-        // Reject the degenerates.
-        if self.documents.is_empty() {
-            return CellIndex { cells: Vec::new() };
-        }
-
-        // Flatten geometries with sequential geometry_ids.
-        let mut geometry_id: u32 = 0;
-
-        // Brute force to determine if the focal point starts inside or outside of each polygon.
-        // Each ring toggles the geometry_id independently: outer ring toggles on, hole ring
-        // toggles back off if the origin falls inside the hole.
-        let tracker_origin = self.tracker.focus;
-        for (_doc_id, geometries) in &self.documents {
-            for geo in geometries {
-                if geo.dimension < 2 {
-                    geometry_id += 1;
-                    continue;
-                }
-                self.tracker.is_active = true;
-                for (ring, &ring_origin_inside) in geo.rings.iter().zip(geo.origin_inside.iter()) {
-                    let inside = brute_force_contains(&tracker_origin, ring, ring_origin_inside);
-                    if inside {
-                        self.tracker.toggle_shape(geometry_id);
-                    }
-                }
-                geometry_id += 1;
-            }
-        }
-
-        // Collection of edges per face.
-        let mut face_edges: [Vec<FaceEdge>; 6] = Default::default();
-
-        // Stuff our faces. Edge IDs are flat across all rings within a geometry.
-        geometry_id = 0;
-        for (_doc_id, geometries) in &self.documents {
-            for geo in geometries {
-                let mut edge_id: u16 = 0;
-
-                for ring in &geo.rings {
-                    let n = ring.len();
-
-                    let min_vertices = match geo.dimension {
-                        0 => 1,
-                        2 => 3,
-                        _ => 2,
-                    };
-                    if n < min_vertices {
-                        continue;
-                    }
-
-                    let edge_count = match geo.dimension {
-                        0 => 1,
-                        2 => n,
-                        _ => n - 1,
-                    };
-
-                    for i in 0..edge_count {
-                        let v0 = ring[i];
-                        let v1 = match geo.dimension {
-                            0 => ring[i],
-                            2 => ring[(i + 1) % n],
-                            _ => ring[i + 1],
-                        };
-                        let max_level = self.get_edge_max_level(&v0, &v1);
-                        self.add_face_edge(
-                            geometry_id,
-                            edge_id,
-                            max_level,
-                            geo.dimension == 2,
-                            &v0,
-                            &v1,
-                            &mut face_edges,
-                        );
-                        edge_id += 1;
-                    }
-
-                    // Skip the duplicated first-vertex position for polygon rings.
-                    // The stored format appends ring[0] after each ring so edge lookup
-                    // is always position and position + 1, never modulo.
-                    if geo.dimension == 2 {
-                        edge_id += 1;
-                    }
-                }
-
-                geometry_id += 1;
-            }
-        }
-
-        for face in 0..NUM_FACES {
-            self.update_face_edges(face, &face_edges[face as usize]);
-        }
-
-        self.cells.sort_by_key(|c| c.cell_id);
-
-        CellIndex { cells: self.cells }
-    }
-
     /// Build a CellIndex from smashed GeometrySets. Geometry IDs are arrival order — the first
     /// member of the first set is 0, and the count increments from there.
-    pub fn build_from_sets(mut self, sets: &[GeometrySet]) -> CellIndex {
+    pub fn build(mut self, sets: &[GeometrySet]) -> CellIndex {
         if sets.is_empty() {
             return CellIndex { cells: Vec::new() };
         }

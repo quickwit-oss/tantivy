@@ -14,6 +14,7 @@
 
 pub mod cell_index;
 pub mod cell_index_reader;
+pub mod clipped_shape;
 pub mod cell_union;
 pub mod closest_edge_query;
 pub mod collapse;

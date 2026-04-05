@@ -90,7 +90,7 @@ impl ClosestEdgeQuery {
         first_only: bool,
     ) -> Self {
         let builder = IndexBuilder::new(BuildOptions::default());
-        let query_index = builder.build_from_sets(std::slice::from_ref(&set));
+        let query_index = builder.build(std::slice::from_ref(&set));
         let query_edges = QueryEdgeProvider { set };
         Self {
             query_index,

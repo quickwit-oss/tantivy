@@ -34,7 +34,7 @@ impl IntersectsQuery {
     /// Build the query from a smashed GeometrySet.
     pub fn new(set: GeometrySet, options: CovererOptions) -> Self {
         let builder = IndexBuilder::new(BuildOptions::default());
-        let query_index = builder.build_from_sets(std::slice::from_ref(&set));
+        let query_index = builder.build(std::slice::from_ref(&set));
         let query_edges = QueryEdgeProvider { set };
 
         let region = CellIndexRegion::new(&query_index, &query_edges);

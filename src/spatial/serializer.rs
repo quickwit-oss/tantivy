@@ -40,7 +40,7 @@ impl SpatialSerializer {
 
         // Build the cell index from smashed sets.
         let builder = IndexBuilder::new(BuildOptions::default());
-        let cell_index = builder.build_from_sets(sets);
+        let cell_index = builder.build(sets);
 
         // Write the cell index.
         let cells_out = self.cells_write.for_field(field);
