@@ -1,7 +1,9 @@
 //! Postings module (also called inverted index)
 
+mod block_intersection;
 mod block_search;
 
+pub(crate) use self::block_intersection::intersect_sorted_u32;
 pub(crate) use self::block_search::branchless_binary_search;
 
 mod block_segment_postings;
