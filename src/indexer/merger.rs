@@ -492,29 +492,29 @@ impl IndexMerger {
 
         for reader in &self.readers {
             let store_reader = reader.get_store_reader(1)?;
-            if reader.has_deletes()
-                    // If there is not enough data in the store, we avoid stacking in order to
-                    // avoid creating many small blocks in the doc store. Once we have 5 full blocks,
-                    // we start stacking. In the worst case 2/7 of the blocks would be very small.
-                    // [segment 1 - {1 doc}][segment 2 - {fullblock * 5}{1doc}]
-                    // => 5 * full blocks, 2 * 1 document blocks
-                    //
-                    // In a more realistic scenario the segments are of the same size, so 1/6 of
-                    // the doc stores would be on average half full, given total randomness (which
-                    // is not the case here, but not sure how it behaves exactly).
-                    //
-                    // https://github.com/quickwit-oss/tantivy/issues/1053
-                    //
-                    // take 7 in order to not walk over all checkpoints.
-                    || store_reader.block_checkpoints().take(7).count() < 6
-                    || store_reader.decompressor() != store_writer.compressor().into()
-            {
+            let block_count = store_reader.block_checkpoints().take(5).count();
+            let compressor_matches =
+                store_reader.decompressor() == store_writer.compressor().into();
+
+            // Stacking: copy compressed blocks directly without decompression.
+            // Requirements:
+            //   1. No deletes (can't skip deleted docs in stacked blocks)
+            //   2. At least 4 full blocks (avoid accumulating tiny trailing blocks)
+            //   3. Same compressor (no transcoding needed)
+            //
+            // Relaxed from the original threshold of 6 blocks to 4 blocks.
+            // With 4 blocks, worst case is 1/5 undersized blocks, which balances
+            // I/O reduction during bulk indexing against doc store fragmentation.
+            // See: https://github.com/quickwit-oss/tantivy/issues/1053
+            let can_stack = !reader.has_deletes() && block_count >= 4 && compressor_matches;
+
+            if can_stack {
+                store_writer.stack(store_reader)?;
+            } else {
                 for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
                     let doc_bytes = doc_bytes_res?;
                     store_writer.store_bytes(&doc_bytes)?;
                 }
-            } else {
-                store_writer.stack(store_reader)?;
             }
         }
         Ok(())

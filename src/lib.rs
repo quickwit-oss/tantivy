@@ -286,7 +286,8 @@ pub fn version_string() -> &'static str {
 /// Defines tantivy's merging strategy
 pub mod merge_policy {
     pub use crate::indexer::{
-        DefaultMergePolicy, LogMergePolicy, MergeCandidate, MergePolicy, NoMergePolicy,
+        BulkIndexingMergePolicy, DefaultMergePolicy, LogMergePolicy, MergeCandidate, MergePolicy,
+        NoMergePolicy,
     };
 }
 

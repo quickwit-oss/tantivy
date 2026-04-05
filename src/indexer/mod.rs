@@ -14,6 +14,7 @@ mod flat_map_with_buffer;
 pub(crate) mod index_writer;
 pub(crate) mod index_writer_status;
 pub(crate) mod indexing_term;
+mod bulk_merge_policy;
 mod log_merge_policy;
 mod merge_index_test;
 mod merge_operation;
@@ -34,6 +35,7 @@ use crossbeam_channel as channel;
 use smallvec::SmallVec;
 
 pub use self::index_writer::{advance_deletes, IndexWriter, IndexWriterOptions};
+pub use self::bulk_merge_policy::BulkIndexingMergePolicy;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};

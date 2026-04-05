@@ -574,6 +574,15 @@ impl SegmentUpdater {
     }
 
     fn consider_merge_options(&self) {
+        // Limit concurrent merge operations (jobs) to avoid I/O starvation.
+        // We count actual merge operations, not segments-in-merge, because
+        // a single wide merge (e.g., 8→1) is only one job on one thread.
+        let active_merge_jobs = self.merge_operations.list().len();
+        let max_concurrent = self.merge_thread_pool.current_num_threads() + 1;
+        if active_merge_jobs >= max_concurrent {
+            return;
+        }
+
         let (mut committed_segments, mut uncommitted_segments) = self.get_mergeable_segments();
         if committed_segments.len() == 1 && committed_segments[0].num_deleted_docs() == 0 {
             committed_segments.clear();
@@ -604,7 +613,9 @@ impl SegmentUpdater {
             });
         merge_candidates.extend(committed_merge_candidates);
 
-        for merge_operation in merge_candidates {
+        // Only start merges up to the concurrency limit
+        let slots_available = max_concurrent.saturating_sub(active_merge_jobs);
+        for merge_operation in merge_candidates.into_iter().take(slots_available) {
             // If a merge cannot be started this is not a fatal error.
             // We do log a warning in `start_merge`.
             drop(self.start_merge(merge_operation));
