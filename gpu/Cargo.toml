@@ -1,0 +1,41 @@
+[package]
+name = "tantivy-gpu"
+version = "0.1.0"
+authors = ["FerroSearch Contributors"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.86"
+description = "GPU acceleration layer for Tantivy search engine"
+categories = ["database-implementations", "science"]
+keywords = ["search", "gpu", "wgpu", "compute"]
+
+[dependencies]
+# Core tantivy types (re-exported via tantivy-common)
+common = { version = "0.11", path = "../common/", package = "tantivy-common" }
+columnar = { version = "0.7", path = "../columnar", package = "tantivy-columnar" }
+tantivy-bitpacker = { version = "0.10", path = "../bitpacker" }
+
+# GPU compute
+wgpu = { version = "24", optional = true }
+pollster = { version = "0.4", optional = true }
+
+# Utilities
+log = "0.4.16"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0.1"
+bytemuck = { version = "1.21", features = ["derive"] }
+
+[dev-dependencies]
+proptest = "1.7"
+pretty_assertions = "1.2"
+rand = "0.9"
+
+[[bench]]
+name = "gpu_bench"
+harness = false
+
+[features]
+default = ["wgpu-backend"]
+wgpu-backend = ["wgpu", "pollster"]
+# CPU-only fallback for testing / environments without GPU
+cpu-fallback = []

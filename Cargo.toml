@@ -70,6 +70,7 @@ futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
 typetag = "0.2.21"
+tantivy-gpu = { version = "0.1.0", path = "./gpu", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
@@ -134,6 +135,9 @@ quickwit = ["sstable", "futures-util", "futures-channel"]
 # Uses 64bit ahash.
 compare_hash_only = ["stacker/compare_hash_only"]
 
+# GPU-accelerated aggregation, scoring, and vector search
+gpu = ["tantivy-gpu"]
+
 [workspace]
 members = [
     "query-grammar",
@@ -144,6 +148,7 @@ members = [
     "sstable",
     "tokenizer-api",
     "columnar",
+    "gpu",
 ]
 
 # Following the "fail" crate best practises, we isolate

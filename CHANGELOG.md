@@ -13,6 +13,12 @@ Tantivy 0.26 (Unreleased)
 - Fix deduplicate doc counts in term aggregation for multi-valued fields [#2854](https://github.com/quickwit-oss/tantivy/pull/2854)(@nuri-yoo)
 
 ## Features/Improvements
+- **GPU Acceleration** (new `tantivy-gpu` crate, opt-in `gpu` feature)
+    - Add `tantivy-gpu` workspace crate with wgpu (Vulkan/Metal/DX12) backend + CPU fallback
+    - GPU-accelerated stats aggregation, histogram bucketing, BM25 batch scoring
+    - GPU-accelerated vector distance (L2/cosine/dot) with HNSW index and KnnQuery
+    - Buffer pool for zero-alloc per-dispatch GPU buffer reuse
+    - HNSW persistence (`.vec` binary format), VectorFieldOptions schema support
 - **Aggregation**
     - Add filter aggregation [#2711](https://github.com/quickwit-oss/tantivy/pull/2711)(@mdashti)
     - Add include/exclude filtering for term aggregations [#2717](https://github.com/quickwit-oss/tantivy/pull/2717)(@PSeitz)

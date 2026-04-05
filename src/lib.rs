@@ -208,6 +208,10 @@ pub mod termdict;
 mod docset;
 mod reader;
 
+/// GPU acceleration module (requires `gpu` feature).
+#[cfg(feature = "gpu")]
+pub use tantivy_gpu as gpu;
+
 #[cfg(test)]
 #[cfg(feature = "mmap")]
 mod compat_tests;
