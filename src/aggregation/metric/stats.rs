@@ -173,6 +173,219 @@ impl IntermediateStats {
         self.min = self.min.min(value);
         self.max = self.max.max(value);
     }
+
+    /// Collects a block of f64 values with SIMD-friendly batching.
+    ///
+    /// Processes values in chunks, maintaining Kahan summation precision
+    /// while enabling the compiler to vectorize min/max/sum operations.
+    /// On x86_64 with AVX2 support, uses explicit SIMD intrinsics for
+    /// 4-lane parallel processing.
+    #[inline]
+    pub(in crate::aggregation::metric) fn collect_block_f64(&mut self, values: &[f64]) {
+        if values.is_empty() {
+            return;
+        }
+
+        #[cfg(target_arch = "x86_64")]
+        {
+            if is_x86_feature_detected!("avx2") {
+                // SAFETY: Runtime feature detection guarantees AVX2 is available
+                unsafe {
+                    self.collect_block_avx2(values);
+                }
+                return;
+            }
+        }
+
+        #[cfg(target_arch = "aarch64")]
+        {
+            // NEON is always available on aarch64
+            unsafe {
+                self.collect_block_neon(values);
+            }
+            return;
+        }
+
+        #[allow(unreachable_code)]
+        self.collect_block_scalar(values);
+    }
+
+    /// Scalar implementation optimized for autovectorization.
+    ///
+    /// Uses 4-lane parallel accumulators to help the compiler
+    /// vectorize the inner loop.
+    #[inline]
+    fn collect_block_scalar(&mut self, values: &[f64]) {
+        // Process in chunks of 4 for autovectorization-friendly pattern
+        const LANES: usize = 4;
+        let mut local_min = [f64::MAX; LANES];
+        let mut local_max = [f64::MIN; LANES];
+        let mut local_sum = [0.0f64; LANES];
+        let mut local_delta = [0.0f64; LANES];
+
+        let chunks = values.len() / LANES;
+        let remainder = values.len() % LANES;
+
+        for chunk_idx in 0..chunks {
+            let base = chunk_idx * LANES;
+            for lane in 0..LANES {
+                let val = values[base + lane];
+                local_min[lane] = local_min[lane].min(val);
+                local_max[lane] = local_max[lane].max(val);
+                // Kahan summation per lane
+                let y = val - local_delta[lane];
+                let t = local_sum[lane] + y;
+                local_delta[lane] = (t - local_sum[lane]) - y;
+                local_sum[lane] = t;
+            }
+        }
+
+        // Handle remainder
+        for i in 0..remainder {
+            let val = values[chunks * LANES + i];
+            local_min[0] = local_min[0].min(val);
+            local_max[0] = local_max[0].max(val);
+            let y = val - local_delta[0];
+            let t = local_sum[0] + y;
+            local_delta[0] = (t - local_sum[0]) - y;
+            local_sum[0] = t;
+        }
+
+        // Reduce lanes into self
+        self.count += values.len() as u64;
+        for lane in 0..LANES {
+            self.min = self.min.min(local_min[lane]);
+            self.max = self.max.max(local_max[lane]);
+            // Merge lane sum into self using Kahan
+            let y = local_sum[lane] - (self.delta + local_delta[lane]);
+            let t = self.sum + y;
+            self.delta = (t - self.sum) - y;
+            self.sum = t;
+        }
+    }
+
+    /// AVX2 SIMD implementation for x86_64.
+    ///
+    /// Processes 4 f64 values per cycle using 256-bit AVX registers.
+    /// Maintains per-lane Kahan summation for numerical stability.
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2")]
+    unsafe fn collect_block_avx2(&mut self, values: &[f64]) {
+        use std::arch::x86_64::*;
+
+        let mut v_min = _mm256_set1_pd(f64::MAX);
+        let mut v_max = _mm256_set1_pd(f64::MIN);
+        let mut v_sum = _mm256_setzero_pd();
+        let mut v_delta = _mm256_setzero_pd();
+
+        let chunks = values.len() / 4;
+        let ptr = values.as_ptr();
+
+        for i in 0..chunks {
+            let v_val = _mm256_loadu_pd(ptr.add(i * 4));
+            v_min = _mm256_min_pd(v_min, v_val);
+            v_max = _mm256_max_pd(v_max, v_val);
+            // Kahan summation: y = val - delta; t = sum + y; delta = (t - sum) - y; sum = t
+            let v_y = _mm256_sub_pd(v_val, v_delta);
+            let v_t = _mm256_add_pd(v_sum, v_y);
+            v_delta = _mm256_sub_pd(_mm256_sub_pd(v_t, v_sum), v_y);
+            v_sum = v_t;
+        }
+
+        // Extract lanes
+        let mut lane_min = [0.0f64; 4];
+        let mut lane_max = [0.0f64; 4];
+        let mut lane_sum = [0.0f64; 4];
+        let mut lane_delta = [0.0f64; 4];
+        _mm256_storeu_pd(lane_min.as_mut_ptr(), v_min);
+        _mm256_storeu_pd(lane_max.as_mut_ptr(), v_max);
+        _mm256_storeu_pd(lane_sum.as_mut_ptr(), v_sum);
+        _mm256_storeu_pd(lane_delta.as_mut_ptr(), v_delta);
+
+        // Handle remainder with scalar
+        for i in (chunks * 4)..values.len() {
+            let val = values[i];
+            lane_min[0] = lane_min[0].min(val);
+            lane_max[0] = lane_max[0].max(val);
+            let y = val - lane_delta[0];
+            let t = lane_sum[0] + y;
+            lane_delta[0] = (t - lane_sum[0]) - y;
+            lane_sum[0] = t;
+        }
+
+        // Reduce into self
+        self.count += values.len() as u64;
+        for lane in 0..4 {
+            self.min = self.min.min(lane_min[lane]);
+            self.max = self.max.max(lane_max[lane]);
+            let y = lane_sum[lane] - (self.delta + lane_delta[lane]);
+            let t = self.sum + y;
+            self.delta = (t - self.sum) - y;
+            self.sum = t;
+        }
+    }
+
+    /// NEON SIMD implementation for aarch64.
+    ///
+    /// Processes 2 f64 values per cycle using 128-bit NEON registers.
+    /// Maintains per-lane Kahan summation for numerical stability.
+    ///
+    /// Note: NEON is always available on aarch64, so no `#[target_feature]` is needed.
+    #[cfg(target_arch = "aarch64")]
+    unsafe fn collect_block_neon(&mut self, values: &[f64]) {
+        use std::arch::aarch64::*;
+
+        let mut v_min = vdupq_n_f64(f64::MAX);
+        let mut v_max = vdupq_n_f64(f64::MIN);
+        let mut v_sum = vdupq_n_f64(0.0);
+        let mut v_delta = vdupq_n_f64(0.0);
+
+        let chunks = values.len() / 2;
+        let ptr = values.as_ptr();
+
+        for i in 0..chunks {
+            let v_val = vld1q_f64(ptr.add(i * 2));
+            v_min = vminq_f64(v_min, v_val);
+            v_max = vmaxq_f64(v_max, v_val);
+            // Kahan summation
+            let v_y = vsubq_f64(v_val, v_delta);
+            let v_t = vaddq_f64(v_sum, v_y);
+            v_delta = vsubq_f64(vsubq_f64(v_t, v_sum), v_y);
+            v_sum = v_t;
+        }
+
+        // Extract lanes
+        let mut lane_min = [0.0f64; 2];
+        let mut lane_max = [0.0f64; 2];
+        let mut lane_sum = [0.0f64; 2];
+        let mut lane_delta = [0.0f64; 2];
+        vst1q_f64(lane_min.as_mut_ptr(), v_min);
+        vst1q_f64(lane_max.as_mut_ptr(), v_max);
+        vst1q_f64(lane_sum.as_mut_ptr(), v_sum);
+        vst1q_f64(lane_delta.as_mut_ptr(), v_delta);
+
+        // Handle remainder
+        if values.len() % 2 == 1 {
+            let val = *values.last().unwrap();
+            lane_min[0] = lane_min[0].min(val);
+            lane_max[0] = lane_max[0].max(val);
+            let y = val - lane_delta[0];
+            let t = lane_sum[0] + y;
+            lane_delta[0] = (t - lane_sum[0]) - y;
+            lane_sum[0] = t;
+        }
+
+        // Reduce into self
+        self.count += values.len() as u64;
+        for lane in 0..2 {
+            self.min = self.min.min(lane_min[lane]);
+            self.max = self.max.max(lane_max[lane]);
+            let y = lane_sum[lane] - (self.delta + lane_delta[lane]);
+            let t = self.sum + y;
+            self.delta = (t - self.sum) - y;
+            self.sum = t;
+        }
+    }
 }
 
 /// The type of stats aggregation to perform.
@@ -330,15 +543,29 @@ fn collect_stats<const COLUMN_TYPE_ID: u8>(
     is_number_or_date_type: bool,
 ) -> crate::Result<()> {
     if is_number_or_date_type {
+        // Stream through values with a fixed-size stack buffer for SIMD-friendly processing.
+        // O(1) memory regardless of input size.
+        const CHUNK_SIZE: usize = 256;
+        let mut buf = [0.0f64; CHUNK_SIZE];
+        let mut buf_len = 0;
         for val in vals {
-            let val1 = convert_to_f64::<COLUMN_TYPE_ID>(val);
-            stats.collect(val1);
+            buf[buf_len] = convert_to_f64::<COLUMN_TYPE_ID>(val);
+            buf_len += 1;
+            if buf_len == CHUNK_SIZE {
+                stats.collect_block_f64(&buf[..buf_len]);
+                buf_len = 0;
+            }
+        }
+        if buf_len > 0 {
+            stats.collect_block_f64(&buf[..buf_len]);
         }
     } else {
+        // For non-numeric types, just count occurrences
+        let mut count = 0u64;
         for _val in vals {
-            // we ignore the value and simply record that we got something
-            stats.collect(0.0);
+            count += 1;
         }
+        stats.count += count;
     }
 
     Ok(())
@@ -733,5 +960,90 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    // ─── Unit tests for IntermediateStats::collect_block_f64 ───
+
+    #[test]
+    fn test_collect_block_f64_empty() {
+        let mut stats = super::IntermediateStats::default();
+        stats.collect_block_f64(&[]);
+        assert_eq!(stats.count, 0);
+        assert_eq!(stats.sum, 0.0);
+    }
+
+    #[test]
+    fn test_collect_block_f64_single() {
+        let mut stats = super::IntermediateStats::default();
+        stats.collect_block_f64(&[42.0]);
+        assert_eq!(stats.count, 1);
+        assert_eq!(stats.sum, 42.0);
+        assert_eq!(stats.min, 42.0);
+        assert_eq!(stats.max, 42.0);
+    }
+
+    #[test]
+    fn test_collect_block_f64_basic() {
+        let mut stats = super::IntermediateStats::default();
+        stats.collect_block_f64(&[1.0, 2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(stats.count, 5);
+        assert!((stats.sum - 15.0).abs() < 1e-10);
+        assert_eq!(stats.min, 1.0);
+        assert_eq!(stats.max, 5.0);
+    }
+
+    #[test]
+    fn test_collect_block_f64_matches_scalar_collect() {
+        let values: Vec<f64> = (0..1000).map(|i| i as f64 * 0.1 + 0.01).collect();
+
+        let mut stats_block = super::IntermediateStats::default();
+        stats_block.collect_block_f64(&values);
+
+        let mut stats_scalar = super::IntermediateStats::default();
+        for &v in &values {
+            stats_scalar.collect(v);
+        }
+
+        assert_eq!(stats_block.count, stats_scalar.count);
+        assert!(
+            (stats_block.sum - stats_scalar.sum).abs() < 1e-6,
+            "sum mismatch: block={} scalar={}",
+            stats_block.sum,
+            stats_scalar.sum,
+        );
+        assert_eq!(stats_block.min, stats_scalar.min);
+        assert_eq!(stats_block.max, stats_scalar.max);
+    }
+
+    #[test]
+    fn test_collect_block_f64_large() {
+        let values: Vec<f64> = (0..1024).map(|i| i as f64).collect();
+        let mut stats = super::IntermediateStats::default();
+        stats.collect_block_f64(&values);
+        assert_eq!(stats.count, 1024);
+        assert!((stats.sum - 1024.0 * 1023.0 / 2.0).abs() < 1e-6);
+        assert_eq!(stats.min, 0.0);
+        assert_eq!(stats.max, 1023.0);
+    }
+
+    #[test]
+    fn test_collect_block_f64_negative_values() {
+        let mut stats = super::IntermediateStats::default();
+        stats.collect_block_f64(&[-10.0, -5.0, 0.0, 5.0, 10.0]);
+        assert_eq!(stats.count, 5);
+        assert!((stats.sum - 0.0).abs() < 1e-10);
+        assert_eq!(stats.min, -10.0);
+        assert_eq!(stats.max, 10.0);
+    }
+
+    #[test]
+    fn test_collect_block_f64_incremental() {
+        let mut stats = super::IntermediateStats::default();
+        stats.collect_block_f64(&[1.0, 2.0]);
+        stats.collect_block_f64(&[3.0, 4.0]);
+        assert_eq!(stats.count, 4);
+        assert!((stats.sum - 10.0).abs() < 1e-10);
+        assert_eq!(stats.min, 1.0);
+        assert_eq!(stats.max, 4.0);
     }
 }
