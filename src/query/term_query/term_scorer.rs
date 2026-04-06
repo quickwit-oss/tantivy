@@ -117,6 +117,12 @@ impl DocSet for TermScorer {
     fn size_hint(&self) -> u32 {
         self.postings.size_hint()
     }
+
+    // TODO
+    // It is probably possible to optimize fill_bitset_block for TermScorer,
+    // working directly with the blocks, enabling vectorization.
+    // I did not manage to get a performance improvement on Mac ARM,
+    // and do not have access to x86 to investigate.
 }
 
 impl Scorer for TermScorer {
