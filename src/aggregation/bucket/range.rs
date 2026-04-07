@@ -9,8 +9,8 @@ use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
 use crate::aggregation::agg_limits::AggregationLimitsGuard;
-use crate::aggregation::cached_sub_aggs::{
-    CachedSubAggs, HighCardSubAggCache, LowCardCachedSubAggs, LowCardSubAggCache, SubAggCache,
+use crate::aggregation::buffered_sub_aggs::{
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer, SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -155,13 +155,13 @@ pub(crate) struct SegmentRangeAndBucketEntry {
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
-pub struct SegmentRangeCollector<C: SubAggCache> {
+pub struct SegmentRangeCollector<B: SubAggBuffer> {
     /// The buckets containing the aggregation data.
     /// One for each ParentBucketId
     parent_buckets: Vec<Vec<SegmentRangeAndBucketEntry>>,
     column_type: ColumnType,
     pub(crate) accessor_idx: usize,
-    sub_agg: Option<CachedSubAggs<C>>,
+    sub_agg: Option<BufferedSubAggs<B>>,
     /// Here things get a bit weird. We need to assign unique bucket ids across all
     /// parent buckets. So we keep track of the next available bucket id here.
     /// This allows a kind of flattening of the bucket ids across all parent buckets.
@@ -178,7 +178,7 @@ pub struct SegmentRangeCollector<C: SubAggCache> {
     limits: AggregationLimitsGuard,
 }
 
-impl<C: SubAggCache> Debug for SegmentRangeCollector<C> {
+impl<B: SubAggBuffer> Debug for SegmentRangeCollector<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentRangeCollector")
             .field("parent_buckets_len", &self.parent_buckets.len())
@@ -229,7 +229,7 @@ impl SegmentRangeBucketEntry {
     }
 }
 
-impl<C: SubAggCache> SegmentAggregationCollector for SegmentRangeCollector<C> {
+impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
@@ -350,8 +350,8 @@ pub(crate) fn build_segment_range_collector(
     };
 
     if is_low_card {
-        Ok(Box::new(SegmentRangeCollector::<LowCardSubAggCache> {
-            sub_agg: sub_agg.map(LowCardCachedSubAggs::new),
+        Ok(Box::new(SegmentRangeCollector::<LowCardSubAggBuffer> {
+            sub_agg: sub_agg.map(LowCardBufferedSubAggs::new),
             column_type: field_type,
             accessor_idx,
             parent_buckets: Vec::new(),
@@ -359,8 +359,8 @@ pub(crate) fn build_segment_range_collector(
             limits: agg_data.context.limits.clone(),
         }))
     } else {
-        Ok(Box::new(SegmentRangeCollector::<HighCardSubAggCache> {
-            sub_agg: sub_agg.map(CachedSubAggs::new),
+        Ok(Box::new(SegmentRangeCollector::<HighCardSubAggBuffer> {
+            sub_agg: sub_agg.map(BufferedSubAggs::new),
             column_type: field_type,
             accessor_idx,
             parent_buckets: Vec::new(),
@@ -370,7 +370,7 @@ pub(crate) fn build_segment_range_collector(
     }
 }
 
-impl<C: SubAggCache> SegmentRangeCollector<C> {
+impl<B: SubAggBuffer> SegmentRangeCollector<B> {
     pub(crate) fn create_new_buckets(
         &mut self,
         agg_data: &AggregationsSegmentCtx,
@@ -554,7 +554,7 @@ mod tests {
     pub fn get_collector_from_ranges(
         ranges: Vec<RangeAggregationRange>,
         field_type: ColumnType,
-    ) -> SegmentRangeCollector<HighCardSubAggCache> {
+    ) -> SegmentRangeCollector<HighCardSubAggBuffer> {
         let req = RangeAggregation {
             field: "dummy".to_string(),
             ranges,

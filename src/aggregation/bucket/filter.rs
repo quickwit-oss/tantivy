@@ -6,8 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::aggregation::agg_data::{
     build_segment_agg_collectors, AggRefNode, AggregationsSegmentCtx,
 };
-use crate::aggregation::cached_sub_aggs::{
-    CachedSubAggs, HighCardSubAggCache, LowCardSubAggCache, SubAggCache,
+use crate::aggregation::buffered_sub_aggs::{
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardSubAggBuffer, SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -503,17 +503,17 @@ struct DocCount {
 }
 
 /// Segment collector for filter aggregation
-pub struct SegmentFilterCollector<C: SubAggCache> {
+pub struct SegmentFilterCollector<B: SubAggBuffer> {
     /// Document counts per parent bucket
     parent_buckets: Vec<DocCount>,
     /// Sub-aggregation collectors
-    sub_aggregations: Option<CachedSubAggs<C>>,
+    sub_aggregations: Option<BufferedSubAggs<B>>,
     bucket_id_provider: BucketIdProvider,
     /// Accessor index for this filter aggregation (to access FilterAggReqData)
     accessor_idx: usize,
 }
 
-impl<C: SubAggCache> SegmentFilterCollector<C> {
+impl<B: SubAggBuffer> SegmentFilterCollector<B> {
     /// Create a new filter segment collector following the new agg_data pattern
     pub(crate) fn from_req_and_validate(
         req: &mut AggregationsSegmentCtx,
@@ -525,7 +525,7 @@ impl<C: SubAggCache> SegmentFilterCollector<C> {
         } else {
             None
         };
-        let sub_agg_collector = sub_agg_collector.map(CachedSubAggs::new);
+        let sub_agg_collector = sub_agg_collector.map(BufferedSubAggs::new);
 
         Ok(SegmentFilterCollector {
             parent_buckets: Vec::new(),
@@ -547,16 +547,16 @@ pub(crate) fn build_segment_filter_collector(
 
     if is_top_level {
         Ok(Box::new(
-            SegmentFilterCollector::<LowCardSubAggCache>::from_req_and_validate(req, node)?,
+            SegmentFilterCollector::<LowCardSubAggBuffer>::from_req_and_validate(req, node)?,
         ))
     } else {
         Ok(Box::new(
-            SegmentFilterCollector::<HighCardSubAggCache>::from_req_and_validate(req, node)?,
+            SegmentFilterCollector::<HighCardSubAggBuffer>::from_req_and_validate(req, node)?,
         ))
     }
 }
 
-impl<C: SubAggCache> Debug for SegmentFilterCollector<C> {
+impl<B: SubAggBuffer> Debug for SegmentFilterCollector<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SegmentFilterCollector")
             .field("buckets", &self.parent_buckets)
@@ -566,7 +566,7 @@ impl<C: SubAggCache> Debug for SegmentFilterCollector<C> {
     }
 }
 
-impl<C: SubAggCache> SegmentAggregationCollector for SegmentFilterCollector<C> {
+impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentFilterCollector<B> {
     fn add_intermediate_aggregation_result(
         &mut self,
         agg_data: &AggregationsSegmentCtx,

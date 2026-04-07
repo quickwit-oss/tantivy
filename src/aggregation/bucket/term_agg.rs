@@ -17,8 +17,8 @@ use crate::aggregation::agg_data::{
 };
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req::Aggregations;
-use crate::aggregation::cached_sub_aggs::{
-    CachedSubAggs, HighCardSubAggCache, LowCardCachedSubAggs, LowCardSubAggCache, SubAggCache,
+use crate::aggregation::buffered_sub_aggs::{
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer, SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -391,7 +391,7 @@ pub(crate) fn build_segment_term_collector(
     // Decide which bucket storage is best suited for this aggregation.
     if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC && !has_sub_aggregations {
         let term_buckets = VecTermBucketsNoAgg::new(max_term_id + 1, &mut bucket_id_provider);
-        let collector: SegmentTermCollector<_, HighCardSubAggCache> = SegmentTermCollector {
+        let collector: SegmentTermCollector<_, HighCardSubAggBuffer> = SegmentTermCollector {
             parent_buckets: vec![term_buckets],
             sub_agg: None,
             bucket_id_provider,
@@ -401,8 +401,8 @@ pub(crate) fn build_segment_term_collector(
         Ok(Box::new(collector))
     } else if is_top_level && max_term_id < MAX_NUM_TERMS_FOR_VEC {
         let term_buckets = VecTermBuckets::new(max_term_id + 1, &mut bucket_id_provider);
-        let sub_agg = sub_agg_collector.map(LowCardCachedSubAggs::new);
-        let collector: SegmentTermCollector<_, LowCardSubAggCache> = SegmentTermCollector {
+        let sub_agg = sub_agg_collector.map(LowCardBufferedSubAggs::new);
+        let collector: SegmentTermCollector<_, LowCardSubAggBuffer> = SegmentTermCollector {
             parent_buckets: vec![term_buckets],
             sub_agg,
             bucket_id_provider,
@@ -414,8 +414,8 @@ pub(crate) fn build_segment_term_collector(
         let term_buckets: PagedTermMap =
             PagedTermMap::new(max_term_id + 1, &mut bucket_id_provider);
         // Build sub-aggregation blueprint (flat pairs)
-        let sub_agg = sub_agg_collector.map(CachedSubAggs::new);
-        let collector: SegmentTermCollector<PagedTermMap, HighCardSubAggCache> =
+        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
+        let collector: SegmentTermCollector<PagedTermMap, HighCardSubAggBuffer> =
             SegmentTermCollector {
                 parent_buckets: vec![term_buckets],
                 sub_agg,
@@ -427,8 +427,8 @@ pub(crate) fn build_segment_term_collector(
     } else {
         let term_buckets: HashMapTermBuckets = HashMapTermBuckets::default();
         // Build sub-aggregation blueprint (flat pairs)
-        let sub_agg = sub_agg_collector.map(CachedSubAggs::new);
-        let collector: SegmentTermCollector<HashMapTermBuckets, HighCardSubAggCache> =
+        let sub_agg = sub_agg_collector.map(BufferedSubAggs::new);
+        let collector: SegmentTermCollector<HashMapTermBuckets, HighCardSubAggBuffer> =
             SegmentTermCollector {
                 parent_buckets: vec![term_buckets],
                 sub_agg,
@@ -758,10 +758,10 @@ impl TermAggregationMap for VecTermBuckets {
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
 #[derive(Debug)]
-struct SegmentTermCollector<TermMap: TermAggregationMap, C: SubAggCache> {
+struct SegmentTermCollector<TermMap: TermAggregationMap, B: SubAggBuffer> {
     /// The buckets containing the aggregation data.
     parent_buckets: Vec<TermMap>,
-    sub_agg: Option<CachedSubAggs<C>>,
+    sub_agg: Option<BufferedSubAggs<B>>,
     bucket_id_provider: BucketIdProvider,
     max_term_id: u64,
     terms_req_data: TermsAggReqData,
@@ -772,8 +772,8 @@ pub(crate) fn get_agg_name_and_property(name: &str) -> (&str, &str) {
     (agg_name, agg_property)
 }
 
-impl<TermMap: TermAggregationMap, C: SubAggCache> SegmentAggregationCollector
-    for SegmentTermCollector<TermMap, C>
+impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
+    for SegmentTermCollector<TermMap, B>
 {
     fn add_intermediate_aggregation_result(
         &mut self,
@@ -907,10 +907,10 @@ fn extract_missing_value<T>(
     Some((key, bucket))
 }
 
-impl<TermMap, C> SegmentTermCollector<TermMap, C>
+impl<TermMap, B> SegmentTermCollector<TermMap, B>
 where
     TermMap: TermAggregationMap,
-    C: SubAggCache,
+    B: SubAggBuffer,
 {
     fn get_memory_consumption(&self) -> usize {
         self.parent_buckets
@@ -922,7 +922,7 @@ where
     #[inline]
     pub(crate) fn into_intermediate_bucket_result(
         term_req: &TermsAggReqData,
-        sub_agg: &mut Option<CachedSubAggs<C>>,
+        sub_agg: &mut Option<BufferedSubAggs<B>>,
         term_buckets: TermMap,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
@@ -967,7 +967,7 @@ where
 
         let into_intermediate_bucket_entry =
             |bucket: Bucket,
-             sub_agg: &mut Option<CachedSubAggs<C>>|
+             sub_agg: &mut Option<BufferedSubAggs<B>>|
              -> crate::Result<IntermediateTermBucketEntry> {
                 if let Some(sub_agg) = sub_agg {
                     let mut sub_aggregation_res = IntermediateAggregationResults::default();
@@ -1123,13 +1123,13 @@ where
     }
 }
 
-impl<TermMap: TermAggregationMap, C: SubAggCache> SegmentTermCollector<TermMap, C> {
+impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentTermCollector<TermMap, B> {
     #[inline]
     fn collect_terms_with_docs(
         iter: impl Iterator<Item = (crate::DocId, u64)>,
         term_buckets: &mut TermMap,
         bucket_id_provider: &mut BucketIdProvider,
-        sub_agg: &mut CachedSubAggs<C>,
+        sub_agg: &mut BufferedSubAggs<B>,
     ) {
         for (doc, term_id) in iter {
             let bucket_id = term_buckets.term_entry(term_id, bucket_id_provider);
