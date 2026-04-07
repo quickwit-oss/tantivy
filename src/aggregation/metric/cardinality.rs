@@ -1,10 +1,12 @@
+use std::fmt::Debug;
 use std::hash::Hash;
+use std::io;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{Column, ColumnType, Dictionary, StrColumn};
 use common::f64_to_u64;
 use datasketches::hll::{HllSketch, HllType, HllUnion};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::aggregation::agg_data::AggregationsSegmentCtx;
@@ -18,6 +20,8 @@ use crate::TantivyError;
 /// Log2 of the number of registers for the HLL sketch.
 /// 2^11 = 2048 registers, giving ~2.3% relative error and ~1KB per sketch (Hll4).
 const LG_K: u8 = 11;
+
+const MISSING_TERM_SENTINEL: u64 = u64::MAX;
 
 /// # Cardinality
 ///
@@ -120,7 +124,51 @@ impl CardinalityAggregationReq {
     }
 }
 
-#[derive(Clone, Debug)]
+type Coupon = u32;
+
+enum CouponCacheEnum {
+    Dense(Vec<Coupon>),
+    Sparse(FxHashMap<u64, Coupon>),
+}
+
+impl CouponCacheEnum {
+    fn new(term_ords: Vec<u64>, coupons: Vec<Coupon>) -> CouponCacheEnum {
+        let num_terms = term_ords.len();
+        assert_eq!(num_terms, coupons.len());
+        if term_ords.is_empty() {
+            return CouponCacheEnum::Dense(Vec::new());
+        }
+        let highest_term_ord = term_ords.last().copied().unwrap_or(0u64);
+        if highest_term_ord < 1_000_000u64 || highest_term_ord < num_terms as u64 * 10u64 {
+            let mut coupon_cache_vec = vec![0u32; highest_term_ord as usize + 1];
+            for (term_ord, coupon) in term_ords.into_iter().zip(coupons.into_iter()) {
+                coupon_cache_vec[term_ord as usize] = coupon;
+            }
+            CouponCacheEnum::Dense(coupon_cache_vec)
+        } else {
+            let coupon_cache_sparse: FxHashMap<u64, u32> =
+                term_ords.into_iter().zip(coupons.into_iter()).collect();
+            CouponCacheEnum::Sparse(coupon_cache_sparse)
+        }
+    }
+}
+
+trait CouponCache {
+    fn get_coupon(&self, term_ord: u64) -> Option<Coupon>;
+}
+
+impl CouponCache for FxHashMap<u64, Coupon> {
+    fn get_coupon(&self, term_ord: u64) -> Option<Coupon> {
+        self.get(&term_ord).copied()
+    }
+}
+
+impl CouponCache for Vec<Coupon> {
+    fn get_coupon(&self, term_ord: u64) -> Option<Coupon> {
+        self.get(term_ord as usize).copied()
+    }
+}
+
 pub(crate) struct SegmentCardinalityCollector {
     buckets: Vec<SegmentCardinalityCollectorBucket>,
     accessor_idx: usize,
@@ -130,6 +178,32 @@ pub(crate) struct SegmentCardinalityCollector {
     column_type: ColumnType,
     /// The missing value normalized to the internal u64 representation of the field type.
     missing_value_for_accessor: Option<u64>,
+    coupon_cache: Option<CouponCacheEnum>,
+}
+
+impl Debug for SegmentCardinalityCollector {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("SegmentCardinalityCollector")
+            .field("column_type", &self.column_type)
+            .field(
+                "missing_value_for_accessor",
+                &self.missing_value_for_accessor,
+            )
+            .finish()
+    }
+}
+
+impl Clone for SegmentCardinalityCollector {
+    fn clone(&self) -> Self {
+        Self {
+            buckets: self.buckets.clone(),
+            accessor_idx: self.accessor_idx.clone(),
+            accessor: self.accessor.clone(),
+            column_type: self.column_type.clone(),
+            missing_value_for_accessor: self.missing_value_for_accessor.clone(),
+            coupon_cache: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -144,35 +218,23 @@ impl SegmentCardinalityCollectorBucket {
             entries: FxHashSet::default(),
         }
     }
+
     fn into_intermediate_metric_result(
         mut self,
         req_data: &CardinalityAggReqData,
+        coupon_cache_opt: Option<&CouponCacheEnum>,
     ) -> crate::Result<IntermediateMetricResult> {
-        if req_data.column_type == ColumnType::Str {
-            let fallback_dict = Dictionary::empty();
-            let dict = req_data
-                .str_dict_column
-                .as_ref()
-                .map(|el| el.dictionary())
-                .unwrap_or_else(|| &fallback_dict);
-            let mut has_missing = false;
-
-            // TODO: replace FxHashSet with something that allows iterating in order
-            // (e.g. sparse bitvec)
-            let mut term_ids = Vec::new();
-            for term_ord in self.entries.into_iter() {
-                if term_ord == u64::MAX {
-                    has_missing = true;
-                } else {
-                    // we can reasonably exclude values above u32::MAX
-                    term_ids.push(term_ord as u32);
+        if let Some(coupon_cache) = coupon_cache_opt {
+            assert!(self.cardinality.sketch.is_empty());
+            let has_missing = self.entries.contains(&MISSING_TERM_SENTINEL);
+            match coupon_cache {
+                CouponCacheEnum::Dense(items) => {
+                    append_to_sketch(&self.entries, items, &mut self.cardinality);
+                }
+                CouponCacheEnum::Sparse(hash_map) => {
+                    append_to_sketch(&self.entries, hash_map, &mut self.cardinality);
                 }
             }
-
-            term_ids.sort_unstable();
-            dict.sorted_ords_to_term_cb(term_ids.iter().map(|term| *term as u64), |term| {
-                self.cardinality.insert(term);
-            })?;
             if has_missing {
                 // Replace missing with the actual value provided
                 let missing_key =
@@ -195,9 +257,21 @@ impl SegmentCardinalityCollectorBucket {
                     }
                 }
             }
+        } else {
+            assert_ne!(req_data.column_type, ColumnType::Str);
         }
-
         Ok(IntermediateMetricResult::Cardinality(self.cardinality))
+    }
+}
+
+fn append_to_sketch(
+    term_ords: &FxHashSet<u64>,
+    coupon_cache: &impl CouponCache,
+    sketch: &mut CardinalityCollector,
+) {
+    for &term_ord in term_ords {
+        let coupon: Coupon = coupon_cache.get_coupon(term_ord).unwrap_or(0);
+        sketch.insert_coupon(coupon);
     }
 }
 
@@ -214,7 +288,43 @@ impl SegmentCardinalityCollector {
             accessor_idx,
             accessor,
             missing_value_for_accessor,
+            coupon_cache: None,
         }
+    }
+
+    fn populate_coupon_cache(&mut self, dictionary: &Dictionary) -> io::Result<()> {
+        if self.coupon_cache.is_some()
+            || self.column_type != ColumnType::Str
+            || self.buckets.is_empty()
+        {
+            return Ok(());
+        }
+        let mut term_ords: Vec<u64> = if self.buckets.len() == 1 {
+            self.buckets[0].entries.iter().copied().collect()
+        } else {
+            let term_ords_capacity: usize =
+                self.buckets.iter().map(|bucket| bucket.entries.len()).sum();
+            let mut term_ords_union =
+                FxHashSet::with_capacity_and_hasher(term_ords_capacity, FxBuildHasher);
+            for bucket in &self.buckets {
+                for &term_ord in &bucket.entries {
+                    term_ords_union.insert(term_ord);
+                }
+            }
+            term_ords_union.into_iter().collect()
+        };
+        term_ords.sort_unstable();
+
+        term_ords.pop_if(|highest_term_ord| *highest_term_ord == MISSING_TERM_SENTINEL);
+
+        let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.capacity());
+        dictionary.sorted_ords_to_term_cb(term_ords.iter().copied(), |term_bytes| {
+            let coupon: Coupon = murmurhash32::murmurhash2(term_bytes);
+            coupons.push(coupon);
+        })?;
+
+        self.coupon_cache = Some(CouponCacheEnum::new(term_ords, coupons));
+        Ok(())
     }
 
     fn fetch_block_with_field(
@@ -239,11 +349,15 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
     ) -> crate::Result<()> {
         self.prepare_max_bucket(parent_bucket_id, agg_data)?;
         let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        if let Some(str_dict_column) = &req_data.str_dict_column {
+            self.populate_coupon_cache(str_dict_column.dictionary())?;
+        }
         let name = req_data.name.to_string();
         // take the bucket in buckets and replace it with a new empty one
         let bucket = std::mem::take(&mut self.buckets[parent_bucket_id as usize]);
 
-        let intermediate_result = bucket.into_intermediate_metric_result(req_data)?;
+        let intermediate_result =
+            bucket.into_intermediate_metric_result(req_data, self.coupon_cache.as_ref())?;
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_result),
@@ -361,6 +475,10 @@ impl CardinalityCollector {
         self.sketch.update((self.salt, value));
     }
 
+    pub(crate) fn insert_coupon<T: Hash>(&mut self, value: T) {
+        self.sketch.update((self.salt, value));
+    }
+
     /// Compute the final cardinality estimate.
     pub fn finalize(self) -> Option<f64> {
         Some(self.sketch.estimate().trunc())
@@ -376,7 +494,7 @@ impl CardinalityCollector {
         let mut union = HllUnion::new(LG_K);
         union.update(&self.sketch);
         union.update(&right.sketch);
-        self.sketch = union.get_result(HllType::Hll4);
+        self.sketch = union.to_sketch(HllType::Hll4);
         Ok(())
     }
 }
