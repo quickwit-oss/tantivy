@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::io;
 use std::net::Ipv6Addr;
 
 use columnar::column_values::CompactSpaceU64Accessor;
@@ -18,7 +17,8 @@ use crate::aggregation::agg_data::{
 use crate::aggregation::agg_limits::MemoryConsumption;
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::buffered_sub_aggs::{
-    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer, SubAggBuffer,
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
+    SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
@@ -790,8 +790,14 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
         let term_req = &self.terms_req_data;
         let name = term_req.name.clone();
 
-        let bucket =
-            Self::into_intermediate_bucket_result(term_req, &mut self.sub_agg, bucket, agg_data)?;
+        let bucket = Self::into_intermediate_bucket_result(
+            term_req,
+            self.sub_agg
+                .as_mut()
+                .map(BufferedSubAggs::get_sub_agg_collector),
+            bucket,
+            agg_data,
+        )?;
         results.push(name, IntermediateAggregationResult::Bucket(bucket))?;
         Ok(())
     }
@@ -907,6 +913,34 @@ fn extract_missing_value<T>(
     Some((key, bucket))
 }
 
+fn reborrow_opt_collector<'a>(
+    opt: &'a mut Option<&mut dyn SegmentAggregationCollector>,
+) -> Option<&'a mut dyn SegmentAggregationCollector> {
+    match opt {
+        Some(inner) => Some(*inner),
+        None => None,
+    }
+}
+
+fn into_intermediate_bucket_entry(
+    bucket: Bucket,
+    sub_agg_collector: Option<&mut dyn SegmentAggregationCollector>,
+    agg_data: &AggregationsSegmentCtx,
+) -> crate::Result<IntermediateTermBucketEntry> {
+    let mut sub_aggregation_res = IntermediateAggregationResults::default();
+    if let Some(sub_agg_collector) = sub_agg_collector {
+        sub_agg_collector.add_intermediate_aggregation_result(
+            agg_data,
+            &mut sub_aggregation_res,
+            bucket.bucket_id,
+        )?;
+    }
+    Ok(IntermediateTermBucketEntry {
+        doc_count: bucket.count,
+        sub_aggregation: sub_aggregation_res,
+    })
+}
+
 impl<TermMap, B> SegmentTermCollector<TermMap, B>
 where
     TermMap: TermAggregationMap,
@@ -922,7 +956,7 @@ where
     #[inline]
     pub(crate) fn into_intermediate_bucket_result(
         term_req: &TermsAggReqData,
-        sub_agg: &mut Option<BufferedSubAggs<B>>,
+        mut sub_agg_collector: Option<&mut dyn SegmentAggregationCollector>,
         term_buckets: TermMap,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateBucketResult> {
@@ -965,31 +999,6 @@ where
         let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> = Default::default();
         dict.reserve(entries.len());
 
-        let into_intermediate_bucket_entry =
-            |bucket: Bucket,
-             sub_agg: &mut Option<BufferedSubAggs<B>>|
-             -> crate::Result<IntermediateTermBucketEntry> {
-                if let Some(sub_agg) = sub_agg {
-                    let mut sub_aggregation_res = IntermediateAggregationResults::default();
-                    sub_agg
-                        .get_sub_agg_collector()
-                        .add_intermediate_aggregation_result(
-                            agg_data,
-                            &mut sub_aggregation_res,
-                            bucket.bucket_id,
-                        )?;
-                    Ok(IntermediateTermBucketEntry {
-                        doc_count: bucket.count,
-                        sub_aggregation: sub_aggregation_res,
-                    })
-                } else {
-                    Ok(IntermediateTermBucketEntry {
-                        doc_count: bucket.count,
-                        sub_aggregation: Default::default(),
-                    })
-                }
-            };
-
         if term_req.column_type == ColumnType::Str {
             let fallback_dict = Dictionary::empty();
             let term_dict = term_req
@@ -1000,7 +1009,11 @@ where
 
             if let Some((intermediate_key, bucket)) = extract_missing_value(&mut entries, term_req)
             {
-                let intermediate_entry = into_intermediate_bucket_entry(bucket, sub_agg)?;
+                let intermediate_entry = into_intermediate_bucket_entry(
+                    bucket,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?;
                 dict.insert(intermediate_key, intermediate_entry);
             }
 
@@ -1008,19 +1021,27 @@ where
             entries.sort_unstable_by_key(|bucket| bucket.0);
 
             let (term_ids, buckets): (Vec<u64>, Vec<Bucket>) = entries.into_iter().unzip();
-            let mut buckets_it = buckets.into_iter();
+
+            let mut intermediate_entries: Vec<IntermediateTermBucketEntry> =
+                Vec::with_capacity(buckets.len());
+            for bucket in buckets {
+                intermediate_entries.push(into_intermediate_bucket_entry(
+                    bucket,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?);
+            }
+
+            let mut intermediate_entry_it = intermediate_entries.into_iter();
 
             term_dict.sorted_ords_to_term_cb(term_ids.into_iter(), |term| {
-                let bucket = buckets_it.next().unwrap();
-                let intermediate_entry =
-                    into_intermediate_bucket_entry(bucket, sub_agg).map_err(io::Error::other)?;
+                let intermediate_entry = intermediate_entry_it.next().unwrap();
                 dict.insert(
                     IntermediateKey::Str(
                         String::from_utf8(term.to_vec()).expect("could not convert to String"),
                     ),
                     intermediate_entry,
                 );
-                Ok(())
             })?;
 
             if term_req.req.min_doc_count == 0 {
@@ -1055,14 +1076,22 @@ where
             }
         } else if term_req.column_type == ColumnType::DateTime {
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
+                let intermediate_entry = into_intermediate_bucket_entry(
+                    doc_count,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?;
                 let val = i64::from_u64(val);
                 let date = format_date(val)?;
                 dict.insert(IntermediateKey::Str(date), intermediate_entry);
             }
         } else if term_req.column_type == ColumnType::Bool {
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
+                let intermediate_entry = into_intermediate_bucket_entry(
+                    doc_count,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?;
                 let val = bool::from_u64(val);
                 dict.insert(IntermediateKey::Bool(val), intermediate_entry);
             }
@@ -1082,14 +1111,22 @@ where
                 })?;
 
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
+                let intermediate_entry = into_intermediate_bucket_entry(
+                    doc_count,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?;
                 let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
                 let val = Ipv6Addr::from_u128(val);
                 dict.insert(IntermediateKey::IpAddr(val), intermediate_entry);
             }
         } else {
             for (val, doc_count) in entries {
-                let intermediate_entry = into_intermediate_bucket_entry(doc_count, sub_agg)?;
+                let intermediate_entry = into_intermediate_bucket_entry(
+                    doc_count,
+                    reborrow_opt_collector(&mut sub_agg_collector),
+                    agg_data,
+                )?;
                 if term_req.column_type == ColumnType::U64 {
                     dict.insert(IntermediateKey::U64(val), intermediate_entry);
                 } else if term_req.column_type == ColumnType::I64 {

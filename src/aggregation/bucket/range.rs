@@ -10,7 +10,8 @@ use crate::aggregation::agg_data::{
 };
 use crate::aggregation::agg_limits::AggregationLimitsGuard;
 use crate::aggregation::buffered_sub_aggs::{
-    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer, SubAggBuffer,
+    BufferedSubAggs, HighCardSubAggBuffer, LowCardBufferedSubAggs, LowCardSubAggBuffer,
+    SubAggBuffer,
 };
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,

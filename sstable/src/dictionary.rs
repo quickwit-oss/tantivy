@@ -512,7 +512,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Returns the terms for a _sorted_ list of term ordinals.
     ///
     /// Returns true if and only if all terms have been found.
-    pub fn sorted_ords_to_term_cb<F: FnMut(&[u8]) -> io::Result<()>>(
+    pub fn sorted_ords_to_term_cb<F: FnMut(&[u8])>(
         &self,
         mut ords: impl Iterator<Item = TermOrdinal>,
         mut cb: F,
@@ -538,7 +538,7 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
                 bytes.extend_from_slice(current_sstable_delta_reader.suffix());
                 current_block_ordinal += 1;
             }
-            cb(&bytes)?;
+            cb(&bytes);
 
             // fetch the next ordinal
             let Some(next_ord) = ords.next() else {
@@ -943,7 +943,6 @@ mod tests {
         assert!(
             dic.sorted_ords_to_term_cb(100_000..100_001, |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );
@@ -953,7 +952,6 @@ mod tests {
         assert!(
             dic.sorted_ords_to_term_cb(100_001..100_002, |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );
@@ -963,7 +961,6 @@ mod tests {
         assert!(
             dic.sorted_ords_to_term_cb(100_000..100_002, |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );
@@ -979,7 +976,6 @@ mod tests {
         assert!(
             dic.sorted_ords_to_term_cb(98653..=98655, |term| {
                 terms.push(term.to_vec());
-                Ok(())
             })
             .unwrap()
         );

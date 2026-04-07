@@ -172,7 +172,6 @@ impl SegmentCardinalityCollectorBucket {
             term_ids.sort_unstable();
             dict.sorted_ords_to_term_cb(term_ids.iter().map(|term| *term as u64), |term| {
                 self.cardinality.insert(term);
-                Ok(())
             })?;
             if has_missing {
                 // Replace missing with the actual value provided
