@@ -195,7 +195,8 @@ pub enum BucketEntries<T> {
 }
 
 impl<T> BucketEntries<T> {
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a T> + 'a> {
+    /// Iterate over all bucket entries.
+    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &'a T> + 'a> {
         match self {
             BucketEntries::Vec(vec) => Box::new(vec.iter()),
             BucketEntries::HashMap(map) => Box::new(map.values()),
