@@ -1022,19 +1022,20 @@ where
 
             let (term_ids, buckets): (Vec<u64>, Vec<Bucket>) = entries.into_iter().unzip();
 
-            let mut intermediate_entries: Vec<IntermediateTermBucketEntry> =
-                Vec::with_capacity(buckets.len());
-            for bucket in buckets {
-                intermediate_entries.push(into_intermediate_bucket_entry(
-                    bucket,
-                    reborrow_opt_collector(&mut sub_agg_collector),
-                    agg_data,
-                )?);
-            }
+            let intermediate_entries: Vec<IntermediateTermBucketEntry> = buckets
+                .into_iter()
+                .map(|bucket| {
+                    into_intermediate_bucket_entry(
+                        bucket,
+                        reborrow_opt_collector(&mut sub_agg_collector),
+                        agg_data,
+                    )
+                })
+                .collect::<crate::Result<_>>()?;
 
             let mut intermediate_entry_it = intermediate_entries.into_iter();
 
-            term_dict.sorted_ords_to_term_cb(term_ids.into_iter(), |term| {
+            term_dict.sorted_ords_to_term_cb(&term_ids[..], |term| {
                 let intermediate_entry = intermediate_entry_it.next().unwrap();
                 dict.insert(
                     IntermediateKey::Str(

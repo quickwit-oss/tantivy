@@ -318,7 +318,7 @@ impl SegmentCardinalityCollector {
         term_ords.pop_if(|highest_term_ord| *highest_term_ord == MISSING_TERM_SENTINEL);
 
         let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.capacity());
-        dictionary.sorted_ords_to_term_cb(term_ords.iter().copied(), |term_bytes| {
+        dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
             let coupon: Coupon = murmurhash32::murmurhash2(term_bytes);
             coupons.push(coupon);
         })?;

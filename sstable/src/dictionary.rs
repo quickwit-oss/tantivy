@@ -512,11 +512,13 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
     /// Returns the terms for a _sorted_ list of term ordinals.
     ///
     /// Returns true if and only if all terms have been found.
-    pub fn sorted_ords_to_term_cb<F: FnMut(&[u8])>(
+    pub fn sorted_ords_to_term_cb(
         &self,
-        mut ords: impl Iterator<Item = TermOrdinal>,
-        mut cb: F,
+        ords: &[TermOrdinal],
+        mut cb: impl FnMut(&[u8]),
     ) -> io::Result<bool> {
+        assert!(ords.is_sorted());
+        let mut ords = ords.iter().copied();
         let Some(mut ord) = ords.next() else {
             return Ok(true);
         };
@@ -541,30 +543,33 @@ impl<TSSTable: SSTable> Dictionary<TSSTable> {
             cb(&bytes);
 
             // fetch the next ordinal
-            let Some(next_ord) = ords.next() else {
-                return Ok(true);
+            let next_ord = loop {
+                let Some(next_ord) = ords.next() else {
+                    return Ok(true);
+                };
+                if next_ord == ord {
+                    // This is the same ordinal, let's just call the callback directly.
+                    cb(&bytes);
+                } else {
+                    // we checked it was sorted beforehands
+                    assert!(next_ord > ord);
+                    break next_ord;
+                }
             };
 
-            // advance forward if the new ord is different than the one we just processed
+            // TODO optimization: it is silly to do a binary search to get the block every single
+            // time.
             //
-            // this allows the input TermOrdinal iterator to contain duplicates, so long as it's
-            // still sorted
-            if next_ord < ord {
-                panic!("Ordinals were not sorted: received {next_ord} after {ord}");
-            } else if next_ord > ord {
-                // check if block changed for new term_ord
-                let new_block_addr = self.sstable_index.get_block_with_ord(next_ord);
-                if new_block_addr != current_block_addr {
-                    current_block_addr = new_block_addr;
-                    current_block_ordinal = current_block_addr.first_ordinal;
-                    current_sstable_delta_reader =
-                        self.sstable_delta_reader_block(current_block_addr.clone())?;
-                    bytes.clear();
-                }
-                ord = next_ord;
-            } else {
-                // The next ord is equal to the previous ord: no need to seek or advance.
+            // Check if block changed for new term_ord
+            let new_block_addr = self.sstable_index.get_block_with_ord(next_ord);
+            if new_block_addr != current_block_addr {
+                current_block_addr = new_block_addr;
+                current_block_ordinal = current_block_addr.first_ordinal;
+                current_sstable_delta_reader =
+                    self.sstable_delta_reader_block(current_block_addr.clone())?;
+                bytes.clear();
             }
+            ord = next_ord;
         }
     }
 
@@ -671,8 +676,8 @@ mod tests {
     use common::OwnedBytes;
 
     use super::Dictionary;
-    use crate::MonotonicU64SSTable;
     use crate::dictionary::TermOrdHit;
+    use crate::{MonotonicU64SSTable, TermOrdinal};
 
     #[derive(Debug)]
     struct PermissionedHandle {
@@ -940,8 +945,9 @@ mod tests {
 
         // Single term
         let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = (100_000..100_001).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(100_000..100_001, |term| {
+            dic.sorted_ords_to_term_cb(&ords, |term| {
                 terms.push(term.to_vec());
             })
             .unwrap()
@@ -949,8 +955,9 @@ mod tests {
         assert_eq!(terms, vec![format!("{:05X}", 100_000).into_bytes(),]);
         // Single term
         let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = (100_001..100_002).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(100_001..100_002, |term| {
+            dic.sorted_ords_to_term_cb(&ords, |term| {
                 terms.push(term.to_vec());
             })
             .unwrap()
@@ -958,8 +965,9 @@ mod tests {
         assert_eq!(terms, vec![format!("{:05X}", 100_001).into_bytes(),]);
         // both terms
         let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = (100_000..100_002).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(100_000..100_002, |term| {
+            dic.sorted_ords_to_term_cb(&ords, |term| {
                 terms.push(term.to_vec());
             })
             .unwrap()
@@ -973,8 +981,9 @@ mod tests {
         );
         // Test cross block
         let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = (98653..=98655).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(98653..=98655, |term| {
+            dic.sorted_ords_to_term_cb(&ords, |term| {
                 terms.push(term.to_vec());
             })
             .unwrap()
