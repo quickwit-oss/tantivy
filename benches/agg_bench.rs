@@ -48,53 +48,53 @@ fn main() {
 fn bench_agg(mut group: InputGroup<Index>) {
     group.add_plugin(PeakMemAllocPlugin::new(GLOBAL));
 
-    // register!(group, average_u64);
-    // register!(group, average_f64);
-    // register!(group, average_f64_u64);
-    // register!(group, stats_f64);
-    // register!(group, extendedstats_f64);
-    // register!(group, percentiles_f64);
-    // register!(group, terms_7);
-    // register!(group, terms_all_unique);
-    // register!(group, terms_150_000);
-    // register!(group, terms_many_top_1000);
-    // register!(group, terms_many_order_by_term);
-    // register!(group, terms_many_with_top_hits);
-    // register!(group, terms_all_unique_with_avg_sub_agg);
-    // register!(group, terms_many_with_avg_sub_agg);
-    // register!(group, terms_status_with_avg_sub_agg);
-    // register!(group, terms_status_with_histogram);
-    // register!(group, terms_zipf_1000);
-    // register!(group, terms_zipf_1000_with_histogram);
-    // register!(group, terms_zipf_1000_with_avg_sub_agg);
+    register!(group, average_u64);
+    register!(group, average_f64);
+    register!(group, average_f64_u64);
+    register!(group, stats_f64);
+    register!(group, extendedstats_f64);
+    register!(group, percentiles_f64);
+    register!(group, terms_7);
+    register!(group, terms_all_unique);
+    register!(group, terms_150_000);
+    register!(group, terms_many_top_1000);
+    register!(group, terms_many_order_by_term);
+    register!(group, terms_many_with_top_hits);
+    register!(group, terms_all_unique_with_avg_sub_agg);
+    register!(group, terms_many_with_avg_sub_agg);
+    register!(group, terms_status_with_avg_sub_agg);
+    register!(group, terms_status_with_histogram);
+    register!(group, terms_zipf_1000);
+    register!(group, terms_zipf_1000_with_histogram);
+    register!(group, terms_zipf_1000_with_avg_sub_agg);
 
-    // register!(group, terms_many_json_mixed_type_with_avg_sub_agg);
+    register!(group, terms_many_json_mixed_type_with_avg_sub_agg);
 
-    // register!(group, composite_term_many_page_1000);
-    // register!(group, composite_term_many_page_1000_with_avg_sub_agg);
-    // register!(group, composite_term_few);
-    // register!(group, composite_histogram);
-    // register!(group, composite_histogram_calendar);
+    register!(group, composite_term_many_page_1000);
+    register!(group, composite_term_many_page_1000_with_avg_sub_agg);
+    register!(group, composite_term_few);
+    register!(group, composite_histogram);
+    register!(group, composite_histogram_calendar);
 
     register!(group, cardinality_agg);
     register!(group, terms_status_with_cardinality_agg);
     register!(group, terms_100_buckets_with_cardinality_agg);
 
-    // register!(group, range_agg);
-    // register!(group, range_agg_with_avg_sub_agg);
-    // register!(group, range_agg_with_term_agg_status);
-    // register!(group, range_agg_with_term_agg_many);
-    // register!(group, histogram);
-    // register!(group, histogram_hard_bounds);
-    // register!(group, histogram_with_avg_sub_agg);
-    // register!(group, histogram_with_term_agg_status);
-    // register!(group, avg_and_range_with_avg_sub_agg);
+    register!(group, range_agg);
+    register!(group, range_agg_with_avg_sub_agg);
+    register!(group, range_agg_with_term_agg_status);
+    register!(group, range_agg_with_term_agg_many);
+    register!(group, histogram);
+    register!(group, histogram_hard_bounds);
+    register!(group, histogram_with_avg_sub_agg);
+    register!(group, histogram_with_term_agg_status);
+    register!(group, avg_and_range_with_avg_sub_agg);
 
-    // // Filter aggregation benchmarks
-    // register!(group, filter_agg_all_query_count_agg);
-    // register!(group, filter_agg_term_query_count_agg);
-    // register!(group, filter_agg_all_query_with_sub_aggs);
-    // register!(group, filter_agg_term_query_with_sub_aggs);
+    // Filter aggregation benchmarks
+    register!(group, filter_agg_all_query_count_agg);
+    register!(group, filter_agg_term_query_count_agg);
+    register!(group, filter_agg_all_query_with_sub_aggs);
+    register!(group, filter_agg_term_query_with_sub_aggs);
 
     group.run();
 }
