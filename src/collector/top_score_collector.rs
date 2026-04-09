@@ -513,7 +513,9 @@ pub struct TopNComputer<Score, D, C> {
     /// The buffer reverses sort order to get top-semantics instead of bottom-semantics
     buffer: Vec<ComparableDoc<Score, D>>,
     top_n: usize,
-    pub(crate) threshold: Option<Score>,
+    /// The current threshold for pruning. Documents with scores at or below
+    /// this value are skipped by `push()`. Updated when the buffer is truncated.
+    pub threshold: Option<Score>,
     comparator: C,
 }
 
