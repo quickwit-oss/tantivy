@@ -45,7 +45,7 @@ impl CellUnion {
     ///
     /// REQUIRES: cell_ids satisfies is_normalized() requirements.
     pub fn from_normalized(cell_ids: Vec<S2CellId>) -> Self {
-        debug_assert!(Self::check_normalized(&cell_ids));
+        assert!(Self::check_normalized(&cell_ids));
         Self { cell_ids }
     }
 
@@ -54,7 +54,7 @@ impl CellUnion {
     /// Unlike from_normalized, this does not require sibling merging.
     /// The cells must be valid, sorted, and non-overlapping.
     pub fn from_verbatim(cell_ids: Vec<S2CellId>) -> Self {
-        debug_assert!(Self::check_valid(&cell_ids));
+        assert!(Self::check_valid(&cell_ids));
         Self { cell_ids }
     }
 
@@ -78,9 +78,9 @@ impl CellUnion {
     ///
     /// REQUIRES: min_id.is_leaf(), max_id.is_leaf(), min_id <= max_id
     pub fn from_min_max(min_id: S2CellId, max_id: S2CellId) -> Self {
-        debug_assert!(min_id.is_leaf());
-        debug_assert!(max_id.is_leaf());
-        debug_assert!(min_id <= max_id);
+        assert!(min_id.is_leaf());
+        assert!(max_id.is_leaf());
+        assert!(min_id <= max_id);
         Self::from_begin_end(min_id, max_id.next())
     }
 
@@ -90,9 +90,9 @@ impl CellUnion {
     ///
     /// REQUIRES: begin.is_leaf(), end.is_leaf(), begin <= end
     pub fn from_begin_end(begin: S2CellId, end: S2CellId) -> Self {
-        debug_assert!(begin.is_leaf() || begin == S2CellId::end(S2CellId::MAX_LEVEL));
-        debug_assert!(end.is_leaf() || end == S2CellId::end(S2CellId::MAX_LEVEL));
-        debug_assert!(begin <= end);
+        assert!(begin.is_leaf() || begin == S2CellId::end(S2CellId::MAX_LEVEL));
+        assert!(end.is_leaf() || end == S2CellId::end(S2CellId::MAX_LEVEL));
+        assert!(begin <= end);
 
         // We repeatedly add the largest cell we can.
         let mut cell_ids = Vec::new();
@@ -213,7 +213,7 @@ impl CellUnion {
         let mut out = 0usize;
         for i in 0..ids.len() {
             let mut id = ids[i];
-            debug_assert!(id.is_valid());
+            assert!(id.is_valid());
 
             // Check whether this cell is contained by the previous output cell.
             if out > 0 && ids[out - 1].contains(id) {
@@ -248,8 +248,8 @@ impl CellUnion {
     /// This allows coverings generated with min_level/level_mod constraints
     /// to be stored normalized and then restored to the original form.
     pub fn denormalize(&self, min_level: i32, level_mod: i32) -> Vec<S2CellId> {
-        debug_assert!(min_level <= S2CellId::MAX_LEVEL);
-        debug_assert!((1..=3).contains(&level_mod));
+        assert!(min_level <= S2CellId::MAX_LEVEL);
+        assert!((1..=3).contains(&level_mod));
 
         let mut output = Vec::with_capacity(self.cell_ids.len());
 
@@ -284,7 +284,7 @@ impl CellUnion {
     ///
     /// Uses binary search with the EntirelyPrecedes comparator.
     pub fn contains(&self, id: S2CellId) -> bool {
-        debug_assert!(id.is_valid());
+        assert!(id.is_valid());
 
         // Binary search for the first cell that might contain id
         // (i.e., the first cell that does not entirely precede id).
@@ -296,7 +296,7 @@ impl CellUnion {
     ///
     /// Uses binary search with the EntirelyPrecedes comparator.
     pub fn intersects(&self, id: S2CellId) -> bool {
-        debug_assert!(id.is_valid());
+        assert!(id.is_valid());
 
         // Binary search for the first cell that might intersect id.
         let i = self.lower_bound(id);

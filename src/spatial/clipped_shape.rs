@@ -19,7 +19,7 @@ pub struct ClippedShape {
     /// True if the geometry contains the center of the cell.
     pub contains_center: bool,
     /// Indicies of the edges stored per geometry id in the edge index.
-    pub edge_indices: Vec<u16>,
+    pub edge_indices: Vec<u32>,
 }
 
 impl ClippedShape {
@@ -33,7 +33,7 @@ impl ClippedShape {
     }
 
     /// Adds an edge index to this clipped shape.
-    pub fn add_edge(&mut self, edge_id: u16) {
+    pub fn add_edge(&mut self, edge_id: u32) {
         self.edge_indices.push(edge_id);
     }
 

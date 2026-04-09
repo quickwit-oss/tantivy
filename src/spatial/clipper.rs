@@ -63,7 +63,7 @@ struct FaceEdge {
     /// Geometry the edge belongs to.
     geometry_id: u32,
     /// Edge index in the original polygon.
-    edge_id: u16,
+    edge_index: u32,
     /// Maximum level for subdivision (based on edge length).
     max_level: i32,
     /// Determine if we are indexing a polygon.
@@ -209,7 +209,7 @@ impl Clipper {
         }
     }
 
-    /// Build a ShapeIndex from smashed GeometrySets. Geometry IDs are arrival order — the first
+    /// Build a ShapeIndex from smashed GeometrySets. Geometry IDs are arrival order. The first
     /// member of the first set is 0, and the count increments from there.
     pub fn build(mut self, sets: &[GeometrySet]) -> ShapeIndex {
         if sets.is_empty() {
@@ -238,7 +238,7 @@ impl Clipper {
                 let closed = member.closed;
                 let vertices = &member.vertices;
                 let offsets = &member.ring_offsets;
-                let mut edge_id: u16 = 0;
+                let mut edge_index: u32 = 0;
 
                 for ring_idx in 0..offsets.len() - 1 {
                     let ring_start = offsets[ring_idx];
@@ -251,14 +251,14 @@ impl Clipper {
                             let max_level = self.get_edge_max_level(&v, &v);
                             self.add_face_edge(
                                 gid,
-                                edge_id,
+                                edge_index,
                                 max_level,
                                 false,
                                 &v,
                                 &v,
                                 &mut face_edges,
                             );
-                            edge_id += 1;
+                            edge_index += 1;
                         }
                         continue;
                     }
@@ -270,18 +270,18 @@ impl Clipper {
                         let max_level = self.get_edge_max_level(&v0, &v1);
                         self.add_face_edge(
                             gid,
-                            edge_id,
+                            edge_index,
                             max_level,
                             closed,
                             &v0,
                             &v1,
                             &mut face_edges,
                         );
-                        edge_id += 1;
+                        edge_index += 1;
                     }
 
                     if closed {
-                        edge_id += 1;
+                        edge_index += 1;
                     }
                 }
 
@@ -308,7 +308,7 @@ impl Clipper {
     fn add_face_edge(
         &self,
         geometry_id: u32,
-        edge_id: u16,
+        edge_index: u32,
         max_level: i32,
         has_interior: bool,
         v0: &[f64; 3],
@@ -329,7 +329,7 @@ impl Clipper {
             {
                 face_edges[a_face as usize].push(FaceEdge {
                     geometry_id,
-                    edge_id,
+                    edge_index,
                     max_level,
                     has_interior,
                     a: [a_u, a_v],
@@ -345,7 +345,7 @@ impl Clipper {
             if let Some((a_uv, b_uv)) = clip_to_padded_face(v0, v1, face, CELL_PADDING) {
                 face_edges[face as usize].push(FaceEdge {
                     geometry_id,
-                    edge_id,
+                    edge_index,
                     max_level,
                     has_interior,
                     a: a_uv,
@@ -378,6 +378,12 @@ impl Clipper {
         let face_id = S2CellId::from_face(face);
         let pcell = S2PaddedCell::new(face_id, CELL_PADDING);
 
+        // shrink_to_fit skips empty levels of the hierarchy. If all edges on this face are
+        // clustered in a small region the recursion can start at level 10 instead of level 0. The
+        // edge bounds are not tightened to the shrunk cell. They keep their full from_point_pair
+        // extent. A wide bound means clip_to_children over-includes an edge in children it barely
+        // touches. Deeper levels filter out the extras. Over-inclusion is safe. Under-inclusion
+        // loses edges.
         let shrunk_id = pcell.shrink_to_fit(&bound);
         if shrunk_id != face_id {
             self.skip_cell_range(face_id.range_min(), shrunk_id.range_min());
@@ -705,7 +711,7 @@ impl Clipper {
                 while edge_idx < edges.len()
                     && face_edges[edges[edge_idx].face_edge_index].geometry_id == geo_id
                 {
-                    shape.add_edge(face_edges[edges[edge_idx].face_edge_index].edge_id);
+                    shape.add_edge(face_edges[edges[edge_idx].face_edge_index].edge_index);
                     edge_idx += 1;
                 }
 
@@ -746,7 +752,7 @@ fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     // If x0 == x1 == x all we can return is the single point.
     if x0 == x1 {
         // C++ asserts: x == x0 && y0 == y1
-        debug_assert!(x == x0 && y0 == y1);
+        assert!(x == x0 && y0 == y1);
         return y0;
     }
 

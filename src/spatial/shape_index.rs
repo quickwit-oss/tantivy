@@ -111,14 +111,14 @@ impl ShapeIndex {
 
             write.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
             write
-                .write_all(&(cell.shapes.len() as u16).to_le_bytes())
+                .write_all(&(cell.shapes.len() as u32).to_le_bytes())
                 .unwrap();
 
             for shape in &cell.shapes {
                 write.write_all(&shape.geometry_id.1.to_le_bytes()).unwrap();
                 write.write_all(&[shape.contains_center as u8]).unwrap();
                 write
-                    .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
+                    .write_all(&(shape.edge_indices.len() as u32).to_le_bytes())
                     .unwrap();
                 for &edge_id in &shape.edge_indices {
                     write.write_all(&edge_id.to_le_bytes()).unwrap();

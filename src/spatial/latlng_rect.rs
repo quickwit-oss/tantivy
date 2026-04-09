@@ -31,7 +31,7 @@ impl S2LatLngRect {
     /// [-90, +90] degrees.  Note that both intervals (and hence the rectangle) are closed.
     pub fn new(lat: R1Interval, lng: S1Interval) -> Self {
         let result = Self { lat, lng };
-        debug_assert!(result.is_valid());
+        assert!(result.is_valid());
         result
     }
 

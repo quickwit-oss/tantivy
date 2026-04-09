@@ -86,9 +86,9 @@ const MAX_DET_ERROR: f64 = 3.6548 * f64::EPSILON;
 ///
 /// REQUIRES: a_cross_b == cross(a, b)
 pub fn triage_sign(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], a_cross_b: &[f64; 3]) -> i32 {
-    debug_assert!(norm2(a) <= 2.0 + f64::EPSILON);
-    debug_assert!(norm2(b) <= 2.0 + f64::EPSILON);
-    debug_assert!(norm2(c) <= 2.0 + f64::EPSILON);
+    assert!(norm2(a) <= 2.0 + f64::EPSILON);
+    assert!(norm2(b) <= 2.0 + f64::EPSILON);
+    assert!(norm2(c) <= 2.0 + f64::EPSILON);
 
     let det = dot(a_cross_b, c);
 
@@ -152,9 +152,9 @@ pub fn sign_with_cross(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], a_cross_b: &[f6
 ///
 /// REQUIRES: a != o && b != o && c != o
 pub fn ordered_ccw(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], o: &[f64; 3]) -> bool {
-    debug_assert!(a != o);
-    debug_assert!(b != o);
-    debug_assert!(c != o);
+    assert!(a != o);
+    assert!(b != o);
+    assert!(c != o);
 
     // Count how many of the three "is_left_of" tests pass.
     // The last test uses > instead of >= so that:
@@ -199,8 +199,8 @@ pub fn ordered_ccw(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], o: &[f64; 3]) -> bo
 /// result is always scaled such that Normalize() can be called without precision loss due to
 /// floating-point underflow.)
 pub fn robust_cross(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
-    debug_assert!((norm2(a) - 1.0).abs() < 5.0 * f64::EPSILON);
-    debug_assert!((norm2(b) - 1.0).abs() < 5.0 * f64::EPSILON);
+    assert!((norm2(a) - 1.0).abs() < 5.0 * f64::EPSILON);
+    assert!((norm2(b) - 1.0).abs() < 5.0 * f64::EPSILON);
 
     // (a - b) x (a + b) = 2 * (a x b), more stable when nearly parallel
     let diff = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -224,7 +224,7 @@ pub fn robust_cross(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
 // result is non-zero, converts it to a normalizable f64 vector. Otherwise falls back to symbolic
 // perturbation.
 fn exact_cross_prod(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
-    debug_assert!(a != b);
+    assert!(a != b);
     let xa = to_exact(a);
     let xb = to_exact(b);
     let result = exact_cross(&xa, &xb);
@@ -391,7 +391,7 @@ fn is_normalizable(p: &[f64; 3]) -> bool {
 /// EnsureNormalizable in s2edge_crossings.cc
 #[inline]
 fn ensure_normalizable(p: [f64; 3]) -> [f64; 3] {
-    debug_assert!(p != [0.0, 0.0, 0.0]);
+    assert!(p != [0.0, 0.0, 0.0]);
     if !is_normalizable(&p) {
         let p_max = p[0].abs().max(p[1].abs().max(p[2].abs()));
         // The expression below avoids signed overflow for any value of ilogb().
@@ -464,8 +464,8 @@ fn ensure_normalizable(p: [f64; 3]) -> [f64; 3] {
 ///
 /// SymbolicCrossProdSorted in s2edge_crossings.cc
 fn symbolic_cross_prod_sorted(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
-    debug_assert!(a < b);
-    debug_assert!({
+    assert!(a < b);
+    assert!({
         let xa = to_exact(a);
         let xb = to_exact(b);
         let c = exact_cross(&xa, &xb);
@@ -484,7 +484,7 @@ fn symbolic_cross_prod_sorted(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
     // None of the remaining cases can occur in practice, because we can only get
     // to this point if b = (0, 0, 0).  Nevertheless, even (0, 0, 0) has a
     // well-defined direction under the symbolic perturbation model.
-    debug_assert!(b[1] == 0.0 && b[2] == 0.0); // da[0] coefficients (always zero)
+    assert!(b[1] == 0.0 && b[2] == 0.0); // da[0] coefficients (always zero)
 
     if a[0] != 0.0 || a[1] != 0.0 {
         // db[2]
@@ -515,7 +515,7 @@ fn symbolic_cross_prod_sorted(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
 ///
 /// SymbolicCrossProd in s2edge_crossings.cc
 fn symbolic_cross_prod(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
-    debug_assert!(a != b);
+    assert!(a != b);
     // SymbolicCrossProdSorted() requires that a < b.
     if a < b {
         ensure_normalizable(symbolic_cross_prod_sorted(a, b))
@@ -629,7 +629,7 @@ pub fn vertex_crossing(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], d: &[f64; 3]) -
         return ordered_ccw(&ref_dir(b), d, a, b);
     }
 
-    debug_assert!(false, "vertex_crossing called with 4 distinct vertices");
+    assert!(false, "vertex_crossing called with 4 distinct vertices");
     false
 }
 
@@ -660,8 +660,8 @@ pub struct S2EdgeCrosser {
 impl S2EdgeCrosser {
     /// Creates a new edge crosser for testing edges against the fixed edge AB.
     pub fn new(a: &[f64; 3], b: &[f64; 3]) -> Self {
-        debug_assert!((norm2(a) - 1.0).abs() < 5.0 * f64::EPSILON);
-        debug_assert!((norm2(b) - 1.0).abs() < 5.0 * f64::EPSILON);
+        assert!((norm2(a) - 1.0).abs() < 5.0 * f64::EPSILON);
+        assert!((norm2(b) - 1.0).abs() < 5.0 * f64::EPSILON);
 
         Self {
             a: *a,
@@ -713,7 +713,7 @@ impl S2EdgeCrosser {
     ///
     /// Call this to "jump" to a new location in an edge chain.
     pub fn restart_at(&mut self, c: &[f64; 3]) {
-        debug_assert!((norm2(c) - 1.0).abs() < 5.0 * f64::EPSILON);
+        assert!((norm2(c) - 1.0).abs() < 5.0 * f64::EPSILON);
         self.c = *c;
         self.acb = -triage_sign(&self.a, &self.b, c, &self.a_cross_b);
     }
@@ -723,7 +723,7 @@ impl S2EdgeCrosser {
     ///
     /// This is the single-argument chain version. Use `restart_at` to set C.
     pub fn crossing_sign(&mut self, d: &[f64; 3]) -> i32 {
-        debug_assert!((norm2(d) - 1.0).abs() < 5.0 * f64::EPSILON);
+        assert!((norm2(d) - 1.0).abs() < 5.0 * f64::EPSILON);
 
         // Fast path: test if BDA has opposite orientation from ACB
         // TriageSign is invariant under rotation, so ABD has same orientation as BDA
@@ -804,12 +804,12 @@ impl S2EdgeCrosser {
         if self.acb == 0 {
             self.acb = -expensive_sign(&self.a, &self.b, &self.c, true);
         }
-        debug_assert!(self.acb != 0);
+        assert!(self.acb != 0);
 
         if self.bda == 0 {
             self.bda = expensive_sign(&self.a, &self.b, d, true);
         }
-        debug_assert!(self.bda != 0);
+        assert!(self.bda != 0);
 
         if self.bda != self.acb {
             self.c = *d;

@@ -72,14 +72,14 @@ impl CovererOptions {
 
     /// Sets the minimum cell level.
     pub fn min_level(mut self, min_level: i32) -> Self {
-        debug_assert!(min_level <= S2CellId::MAX_LEVEL);
+        assert!(min_level <= S2CellId::MAX_LEVEL);
         self.min_level = min_level.min(S2CellId::MAX_LEVEL);
         self
     }
 
     /// Sets the maximum cell level.
     pub fn max_level(mut self, max_level: i32) -> Self {
-        debug_assert!(max_level <= S2CellId::MAX_LEVEL);
+        assert!(max_level <= S2CellId::MAX_LEVEL);
         self.max_level = max_level.min(S2CellId::MAX_LEVEL);
         self
     }
@@ -93,7 +93,7 @@ impl CovererOptions {
 
     /// Sets the level spacing constraint.
     pub fn level_mod(mut self, level_mod: i32) -> Self {
-        debug_assert!((1..=3).contains(&level_mod));
+        assert!((1..=3).contains(&level_mod));
         self.level_mod = level_mod.clamp(1, 3);
         self
     }
@@ -178,7 +178,7 @@ pub struct RegionCoverer {
 impl RegionCoverer {
     /// Creates a new RegionCoverer with the given options.
     pub fn new(options: CovererOptions) -> Self {
-        debug_assert!(options.min_level <= options.max_level);
+        assert!(options.min_level <= options.max_level);
         Self { options }
     }
 
@@ -225,7 +225,7 @@ impl RegionCoverer {
 
     /// Internal covering algorithm.
     fn get_covering_internal<R: Region>(&self, region: &R, result: &mut Vec<S2CellId>) {
-        debug_assert!(self.options.min_level <= self.options.max_level);
+        assert!(self.options.min_level <= self.options.max_level);
 
         let mut pq: BinaryHeap<Reverse<QueueEntry>> = BinaryHeap::new();
         let mut candidates: Vec<Option<Candidate>> = Vec::new();
@@ -275,7 +275,7 @@ impl RegionCoverer {
             let cu = CellUnion::from_verbatim(normalized);
             *result = cu.denormalize(self.options.min_level, self.options.level_mod);
         }
-        debug_assert!(self.is_canonical(result));
+        assert!(self.is_canonical(result));
     }
 
     /// Computes a set of initial candidates that cover the given region.
@@ -310,7 +310,7 @@ impl RegionCoverer {
             result.push(candidate.cell.id());
             return;
         }
-        debug_assert_eq!(0, candidate.num_children);
+        assert_eq!(0, candidate.num_children);
 
         // Expand one level at a time until we hit min_level() to ensure that we don't skip over
         // it.
@@ -466,7 +466,7 @@ impl RegionCoverer {
     /// with an ancestor if necessary. Cell levels smaller than min_level() are not modified (see
     /// AdjustLevel). The output is then normalized to ensure that no redundant cells are present.
     fn adjust_cell_levels(&self, cells: &mut Vec<S2CellId>) {
-        debug_assert!(cells.windows(2).all(|w| w[0] <= w[1])); // is_sorted
+        assert!(cells.windows(2).all(|w| w[0] <= w[1])); // is_sorted
 
         if self.options.level_mod == 1 {
             return;
@@ -504,7 +504,7 @@ impl RegionCoverer {
     /// This ensures cells are sorted, non-overlapping, and satisfy min_level, max_level, and
     /// level_mod.
     pub fn canonicalize_covering(&self, covering: &mut Vec<S2CellId>) {
-        debug_assert!(self.options.min_level <= self.options.max_level);
+        assert!(self.options.min_level <= self.options.max_level);
 
         // If any cells are too small, or don't satisfy level_mod(), then replace them with
         // ancestors.
@@ -545,7 +545,7 @@ impl RegionCoverer {
             // Repeatedly replace two adjacent cells by their lowest common ancestor.
             self.reduce_to_max_cells_with_parent_check(covering);
         }
-        debug_assert!(self.is_canonical(covering));
+        assert!(self.is_canonical(covering));
     }
 
     /// Reduces the covering to at most max_cells by merging adjacent cells.
@@ -612,7 +612,7 @@ impl RegionCoverer {
         let begin = covering.partition_point(|&c| c < id.range_min());
         let end = covering.partition_point(|&c| c <= id.range_max());
 
-        debug_assert!(begin != end);
+        assert!(begin != end);
         covering[begin] = id;
         if begin + 1 < end {
             covering.drain(begin + 1..end);
@@ -621,7 +621,7 @@ impl RegionCoverer {
 
     /// Returns true if the covering is canonical.
     pub fn is_canonical(&self, covering: &[S2CellId]) -> bool {
-        debug_assert!(self.options.min_level <= self.options.max_level);
+        assert!(self.options.min_level <= self.options.max_level);
 
         let min_level = self.options.min_level;
         let max_level = self.options.true_max_level();

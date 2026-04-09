@@ -194,24 +194,24 @@ impl S2CellId {
     /// Creates a cell ID for the given face (level 0).
     #[inline]
     pub fn from_face(face: i32) -> Self {
-        debug_assert!(face < NUM_FACES);
+        assert!(face < NUM_FACES);
         Self(((face as u64) << POS_BITS as u32) + Self::lsb_for_level(0))
     }
 
     /// Creates a cell ID from face, position, and level.
     #[inline]
     pub fn from_face_pos_level(face: i32, pos: u64, level: i32) -> Self {
-        debug_assert!(face < NUM_FACES);
-        debug_assert!(level <= MAX_CELL_LEVEL);
+        assert!(face < NUM_FACES);
+        assert!(level <= MAX_CELL_LEVEL);
         let cell = Self(((face as u64) << POS_BITS as u32) + (pos | 1));
         cell.parent(level)
     }
 
     /// Creates a leaf cell from (face, i, j) coordinates.
     pub fn from_face_ij(face: i32, i: i32, j: i32) -> Self {
-        debug_assert!(face < NUM_FACES);
-        debug_assert!(i >= 0 && i < MAX_SIZE);
-        debug_assert!(j >= 0 && j < MAX_SIZE);
+        assert!(face < NUM_FACES);
+        assert!(i >= 0 && i < MAX_SIZE);
+        assert!(j >= 0 && j < MAX_SIZE);
 
         let mut n = (face as u64) << (POS_BITS as u32 - 1);
         let mut bits = (face & SWAP_MASK) as u64;
@@ -258,7 +258,7 @@ impl S2CellId {
     /// Returns the subdivision level (0-30).
     #[inline]
     pub fn level(&self) -> i32 {
-        debug_assert!(self.0 != 0);
+        assert!(self.0 != 0);
         MAX_CELL_LEVEL - (self.0.trailing_zeros() as i32 >> 1)
     }
 
@@ -307,7 +307,7 @@ impl S2CellId {
     /// Returns the child position at the given level.
     #[inline]
     pub fn child_position_at_level(&self, level: i32) -> u8 {
-        debug_assert!(level >= 1 && level <= self.level());
+        assert!(level >= 1 && level <= self.level());
         ((self.0 >> (2 * (MAX_CELL_LEVEL - level) as u32 + 1)) & 3) as u8
     }
 
@@ -326,24 +326,24 @@ impl S2CellId {
     /// Returns true if this cell contains the other cell.
     #[inline]
     pub fn contains(&self, other: Self) -> bool {
-        debug_assert!(self.is_valid());
-        debug_assert!(other.is_valid());
+        assert!(self.is_valid());
+        assert!(other.is_valid());
         other >= self.range_min() && other <= self.range_max()
     }
 
     /// Returns true if this cell intersects the other cell.
     #[inline]
     pub fn intersects(&self, other: Self) -> bool {
-        debug_assert!(self.is_valid());
-        debug_assert!(other.is_valid());
+        assert!(self.is_valid());
+        assert!(other.is_valid());
         other.range_min() <= self.range_max() && other.range_max() >= self.range_min()
     }
 
     /// Returns the parent cell at the given level.
     #[inline]
     pub fn parent(&self, level: i32) -> Self {
-        debug_assert!(self.is_valid());
-        debug_assert!(level <= self.level());
+        assert!(self.is_valid());
+        assert!(level <= self.level());
         let new_lsb = Self::lsb_for_level(level);
         Self((self.0 & (!new_lsb + 1)) | new_lsb)
     }
@@ -351,8 +351,8 @@ impl S2CellId {
     /// Returns the immediate parent cell.
     #[inline]
     pub fn immediate_parent(&self) -> Self {
-        debug_assert!(self.is_valid());
-        debug_assert!(!self.is_face());
+        assert!(self.is_valid());
+        assert!(!self.is_face());
         let new_lsb = self.lsb() << 2;
         Self((self.0 & (!new_lsb + 1)) | new_lsb)
     }
@@ -360,9 +360,9 @@ impl S2CellId {
     /// Returns the child at the given position (0-3).
     #[inline]
     pub fn child(&self, position: i32) -> Self {
-        debug_assert!(self.is_valid());
-        debug_assert!(!self.is_leaf());
-        debug_assert!(position < 4);
+        assert!(self.is_valid());
+        assert!(!self.is_leaf());
+        assert!(position < 4);
         let new_lsb = self.lsb() >> 2;
         let delta = (2 * position as i64 - 3) * new_lsb as i64;
         Self((self.0 as i64 + delta) as u64)
@@ -371,8 +371,8 @@ impl S2CellId {
     /// Returns the four children of this cell.
     #[inline]
     pub fn children(&self) -> [Self; 4] {
-        debug_assert!(self.is_valid());
-        debug_assert!(!self.is_leaf());
+        assert!(self.is_valid());
+        assert!(!self.is_leaf());
         [self.child(0), self.child(1), self.child(2), self.child(3)]
     }
 
@@ -400,33 +400,33 @@ impl S2CellId {
 
     /// Returns the first child of this cell (at level + 1).
     pub fn child_begin(&self) -> Self {
-        debug_assert!(self.is_valid());
-        debug_assert!(!self.is_leaf());
+        assert!(self.is_valid());
+        assert!(!self.is_leaf());
         let old_lsb = self.lsb();
         Self(self.0 - old_lsb + (old_lsb >> 2))
     }
 
     /// Returns one past the last child of this cell (at level + 1).
     pub fn child_end(&self) -> Self {
-        debug_assert!(self.is_valid());
-        debug_assert!(!self.is_leaf());
+        assert!(self.is_valid());
+        assert!(!self.is_leaf());
         let old_lsb = self.lsb();
         Self(self.0 + old_lsb + (old_lsb >> 2))
     }
 
     /// Returns the first descendant at the given level.
     pub fn child_begin_at_level(&self, level: i32) -> Self {
-        debug_assert!(self.is_valid());
-        debug_assert!(level >= self.level());
-        debug_assert!(level <= MAX_CELL_LEVEL);
+        assert!(self.is_valid());
+        assert!(level >= self.level());
+        assert!(level <= MAX_CELL_LEVEL);
         Self(self.0 - self.lsb() + Self::lsb_for_level(level))
     }
 
     /// Returns one past the last descendant at the given level.
     pub fn child_end_at_level(&self, level: i32) -> Self {
-        debug_assert!(self.is_valid());
-        debug_assert!(level >= self.level());
-        debug_assert!(level <= MAX_CELL_LEVEL);
+        assert!(self.is_valid());
+        assert!(level >= self.level());
+        assert!(level <= MAX_CELL_LEVEL);
         Self(self.0 + self.lsb() + Self::lsb_for_level(level))
     }
 
@@ -547,7 +547,7 @@ impl S2CellId {
     pub fn append_vertex_neighbors(&self, level: i32, output: &mut Vec<S2CellId>) {
         // "level" must be strictly less than this cell's level so that we can
         // determine which vertex this cell is closest to.
-        debug_assert!(level < self.level());
+        assert!(level < self.level());
 
         let (face, i, j, _) = self.to_face_ij_orientation();
 

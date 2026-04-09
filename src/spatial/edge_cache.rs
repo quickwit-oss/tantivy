@@ -72,14 +72,14 @@ impl GeometryEntry {
 
     /// The two endpoints of the given edge. For point geometries (single vertex), returns the
     /// vertex twice.
-    pub fn edge(&self, index: u16) -> ([f64; 3], [f64; 3]) {
+    pub fn edge(&self, index: u32) -> ([f64; 3], [f64; 3]) {
         let vertices = self.vertices();
         let i = index as usize;
         let v0 = vertices[i];
         let v1 = if i + 1 < vertices.len() {
             vertices[i + 1]
         } else {
-            debug_assert_eq!(
+            assert_eq!(
                 i, 0,
                 "edge index past vertex count is only valid for points"
             );

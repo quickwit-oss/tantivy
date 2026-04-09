@@ -9,20 +9,20 @@ use common::ReadOnlyBitSet;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
 use crate::spatial::clipper::{get_edge_max_level, CELL_PADDING};
+use crate::spatial::r1interval::R1Interval;
 use crate::spatial::shape_index::ShapeCell;
 
 use super::cell_index_reader::CellIndexIter;
 use super::edge_cache::EdgeCache;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
-use super::s2coords::valid_face_xyz_to_uv;
-use super::s2edge_clipping::{clip_edge, clip_edge_bound};
+use super::s2edge_clipping::{clip_edge_bound, clip_to_padded_face};
 use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
 
 struct SpongeEdge {
     geometry_id: GeometryId,
-    edge_index: u16,
+    edge_index: u32,
     max_level: i32,
     v0: [f64; 3],
     v1: [f64; 3],
@@ -79,7 +79,6 @@ impl SpongeCell {
     // level.
     fn absorb_index_cell_edges(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, Sphere>) {
         let face = cell.cell_id.face();
-        // Fresh source cell. Read from edge cache, clip to sponge bound.
         for shape in &cell.shapes {
             if shape.edge_indices.is_empty() {
                 continue;
@@ -94,13 +93,16 @@ impl SpongeCell {
                     Ok(_) => {}
                     Err(pos) => {
                         let (v0, v1) = cache_entry.edge(edge_index);
-                        let (a_u, a_v) = valid_face_xyz_to_uv(face, &v0);
-                        let (b_u, b_v) = valid_face_xyz_to_uv(face, &v1);
-                        let (a_uv, b_uv) = match clip_edge([a_u, a_v], [b_u, b_v], &self.cell_bound)
-                        {
+                        let (a_uv, b_uv) = match clip_to_padded_face(
+                            &v0, &v1, face, CELL_PADDING,
+                        ) {
                             Some(ab) => ab,
                             None => continue,
                         };
+                        let mut bound = R2Rect::from_point_pair(a_uv, b_uv);
+                        if !clip_edge_bound(a_uv, b_uv, &self.cell_bound, &mut bound) {
+                            continue;
+                        }
                         let max_level = get_edge_max_level(&v0, &v1);
                         self.edge_count += 1;
                         if self.cell_id.level() < max_level {
@@ -116,7 +118,7 @@ impl SpongeCell {
                                 v1,
                                 a_uv,
                                 b_uv,
-                                bound: R2Rect::from_point_pair(a_uv, b_uv),
+                                bound,
                             },
                         );
                     }
@@ -126,8 +128,7 @@ impl SpongeCell {
     }
 
     fn absorb_sponge_cell_edges(&mut self, merged: &SpongeCell) {
-        let face = merged.cell_id.face();
-        // Sponged entry. Re-clip from original v0/v1 against this sponge.
+        // The a_uv/b_uv on incoming edges are face-level. Clip the bound to this sponge.
         for other_edge in &merged.edges {
             let key = (other_edge.geometry_id, other_edge.edge_index);
             match self
@@ -136,12 +137,10 @@ impl SpongeCell {
             {
                 Ok(_) => {}
                 Err(pos) => {
-                    let (a_u, a_v) = valid_face_xyz_to_uv(face, &other_edge.v0);
-                    let (b_u, b_v) = valid_face_xyz_to_uv(face, &other_edge.v1);
-                    let (a_uv, b_uv) = match clip_edge([a_u, a_v], [b_u, b_v], &self.cell_bound) {
-                        Some(ab) => ab,
-                        None => continue,
-                    };
+                    let mut bound = R2Rect::from_point_pair(other_edge.a_uv, other_edge.b_uv);
+                    assert!(clip_edge_bound(
+                        other_edge.a_uv, other_edge.b_uv, &self.cell_bound, &mut bound,
+                    ));
                     self.edge_count += 1;
                     if self.cell_id.level() < other_edge.max_level {
                         self.short_edge_count += 1;
@@ -154,9 +153,9 @@ impl SpongeCell {
                             max_level: other_edge.max_level,
                             v0: other_edge.v0,
                             v1: other_edge.v1,
-                            a_uv,
-                            b_uv,
-                            bound: R2Rect::from_point_pair(a_uv, b_uv),
+                            a_uv: other_edge.a_uv,
+                            b_uv: other_edge.b_uv,
+                            bound,
                         },
                     );
                 }
@@ -167,16 +166,8 @@ impl SpongeCell {
     // The same center that you would use if you were searching. We going to do an ordinary search
     // edge crossing to move a child geometry into a parent.
     fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell) {
-        let bolo: GeometryId = (0, 2961);
         let mut cell_center: Option<[f64; 3]> = None;
         for shape in &cell.shapes {
-            if shape.geometry_id == bolo {
-                eprintln!(
-                    "BOLO absorb_anchor: sponge={} source_cell={} level={} contains_center={} edges={:?}",
-                    self.cell_id.0, cell.cell_id.0, cell.cell_id.level(),
-                    shape.contains_center, shape.edge_indices,
-                );
-            }
             let center = *cell_center
                 .get_or_insert_with(|| S2PaddedCell::new(cell.cell_id, CELL_PADDING).get_center());
             let anchor = SpongeShape {
@@ -289,7 +280,6 @@ impl<'a> Interleaver<'a> {
             crossers: 0,
             segment_names,
         };
-        eprintln!("BOLO interleaver: new with {} sources, segments {:?}", merge.sources.len(), merge.segment_names);
         let n = merge.sources.len();
         for i in 0..n {
             merge.push_next_from_source(i);
@@ -312,10 +302,10 @@ impl<'a> Interleaver<'a> {
         );
     }
 
-    fn push_next_from_source(&mut self, source_idx: usize) {
-        let segment = source_idx as u16;
-        while let Some(mut cell) = self.sources[source_idx].next() {
-            if let Some(bitset) = &self.alive_bitsets[source_idx] {
+    fn push_next_from_source(&mut self, source_index: usize) {
+        let segment = source_index as u16;
+        while let Some(mut cell) = self.sources[source_index].next() {
+            if let Some(bitset) = &self.alive_bitsets[source_index] {
                 cell.shapes.retain(|shape| {
                     let id = (segment, shape.geometry_id.1);
                     let doc_id = self.edge_cache.doc_id_for(id);
@@ -327,7 +317,7 @@ impl<'a> Interleaver<'a> {
             }
             if !cell.shapes.is_empty() {
                 self.cells_from_source += 1;
-                self.heap.push(HeapEntry::Source { cell, source: source_idx });
+                self.heap.push(HeapEntry::Source { cell, source: source_index });
                 return;
             }
         }
@@ -425,7 +415,7 @@ fn flatten(sponge: HeapEntry) -> Option<ShapeCell> {
         let anchor = &merged.anchors[anchor_index];
         let geometry_id = anchor.geometry_id;
         let mut contains_center = anchor.contains_center;
-        let mut edge_indices: Vec<u16> = Vec::new();
+        let mut edge_indices: Vec<u32> = Vec::new();
 
         // Advance past edges with geometry_id less than ours.
         while edge_index < merged.edges.len() && merged.edges[edge_index].geometry_id < geometry_id
@@ -663,14 +653,14 @@ fn clip_v_bound(
     };
 
     let u_interval = if clip_u_hi {
-        super::r1interval::R1Interval::new(clipped_edge.bound[0].lo(), u_clamped)
+        R1Interval::new(clipped_edge.bound[0].lo(), u_clamped)
     } else {
-        super::r1interval::R1Interval::new(u_clamped, clipped_edge.bound[0].hi())
+        R1Interval::new(u_clamped, clipped_edge.bound[0].hi())
     };
     let v_interval = if clip_hi {
-        super::r1interval::R1Interval::new(clipped_edge.bound[1].lo(), v)
+        R1Interval::new(clipped_edge.bound[1].lo(), v)
     } else {
-        super::r1interval::R1Interval::new(v, clipped_edge.bound[1].hi())
+        R1Interval::new(v, clipped_edge.bound[1].hi())
     };
     if u_interval.is_empty() || v_interval.is_empty() {
         return MergeClippedEdge {
@@ -700,7 +690,6 @@ fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
 fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64, segment_names: &[String]) -> Vec<HeapEntry> {
     let cell_id = merged.cell_id;
     let parent_split_count = merged.split_count;
-    let bolo: GeometryId = (0, 2961);
     merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
     let anchors = &merged.anchors;
 
@@ -712,21 +701,11 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64,
     let mut sponge_anchors: Vec<SpongeShape> = Vec::new();
     let mut child_anchors: [Vec<SpongeShape>; 4] = Default::default();
     for anchor in anchors {
-        if anchor.geometry_id == bolo {
-            eprintln!(
-                "BOLO split anchor_distribute: sponge={} level={} anchor_cell={} anchor_level={} contains_center={} is_sponge_level={}",
-                cell_id.0, sponge_level, anchor.cell_id.0, anchor.cell_id.level(),
-                anchor.contains_center, anchor.cell_id.level() == sponge_level,
-            );
-        }
         if anchor.cell_id.level() == sponge_level {
             sponge_anchors.push(anchor.clone());
         } else {
             for (idx, child_cell_id) in child_cell_ids.iter().enumerate() {
                 if child_cell_id.contains(anchor.cell_id) || *child_cell_id == anchor.cell_id {
-                    if anchor.geometry_id == bolo {
-                        eprintln!("BOLO split anchor -> child[{}] cell={}", idx, child_cell_id.0);
-                    }
                     child_anchors[idx].push(anchor.clone());
                     break;
                 }
@@ -736,15 +715,6 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64,
     let padded_cell = S2PaddedCell::new(cell_id, CELL_PADDING);
     let parent_center = padded_cell.get_center();
 
-    let bolo_edge_count = merged.edges.iter().filter(|e| e.geometry_id == bolo).count();
-    if bolo_edge_count > 0 {
-        eprintln!("BOLO split: {} edges for {:?} in sponge {} level {}", bolo_edge_count, bolo, cell_id.0, sponge_level);
-        for edge in merged.edges.iter().filter(|e| e.geometry_id == bolo) {
-            eprintln!("  edge_index={} bound=[{},{}]x[{},{}] a_uv={:?} b_uv={:?}",
-                edge.edge_index, edge.bound[0].lo(), edge.bound[0].hi(),
-                edge.bound[1].lo(), edge.bound[1].hi(), edge.a_uv, edge.b_uv);
-        }
-    }
     let mut flat_edges: Vec<FlatEdge> = Vec::new();
     let mut clipped: Vec<MergeClippedEdge> = Vec::new();
     for edge in &merged.edges {
@@ -766,19 +736,8 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64,
     // bound may have come from a coarser level.
     let sponge_bound = padded_cell.bound();
     for (ce, fe) in clipped.iter_mut().zip(flat_edges.iter()) {
-        let before = ce.bound;
         if !clip_edge_bound(fe.a_uv, fe.b_uv, &sponge_bound, &mut ce.bound) {
-            if fe.geometry_id == bolo {
-                eprintln!("BOLO tighten: edge_index={} EMPTIED before=[{},{}]x[{},{}]",
-                    flat_edges[ce.edge_index].edge.edge_index,
-                    before[0].lo(), before[0].hi(), before[1].lo(), before[1].hi());
-            }
             ce.bound = R2Rect::empty();
-        } else if fe.geometry_id == bolo {
-            eprintln!("BOLO tighten: edge_index={} before=[{},{}]x[{},{}] after=[{},{}]x[{},{}]",
-                flat_edges[ce.edge_index].edge.edge_index,
-                before[0].lo(), before[0].hi(), before[1].lo(), before[1].hi(),
-                ce.bound[0].lo(), ce.bound[0].hi(), ce.bound[1].lo(), ce.bound[1].hi());
         }
     }
 
@@ -790,19 +749,6 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64,
         }
         let flat_edge = &flat_edges[clipped_edge.edge_index];
         clip_to_children(clipped_edge, flat_edge, &middle, &mut child_edges);
-    }
-
-    // Report which children got BOLO edges.
-    for ci in 0..2usize {
-        for cj in 0..2usize {
-            let bolo_in_child: Vec<_> = child_edges[ci][cj].iter()
-                .filter(|ce| flat_edges[ce.edge_index].geometry_id == bolo)
-                .map(|ce| flat_edges[ce.edge_index].edge.edge_index)
-                .collect();
-            if !bolo_in_child.is_empty() {
-                eprintln!("BOLO clip_to_children: child[{}][{}] got edges {:?}", ci, cj, bolo_in_child);
-            }
-        }
     }
 
     let mut entries = Vec::new();
@@ -839,7 +785,7 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64,
                 }
             }
             let contains_center = anchor.contains_center;
-            let mut edge_indices: Vec<u16> = Vec::new();
+            let mut edge_indices: Vec<u32> = Vec::new();
             let child_level = sponge_level + 1;
             while let Some(last) = child_edges[i][j].last() {
                 let flat_edge = &flat_edges[last.edge_index];
@@ -918,7 +864,7 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64,
             }
             seen_geometry_id = Some(anchor.geometry_id);
             let mut contains_center = anchor.contains_center;
-            let mut edge_indices: Vec<u16> = Vec::new();
+            let mut edge_indices: Vec<u32> = Vec::new();
 
             while sponge_edge_index < sponge_edges.len()
                 && flat_edges[sponge_edges[sponge_edge_index]].geometry_id < anchor.geometry_id

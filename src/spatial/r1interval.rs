@@ -145,7 +145,7 @@ impl R1Interval {
     /// Returns the closest point in the interval to the given point. The interval must be
     /// non-empty.
     pub fn project(&self, p: f64) -> f64 {
-        debug_assert!(!self.is_empty());
+        assert!(!self.is_empty());
         p.clamp(self.lo, self.hi)
     }
 

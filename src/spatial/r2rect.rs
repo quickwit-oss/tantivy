@@ -24,7 +24,7 @@ impl R2Rect {
     /// be both empty or both non-empty.
     #[inline]
     pub fn new(x: R1Interval, y: R1Interval) -> Self {
-        debug_assert!(x.is_empty() == y.is_empty());
+        assert!(x.is_empty() == y.is_empty());
         Self { x, y }
     }
 
@@ -33,7 +33,7 @@ impl R2Rect {
     pub fn from_points(lo: [f64; 2], hi: [f64; 2]) -> Self {
         let x = R1Interval::new(lo[0], hi[0]);
         let y = R1Interval::new(lo[1], hi[1]);
-        debug_assert!(x.is_empty() == y.is_empty());
+        assert!(x.is_empty() == y.is_empty());
         Self { x, y }
     }
 

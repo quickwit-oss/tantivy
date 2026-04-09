@@ -32,7 +32,7 @@ use super::sphere::Sphere;
 /// indexes into an in-memory vertex array.
 pub trait EdgeProvider {
     /// Returns the two endpoints of the given edge.
-    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]);
+    fn get_edge(&self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]);
 }
 
 /// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between
@@ -43,7 +43,7 @@ pub struct ClippedInfo {
     /// Whether the geometry contains the cell center.
     pub contains_center: bool,
     /// Edge indices clipped to this cell.
-    pub edge_indices: Vec<u16>,
+    pub edge_indices: Vec<u32>,
 }
 
 /// Abstracts cell lookup and edge resolution for indexed point-in-polygon. Takes &mut self because
@@ -53,7 +53,7 @@ pub trait ContainmentIndex {
     /// for the given geometry, or None if the geometry is not present in that cell.
     fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo>;
     /// Resolves an edge index to its two endpoint vertices.
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]);
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]);
 }
 
 /// Indexed point-in-polygon through either backend. Finds the cell containing the test point,
@@ -71,8 +71,8 @@ pub fn contains_point<T: ContainmentIndex>(
     if !info.edge_indices.is_empty() {
         let center = info.cell_id.to_point();
         let mut crosser = S2EdgeCrosser::new(&center, point);
-        for &edge_idx in &info.edge_indices {
-            let (v0, v1) = index.resolve_edge(geometry_id, edge_idx);
+        for &edge_index in &info.edge_indices {
+            let (v0, v1) = index.resolve_edge(geometry_id, edge_index);
             inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
         }
     }
@@ -99,8 +99,8 @@ impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
         })
     }
 
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
-        self.edges.get_edge(geometry_id, edge_idx)
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]) {
+        self.edges.get_edge(geometry_id, edge_index)
     }
 }
 
@@ -127,10 +127,10 @@ impl ContainmentIndex for SegmentIndex<'_, '_> {
         })
     }
 
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]) {
         let entry = self.edge_cache.get(geometry_id);
         let vertices = entry.vertices();
-        let i = edge_idx as usize;
+        let i = edge_index as usize;
         (vertices[i], vertices[i + 1])
     }
 }
@@ -160,8 +160,8 @@ pub fn any_edge_intersects<E: EdgeProvider>(
         .expanded(ANY_EDGE_INTERSECTS_MAX_ERROR);
     let face = target.face();
 
-    for &edge_idx in &clipped.edge_indices {
-        let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_idx);
+    for &edge_index in &clipped.edge_indices {
+        let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_index);
 
         if let Some((p0, p1)) = clip_to_padded_face(&v0, &v1, face, ANY_EDGE_INTERSECTS_MAX_ERROR) {
             if intersects_rect(p0, p1, &bound) {
@@ -209,8 +209,8 @@ fn clipped_shape_contains_point<E: EdgeProvider>(
     if !clipped.edge_indices.is_empty() {
         let cell_center = cell_id.to_point();
         let mut crosser = S2EdgeCrosser::new(&cell_center, point);
-        for &edge_idx in &clipped.edge_indices {
-            let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_idx);
+        for &edge_index in &clipped.edge_indices {
+            let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_index);
             inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
         }
     }

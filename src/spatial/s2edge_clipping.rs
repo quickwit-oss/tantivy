@@ -38,7 +38,7 @@ pub fn clip_to_padded_face(
     face: i32,
     padding: f64,
 ) -> Option<([f64; 2], [f64; 2])> {
-    debug_assert!(padding >= 0.0);
+    assert!(padding >= 0.0);
 
     // Fast path: both endpoints on the same face.
     let a_face = super::s2coords::get_face(a_xyz);
@@ -133,7 +133,7 @@ fn intersects_opposite_edges(n: &[f64; 3]) -> bool {
 
 /// Returns the exit axis (0 for u, 1 for v).
 fn get_exit_axis(n: &[f64; 3]) -> i32 {
-    debug_assert!(intersects_face(n));
+    assert!(intersects_face(n));
     if intersects_opposite_edges(n) {
         if n[0].abs() >= n[1].abs() {
             1
@@ -330,7 +330,7 @@ fn update_endpoint(bound: &mut R1Interval, end: usize, value: f64) -> bool {
 /// Interpolates a value along the line from (a0,a1) to (b0,b1).
 fn interpolate(x: f64, a: f64, b: f64, a1: f64, b1: f64) -> f64 {
     if a == b {
-        debug_assert!(x == a && a1 == b1);
+        assert!(x == a && a1 == b1);
         return a1;
     }
     // Interpolate from the closer endpoint for better accuracy.

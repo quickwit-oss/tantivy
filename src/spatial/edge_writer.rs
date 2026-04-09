@@ -94,6 +94,11 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
         }
     }
 
+    /// Number of geometry entries written so far.
+    pub fn geometry_count(&self) -> u32 {
+        self.geometry_count
+    }
+
     /// Write the skip list directory and footer.
     pub fn finish(&mut self) {
         let dir_offset = self.write.written_bytes() - self.base;

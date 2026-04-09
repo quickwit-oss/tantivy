@@ -46,14 +46,14 @@ impl S1Interval {
         if hi == -PI && lo != PI {
             result.hi = PI;
         }
-        debug_assert!(result.is_valid());
+        assert!(result.is_valid());
         result
     }
 
     /// Internal constructor that assumes bounds are already normalized.
     fn new_checked(lo: f64, hi: f64) -> Self {
         let result = Self { lo, hi };
-        debug_assert!(result.is_valid());
+        assert!(result.is_valid());
         result
     }
 
@@ -78,8 +78,8 @@ impl S1Interval {
     /// Creates the minimal interval containing two points. This is equivalent to starting with an
     /// empty interval and calling `add_point()` twice, but more efficient.
     pub fn from_point_pair(mut p1: f64, mut p2: f64) -> Self {
-        debug_assert!(p1.abs() <= PI);
-        debug_assert!(p2.abs() <= PI);
+        assert!(p1.abs() <= PI);
+        assert!(p2.abs() <= PI);
         if p1 == -PI {
             p1 = PI;
         }
@@ -195,7 +195,7 @@ impl S1Interval {
     /// Returns true if the interval contains the given point. The point must be in the range
     /// [-PI, PI].
     pub fn contains_point(&self, mut p: f64) -> bool {
-        debug_assert!(p.abs() <= PI);
+        assert!(p.abs() <= PI);
         if p == -PI {
             p = PI;
         }
@@ -204,7 +204,7 @@ impl S1Interval {
 
     /// Returns true if the interior of the interval contains the point.
     pub fn interior_contains_point(&self, mut p: f64) -> bool {
-        debug_assert!(p.abs() <= PI);
+        assert!(p.abs() <= PI);
         if p == -PI {
             p = PI;
         }
@@ -281,7 +281,7 @@ impl S1Interval {
 
     /// Expands the interval to contain the given point. The point must be in the range [-PI, PI].
     pub fn add_point(&mut self, mut p: f64) {
-        debug_assert!(p.abs() <= PI);
+        assert!(p.abs() <= PI);
         if p == -PI {
             p = PI;
         }
@@ -308,8 +308,8 @@ impl S1Interval {
     /// Returns the closest point in the interval to the given point. The interval must be
     /// non-empty.
     pub fn project(&self, mut p: f64) -> f64 {
-        debug_assert!(!self.is_empty());
-        debug_assert!(p.abs() <= PI);
+        assert!(!self.is_empty());
+        assert!(p.abs() <= PI);
         if p == -PI {
             p = PI;
         }
@@ -417,7 +417,7 @@ impl S1Interval {
         if y.fast_contains(self.lo) {
             return *self;
         }
-        debug_assert!(!self.intersects(y));
+        assert!(!self.intersects(y));
         S1Interval::empty()
     }
 

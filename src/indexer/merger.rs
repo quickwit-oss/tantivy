@@ -576,7 +576,7 @@ impl IndexMerger {
                 }
             }
 
-            let edge_cache = EdgeCache::new(edge_readers, 100_000_000);
+            let edge_cache = EdgeCache::new(edge_readers, 2_000_000_000);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
             let segment_names: Vec<String> = self.readers
                 .iter()
@@ -633,17 +633,17 @@ impl IndexMerger {
                 let offset = cells_out.written_bytes() - cells_base;
                 cells_out.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
                 cells_out
-                    .write_all(&(cell.shapes.len() as u16).to_le_bytes())
+                    .write_all(&(cell.shapes.len() as u32).to_le_bytes())
                     .unwrap();
                 for shape in &cell.shapes {
                     let segment = shape.geometry_id.0 as usize;
                     let position = shape.geometry_id.1 as usize;
                     let new_id = old_to_new[segment][position];
-                    debug_assert_ne!(new_id, NOT_ASSIGNED);
+                    assert_ne!(new_id, NOT_ASSIGNED);
                     cells_out.write_all(&new_id.to_le_bytes()).unwrap();
                     cells_out.write_all(&[shape.contains_center as u8]).unwrap();
                     cells_out
-                        .write_all(&(shape.edge_indices.len() as u16).to_le_bytes())
+                        .write_all(&(shape.edge_indices.len() as u32).to_le_bytes())
                         .unwrap();
                     for &edge_id in &shape.edge_indices {
                         cells_out.write_all(&edge_id.to_le_bytes()).unwrap();
@@ -652,6 +652,11 @@ impl IndexMerger {
                 offsets.push((cell.cell_id.0, offset));
             }
 
+            assert_eq!(
+                next_new_id, edge_writer.geometry_count(),
+                "geometry accounting divergence: next_new_id={} but edge_writer.geometry_count={}",
+                next_new_id, edge_writer.geometry_count(),
+            );
             edge_writer.finish();
 
             let elapsed = merge_start.elapsed();

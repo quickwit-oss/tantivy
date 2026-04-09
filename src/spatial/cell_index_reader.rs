@@ -104,8 +104,8 @@ impl<'a> CellIndexReader<'a> {
         let cell_id = u64::from_le_bytes(self.data[pos..pos + 8].try_into().unwrap());
         pos += 8;
 
-        let shape_count = u16::from_le_bytes(self.data[pos..pos + 2].try_into().unwrap()) as usize;
-        pos += 2;
+        let shape_count = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap()) as usize;
+        pos += 4;
 
         let mut shapes = Vec::with_capacity(shape_count);
         for _ in 0..shape_count {
@@ -116,14 +116,14 @@ impl<'a> CellIndexReader<'a> {
             pos += 1;
 
             let edge_count =
-                u16::from_le_bytes(self.data[pos..pos + 2].try_into().unwrap()) as usize;
-            pos += 2;
+                u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap()) as usize;
+            pos += 4;
 
             let mut edge_indices = Vec::with_capacity(edge_count);
             for _ in 0..edge_count {
-                let edge_id = u16::from_le_bytes(self.data[pos..pos + 2].try_into().unwrap());
-                pos += 2;
-                edge_indices.push(edge_id);
+                let edge_index = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap());
+                pos += 4;
+                edge_indices.push(edge_index);
             }
 
             shapes.push(ClippedShape {

@@ -69,7 +69,7 @@ impl S1ChordAngle {
     /// automatically clamped to a maximum of 4.0 to handle possible roundoff errors.  The argument
     /// must be non-negative.
     pub fn from_length2(length2: f64) -> Self {
-        debug_assert!(length2 >= 0.0);
+        assert!(length2 >= 0.0);
         Self {
             length2: length2.min(MAX_LENGTH2),
         }
@@ -160,7 +160,7 @@ impl S1ChordAngle {
 
     /// Returns sin(a)**2, but computed more efficiently.
     pub fn sin2(&self) -> f64 {
-        debug_assert!(!self.is_special());
+        assert!(!self.is_special());
         // Let "a" be the (non-squared) chord length, and let A be the
         // corresponding half-angle (a = 2*sin(A)).  The formula below can be
         // derived from:
@@ -176,7 +176,7 @@ impl S1ChordAngle {
 
     /// Returns cos of the angle.
     pub fn cos(&self) -> f64 {
-        debug_assert!(!self.is_special());
+        assert!(!self.is_special());
         // cos(2*A) = cos^2(A) - sin^2(A) = 1 - 2*sin^2(A)
         1.0 - 0.5 * self.length2
     }
@@ -276,8 +276,8 @@ impl std::ops::Add for S1ChordAngle {
     // and adding those.  It requires only one square root plus a few additions and
     // multiplications.
     fn add(self, other: Self) -> Self {
-        debug_assert!(!self.is_special());
-        debug_assert!(!other.is_special());
+        assert!(!self.is_special());
+        assert!(!other.is_special());
 
         let a2 = self.length2;
         let b2 = other.length2;
@@ -311,8 +311,8 @@ impl std::ops::Sub for S1ChordAngle {
 
     // See comments in operator+().
     fn sub(self, other: Self) -> Self {
-        debug_assert!(!self.is_special());
-        debug_assert!(!other.is_special());
+        assert!(!self.is_special());
+        assert!(!other.is_special());
 
         let a2 = self.length2;
         let b2 = other.length2;

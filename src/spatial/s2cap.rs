@@ -263,7 +263,7 @@ impl S2Cap {
     /// Return a cap that contains all points within a given distance of this cap.  Note that any
     /// expansion of the empty cap is still empty.
     pub fn expanded(&self, distance_radians: f64) -> Self {
-        debug_assert!(distance_radians >= 0.0);
+        assert!(distance_radians >= 0.0);
         if self.is_empty() {
             return Self::empty();
         }

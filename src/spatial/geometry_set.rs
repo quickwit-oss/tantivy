@@ -136,7 +136,7 @@ fn smash_polygon(rings: &[Vec<[f64; 3]>]) -> (Vec<[f64; 3]>, bool, Vec<usize>) {
             ring.reverse();
         }
         // Rings must be closed: first == last.
-        debug_assert!(ring.len() >= 4 && ring.first() == ring.last());
+        assert!(ring.len() >= 4 && ring.first() == ring.last());
         let origin_inside = compute_origin_inside(&ring);
         if brute_force_contains(&HILBERT_START, &ring, origin_inside) {
             hilbert_inside = !hilbert_inside;

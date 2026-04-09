@@ -95,7 +95,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
                 current += advance;
             }
 
-            debug_assert!(skip_index > 0, "doc_id_for: no head found");
+            assert!(skip_index > 0, "doc_id_for: no head found");
             skip_index -= 1;
         }
     }
@@ -103,7 +103,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
     /// Read the full geometry set containing the given position. Returns (head_position, set). No
     /// caching. Every call decodes from the byte stream.
     pub fn read_geometry_set(&self, position: u32) -> (u32, GeometrySet) {
-        debug_assert!(position < self.geometry_count);
+        assert!(position < self.geometry_count);
 
         let (head_position, head_offset, doc_id) = self.find_head(position);
 
@@ -183,7 +183,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
                 return (hp, ho, id);
             }
 
-            debug_assert!(skip_index > 0, "find_head: no head found");
+            assert!(skip_index > 0, "find_head: no head found");
             skip_index -= 1;
         }
     }
@@ -206,7 +206,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         let mut pos = data_start;
         let data_end = data_start + data_len;
         loop {
-            debug_assert!(pos + 4 <= data_end, "ring boundary overruns data section");
+            assert!(pos + 4 <= data_end, "ring boundary overruns data section");
             let entry = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap());
             let vertex_index = (entry & 0x7FFFFFFF) as usize;
             let continuation = entry & 0x80000000 != 0;

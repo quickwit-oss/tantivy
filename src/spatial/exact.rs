@@ -75,7 +75,7 @@ pub fn expensive_sign(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], perturb: bool) -
 // Compute the determinant using exact arithmetic and/or symbolic permutations.  Requires that the
 // three points are distinct.
 fn exact_sign(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], perturb: bool) -> i32 {
-    debug_assert!(a != b && b != c && c != a);
+    assert!(a != b && b != c && c != a);
 
     // Sort the three points in lexicographic order, keeping track of the sign of the permutation.
     // (Each exchange inverts the sign of the determinant.)
@@ -99,7 +99,7 @@ fn exact_sign(a: &[f64; 3], b: &[f64; 3], c: &[f64; 3], perturb: bool) -> i32 {
         // Otherwise, we need to resort to symbolic perturbations to resolve the
         // sign of the determinant.
         let det_sign = symbolically_perturbed_sign(&xa, &xb, &xc, &xb_cross_xc);
-        debug_assert_ne!(0, det_sign);
+        assert_ne!(0, det_sign);
         perm_sign * det_sign
     } else {
         perm_sign * det_sign
@@ -206,7 +206,7 @@ fn symbolically_perturbed_sign(
     // permutation, but it is more efficient to do this before converting the inputs to the
     // multi-precision representation, and this also lets us re-use the result of the
     // cross product B x C.
-    debug_assert!(a < b && b < c);
+    assert!(a < b && b < c);
 
     let det_sign = exact_sgn(&b_cross_c[2]); // da[2]
     if det_sign != 0 {
@@ -244,7 +244,7 @@ fn symbolically_perturbed_sign(
 
     // The following test is listed in the paper, but it is redundant because
     // the previous tests guarantee that C == (0, 0, 0).
-    debug_assert_eq!(0, exact_sgn(&(&c[1] * &a[2] - &c[2] * &a[1]))); // db[0]
+    assert_eq!(0, exact_sgn(&(&c[1] * &a[2] - &c[2] * &a[1]))); // db[0]
 
     let det_sign = exact_sgn(&(&a[0] * &b[1] - &a[1] * &b[0])); // dc[2]
     if det_sign != 0 {

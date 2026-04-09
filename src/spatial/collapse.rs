@@ -15,7 +15,7 @@ use super::s2cell_id::S2CellId;
 use super::sphere::Sphere;
 
 struct LeveledEdge {
-    edge_index: u16,
+    edge_index: u32,
     max_level: i32,
 }
 
@@ -61,7 +61,7 @@ pub struct Collapse<'a, I: Iterator<Item = ShapeCell>> {
     max_edges: usize,
     min_short_edge_fraction: f64,
     cells_in: u64,
-    edge_scratch: FxHashSet<(GeometryId, u16)>,
+    edge_scratch: FxHashSet<(GeometryId, u32)>,
 }
 
 impl<'a, I: Iterator<Item = ShapeCell>> Collapse<'a, I> {
@@ -233,7 +233,7 @@ impl<'a, I: Iterator<Item = ShapeCell>> Iterator for Collapse<'a, I> {
 fn short_edge_count(
     groups: &[Vec<LevelIndexCell>],
     level: i32,
-    scratch: &mut FxHashSet<(GeometryId, u16)>,
+    scratch: &mut FxHashSet<(GeometryId, u32)>,
 ) -> usize {
     scratch.clear();
     for group in groups {

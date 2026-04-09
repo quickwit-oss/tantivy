@@ -16,7 +16,7 @@ struct CollapseEntry {
     geometry_id: GeometryId,
     anchor_flag: bool,
     anchor_center: [f64; 3],
-    edge_indices: Vec<u16>,
+    edge_indices: Vec<u32>,
 }
 
 fn merge_siblings(

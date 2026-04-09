@@ -41,7 +41,7 @@ impl QueryEdgeProvider {
 }
 
 impl EdgeProvider for QueryEdgeProvider {
-    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u16) -> ([f64; 3], [f64; 3]) {
+    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u32) -> ([f64; 3], [f64; 3]) {
         let vertices = &self.set.members[geometry_id.1 as usize].vertices;
         let i = edge_idx as usize;
         (vertices[i], vertices[i + 1])
@@ -210,7 +210,7 @@ impl ContainsQuery {
 
         for boundary in &info.boundary_edges {
             let query_cell = self.query_index.find_cell(boundary.covering_cell_id);
-            let query_edge_indices: Vec<u16> = match query_cell {
+            let query_edge_indices: Vec<u32> = match query_cell {
                 Some(cell) => cell
                     .shapes
                     .iter()
@@ -272,5 +272,5 @@ pub(crate) struct BoundaryEdges {
     /// same cell.
     pub(crate) covering_cell_id: S2CellId,
     /// Edge indices into the candidate geometry's vertex array.
-    pub(crate) edge_indices: Vec<u16>,
+    pub(crate) edge_indices: Vec<u32>,
 }

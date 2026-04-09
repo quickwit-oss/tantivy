@@ -44,7 +44,7 @@ pub fn uv_to_st(u: f64) -> f64 {
 /// normal range of valid leaf cell indices.
 #[inline]
 pub fn ij_to_st_min(i: i32) -> f64 {
-    debug_assert!((0..=LIMIT_IJ).contains(&i));
+    assert!((0..=LIMIT_IJ).contains(&i));
     (1.0 / LIMIT_IJ as f64) * i as f64
 }
 
@@ -60,7 +60,7 @@ pub fn st_to_ij(s: f64) -> i32 {
 /// Convert si- or ti-coordinate to s- or t-value.
 #[inline]
 pub fn si_ti_to_st(si: u32) -> f64 {
-    debug_assert!(si <= MAX_SI_TI);
+    assert!(si <= MAX_SI_TI);
     (1.0 / MAX_SI_TI as f64) * si as f64
 }
 

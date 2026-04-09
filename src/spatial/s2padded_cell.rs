@@ -193,7 +193,7 @@ impl S2PaddedCell {
     ///
     /// REQUIRES: self.bound.intersects(rect)
     pub fn shrink_to_fit(&self, rect: &R2Rect) -> S2CellId {
-        debug_assert!(self.bound.intersects(rect));
+        assert!(self.bound.intersects(rect));
 
         // Quick rejection: if rect contains the center, no shrinking is possible.
         let ij_size = S2CellId::size_ij_for_level(self.level);
