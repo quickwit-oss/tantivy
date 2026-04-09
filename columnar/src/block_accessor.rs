@@ -33,14 +33,14 @@ impl<T: PartialOrd + Copy + std::fmt::Debug + Send + Sync + 'static + Default>
         &mut self,
         docs: &[u32],
         accessor: &Column<T>,
-        missing: Option<T>,
+        missing_opt: Option<T>,
     ) {
         self.fetch_block(docs, accessor);
         // no missing values
         if accessor.index.get_cardinality().is_full() {
             return;
         }
-        let Some(missing) = missing else {
+        let Some(missing) = missing_opt else {
             return;
         };
 
