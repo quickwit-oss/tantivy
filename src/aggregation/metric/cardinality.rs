@@ -132,27 +132,43 @@ type Coupon = u32;
 /// The idea is that we do not want to fetch terms associated to several term ordinals,
 /// several times due to the fact that we have several buckets.
 enum CouponCache {
-    Dense(Vec<Coupon>),
+    Dense {
+        coupon_map: Vec<Coupon>,
+        missing_coupon_opt: Option<u32>,
+    },
     Sparse(FxHashMap<u64, Coupon>),
 }
 
 impl CouponCache {
-    fn new(term_ords: Vec<u64>, coupons: Vec<Coupon>) -> CouponCache {
+    fn new(
+        term_ords: Vec<u64>,
+        coupons: Vec<Coupon>,
+        missing_coupon_opt: Option<Coupon>,
+    ) -> CouponCache {
         let num_terms = term_ords.len();
         assert_eq!(num_terms, coupons.len());
         if term_ords.is_empty() {
-            return CouponCache::Dense(Vec::new());
+            return CouponCache::Dense {
+                coupon_map: Vec::new(),
+                missing_coupon_opt,
+            };
         }
         let highest_term_ord = term_ords.last().copied().unwrap_or(0u64);
         if highest_term_ord < 1_000_000u64 || highest_term_ord < num_terms as u64 * 10u64 {
-            let mut coupon_cache_vec = vec![0u32; highest_term_ord as usize + 1];
+            let mut coupon_map: Vec<Coupon> = vec![0; highest_term_ord as usize + 1];
             for (term_ord, coupon) in term_ords.into_iter().zip(coupons.into_iter()) {
-                coupon_cache_vec[term_ord as usize] = coupon;
+                coupon_map[term_ord as usize] = coupon;
             }
-            CouponCache::Dense(coupon_cache_vec)
+            CouponCache::Dense {
+                coupon_map,
+                missing_coupon_opt,
+            }
         } else {
-            let coupon_cache_sparse: FxHashMap<u64, u32> =
+            let mut coupon_cache_sparse: FxHashMap<u64, u32> =
                 term_ords.into_iter().zip(coupons.into_iter()).collect();
+            if let Some(missing_coupon) = missing_coupon_opt {
+                coupon_cache_sparse.insert(MISSING_TERM_SENTINEL, missing_coupon);
+            }
             CouponCache::Sparse(coupon_cache_sparse)
         }
     }
@@ -204,33 +220,51 @@ impl SegmentCardinalityCollectorBucket {
         if let Some(coupon_cache) = coupon_cache_opt {
             assert!(self.cardinality.sketch.is_empty());
             append_to_sketch(&self.entries, coupon_cache, &mut self.cardinality);
-            if self.entries.contains(&MISSING_TERM_SENTINEL) {
-                // Replace missing with the actual value provided
-                let missing_key =
-                    req_data.req.missing.as_ref().expect(
-                        "Found sentinel value u64::MAX for term_ord but `missing` is not set",
-                    );
-                match missing_key {
-                    Key::Str(missing) => {
-                        self.cardinality.insert(missing.as_str());
-                    }
-                    Key::F64(val) => {
-                        let val = f64_to_u64(*val);
-                        self.cardinality.insert(val);
-                    }
-                    Key::U64(val) => {
-                        self.cardinality.insert(*val);
-                    }
-                    Key::I64(val) => {
-                        self.cardinality.insert(*val);
-                    }
-                }
-            }
         } else {
             assert_ne!(req_data.column_type, ColumnType::Str);
         }
         Ok(IntermediateMetricResult::Cardinality(self.cardinality))
     }
+}
+
+/// Builds a coupon cache from the given buckets, dictionary, and optional missing value.
+/// Returns a mapping from term_ord to the hash (coupon) of the associated term.
+fn build_coupon_cache(
+    buckets: &[Option<SegmentCardinalityCollectorBucket>],
+    dictionary: &Dictionary,
+    missing_value_opt: Option<&Key>,
+) -> io::Result<CouponCache> {
+    let term_ords_capacity: usize = buckets
+        .iter()
+        .flatten()
+        .map(|bucket| bucket.entries.len())
+        .sum();
+    let mut term_ords_set =
+        FxHashSet::with_capacity_and_hasher(term_ords_capacity, FxBuildHasher);
+    for bucket in buckets.iter().flatten() {
+        term_ords_set.extend(bucket.entries.iter().copied());
+    }
+    let mut term_ords: Vec<u64> = term_ords_set.into_iter().collect();
+    term_ords.sort_unstable();
+
+    term_ords.pop_if(|highest_term_ord| *highest_term_ord == MISSING_TERM_SENTINEL);
+
+    let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.capacity());
+    dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
+        let coupon: Coupon = murmurhash32::murmurhash2(term_bytes);
+        coupons.push(coupon);
+    })?;
+
+    // Regardless of whether or not there is effectively a missing value in one of the buckets,
+    // we populate the cache with the missing key too (if any).
+    let missing_coupon_opt: Option<Coupon> = missing_value_opt.and_then(|missing_key| {
+        if let Key::Str(missing_value_str) = missing_key {
+            Some(murmurhash32::murmurhash2(missing_value_str.as_bytes()))
+        } else {
+            None
+        }
+    });
+    Ok(CouponCache::new(term_ords, coupons, missing_coupon_opt))
 }
 
 fn append_to_sketch(
@@ -239,16 +273,25 @@ fn append_to_sketch(
     sketch: &mut CardinalityCollector,
 ) {
     match coupon_cache {
-        CouponCache::Dense(vec_map) => {
+        CouponCache::Dense {
+            coupon_map,
+            missing_coupon_opt,
+        } => {
             for &term_ord in term_ords {
-                let coupon: Coupon = vec_map.get(term_ord as usize).copied().unwrap_or(0);
-                sketch.insert_coupon(coupon);
+                if let Some(coupon) = coupon_map
+                    .get(term_ord as usize)
+                    .copied()
+                    .or(*missing_coupon_opt)
+                {
+                    sketch.insert_coupon(coupon);
+                }
             }
         }
         CouponCache::Sparse(hash_map) => {
-            for &term_ord in term_ords {
-                let coupon: Coupon = hash_map.get(&term_ord).copied().unwrap_or(0);
-                sketch.insert_coupon(coupon);
+            for term_ord in term_ords {
+                if let Some(coupon) = hash_map.get(term_ord).copied() {
+                    sketch.insert_coupon(coupon);
+                }
             }
         }
     }
@@ -271,46 +314,20 @@ impl SegmentCardinalityCollector {
         }
     }
 
-    fn populate_coupon_cache(&mut self, dictionary: &Dictionary) -> io::Result<()> {
+    /// Creates the coupon cache. A mapping from term_ord to the hash of the associated term.
+    /// The missing value sentinel will be associated to the hash of the missing value if any.
+    fn populate_coupon_cache(
+        &mut self,
+        dictionary: &Dictionary,
+        missing_value_opt: Option<&Key>,
+    ) -> io::Result<()> {
         if self.coupon_cache.is_some()
             || self.column_type != ColumnType::Str
             || self.buckets.is_empty()
         {
             return Ok(());
         }
-        let mut term_ords: Vec<u64> = if self.buckets.len() == 1 {
-            self.buckets[0]
-                .as_ref()
-                .into_iter()
-                .flat_map(|bucket| bucket.entries.iter().copied())
-                .collect()
-        } else {
-            let term_ords_capacity: usize = self
-                .buckets
-                .iter()
-                .flatten()
-                .map(|bucket| bucket.entries.len())
-                .sum();
-            let mut term_ords_union =
-                FxHashSet::with_capacity_and_hasher(term_ords_capacity, FxBuildHasher);
-            for bucket in self.buckets.iter().flatten() {
-                for &term_ord in &bucket.entries {
-                    term_ords_union.insert(term_ord);
-                }
-            }
-            term_ords_union.into_iter().collect()
-        };
-        term_ords.sort_unstable();
-
-        term_ords.pop_if(|highest_term_ord| *highest_term_ord == MISSING_TERM_SENTINEL);
-
-        let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.capacity());
-        dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
-            let coupon: Coupon = murmurhash32::murmurhash2(term_bytes);
-            coupons.push(coupon);
-        })?;
-
-        self.coupon_cache = Some(CouponCache::new(term_ords, coupons));
+        self.coupon_cache = Some(build_coupon_cache(&self.buckets, dictionary, missing_value_opt)?);
         Ok(())
     }
 
@@ -337,7 +354,10 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         self.prepare_max_bucket(bucket_id, agg_data)?;
         let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
         if let Some(str_dict_column) = &req_data.str_dict_column {
-            self.populate_coupon_cache(str_dict_column.dictionary())?;
+            self.populate_coupon_cache(
+                str_dict_column.dictionary(),
+                req_data.req.missing.as_ref(),
+            )?;
         }
         let name = req_data.name.to_string();
         // take the bucket in buckets and replace it with a new empty one
