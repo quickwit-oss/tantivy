@@ -11,7 +11,7 @@ use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
 use crate::query::Bm25Weight;
-use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema};
+use crate::schema::{Field, FieldEntry, IndexRecordOption, Schema};
 use crate::termdict::TermDictionaryBuilder;
 use crate::{DocId, Score};
 
@@ -80,9 +80,12 @@ impl InvertedIndexSerializer {
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
         let positions_write = self.positions_write.for_field(field);
-        let field_type: FieldType = (*field_entry.field_type()).clone();
+        let index_record_option = field_entry
+            .field_type()
+            .index_record_option()
+            .unwrap_or(IndexRecordOption::Basic);
         FieldSerializer::create(
-            &field_type,
+            index_record_option,
             total_num_tokens,
             term_dictionary_write,
             postings_write,
@@ -102,29 +105,27 @@ impl InvertedIndexSerializer {
 
 /// The field serializer is in charge of
 /// the serialization of a specific field.
-pub struct FieldSerializer<'a> {
-    term_dictionary_builder: TermDictionaryBuilder<&'a mut CountingWriter<WritePtr>>,
+pub struct FieldSerializer<'a, W: Write = WritePtr> {
+    term_dictionary_builder: TermDictionaryBuilder<&'a mut CountingWriter<W>>,
     postings_serializer: PostingsSerializer,
-    positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
+    positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<W>>>,
     current_term_info: TermInfo,
     term_open: bool,
-    postings_write: &'a mut CountingWriter<WritePtr>,
+    postings_write: &'a mut CountingWriter<W>,
     postings_start_offset: u64,
 }
 
-impl<'a> FieldSerializer<'a> {
-    fn create(
-        field_type: &FieldType,
+impl<'a, W: Write> FieldSerializer<'a, W> {
+    /// Creates a new `FieldSerializer` for the given field type.
+    pub fn create(
+        index_record_option: IndexRecordOption,
         total_num_tokens: u64,
-        term_dictionary_write: &'a mut CountingWriter<WritePtr>,
-        postings_write: &'a mut CountingWriter<WritePtr>,
-        positions_write: &'a mut CountingWriter<WritePtr>,
+        term_dictionary_write: &'a mut CountingWriter<W>,
+        postings_write: &'a mut CountingWriter<W>,
+        positions_write: &'a mut CountingWriter<W>,
         fieldnorm_reader: Option<FieldNormReader>,
-    ) -> io::Result<FieldSerializer<'a>> {
+    ) -> io::Result<FieldSerializer<'a, W>> {
         total_num_tokens.serialize(postings_write)?;
-        let index_record_option = field_type
-            .index_record_option()
-            .unwrap_or(IndexRecordOption::Basic);
         let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
         let average_fieldnorm = fieldnorm_reader
             .as_ref()
@@ -190,6 +191,11 @@ impl<'a> FieldSerializer<'a> {
         self.postings_serializer
             .new_term(term_doc_freq, record_term_freq);
         Ok(())
+    }
+
+    /// Starts the postings for a new term without recording term frequencies.
+    pub fn new_term_without_freq(&mut self, term: &[u8]) -> io::Result<()> {
+        self.new_term(term, 0, false)
     }
 
     /// Serialize the information that a document contains for the current term:
@@ -297,6 +303,7 @@ impl Block {
     }
 }
 
+/// Serializer for postings lists.
 pub struct PostingsSerializer {
     last_doc_id_encoded: u32,
 
@@ -316,6 +323,9 @@ pub struct PostingsSerializer {
 }
 
 impl PostingsSerializer {
+    /// Creates a new `PostingsSerializer`.
+    /// * avg_fieldnorm - average field norm for the field being serialized.
+    /// * mode - indexing options for the field being serialized.
     pub fn new(
         avg_fieldnorm: Score,
         mode: IndexRecordOption,
@@ -338,6 +348,8 @@ impl PostingsSerializer {
         }
     }
 
+    /// Starts the serialization for a new term.
+    /// * term_doc_freq - the number of documents containing the term.
     pub fn new_term(&mut self, term_doc_freq: u32, record_term_freq: bool) {
         self.bm25_weight = None;
 
@@ -377,6 +389,7 @@ impl PostingsSerializer {
             self.postings_write.extend(block_encoded);
         }
         if self.term_has_freq {
+            // encode the term frequencies
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
                 .compress_block_unsorted(self.block.term_freqs(), true);
@@ -417,6 +430,9 @@ impl PostingsSerializer {
         self.block.clear();
     }
 
+    /// Register that the given document contains the current term.
+    /// * doc_id - the document id.
+    /// * term_freq - the term frequency within the document.
     pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) {
         self.block.append_doc(doc_id, term_freq);
         if self.block.is_full() {
@@ -424,6 +440,7 @@ impl PostingsSerializer {
         }
     }
 
+    /// Finish the serialization for this term.
     pub fn close_term(
         &mut self,
         doc_freq: u32,
