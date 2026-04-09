@@ -14,10 +14,6 @@ use std::collections::{BinaryHeap, HashMap};
 
 use common::BitSet;
 
-use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipper::Clipper;
-use crate::spatial::shape_index::{ShapeCell, ShapeIndex};
-
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::QueryEdgeProvider;
 use super::edge_cache::EdgeCache;
@@ -27,6 +23,9 @@ use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
 use super::s2edge_distances::{update_edge_pair_min_distance, update_min_distance};
 use super::sphere::Sphere;
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipper::Clipper;
+use crate::spatial::shape_index::{ShapeCell, ShapeIndex};
 
 /// A result from the closest edge query: document ID and distance.
 #[derive(Clone, Debug)]

@@ -2,11 +2,11 @@
 //!
 //! Maps S2CellIds to the shapes that intersect each cell. Cells are subdivided until no cell
 //! contains more than a configurable number of edges.
+use super::clip_options::ClipOptions;
 use super::clipped_shape::ClippedShape;
 use super::crossings::S2EdgeCrosser;
 use super::geometry_set::GeometrySet;
 use super::math::normalize;
-use super::clip_options::ClipOptions;
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
@@ -55,7 +55,6 @@ pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
     let max_cell_edge = length * CELL_SIZE_TO_LONG_EDGE_RATIO;
     get_level_for_max_value(max_cell_edge)
 }
-
 
 /// An edge projected onto a cube face.
 #[derive(Clone, Debug)]

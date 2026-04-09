@@ -6,12 +6,6 @@ use std::collections::BinaryHeap;
 
 use common::ReadOnlyBitSet;
 
-use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
-use crate::spatial::clipper::{get_edge_max_level, CELL_PADDING};
-use crate::spatial::r1interval::R1Interval;
-use crate::spatial::shape_index::ShapeCell;
-
 use super::cell_index_reader::CellIndexIter;
 use super::edge_cache::EdgeCache;
 use super::r2rect::R2Rect;
@@ -19,6 +13,11 @@ use super::s2cell_id::S2CellId;
 use super::s2edge_clipping::{clip_edge_bound, clip_to_padded_face};
 use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
+use crate::spatial::clipper::{get_edge_max_level, CELL_PADDING};
+use crate::spatial::r1interval::R1Interval;
+use crate::spatial::shape_index::ShapeCell;
 
 struct SpongeEdge {
     geometry_id: GeometryId,
@@ -93,9 +92,7 @@ impl SpongeCell {
                     Ok(_) => {}
                     Err(pos) => {
                         let (v0, v1) = cache_entry.edge(edge_index);
-                        let (a_uv, b_uv) = match clip_to_padded_face(
-                            &v0, &v1, face, CELL_PADDING,
-                        ) {
+                        let (a_uv, b_uv) = match clip_to_padded_face(&v0, &v1, face, CELL_PADDING) {
                             Some(ab) => ab,
                             None => continue,
                         };
@@ -139,7 +136,10 @@ impl SpongeCell {
                 Err(pos) => {
                     let mut bound = R2Rect::from_point_pair(other_edge.a_uv, other_edge.b_uv);
                     assert!(clip_edge_bound(
-                        other_edge.a_uv, other_edge.b_uv, &self.cell_bound, &mut bound,
+                        other_edge.a_uv,
+                        other_edge.b_uv,
+                        &self.cell_bound,
+                        &mut bound,
                     ));
                     self.edge_count += 1;
                     if self.cell_id.level() < other_edge.max_level {
@@ -317,7 +317,10 @@ impl<'a> Interleaver<'a> {
             }
             if !cell.shapes.is_empty() {
                 self.cells_from_source += 1;
-                self.heap.push(HeapEntry::Source { cell, source: source_index });
+                self.heap.push(HeapEntry::Source {
+                    cell,
+                    source: source_index,
+                });
                 return;
             }
         }
@@ -376,9 +379,12 @@ impl<'a> Iterator for Interleaver<'a> {
                         );
                         if short_edges > threshold {
                             self.splits += 1;
-                            for entry in
-                                coarse_split(merged, &mut self.crossings, &mut self.crossers, &self.segment_names)
-                            {
+                            for entry in coarse_split(
+                                merged,
+                                &mut self.crossings,
+                                &mut self.crossers,
+                                &self.segment_names,
+                            ) {
                                 self.heap.push(entry);
                             }
                         } else {
@@ -687,7 +693,12 @@ fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     }
 }
 
-fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64, segment_names: &[String]) -> Vec<HeapEntry> {
+fn coarse_split(
+    mut merged: SpongeCell,
+    crossings: &mut u64,
+    crossers: &mut u64,
+    segment_names: &[String],
+) -> Vec<HeapEntry> {
     let cell_id = merged.cell_id;
     let parent_split_count = merged.split_count;
     merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
@@ -811,41 +822,94 @@ fn coarse_split(mut merged: SpongeCell, crossings: &mut u64, crossers: &mut u64,
                 child_edges[i][j].pop();
             }
             if !contains_center && edge_indices.is_empty() {
-                eprintln!("ABEND geometry {:?} anchor_cell {} anchor_level {} sponge {} sponge_level {} child {} split_count {} segments {:?}",
-                    anchor.geometry_id, anchor.cell_id.0, anchor.cell_id.level(),
-                    cell_id.0, sponge_level, child_cell_id.0, parent_split_count, segment_names);
+                eprintln!(
+                    "ABEND geometry {:?} anchor_cell {} anchor_level {} sponge {} sponge_level {} \
+                     child {} split_count {} segments {:?}",
+                    anchor.geometry_id,
+                    anchor.cell_id.0,
+                    anchor.cell_id.level(),
+                    cell_id.0,
+                    sponge_level,
+                    child_cell_id.0,
+                    parent_split_count,
+                    segment_names
+                );
                 let child_bound = child_padded_cell.bound();
-                eprintln!("  child_bound u=[{},{}] v=[{},{}]",
-                    child_bound[0].lo(), child_bound[0].hi(), child_bound[1].lo(), child_bound[1].hi());
-                eprintln!("  sponge_bound u=[{},{}] v=[{},{}]",
-                    sponge_bound[0].lo(), sponge_bound[0].hi(), sponge_bound[1].lo(), sponge_bound[1].hi());
-                eprintln!("  middle u=[{},{}] v=[{},{}]",
-                    middle[0].lo(), middle[0].hi(), middle[1].lo(), middle[1].hi());
-                let all_edges_for_geo: Vec<_> = flat_edges.iter().enumerate()
+                eprintln!(
+                    "  child_bound u=[{},{}] v=[{},{}]",
+                    child_bound[0].lo(),
+                    child_bound[0].hi(),
+                    child_bound[1].lo(),
+                    child_bound[1].hi()
+                );
+                eprintln!(
+                    "  sponge_bound u=[{},{}] v=[{},{}]",
+                    sponge_bound[0].lo(),
+                    sponge_bound[0].hi(),
+                    sponge_bound[1].lo(),
+                    sponge_bound[1].hi()
+                );
+                eprintln!(
+                    "  middle u=[{},{}] v=[{},{}]",
+                    middle[0].lo(),
+                    middle[0].hi(),
+                    middle[1].lo(),
+                    middle[1].hi()
+                );
+                let all_edges_for_geo: Vec<_> = flat_edges
+                    .iter()
+                    .enumerate()
                     .filter(|(_, fe)| fe.geometry_id == anchor.geometry_id)
                     .collect();
-                eprintln!("  {} edges for this geometry in flat_edges:", all_edges_for_geo.len());
+                eprintln!(
+                    "  {} edges for this geometry in flat_edges:",
+                    all_edges_for_geo.len()
+                );
                 for (idx, fe) in &all_edges_for_geo {
                     let ce = &clipped[*idx];
-                    eprintln!("    flat[{}] edge_index={} a_uv={:?} b_uv={:?} bound=[{},{}]x[{},{}] empty={}",
-                        idx, fe.edge.edge_index, fe.a_uv, fe.b_uv,
-                        ce.bound[0].lo(), ce.bound[0].hi(), ce.bound[1].lo(), ce.bound[1].hi(),
-                        ce.bound.is_empty());
+                    eprintln!(
+                        "    flat[{}] edge_index={} a_uv={:?} b_uv={:?} bound=[{},{}]x[{},{}] \
+                         empty={}",
+                        idx,
+                        fe.edge.edge_index,
+                        fe.a_uv,
+                        fe.b_uv,
+                        ce.bound[0].lo(),
+                        ce.bound[0].hi(),
+                        ce.bound[1].lo(),
+                        ce.bound[1].hi(),
+                        ce.bound.is_empty()
+                    );
                 }
-                let edges_in_child: Vec<_> = child_edges[i][j].iter()
+                let edges_in_child: Vec<_> = child_edges[i][j]
+                    .iter()
                     .filter(|ce| flat_edges[ce.edge_index].geometry_id == anchor.geometry_id)
                     .collect();
-                eprintln!("  {} edges for this geometry in child[{}][{}]:", edges_in_child.len(), i, j);
+                eprintln!(
+                    "  {} edges for this geometry in child[{}][{}]:",
+                    edges_in_child.len(),
+                    i,
+                    j
+                );
                 for ce in &edges_in_child {
                     let fe = &flat_edges[ce.edge_index];
-                    eprintln!("    edge_index={} bound=[{},{}]x[{},{}]",
-                        fe.edge.edge_index, ce.bound[0].lo(), ce.bound[0].hi(),
-                        ce.bound[1].lo(), ce.bound[1].hi());
+                    eprintln!(
+                        "    edge_index={} bound=[{},{}]x[{},{}]",
+                        fe.edge.edge_index,
+                        ce.bound[0].lo(),
+                        ce.bound[0].hi(),
+                        ce.bound[1].lo(),
+                        ce.bound[1].hi()
+                    );
                 }
-                let sponge_edges_for_geo: Vec<_> = sponge_edges.iter()
+                let sponge_edges_for_geo: Vec<_> = sponge_edges
+                    .iter()
                     .filter(|&&idx| flat_edges[idx].geometry_id == anchor.geometry_id)
                     .collect();
-                eprintln!("  {} sponge_edges for this geometry", sponge_edges_for_geo.len());
+                eprintln!(
+                    "  {} sponge_edges for this geometry",
+                    sponge_edges_for_geo.len()
+                );
                 panic!("coarse_split: anchor without edges");
             }
         }

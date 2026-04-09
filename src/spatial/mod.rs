@@ -12,12 +12,11 @@
 //! https://proj.org/en/stable/operations/projections/s2.html
 //! https://s2geometry.io/resources/earthcube.html
 
-pub mod shape_index;
-pub mod clip_options;
-pub mod clipper;
 pub mod cell_index_reader;
-pub mod clipped_shape;
 pub mod cell_union;
+pub mod clip_options;
+pub mod clipped_shape;
+pub mod clipper;
 pub mod closest_edge_query;
 pub mod collapse;
 pub mod containment;
@@ -53,6 +52,7 @@ pub mod s2edge_distances;
 pub mod s2metrics;
 pub mod s2padded_cell;
 pub mod serializer;
+pub mod shape_index;
 pub mod shape_index_region;
 pub mod spatial_index_manager;
 pub mod sphere;

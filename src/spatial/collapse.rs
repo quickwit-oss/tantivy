@@ -5,14 +5,13 @@ use std::collections::{BTreeMap, VecDeque};
 
 use rustc_hash::FxHashSet;
 
-use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipped_shape::GeometryId;
-use crate::spatial::shape_index::ShapeCell;
-
 use super::clipper::get_edge_max_level;
 use super::edge_cache::EdgeCache;
 use super::s2cell_id::S2CellId;
 use super::sphere::Sphere;
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipped_shape::GeometryId;
+use crate::spatial::shape_index::ShapeCell;
 
 struct LeveledEdge {
     edge_index: u32,

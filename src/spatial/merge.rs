@@ -2,15 +2,14 @@
 //! does the work. `CellIndexMerge` wraps an iterator of `(S2CellId, Vec<ShapeCell>)` groups and
 //! emits `ShapeCell`s, collapsing groups with more than one cell.
 
-use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
-use crate::spatial::clipper::CELL_PADDING;
-use crate::spatial::shape_index::ShapeCell;
-
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
 use super::s2cell_id::S2CellId;
 use super::s2padded_cell::S2PaddedCell;
 use super::sphere::Sphere;
+use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
+use crate::spatial::clipper::CELL_PADDING;
+use crate::spatial::shape_index::ShapeCell;
 
 struct CollapseEntry {
     geometry_id: GeometryId,

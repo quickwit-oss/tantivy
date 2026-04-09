@@ -8,11 +8,9 @@
 //! From s2shape_index_region.h
 use std::collections::HashMap;
 
-use crate::spatial::shape_index::ShapeIndex;
-
-use super::clipped_shape::{ClippedShape, GeometryId};
 use super::cell_index_reader::CellIndexReader;
 use super::cell_union::CellUnion;
+use super::clipped_shape::{ClippedShape, GeometryId};
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
 use super::latlng_rect::S2LatLngRect;
@@ -24,6 +22,7 @@ use super::s2edge_clipping::{
     clip_to_padded_face, intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSECTS_RECT_ERROR_UV_DIST,
 };
 use super::sphere::Sphere;
+use crate::spatial::shape_index::ShapeIndex;
 
 /// Provides vertex access for edge intersection tests.
 ///

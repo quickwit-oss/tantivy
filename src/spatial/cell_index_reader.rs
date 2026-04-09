@@ -4,7 +4,9 @@
 //! and the dictionary provides random access by cell_id. The iterator walks cells in sorted order
 //! for merge.
 
-use crate::spatial::{clipped_shape::ClippedShape, s2cell_id::S2CellId, shape_index::ShapeCell};
+use crate::spatial::clipped_shape::ClippedShape;
+use crate::spatial::s2cell_id::S2CellId;
+use crate::spatial::shape_index::ShapeCell;
 
 /// Reads a serialized cell index from a byte slice.
 pub struct CellIndexReader<'a> {

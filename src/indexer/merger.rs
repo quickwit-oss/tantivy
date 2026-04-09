@@ -578,7 +578,8 @@ impl IndexMerger {
 
             let edge_cache = EdgeCache::new(edge_readers, 2_000_000_000);
             let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-            let segment_names: Vec<String> = self.readers
+            let segment_names: Vec<String> = self
+                .readers
                 .iter()
                 .map(|r| r.segment_id().uuid_string())
                 .collect();
@@ -653,9 +654,11 @@ impl IndexMerger {
             }
 
             assert_eq!(
-                next_new_id, edge_writer.geometry_count(),
+                next_new_id,
+                edge_writer.geometry_count(),
                 "geometry accounting divergence: next_new_id={} but edge_writer.geometry_count={}",
-                next_new_id, edge_writer.geometry_count(),
+                next_new_id,
+                edge_writer.geometry_count(),
             );
             edge_writer.finish();
 

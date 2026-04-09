@@ -11,11 +11,6 @@ use std::collections::HashMap;
 
 use common::BitSet;
 
-use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipped_shape::GeometryId;
-use crate::spatial::clipper::Clipper;
-use crate::spatial::shape_index::ShapeIndex;
-
 use super::cell_index_reader::CellIndexReader;
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
@@ -26,6 +21,10 @@ use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
 use super::shape_index_region::{index_contains_point, CellIndexRegion, EdgeProvider};
 use super::sphere::Sphere;
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipped_shape::GeometryId;
+use crate::spatial::clipper::Clipper;
+use crate::spatial::shape_index::ShapeIndex;
 
 /// In-memory edge provider wrapping a smashed GeometrySet. Resolves edge indices into the
 /// smashed vertex arrays. No modulo wrapping — smashed vertices include the closure vertex.

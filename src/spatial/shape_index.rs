@@ -4,9 +4,8 @@ use std::io::Write;
 
 use common::CountingWriter;
 
-use crate::spatial::s2cell_id::S2CellId;
-
 use super::clipped_shape::{ClippedShape, GeometryId};
+use crate::spatial::s2cell_id::S2CellId;
 
 /// Stores the index contents for a particular S2CellId.
 ///

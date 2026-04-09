@@ -9,10 +9,6 @@ use std::collections::HashMap;
 
 use common::BitSet;
 
-use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipper::Clipper;
-use crate::spatial::shape_index::ShapeIndex;
-
 use super::cell_index_reader::CellIndexReader;
 use super::clipped_shape::ClippedShape;
 use super::contains_query::QueryEdgeProvider;
@@ -23,6 +19,9 @@ use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell_id::S2CellId;
 use super::shape_index_region::{index_contains_point, CellIndexRegion};
 use super::sphere::Sphere;
+use crate::spatial::clip_options::ClipOptions;
+use crate::spatial::clipper::Clipper;
+use crate::spatial::shape_index::ShapeIndex;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
 pub struct IntersectsQuery {
@@ -99,9 +98,7 @@ impl IntersectsQuery {
             // A covering cell is interior if the query polygon has no edges in it.
             let query_cell = self.query_index.find_cell(covering_cell_id);
             let is_interior = match &query_cell {
-                Some(cell) => {
-                    ! cell.shapes.iter().any(|s| !s.edge_indices.is_empty())
-                }
+                Some(cell) => !cell.shapes.iter().any(|s| !s.edge_indices.is_empty()),
                 None => true,
             };
 
@@ -112,7 +109,6 @@ impl IntersectsQuery {
                     if include.contains(gid) || exclude.contains(gid) {
                         continue;
                     }
-
 
                     // Containment tests: run once per geometry.
                     if !containment_tested.contains(gid) {
@@ -136,8 +132,10 @@ impl IntersectsQuery {
                             if let Some(candidate_in_qpc) = query_point_shapes.get(&gid) {
                                 let mut inside = candidate_in_qpc.contains_center;
                                 if !candidate_in_qpc.edge_indices.is_empty() {
-                                    let cell_center = query_point_cell.as_ref().unwrap().cell_id.to_point();
-                                    let mut crosser = S2EdgeCrosser::new(&cell_center, query_vertex);
+                                    let cell_center =
+                                        query_point_cell.as_ref().unwrap().cell_id.to_point();
+                                    let mut crosser =
+                                        S2EdgeCrosser::new(&cell_center, query_vertex);
                                     for &edge_index in &candidate_in_qpc.edge_indices {
                                         let (v0, v1) = entry.edge(edge_index);
                                         inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
@@ -210,8 +208,12 @@ impl IntersectsQuery {
         }
 
         eprintln!(
-            "intersects: {} tested, {} candidate_contains, {} query_contains, {} crossing, {} total hits",
-            total_tested, hits_candidate_contains, hits_query_contains, hits_crossing,
+            "intersects: {} tested, {} candidate_contains, {} query_contains, {} crossing, {} \
+             total hits",
+            total_tested,
+            hits_candidate_contains,
+            hits_query_contains,
+            hits_crossing,
             hits_candidate_contains + hits_query_contains + hits_crossing,
         );
 
