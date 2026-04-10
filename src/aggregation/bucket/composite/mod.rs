@@ -511,14 +511,14 @@ mod tests {
 
     fn datetime_from_iso_str(date_str: &str) -> common::DateTime {
         let dt = OffsetDateTime::parse(date_str, &Rfc3339)
-            .expect(&format!("Failed to parse date: {}", date_str));
+            .unwrap_or_else(|_| panic!("Failed to parse date: {}", date_str));
         let timestamp_secs = dt.unix_timestamp_nanos();
         common::DateTime::from_timestamp_nanos(timestamp_secs as i64)
     }
 
     fn ms_timestamp_from_iso_str(date_str: &str) -> i64 {
         let dt = OffsetDateTime::parse(date_str, &Rfc3339)
-            .expect(&format!("Failed to parse date: {}", date_str));
+            .unwrap_or_else(|_| panic!("Failed to parse date: {}", date_str));
         (dt.unix_timestamp_nanos() / 1_000_000) as i64
     }
 
@@ -548,7 +548,7 @@ mod tests {
                     agg_req_json["my_composite"]["composite"]["after"] = after_key.take().unwrap();
                 }
                 let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
-                let res = exec_request(agg_req.clone(), &index).unwrap();
+                let res = exec_request(agg_req.clone(), index).unwrap();
                 let expected_page_buckets = &expected_buckets_vec[page_idx * page_size
                     ..std::cmp::min((page_idx + 1) * page_size, expected_buckets_vec.len())];
                 assert_eq!(
@@ -578,7 +578,7 @@ mod tests {
                         }
                     });
                     let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
-                    let res = exec_request(agg_req.clone(), &index).unwrap();
+                    let res = exec_request(agg_req.clone(), index).unwrap();
                     assert_eq!(
                         res["my_composite"]["buckets"],
                         json!([]),
