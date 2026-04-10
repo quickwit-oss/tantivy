@@ -945,9 +945,8 @@ mod tests {
 
         // Single term
         let mut terms = Vec::new();
-        let ords: Vec<TermOrdinal> = (100_000..100_001).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(&ords, |term| {
+            dic.sorted_ords_to_term_cb(&[100_000], |term| {
                 terms.push(term.to_vec());
             })
             .unwrap()
@@ -965,9 +964,8 @@ mod tests {
         assert_eq!(terms, vec![format!("{:05X}", 100_001).into_bytes(),]);
         // both terms
         let mut terms = Vec::new();
-        let ords: Vec<TermOrdinal> = (100_000..100_002).collect();
         assert!(
-            dic.sorted_ords_to_term_cb(&ords, |term| {
+            dic.sorted_ords_to_term_cb(&[100_000, 100_001], |term| {
                 terms.push(term.to_vec());
             })
             .unwrap()
@@ -994,6 +992,43 @@ mod tests {
                 format!("{:05X}", 98653).into_bytes(),
                 format!("{:05X}", 98654).into_bytes(),
                 format!("{:05X}", 98655).into_bytes(),
+            ]
+        );
+        // redundant
+        let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = vec![1, 1, 2];
+        assert!(
+            dic.sorted_ords_to_term_cb(&ords, |term| {
+                terms.push(term.to_vec());
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            terms,
+            vec![
+                format!("{:05X}", 1).into_bytes(),
+                format!("{:05X}", 1).into_bytes(),
+                format!("{:05X}", 2).into_bytes(),
+            ]
+        );
+        // redundant cross block
+        let mut terms = Vec::new();
+        let ords: Vec<TermOrdinal> = vec![98653, 98653, 98654, 98654, 98655, 98655];
+        assert!(
+            dic.sorted_ords_to_term_cb(&ords, |term| {
+                terms.push(term.to_vec());
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            terms,
+            vec![
+                format!("{:05X}", 98_653).into_bytes(),
+                format!("{:05X}", 98_653).into_bytes(),
+                format!("{:05X}", 98_654).into_bytes(),
+                format!("{:05X}", 98_654).into_bytes(),
+                format!("{:05X}", 98_655).into_bytes(),
+                format!("{:05X}", 98_655).into_bytes(),
             ]
         );
     }

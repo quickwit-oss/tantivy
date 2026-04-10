@@ -253,7 +253,8 @@ fn build_coupon_cache(
         .flatten()
         .map(|bucket| bucket.entries.len())
         .max()
-        .unwrap_or(0) * 2;
+        .unwrap_or(0)
+        * 2;
     let mut term_ords_set = FxHashSet::with_capacity_and_hasher(term_ords_capacity, FxBuildHasher);
     for bucket in buckets.iter().flatten() {
         term_ords_set.extend(bucket.entries.iter().copied());
@@ -264,10 +265,11 @@ fn build_coupon_cache(
     term_ords.pop_if(|highest_term_ord| *highest_term_ord >= dictionary.num_terms() as u64);
 
     let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.len());
-    let all_term_ords_found: bool = dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
-        let coupon: Coupon = murmurhash32::murmurhash2(term_bytes);
-        coupons.push(coupon);
-    })?;
+    let all_term_ords_found: bool =
+        dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
+            let coupon: Coupon = murmurhash32::murmurhash2(term_bytes);
+            coupons.push(coupon);
+        })?;
     assert!(all_term_ords_found);
 
     // Regardless of whether or not there is effectively a missing value in one of the buckets,
@@ -337,26 +339,6 @@ impl SegmentCardinalityCollector {
         }
     }
 
-
-    fn ensure_coupon_cache_is_populated(
-        &mut self,
-        dictionary: &Dictionary,
-        missing_value_opt: Option<&Key>,
-    ) -> io::Result<()> {
-        if self.coupon_cache.is_some()
-            || self.column_type != ColumnType::Str
-            || self.buckets.is_empty()
-        {
-            return Ok(());
-        }
-        self.coupon_cache = Some(build_coupon_cache(
-            &self.buckets,
-            dictionary,
-            missing_value_opt,
-        )?);
-        Ok(())
-    }
-
     fn fetch_block_with_field(
         &mut self,
         docs: &[crate::DocId],
@@ -385,7 +367,8 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         if let Some(str_dict_column) = &req_data.str_dict_column {
             // Ensure the coupon cache is populated.
             // A mapping from term_ord to the hash of the associated term.
-            // The missing value sentinel will be associated to the hash of the missing value if any.
+            // The missing value sentinel will be associated to the hash of the missing value if
+            // any.
             if self.coupon_cache.is_none() {
                 self.coupon_cache = Some(build_coupon_cache(
                     &self.buckets,
