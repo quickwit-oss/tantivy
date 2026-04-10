@@ -940,7 +940,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ords_term() {
+    fn test_sorted_ords_to_term() {
         let (dic, _slice) = make_test_sstable();
 
         // Single term

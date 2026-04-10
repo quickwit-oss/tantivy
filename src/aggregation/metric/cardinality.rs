@@ -172,8 +172,7 @@ impl CouponCache {
                 missing_coupon_opt,
             }
         } else {
-            let coupon_map: FxHashMap<u64, u32> =
-                term_ords.into_iter().zip(coupons).collect();
+            let coupon_map: FxHashMap<u64, u32> = term_ords.into_iter().zip(coupons).collect();
             CouponCache::Sparse {
                 coupon_map,
                 missing_coupon_opt,
