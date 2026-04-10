@@ -133,7 +133,7 @@ mod agg_limits;
 pub mod agg_req;
 pub mod agg_result;
 pub mod bucket;
-pub(crate) mod cached_sub_aggs;
+pub(crate) mod buffered_sub_aggs;
 mod collector;
 mod date;
 mod error;

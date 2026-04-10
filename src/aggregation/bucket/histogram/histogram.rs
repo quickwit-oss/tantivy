@@ -10,7 +10,7 @@ use crate::aggregation::agg_data::{
 };
 use crate::aggregation::agg_req::Aggregations;
 use crate::aggregation::agg_result::BucketEntry;
-use crate::aggregation::cached_sub_aggs::{CachedSubAggs, HighCardCachedSubAggs};
+use crate::aggregation::buffered_sub_aggs::{BufferedSubAggs, HighCardBufferedSubAggs};
 use crate::aggregation::intermediate_agg_result::{
     IntermediateAggregationResult, IntermediateAggregationResults, IntermediateBucketResult,
     IntermediateHistogramBucketEntry,
@@ -258,7 +258,7 @@ pub(crate) struct SegmentHistogramBucketEntry {
 impl SegmentHistogramBucketEntry {
     pub(crate) fn into_intermediate_bucket_entry(
         self,
-        sub_aggregation: &mut Option<HighCardCachedSubAggs>,
+        sub_aggregation: &mut Option<HighCardBufferedSubAggs>,
         agg_data: &AggregationsSegmentCtx,
     ) -> crate::Result<IntermediateHistogramBucketEntry> {
         let mut sub_aggregation_res = IntermediateAggregationResults::default();
@@ -291,7 +291,7 @@ pub struct SegmentHistogramCollector {
     /// The buckets containing the aggregation data.
     /// One Histogram bucket per parent bucket id.
     parent_buckets: Vec<HistogramBuckets>,
-    sub_agg: Option<HighCardCachedSubAggs>,
+    sub_agg: Option<HighCardBufferedSubAggs>,
     accessor_idx: usize,
     bucket_id_provider: BucketIdProvider,
 }
@@ -444,7 +444,7 @@ impl SegmentHistogramCollector {
             max: f64::MAX,
         });
         req_data.offset = req_data.req.offset.unwrap_or(0.0);
-        let sub_agg = sub_agg.map(CachedSubAggs::new);
+        let sub_agg = sub_agg.map(BufferedSubAggs::new);
 
         Ok(Self {
             parent_buckets: Default::default(),

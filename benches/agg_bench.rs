@@ -78,6 +78,7 @@ fn bench_agg(mut group: InputGroup<Index>) {
 
     register!(group, cardinality_agg);
     register!(group, terms_status_with_cardinality_agg);
+    register!(group, terms_100_buckets_with_cardinality_agg);
 
     register!(group, range_agg);
     register!(group, range_agg_with_avg_sub_agg);
@@ -169,6 +170,22 @@ fn terms_status_with_cardinality_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
             "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "cardinality": {
+                    "cardinality": {
+                        "field": "text_few_terms_status"
+                    },
+                }
+            }
+        },
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_100_buckets_with_cardinality_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_1000_terms_zipf", "size": 100 },
             "aggs": {
                 "cardinality": {
                     "cardinality": {
