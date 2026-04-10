@@ -220,16 +220,22 @@ impl SegmentCardinalityCollectorBucket {
         }
     }
 
+    // Returns a intermediate metric result.
+    //
+    // If the column is not str, the values have been added to the
+    // sketch during collection.
+    //
+    // If the column is str, then the values are dictionary encoded
+    // and have not been added to the sketch yet.
+    // We need to resolves the term ords accumulated in self.entries
+    // with the coupon cache, and append the results to the sketch.
     fn into_intermediate_metric_result(
         mut self,
-        req_data: &CardinalityAggReqData,
         coupon_cache_opt: Option<&CouponCache>,
     ) -> crate::Result<IntermediateMetricResult> {
         if let Some(coupon_cache) = coupon_cache_opt {
             assert!(self.cardinality.sketch.is_empty());
             append_to_sketch(&self.entries, coupon_cache, &mut self.cardinality);
-        } else {
-            assert_ne!(req_data.column_type, ColumnType::Str);
         }
         Ok(IntermediateMetricResult::Cardinality(self.cardinality))
     }
@@ -372,6 +378,9 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
     ) -> crate::Result<()> {
         self.prepare_max_bucket(bucket_id, agg_data)?;
         let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        // Strings are dictionary encoded. Fetching the terms associated to strings
+        // is expensive. For this reason, we do that once for all buckets and cache the results
+        // here.
         if let Some(str_dict_column) = &req_data.str_dict_column {
             self.populate_coupon_cache(
                 str_dict_column.dictionary(),
@@ -386,7 +395,7 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
             ));
         };
         let intermediate_result =
-            bucket.into_intermediate_metric_result(req_data, self.coupon_cache.as_ref())?;
+            bucket.into_intermediate_metric_result(self.coupon_cache.as_ref())?;
         results.push(
             name,
             IntermediateAggregationResult::Metric(intermediate_result),
