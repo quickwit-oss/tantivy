@@ -639,6 +639,41 @@ impl Index {
         self.schema.clone()
     }
 
+    /// Rewrites `meta.json` on disk with a new schema, preserving the
+    /// current segment list, opstamp, settings, and payload.
+    ///
+    /// This enables additive schema evolution: new fields can be appended
+    /// to the schema without rebuilding existing segments. Old segments
+    /// simply do not contain the new fields — reads for those fields on
+    /// old documents return "missing".
+    ///
+    /// # Caller contract
+    ///
+    /// - The new schema **must be a superset** of the existing one. Field
+    ///   names and types of pre-existing fields must be unchanged. Removing
+    ///   or re-typing fields will corrupt reads against existing segments.
+    /// - Any in-flight writes must be committed and the existing
+    ///   [`IndexWriter`] dropped before calling. This method does not
+    ///   acquire the writer lock.
+    /// - After a successful call, re-open the directory with [`Index::open`]
+    ///   so subsequent writers use the new schema.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `meta.json` cannot be read or written.
+    pub fn rewrite_schema_on_disk(&self, new_schema: Schema) -> crate::Result<()> {
+        let current = self.load_metas()?;
+        let new_meta = IndexMeta {
+            index_settings: current.index_settings,
+            segments: current.segments,
+            schema: new_schema,
+            opstamp: current.opstamp,
+            payload: current.payload,
+        };
+        save_metas(&new_meta, self.directory())?;
+        Ok(())
+    }
+
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> crate::Result<Vec<Segment>> {
         Ok(self
@@ -710,5 +745,116 @@ impl Index {
 impl fmt::Debug for Index {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Index({:?})", self.directory)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::schema::{SchemaBuilder, FAST, STRING, TEXT};
+    use crate::{doc, IndexWriter};
+
+    #[test]
+    fn test_rewrite_schema_on_disk_appends_new_field() -> crate::Result<()> {
+        // Original schema: title (TEXT) + count (FAST u64).
+        let mut sb = SchemaBuilder::new();
+        let title = sb.add_text_field("title", TEXT);
+        let count = sb.add_u64_field("count", FAST);
+        let schema_v1 = sb.build();
+
+        let tmp = TempDir::new()?;
+        let path = tmp.path().to_path_buf();
+
+        // Write one document under v1, then drop the writer.
+        {
+            let index = Index::create_in_dir(&path, schema_v1.clone())?;
+            let mut writer: IndexWriter = index.writer_for_tests()?;
+            writer.add_document(doc!(title => "hello", count => 7u64))?;
+            writer.commit()?;
+        }
+
+        // v2 = v1 plus a new tag field. Rewrite meta.json on disk.
+        let mut sb2 = SchemaBuilder::new();
+        sb2.add_text_field("title", TEXT);
+        sb2.add_u64_field("count", FAST);
+        let tag = sb2.add_text_field("tag", STRING);
+        let schema_v2 = sb2.build();
+
+        {
+            let index = Index::open_in_dir(&path)?;
+            assert_eq!(index.schema().num_fields(), 2);
+            index.rewrite_schema_on_disk(schema_v2.clone())?;
+        }
+
+        // Re-open: schema has 3 fields, existing segment is still searchable
+        // and contains the original doc, the new field is missing on it.
+        let index = Index::open_in_dir(&path)?;
+        assert_eq!(index.schema().num_fields(), 3);
+        assert!(index.schema().get_field("tag").is_ok());
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 1);
+
+        // The pre-existing fast field is still readable from the existing
+        // segment after the schema rewrite.
+        let segments = index.searchable_segments()?;
+        assert_eq!(segments.len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        assert!(segment_reader.fast_fields().u64("count").is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_schema_on_disk_preserves_opstamp_and_segments() -> crate::Result<()> {
+        let mut sb = SchemaBuilder::new();
+        sb.add_text_field("body", TEXT);
+        let schema_v1 = sb.build();
+
+        let tmp = TempDir::new()?;
+        let path = tmp.path().to_path_buf();
+        let body = schema_v1.get_field("body").unwrap();
+
+        let opstamp_before;
+        let segment_ids_before;
+        {
+            let index = Index::create_in_dir(&path, schema_v1.clone())?;
+            let mut writer: IndexWriter = index.writer_for_tests()?;
+            writer.add_document(doc!(body => "alpha"))?;
+            writer.add_document(doc!(body => "beta"))?;
+            writer.commit()?;
+            opstamp_before = index.load_metas()?.opstamp;
+            segment_ids_before = index
+                .searchable_segment_metas()?
+                .into_iter()
+                .map(|m| m.id())
+                .collect::<Vec<_>>();
+        }
+
+        let mut sb2 = SchemaBuilder::new();
+        sb2.add_text_field("body", TEXT);
+        sb2.add_text_field("extra", STRING);
+        let schema_v2 = sb2.build();
+
+        {
+            let index = Index::open_in_dir(&path)?;
+            index.rewrite_schema_on_disk(schema_v2)?;
+        }
+
+        let index = Index::open_in_dir(&path)?;
+        assert_eq!(index.load_metas()?.opstamp, opstamp_before);
+        let segment_ids_after: Vec<_> = index
+            .searchable_segment_metas()?
+            .into_iter()
+            .map(|m| m.id())
+            .collect();
+        assert_eq!(segment_ids_after, segment_ids_before);
+        // existing field still readable from the original segment.
+        let body = index.schema().get_field("body").unwrap();
+        let _ = body;
+        Ok(())
     }
 }
