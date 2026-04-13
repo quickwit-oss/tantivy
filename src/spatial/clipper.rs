@@ -729,7 +729,9 @@ impl Clipper {
             self.tracker.draw_to(&pcell.get_exit_vertex());
             for edge in edges {
                 let fe = &face_edges[edge.face_edge_index];
-                self.tracker.test_edge(fe.geometry_id, &fe.v0, &fe.v1);
+                if fe.has_interior {
+                    self.tracker.test_edge(fe.geometry_id, &fe.v0, &fe.v1);
+                }
             }
             self.tracker.set_next_cellid(cell_id.next());
         }
