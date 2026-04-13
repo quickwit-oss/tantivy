@@ -4,7 +4,7 @@ use std::io;
 
 use columnar::column_values::CompactSpaceU64Accessor;
 use columnar::{Column, ColumnType, Dictionary, StrColumn};
-use datasketches::hll::{HllSketch, HllType, HllUnion};
+use datasketches::hll::{Coupon, HllSketch, HllType, HllUnion};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -121,21 +121,17 @@ impl CardinalityAggregationReq {
     }
 }
 
-/// A coupon is the hash used to represent our elements in our cardinality sketch.
-/// TODO switch to u64, but this requires updating the lib upstream.
-type Coupon = u32;
-
 /// A CouponCache is here to cache the mapping term ordinal -> coupon (see above).
 /// The idea is that we do not want to fetch terms associated to several term ordinals,
 /// several times due to the fact that we have several buckets.
 enum CouponCache {
     Dense {
         coupon_map: Vec<Coupon>,
-        missing_coupon_opt: Option<u32>,
+        missing_coupon_opt: Option<Coupon>,
     },
     Sparse {
         coupon_map: FxHashMap<u64, Coupon>,
-        missing_coupon_opt: Option<u32>,
+        missing_coupon_opt: Option<Coupon>,
     },
 }
 
@@ -163,7 +159,7 @@ impl CouponCache {
         let should_use_dense =
             highest_term_ord < 1_000_000u64 || highest_term_ord < num_terms as u64 * 3u64;
         if should_use_dense {
-            let mut coupon_map: Vec<Coupon> = vec![0; highest_term_ord as usize + 1];
+            let mut coupon_map: Vec<Coupon> = vec![Coupon::EMPTY; highest_term_ord as usize + 1];
             for (term_ord, coupon) in term_ords.into_iter().zip(coupons.into_iter()) {
                 coupon_map[term_ord as usize] = coupon;
             }
@@ -172,7 +168,7 @@ impl CouponCache {
                 missing_coupon_opt,
             }
         } else {
-            let coupon_map: FxHashMap<u64, u32> = term_ords.into_iter().zip(coupons).collect();
+            let coupon_map: FxHashMap<u64, Coupon> = term_ords.into_iter().zip(coupons).collect();
             CouponCache::Sparse {
                 coupon_map,
                 missing_coupon_opt,
@@ -266,7 +262,7 @@ fn build_coupon_cache(
     let mut coupons: Vec<Coupon> = Vec::with_capacity(term_ords.len());
     let all_term_ords_found: bool =
         dictionary.sorted_ords_to_term_cb(&term_ords, |term_bytes| {
-            let coupon: Coupon = murmurhash32::murmurhash2(term_bytes);
+            let coupon: Coupon = Coupon::from_hash(term_bytes);
             coupons.push(coupon);
         })?;
     assert!(all_term_ords_found);
@@ -275,14 +271,14 @@ fn build_coupon_cache(
     // we populate the cache with the missing key too (if any).
     let missing_coupon_opt: Option<Coupon> = missing_value_opt.map(|missing_key| {
         if let Key::Str(missing_value_str) = missing_key {
-            murmurhash32::murmurhash2(missing_value_str.as_bytes())
+            Coupon::from_hash(missing_value_str.as_bytes())
         } else {
             // See https://github.com/quickwit-oss/tantivy/issues/2891
             // A missing key with a type different from Str will not work as intended
             // for the moment.
             //
             // Right now this is just a partial workaround.
-            35679954u32
+            Coupon::from_hash("__tantivy_missing_non_str__".as_bytes())
         }
     });
     Ok(CouponCache::new(term_ords, coupons, missing_coupon_opt))
