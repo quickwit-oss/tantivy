@@ -23,7 +23,7 @@ downcast-rs = "2.0.1"
 proptest = "1"
 more-asserts = "0.3.1"
 rand = "0.9"
-binggan = "0.15.3"
+binggan = "0.16.0"
 
 [[bench]]
 name = "bench_merge"
