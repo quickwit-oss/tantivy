@@ -1,12 +1,23 @@
 //! Cell index deserialization.
 //!
 //! Reads a serialized cell index from a byte slice. The footer at the end locates the dictionary,
-//! and the dictionary provides random access by cell_id. The iterator walks cells in sorted order
-//! for merge.
+//! and the dictionary provides random access by cell_id. The cursor provides seekable access for
+//! the branch-and-bound traversal. The iterator walks cells in sorted order for merge.
 
 use crate::spatial::clipped_shape::ClippedShape;
 use crate::spatial::s2cell_id::S2CellId;
 use crate::spatial::shape_index::ShapeCell;
+
+/// The relationship between a target cell and the index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CellRelation {
+    /// The target is contained by an index cell (including equality).
+    Indexed,
+    /// The target contains one or more index cells.
+    Subdivided,
+    /// The target does not overlap any index cell.
+    Disjoint,
+}
 
 /// Reads a serialized cell index from a byte slice.
 pub struct CellIndexReader<'a> {
@@ -18,6 +29,13 @@ pub struct CellIndexReader<'a> {
 impl<'a> CellIndexReader<'a> {
     /// Opens a cell index reader from the raw bytes of a serialized cell index.
     pub fn open(data: &'a [u8]) -> Self {
+        if data.len() < 12 {
+            return CellIndexReader {
+                data,
+                cell_count: 0,
+                dir_offset: 0,
+            };
+        }
         let n = data.len();
         let dir_offset = u64::from_le_bytes(data[n - 8..n].try_into().unwrap());
         let cell_count = u32::from_le_bytes(data[n - 12..n - 8].try_into().unwrap());
@@ -72,7 +90,6 @@ impl<'a> CellIndexReader<'a> {
     /// Binary search the dictionary for the first cell whose range_max is at or past the target's
     /// range_min, then yield cells forward until past the target's range_max.
     pub fn scan_range(&'a self, target: S2CellId) -> CellIndexIter<'a> {
-        // Find the first dictionary entry whose range_max >= target.range_min().
         let target_min = target.range_min();
         let mut lo = 0u32;
         let mut hi = self.cell_count;
@@ -90,6 +107,14 @@ impl<'a> CellIndexReader<'a> {
             reader: self,
             pos: lo,
             end_at: Some(target.range_max()),
+        }
+    }
+
+    /// Returns a cursor positioned at the beginning of the cell index.
+    pub fn cursor(&'a self) -> CellIndexCursor<'a> {
+        CellIndexCursor {
+            reader: self,
+            pos: 0,
         }
     }
 
@@ -138,6 +163,109 @@ impl<'a> CellIndexReader<'a> {
         ShapeCell {
             cell_id: S2CellId(cell_id),
             shapes,
+        }
+    }
+}
+
+/// Seekable cursor over the cell index dictionary. Provides positioned access without
+/// deserialization and can produce an iterator to walk forward from the current position.
+pub struct CellIndexCursor<'a> {
+    reader: &'a CellIndexReader<'a>,
+    pos: u32,
+}
+
+impl<'a> CellIndexCursor<'a> {
+    /// Returns true if the cursor is past the last cell.
+    pub fn done(&self) -> bool {
+        self.pos >= self.reader.cell_count
+    }
+
+    /// Returns the cell id at the current position without deserializing the cell contents.
+    /// Returns None if the cursor is done.
+    pub fn id(&self) -> Option<S2CellId> {
+        if self.done() {
+            return None;
+        }
+        let (cell_id, _) = self.reader.read_dir_entry(self.pos);
+        Some(S2CellId(cell_id))
+    }
+
+    /// Reads and deserializes the cell at the current position. Panics if the cursor is done.
+    pub fn cell(&self) -> ShapeCell {
+        assert!(!self.done());
+        let (_, offset) = self.reader.read_dir_entry(self.pos);
+        self.reader.read_cell(offset as usize)
+    }
+
+    /// Binary search forward to the first cell whose range_max is at or past the given target.
+    pub fn seek(&mut self, target: S2CellId) {
+        let mut lo = self.pos;
+        let mut hi = self.reader.cell_count;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let (cell_id, _) = self.reader.read_dir_entry(mid);
+            if S2CellId(cell_id).range_max() < target {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        self.pos = lo;
+    }
+
+    /// Locate a target cell relative to the index.
+    ///
+    /// If the target is contained by some index cell (including equality), positions the cursor
+    /// at that cell and returns Indexed. If the target contains one or more index cells, positions
+    /// the cursor at the first such cell and returns Subdivided. Otherwise returns Disjoint.
+    ///
+    /// S2CellIterator::LocateImpl in s2cell_iterator.h.
+    pub fn locate(&mut self, target: S2CellId) -> CellRelation {
+        self.seek(target.range_min());
+        if !self.done() {
+            let id = self.id().unwrap();
+            // The target is contained by the cell we landed on.
+            if id >= target && id.range_min() <= target {
+                return CellRelation::Indexed;
+            }
+            // The cell we landed on is contained by the target.
+            if id <= target.range_max() {
+                return CellRelation::Subdivided;
+            }
+        }
+        // Check the previous cell. If it contains the target then it's indexed.
+        if self.prev() && self.id().unwrap().range_max() >= target {
+            return CellRelation::Indexed;
+        }
+        CellRelation::Disjoint
+    }
+
+    /// Move to the previous cell. Returns true if the move succeeded, false if already at the
+    /// beginning.
+    pub fn prev(&mut self) -> bool {
+        if self.pos == 0 {
+            return false;
+        }
+        self.pos -= 1;
+        true
+    }
+
+    /// Returns an iterator that walks forward from the current position.
+    pub fn iter_from_here(&self) -> CellIndexIter<'a> {
+        CellIndexIter {
+            reader: self.reader,
+            pos: self.pos,
+            end_at: None,
+        }
+    }
+
+    /// Returns an iterator that walks forward from the current position, stopping when a cell's
+    /// range_min exceeds the given bound.
+    pub fn iter_until(&self, range_max: S2CellId) -> CellIndexIter<'a> {
+        CellIndexIter {
+            reader: self.reader,
+            pos: self.pos,
+            end_at: Some(range_max),
         }
     }
 }
