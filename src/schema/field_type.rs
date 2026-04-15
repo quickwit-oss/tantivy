@@ -270,6 +270,19 @@ impl FieldType {
         }
     }
 
+    /// Returns the BM25 parameters for this field, if applicable.
+    pub fn bm25_params(&self) -> Option<crate::index::Bm25Params> {
+        match self {
+            FieldType::Str(text_options) => text_options
+                .get_indexing_options()
+                .map(|text_indexing| text_indexing.bm25_params()),
+            FieldType::JsonObject(json_object_options) => json_object_options
+                .get_text_indexing_options()
+                .map(|text_indexing| text_indexing.bm25_params()),
+            _ => None,
+        }
+    }
+
     /// returns true if the field is fast.
     pub fn is_fast(&self) -> bool {
         match *self {

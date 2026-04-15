@@ -297,6 +297,7 @@ mod tests {
 
     use proptest::prelude::*;
 
+    use crate::index::Bm25Params;
     use crate::query::score_combiner::SumCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::{Bm25Weight, BufferedUnionScorer, Scorer};
@@ -467,6 +468,7 @@ mod tests {
                     postings.len() as u64,
                     max_doc as u64,
                     average_fieldnorm,
+                    Bm25Params::default(),
                 );
                 TermScorer::create_for_test(postings, &fieldnorms_expanded[..], bm25_weight)
             })

@@ -376,6 +376,7 @@ mod tests {
                         postings.len() as u64,
                         max_doc as u64,
                         average_fieldnorm,
+                        crate::Bm25Params::default(),
                     );
                     TermScorer::create_for_test(postings, &fieldnorms_expanded[..], bm25_weight)
                 })
@@ -626,12 +627,12 @@ mod tests {
         let scorer_a = TermScorer::create_for_test(
             &postings_a,
             &fieldnorms,
-            Bm25Weight::for_one_term(100, 200, average_fieldnorm),
+            Bm25Weight::for_one_term(100, 200, average_fieldnorm, crate::Bm25Params::default()),
         );
         let scorer_b = TermScorer::create_for_test(
             &postings_b,
             &fieldnorms,
-            Bm25Weight::for_one_term(100, 200, average_fieldnorm),
+            Bm25Weight::for_one_term(100, 200, average_fieldnorm, crate::Bm25Params::default()),
         );
 
         let checkpoints = compute_checkpoints_block_wand_intersection(vec![scorer_a, scorer_b], 10);
@@ -649,7 +650,7 @@ mod tests {
             TermScorer::create_for_test(
                 &postings,
                 &fieldnorms,
-                Bm25Weight::for_one_term(50, 50, average_fieldnorm),
+                Bm25Weight::for_one_term(50, 50, average_fieldnorm, crate::Bm25Params::default()),
             )
         };
 

@@ -4,6 +4,7 @@ use std::ops::BitOr;
 use serde::{Deserialize, Serialize};
 
 use super::flags::{CoerceFlag, FastFlag};
+use crate::index::Bm25Params;
 use crate::schema::flags::{SchemaFlagList, StoredFlag};
 use crate::schema::IndexRecordOption;
 
@@ -202,6 +203,9 @@ pub struct TextFieldIndexing {
     fieldnorms: bool,
     #[serde(default)]
     tokenizer: TokenizerName,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Bm25Params::is_default")]
+    bm25_params: Bm25Params,
 }
 
 pub(crate) fn default_fieldnorms() -> bool {
@@ -214,6 +218,7 @@ impl Default for TextFieldIndexing {
             tokenizer: TokenizerName::default(),
             record: IndexRecordOption::default(),
             fieldnorms: default_fieldnorms(),
+            bm25_params: Bm25Params::default(),
         }
     }
 }
@@ -252,6 +257,18 @@ impl TextFieldIndexing {
         self
     }
 
+    /// Sets the BM25 scoring parameters for this field.
+    #[must_use]
+    pub fn set_bm25_params(mut self, params: Bm25Params) -> TextFieldIndexing {
+        self.bm25_params = params;
+        self
+    }
+
+    /// Returns the BM25 scoring parameters for this field.
+    pub fn bm25_params(&self) -> Bm25Params {
+        self.bm25_params
+    }
+
     /// Returns the indexing options associated with this field.
     ///
     /// See [`IndexRecordOption`] for more detail.
@@ -266,6 +283,7 @@ pub const STRING: TextOptions = TextOptions {
         tokenizer: TokenizerName::from_static(NO_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::Basic,
+        bm25_params: Bm25Params::DEFAULT,
     }),
     stored: false,
     fast: FastFieldTextOptions::IsEnabled(false),
@@ -278,6 +296,7 @@ pub const TEXT: TextOptions = TextOptions {
         tokenizer: TokenizerName::from_static(DEFAULT_TOKENIZER_NAME),
         fieldnorms: true,
         record: IndexRecordOption::WithFreqsAndPositions,
+        bm25_params: Bm25Params::DEFAULT,
     }),
     stored: false,
     coerce: false,

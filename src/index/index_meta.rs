@@ -231,6 +231,54 @@ fn is_true(val: &bool) -> bool {
     *val
 }
 
+/// BM25 scoring parameters.
+///
+/// `k1` controls term-frequency saturation (must be non-negative).
+/// `b` controls length normalization (must be in `[0, 1]`).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct Bm25Params {
+    k1: f32,
+    b: f32,
+}
+
+impl Bm25Params {
+    pub const DEFAULT: Self = Self { k1: 1.2, b: 0.75 };
+
+    pub fn new(k1: f32, b: f32) -> Self {
+        assert!(k1 >= 0.0, "k1 must be non-negative, got {k1}");
+        assert!((0.0..=1.0).contains(&b), "b must be in [0, 1], got {b}");
+        Self { k1, b }
+    }
+
+    pub fn k1(&self) -> f32 {
+        self.k1
+    }
+
+    pub fn b(&self) -> f32 {
+        self.b
+    }
+
+    pub fn is_default(&self) -> bool {
+        *self == Self::DEFAULT
+    }
+}
+
+impl Default for Bm25Params {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+// Uses to_bits() so that -0.0 != 0.0, which is required for Eq soundness
+// (IEEE 754 considers -0.0 == 0.0, but Eq requires consistency with Hash).
+impl PartialEq for Bm25Params {
+    fn eq(&self, other: &Self) -> bool {
+        self.k1.to_bits() == other.k1.to_bits() && self.b.to_bits() == other.b.to_bits()
+    }
+}
+
+impl Eq for Bm25Params {}
+
 /// Search Index Settings.
 ///
 /// Contains settings which are applied on the whole

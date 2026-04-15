@@ -153,7 +153,7 @@ impl Scorer for TermScorer {
 mod tests {
     use proptest::prelude::*;
 
-    use crate::index::SegmentId;
+    use crate::index::{Bm25Params, SegmentId};
     use crate::indexer::index_writer::MEMORY_BUDGET_NUM_BYTES_MIN;
     use crate::merge_policy::NoMergePolicy;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_term_scorer_max_score() -> crate::Result<()> {
-        let bm25_weight = Bm25Weight::for_one_term(3, 6, 10.0);
+        let bm25_weight = Bm25Weight::for_one_term(3, 6, 10.0, Bm25Params::default());
         let mut term_scorer = TermScorer::create_for_test(
             &[(2, 3), (3, 12), (7, 8)],
             &[0, 0, 10, 12, 0, 0, 0, 100],
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_term_scorer_shallow_advance() -> crate::Result<()> {
-        let bm25_weight = Bm25Weight::for_one_term(300, 1024, 10.0);
+        let bm25_weight = Bm25Weight::for_one_term(300, 1024, 10.0, Bm25Params::default());
         let mut doc_and_tfs = vec![];
         for i in 0u32..300u32 {
             let doc = i * 10;
@@ -232,7 +232,8 @@ mod tests {
              // For this reason we multiply by 1.1 to make a realistic value.
          let bm25_weight = Bm25Weight::for_one_term(term_doc_freq as u64,
             term_doc_freq as u64 * 10u64,
-            average_fieldnorm);
+            average_fieldnorm,
+            Bm25Params::default());
 
          let mut term_scorer =
               TermScorer::create_for_test(&doc_tfs[..], &fieldnorms[..], bm25_weight);
@@ -265,7 +266,7 @@ mod tests {
         doc_tfs.push((258, 1u32));
 
         let fieldnorms: Vec<u32> = std::iter::repeat_n(20u32, 300).collect();
-        let bm25_weight = Bm25Weight::for_one_term(10, 129, 20.0);
+        let bm25_weight = Bm25Weight::for_one_term(10, 129, 20.0, Bm25Params::default());
         let mut docs = TermScorer::create_for_test(&doc_tfs[..], &fieldnorms[..], bm25_weight);
         assert_nearly_equals!(docs.block_max_score(), 2.5161593);
         docs.seek_block(135);

@@ -69,8 +69,12 @@ impl SegmentPostings {
         use crate::schema::IndexRecordOption;
         let mut buffer = Vec::new();
         {
-            let mut postings_serializer =
-                PostingsSerializer::new(0.0, IndexRecordOption::Basic, None);
+            let mut postings_serializer = PostingsSerializer::new(
+                0.0,
+                IndexRecordOption::Basic,
+                None,
+                crate::Bm25Params::default(),
+            );
             postings_serializer.new_term(docs.len() as u32, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
@@ -118,6 +122,7 @@ impl SegmentPostings {
             average_field_norm,
             IndexRecordOption::WithFreqs,
             fieldnorm_reader,
+            crate::Bm25Params::default(),
         );
         postings_serializer.new_term(doc_and_tfs.len() as u32, true);
         for &(doc, tf) in doc_and_tfs {
