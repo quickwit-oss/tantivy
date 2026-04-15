@@ -8,6 +8,7 @@
 use std::sync::LazyLock;
 
 use super::containment::{brute_force_contains, compute_origin_inside};
+use super::s2loop_measures::is_normalized;
 use super::geometry::Geometry;
 use super::math::normalize;
 use super::s2coords::face_uv_to_xyz;
@@ -131,8 +132,18 @@ fn smash_polygon(rings: &[Vec<[f64; 3]>]) -> (Vec<[f64; 3]>, bool, Vec<usize>) {
 
     for (i, ring) in rings.iter().enumerate() {
         let mut ring = ring.clone();
-        // GeoJSON RFC 7946: holes are CW. S2 wants all rings CCW.
-        if i > 0 {
+        // S2 normalizes all loops independently: every loop goes CCW and
+        // encloses at most half the sphere. S2Loop::Normalize in s2loop.cc.
+        if !is_normalized(&ring) {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static REVERSED: AtomicU64 = AtomicU64::new(0);
+            let count = REVERSED.fetch_add(1, Ordering::Relaxed) + 1;
+            if count <= 10 || count % 10000 == 0 {
+                eprintln!(
+                    "smash_polygon: reversing ring {} ({} vertices, {} reversed so far)",
+                    i, ring.len(), count,
+                );
+            }
             ring.reverse();
         }
         // Rings must be closed: first == last.
