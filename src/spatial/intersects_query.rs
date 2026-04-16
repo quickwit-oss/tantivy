@@ -5,12 +5,9 @@
 //! in every cell where the geometry appears. A hit bitset skips confirmed geometries. A
 //! containment-tested bitset ensures the containment tests run at most once per geometry.
 
-use std::collections::HashMap;
-
 use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
-use super::clipped_shape::ClippedShape;
 use super::contains_query::QueryEdgeProvider;
 use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
@@ -84,24 +81,34 @@ impl IntersectsQuery {
         let mut hits_crossing = 0u64;
         let mut total_tested = 0u64;
 
-        // Cache the index cell containing the query polygon's first vertex. Used for the "does
-        // candidate contain query point?" test. One find call for the entire query.
+        // Pre-scan: find geometries that contain the query point. A closed geometry
+        // with contains_center and no edges in the query point cell fully contains the
+        // query point. Include these before the covering walk.
         let query_vertex = &self.query_edges.get_edge_set((0, 0)).vertices[0];
         let query_point_cell_id = S2CellId::from_point(query_vertex);
-        let query_point_cell = reader.find(query_point_cell_id);
-        let query_point_shapes: HashMap<u32, &ClippedShape> = match &query_point_cell {
-            Some(cell) => cell.shapes.iter().map(|s| (s.geometry_id.1, s)).collect(),
-            None => HashMap::new(),
-        };
+        if let Some(qpc) = reader.find(query_point_cell_id) {
+            for shape in &qpc.shapes {
+                let gid = shape.geometry_id.1;
+                if shape.contains_center && shape.edge_indices.is_empty() {
+                    let located = edge_cache.locate(shape.geometry_id);
+                    if !located.closed {
+                        continue;
+                    }
+                    if let Some(filter) = terms_filter {
+                        if !filter.contains(located.doc_id) {
+                            exclude.insert(gid);
+                            continue;
+                        }
+                    }
+                    hits_candidate_contains += 1;
+                    include.insert(gid);
+                    doc_ids.push(located.doc_id);
+                }
+            }
+        }
 
         for &covering_cell_id in &self.covering {
-            // A covering cell is interior if the query polygon has no edges in it.
             let query_cell = self.query_index.find_cell(covering_cell_id);
-            let is_interior = match &query_cell {
-                Some(cell) => !cell.shapes.iter().any(|s| !s.edge_indices.is_empty()),
-                None => true,
-            };
-
             for index_cell in reader.scan_range(covering_cell_id) {
                 for clipped in &index_cell.shapes {
                     let gid = clipped.geometry_id.1;
@@ -110,13 +117,18 @@ impl IntersectsQuery {
                         continue;
                     }
 
+                    // Locate once per iteration. The containment block uses it on
+                    // first encounter. The crossing block uses it on every encounter.
+                    let mut was_located = None;
+
                     // Containment tests: run once per geometry.
                     if !containment_tested.contains(gid) {
                         containment_tested.insert(gid);
 
+                        let located = edge_cache.locate(clipped.geometry_id);
+
                         if let Some(filter) = terms_filter {
-                            let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
-                            if !filter.contains(doc_id) {
+                            if !filter.contains(located.doc_id) {
                                 exclude.insert(gid);
                                 continue;
                             }
@@ -124,64 +136,35 @@ impl IntersectsQuery {
 
                         total_tested += 1;
 
-                        // Does the candidate contain the query point? Check the cached cell.
-                        // Only closed geometries (polygons) can contain a point.
-                        let entry = edge_cache.get(clipped.geometry_id);
-                        let closed = entry.edge_set().closed;
-                        if closed {
-                            if let Some(candidate_in_qpc) = query_point_shapes.get(&gid) {
-                                let mut inside = candidate_in_qpc.contains_center;
-                                if !candidate_in_qpc.edge_indices.is_empty() {
-                                    let cell_center =
-                                        query_point_cell.as_ref().unwrap().cell_id.to_point();
-                                    let mut crosser =
-                                        S2EdgeCrosser::new(&cell_center, query_vertex);
-                                    for &edge_index in &candidate_in_qpc.edge_indices {
-                                        let (v0, v1) = entry.edge(edge_index);
-                                        inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
-                                    }
-                                }
-                                if inside {
-                                    hits_candidate_contains += 1;
-                                    include.insert(gid);
-                                    doc_ids.push(edge_cache.get(clipped.geometry_id).doc_id());
-                                    continue;
-                                }
-                            }
-                        }
-
                         // Does the query contain the candidate's first vertex?
-                        let entry = edge_cache.get(clipped.geometry_id);
-                        let vertices = entry.vertices();
-                        if !vertices.is_empty()
-                            && index_contains_point(
-                                &self.query_index,
-                                &self.query_edges,
-                                (0, 0),
-                                &vertices[0],
-                            )
-                        {
+                        let first_vertex = located.vertex(0);
+                        if index_contains_point(
+                            &self.query_index,
+                            &self.query_edges,
+                            (0, 0),
+                            &first_vertex,
+                        ) {
                             hits_query_contains += 1;
                             include.insert(gid);
-                            doc_ids.push(edge_cache.get(clipped.geometry_id).doc_id());
+                            doc_ids.push(located.doc_id);
                             continue;
                         }
+
+                        was_located = Some(located);
                     }
 
                     // Edge crossing test.
                     if !clipped.edge_indices.is_empty() {
-                        if let Some(ref qc) = query_cell {
-                            let entry = edge_cache.get(clipped.geometry_id);
-                            let candidate_vertices = entry.vertices();
-                            if candidate_vertices.len() >= 2 {
+                        if let Some(qc) = query_cell {
+                            let located = was_located
+                                .unwrap_or_else(|| edge_cache.locate(clipped.geometry_id));
+                            if located.vertex_count >= 2 {
                                 let query_vertices =
                                     &self.query_edges.get_edge_set((0, 0)).vertices;
                                 let crossed = 'crossing: {
                                     for &candidate_edge_idx in &clipped.edge_indices {
-                                        let ci = candidate_edge_idx as usize;
-                                        let cv0 = &candidate_vertices[ci];
-                                        let cv1 = &candidate_vertices[ci + 1];
-                                        let mut crosser = S2EdgeCrosser::new(cv0, cv1);
+                                        let (cv0, cv1) = located.edge(candidate_edge_idx);
+                                        let mut crosser = S2EdgeCrosser::new(&cv0, &cv1);
                                         for query_shape in &qc.shapes {
                                             for &query_edge_idx in &query_shape.edge_indices {
                                                 let qi = query_edge_idx as usize;
@@ -198,7 +181,7 @@ impl IntersectsQuery {
                                 if crossed {
                                     hits_crossing += 1;
                                     include.insert(gid);
-                                    doc_ids.push(edge_cache.get(clipped.geometry_id).doc_id());
+                                    doc_ids.push(located.doc_id);
                                 }
                             }
                         }

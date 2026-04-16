@@ -15,6 +15,71 @@ use std::marker::PhantomData;
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::surface::Surface;
 
+/// A located geometry entry. Holds a reference to the raw vertex data in the mmap'd slice.
+/// Reads edges directly without allocation.
+pub struct LocatedEntry<'a> {
+    /// The document id for this geometry.
+    pub doc_id: u32,
+    /// Whether this geometry is a closed polygon.
+    pub closed: bool,
+    /// Raw vertex bytes in the mmap'd slice.
+    pub vertex_data: &'a [u8],
+    /// Number of vertices.
+    pub vertex_count: usize,
+}
+
+impl<'a> LocatedEntry<'a> {
+    /// Construct a located entry from its parts.
+    pub fn new(doc_id: u32, closed: bool, vertex_data: &'a [u8], vertex_count: usize) -> Self {
+        LocatedEntry {
+            doc_id,
+            closed,
+            vertex_data,
+            vertex_count,
+        }
+    }
+
+    /// Number of vertices in this geometry member.
+    pub fn vertex_count(&self) -> usize {
+        self.vertex_count
+    }
+
+    /// Read the vertex at the given index directly from the mmap'd data.
+    pub fn vertex(&self, index: usize) -> [f64; 3] {
+        let offset = index * 24;
+        let mut point = [0.0f64; 3];
+        for i in 0..3 {
+            point[i] = f64::from_le_bytes(
+                self.vertex_data[offset + i * 8..offset + (i + 1) * 8]
+                    .try_into()
+                    .unwrap(),
+            );
+        }
+        point
+    }
+
+    /// Read the first vertex.
+    pub fn first_vertex(&self) -> [f64; 3] {
+        self.vertex(0)
+    }
+
+    /// Read the two endpoints of edge at the given index.
+    pub fn edge(&self, index: u32) -> ([f64; 3], [f64; 3]) {
+        let i = index as usize;
+        let v0 = self.vertex(i);
+        let v1 = if i + 1 < self.vertex_count {
+            self.vertex(i + 1)
+        } else {
+            assert_eq!(
+                i, 0,
+                "edge index past vertex count is only valid for points"
+            );
+            v0
+        };
+        (v0, v1)
+    }
+}
+
 struct EntryHeader {
     data_len: u32,
     closed: bool,
@@ -58,6 +123,11 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
             dir_offset,
             _surface: PhantomData,
         }
+    }
+
+    /// The raw data slice backing this reader.
+    pub fn data(&self) -> &'a [u8] {
+        self.data
     }
 
     /// Total number of geometry entries in this segment.
@@ -150,6 +220,49 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         (head_position, GeometrySet { members, doc_id })
     }
 
+    /// Locate a geometry entry and return its header, doc_id, and the byte offset where
+    /// vertex data begins. Does not decode vertices.
+    pub fn locate_entry(&self, position: u32) -> LocatedEntry<'_> {
+        assert!(position < self.geometry_count);
+        let (_, _, doc_id) = self.find_head(position);
+
+        // Walk from the skip list entry to the target position.
+        let skip_index = (position / self.skip_interval) as usize;
+        let dir_entry = self.dir_offset as usize + skip_index * 8;
+        let mut current =
+            u64::from_le_bytes(self.data[dir_entry..dir_entry + 8].try_into().unwrap());
+        let start_pos = skip_index as u32 * self.skip_interval;
+
+        for _ in 0..(position - start_pos) {
+            let h = self.read_header(current);
+            let advance = if h.is_head { 9 } else { 5 } + h.data_len as u64;
+            current += advance;
+        }
+
+        let h = self.read_header(current);
+        let data_start = if h.is_head {
+            current as usize + 9
+        } else {
+            current as usize + 5
+        };
+
+        let vertex_start = if h.has_holes {
+            self.skip_ring_boundaries(data_start, h.data_len as usize)
+        } else {
+            data_start
+        };
+
+        let vertex_end = data_start + h.data_len as usize;
+        let vertex_count = (vertex_end - vertex_start) / (S::DIMENSIONS * 8);
+
+        LocatedEntry {
+            doc_id,
+            closed: h.closed,
+            vertex_data: &self.data[vertex_start..vertex_end],
+            vertex_count,
+        }
+    }
+
     fn find_head(&self, position: u32) -> (u32, u64, u32) {
         let mut skip_index = (position / self.skip_interval) as usize;
 
@@ -199,6 +312,23 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
             has_holes: flags & 0x04 != 0,
             is_head: flags & 0x08 != 0,
         }
+    }
+
+    // Skip past ring boundary entries without allocating. Returns the byte offset where
+    // vertex data begins.
+    fn skip_ring_boundaries(&self, data_start: usize, data_len: usize) -> usize {
+        let data_end = data_start + data_len;
+        let mut pos = data_start;
+        loop {
+            assert!(pos + 4 <= data_end, "ring boundary overruns data section");
+            let entry = u32::from_le_bytes(self.data[pos..pos + 4].try_into().unwrap());
+            let continuation = entry & 0x80000000 != 0;
+            pos += 4;
+            if !continuation {
+                break;
+            }
+        }
+        pos
     }
 
     fn decode_ring_boundaries(&self, data_start: usize, data_len: usize) -> (Vec<usize>, usize) {

@@ -220,15 +220,14 @@ fn prune_degeneracies(loop_vertices: &[[f64; 3]]) -> Vec<[f64; 3]> {
 /// For any loop, the curvature is an integer multiple of 2*Pi.  In
 /// particular:
 ///
-///   - For a non-degenerate loop with no self-intersections that encloses a
-///     small region, the curvature is approximately +2*Pi.
+///   - For a non-degenerate loop with no self-intersections that encloses a small region, the
+///     curvature is approximately +2*Pi.
 ///
-///   - For a non-degenerate loop with no self-intersections that encloses a
-///     large region (more than half the sphere), the curvature is
-///     approximately -2*Pi.
+///   - For a non-degenerate loop with no self-intersections that encloses a large region (more than
+///     half the sphere), the curvature is approximately -2*Pi.
 ///
-///   - For a loop that makes one complete clockwise revolution, the
-///     curvature is approximately -2*Pi * (1 + area / 2*Pi).
+///   - For a loop that makes one complete clockwise revolution, the curvature is approximately
+///     -2*Pi * (1 + area / 2*Pi).
 ///
 ///   For any such loop, reversing the order of the vertices is guaranteed to
 ///   negate the curvature.  This property can be used to define a unique

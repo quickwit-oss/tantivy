@@ -89,11 +89,23 @@ impl GeometryEntry {
     }
 }
 
+/// Lightweight summary of a geometry member: doc_id, closed flag, and first vertex.
+/// Avoids a full cache lookup when only header information is needed.
+pub struct GeometrySummary {
+    /// The document id.
+    pub doc_id: u32,
+    /// Whether this geometry is a closed polygon.
+    pub closed: bool,
+    /// The first vertex of this geometry member.
+    pub first_vertex: [f64; 3],
+}
+
 /// Cached geometry set access. Keyed by (segment, position) so the query path and merge path use
 /// the same type. The query path passes segment 0. The merge path passes the real segment index.
 /// Uses interior mutability so callers take &EdgeCache.
 pub struct EdgeCache<'a, S: Surface> {
     inner: RefCell<CacheInner<'a, S>>,
+    data_slices: Vec<&'a [u8]>,
 }
 
 impl<'a, S: Surface> EdgeCache<'a, S> {
@@ -101,6 +113,7 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
     /// segments. Eviction removes the least recently used set regardless of which segment it came
     /// from.
     pub fn new(readers: Vec<EdgeReader<'a, S>>, max_vertices: usize) -> Self {
+        let data_slices: Vec<&'a [u8]> = readers.iter().map(|r| r.data()).collect();
         EdgeCache {
             inner: RefCell::new(CacheInner {
                 readers,
@@ -109,6 +122,7 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
                 cached_vertices: 0,
                 max_vertices,
             }),
+            data_slices,
         }
     }
 
@@ -120,6 +134,26 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
     /// Resolve a geometry to its doc_id without decoding vertices or touching the cache.
     pub fn doc_id_for(&self, id: GeometryId) -> u32 {
         self.inner.borrow().readers[id.0 as usize].doc_id_for(id.1)
+    }
+
+    /// Locate a geometry entry in the mmap'd data. Returns header info and direct access
+    /// to vertex data without allocation or cache involvement.
+    pub fn locate(&self, id: GeometryId) -> super::edge_reader::LocatedEntry<'a> {
+        let inner = self.inner.borrow();
+        let reader = &inner.readers[id.0 as usize];
+        let entry = reader.locate_entry(id.1);
+        // Rebind the LocatedEntry to the data_slices lifetime. The vertex_data slice
+        // points into data_slices[segment] which is 'a, not tied to the RefCell borrow.
+        let segment = id.0 as usize;
+        let data = self.data_slices[segment];
+        let offset = entry.vertex_data.as_ptr() as usize - data.as_ptr() as usize;
+        let len = entry.vertex_data.len();
+        super::edge_reader::LocatedEntry::new(
+            entry.doc_id,
+            entry.closed,
+            &data[offset..offset + len],
+            entry.vertex_count(),
+        )
     }
 
     /// Retrieve the geometry entry for the given geometry id. The returned entry holds an Rc to

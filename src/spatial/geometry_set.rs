@@ -8,10 +8,10 @@
 use std::sync::LazyLock;
 
 use super::containment::{brute_force_contains, compute_origin_inside};
-use super::s2loop_measures::is_normalized;
 use super::geometry::Geometry;
 use super::math::normalize;
 use super::s2coords::face_uv_to_xyz;
+use super::s2loop_measures::is_normalized;
 use super::sphere::Sphere;
 
 /// The Hilbert curve start point: face 0, UV (-1, -1), normalized to the unit sphere.
@@ -141,7 +141,9 @@ fn smash_polygon(rings: &[Vec<[f64; 3]>]) -> (Vec<[f64; 3]>, bool, Vec<usize>) {
             if count <= 10 || count % 10000 == 0 {
                 eprintln!(
                     "smash_polygon: reversing ring {} ({} vertices, {} reversed so far)",
-                    i, ring.len(), count,
+                    i,
+                    ring.len(),
+                    count,
                 );
             }
             ring.reverse();
