@@ -12,9 +12,9 @@ use crate::spatial::shape_index::ShapeCell;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CellRelation {
     /// The target is contained by an index cell (including equality).
-    Indexed,
+    ContainedBy,
     /// The target contains one or more index cells.
-    Subdivided,
+    Contains,
     /// The target does not overlap any index cell.
     Disjoint,
 }
@@ -226,16 +226,16 @@ impl<'a> CellIndexCursor<'a> {
             let id = self.id().unwrap();
             // The target is contained by the cell we landed on.
             if id >= target && id.range_min() <= target {
-                return CellRelation::Indexed;
+                return CellRelation::ContainedBy;
             }
             // The cell we landed on is contained by the target.
             if id <= target.range_max() {
-                return CellRelation::Subdivided;
+                return CellRelation::Contains;
             }
         }
         // Check the previous cell. If it contains the target then it's indexed.
         if self.prev() && self.id().unwrap().range_max() >= target {
-            return CellRelation::Indexed;
+            return CellRelation::ContainedBy;
         }
         CellRelation::Disjoint
     }
