@@ -803,7 +803,7 @@ impl<TermMap: TermAggregationMap, C: SubAggCache> SegmentAggregationCollector
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mem_pre = self.get_memory_consumption();
+        let mem_pre = self.get_memory_consumption(parent_bucket_id);
 
         let req_data = &mut self.terms_req_data;
 
@@ -847,7 +847,7 @@ impl<TermMap: TermAggregationMap, C: SubAggCache> SegmentAggregationCollector
             }
         }
 
-        let mem_delta = self.get_memory_consumption() - mem_pre;
+        let mem_delta = self.get_memory_consumption(parent_bucket_id) - mem_pre;
         if mem_delta > 0 {
             agg_data
                 .context
@@ -912,11 +912,8 @@ where
     TermMap: TermAggregationMap,
     C: SubAggCache,
 {
-    fn get_memory_consumption(&self) -> usize {
-        self.parent_buckets
-            .iter()
-            .map(|b| b.get_memory_consumption())
-            .sum()
+    fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
+        self.parent_buckets[parent_bucket_id as usize].get_memory_consumption()
     }
 
     #[inline]
