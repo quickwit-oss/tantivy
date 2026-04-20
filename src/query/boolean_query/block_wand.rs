@@ -228,7 +228,7 @@ pub fn block_wand_single_scorer(
     loop {
         // We position the scorer on a block that can reach
         // the threshold.
-        while scorer.block_max_score() < threshold {
+        while scorer.block_max_score() <= threshold {
             let last_doc_in_block = scorer.last_doc_in_block();
             if last_doc_in_block == TERMINATED {
                 return;
