@@ -519,6 +519,17 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
+        // When there is a single include clause, delegate directly to the child
+        // weight's for_each_pruning. This ensures that e.g. a BooleanQuery
+        // wrapping a single TermQuery still benefits from block-max WAND
+        // pruning (via TermWeight::for_each_pruning), rather than falling
+        // through to the generic for_each_pruning_scorer loop.
+        if self.scoring_enabled && self.weights.len() == 1 {
+            let (occur, weight) = &self.weights[0];
+            if is_include_occur(*occur) {
+                return weight.for_each_pruning(threshold, reader, callback);
+            }
+        }
         let scorer = self.complex_scorer(reader, 1.0, &self.score_combiner_fn)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
