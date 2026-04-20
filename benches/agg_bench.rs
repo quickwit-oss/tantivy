@@ -63,6 +63,8 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, terms_all_unique_with_avg_sub_agg);
     register!(group, terms_many_with_avg_sub_agg);
     register!(group, terms_status_with_avg_sub_agg);
+    register!(group, terms_status_with_terms_zipf_1000_sub_agg);
+    register!(group, terms_zipf_1000_with_terms_status_sub_agg);
     register!(group, terms_status_with_histogram);
     register!(group, terms_zipf_1000);
     register!(group, terms_zipf_1000_with_histogram);
@@ -270,6 +272,30 @@ fn terms_all_unique_with_avg_sub_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+fn terms_status_with_terms_zipf_1000_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_few_terms_status" },
+            "aggs": {
+                "nested_terms": { "terms": { "field": "text_1000_terms_zipf" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
+fn terms_zipf_1000_with_terms_status_sub_agg(index: &Index) {
+    let agg_req = json!({
+        "my_texts": {
+            "terms": { "field": "text_1000_terms_zipf" },
+            "aggs": {
+                "nested_terms": { "terms": { "field": "text_few_terms_status" } }
+            }
+        }
+    });
+    execute_agg(index, agg_req);
+}
+
 fn terms_status_with_histogram(index: &Index) {
     let agg_req = json!({
         "my_texts": {
