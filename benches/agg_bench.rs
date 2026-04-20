@@ -206,6 +206,7 @@ fn terms_7(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+
 fn terms_all_unique(index: &Index) {
     let agg_req = json!({
         "my_texts": { "terms": { "field": "text_all_unique_terms" } },
