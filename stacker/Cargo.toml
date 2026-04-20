@@ -27,7 +27,7 @@ rand = "0.9"
 zipf = "7.0.0"
 rustc-hash = "2.1.0"
 proptest = "1.2.0"
-binggan = { version = "0.16.0" }
+binggan = { version = "0.16.1" }
 rand_distr = "0.5"
 
 [features]
