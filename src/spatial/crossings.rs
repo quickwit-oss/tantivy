@@ -847,3 +847,19 @@ impl S2EdgeCrosser {
         vertex_crossing(&self.a, &self.b, &c, d)
     }
 }
+
+impl super::edge_crosser::EdgeCrosser for S2EdgeCrosser {
+    type Point = [f64; 3];
+
+    fn new(a: &[f64; 3], b: &[f64; 3]) -> Self {
+        S2EdgeCrosser::new(a, b)
+    }
+
+    fn crossing_sign_two(&mut self, c: &[f64; 3], d: &[f64; 3]) -> i32 {
+        self.crossing_sign_two(c, d)
+    }
+
+    fn edge_or_vertex_crossing_two(&mut self, c: &[f64; 3], d: &[f64; 3]) -> bool {
+        self.edge_or_vertex_crossing_two(c, d)
+    }
+}

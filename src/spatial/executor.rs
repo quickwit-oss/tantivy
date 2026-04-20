@@ -48,7 +48,7 @@ pub enum PlanNode {
         /// The spatial field.
         field: Field,
         /// The query geometry.
-        geometry: GeometrySet,
+        geometry: GeometrySet<Sphere>,
         /// Number of nearest neighbors.
         k: usize,
         /// If present, only documents passing this node are considered.
@@ -60,7 +60,7 @@ pub enum PlanNode {
         /// The spatial field.
         field: Field,
         /// The query geometry (smashed).
-        geometry: GeometrySet,
+        geometry: GeometrySet<Sphere>,
         /// Documents passing this node are eligible candidates.
         filter: Box<PlanNode>,
     },
@@ -70,7 +70,7 @@ pub enum PlanNode {
         /// The spatial field.
         field: Field,
         /// The query geometry (smashed).
-        geometry: GeometrySet,
+        geometry: GeometrySet<Sphere>,
         /// Maximum distance (chord angle length2).
         radius: f64,
         /// Documents passing this node are eligible candidates.

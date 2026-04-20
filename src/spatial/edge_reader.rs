@@ -17,7 +17,7 @@ use super::surface::Surface;
 
 /// A located geometry entry. Holds a reference to the raw vertex data in the mmap'd slice.
 /// Reads edges directly without allocation.
-pub struct LocatedEntry<'a> {
+pub struct LocatedEntry<'a, S: Surface> {
     /// The document id for this geometry.
     pub doc_id: u32,
     /// Whether this geometry is a closed polygon.
@@ -26,9 +26,10 @@ pub struct LocatedEntry<'a> {
     pub vertex_data: &'a [u8],
     /// Number of vertices.
     pub vertex_count: usize,
+    _surface: PhantomData<S>,
 }
 
-impl<'a> LocatedEntry<'a> {
+impl<'a, S: Surface> LocatedEntry<'a, S> {
     /// Construct a located entry from its parts.
     pub fn new(doc_id: u32, closed: bool, vertex_data: &'a [u8], vertex_count: usize) -> Self {
         LocatedEntry {
@@ -36,6 +37,7 @@ impl<'a> LocatedEntry<'a> {
             closed,
             vertex_data,
             vertex_count,
+            _surface: PhantomData,
         }
     }
 
@@ -45,26 +47,13 @@ impl<'a> LocatedEntry<'a> {
     }
 
     /// Read the vertex at the given index directly from the mmap'd data.
-    pub fn vertex(&self, index: usize) -> [f64; 3] {
-        let offset = index * 24;
-        let mut point = [0.0f64; 3];
-        for i in 0..3 {
-            point[i] = f64::from_le_bytes(
-                self.vertex_data[offset + i * 8..offset + (i + 1) * 8]
-                    .try_into()
-                    .unwrap(),
-            );
-        }
-        point
-    }
-
-    /// Read the first vertex.
-    pub fn first_vertex(&self) -> [f64; 3] {
-        self.vertex(0)
+    pub fn vertex(&self, index: usize) -> S::Point {
+        let offset = index * S::DIMENSIONS * 8;
+        S::point_from_le_bytes(&self.vertex_data[offset..offset + S::DIMENSIONS * 8])
     }
 
     /// Read the two endpoints of edge at the given index.
-    pub fn edge(&self, index: u32) -> ([f64; 3], [f64; 3]) {
+    pub fn edge(&self, index: u32) -> (S::Point, S::Point) {
         let i = index as usize;
         let v0 = self.vertex(i);
         let v1 = if i + 1 < self.vertex_count {
@@ -172,12 +161,12 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
 
     /// Read the full geometry set containing the given position. Returns (head_position, set). No
     /// caching. Every call decodes from the byte stream.
-    pub fn read_geometry_set(&self, position: u32) -> (u32, GeometrySet) {
+    pub fn read_geometry_set(&self, position: u32) -> (u32, GeometrySet<S>) {
         assert!(position < self.geometry_count);
 
         let (head_position, head_offset, doc_id) = self.find_head(position);
 
-        let mut members: Vec<EdgeSet> = Vec::new();
+        let mut members: Vec<EdgeSet<S>> = Vec::new();
         let mut cur = head_offset;
         let mut pos = head_position;
         loop {
@@ -222,7 +211,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
 
     /// Locate a geometry entry and return its header, doc_id, and the byte offset where
     /// vertex data begins. Does not decode vertices.
-    pub fn locate_entry(&self, position: u32) -> LocatedEntry<'_> {
+    pub fn locate_entry(&self, position: u32) -> LocatedEntry<'_, S> {
         assert!(position < self.geometry_count);
         let (_, _, doc_id) = self.find_head(position);
 
@@ -260,6 +249,7 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
             closed: h.closed,
             vertex_data: &self.data[vertex_start..vertex_end],
             vertex_count,
+            _surface: PhantomData,
         }
     }
 
@@ -349,16 +339,10 @@ impl<'a, S: Surface> EdgeReader<'a, S> {
         (hole_starts, pos)
     }
 
-    fn decode_vertices(&self, data: &[u8]) -> Vec<[f64; 3]> {
+    fn decode_vertices(&self, data: &[u8]) -> Vec<S::Point> {
         let vertex_size = S::DIMENSIONS * 8;
         data.chunks_exact(vertex_size)
-            .map(|chunk| {
-                let mut point = [0.0f64; 3];
-                for i in 0..S::DIMENSIONS {
-                    point[i] = f64::from_le_bytes(chunk[i * 8..(i + 1) * 8].try_into().unwrap());
-                }
-                point
-            })
+            .map(|chunk| S::point_from_le_bytes(chunk))
             .collect()
     }
 }

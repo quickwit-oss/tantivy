@@ -62,7 +62,7 @@ impl Ord for QueueEntry {
 }
 
 // Minimum distance from an S2Cell to the query geometry.
-fn cell_to_query_distance(cell: &S2Cell, query: &GeometrySet) -> S1ChordAngle {
+fn cell_to_query_distance(cell: &S2Cell, query: &GeometrySet<Sphere>) -> S1ChordAngle {
     let mut min_dist = S1ChordAngle::infinity();
     for member in &query.members {
         let vertices = &member.vertices;
@@ -87,7 +87,7 @@ fn cell_to_query_distance(cell: &S2Cell, query: &GeometrySet) -> S1ChordAngle {
 
 /// Prepared closest-edge query. Built once from a query geometry, applied per segment.
 pub struct ClosestEdgeQuery {
-    query_set: GeometrySet,
+    query_set: GeometrySet<Sphere>,
     max_results: usize,
     max_distance: S1ChordAngle,
     min_distance: Option<S1ChordAngle>,
@@ -96,23 +96,23 @@ pub struct ClosestEdgeQuery {
 
 impl ClosestEdgeQuery {
     /// Build a kNN query from a smashed query geometry.
-    pub fn knn(set: GeometrySet, k: usize) -> Self {
+    pub fn knn(set: GeometrySet<Sphere>, k: usize) -> Self {
         Self::build(set, k, S1ChordAngle::infinity(), false)
     }
 
     /// Build a within-D query from a smashed query geometry.
-    pub fn within(set: GeometrySet, max_distance: S1ChordAngle) -> Self {
+    pub fn within(set: GeometrySet<Sphere>, max_distance: S1ChordAngle) -> Self {
         Self::build(set, usize::MAX, max_distance, false)
     }
 
     /// Build a boolean distance query. Returns at most one result.
-    pub fn any_within(set: GeometrySet, max_distance: S1ChordAngle) -> Self {
+    pub fn any_within(set: GeometrySet<Sphere>, max_distance: S1ChordAngle) -> Self {
         Self::build(set, 1, max_distance, true)
     }
 
     /// Build a range distance query: results between inner and outer distance.
     pub fn between(
-        set: GeometrySet,
+        set: GeometrySet<Sphere>,
         min_distance: S1ChordAngle,
         max_distance: S1ChordAngle,
     ) -> Self {
@@ -124,7 +124,7 @@ impl ClosestEdgeQuery {
 
     /// Build a boolean range distance query. Returns at most one result.
     pub fn any_between(
-        set: GeometrySet,
+        set: GeometrySet<Sphere>,
         min_distance: S1ChordAngle,
         max_distance: S1ChordAngle,
     ) -> Self {
@@ -134,7 +134,7 @@ impl ClosestEdgeQuery {
     }
 
     fn build(
-        set: GeometrySet,
+        set: GeometrySet<Sphere>,
         max_results: usize,
         max_distance: S1ChordAngle,
         first_only: bool,

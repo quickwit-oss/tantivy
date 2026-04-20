@@ -1,6 +1,12 @@
 //! Implementation of a unit sphere surface.
 
+use std::sync::LazyLock;
+
 use crate::spatial::surface::Surface;
+
+static HILBERT_START: LazyLock<[f64; 3]> = LazyLock::new(|| {
+    crate::spatial::math::normalize(&crate::spatial::s2coords::face_uv_to_xyz(0, -1.0, -1.0))
+});
 
 /// The origin should not be a point that is commonly used in edge tests in order to avoid
 /// triggering code to handle degenerate cases.  (This rules out the north and south poles.)  It
@@ -19,11 +25,13 @@ pub const ORIGIN: [f64; 3] = [
 ];
 
 /// Implementation of a unit sphere surface.
+#[derive(Clone)]
 pub struct Sphere;
 
 impl Surface for Sphere {
     const DIMENSIONS: usize = 3;
     type Point = [f64; 3];
+    type EdgeCrosser = crate::spatial::crossings::S2EdgeCrosser;
 
     fn project(lon: f64, lat: f64) -> [f64; 3] {
         let lat = lat.to_radians();
@@ -33,7 +41,74 @@ impl Surface for Sphere {
     }
 
     #[inline]
+    fn hilbert_start() -> Self::Point {
+        *HILBERT_START
+    }
+
+    fn normalize_ring(ring: &mut Vec<Self::Point>) {
+        if !crate::spatial::s2loop_measures::is_normalized(ring) {
+            ring.reverse();
+        }
+    }
+
+    #[inline]
+    fn point_from_le_bytes(bytes: &[u8]) -> Self::Point {
+        let mut point = [0.0f64; 3];
+        for i in 0..3 {
+            point[i] = f64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap());
+        }
+        point
+    }
+
+    #[inline]
+    fn edge_length(a: &Self::Point, b: &Self::Point) -> f64 {
+        ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+    }
+
+    #[inline]
     fn origin_inside(ring: &[Self::Point]) -> bool {
         crate::spatial::containment::compute_origin_inside(ring)
+    }
+
+    const FACE_COUNT: i32 = 6;
+
+    #[inline]
+    fn get_face(point: &Self::Point) -> i32 {
+        crate::spatial::s2coords::get_face(point)
+    }
+
+    #[inline]
+    fn point_to_face_uv(face: i32, point: &Self::Point) -> (f64, f64) {
+        crate::spatial::s2coords::valid_face_xyz_to_uv(face, point)
+    }
+
+    #[inline]
+    fn face_uv_to_point(face: i32, u: f64, v: f64) -> Self::Point {
+        crate::spatial::math::normalize(&crate::spatial::s2coords::face_uv_to_xyz(face, u, v))
+    }
+
+    #[inline]
+    fn clip_to_face(
+        v0: &Self::Point,
+        v1: &Self::Point,
+        face: i32,
+        padding: f64,
+    ) -> Option<([f64; 2], [f64; 2])> {
+        crate::spatial::s2edge_clipping::clip_to_padded_face(v0, v1, face, padding)
+    }
+
+    #[inline]
+    fn uv_to_st(u: f64) -> f64 {
+        crate::spatial::s2coords::uv_to_st(u)
+    }
+
+    #[inline]
+    fn st_to_uv(s: f64) -> f64 {
+        crate::spatial::s2coords::st_to_uv(s)
+    }
+
+    #[inline]
+    fn contains_point(point: &Self::Point, ring: &[Self::Point], origin_inside: bool) -> bool {
+        crate::spatial::containment::brute_force_contains(point, ring, origin_inside)
     }
 }

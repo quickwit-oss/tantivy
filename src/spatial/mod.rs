@@ -24,6 +24,7 @@ pub mod contains_query;
 pub mod crossings;
 pub mod delta;
 pub mod edge_cache;
+pub mod edge_crosser;
 pub mod edge_reader;
 pub mod edge_writer;
 pub mod exact;

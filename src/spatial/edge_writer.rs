@@ -39,7 +39,7 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
     }
 
     /// Write all geometries for one document from a smashed GeometrySet.
-    pub fn insert(&mut self, set: &GeometrySet) {
+    pub fn insert(&mut self, set: &GeometrySet<S>) {
         for (member_idx, member) in set.members.iter().enumerate() {
             let pos = self.write.written_bytes() - self.base;
 
@@ -87,7 +87,7 @@ impl<'a, S: Surface> EdgeWriter<'a, S> {
             }
 
             for v in &member.vertices {
-                for &coord in &v[..S::DIMENSIONS] {
+                for &coord in v.as_ref() {
                     self.write.write_all(&coord.to_le_bytes()).unwrap();
                 }
             }

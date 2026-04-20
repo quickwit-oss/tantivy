@@ -23,13 +23,13 @@ fn merge_siblings(
     cells: &[ShapeCell],
     edge_cache: &EdgeCache<'_, Sphere>,
 ) -> ShapeCell {
-    let parent_pcell = S2PaddedCell::new(parent_id, CELL_PADDING);
+    let parent_pcell = S2PaddedCell::<Sphere>::new(parent_id, CELL_PADDING);
     let parent_center = parent_pcell.get_center();
 
     let mut entries: Vec<CollapseEntry> = Vec::new();
 
     for cell in cells {
-        let child_pcell = S2PaddedCell::new(cell.cell_id, CELL_PADDING);
+        let child_pcell = S2PaddedCell::<Sphere>::new(cell.cell_id, CELL_PADDING);
         let child_center = child_pcell.get_center();
 
         for shape in &cell.shapes {

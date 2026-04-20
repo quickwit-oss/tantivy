@@ -15,7 +15,7 @@ use crate::DocId;
 
 /// Per-field accumulated documents with their geometries.
 struct FieldData {
-    sets: Vec<GeometrySet>,
+    sets: Vec<GeometrySet<Sphere>>,
 }
 
 impl FieldData {

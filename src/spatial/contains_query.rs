@@ -29,12 +29,12 @@ use crate::spatial::shape_index::ShapeIndex;
 /// In-memory edge provider wrapping a smashed GeometrySet. Resolves edge indices into the
 /// smashed vertex arrays. No modulo wrapping — smashed vertices include the closure vertex.
 pub struct QueryEdgeProvider {
-    pub(crate) set: GeometrySet,
+    pub(crate) set: GeometrySet<Sphere>,
 }
 
 impl QueryEdgeProvider {
     /// Returns the EdgeSet for the given geometry_id.
-    pub fn get_edge_set(&self, geometry_id: GeometryId) -> &EdgeSet {
+    pub fn get_edge_set(&self, geometry_id: GeometryId) -> &EdgeSet<Sphere> {
         &self.set.members[geometry_id.1 as usize]
     }
 }
@@ -58,7 +58,7 @@ pub struct ContainsQuery {
 
 impl ContainsQuery {
     /// Build the query from a smashed GeometrySet.
-    pub fn new(set: GeometrySet, options: CovererOptions) -> Self {
+    pub fn new(set: GeometrySet<Sphere>, options: CovererOptions) -> Self {
         let builder = Clipper::new(ClipOptions::default());
         let query_index = builder.build(std::slice::from_ref(&set));
         let query_edges = QueryEdgeProvider { set };

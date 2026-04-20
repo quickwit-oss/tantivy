@@ -8,23 +8,24 @@ use common::ReadOnlyBitSet;
 
 use super::cell_index_reader::CellIndexIter;
 use super::edge_cache::EdgeCache;
+use super::edge_crosser::EdgeCrosser;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
-use super::s2edge_clipping::{clip_edge_bound, clip_to_padded_face};
+use super::s2edge_clipping::clip_edge_bound;
 use super::s2padded_cell::S2PaddedCell;
-use super::sphere::Sphere;
+use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
-use crate::spatial::clipper::{get_edge_max_level, CELL_PADDING};
+use crate::spatial::clipper::{get_level_for_max_value, CELL_PADDING, CELL_SIZE_TO_LONG_EDGE_RATIO};
 use crate::spatial::r1interval::R1Interval;
 use crate::spatial::shape_index::ShapeCell;
 
-struct SpongeEdge {
+struct SpongeEdge<S: Surface> {
     geometry_id: GeometryId,
     edge_index: u32,
     max_level: i32,
-    v0: [f64; 3],
-    v1: [f64; 3],
+    v0: S::Point,
+    v1: S::Point,
     a_uv: [f64; 2],
     b_uv: [f64; 2],
     bound: R2Rect,
@@ -32,12 +33,22 @@ struct SpongeEdge {
 
 // Anchors represent the presence of a geometry in a particular cell so that anchors are unique by
 // geometry id and cell id. Anchors do not need de-duplication.
-#[derive(Clone)]
-struct SpongeShape {
+struct SpongeShape<S: Surface> {
     geometry_id: GeometryId,
     cell_id: S2CellId,
-    center: [f64; 3],
+    center: S::Point,
     contains_center: bool,
+}
+
+impl<S: Surface> Clone for SpongeShape<S> {
+    fn clone(&self) -> Self {
+        SpongeShape {
+            geometry_id: self.geometry_id,
+            cell_id: self.cell_id,
+            center: self.center,
+            contains_center: self.contains_center,
+        }
+    }
 }
 
 // Exploded view of an ShapeCell.
@@ -49,17 +60,17 @@ struct SpongeShape {
 //
 // Anchors represent the presence of a geometry in a particular cell so that anchors are unique by
 // geometry id and cell id. Anchors do not need de-duplication.
-struct SpongeCell {
+struct SpongeCell<S: Surface> {
     cell_id: S2CellId,
-    edges: Vec<SpongeEdge>,
-    anchors: Vec<SpongeShape>,
+    edges: Vec<SpongeEdge<S>>,
+    anchors: Vec<SpongeShape<S>>,
     edge_count: usize,
     short_edge_count: usize,
     cell_bound: R2Rect,
     split_count: u32,
 }
 
-impl SpongeCell {
+impl<S: Surface> SpongeCell<S> {
     fn new(cell_id: S2CellId, cell_bound: R2Rect) -> Self {
         SpongeCell {
             cell_id,
@@ -76,7 +87,7 @@ impl SpongeCell {
     // endpoints within the sponge's region, consistent with the build path's ClipToPaddedFace. The
     // clipped endpoints are stable through subsequent splits. Only the bound narrows at each split
     // level.
-    fn absorb_index_cell_edges(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, Sphere>) {
+    fn absorb_index_cell_edges(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, S>) {
         let face = cell.cell_id.face();
         for shape in &cell.shapes {
             if shape.edge_indices.is_empty() {
@@ -92,7 +103,7 @@ impl SpongeCell {
                     Ok(_) => {}
                     Err(pos) => {
                         let (v0, v1) = cache_entry.edge(edge_index);
-                        let (a_uv, b_uv) = match clip_to_padded_face(&v0, &v1, face, CELL_PADDING) {
+                        let (a_uv, b_uv) = match S::clip_to_face(&v0, &v1, face, CELL_PADDING) {
                             Some(ab) => ab,
                             None => continue,
                         };
@@ -100,7 +111,8 @@ impl SpongeCell {
                         if !clip_edge_bound(a_uv, b_uv, &self.cell_bound, &mut bound) {
                             continue;
                         }
-                        let max_level = get_edge_max_level(&v0, &v1);
+                        let length = S::edge_length(&v0, &v1);
+                        let max_level = get_level_for_max_value(length * CELL_SIZE_TO_LONG_EDGE_RATIO);
                         self.edge_count += 1;
                         if self.cell_id.level() < max_level {
                             self.short_edge_count += 1;
@@ -124,7 +136,7 @@ impl SpongeCell {
         }
     }
 
-    fn absorb_sponge_cell_edges(&mut self, merged: &SpongeCell) {
+    fn absorb_sponge_cell_edges(&mut self, merged: &SpongeCell<S>) {
         // The a_uv/b_uv on incoming edges are face-level. Clip the bound to this sponge.
         for other_edge in &merged.edges {
             let key = (other_edge.geometry_id, other_edge.edge_index);
@@ -166,10 +178,10 @@ impl SpongeCell {
     // The same center that you would use if you were searching. We going to do an ordinary search
     // edge crossing to move a child geometry into a parent.
     fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell) {
-        let mut cell_center: Option<[f64; 3]> = None;
+        let mut cell_center: Option<S::Point> = None;
         for shape in &cell.shapes {
             let center = *cell_center
-                .get_or_insert_with(|| S2PaddedCell::new(cell.cell_id, CELL_PADDING).get_center());
+                .get_or_insert_with(|| S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).get_center());
             let anchor = SpongeShape {
                 geometry_id: shape.geometry_id,
                 cell_id: cell.cell_id,
@@ -180,7 +192,7 @@ impl SpongeCell {
         }
     }
 
-    fn absorb_sponge_cell_anchors(&mut self, cell: &SpongeCell) {
+    fn absorb_sponge_cell_anchors(&mut self, cell: &SpongeCell<S>) {
         for a in &cell.anchors {
             self.anchors.push(SpongeShape {
                 geometry_id: a.geometry_id,
@@ -192,12 +204,12 @@ impl SpongeCell {
     }
 }
 
-enum HeapEntry {
+enum HeapEntry<S: Surface> {
     Source { cell: ShapeCell, source: usize },
-    Sponge(SpongeCell),
+    Sponge(SpongeCell<S>),
 }
 
-impl HeapEntry {
+impl<S: Surface> HeapEntry<S> {
     fn cell_id(&self) -> S2CellId {
         match self {
             HeapEntry::Source { cell, .. } => cell.cell_id,
@@ -214,21 +226,21 @@ impl HeapEntry {
     }
 }
 
-impl PartialEq for HeapEntry {
+impl<S: Surface> PartialEq for HeapEntry<S> {
     fn eq(&self, other: &Self) -> bool {
         self.range_min() == other.range_min() && self.level() == other.level()
     }
 }
 
-impl Eq for HeapEntry {}
+impl<S: Surface> Eq for HeapEntry<S> {}
 
-impl PartialOrd for HeapEntry {
+impl<S: Surface> PartialOrd for HeapEntry<S> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for HeapEntry {
+impl<S: Surface> Ord for HeapEntry<S> {
     fn cmp(&self, other: &Self) -> Ordering {
         other
             .range_min()
@@ -238,11 +250,11 @@ impl Ord for HeapEntry {
 }
 
 /// Heap-based merge of N source cell indexes. Produces cells in Hilbert order.
-pub struct Interleaver<'a> {
+pub struct Interleaver<'a, S: Surface> {
     sources: Vec<CellIndexIter<'a>>,
-    edge_cache: &'a EdgeCache<'a, Sphere>,
+    edge_cache: &'a EdgeCache<'a, S>,
     alive_bitsets: &'a [Option<ReadOnlyBitSet>],
-    heap: BinaryHeap<HeapEntry>,
+    heap: BinaryHeap<HeapEntry<S>>,
     max_edges: usize,
     min_short_edge_fraction: f64,
     cells_from_source: u64,
@@ -255,11 +267,11 @@ pub struct Interleaver<'a> {
     segment_names: Vec<String>,
 }
 
-impl<'a> Interleaver<'a> {
+impl<'a, S: Surface> Interleaver<'a, S> {
     /// Creates a heap merge from source iterators and a shared edge cache.
     pub fn new(
         iters: Vec<CellIndexIter<'a>>,
-        edge_cache: &'a EdgeCache<'a, Sphere>,
+        edge_cache: &'a EdgeCache<'a, S>,
         alive_bitsets: &'a [Option<ReadOnlyBitSet>],
         segment_names: Vec<String>,
     ) -> Self {
@@ -327,7 +339,7 @@ impl<'a> Interleaver<'a> {
     }
 }
 
-impl<'a> Iterator for Interleaver<'a> {
+impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
     type Item = ShapeCell;
 
     // Curious as to the performance penalty of explode and push for the sponge and sponged cells
@@ -349,7 +361,7 @@ impl<'a> Iterator for Interleaver<'a> {
                     // First absorption: Source becomes Sponge.
                     let mut merged = match sponge {
                         HeapEntry::Source { cell, .. } => {
-                            let cell_bound = S2PaddedCell::new(cell.cell_id, CELL_PADDING).bound();
+                            let cell_bound = S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).bound();
                             let mut m = SpongeCell::new(cell.cell_id, cell_bound);
                             m.absorb_index_cell_anchors(&cell);
                             m.absorb_index_cell_edges(&cell, self.edge_cache);
@@ -404,14 +416,14 @@ impl<'a> Iterator for Interleaver<'a> {
     }
 }
 
-fn flatten(sponge: HeapEntry) -> Option<ShapeCell> {
+fn flatten<S: Surface>(sponge: HeapEntry<S>) -> Option<ShapeCell> {
     let mut merged = match sponge {
         HeapEntry::Source { cell, .. } => return Some(cell),
         HeapEntry::Sponge(merged) => merged,
     };
 
     let cell_id = merged.cell_id;
-    let sponge_center = S2PaddedCell::new(cell_id, CELL_PADDING).get_center();
+    let sponge_center = S2PaddedCell::<S>::new(cell_id, CELL_PADDING).get_center();
     let mut result = ShapeCell::new(cell_id);
     merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
 
@@ -431,7 +443,7 @@ fn flatten(sponge: HeapEntry) -> Option<ShapeCell> {
 
         // Collect edges matching our geometry_id.
         if edge_index < merged.edges.len() && merged.edges[edge_index].geometry_id == geometry_id {
-            let mut crosser = super::crossings::S2EdgeCrosser::new(&anchor.center, &sponge_center);
+            let mut crosser = S::EdgeCrosser::new(&anchor.center, &sponge_center);
             while edge_index < merged.edges.len()
                 && merged.edges[edge_index].geometry_id == geometry_id
             {
@@ -488,9 +500,9 @@ fn flatten(sponge: HeapEntry) -> Option<ShapeCell> {
 // Flat index into the geometries map for clipping. Each entry pairs a geometry_id with a
 // SpongeEdge reference so the clipping and crossing test code can work with a flat array indexed
 // by position.
-struct FlatEdge<'a> {
+struct FlatEdge<'a, S: Surface> {
     geometry_id: GeometryId,
-    edge: &'a SpongeEdge,
+    edge: &'a SpongeEdge<S>,
     a_uv: [f64; 2],
     b_uv: [f64; 2],
 }
@@ -501,9 +513,9 @@ struct MergeClippedEdge {
     bound: R2Rect,
 }
 
-fn clip_to_children(
+fn clip_to_children<S: Surface>(
     clipped_edge: &MergeClippedEdge,
-    flat_edge: &FlatEdge,
+    flat_edge: &FlatEdge<S>,
     middle: &R2Rect,
     child_edges: &mut [[Vec<MergeClippedEdge>; 2]; 2],
 ) {
@@ -560,9 +572,9 @@ fn clip_to_children(
     }
 }
 
-fn clip_v_axis(
+fn clip_v_axis<S: Surface>(
     clipped_edge: &MergeClippedEdge,
-    flat_edge: &FlatEdge,
+    flat_edge: &FlatEdge<S>,
     v_mid_lo: f64,
     v_mid_hi: f64,
     children: &mut [Vec<MergeClippedEdge>; 2],
@@ -583,9 +595,9 @@ fn clip_v_axis(
     }
 }
 
-fn clip_u_bound(
+fn clip_u_bound<S: Surface>(
     clipped_edge: &MergeClippedEdge,
-    flat_edge: &FlatEdge,
+    flat_edge: &FlatEdge<S>,
     u: f64,
     clip_hi: bool,
 ) -> MergeClippedEdge {
@@ -632,9 +644,9 @@ fn clip_u_bound(
     }
 }
 
-fn clip_v_bound(
+fn clip_v_bound<S: Surface>(
     clipped_edge: &MergeClippedEdge,
-    flat_edge: &FlatEdge,
+    flat_edge: &FlatEdge<S>,
     v: f64,
     clip_hi: bool,
 ) -> MergeClippedEdge {
@@ -693,12 +705,12 @@ fn interpolate_double(x: f64, x0: f64, x1: f64, y0: f64, y1: f64) -> f64 {
     }
 }
 
-fn coarse_split(
-    mut merged: SpongeCell,
+fn coarse_split<S: Surface>(
+    mut merged: SpongeCell<S>,
     crossings: &mut u64,
     crossers: &mut u64,
     segment_names: &[String],
-) -> Vec<HeapEntry> {
+) -> Vec<HeapEntry<S>> {
     let cell_id = merged.cell_id;
     let parent_split_count = merged.split_count;
     merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
@@ -709,8 +721,8 @@ fn coarse_split(
 
     // SpongeShape at the sponge level need crossing tests because their edges are about to be
     // distributed to children. Finer anchors are distributed to the child that contains them.
-    let mut sponge_anchors: Vec<SpongeShape> = Vec::new();
-    let mut child_anchors: [Vec<SpongeShape>; 4] = Default::default();
+    let mut sponge_anchors: Vec<SpongeShape<S>> = Vec::new();
+    let mut child_anchors: [Vec<SpongeShape<S>>; 4] = Default::default();
     for anchor in anchors {
         if anchor.cell_id.level() == sponge_level {
             sponge_anchors.push(anchor.clone());
@@ -723,10 +735,10 @@ fn coarse_split(
             }
         }
     }
-    let padded_cell = S2PaddedCell::new(cell_id, CELL_PADDING);
+    let padded_cell = S2PaddedCell::<S>::new(cell_id, CELL_PADDING);
     let parent_center = padded_cell.get_center();
 
-    let mut flat_edges: Vec<FlatEdge> = Vec::new();
+    let mut flat_edges: Vec<FlatEdge<S>> = Vec::new();
     let mut clipped: Vec<MergeClippedEdge> = Vec::new();
     for edge in &merged.edges {
         let geometry_id = edge.geometry_id;
@@ -941,8 +953,7 @@ fn coarse_split(
                 && flat_edges[sponge_edges[sponge_edge_index]].geometry_id == anchor.geometry_id
             {
                 *crossers += 1;
-                let mut crosser =
-                    super::crossings::S2EdgeCrosser::new(&parent_center, &child_center);
+                let mut crosser = S::EdgeCrosser::new(&parent_center, &child_center);
                 while sponge_edge_index < sponge_edges.len()
                     && flat_edges[sponge_edges[sponge_edge_index]].geometry_id == anchor.geometry_id
                 {

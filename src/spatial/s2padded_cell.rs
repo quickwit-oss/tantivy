@@ -2,21 +2,23 @@
 //! amount of "padding". Unlike S2Cell, its methods and representation are optimized for clipping
 //! edges against S2Cell boundaries to determine which cells are intersected by a given set of
 //! edges.
-use super::math::normalize;
+use std::marker::PhantomData;
+
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
 use super::s2coords::{
-    self, face_si_ti_to_xyz, pos_to_ij, pos_to_orientation, si_ti_to_st, st_to_uv, INVERT_MASK,
-    MAX_CELL_LEVEL, SWAP_MASK,
+    ij_to_pos, ij_to_st_min, pos_to_ij, pos_to_orientation, si_ti_to_st, st_to_ij,
+    INVERT_MASK, MAX_CELL_LEVEL, SWAP_MASK,
 };
+use super::surface::Surface;
 
 /// An S2Cell whose (u,v)-range has been expanded on all sides by a given amount of "padding".
 ///
 /// Unlike S2Cell, its methods and representation are optimized for clipping edges against S2Cell
 /// boundaries to determine which cells are intersected by a given set of edges.
 #[derive(Clone, Debug)]
-pub struct S2PaddedCell {
+pub struct S2PaddedCell<S: Surface> {
     id: S2CellId,
     padding: f64,
     bound: R2Rect,
@@ -24,19 +26,20 @@ pub struct S2PaddedCell {
     ij_lo: [i32; 2],
     orientation: i32,
     level: i32,
+    _surface: PhantomData<S>,
 }
 
-fn middle(ij_lo: [i32; 2], level: i32, padding: f64) -> R2Rect {
+fn middle<S: Surface>(ij_lo: [i32; 2], level: i32, padding: f64) -> R2Rect {
     let ij_size = S2CellId::size_ij_for_level(level);
-    let u = st_to_uv(si_ti_to_st((2 * ij_lo[0] + ij_size) as u32));
-    let v = st_to_uv(si_ti_to_st((2 * ij_lo[1] + ij_size) as u32));
+    let u = S::st_to_uv(si_ti_to_st((2 * ij_lo[0] + ij_size) as u32));
+    let v = S::st_to_uv(si_ti_to_st((2 * ij_lo[1] + ij_size) as u32));
     R2Rect::new(
         R1Interval::new(u - padding, u + padding),
         R1Interval::new(v - padding, v + padding),
     )
 }
 
-impl S2PaddedCell {
+impl<S: Surface> S2PaddedCell<S> {
     /// Construct an S2PaddedCell for the given cell id and padding.
     pub fn new(id: S2CellId, padding: f64) -> Self {
         let (bound, ij_lo, orientation, level) = if id.is_face() {
@@ -51,7 +54,7 @@ impl S2PaddedCell {
             let level = id.level();
             let ij_size = S2CellId::size_ij_for_level(level);
             let ij_lo = [i & -ij_size, j & -ij_size];
-            let uv_bound = ij_level_to_bound_uv(i, j, level);
+            let uv_bound = ij_level_to_bound_uv::<S>(i, j, level);
             let bound = uv_bound.expanded(padding);
             (bound, ij_lo, orientation, level)
         };
@@ -59,10 +62,11 @@ impl S2PaddedCell {
             id,
             padding,
             bound,
-            middle: middle(ij_lo, level, padding),
+            middle: middle::<S>(ij_lo, level, padding),
             ij_lo,
             orientation,
             level,
+            _surface: PhantomData,
         }
     }
 
@@ -70,8 +74,8 @@ impl S2PaddedCell {
     ///
     /// The four child cells have indices of (0,0), (0,1), (1,0), (1,1), where the i and j indices
     /// correspond to increasing u- and v-values respectively.
-    pub fn from_parent(parent: &S2PaddedCell, i: usize, j: usize) -> Self {
-        let pos = s2coords::ij_to_pos(parent.orientation, i as i32, j as i32);
+    pub fn from_parent(parent: &S2PaddedCell<S>, i: usize, j: usize) -> Self {
+        let pos = ij_to_pos(parent.orientation, i as i32, j as i32);
         let id = parent.id.child(pos);
         let level = parent.level + 1;
         let ij_size = S2CellId::size_ij_for_level(level);
@@ -115,10 +119,11 @@ impl S2PaddedCell {
             id,
             padding: parent.padding,
             bound,
-            middle: middle(ij_lo, level, parent.padding),
+            middle: middle::<S>(ij_lo, level, parent.padding),
             ij_lo,
             orientation,
             level,
+            _surface: PhantomData,
         }
     }
 
@@ -151,16 +156,20 @@ impl S2PaddedCell {
         ((ij >> 1) as usize, (ij & 1) as usize)
     }
 
-    /// Returns the center of the cell.
-    pub fn get_center(&self) -> [f64; 3] {
+    /// Returns the center of the cell as a point on this surface.
+    pub fn get_center(&self) -> S::Point {
         let ij_size = S2CellId::size_ij_for_level(self.level);
         let si = (2 * self.ij_lo[0] + ij_size) as u32;
         let ti = (2 * self.ij_lo[1] + ij_size) as u32;
-        normalize(&face_si_ti_to_xyz(self.id.face(), si, ti))
+        S::face_uv_to_point(
+            self.id.face(),
+            S::st_to_uv(si_ti_to_st(si)),
+            S::st_to_uv(si_ti_to_st(ti)),
+        )
     }
 
     /// Returns the vertex where the Hilbert curve enters this cell.
-    pub fn get_entry_vertex(&self) -> [f64; 3] {
+    pub fn get_entry_vertex(&self) -> S::Point {
         let mut i = self.ij_lo[0] as u32;
         let mut j = self.ij_lo[1] as u32;
 
@@ -170,11 +179,17 @@ impl S2PaddedCell {
             j += ij_size;
         }
 
-        normalize(&face_si_ti_to_xyz(self.id.face(), 2 * i, 2 * j))
+        let si = 2 * i;
+        let ti = 2 * j;
+        S::face_uv_to_point(
+            self.id.face(),
+            S::st_to_uv(si_ti_to_st(si)),
+            S::st_to_uv(si_ti_to_st(ti)),
+        )
     }
 
     /// Returns the vertex where the Hilbert curve exits this cell.
-    pub fn get_exit_vertex(&self) -> [f64; 3] {
+    pub fn get_exit_vertex(&self) -> S::Point {
         let mut i = self.ij_lo[0] as u32;
         let mut j = self.ij_lo[1] as u32;
         let ij_size = S2CellId::size_ij_for_level(self.level) as u32;
@@ -185,7 +200,13 @@ impl S2PaddedCell {
             j += ij_size;
         }
 
-        normalize(&face_si_ti_to_xyz(self.id.face(), 2 * i, 2 * j))
+        let si = 2 * i;
+        let ti = 2 * j;
+        S::face_uv_to_point(
+            self.id.face(),
+            S::st_to_uv(si_ti_to_st(si)),
+            S::st_to_uv(si_ti_to_st(ti)),
+        )
     }
 
     /// Returns the smallest cell that contains all descendants whose bounds
@@ -202,8 +223,8 @@ impl S2PaddedCell {
                 return self.id;
             }
         } else {
-            let u = st_to_uv(si_ti_to_st((2 * self.ij_lo[0] + ij_size) as u32));
-            let v = st_to_uv(si_ti_to_st((2 * self.ij_lo[1] + ij_size) as u32));
+            let u = S::st_to_uv(si_ti_to_st((2 * self.ij_lo[0] + ij_size) as u32));
+            let v = S::st_to_uv(si_ti_to_st((2 * self.ij_lo[1] + ij_size) as u32));
             if rect[0].contains_point(u) || rect[1].contains_point(v) {
                 return self.id;
             }
@@ -216,9 +237,9 @@ impl S2PaddedCell {
         let mut ij_xor = [0i32; 2];
 
         for d in 0..2 {
-            ij_min[d] = self.ij_lo[d].max(s2coords::st_to_ij(s2coords::uv_to_st(padded[d].lo())));
+            ij_min[d] = self.ij_lo[d].max(st_to_ij(S::uv_to_st(padded[d].lo())));
             let ij_max = (self.ij_lo[d] + ij_size - 1)
-                .min(s2coords::st_to_ij(s2coords::uv_to_st(padded[d].hi())));
+                .min(st_to_ij(S::uv_to_st(padded[d].hi())));
             ij_xor[d] = ij_min[d] ^ ij_max;
         }
 
@@ -235,7 +256,7 @@ impl S2PaddedCell {
 }
 
 /// Helper to compute (u,v) bounds from (i,j) coordinates and level.
-fn ij_level_to_bound_uv(i: i32, j: i32, level: i32) -> R2Rect {
+fn ij_level_to_bound_uv<S: Surface>(i: i32, j: i32, level: i32) -> R2Rect {
     let cell_size = S2CellId::size_ij_for_level(level);
     let i_lo = i & -cell_size;
     let j_lo = j & -cell_size;
@@ -244,12 +265,12 @@ fn ij_level_to_bound_uv(i: i32, j: i32, level: i32) -> R2Rect {
 
     R2Rect::new(
         R1Interval::new(
-            st_to_uv(s2coords::ij_to_st_min(i_lo)),
-            st_to_uv(s2coords::ij_to_st_min(i_hi)),
+            S::st_to_uv(ij_to_st_min(i_lo)),
+            S::st_to_uv(ij_to_st_min(i_hi)),
         ),
         R1Interval::new(
-            st_to_uv(s2coords::ij_to_st_min(j_lo)),
-            st_to_uv(s2coords::ij_to_st_min(j_hi)),
+            S::st_to_uv(ij_to_st_min(j_lo)),
+            S::st_to_uv(ij_to_st_min(j_hi)),
         ),
     )
 }

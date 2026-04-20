@@ -18,35 +18,35 @@ use super::edge_reader::EdgeReader;
 use super::geometry_set::{EdgeSet, GeometrySet};
 use super::surface::Surface;
 
-struct CachedSet {
+struct CachedSet<S: Surface> {
     head_position: u32,
-    set: Rc<GeometrySet>,
+    set: Rc<GeometrySet<S>>,
 }
 
 struct CacheInner<'a, S: Surface> {
     readers: Vec<EdgeReader<'a, S>>,
     index: HashMap<(usize, u32), (usize, u32)>,
-    sets: LruCache<(usize, u32), CachedSet>,
+    sets: LruCache<(usize, u32), CachedSet<S>>,
     cached_vertices: usize,
     max_vertices: usize,
 }
 
 /// A geometry set entry returned from the cache. Holds an Rc to the set and knows its member
 /// index within the set. The Rc keeps the data alive even if the cache evicts the entry.
-pub struct GeometryEntry {
-    set: Rc<GeometrySet>,
+pub struct GeometryEntry<S: Surface> {
+    set: Rc<GeometrySet<S>>,
     head: u32,
     member_idx: usize,
 }
 
-impl GeometryEntry {
+impl<S: Surface> GeometryEntry<S> {
     /// The vertices for this member.
-    pub fn vertices(&self) -> &Vec<[f64; 3]> {
+    pub fn vertices(&self) -> &Vec<S::Point> {
         &self.set.members[self.member_idx].vertices
     }
 
     /// The full edge set for this member.
-    pub fn edge_set(&self) -> &EdgeSet {
+    pub fn edge_set(&self) -> &EdgeSet<S> {
         &self.set.members[self.member_idx]
     }
 
@@ -66,13 +66,13 @@ impl GeometryEntry {
     }
 
     /// The full geometry set.
-    pub fn geometry_set(&self) -> &GeometrySet {
+    pub fn geometry_set(&self) -> &GeometrySet<S> {
         &self.set
     }
 
     /// The two endpoints of the given edge. For point geometries (single vertex), returns the
     /// vertex twice.
-    pub fn edge(&self, index: u32) -> ([f64; 3], [f64; 3]) {
+    pub fn edge(&self, index: u32) -> (S::Point, S::Point) {
         let vertices = self.vertices();
         let i = index as usize;
         let v0 = vertices[i];
@@ -91,13 +91,13 @@ impl GeometryEntry {
 
 /// Lightweight summary of a geometry member: doc_id, closed flag, and first vertex.
 /// Avoids a full cache lookup when only header information is needed.
-pub struct GeometrySummary {
+pub struct GeometrySummary<S: Surface> {
     /// The document id.
     pub doc_id: u32,
     /// Whether this geometry is a closed polygon.
     pub closed: bool,
     /// The first vertex of this geometry member.
-    pub first_vertex: [f64; 3],
+    pub first_vertex: S::Point,
 }
 
 /// Cached geometry set access. Keyed by (segment, position) so the query path and merge path use
@@ -138,7 +138,7 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
 
     /// Locate a geometry entry in the mmap'd data. Returns header info and direct access
     /// to vertex data without allocation or cache involvement.
-    pub fn locate(&self, id: GeometryId) -> super::edge_reader::LocatedEntry<'a> {
+    pub fn locate(&self, id: GeometryId) -> super::edge_reader::LocatedEntry<'a, S> {
         let inner = self.inner.borrow();
         let reader = &inner.readers[id.0 as usize];
         let entry = reader.locate_entry(id.1);
@@ -159,7 +159,7 @@ impl<'a, S: Surface> EdgeCache<'a, S> {
     /// Retrieve the geometry entry for the given geometry id. The returned entry holds an Rc to
     /// the geometry set and knows its member index. The Rc keeps the data alive regardless of
     /// cache eviction.
-    pub fn get(&self, id: GeometryId) -> GeometryEntry {
+    pub fn get(&self, id: GeometryId) -> GeometryEntry<S> {
         let mut inner = self.inner.borrow_mut();
         let segment = id.0 as usize;
         let position = id.1;

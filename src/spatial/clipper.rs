@@ -4,18 +4,14 @@
 //! contains more than a configurable number of edges.
 use super::clip_options::ClipOptions;
 use super::clipped_shape::ClippedShape;
-use super::crossings::S2EdgeCrosser;
+use super::edge_crosser::EdgeCrosser;
 use super::geometry_set::GeometrySet;
-use super::math::normalize;
 use super::r1interval::R1Interval;
 use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
-use super::s2coords::{face_uv_to_xyz, get_face, NUM_FACES};
-use super::s2edge_clipping::{
-    clip_to_padded_face, EDGE_CLIP_ERROR_UV_COORD, FACE_CLIP_ERROR_UV_COORD,
-};
+use super::s2edge_clipping::{EDGE_CLIP_ERROR_UV_COORD, FACE_CLIP_ERROR_UV_COORD};
 use super::s2padded_cell::S2PaddedCell;
-use crate::spatial::s2coords::valid_face_xyz_to_uv;
+use super::surface::Surface;
 use crate::spatial::shape_index::{ShapeCell, ShapeIndex};
 
 /// The amount by which cells are "padded" to compensate for numerical errors
@@ -58,7 +54,7 @@ pub(crate) fn get_edge_max_level(v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
 
 /// An edge projected onto a cube face.
 #[derive(Clone, Debug)]
-struct FaceEdge {
+struct FaceEdge<S: Surface> {
     /// Geometry the edge belongs to.
     geometry_id: u32,
     /// Edge index in the original polygon.
@@ -70,9 +66,9 @@ struct FaceEdge {
     /// Edge endpoints in (u,v) coordinates.
     a: [f64; 2],
     b: [f64; 2],
-    /// Original edge endpoints in 3D.
-    v0: [f64; 3],
-    v1: [f64; 3],
+    /// Original edge endpoints on the surface.
+    v0: S::Point,
+    v1: S::Point,
 }
 
 /// A clipped portion of an edge within a cell.
@@ -100,25 +96,25 @@ struct ClippedEdge {
 ///
 /// The C++ uses linear search. We use binary_search because the function is there and reads better
 /// than a loop. For 0-2 elements the difference is negligible.
-struct InteriorTracker {
+struct InteriorTracker<S: Surface> {
     /// Determine if any shape with an interior is being tracked.
     is_active: bool,
     /// Current focus point.
-    focus: [f64; 3],
+    focus: S::Point,
     /// Edge crosser for testing edge crossings.
-    crosser: S2EdgeCrosser,
+    crosser: S::EdgeCrosser,
     /// Shapes whose interiors contain the current focus point.
     shape_ids: Vec<u32>,
     /// The next cell ID we expect to process.
     next_cellid: S2CellId,
 }
 
-impl InteriorTracker {
+impl<S: Surface> InteriorTracker<S> {
     fn new() -> Self {
-        let origin = normalize(&face_uv_to_xyz(0, -1.0, -1.0));
+        let origin = S::hilbert_start();
         Self {
             focus: origin,
-            crosser: S2EdgeCrosser::new(&origin, &origin),
+            crosser: S::EdgeCrosser::new(&origin, &origin),
             shape_ids: Vec::new(),
             is_active: false,
             next_cellid: S2CellId::begin(S2CellId::MAX_LEVEL),
@@ -136,7 +132,7 @@ impl InteriorTracker {
         }
     }
 
-    fn test_edge(&mut self, geometry_id: u32, v0: &[f64; 3], v1: &[f64; 3]) {
+    fn test_edge(&mut self, geometry_id: u32, v0: &S::Point, v1: &S::Point) {
         if self.crosser.edge_or_vertex_crossing_two(v0, v1) {
             self.toggle_shape(geometry_id);
         }
@@ -157,12 +153,12 @@ impl InteriorTracker {
     }
 
     #[inline]
-    fn move_to(&mut self, p: &[f64; 3]) {
+    fn move_to(&mut self, p: &S::Point) {
         self.focus = *p;
     }
 
-    fn draw_to(&mut self, p: &[f64; 3]) {
-        self.crosser = S2EdgeCrosser::new(&self.focus, p);
+    fn draw_to(&mut self, p: &S::Point) {
+        self.crosser = S::EdgeCrosser::new(&self.focus, p);
         self.focus = *p;
     }
 }
@@ -190,15 +186,15 @@ impl ClipOptions {
 }
 
 /// Builder for constructing a ShapeIndex from a collection of geometries.
-pub struct Clipper {
+pub struct Clipper<S: Surface> {
     options: ClipOptions,
     /// Tracks which cells' centers are inside the polygon as we traverse in S2CellId order.
-    tracker: InteriorTracker,
+    tracker: InteriorTracker<S>,
     /// The index as an array of cells.
     cells: Vec<ShapeCell>,
 }
 
-impl Clipper {
+impl<S: Surface> Clipper<S> {
     /// Creates a new IndexBuilder with the given options.
     pub fn new(options: ClipOptions) -> Self {
         Self {
@@ -210,7 +206,7 @@ impl Clipper {
 
     /// Build a ShapeIndex from smashed GeometrySets. Geometry IDs are arrival order. The first
     /// member of the first set is 0, and the count increments from there.
-    pub fn build(mut self, sets: &[GeometrySet]) -> ShapeIndex {
+    pub fn build(mut self, sets: &[GeometrySet<S>]) -> ShapeIndex {
         if sets.is_empty() {
             return ShapeIndex { cells: Vec::new() };
         }
@@ -229,7 +225,7 @@ impl Clipper {
             }
         }
 
-        let mut face_edges: [Vec<FaceEdge>; 6] = Default::default();
+        let mut face_edges: [Vec<FaceEdge<S>>; 6] = Default::default();
 
         gid = 0;
         for set in sets {
@@ -288,7 +284,7 @@ impl Clipper {
             }
         }
 
-        for face in 0..NUM_FACES {
+        for face in 0..S::FACE_COUNT {
             self.update_face_edges(face, &face_edges[face as usize]);
         }
 
@@ -297,9 +293,10 @@ impl Clipper {
         ShapeIndex { cells: self.cells }
     }
 
-    /// Delegates to the free function `get_edge_max_level`.
-    fn get_edge_max_level(&self, v0: &[f64; 3], v1: &[f64; 3]) -> i32 {
-        get_edge_max_level(v0, v1)
+    fn get_edge_max_level(&self, v0: &S::Point, v1: &S::Point) -> i32 {
+        let length = S::edge_length(v0, v1);
+        let max_cell_edge = length * CELL_SIZE_TO_LONG_EDGE_RATIO;
+        get_level_for_max_value(max_cell_edge)
     }
 
     /// Clips an edge to all cube faces.
@@ -310,16 +307,16 @@ impl Clipper {
         edge_index: u32,
         max_level: i32,
         has_interior: bool,
-        v0: &[f64; 3],
-        v1: &[f64; 3],
-        face_edges: &mut [Vec<FaceEdge>; 6],
+        v0: &S::Point,
+        v1: &S::Point,
+        face_edges: &mut [Vec<FaceEdge<S>>],
     ) {
-        let a_face = get_face(v0);
-        let b_face = get_face(v1);
+        let a_face = S::get_face(v0);
+        let b_face = S::get_face(v1);
 
         if a_face == b_face {
-            let (a_u, a_v) = valid_face_xyz_to_uv(a_face, v0);
-            let (b_u, b_v) = valid_face_xyz_to_uv(a_face, v1);
+            let (a_u, a_v) = S::point_to_face_uv(a_face, v0);
+            let (b_u, b_v) = S::point_to_face_uv(a_face, v1);
             let max_uv = 1.0 - CELL_PADDING;
             if a_u.abs() <= max_uv
                 && a_v.abs() <= max_uv
@@ -340,8 +337,8 @@ impl Clipper {
             }
         }
 
-        for face in 0..NUM_FACES {
-            if let Some((a_uv, b_uv)) = clip_to_padded_face(v0, v1, face, CELL_PADDING) {
+        for face in 0..S::FACE_COUNT {
+            if let Some((a_uv, b_uv)) = S::clip_to_face(v0, v1, face, CELL_PADDING) {
                 face_edges[face as usize].push(FaceEdge {
                     geometry_id,
                     edge_index,
@@ -356,7 +353,7 @@ impl Clipper {
         }
     }
 
-    fn update_face_edges(&mut self, face: i32, face_edges: &[FaceEdge]) {
+    fn update_face_edges(&mut self, face: i32, face_edges: &[FaceEdge<S>]) {
         if face_edges.is_empty() {
             return;
         }
@@ -410,9 +407,9 @@ impl Clipper {
 
     fn update_edges(
         &mut self,
-        pcell: &S2PaddedCell,
+        pcell: &S2PaddedCell<S>,
         edges: &mut [ClippedEdge],
-        face_edges: &[FaceEdge],
+        face_edges: &[FaceEdge<S>],
     ) {
         if edges.is_empty() && self.tracker.shape_ids().is_empty() {
             return;
@@ -451,10 +448,10 @@ impl Clipper {
     /// Returns true if the cell should be subdivided.
     fn should_subdivide(
         &self,
-        pcell: &S2PaddedCell,
+        pcell: &S2PaddedCell<S>,
         edges: &[ClippedEdge],
-        face_edges: &[FaceEdge],
-        tracker: &InteriorTracker,
+        face_edges: &[FaceEdge<S>],
+        tracker: &InteriorTracker<S>,
     ) -> bool {
         if edges.len() <= self.options.max_edges_per_cell {
             return false;
@@ -488,7 +485,7 @@ impl Clipper {
         &self,
         edge: &ClippedEdge,
         middle: &R2Rect,
-        face_edges: &[FaceEdge],
+        face_edges: &[FaceEdge<S>],
         child_edges: &mut [[Vec<ClippedEdge>; 2]; 2],
     ) {
         // Get the middle boundaries (the padding region shared by all children)
@@ -526,7 +523,7 @@ impl Clipper {
     fn clip_v_axis(
         &self,
         edge: &ClippedEdge,
-        fe: &FaceEdge,
+        fe: &FaceEdge<S>,
         v_mid_lo: f64,
         v_mid_hi: f64,
         child_edges: &mut [Vec<ClippedEdge>; 2],
@@ -549,7 +546,7 @@ impl Clipper {
     fn clip_u_bound(
         &self,
         edge: &ClippedEdge,
-        fe: &FaceEdge,
+        fe: &FaceEdge<S>,
         u: f64,
         clip_hi: bool,
     ) -> ClippedEdge {
@@ -606,7 +603,7 @@ impl Clipper {
     fn clip_v_bound(
         &self,
         edge: &ClippedEdge,
-        fe: &FaceEdge,
+        fe: &FaceEdge<S>,
         v: f64,
         clip_hi: bool,
     ) -> ClippedEdge {
@@ -660,9 +657,9 @@ impl Clipper {
 
     fn make_index_cell(
         &mut self,
-        pcell: &S2PaddedCell,
+        pcell: &S2PaddedCell<S>,
         edges: &[ClippedEdge],
-        face_edges: &[FaceEdge],
+        face_edges: &[FaceEdge<S>],
     ) {
         let cell_id = pcell.id();
 

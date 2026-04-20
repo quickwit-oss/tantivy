@@ -29,7 +29,7 @@ pub struct IntersectsQuery {
 
 impl IntersectsQuery {
     /// Build the query from a smashed GeometrySet.
-    pub fn new(set: GeometrySet, options: CovererOptions) -> Self {
+    pub fn new(set: GeometrySet<Sphere>, options: CovererOptions) -> Self {
         let builder = Clipper::new(ClipOptions::default());
         let query_index = builder.build(std::slice::from_ref(&set));
 
