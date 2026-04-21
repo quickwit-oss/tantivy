@@ -152,7 +152,7 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         docs: &[crate::DocId],
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
-        let mem_pre = self.get_memory_consumption();
+        let mem_pre = self.get_memory_consumption(parent_bucket_id);
         let composite_agg_data = agg_data.take_composite_req_data(self.accessor_idx);
 
         for doc in docs {
@@ -172,7 +172,7 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
             sub_agg.check_flush_local(agg_data)?;
         }
 
-        let mem_delta = self.get_memory_consumption() - mem_pre;
+        let mem_delta = self.get_memory_consumption(parent_bucket_id) - mem_pre;
         if mem_delta > 0 {
             agg_data.context.limits.add_memory_consumed(mem_delta)?;
         }
@@ -202,11 +202,8 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
 }
 
 impl SegmentCompositeCollector {
-    fn get_memory_consumption(&self) -> u64 {
-        self.parent_buckets
-            .iter()
-            .map(|m| m.memory_consumption())
-            .sum()
+    fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> u64 {
+        self.parent_buckets[parent_bucket_id as usize].memory_consumption()
     }
 
     pub(crate) fn from_req_and_validate(
