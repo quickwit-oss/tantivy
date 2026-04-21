@@ -1929,4 +1929,35 @@ mod test {
         let query_with_plus = format!("+{leading}title:test{trailing}");
         test_parse_query_to_ast_helper(&query_with_plus, r#""title":test"#);
     }
+
+    // Manual benchmark matching the depths from issue #2498 (originally
+    // 0.87 s at depth 20 and 1.72 s at depth 21 under the regression).
+    // Run with:
+    //   cargo test -p tantivy-query-grammar --release bench_deeply_nested \
+    //       -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn bench_deeply_nested_query() {
+        use std::time::Instant;
+        for depth in [20, 21] {
+            let leading: String = "(".repeat(depth);
+            let trailing: String = ")".repeat(depth);
+            for (label, query) in [
+                ("plain", format!("{leading}title:test{trailing}")),
+                ("plus ", format!("+{leading}title:test{trailing}")),
+            ] {
+                // Warm up.
+                for _ in 0..100 {
+                    parse_to_ast(&query).unwrap();
+                }
+                let iters = 10_000;
+                let t0 = Instant::now();
+                for _ in 0..iters {
+                    parse_to_ast(&query).unwrap();
+                }
+                let ns_per_parse = t0.elapsed().as_nanos() as f64 / iters as f64;
+                println!("depth {depth:>2} {label} {ns_per_parse:>10.0} ns/parse");
+            }
+        }
+    }
 }
