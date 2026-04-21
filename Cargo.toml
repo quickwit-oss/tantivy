@@ -201,3 +201,7 @@ harness = false
 [[bench]]
 name = "regex_all_terms"
 harness = false
+
+[[bench]]
+name = "query_parser_nested"
+harness = false
