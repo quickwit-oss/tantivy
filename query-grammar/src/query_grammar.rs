@@ -1057,13 +1057,18 @@ fn ast(inp: &str) -> IResult<&str, UserInputAst> {
         multispace0,
         |inp| {
             let (rest, first) = occur_leaf(inp)?;
+            // Only fall back on `Err::Error` (recoverable), mirroring
+            // `alt`'s behaviour. `Err::Failure` and `Err::Incomplete`
+            // must propagate so cut points and streaming needs are not
+            // accidentally swallowed if they are ever introduced in the
+            // operand parsers.
             match preceded(multispace1, many1(operand_leaf))(rest) {
                 Ok((rest, more)) => {
                     let combined = aggregate_binary_expressions(first, more)
                         .map_err(|_| nom::Err::Error(Error::new(inp, ErrorKind::MapRes)))?;
                     Ok((rest, combined))
                 }
-                Err(_) => {
+                Err(nom::Err::Error(_)) => {
                     let (occur, ast) = first;
                     let single = if occur == Some(Occur::MustNot) {
                         ast.unary(Occur::MustNot)
@@ -1072,6 +1077,7 @@ fn ast(inp: &str) -> IResult<&str, UserInputAst> {
                     };
                     Ok((rest, single))
                 }
+                Err(e) => Err(e),
             }
         },
         multispace0,
