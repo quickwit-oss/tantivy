@@ -912,6 +912,7 @@ where
     TermMap: TermAggregationMap,
     C: SubAggCache,
 {
+    #[inline]
     fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> usize {
         self.parent_buckets[parent_bucket_id as usize].get_memory_consumption()
     }
