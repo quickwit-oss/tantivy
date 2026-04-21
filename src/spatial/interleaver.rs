@@ -622,14 +622,14 @@ fn clip_u_bound<S: Surface>(
     };
 
     let u_interval = if clip_hi {
-        super::r1interval::R1Interval::new(clipped_edge.bound[0].lo(), u)
+        R1Interval::new(clipped_edge.bound[0].lo(), u)
     } else {
-        super::r1interval::R1Interval::new(u, clipped_edge.bound[0].hi())
+        R1Interval::new(u, clipped_edge.bound[0].hi())
     };
     let v_interval = if clip_v_hi {
-        super::r1interval::R1Interval::new(clipped_edge.bound[1].lo(), v_clamped)
+        R1Interval::new(clipped_edge.bound[1].lo(), v_clamped)
     } else {
-        super::r1interval::R1Interval::new(v_clamped, clipped_edge.bound[1].hi())
+        R1Interval::new(v_clamped, clipped_edge.bound[1].hi())
     };
     if u_interval.is_empty() || v_interval.is_empty() {
         return MergeClippedEdge {

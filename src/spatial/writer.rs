@@ -5,38 +5,41 @@
 use std::collections::HashMap;
 use std::io;
 
+use std::marker::PhantomData;
+
 use crate::schema::Field;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::geometry_set::{to_geometry_set, GeometrySet};
 use crate::spatial::plane::Plane;
 use crate::spatial::serializer::SpatialSerializer;
-use crate::spatial::sphere::Sphere;
+use crate::spatial::surface::Surface;
 use crate::DocId;
 
 /// Per-field accumulated documents with their geometries.
-struct FieldData {
-    sets: Vec<GeometrySet<Sphere>>,
+struct FieldData<S: Surface> {
+    sets: Vec<GeometrySet<S>>,
 }
 
-impl FieldData {
+impl<S: Surface> FieldData<S> {
     fn new() -> Self {
         Self { sets: Vec::new() }
     }
 }
 
 /// Accumulates spatial geometry during indexing, then serializes at segment flush.
-pub struct SpatialWriter {
-    data_by_field: HashMap<Field, FieldData>,
+pub struct SpatialWriter<S: Surface> {
+    data_by_field: HashMap<Field, FieldData<S>>,
+    _surface: PhantomData<S>,
 }
 
-impl SpatialWriter {
+impl<S: Surface> SpatialWriter<S> {
     /// Add a geometry for a document and field.
     pub fn add_geometry(&mut self, doc_id: DocId, field: Field, geometry: Geometry<Plane>) {
         let data = self
             .data_by_field
             .entry(field)
             .or_insert_with(FieldData::new);
-        let projected = geometry.project::<Sphere>();
+        let projected = geometry.project::<S>();
         let set = to_geometry_set(&projected, doc_id);
         data.sets.push(set);
     }
@@ -51,7 +54,7 @@ impl SpatialWriter {
                     .map(|set| {
                         set.members
                             .iter()
-                            .map(|m| m.vertices.len() * 24)
+                            .map(|m| m.vertices.len() * S::DIMENSIONS * 8)
                             .sum::<usize>()
                     })
                     .sum::<usize>()
@@ -69,10 +72,11 @@ impl SpatialWriter {
     }
 }
 
-impl Default for SpatialWriter {
+impl<S: Surface> Default for SpatialWriter<S> {
     fn default() -> Self {
         SpatialWriter {
             data_by_field: HashMap::new(),
+            _surface: PhantomData,
         }
     }
 }

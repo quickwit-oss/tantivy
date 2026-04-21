@@ -12,7 +12,7 @@ use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::edge_writer::EdgeWriter;
 use crate::spatial::geometry_set::GeometrySet;
-use crate::spatial::sphere::Sphere;
+use crate::spatial::surface::Surface;
 
 /// Default skip interval for the edge index skip list directory.
 const EDGE_SKIP_INTERVAL: u32 = 16;
@@ -34,7 +34,7 @@ impl SpatialSerializer {
 
     /// Serialize one field's spatial data. Builds a CellIndex from the smashed GeometrySets
     /// and streams edges through EdgeWriter.
-    pub fn serialize_field(&mut self, field: Field, sets: &[GeometrySet<Sphere>]) -> io::Result<()> {
+    pub fn serialize_field<S: Surface>(&mut self, field: Field, sets: &[GeometrySet<S>]) -> io::Result<()> {
         if sets.is_empty() {
             return Ok(());
         }
@@ -51,7 +51,7 @@ impl SpatialSerializer {
         // Write the edge index.
         let edges_out = self.edges_write.for_field(field);
         {
-            let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, EDGE_SKIP_INTERVAL);
+            let mut edge_writer = EdgeWriter::<S>::new(edges_out, EDGE_SKIP_INTERVAL);
 
             for set in sets {
                 edge_writer.insert(set);

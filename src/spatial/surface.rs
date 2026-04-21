@@ -12,7 +12,7 @@ pub trait Surface {
     const DIMENSIONS: usize;
 
     /// The point type of the surface.
-    type Point: Copy + PartialEq + AsRef<[f64]>;
+    type Point: Copy + PartialEq + AsRef<[f64]> + Send + Sync;
 
     /// The edge crosser for this surface.
     type EdgeCrosser: super::edge_crosser::EdgeCrosser<Point = Self::Point>;
