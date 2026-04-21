@@ -1,3 +1,10 @@
+Tantivy 0.26.1
+================================
+
+## Bugfixes
+- Fix memory consumption accounting in nested term aggregation to only scan the active parent bucket (@PSeitz)
+- Fix memory consumption accounting in composite aggregation to only scan the active parent bucket (@PSeitz)
+
 Tantivy 0.26 (Unreleased)
 ================================
 
