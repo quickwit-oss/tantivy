@@ -7,7 +7,7 @@
 //
 // Run with: `cargo bench --bench query_parser_nested`.
 
-use binggan::{BenchRunner, black_box};
+use binggan::{black_box, BenchRunner};
 use tantivy::query_grammar::parse_query;
 
 fn nested_query(depth: usize, leading_plus: bool) -> String {
