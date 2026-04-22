@@ -1238,7 +1238,7 @@ mod tests {
     use crate::aggregation::{AggregationLimitsGuard, DistributedAggregationCollector};
     use crate::indexer::NoMergePolicy;
     use crate::query::AllQuery;
-    use crate::schema::{IntoIpv6Addr, Schema, FAST, STRING};
+    use crate::schema::{IntoIpv6Addr, Schema, FAST, INDEXED, STRING, TEXT};
     use crate::{Index, IndexWriter};
 
     #[test]
@@ -2930,6 +2930,103 @@ mod tests {
         assert_eq!(agg_json["tags"]["doc_count_error_upper_bound"], 0);
         assert_eq!(agg_json["tags"]["sum_other_doc_count"], 0);
 
+        Ok(())
+    }
+
+    fn prep_index_with_n_unique_terms_plus_one_null(n: u64) -> crate::Result<Index> {
+        let mut schema_builder = Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", INDEXED);
+        let title_field = schema_builder.add_text_field("title", TEXT | FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        // set to one thread to guarantee all docs end up in the same segment
+        let mut writer = index.writer_with_num_threads(1, 50_000_000)?;
+
+        writer.add_document(doc!(
+            id_field => 0u64,
+        ))?;
+        for i in 1u64..=n {
+            let title = format!("foo{i}");
+            writer.add_document(doc!(
+                id_field => i,
+                title_field => title,
+            ))?;
+        }
+
+        writer.commit()?;
+
+        Ok(index)
+    }
+
+    #[test]
+    fn null_bitset_bounds_check_regression() -> crate::Result<()> {
+        // include cases
+        for i in 0..=4 {
+            let index = prep_index_with_n_unique_terms_plus_one_null(i * 64)?;
+            let normal_req: Aggregations = serde_json::from_value(json!({
+                "my_bool": {
+                    "terms": {
+                        "field": "title",
+                        "missing": "__NULL__",
+                        "size": 1000,
+                    }
+                }
+            }))?;
+            let include_req: Aggregations = serde_json::from_value(json!({
+                "my_bool": {
+                    "terms": {
+                        "field": "title",
+                        "include": "foo(.*)",
+                        "missing": "__NULL__",
+                        "size": 1000,
+                    }
+                }
+            }))?;
+            let exclude_req: Aggregations = serde_json::from_value(json!({
+                "my_bool": {
+                    "terms": {
+                        "field": "title",
+                        "exclude": "foo(.*)",
+                        "missing": "__NULL__",
+                        "size": 1000,
+                    }
+                }
+            }))?;
+
+            let normal_res = exec_request(normal_req, &index)?;
+            let normal_buckets = normal_res["my_bool"]["buckets"].as_array().unwrap();
+            assert_eq!(
+                normal_buckets.len(),
+                (i * 64) as usize + 1,
+                "The normal request should return all 'foo' buckets, plus the missing term bucket",
+            );
+
+            let include_res = exec_request(include_req, &index)?;
+            eprintln!("include_res: {include_res:?}");
+            let include_buckets = include_res["my_bool"]["buckets"].as_array().unwrap();
+            assert_eq!(
+                include_buckets.len(),
+                (i * 64) as usize,
+                "The include request should return all 'foo' buckets, and not the missing term \
+                 bucket",
+            );
+            assert!(include_buckets
+                .iter()
+                .all(|b| b["key"].as_str().unwrap().starts_with("foo")));
+
+            let exclude_res = exec_request(exclude_req, &index)?;
+            let exclude_buckets = exclude_res["my_bool"]["buckets"].as_array().unwrap();
+            if i != 0 {
+                // TODO: Remove this if after fixing exclude + missing bug
+                assert_eq!(
+                    exclude_buckets.len(),
+                    1,
+                    "The exclude request should exclude all 'foo' buckets, and only the missing \
+                     term bucket",
+                );
+                assert_eq!(exclude_buckets[0]["key"], "__NULL__");
+            }
+        }
         Ok(())
     }
 }
