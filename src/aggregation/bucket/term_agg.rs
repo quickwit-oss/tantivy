@@ -2959,6 +2959,38 @@ mod tests {
     }
 
     #[test]
+    fn terms_agg_request_with_exclude_returns_missing_term_bucket() -> crate::Result<()> {
+        let exclude_req: Aggregations = serde_json::from_value(json!({
+            "my_bool": {
+                "terms": {
+                    "field": "title",
+                    "exclude": "foo(.*)",
+                    "missing": "__NULL__",
+                    "size": 1000,
+                }
+            }
+        }))?;
+
+        // zero unique terms case
+        let index = prep_index_with_n_unique_terms_plus_one_null(0)?;
+
+        let res = exec_request(exclude_req.clone(), &index)?;
+        let buckets = res["my_bool"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0]["key"], "__NULL__");
+
+        // non-zero unique terms case
+        let index = prep_index_with_n_unique_terms_plus_one_null(64)?;
+
+        let res = exec_request(exclude_req, &index)?;
+        let buckets = res["my_bool"]["buckets"].as_array().unwrap();
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0]["key"], "__NULL__");
+
+        Ok(())
+    }
+
+    #[test]
     fn null_bitset_bounds_check_regression() -> crate::Result<()> {
         // include cases
         for i in 0..=4 {
@@ -3016,16 +3048,13 @@ mod tests {
 
             let exclude_res = exec_request(exclude_req, &index)?;
             let exclude_buckets = exclude_res["my_bool"]["buckets"].as_array().unwrap();
-            if i != 0 {
-                // TODO: Remove this if after fixing exclude + missing bug
-                assert_eq!(
-                    exclude_buckets.len(),
-                    1,
-                    "The exclude request should exclude all 'foo' buckets, and only the missing \
-                     term bucket",
-                );
-                assert_eq!(exclude_buckets[0]["key"], "__NULL__");
-            }
+            assert_eq!(
+                exclude_buckets.len(),
+                1,
+                "The exclude request should exclude all 'foo' buckets, and only the missing term \
+                 bucket",
+            );
+            assert_eq!(exclude_buckets[0]["key"], "__NULL__");
         }
         Ok(())
     }
