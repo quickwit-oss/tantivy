@@ -7,18 +7,6 @@ use columnar::{Column, ColumnType};
 use crate::aggregation::{f64_to_fastfield_u64, Key};
 use crate::index::SegmentReader;
 
-/// For string columns, the missing value is always represented as column_max_value + 1, but in
-/// the case where we have no values for this column, that causes the missing value to be
-/// erroneously set to 1 (which would imply we had one additional value represented as 0).
-/// This checks for that case that case and returns 0 instead.
-fn missing_val_for_str_cols(column_max_value: u64, column_num_values: u32) -> u64 {
-    if column_num_values == 0 {
-        0
-    } else {
-        column_max_value + 1
-    }
-}
-
 /// Get the missing value as internal u64 representation
 ///
 /// For terms we use u64::MAX as sentinel value
@@ -28,29 +16,16 @@ fn missing_val_for_str_cols(column_max_value: u64, column_num_values: u32) -> u6
 /// That way we can use it the same way as if it would come from the fastfield.
 pub(crate) fn get_missing_val_as_u64_lenient(
     column_type: ColumnType,
-    column_max_value: u64,
-    column_num_values: u32,
+    column_val_count: u32,
     missing: &Key,
     field_name: &str,
 ) -> crate::Result<Option<u64>> {
     let missing_val = match missing {
-        Key::Str(_) if column_type == ColumnType::Str => Some(missing_val_for_str_cols(
-            column_max_value,
-            column_num_values,
-        )),
-        // Allow fallback to number on text fields
-        Key::F64(_) if column_type == ColumnType::Str => Some(missing_val_for_str_cols(
-            column_max_value,
-            column_num_values,
-        )),
-        Key::U64(_) if column_type == ColumnType::Str => Some(missing_val_for_str_cols(
-            column_max_value,
-            column_num_values,
-        )),
-        Key::I64(_) if column_type == ColumnType::Str => Some(missing_val_for_str_cols(
-            column_max_value,
-            column_num_values,
-        )),
+        Key::Str(_) | Key::F64(_) | Key::U64(_) | Key::I64(_) if column_type == ColumnType::Str => {
+            // For strings, we use the max term ordinal + 1, which happens to always be the same as
+            // the number of values in the column
+            Some(column_val_count as u64)
+        }
         Key::F64(val) if column_type.numerical_type().is_some() => {
             f64_to_fastfield_u64(*val, &column_type)
         }
