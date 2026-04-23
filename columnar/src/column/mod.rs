@@ -84,10 +84,6 @@ impl<T: PartialOrd + Copy + Debug + Send + Sync + 'static> Column<T> {
         self.values.max_value()
     }
 
-    pub fn num_vals(&self) -> u32 {
-        self.values.num_vals()
-    }
-
     #[inline]
     pub fn first(&self, doc_id: DocId) -> Option<T> {
         self.values_for_doc(doc_id).next()
