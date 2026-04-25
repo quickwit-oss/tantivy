@@ -123,9 +123,9 @@ impl Weight for TermWeight {
     ) -> crate::Result<()> {
         let specialized_scorer = self.specialized_scorer(reader, 1.0)?;
         match specialized_scorer {
-            TermOrEmptyOrAllScorer::TermScorer(mut term_scorer) => {
+            TermOrEmptyOrAllScorer::TermScorer(term_scorer) => {
                 crate::query::boolean_query::block_wand_single_scorer(
-                    &mut term_scorer,
+                    *term_scorer,
                     threshold,
                     callback,
                 );

@@ -150,20 +150,20 @@ pub fn block_wand(
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
+    scorers.retain(|scorer| scorer.doc() < TERMINATED);
+    if scorers.len() == 1 {
+        let scorer = scorers.pop().unwrap();
+        return block_wand_single_scorer(scorer, threshold, callback);
+    }
     let mut scorers: Vec<TermScorerWithMaxScore> = scorers
         .iter_mut()
         .map(TermScorerWithMaxScore::from)
-        .filter(|scorer| scorer.doc() < TERMINATED)
         .collect();
     // At this point we need to ensure that the scorers are sorted!
     scorers.sort_by_key(|scorer| scorer.doc());
-    while scorers.len() >= 2 {
-        debug_assert!(scorers.iter().all(|scorer| scorer.doc() < TERMINATED));
-        let Some((before_pivot_len, pivot_len, pivot_doc)) =
-            find_pivot_doc(&scorers[..], threshold)
-        else {
-            return;
-        };
+    while let Some((before_pivot_len, pivot_len, pivot_doc)) =
+        find_pivot_doc(&scorers[..], threshold)
+    {
         debug_assert!(scorers.iter().map(|scorer| scorer.doc()).is_sorted());
         debug_assert_ne!(pivot_doc, TERMINATED);
         debug_assert!(before_pivot_len < pivot_len);
@@ -213,11 +213,6 @@ pub fn block_wand(
         // let's advance all of the scorers that are currently positioned on the pivot.
         advance_all_scorers_on_pivot(&mut scorers, pivot_len);
     }
-    debug_assert!(scorers.len() < 2);
-    if let Some(mut single_scorer) = scorers.pop() {
-        debug_assert!(single_scorer.doc() < TERMINATED);
-        block_wand_single_scorer(&mut single_scorer.scorer, threshold, callback);
-    }
 }
 
 /// Specialized version of [`block_wand`] for a single scorer.
@@ -228,8 +223,8 @@ pub fn block_wand(
 ///   - While the block max score is under the `threshold`, go to the next block.
 ///   - On a block, advance until the end and execute `callback` when the doc score is greater or
 ///     equal to the `threshold`.
-pub(crate) fn block_wand_single_scorer(
-    scorer: &mut TermScorer,
+pub fn block_wand_single_scorer(
+    mut scorer: TermScorer,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
@@ -356,8 +351,8 @@ mod tests {
         };
 
         if term_scorers.len() == 1 {
-            let mut scorer = term_scorers.pop().unwrap();
-            super::block_wand_single_scorer(&mut scorer, Score::MIN, callback);
+            let scorer = term_scorers.pop().unwrap();
+            super::block_wand_single_scorer(scorer, Score::MIN, callback);
         } else {
             super::block_wand(term_scorers, Score::MIN, callback);
         }
