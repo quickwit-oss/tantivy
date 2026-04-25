@@ -50,7 +50,7 @@ fn block_max_was_too_low_advance_one_scorer(
     scorers: &mut [TermScorerWithMaxScore],
     pivot_len: usize,
 ) {
-    debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
+    debug_assert!(scorers.iter().map(|scorer| scorer.doc()).is_sorted());
     let mut scorer_to_seek = pivot_len - 1;
     let mut global_max_score = scorers[scorer_to_seek].max_score;
     let mut doc_to_seek_after = scorers[scorer_to_seek].last_doc_in_block();
@@ -76,7 +76,7 @@ fn block_max_was_too_low_advance_one_scorer(
     scorers[scorer_to_seek].seek(doc_to_seek_after);
 
     restore_ordering(scorers, scorer_to_seek);
-    debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
+    debug_assert!(scorers.iter().map(|scorer| scorer.doc()).is_sorted());
 }
 
 // Given a list of term_scorers and a `ord` and assuming that `term_scorers[ord]` is sorted
@@ -90,7 +90,7 @@ fn restore_ordering(term_scorers: &mut [TermScorerWithMaxScore], ord: usize) {
         }
         term_scorers.swap(i, i - 1);
     }
-    debug_assert!(is_sorted(term_scorers.iter().map(|scorer| scorer.doc())));
+    debug_assert!(term_scorers.iter().map(|scorer| scorer.doc()).is_sorted());
 }
 
 // Attempts to advance all term_scorers between `&term_scorers[0..before_len]` to the pivot.
@@ -153,14 +153,18 @@ pub fn block_wand(
     let mut scorers: Vec<TermScorerWithMaxScore> = scorers
         .iter_mut()
         .map(TermScorerWithMaxScore::from)
+        .filter(|scorer| scorer.doc() < TERMINATED)
         .collect();
-    scorers.sort_by_key(|scorer| scorer.doc());
     // At this point we need to ensure that the scorers are sorted!
-    debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
-    while let Some((before_pivot_len, pivot_len, pivot_doc)) =
-        find_pivot_doc(&scorers[..], threshold)
-    {
-        debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
+    scorers.sort_by_key(|scorer| scorer.doc());
+    while scorers.len() >= 2 {
+        debug_assert!(scorers.iter().all(|scorer| scorer.doc() < TERMINATED));
+        let Some((before_pivot_len, pivot_len, pivot_doc)) =
+            find_pivot_doc(&scorers[..], threshold)
+        else {
+            return;
+        };
+        debug_assert!(scorers.iter().map(|scorer| scorer.doc()).is_sorted());
         debug_assert_ne!(pivot_doc, TERMINATED);
         debug_assert!(before_pivot_len < pivot_len);
 
@@ -209,6 +213,11 @@ pub fn block_wand(
         // let's advance all of the scorers that are currently positioned on the pivot.
         advance_all_scorers_on_pivot(&mut scorers, pivot_len);
     }
+    debug_assert!(scorers.len() < 2);
+    if let Some(mut single_scorer) = scorers.pop() {
+        debug_assert!(single_scorer.doc() < TERMINATED);
+        block_wand_single_scorer(&mut single_scorer.scorer, threshold, callback);
+    }
 }
 
 /// Specialized version of [`block_wand`] for a single scorer.
@@ -219,8 +228,8 @@ pub fn block_wand(
 ///   - While the block max score is under the `threshold`, go to the next block.
 ///   - On a block, advance until the end and execute `callback` when the doc score is greater or
 ///     equal to the `threshold`.
-pub fn block_wand_single_scorer(
-    mut scorer: TermScorer,
+pub(crate) fn block_wand_single_scorer(
+    scorer: &mut TermScorer,
     mut threshold: Score,
     callback: &mut dyn FnMut(u32, Score) -> Score,
 ) {
@@ -286,18 +295,6 @@ impl DerefMut for TermScorerWithMaxScore<'_> {
     }
 }
 
-fn is_sorted<I: Iterator<Item = DocId>>(mut it: I) -> bool {
-    if let Some(first) = it.next() {
-        let mut prev = first;
-        for doc in it {
-            if doc < prev {
-                return false;
-            }
-            prev = doc;
-        }
-    }
-    true
-}
 #[cfg(test)]
 mod tests {
     use std::cmp::Ordering;
@@ -359,8 +356,8 @@ mod tests {
         };
 
         if term_scorers.len() == 1 {
-            let scorer = term_scorers.pop().unwrap();
-            super::block_wand_single_scorer(scorer, Score::MIN, callback);
+            let mut scorer = term_scorers.pop().unwrap();
+            super::block_wand_single_scorer(&mut scorer, Score::MIN, callback);
         } else {
             super::block_wand(term_scorers, Score::MIN, callback);
         }
