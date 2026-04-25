@@ -67,7 +67,8 @@ pub(crate) fn block_wand_intersection(
         let mut secondary_block_max_scores = [0.0f32; 16];
         let num_secondaries = secondaries.len();
         for (idx, secondary) in secondaries.iter_mut().enumerate() {
-            if !secondary.block_cursor().seek_block(doc) {
+            secondary.block_cursor().seek_block(doc);
+            if !secondary.block_cursor().has_remaining_docs() {
                 return;
             }
             window_end = window_end.min(secondary.last_doc_in_block());
@@ -111,7 +112,7 @@ pub(crate) fn block_wand_intersection(
             .min(block_cursor.block_len());
 
         let block_docs = &block_cursor.doc_decoder.output_array()[start_idx..end_idx];
-        let block_freqs = &block_cursor.freq_decoder.output_array()[start_idx..end_idx];
+        let block_freqs = &block_cursor.freq_output_array()[start_idx..end_idx];
 
         // Pass 1: Batch-compute leader BM25 scores and branchlessly filter
         // candidates that can't beat the threshold.

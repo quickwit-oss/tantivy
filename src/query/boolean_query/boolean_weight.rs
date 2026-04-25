@@ -508,11 +508,11 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                 for_each_scorer(&mut union_scorer, callback);
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
-                let mut intersection = into_box_scorer(
-                    SpecializedScorer::TermIntersection(term_scorers),
-                    &self.score_combiner_fn,
-                    num_docs,
-                );
+                let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
+                    .into_iter()
+                    .map(|term_scorer| Box::new(term_scorer) as Box<dyn Scorer>)
+                    .collect();
+                let mut intersection = intersect_scorers(boxed_scorers, num_docs);
                 for_each_scorer(intersection.as_mut(), callback);
             }
             SpecializedScorer::Other(mut scorer) => {
@@ -538,11 +538,11 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                 for_each_docset_buffered(&mut union_scorer, &mut buffer, callback);
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
-                let mut intersection = into_box_scorer(
-                    SpecializedScorer::TermIntersection(term_scorers),
-                    DoNothingCombiner::default,
-                    num_docs,
-                );
+                let boxed_scorers: Vec<Box<dyn Scorer>> = term_scorers
+                    .into_iter()
+                    .map(|term_scorer| Box::new(term_scorer) as Box<dyn Scorer>)
+                    .collect();
+                let mut intersection = intersect_scorers(boxed_scorers, num_docs);
                 for_each_docset_buffered(intersection.as_mut(), &mut buffer, callback);
             }
             SpecializedScorer::Other(mut scorer) => {
