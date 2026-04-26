@@ -1,6 +1,6 @@
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::{FreqReadingOption, Postings, SegmentPostings};
+use crate::postings::{BlockSegmentPostings, FreqReadingOption, Postings, SegmentPostings};
 use crate::query::bm25::Bm25Weight;
 use crate::query::{Explanation, Scorer};
 use crate::{DocId, Score};
@@ -94,6 +94,21 @@ impl TermScorer {
 
     pub fn last_doc_in_block(&self) -> DocId {
         self.postings.block_cursor.skip_reader().last_doc_in_block()
+    }
+
+    /// Returns a mutable reference to the underlying block cursor.
+    pub(crate) fn block_cursor(&mut self) -> &mut BlockSegmentPostings {
+        &mut self.postings.block_cursor
+    }
+
+    /// Returns a reference to the fieldnorm reader for batch lookups.
+    pub(crate) fn fieldnorm_reader(&self) -> &FieldNormReader {
+        &self.fieldnorm_reader
+    }
+
+    /// Returns a reference to the BM25 weight for batch score computation.
+    pub(crate) fn bm25_weight(&self) -> &Bm25Weight {
+        &self.similarity_weight
     }
 }
 
