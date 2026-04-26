@@ -1,7 +1,6 @@
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::query::term_query::TermScorer;
-use crate::query::weight::for_each_pruning_scorer;
-use crate::query::{Intersection, Scorer};
+use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
 /// Block-max pruning for top-K over intersection of term scorers.
@@ -16,7 +15,6 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 ///
 /// # Preconditions
 /// - `scorers` has at least 2 elements
-/// - `scorers` has less than 16 elements
 /// - All scorers read frequencies (`FreqReadingOption::ReadFreq`)
 pub(crate) fn block_wand_intersection(
     mut scorers: Vec<TermScorer>,
@@ -24,7 +22,6 @@ pub(crate) fn block_wand_intersection(
     callback: &mut dyn FnMut(DocId, Score) -> Score,
 ) {
     assert!(scorers.len() >= 2);
-    assert!(scorers.len() <= 16);
 
     // Sort by cost (ascending). scorers[0] becomes the "leader" (rarest term).
     scorers.sort_by_key(TermScorer::size_hint);
@@ -49,6 +46,11 @@ pub(crate) fn block_wand_intersection(
 
     let mut doc = leader.doc();
 
+    let mut secondary_block_max_scores: Box<[f32]> =
+        vec![0.0f32; secondaries.len()].into_boxed_slice();
+    let mut secondary_suffix_block_max: Box<[f32]> =
+        vec![0.0f32; secondaries.len()].into_boxed_slice();
+
     while doc < TERMINATED {
         // --- Phase 1: Block-level pruning ---
         //
@@ -64,7 +66,6 @@ pub(crate) fn block_wand_intersection(
         let mut window_end: DocId = leader.last_doc_in_block();
 
         let mut secondary_block_max_sum: Score = 0.0;
-        let mut secondary_block_max_scores = [0.0f32; 16];
         let num_secondaries = secondaries.len();
         for (idx, secondary) in secondaries.iter_mut().enumerate() {
             secondary.block_cursor().seek_block(doc);
@@ -75,18 +76,6 @@ pub(crate) fn block_wand_intersection(
             let bms = secondary.block_max_score();
             secondary_block_max_scores[idx] = bms;
             secondary_block_max_sum += bms;
-        }
-
-        // Precompute suffix sums: suffix[i] = sum of block_max for secondaries[i+1..].
-        // Used in Phase 2 to prune candidates that can't beat threshold even with
-        // remaining secondaries contributing their block_max.
-        let mut secondary_suffix_block_max = [0.0f32; 16];
-        {
-            let mut running = 0.0f32;
-            for idx in (0..num_secondaries).rev() {
-                secondary_suffix_block_max[idx] = running;
-                running += secondary_block_max_scores[idx];
-            }
         }
 
         if leader_block_max + secondary_block_max_sum <= threshold {
@@ -133,6 +122,20 @@ pub(crate) fn block_wand_intersection(
             candidate_doc_ids[num_candidates] = candidate_doc;
             candidate_scores[num_candidates] = leader_score;
             num_candidates += (leader_score > score_threshold) as usize;
+        }
+
+        // Precompute suffix sums: suffix[i] = sum of block_max for secondaries[i+1..].
+        // Used in Phase 2 to prune candidates that can't beat threshold even with
+        // remaining secondaries contributing their block_max.
+        if num_candidates == 0 {
+            doc = window_end + 1;
+            continue;
+        }
+
+        let mut running = 0.0f32;
+        for idx in (0..num_secondaries).rev() {
+            secondary_suffix_block_max[idx] = running;
+            running += secondary_block_max_scores[idx];
         }
 
         // Pass 2: Check intersection membership only for survivors.

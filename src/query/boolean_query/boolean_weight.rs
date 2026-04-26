@@ -574,12 +574,7 @@ impl<TScoreCombiner: ScoreCombiner + Sync> Weight for BooleanWeight<TScoreCombin
                 super::block_wand(term_scorers, threshold, callback);
             }
             SpecializedScorer::TermIntersection(term_scorers) => {
-                if term_scorers.len() >= 16 {
-                    let mut intersection = Intersection::new(term_scorers, reader.max_doc());
-                    for_each_pruning_scorer(&mut intersection, threshold, callback);
-                } else {
-                    super::block_wand_intersection(term_scorers, threshold, callback);
-                }
+                super::block_wand_intersection(term_scorers, threshold, callback);
             }
             SpecializedScorer::Other(mut scorer) => {
                 for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
