@@ -1436,3 +1436,44 @@ fn test_aggregation_on_json_object_mixed_numerical_segments() {
         )
     );
 }
+
+#[test]
+fn test_aggregation_field_validation_helper() {
+    // Test the standalone validation helper function for field validation
+    let index = get_test_index_2_segments(false).unwrap();
+    let reader = index.reader().unwrap();
+    let searcher = reader.searcher();
+    let segment_reader = searcher.segment_reader(0);
+
+    // Test with invalid field
+    let agg_req: Aggregations = serde_json::from_str(
+        r#"{
+        "avg_test": {
+            "avg": { "field": "nonexistent_field" }
+        }
+    }"#,
+    )
+    .unwrap();
+
+    let result = crate::aggregation::agg_req::validate_aggregation_fields(&agg_req, segment_reader);
+    assert!(result.is_err());
+    match result {
+        Err(crate::TantivyError::FieldNotFound(field_name)) => {
+            assert_eq!(field_name, "nonexistent_field");
+        }
+        _ => panic!("Expected FieldNotFound error, got: {:?}", result),
+    }
+
+    // Test with valid field
+    let agg_req: Aggregations = serde_json::from_str(
+        r#"{
+        "avg_test": {
+            "avg": { "field": "score" }
+        }
+    }"#,
+    )
+    .unwrap();
+
+    let result = crate::aggregation::agg_req::validate_aggregation_fields(&agg_req, segment_reader);
+    assert!(result.is_ok());
+}
