@@ -722,6 +722,7 @@ mod tests {
         });
         let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
         let res = exec_request(agg_req.clone(), &index).unwrap();
+        assert!(res["my_composite"].get("after_key").is_none());
         assert_eq!(
             res["my_composite"]["buckets"],
             json!([]),
