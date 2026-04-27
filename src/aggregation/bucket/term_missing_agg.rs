@@ -177,6 +177,17 @@ impl SegmentAggregationCollector for TermMissingAgg {
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // TODO: forward to `sub_agg` for nested order paths (`missing_agg>metric`).
+        None
+    }
 }
 
 #[cfg(test)]

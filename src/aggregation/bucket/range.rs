@@ -328,6 +328,17 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentRangeCollector<B> {
 
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // Range is a multi-bucket agg with no single value to extract.
+        None
+    }
 }
 /// Build a concrete `SegmentRangeCollector` with either a Vec- or HashMap-backed
 /// bucket storage, depending on the column type and aggregation level.
