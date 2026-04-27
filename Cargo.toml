@@ -209,3 +209,7 @@ harness = false
 [[bench]]
 name = "intersection_bench"
 harness = false
+
+[[bench]]
+name = "nested_terms_agg_bench"
+harness = false
