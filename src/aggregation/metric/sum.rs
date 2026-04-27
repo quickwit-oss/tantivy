@@ -64,6 +64,14 @@ impl IntermediateSum {
     /// Returns `None` when no values were collected (all documents had
     /// missing/NULL values for the field), matching the behavior of
     /// `IntermediateMin`, `IntermediateMax`, and `IntermediateAvg`.
+    ///
+    /// Note: this diverges from Elasticsearch, which returns `"value": 0`
+    /// for sum aggregations over empty / all-missing buckets (min/max/avg
+    /// return `null`). Returning `None` here lets SQL-style consumers
+    /// (e.g. ParadeDB, where `SUM` of no rows is `NULL`) distinguish
+    /// "nothing was summed" from "values summed to 0" via the existing
+    /// `SingleMetricResult { value: Option<f64> }` boundary, which on
+    /// `main` is an `Option` that is never `None` for sum.
     pub fn finalize(&self) -> Option<f64> {
         let stats = self.stats.finalize();
         if stats.count == 0 {
