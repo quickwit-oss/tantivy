@@ -352,19 +352,15 @@ pub(crate) fn build_segment_term_collector(
         )));
     }
 
-    // Validate sub aggregation exists when ordering by sub-aggregation.
-    {
-        if let OrderTarget::SubAggregation(sub_agg_name) = &terms_req_data.req.order.target {
-            let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
-
-            node.get_sub_agg(agg_name, &req_data.per_request)
-                .ok_or_else(|| {
-                    TantivyError::InvalidArgument(format!(
-                        "could not find aggregation with name {agg_name} in metric \
-                         sub_aggregations"
-                    ))
-                })?;
-        }
+    // Validate that the referenced sub-aggregation exists when ordering by one.
+    if let OrderTarget::SubAggregation(sub_agg_name) = &terms_req_data.req.order.target {
+        let (agg_name, _agg_property) = get_agg_name_and_property(sub_agg_name);
+        node.get_sub_agg(agg_name, &req_data.per_request)
+            .ok_or_else(|| {
+                TantivyError::InvalidArgument(format!(
+                    "could not find aggregation with name {agg_name} in metric sub_aggregations"
+                ))
+            })?;
     }
 
     // Build sub-aggregation blueprint if there are children.
@@ -887,6 +883,17 @@ impl<TermMap: TermAggregationMap, B: SubAggBuffer> SegmentAggregationCollector
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // Terms is a multi-bucket agg with no single value to extract.
+        None
+    }
 }
 
 /// Missing value are represented as a sentinel value in the column.
@@ -960,9 +967,6 @@ where
     ) -> crate::Result<IntermediateBucketResult> {
         let mut entries: Vec<(u64, Bucket)> = term_buckets.into_vec();
 
-        let order_by_sub_aggregation =
-            matches!(term_req.req.order.target, OrderTarget::SubAggregation(_));
-
         match &term_req.req.order.target {
             OrderTarget::Key => {
                 // We rely on the fact, that term ordinals match the order of the strings
@@ -974,10 +978,37 @@ where
                     entries.sort_unstable_by_key(|bucket| bucket.0);
                 }
             }
-            OrderTarget::SubAggregation(_name) => {
-                // don't sort and cut off since it's hard to make assumptions on the quality of the
-                // results when cutting off du to unknown nature of the sub_aggregation (possible
-                // to check).
+            OrderTarget::SubAggregation(sub_agg_path) => {
+                // Peek segment-level metric values, sort, then fall through to
+                // `cut_off_buckets`. Like Elasticsearch, we always cut off when ordering
+                // by a sub-agg: top-K results are approximate and may differ from the
+                // global ordering, especially for non-monotonic metrics like avg/min.
+                let coll = sub_agg_collector.as_deref().ok_or_else(|| {
+                    TantivyError::InvalidArgument(format!(
+                        "Could not find sub-aggregation collector for path {sub_agg_path}"
+                    ))
+                })?;
+                let (agg_name, agg_prop) = get_agg_name_and_property(sub_agg_path);
+                // Fetch values up-front; otherwise sort would re-compute per comparison
+                let mut keyed: Vec<(f64, (u64, Bucket))> = entries
+                    .into_iter()
+                    .map(|bucket| {
+                        let metric_value = coll
+                            .compute_metric_value(bucket.1.bucket_id, agg_name, agg_prop, agg_data)
+                            .unwrap_or(0.0);
+                        (metric_value, bucket)
+                    })
+                    .collect();
+                if term_req.req.order.order == Order::Desc {
+                    keyed.sort_unstable_by(|a, b| {
+                        b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                } else {
+                    keyed.sort_unstable_by(|a, b| {
+                        a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
+                entries = keyed.into_iter().map(|(_, e)| e).collect();
             }
             OrderTarget::Count => {
                 if term_req.req.order.order == Order::Desc {
@@ -988,11 +1019,8 @@ where
             }
         }
 
-        let (term_doc_count_before_cutoff, sum_other_doc_count) = if order_by_sub_aggregation {
-            (0, 0)
-        } else {
-            cut_off_buckets(&mut entries, term_req.req.segment_size as usize)
-        };
+        let (term_doc_count_before_cutoff, sum_other_doc_count) =
+            cut_off_buckets(&mut entries, term_req.req.segment_size as usize);
 
         let mut dict: FxHashMap<IntermediateKey, IntermediateTermBucketEntry> = Default::default();
         dict.reserve(entries.len());
@@ -1763,6 +1791,263 @@ mod tests {
 
         let res = exec_request(agg_req, &index);
         assert!(res.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_order_by_cardinality_desc_single_segment() -> crate::Result<()> {
+        terms_aggregation_order_by_cardinality_desc(true)
+    }
+    #[test]
+    fn terms_aggregation_order_by_cardinality_desc_multi_segment() -> crate::Result<()> {
+        terms_aggregation_order_by_cardinality_desc(false)
+    }
+    fn terms_aggregation_order_by_cardinality_desc(merge_segments: bool) -> crate::Result<()> {
+        // Distinct score values per bucket key: A→5, B→1, C→3.
+        // Order by cardinality desc must yield A, C, B.
+        let segment_and_terms = vec![vec![
+            (1.0, "A".to_string()),
+            (2.0, "A".to_string()),
+            (3.0, "A".to_string()),
+            (4.0, "A".to_string()),
+            (5.0, "A".to_string()),
+            (1.0, "B".to_string()),
+            (1.0, "B".to_string()),
+            (1.0, "B".to_string()),
+            (1.0, "C".to_string()),
+            (2.0, "C".to_string()),
+            (3.0, "C".to_string()),
+        ]];
+        let index = get_test_index_from_values_and_terms(merge_segments, &segment_and_terms)?;
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": { "cardinality": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][0]["card"]["value"], 5.0);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"][1]["card"]["value"], 3.0);
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "B");
+        assert_eq!(res["my_texts"]["buckets"][2]["card"]["value"], 1.0);
+
+        // Asc engages the segment-cutoff path too (monotonic-safe: discarded buckets had
+        // local card >= cutoff, so merged card >= cutoff and they cannot be globally smallest).
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "order": { "card": "asc" }
+                },
+                "aggs": {
+                    "card": { "cardinality": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "B");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "A");
+
+        // size=2 with desc engages the segment cutoff: must keep top-2 by cardinality (A, C),
+        // and `sum_other_doc_count` reflects the dropped B (3 docs).
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "size": 2,
+                    "order": { "card": "desc" }
+                },
+                "aggs": {
+                    "card": { "cardinality": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"].as_array().unwrap().len(), 2);
+
+        // size=2 with asc engages the segment cutoff: must keep bottom-2 by cardinality (B, C).
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "size": 2,
+                    "order": { "card": "asc" }
+                },
+                "aggs": {
+                    "card": { "cardinality": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "B");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"].as_array().unwrap().len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn terms_aggregation_order_by_sum_single_segment() -> crate::Result<()> {
+        terms_aggregation_order_by_sum(true)
+    }
+    #[test]
+    fn terms_aggregation_order_by_sum_multi_segment() -> crate::Result<()> {
+        terms_aggregation_order_by_sum(false)
+    }
+    fn terms_aggregation_order_by_sum(merge_segments: bool) -> crate::Result<()> {
+        // Per-bucket sums on the U64 `score` column (non-negative => sum is monotonic):
+        //   A → 1+2+3+4+5 = 15, B → 1+1+1 = 3, C → 1+2+3 = 6.
+        let segment_and_terms = vec![
+            vec![
+                (1.0, "A".to_string()),
+                (2.0, "A".to_string()),
+                (3.0, "A".to_string()),
+                (1.0, "B".to_string()),
+                (1.0, "C".to_string()),
+            ],
+            vec![
+                (4.0, "A".to_string()),
+                (5.0, "A".to_string()),
+                (1.0, "B".to_string()),
+                (1.0, "B".to_string()),
+                (2.0, "C".to_string()),
+                (3.0, "C".to_string()),
+            ],
+        ];
+        let index = get_test_index_from_values_and_terms(merge_segments, &segment_and_terms)?;
+
+        // Desc on a Sum metric engages the fast path (column is U64).
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "order": { "total": "desc" }
+                },
+                "aggs": {
+                    "total": { "sum": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][0]["total"]["value"], 15.0);
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"][1]["total"]["value"], 6.0);
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "B");
+        assert_eq!(res["my_texts"]["buckets"][2]["total"]["value"], 3.0);
+
+        // Asc engages the fast path too — discarded buckets had local sum >= cutoff,
+        // and merged sum >= local (non-negative addends), so they cannot be globally smallest.
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "order": { "total": "asc" }
+                },
+                "aggs": {
+                    "total": { "sum": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "B");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "A");
+
+        // size=2 desc with cutoff: top-2 by sum (A, C).
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "size": 2,
+                    "order": { "total": "desc" }
+                },
+                "aggs": {
+                    "total": { "sum": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"].as_array().unwrap().len(), 2);
+
+        // Stats sub-property: ordering by `mystats.sum` on a U64 column also engages.
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "order": { "mystats.sum": "desc" }
+                },
+                "aggs": {
+                    "mystats": { "stats": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "B");
+
+        // Sum on a signed column (I64) takes the same cutoff path. Results may be
+        // approximate near the boundary on adversarial data, but for this dataset the
+        // top-K is unambiguous.
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "order": { "total": "desc" }
+                },
+                "aggs": {
+                    "total": { "sum": { "field": "score_i64" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "B");
+
+        // Order by extended_stats sub-property exercises compute_metric_value on the
+        // ExtendedStats collector. A→max=5, B→max=1, C→max=3, so desc by max → A, C, B.
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "my_texts": {
+                "terms": {
+                    "field": "string_id",
+                    "order": { "ext.max": "desc" }
+                },
+                "aggs": {
+                    "ext": { "extended_stats": { "field": "score" } }
+                }
+            }
+        }))
+        .unwrap();
+        let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["my_texts"]["buckets"][0]["key"], "A");
+        assert_eq!(res["my_texts"]["buckets"][1]["key"], "C");
+        assert_eq!(res["my_texts"]["buckets"][2]["key"], "B");
 
         Ok(())
     }

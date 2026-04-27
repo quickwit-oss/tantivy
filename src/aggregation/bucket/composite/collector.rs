@@ -199,6 +199,17 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // Composite is a multi-bucket agg with no single value to extract.
+        None
+    }
 }
 
 impl SegmentCompositeCollector {

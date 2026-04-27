@@ -674,6 +674,17 @@ impl<B: SubAggBuffer> SegmentAggregationCollector for SegmentFilterCollector<B> 
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        _bucket_id: BucketId,
+        _sub_agg_name: &str,
+        _sub_agg_property: &str,
+        _agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        // TODO: forward into the inner `sub_agg` for nested order paths (`filter.metric`).
+        None
+    }
 }
 
 /// Intermediate result for filter aggregation

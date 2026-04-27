@@ -445,6 +445,28 @@ impl SegmentAggregationCollector for SegmentCardinalityCollector {
         }
         Ok(())
     }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        let req_data = &agg_data.get_cardinality_req_data(self.accessor_idx);
+        if req_data.name != sub_agg_name || !sub_agg_property.is_empty() {
+            return None;
+        }
+        let bucket = self.buckets.get(bucket_id as usize)?.as_ref()?;
+        // For string columns the HLL sketch is empty until materialization; entries holds
+        // the deduplicated term ordinals seen, which is the exact distinct count.
+        // For numeric columns the sketch is populated during collect.
+        if self.column_type == ColumnType::Str {
+            Some(bucket.entries.len() as f64)
+        } else {
+            Some(bucket.cardinality.sketch.estimate().trunc())
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

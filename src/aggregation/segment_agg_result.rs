@@ -76,6 +76,31 @@ pub trait SegmentAggregationCollector: Debug {
     fn flush(&mut self, _agg_data: &mut AggregationsSegmentCtx) -> crate::Result<()> {
         Ok(())
     }
+
+    /// Compute the segment-level metric value of the named direct-child metric for `bucket_id`.
+    ///
+    /// Used by parent term aggs that order by a sub-aggregation: the parent sorts on
+    /// this value and cuts off at segment time, matching the approximation tradeoff
+    /// Elasticsearch makes for any sub-agg ordering.
+    ///
+    /// `sub_agg_property` is the dotted suffix (e.g. `"sum"` in `mystats.sum`); empty when
+    /// the metric is a single-value kind such as cardinality.
+    ///
+    /// Returns `None` only on name mismatch, unknown property, or empty bucket. Implementations
+    /// may finalize their per-bucket state (e.g. compute a percentile from a sketch); calls
+    /// must be idempotent so the final intermediate result is unaffected.
+    ///
+    /// No default impl on purpose: every collector must decide explicitly whether it
+    /// produces a metric value, forwards into children (single-bucket aggs), or rejects
+    /// the lookup. A silent `None` default would let a parent term agg's cutoff sort all
+    /// buckets to the same key and drop arbitrary winners.
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64>;
 }
 
 #[derive(Default)]
@@ -136,5 +161,22 @@ impl SegmentAggregationCollector for GenericSegmentAggregationResultsCollector {
             collector.prepare_max_bucket(max_bucket, agg_data)?;
         }
         Ok(())
+    }
+
+    fn compute_metric_value(
+        &self,
+        bucket_id: BucketId,
+        sub_agg_name: &str,
+        sub_agg_property: &str,
+        agg_data: &AggregationsSegmentCtx,
+    ) -> Option<f64> {
+        for agg in &self.aggs {
+            if let Some(value) =
+                agg.compute_metric_value(bucket_id, sub_agg_name, sub_agg_property, agg_data)
+            {
+                return Some(value);
+            }
+        }
+        None
     }
 }
