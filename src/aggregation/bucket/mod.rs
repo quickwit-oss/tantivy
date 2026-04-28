@@ -28,6 +28,7 @@ mod histogram;
 mod range;
 mod term_agg;
 mod term_missing_agg;
+mod term_ord_to_str_cache;
 
 use std::collections::HashMap;
 use std::fmt;
