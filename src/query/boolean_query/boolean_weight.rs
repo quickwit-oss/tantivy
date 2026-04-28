@@ -50,10 +50,6 @@ where
     TScoreCombiner: ScoreCombiner,
 {
     assert!(!scorers.is_empty());
-    if scorers.len() == 1 {
-        return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehand
-    }
-
     {
         let is_all_term_queries = scorers.iter().all(|scorer| scorer.is::<TermScorer>());
         if is_all_term_queries {
