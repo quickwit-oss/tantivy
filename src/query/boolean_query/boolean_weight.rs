@@ -9,8 +9,8 @@ use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
 use crate::query::{
-    intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation,
-    Occur, RequiredOptionalScorer, Scorer, Weight,
+    intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation, Occur,
+    RequiredOptionalScorer, Scorer, Weight,
 };
 use crate::{DocId, Score};
 
