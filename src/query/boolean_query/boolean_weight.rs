@@ -10,7 +10,7 @@ use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_docset_buffered, for_each_pruning_scorer, for_each_scorer};
 use crate::query::{
     intersect_scorers, AllScorer, BufferedUnionScorer, EmptyScorer, Exclude, Explanation,
-    Intersection, Occur, RequiredOptionalScorer, Scorer, Weight,
+    Occur, RequiredOptionalScorer, Scorer, Weight,
 };
 use crate::{DocId, Score};
 
@@ -50,6 +50,9 @@ where
     TScoreCombiner: ScoreCombiner,
 {
     assert!(!scorers.is_empty());
+    if scorers.len() == 1 && !scorers[0].is::<TermScorer>() {
+        return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehand
+    }
     {
         let is_all_term_queries = scorers.iter().all(|scorer| scorer.is::<TermScorer>());
         if is_all_term_queries {
@@ -63,6 +66,9 @@ where
             {
                 // Block wand is only available if we read frequencies.
                 return SpecializedScorer::TermUnion(scorers);
+            } else if scorers.len() == 1 {
+                // Single TermScorer without freq reading — unwrap directly.
+                return SpecializedScorer::Other(Box::new(scorers.into_iter().next().unwrap()));
             } else {
                 return SpecializedScorer::Other(Box::new(BufferedUnionScorer::build(
                     scorers,
