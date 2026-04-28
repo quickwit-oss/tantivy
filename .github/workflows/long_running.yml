@@ -8,6 +8,9 @@ env:
   CARGO_TERM_COLOR: always
   NUM_FUNCTIONAL_TEST_ITERATIONS: 20000
 
+permissions:
+  contents: read
+
 # Ensures that we cancel running jobs for the same PR / same workflow.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,10 +21,13 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Install stable
-      uses: actions-rs/toolchain@v1
+      uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
       with:
           toolchain: stable
           profile: minimal
