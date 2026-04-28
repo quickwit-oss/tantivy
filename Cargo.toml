@@ -56,6 +56,7 @@ itertools = "0.14.0"
 measure_time = "0.9.0"
 arc-swap = "1.5.0"
 bon = "3.3.1"
+i_triangle = "0.38.0"
 
 columnar = { version = "0.7", path = "./columnar", package = "tantivy-columnar" }
 sstable = { version = "0.7", path = "./sstable", package = "tantivy-sstable", optional = true }
@@ -69,6 +70,10 @@ datasketches = { git = "https://github.com/fulmicoton-dd/datasketches-rust", rev
 futures-util = { version = "0.3.28", optional = true }
 futures-channel = { version = "0.3.28", optional = true }
 fnv = "1.0.7"
+num-bigint = "0.4"
+num-rational = "0.4"
+num-traits = "0.2"
+robust = "1"
 typetag = "0.2.21"
 
 [target.'cfg(windows)'.dependencies]

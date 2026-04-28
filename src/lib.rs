@@ -169,10 +169,8 @@ mod macros;
 mod future_result;
 
 // Re-exports
-pub use columnar;
 pub use common::{ByteCount, DateTime};
-pub use query_grammar;
-pub use time;
+pub use {columnar, query_grammar, time};
 
 pub use crate::error::TantivyError;
 pub use crate::future_result::FutureResult;
@@ -197,6 +195,7 @@ pub mod fieldnorm;
 pub mod index;
 pub mod positions;
 pub mod postings;
+pub mod spatial;
 
 /// Module containing the different query implementations.
 pub mod query;

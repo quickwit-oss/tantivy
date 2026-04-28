@@ -118,6 +118,8 @@ impl SegmentMeta {
             SegmentComponent::FastFields => ".fast".to_string(),
             SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
             SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+            SegmentComponent::SpatialCells => ".cells".to_string(),
+            SegmentComponent::SpatialEdges => ".edges".to_string(),
         });
         PathBuf::from(path)
     }

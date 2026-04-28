@@ -2,6 +2,7 @@ use std::fmt;
 use std::ops::Bound;
 use std::sync::Arc;
 
+use query_grammar::SpatialPredicateKind;
 use tantivy_fst::Regex;
 
 use crate::query::Occur;
@@ -27,6 +28,12 @@ pub enum LogicalLiteral {
     Regex {
         pattern: Arc<Regex>,
         field: Field,
+    },
+    Spatial {
+        field: Field,
+        predicate: SpatialPredicateKind,
+        coordinates: Vec<[f64; 2]>,
+        inner_query: Option<String>,
     },
 }
 
@@ -159,6 +166,22 @@ impl fmt::Debug for LogicalLiteral {
                 ref pattern,
                 ref field,
             } => write!(formatter, "Regex({field:?}, {pattern:?})"),
+            LogicalLiteral::Spatial {
+                ref field,
+                ref predicate,
+                ref coordinates,
+                ref inner_query,
+            } => {
+                if let Some(q) = inner_query {
+                    write!(formatter, "Spatial({field:?}, {predicate:?}, $query({q}))")
+                } else {
+                    write!(
+                        formatter,
+                        "Spatial({field:?}, {predicate:?}, {} coords)",
+                        coordinates.len()
+                    )
+                }
+            }
         }
     }
 }

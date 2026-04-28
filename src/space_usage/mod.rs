@@ -70,6 +70,7 @@ pub struct SegmentSpaceUsage {
     positions: PerFieldSpaceUsage,
     fast_fields: PerFieldSpaceUsage,
     fieldnorms: PerFieldSpaceUsage,
+    spatial: PerFieldSpaceUsage,
 
     store: StoreSpaceUsage,
 
@@ -87,6 +88,7 @@ impl SegmentSpaceUsage {
         positions: PerFieldSpaceUsage,
         fast_fields: PerFieldSpaceUsage,
         fieldnorms: PerFieldSpaceUsage,
+        spatial: PerFieldSpaceUsage,
         store: StoreSpaceUsage,
         deletes: ByteCount,
     ) -> SegmentSpaceUsage {
@@ -95,6 +97,7 @@ impl SegmentSpaceUsage {
             + positions.total()
             + fast_fields.total()
             + fieldnorms.total()
+            + spatial.total()
             + store.total()
             + deletes;
         SegmentSpaceUsage {
@@ -104,6 +107,7 @@ impl SegmentSpaceUsage {
             positions,
             fast_fields,
             fieldnorms,
+            spatial,
             store,
             deletes,
             total,
@@ -122,6 +126,8 @@ impl SegmentSpaceUsage {
             Positions => PerField(self.positions().clone()),
             FastFields => PerField(self.fast_fields().clone()),
             FieldNorms => PerField(self.fieldnorms().clone()),
+            SpatialCells => PerField(self.spatial().clone()),
+            SpatialEdges => PerField(self.spatial().clone()),
             Terms => PerField(self.termdict().clone()),
             SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
             Delete => Basic(self.deletes()),
@@ -156,6 +162,11 @@ impl SegmentSpaceUsage {
     /// Space usage for field norms
     pub fn fieldnorms(&self) -> &PerFieldSpaceUsage {
         &self.fieldnorms
+    }
+
+    /// Space usage for field norms
+    pub fn spatial(&self) -> &PerFieldSpaceUsage {
+        &self.spatial
     }
 
     /// Space usage for stored documents
