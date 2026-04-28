@@ -146,6 +146,11 @@ impl SkipReader {
         skip_reader
     }
 
+    #[inline(always)]
+    pub fn has_remaining_docs(&self) -> bool {
+        self.remaining_docs != 0
+    }
+
     pub fn reset(&mut self, data: OwnedBytes, doc_freq: u32) {
         self.last_doc_in_block = if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
             0

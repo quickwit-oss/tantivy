@@ -1004,24 +1004,20 @@ impl IntermediateCompositeBucketResult {
     ) -> crate::Result<BucketResult> {
         let trimmed_entry_vec =
             trim_composite_buckets(self.entries, &self.orders, self.target_size)?;
-        let after_key = if trimmed_entry_vec.len() == req.size as usize {
-            trimmed_entry_vec
-                .last()
-                .map(|bucket| {
-                    let (intermediate_key, _entry) = bucket;
-                    intermediate_key
-                        .iter()
-                        .enumerate()
-                        .map(|(idx, intermediate_key)| {
-                            let source = &req.sources[idx];
-                            (source.name().to_string(), intermediate_key.clone().into())
-                        })
-                        .collect()
-                })
-                .unwrap()
-        } else {
-            FxHashMap::default()
-        };
+        let after_key = trimmed_entry_vec
+            .last()
+            .map(|bucket| {
+                let (intermediate_key, _entry) = bucket;
+                intermediate_key
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, intermediate_key)| {
+                        let source = &req.sources[idx];
+                        (source.name().to_string(), intermediate_key.clone().into())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let buckets = trimmed_entry_vec
             .into_iter()

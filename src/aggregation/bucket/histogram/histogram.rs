@@ -283,6 +283,11 @@ impl SegmentHistogramBucketEntry {
 struct HistogramBuckets {
     pub buckets: FxHashMap<i64, SegmentHistogramBucketEntry>,
 }
+impl HistogramBuckets {
+    fn memory_consumption(&self) -> u64 {
+        self.buckets.capacity() as u64 * std::mem::size_of::<SegmentHistogramBucketEntry>() as u64
+    }
+}
 
 /// The collector puts values from the fast field into the correct buckets and does a conversion to
 /// the correct datatype.
@@ -324,7 +329,7 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let req = agg_data.take_histogram_req_data(self.accessor_idx);
-        let mem_pre = self.get_memory_consumption();
+        let mem_pre = self.get_memory_consumption(parent_bucket_id);
         let buckets = &mut self.parent_buckets[parent_bucket_id as usize].buckets;
 
         let bounds = req.bounds;
@@ -358,12 +363,9 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
         }
         agg_data.put_back_histogram_req_data(self.accessor_idx, req);
 
-        let mem_delta = self.get_memory_consumption() - mem_pre;
+        let mem_delta = self.get_memory_consumption(parent_bucket_id) - mem_pre;
         if mem_delta > 0 {
-            agg_data
-                .context
-                .limits
-                .add_memory_consumed(mem_delta as u64)?;
+            agg_data.context.limits.add_memory_consumed(mem_delta)?;
         }
 
         if let Some(sub_agg) = &mut self.sub_agg {
@@ -395,11 +397,10 @@ impl SegmentAggregationCollector for SegmentHistogramCollector {
 }
 
 impl SegmentHistogramCollector {
-    fn get_memory_consumption(&self) -> usize {
-        let self_mem = std::mem::size_of::<Self>();
-        let buckets_mem = self.parent_buckets.len() * std::mem::size_of::<HistogramBuckets>();
-        self_mem + buckets_mem
+    fn get_memory_consumption(&self, parent_bucket_id: BucketId) -> u64 {
+        self.parent_buckets[parent_bucket_id as usize].memory_consumption()
     }
+
     /// Converts the collector result into a intermediate bucket result.
     fn add_intermediate_bucket_result(
         &mut self,

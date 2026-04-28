@@ -559,34 +559,30 @@ mod tests {
                     page_size,
                     agg_req,
                 );
-                if page_idx + 1 < page_count {
-                    assert!(
-                        res["my_composite"].get("after_key").is_some(),
-                        "expected after_key on all but last page"
-                    );
-                    after_key = Some(res["my_composite"]["after_key"].clone());
-                } else if res["my_composite"].get("after_key").is_some() {
-                    // currently we sometime have an after_key on the last page,
-                    // check that the next "page" is empty
-                    let agg_req_json = json!({
-                        "my_composite": {
-                            "composite": {
-                                "sources": composite_agg_sources,
-                                "size": page_size,
-                                "after": res["my_composite"]["after_key"].clone(),
-                            }
-                        }
-                    });
-                    let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
-                    let res = exec_request(agg_req.clone(), index).unwrap();
-                    assert_eq!(
-                        res["my_composite"]["buckets"],
-                        json!([]),
-                        "expected no buckets when using after_key from last page, query: {:?}",
-                        agg_req
-                    );
-                }
+                assert!(
+                    res["my_composite"].get("after_key").is_some(),
+                    "expected after_key on every non-empty page"
+                );
+                after_key = Some(res["my_composite"]["after_key"].clone());
             }
+            // Using the after_key from the last page must yield an empty page.
+            let agg_req_json = json!({
+                "my_composite": {
+                    "composite": {
+                        "sources": composite_agg_sources,
+                        "size": page_size,
+                        "after": after_key,
+                    }
+                }
+            });
+            let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
+            let res = exec_request(agg_req.clone(), index).unwrap();
+            assert_eq!(
+                res["my_composite"]["buckets"],
+                json!([]),
+                "expected no buckets when using after_key from last page, query: {:?}",
+                agg_req
+            );
         }
     }
 
@@ -711,8 +707,28 @@ mod tests {
                 {"key": {"myterm": "terme"}, "doc_count": 1}
             ])
         );
-        assert!(res["my_composite"].get("after_key").is_none());
 
+        // paginating past last page should be empty
+        let agg_req_json = json!({
+            "my_composite": {
+                "composite": {
+                    "sources": [
+                        {"myterm": {"terms": {"field": "string_id"}}}
+                    ],
+                    "size": 3,
+                    "after":  &res["my_composite"]["after_key"]
+                }
+            }
+        });
+        let agg_req: Aggregations = serde_json::from_value(agg_req_json).unwrap();
+        let res = exec_request(agg_req.clone(), &index).unwrap();
+        assert!(res["my_composite"].get("after_key").is_none());
+        assert_eq!(
+            res["my_composite"]["buckets"],
+            json!([]),
+            "expected no buckets when using after_key from last page, query: {:?}",
+            agg_req
+        );
         Ok(())
     }
 
@@ -820,7 +836,10 @@ mod tests {
                 {"key": {"myterm": "apple"}, "doc_count": 1}
             ])
         );
-        assert!(res["fruity_aggreg"].get("after_key").is_none());
+        assert_eq!(
+            res["fruity_aggreg"]["after_key"],
+            json!({"myterm": "str:apple"})
+        );
 
         Ok(())
     }
@@ -1792,7 +1811,14 @@ mod tests {
                 {"key": {"month": ms_timestamp_from_iso_str("2021-02-01T00:00:00Z"), "category": "books"}, "doc_count": 1},
             ]),
         );
-        assert!(res["my_composite"].get("after_key").is_none());
+        let feb_2021_ns = ms_timestamp_from_iso_str("2021-02-01T00:00:00Z") * 1_000_000;
+        assert_eq!(
+            res["my_composite"]["after_key"],
+            json!({
+                "month": format!("dt:{}", feb_2021_ns),
+                "category": "str:books"
+            })
+        );
 
         Ok(())
     }

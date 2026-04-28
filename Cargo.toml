@@ -75,7 +75,7 @@ typetag = "0.2.21"
 winapi = "0.3.9"
 
 [dev-dependencies]
-binggan = "0.15.3"
+binggan = "0.16.1"
 rand = "0.9"
 maplit = "1.0.2"
 matches = "0.1.9"
@@ -92,7 +92,7 @@ postcard = { version = "1.0.4", features = [
 ], default-features = false }
 
 [target.'cfg(not(windows))'.dev-dependencies]
-criterion = { version = "0.5", default-features = false }
+criterion = { version = "0.8", default-features = false }
 
 [dev-dependencies.fail]
 version = "0.5.0"
@@ -200,4 +200,12 @@ harness = false
 
 [[bench]]
 name = "regex_all_terms"
+harness = false
+
+[[bench]]
+name = "query_parser_nested"
+harness = false
+
+[[bench]]
+name = "intersection_bench"
 harness = false
