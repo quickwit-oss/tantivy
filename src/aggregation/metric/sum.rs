@@ -59,8 +59,62 @@ impl IntermediateSum {
     pub fn merge_fruits(&mut self, other: IntermediateSum) {
         self.stats.merge_fruits(other.stats);
     }
-    /// Computes the final minimum value.
+    /// Computes the final sum value.
+    ///
+    /// Returns `None` when no values were collected (all documents had
+    /// missing/NULL values for the field), matching the behavior of
+    /// `IntermediateMin`, `IntermediateMax`, and `IntermediateAvg`.
+    ///
+    /// Note: this diverges from Elasticsearch, which returns `"value": 0`
+    /// for sum aggregations over empty / all-missing buckets (min/max/avg
+    /// return `null`). Returning `None` here lets SQL-style consumers
+    /// (e.g. ParadeDB, where `SUM` of no rows is `NULL`) distinguish
+    /// "nothing was summed" from "values summed to 0" via the existing
+    /// `SingleMetricResult { value: Option<f64> }` boundary, which on
+    /// `main` is an `Option` that is never `None` for sum.
     pub fn finalize(&self) -> Option<f64> {
-        Some(self.stats.finalize().sum)
+        let stats = self.stats.finalize();
+        if stats.count == 0 {
+            None
+        } else {
+            Some(stats.sum)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sum_finalize_returns_none_when_no_values() {
+        // Default IntermediateSum has count=0 — finalize should return None,
+        // matching MIN/MAX/AVG behavior for all-NULL groups.
+        let sum = IntermediateSum::default();
+        assert_eq!(sum.finalize(), None);
+    }
+
+    #[test]
+    fn test_sum_finalize_returns_value_when_has_values() {
+        let mut sum = IntermediateSum::default();
+        // Merge in a result that has actual values
+        let stats = IntermediateStats {
+            count: 3,
+            sum: 42.0,
+            min: 10.0,
+            max: 20.0,
+            ..Default::default()
+        };
+        let other = IntermediateSum::from_stats(stats);
+        sum.merge_fruits(other);
+        assert_eq!(sum.finalize(), Some(42.0));
+    }
+
+    #[test]
+    fn test_sum_merge_two_empty_still_none() {
+        let mut a = IntermediateSum::default();
+        let b = IntermediateSum::default();
+        a.merge_fruits(b);
+        assert_eq!(a.finalize(), None);
     }
 }
