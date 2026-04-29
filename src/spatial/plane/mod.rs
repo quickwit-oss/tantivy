@@ -3,6 +3,8 @@
 pub mod crosser;
 pub mod math;
 
+use crate::spatial::s2cell_id::S2CellId;
+use crate::spatial::s2coords::st_to_ij;
 use crate::spatial::surface::Surface;
 
 /// Implementation of a planar surface.
@@ -15,7 +17,7 @@ impl Surface for Plane {
     type EdgeCrosser = crosser::PlaneEdgeCrosser;
 
     fn project(lon: f64, lat: f64) -> [f64; 2] {
-        [lon, lat]
+        [lon / 180.0, lat / 90.0]
     }
 
     fn hilbert_start() -> Self::Point {
@@ -81,6 +83,13 @@ impl Surface for Plane {
     #[inline]
     fn st_to_uv(s: f64) -> f64 {
         2.0 * s - 1.0
+    }
+
+    #[inline]
+    fn cell_id_from_point(point: &Self::Point) -> S2CellId {
+        let i = st_to_ij(Self::uv_to_st(point[0]));
+        let j = st_to_ij(Self::uv_to_st(point[1]));
+        S2CellId::from_face_ij(0, i, j)
     }
 
     #[inline]

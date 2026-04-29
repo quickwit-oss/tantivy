@@ -16,6 +16,7 @@ use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell_id::S2CellId;
 use super::shape_index_region::{index_contains_point, CellIndexRegion};
 use super::sphere::Sphere;
+use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::shape_index::ShapeIndex;
@@ -85,7 +86,7 @@ impl IntersectsQuery {
         // with contains_center and no edges in the query point cell fully contains the
         // query point. Include these before the covering walk.
         let query_vertex = &self.query_edges.get_edge_set((0, 0)).vertices[0];
-        let query_point_cell_id = S2CellId::from_point(query_vertex);
+        let query_point_cell_id = Sphere::cell_id_from_point(query_vertex);
         if let Some(qpc) = reader.find(query_point_cell_id) {
             for shape in &qpc.shapes {
                 let gid = shape.geometry_id.1;

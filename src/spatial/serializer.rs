@@ -64,6 +64,21 @@ impl SpatialSerializer {
         Ok(())
     }
 
+    /// Get the cells and edges writers for a field.
+    pub fn for_field(
+        &mut self,
+        field: Field,
+    ) -> (
+        &mut common::CountingWriter<WritePtr>,
+        &mut common::CountingWriter<WritePtr>,
+    ) {
+        let cells = self.cells_write.for_field(field);
+        // We need both at once but CompositeWrite borrows mutably. Split the borrows.
+        // This is safe because cells_write and edges_write are separate files.
+        let edges = self.edges_write.for_field(field);
+        (cells, edges)
+    }
+
     /// Split into the two underlying CompositeWrites for direct access. Used by the merger.
     pub fn into_composite_writes(self) -> (CompositeWrite, CompositeWrite) {
         (self.cells_write, self.edges_write)

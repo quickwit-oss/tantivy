@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::sync::Arc;
 
 use columnar::{
@@ -18,11 +17,7 @@ use crate::indexer::doc_id_mapping::{MappingType, SegmentDocIdMapping};
 use crate::indexer::SegmentSerializer;
 use crate::postings::{InvertedIndexSerializer, Postings, SegmentPostings};
 use crate::schema::{value_type_to_column_type, Field, FieldType, Schema};
-use crate::spatial::cell_index_reader::CellIndexReader;
-use crate::spatial::edge_cache::EdgeCache;
-use crate::spatial::edge_reader::EdgeReader;
-use crate::spatial::edge_writer::EdgeWriter;
-use crate::spatial::sphere::Sphere;
+use crate::spatial::spatial_index_manager::{MergeSource, SpatialIndexManager};
 use crate::store::StoreWriter;
 use crate::termdict::{TermMerger, TermOrdinal};
 use crate::{DocAddress, DocId, InvertedIndexReader};
@@ -86,6 +81,7 @@ pub struct IndexMerger {
     schema: Schema,
     pub(crate) readers: Vec<SegmentReader>,
     max_doc: u32,
+    spatial_manager: SpatialIndexManager,
 }
 
 struct DeltaComputer {
@@ -173,6 +169,10 @@ impl IndexMerger {
         segments: &[Segment],
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
     ) -> crate::Result<IndexMerger> {
+        let spatial_manager = segments
+            .first()
+            .map(|s| s.index().spatial_indices().clone())
+            .unwrap_or_default();
         let mut readers = vec![];
         for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt) {
             if segment.meta().num_docs() > 0 {
@@ -195,6 +195,7 @@ impl IndexMerger {
             schema,
             readers,
             max_doc,
+            spatial_manager,
         })
     }
 
@@ -547,144 +548,63 @@ impl IndexMerger {
         }
 
         for (field, field_entry) in self.schema.fields() {
-            if !matches!(field_entry.field_type(), FieldType::Spatial(_)) {
-                continue;
-            }
+            let spatial_opts = match field_entry.field_type() {
+                FieldType::Spatial(opts) => opts,
+                _ => continue,
+            };
 
-            // Collect spatial readers so they live long enough for the readers they produce.
+            let spatial_index = self
+                .spatial_manager
+                .get(spatial_opts.spatial_index_name())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "spatial index '{}' not registered",
+                        spatial_opts.spatial_index_name()
+                    )
+                });
+
+            // Collect spatial readers so they live long enough for the byte slices.
             let mut spatial_readers = Vec::new();
             for reader in &self.readers {
                 spatial_readers.push(reader.spatial_fields().get_field(field)?);
             }
 
-            // Open source cell index readers and edge readers.
-            let mut cell_readers: Vec<CellIndexReader> = Vec::new();
-            let mut edge_readers: Vec<EdgeReader<'_, Sphere>> = Vec::new();
-            let mut geometry_counts: Vec<u32> = Vec::new();
-
-            for sr in &spatial_readers {
-                if let Some(spatial_reader) = sr {
-                    let cr = CellIndexReader::open(spatial_reader.cells_bytes());
-                    let er = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
-                    geometry_counts.push(er.geometry_count());
-                    cell_readers.push(cr);
-                    edge_readers.push(er);
-                } else {
-                    geometry_counts.push(0);
-                    cell_readers.push(CellIndexReader::open(&[]));
-                    edge_readers.push(EdgeReader::<Sphere>::open(&[]));
-                }
-            }
-
-            let edge_cache = EdgeCache::new(edge_readers, 2_000_000_000);
-            let iters = cell_readers.iter().map(|cr| cr.iter()).collect();
-            let segment_names: Vec<String> = self
-                .readers
+            let sources: Vec<MergeSource> = spatial_readers
                 .iter()
-                .map(|r| r.segment_id().uuid_string())
+                .enumerate()
+                .map(|(i, sr)| {
+                    let (cells, edges) = match sr {
+                        Some(r) => (r.cells_bytes(), r.edges_bytes()),
+                        None => (&[][..], &[][..]),
+                    };
+                    MergeSource {
+                        cells_bytes: cells,
+                        edges_bytes: edges,
+                        segment_name: self.readers[i].segment_id().uuid_string(),
+                    }
+                })
                 .collect();
-            let mut interleave = crate::spatial::interleaver::Interleaver::new(
-                iters,
-                &edge_cache,
-                &doc_id_mapping.alive_bitsets,
-                segment_names,
-            );
 
-            const NOT_ASSIGNED: u32 = u32::MAX;
-            let mut old_to_new: Vec<Vec<u32>> = geometry_counts
-                .iter()
-                .map(|&count| vec![NOT_ASSIGNED; count as usize])
-                .collect();
-            let mut next_new_id: u32 = 0;
+            let cells_out = cells_composite.for_field(field);
+            let edges_out = edges_composite.for_field(field);
 
             let merge_start = std::time::Instant::now();
-            let total_source_geometries: u32 = geometry_counts.iter().sum();
 
-            let edges_out = edges_composite.for_field(field);
-            let mut edge_writer = EdgeWriter::<Sphere>::new(edges_out, 16);
-            let cells_out = cells_composite.for_field(field);
-            let cells_base = cells_out.written_bytes();
-            let mut offsets: Vec<(u64, u64)> = Vec::new();
-            let mut cell_count: u64 = 0;
-
-            while let Some(cell) = interleave.next() {
-                cell_count += 1;
-                for shape in &cell.shapes {
-                    let segment = shape.geometry_id.0 as usize;
-                    let position = shape.geometry_id.1 as usize;
-                    if old_to_new[segment][position] != NOT_ASSIGNED {
-                        continue;
-                    }
-                    let entry = edge_cache.get(shape.geometry_id);
-                    let set_size = entry.member_count();
-                    for i in 0..set_size {
-                        let pos = (entry.head() + i) as usize;
-                        if old_to_new[segment][pos] == NOT_ASSIGNED {
-                            old_to_new[segment][pos] = next_new_id;
-                            next_new_id += 1;
-                        }
-                    }
-                    let old_doc_id = entry.doc_id();
-                    let new_doc_id = doc_id_inverse[segment][old_doc_id as usize].unwrap();
-                    let mut set = entry.geometry_set().clone();
-                    set.doc_id = new_doc_id as u32;
-                    edge_writer.insert(&set);
-                }
-
-                let offset = cells_out.written_bytes() - cells_base;
-                cells_out.write_all(&cell.cell_id.0.to_le_bytes()).unwrap();
-                cells_out
-                    .write_all(&(cell.shapes.len() as u32).to_le_bytes())
-                    .unwrap();
-                for shape in &cell.shapes {
-                    let segment = shape.geometry_id.0 as usize;
-                    let position = shape.geometry_id.1 as usize;
-                    let new_id = old_to_new[segment][position];
-                    assert_ne!(new_id, NOT_ASSIGNED);
-                    cells_out.write_all(&new_id.to_le_bytes()).unwrap();
-                    cells_out.write_all(&[shape.contains_center as u8]).unwrap();
-                    cells_out
-                        .write_all(&(shape.edge_indices.len() as u32).to_le_bytes())
-                        .unwrap();
-                    for &edge_id in &shape.edge_indices {
-                        cells_out.write_all(&edge_id.to_le_bytes()).unwrap();
-                    }
-                }
-                offsets.push((cell.cell_id.0, offset));
-            }
-
-            assert_eq!(
-                next_new_id,
-                edge_writer.geometry_count(),
-                "geometry accounting divergence: next_new_id={} but edge_writer.geometry_count={}",
-                next_new_id,
-                edge_writer.geometry_count(),
-            );
-            edge_writer.finish();
+            let result = spatial_index.merge_field(
+                &sources,
+                &doc_id_mapping.alive_bitsets,
+                cells_out,
+                edges_out,
+                &doc_id_inverse,
+            )?;
 
             let elapsed = merge_start.elapsed();
             eprintln!(
-                "spatial merge (interleave only): {} source geometries, {} output geometries, {} \
-                 cells, {:.2}s",
-                total_source_geometries,
-                next_new_id,
-                cell_count,
+                "spatial merge: {} output geometries, {} cells, {:.2}s",
+                result.geometry_count,
+                result.cell_count,
                 elapsed.as_secs_f64()
             );
-            interleave.report();
-
-            // Cell index dictionary and footer.
-            let dir_offset = cells_out.written_bytes() - cells_base;
-            for &(cell_id, offset) in &offsets {
-                cells_out.write_all(&cell_id.to_le_bytes()).unwrap();
-                cells_out.write_all(&offset.to_le_bytes()).unwrap();
-            }
-            cells_out
-                .write_all(&(offsets.len() as u32).to_le_bytes())
-                .unwrap();
-            cells_out.write_all(&dir_offset.to_le_bytes()).unwrap();
-            cells_out.flush()?;
-            edges_out.flush()?;
         }
 
         cells_composite.close()?;

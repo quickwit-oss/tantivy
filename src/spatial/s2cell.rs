@@ -15,6 +15,8 @@ use super::s1chord_angle::S1ChordAngle;
 use super::s1interval::S1Interval;
 use super::s2cap::S2Cap;
 use super::s2cell_id::S2CellId;
+use super::sphere::Sphere;
+use super::surface::Surface;
 use super::s2coords::{
     self, face_uv_to_xyz, face_xyz_to_uvw, get_u_axis, get_u_norm, get_v_axis, get_v_norm,
     ij_to_st_min, st_to_uv, MAX_CELL_LEVEL,
@@ -53,7 +55,7 @@ impl S2Cell {
 
     /// Creates an S2Cell containing the given point.
     pub fn from_point(p: &[f64; 3]) -> Self {
-        Self::new(S2CellId::from_point(p))
+        Self::new(Sphere::cell_id_from_point(p))
     }
 
     /// Returns the cell ID.
@@ -116,18 +118,6 @@ impl S2Cell {
     pub fn get_vertex_raw(&self, k: usize) -> [f64; 3] {
         let v = self.uv.get_vertex(k % 4);
         face_uv_to_xyz(self.face as i32, v[0], v[1])
-    }
-
-    /// Returns the center of the cell.
-    #[inline]
-    pub fn get_center(&self) -> [f64; 3] {
-        normalize(&self.get_center_raw())
-    }
-
-    /// Returns the center without normalization.
-    #[inline]
-    pub fn get_center_raw(&self) -> [f64; 3] {
-        self.id.to_point_raw()
     }
 
     /// Returns the inward-facing normal of edge k (k = 0,1,2,3).

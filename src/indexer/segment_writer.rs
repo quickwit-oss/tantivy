@@ -16,7 +16,6 @@ use crate::postings::{
 };
 use crate::schema::document::{Document, Value};
 use crate::schema::{FieldEntry, FieldType, Schema, DATE_TIME_PRECISION_INDEXED};
-use crate::spatial::sphere::Sphere;
 use crate::spatial::writer::SpatialWriter;
 use crate::tokenizer::{FacetTokenizer, PreTokenizedStream, TextAnalyzer, Tokenizer};
 use crate::{DocId, Opstamp, TantivyError};
@@ -54,7 +53,7 @@ pub struct SegmentWriter {
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
-    pub(crate) spatial_writer: SpatialWriter<Sphere>,
+    pub(crate) spatial_writer: SpatialWriter,
     pub(crate) json_path_writer: JsonPathWriter,
     pub(crate) json_positions_per_path: IndexingPositionsPerPath,
     pub(crate) doc_opstamps: Vec<Opstamp>,
@@ -77,6 +76,7 @@ impl SegmentWriter {
         let schema = segment.schema();
         let tokenizer_manager = segment.index().tokenizers().clone();
         let tokenizer_manager_fast_field = segment.index().fast_field_tokenizer().clone();
+        let spatial_manager = segment.index().spatial_indices().clone();
         let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment)?;
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
@@ -107,7 +107,15 @@ impl SegmentWriter {
             ctx: IndexingContext::new(table_size),
             per_field_postings_writers,
             fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
-            spatial_writer: SpatialWriter::default(),
+            spatial_writer: {
+                let mut sw = SpatialWriter::new(spatial_manager);
+                for (field, field_entry) in schema.fields() {
+                    if let FieldType::Spatial(ref opts) = field_entry.field_type() {
+                        sw.set_field_index(field, opts.spatial_index_name());
+                    }
+                }
+                sw
+            },
             json_path_writer: JsonPathWriter::default(),
             json_positions_per_path: IndexingPositionsPerPath::default(),
             segment_serializer,
@@ -413,7 +421,7 @@ fn remap_and_write(
     ctx: IndexingContext,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
-    spatial_writer: &mut SpatialWriter<Sphere>,
+    spatial_writer: &mut SpatialWriter,
     mut serializer: SegmentSerializer,
 ) -> crate::Result<()> {
     debug!("remap-and-write");

@@ -2,11 +2,19 @@
 
 use std::sync::LazyLock;
 
+use crate::spatial::containment::{brute_force_contains, compute_origin_inside};
+use crate::spatial::crossings::S2EdgeCrosser;
+use crate::spatial::math::normalize;
+use crate::spatial::s2cell_id::S2CellId;
+use crate::spatial::s2coords::{
+    face_uv_to_xyz, get_face, st_to_ij, uv_to_st, valid_face_xyz_to_uv, xyz_to_face_uv,
+};
+use crate::spatial::s2edge_clipping::clip_to_padded_face;
+use crate::spatial::s2loop_measures::is_normalized;
 use crate::spatial::surface::Surface;
 
-static HILBERT_START: LazyLock<[f64; 3]> = LazyLock::new(|| {
-    crate::spatial::math::normalize(&crate::spatial::s2coords::face_uv_to_xyz(0, -1.0, -1.0))
-});
+static HILBERT_START: LazyLock<[f64; 3]> =
+    LazyLock::new(|| normalize(&face_uv_to_xyz(0, -1.0, -1.0)));
 
 /// The origin should not be a point that is commonly used in edge tests in order to avoid
 /// triggering code to handle degenerate cases.  (This rules out the north and south poles.)  It
@@ -31,7 +39,7 @@ pub struct Sphere;
 impl Surface for Sphere {
     const DIMENSIONS: usize = 3;
     type Point = [f64; 3];
-    type EdgeCrosser = crate::spatial::crossings::S2EdgeCrosser;
+    type EdgeCrosser = S2EdgeCrosser;
 
     fn project(lon: f64, lat: f64) -> [f64; 3] {
         let lat = lat.to_radians();
@@ -46,7 +54,7 @@ impl Surface for Sphere {
     }
 
     fn normalize_ring(ring: &mut Vec<Self::Point>) {
-        if !crate::spatial::s2loop_measures::is_normalized(ring) {
+        if !is_normalized(ring) {
             ring.reverse();
         }
     }
@@ -55,7 +63,8 @@ impl Surface for Sphere {
     fn point_from_le_bytes(bytes: &[u8]) -> Self::Point {
         let mut point = [0.0f64; 3];
         for i in 0..3 {
-            point[i] = f64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap());
+            point[i] =
+                f64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap());
         }
         point
     }
@@ -67,24 +76,24 @@ impl Surface for Sphere {
 
     #[inline]
     fn origin_inside(ring: &[Self::Point]) -> bool {
-        crate::spatial::containment::compute_origin_inside(ring)
+        compute_origin_inside(ring)
     }
 
     const FACE_COUNT: i32 = 6;
 
     #[inline]
     fn get_face(point: &Self::Point) -> i32 {
-        crate::spatial::s2coords::get_face(point)
+        get_face(point)
     }
 
     #[inline]
     fn point_to_face_uv(face: i32, point: &Self::Point) -> (f64, f64) {
-        crate::spatial::s2coords::valid_face_xyz_to_uv(face, point)
+        valid_face_xyz_to_uv(face, point)
     }
 
     #[inline]
     fn face_uv_to_point(face: i32, u: f64, v: f64) -> Self::Point {
-        crate::spatial::math::normalize(&crate::spatial::s2coords::face_uv_to_xyz(face, u, v))
+        normalize(&face_uv_to_xyz(face, u, v))
     }
 
     #[inline]
@@ -94,12 +103,12 @@ impl Surface for Sphere {
         face: i32,
         padding: f64,
     ) -> Option<([f64; 2], [f64; 2])> {
-        crate::spatial::s2edge_clipping::clip_to_padded_face(v0, v1, face, padding)
+        clip_to_padded_face(v0, v1, face, padding)
     }
 
     #[inline]
     fn uv_to_st(u: f64) -> f64 {
-        crate::spatial::s2coords::uv_to_st(u)
+        uv_to_st(u)
     }
 
     #[inline]
@@ -108,7 +117,15 @@ impl Surface for Sphere {
     }
 
     #[inline]
+    fn cell_id_from_point(point: &Self::Point) -> S2CellId {
+        let (face, u, v) = xyz_to_face_uv(point);
+        let i = st_to_ij(uv_to_st(u));
+        let j = st_to_ij(uv_to_st(v));
+        S2CellId::from_face_ij(face, i, j)
+    }
+
+    #[inline]
     fn contains_point(point: &Self::Point, ring: &[Self::Point], origin_inside: bool) -> bool {
-        crate::spatial::containment::brute_force_contains(point, ring, origin_inside)
+        brute_force_contains(point, ring, origin_inside)
     }
 }

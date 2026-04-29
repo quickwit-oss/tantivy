@@ -22,6 +22,7 @@ use super::s2edge_clipping::{
     clip_to_padded_face, intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSECTS_RECT_ERROR_UV_DIST,
 };
 use super::sphere::Sphere;
+use super::surface::Surface;
 use crate::spatial::shape_index::ShapeIndex;
 
 /// Provides vertex access for edge intersection tests.
@@ -68,7 +69,7 @@ pub fn contains_point<T: ContainmentIndex>(
     };
     let mut inside = info.contains_center;
     if !info.edge_indices.is_empty() {
-        let center = info.cell_id.to_point();
+        let center = Sphere::cell_center(info.cell_id);
         let mut crosser = S2EdgeCrosser::new(&center, point);
         for &edge_index in &info.edge_indices {
             let (v0, v1) = index.resolve_edge(geometry_id, edge_index);
@@ -88,7 +89,7 @@ pub struct InMemoryIndex<'a, E: EdgeProvider> {
 
 impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
     fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo> {
-        let cell_id = S2CellId::from_point(point);
+        let cell_id = Sphere::cell_id_from_point(point);
         let index_cell = self.index.find_cell(cell_id)?;
         let clipped = index_cell.find_shape(geometry_id)?;
         Some(ClippedInfo {
@@ -113,7 +114,7 @@ pub struct SegmentIndex<'a, 'b> {
 
 impl ContainmentIndex for SegmentIndex<'_, '_> {
     fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo> {
-        let cell_id = S2CellId::from_point(point);
+        let cell_id = Sphere::cell_id_from_point(point);
         let index_cell = self.cell_reader.find(cell_id)?;
         let clipped = index_cell
             .shapes
@@ -183,7 +184,7 @@ pub fn index_contains_point<E: EdgeProvider>(
     geometry_id: GeometryId,
     point: &[f64; 3],
 ) -> bool {
-    let cell_id = S2CellId::from_point(point);
+    let cell_id = Sphere::cell_id_from_point(point);
     let index_cell = match index.find_cell(cell_id) {
         Some(cell) => cell,
         None => return false,
@@ -206,7 +207,7 @@ fn clipped_shape_contains_point<E: EdgeProvider>(
 ) -> bool {
     let mut inside = clipped.contains_center;
     if !clipped.edge_indices.is_empty() {
-        let cell_center = cell_id.to_point();
+        let cell_center = Sphere::cell_center(cell_id);
         let mut crosser = S2EdgeCrosser::new(&cell_center, point);
         for &edge_index in &clipped.edge_indices {
             let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_index);
@@ -320,7 +321,7 @@ where
             // Target is contained by (or equals) an index cell.
             let cell = &index.cells[pos];
             let index_cell_id = cell.cell_id;
-            let target_center = target.get_center();
+            let target_center = Sphere::cell_center(target.id());
 
             for clipped in &cell.shapes {
                 let contains = if index_cell_id == target.id() {

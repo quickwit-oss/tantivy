@@ -1060,7 +1060,7 @@ mod tests {
         {
             let mut schema_builder = Schema::builder();
             schema_builder.add_text_field("title", TEXT);
-            schema_builder.add_spatial_field("location", SPATIAL);
+            schema_builder.add_spatial_field("location", SPHERE);
             let schema = schema_builder.build();
             assert!(schema.contains_spatial_field());
 

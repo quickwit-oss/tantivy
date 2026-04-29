@@ -14,6 +14,8 @@ use super::region::Region;
 use super::s2cap::S2Cap;
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
+use super::sphere::Sphere;
+use super::surface::Surface;
 
 /// A normalized collection of S2CellIds representing a region.
 ///
@@ -307,7 +309,7 @@ impl CellUnion {
     ///
     /// The point does not need to be normalized.
     pub fn contains_point(&self, p: &[f64; 3]) -> bool {
-        self.contains(S2CellId::from_point(p))
+        self.contains(Sphere::cell_id_from_point(p))
     }
 
     /// Binary search for the first cell that does not entirely precede target.
@@ -436,7 +438,7 @@ impl Region for CellUnion {
         let mut centroid = [0.0, 0.0, 0.0];
         for &id in &self.cell_ids {
             let area = S2Cell::average_area(id.level());
-            let p = id.to_point();
+            let p = Sphere::cell_center(id);
             centroid[0] += area * p[0];
             centroid[1] += area * p[1];
             centroid[2] += area * p[2];

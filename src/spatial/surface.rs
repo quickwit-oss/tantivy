@@ -4,6 +4,10 @@
 //! coordinates on a single face. For spherical geometry, points are 3D unit vectors on the six
 //! faces of a cube projection.
 
+use super::edge_crosser::EdgeCrosser;
+use super::s2cell_id::S2CellId;
+use super::s2coords::si_ti_to_st;
+
 /// An abstraction one of two surfaces for geographic indices. For planar geometry, points are 2D
 /// coordinates on a single face. For spherical geometry, points are 3D unit vectors on the six
 /// faces of a cube projection.
@@ -15,7 +19,7 @@ pub trait Surface {
     type Point: Copy + PartialEq + AsRef<[f64]> + Send + Sync;
 
     /// The edge crosser for this surface.
-    type EdgeCrosser: super::edge_crosser::EdgeCrosser<Point = Self::Point>;
+    type EdgeCrosser: EdgeCrosser<Point = Self::Point>;
 
     /// Project a lon/lat coordinate onto this surface.
     fn project(lon: f64, lat: f64) -> Self::Point;
@@ -64,6 +68,17 @@ pub trait Surface {
 
     /// Map ST [0, 1] to UV [-1, 1]. Inverse of uv_to_st.
     fn st_to_uv(s: f64) -> f64;
+
+    /// Returns the leaf cell ID containing the given point.
+    fn cell_id_from_point(point: &Self::Point) -> S2CellId;
+
+    /// Returns the center of a cell as a point on this surface.
+    fn cell_center(cell_id: S2CellId) -> Self::Point {
+        let (face, si, ti) = cell_id.get_center_si_ti();
+        let u = Self::st_to_uv(si_ti_to_st(si));
+        let v = Self::st_to_uv(si_ti_to_st(ti));
+        Self::face_uv_to_point(face, u, v)
+    }
 
     /// Whether the point is inside the closed ring.
     fn contains_point(point: &Self::Point, ring: &[Self::Point], origin_inside: bool) -> bool;

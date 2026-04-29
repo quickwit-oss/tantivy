@@ -1,4 +1,6 @@
 use super::*;
+use crate::spatial::sphere::Sphere;
+use crate::spatial::surface::Surface;
 
 #[test]
 fn test_empty() {
@@ -312,7 +314,7 @@ fn test_region_cap_bound_contains_all_cells() {
 
     // Cap should contain all cells' centers
     for &id in cu.cell_ids() {
-        let center = id.to_point();
+        let center = Sphere::cell_center(id);
         assert!(
             cap.contains_point(&center),
             "Cap bound should contain cell center"

@@ -20,6 +20,8 @@ use super::s1chord_angle::{S1ChordAngle, RELATIVE_SUM_ERROR};
 use super::s1interval::S1Interval;
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
+use super::sphere::Sphere;
+use super::surface::Surface;
 use super::s2metrics::S2Metrics;
 
 /// S2Cap represents a disc-shaped region defined by a center and radius.
@@ -341,7 +343,7 @@ impl S2Cap {
         } else {
             // The covering consists of the 4 cells at the given level that share the cell vertex
             // that is closest to the cap center.
-            let center_cell = S2CellId::from_point(&self.center);
+            let center_cell = Sphere::cell_id_from_point(&self.center);
             center_cell.append_vertex_neighbors(level, cell_ids);
         }
     }

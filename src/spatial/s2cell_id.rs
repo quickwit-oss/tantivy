@@ -34,9 +34,8 @@
 //! and assignment operator.
 //!
 //! s2cell_id.h and s2cell_id.cc
-use super::math::normalize;
 use super::s2coords::{
-    face_si_ti_to_xyz, face_uv_to_xyz, si_ti_to_st, st_to_ij, st_to_uv, uv_to_st, xyz_to_face_uv,
+    face_uv_to_xyz, si_ti_to_st, st_to_ij, st_to_uv, xyz_to_face_uv,
     MAX_CELL_LEVEL, NUM_FACES, POS_TO_IJ, POS_TO_ORIENTATION,
 };
 
@@ -227,14 +226,6 @@ impl S2CellId {
         }
 
         Self(n * 2 + 1)
-    }
-
-    /// Creates a leaf cell containing the given point.
-    pub fn from_point(p: &[f64; 3]) -> Self {
-        let (face, u, v) = xyz_to_face_uv(p);
-        let i = st_to_ij(uv_to_st(u));
-        let j = st_to_ij(uv_to_st(v));
-        Self::from_face_ij(face, i, j)
     }
 
     /// Returns true if this is a valid cell ID.
@@ -478,16 +469,7 @@ impl S2CellId {
         (face, si, ti)
     }
 
-    /// Returns the center of this cell as a point.
-    pub fn to_point(&self) -> [f64; 3] {
-        normalize(&self.to_point_raw())
-    }
 
-    /// Returns the center of this cell as an unnormalized point.
-    pub fn to_point_raw(&self) -> [f64; 3] {
-        let (face, si, ti) = self.get_center_si_ti();
-        face_si_ti_to_xyz(face, si, ti)
-    }
 
     /// Returns a debug string representation "f/dd...d".
     pub fn to_debug_string(&self) -> String {
