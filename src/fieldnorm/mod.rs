@@ -87,7 +87,7 @@ mod tests {
             assert!(fields_composite.open_read(*FIELD).is_none());
             assert!(fields_composite.open_read(*STR_FIELD).is_none());
             let data = fields_composite.open_read(*TXT_FIELD).unwrap();
-            let fieldnorm_reader = FieldNormReader::open(data);
+            let fieldnorm_reader = FieldNormReader::open(data)?;
             assert_eq!(fieldnorm_reader.fieldnorm(0u32), 0u32);
             assert_eq!(fieldnorm_reader.fieldnorm(1u32), 0u32);
             assert_eq!(fieldnorm_reader.fieldnorm(2u32), 5u32);

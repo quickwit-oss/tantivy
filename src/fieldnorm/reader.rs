@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use common::HasLen;
-
 use super::{fieldnorm_to_id, id_to_fieldnorm};
-use crate::directory::{CompositeFile, FileSlice};
+use crate::directory::{CompositeFile, FileSlice, OwnedBytes};
 use crate::schema::{Field, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
 use crate::DocId;
@@ -20,6 +18,7 @@ pub struct FieldNormReaders {
 }
 
 impl FieldNormReaders {
+    /// Creates a field norm reader.
     pub fn open(file: FileSlice) -> crate::Result<FieldNormReaders> {
         let data = CompositeFile::open(&file)?;
         Ok(FieldNormReaders {
@@ -30,7 +29,8 @@ impl FieldNormReaders {
     /// Returns the FieldNormReader for a specific field.
     pub fn get_field(&self, field: Field) -> crate::Result<Option<FieldNormReader>> {
         if let Some(file) = self.data.open_read(field) {
-            Ok(Some(FieldNormReader::open(file)))
+            let fieldnorm_reader = FieldNormReader::open(file)?;
+            Ok(Some(fieldnorm_reader))
         } else {
             Ok(None)
         }
@@ -62,8 +62,12 @@ impl From<ReaderImplEnum> for FieldNormReader {
 
 #[derive(Clone)]
 enum ReaderImplEnum {
-    FromFileSlice(FileSlice),
-    Const { num_docs: u32, fieldnorm_id: u8 },
+    FromData(OwnedBytes),
+    Const {
+        num_docs: u32,
+        fieldnorm_id: u8,
+        fieldnorm: u32,
+    },
 }
 
 impl FieldNormReader {
@@ -73,37 +77,60 @@ impl FieldNormReader {
     /// from an array-backed fieldnorm reader.
     pub fn constant(num_docs: u32, fieldnorm: u32) -> FieldNormReader {
         let fieldnorm_id = fieldnorm_to_id(fieldnorm);
+        let fieldnorm = id_to_fieldnorm(fieldnorm_id);
         ReaderImplEnum::Const {
             num_docs,
             fieldnorm_id,
+            fieldnorm,
         }
         .into()
     }
 
-    pub fn open(fieldnorm_file: FileSlice) -> Self {
-        ReaderImplEnum::FromFileSlice(fieldnorm_file).into()
+    /// Opens a field norm reader given its file.
+    pub fn open(fieldnorm_file: FileSlice) -> crate::Result<Self> {
+        let data = fieldnorm_file.read_bytes()?;
+        Ok(FieldNormReader::new(data))
+    }
+
+    fn new(data: OwnedBytes) -> Self {
+        ReaderImplEnum::FromData(data).into()
     }
 
     /// Returns the number of documents in this segment.
     pub fn num_docs(&self) -> u32 {
         match &self.0 {
-            ReaderImplEnum::FromFileSlice(file_slice) => file_slice.len() as u32,
+            ReaderImplEnum::FromData(data) => data.len() as u32,
             ReaderImplEnum::Const { num_docs, .. } => *num_docs,
         }
     }
 
     /// Returns the `fieldnorm` associated with a doc id.
+    /// The fieldnorm is a value approximating the number
+    /// of tokens in a given field of the `doc_id`.
+    ///
+    /// It is imprecise, and equal or lower than
+    /// the actual number of tokens.
+    ///
+    /// The fieldnorm is effectively decoded from the
+    /// `fieldnorm_id` by doing a simple table lookup.
     pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
-        id_to_fieldnorm(self.fieldnorm_id(doc_id))
+        match &self.0 {
+            ReaderImplEnum::FromData(data) => {
+                let fieldnorm_id = data.as_slice()[doc_id as usize];
+                id_to_fieldnorm(fieldnorm_id)
+            }
+            ReaderImplEnum::Const { fieldnorm, .. } => *fieldnorm,
+        }
     }
 
     /// Returns the `fieldnorm_id` associated with a document.
     #[inline]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {
-            ReaderImplEnum::FromFileSlice(file_slice) => file_slice
-                .read_byte(doc_id as usize)
-                .expect("failed to read fieldnorm byte"),
+            ReaderImplEnum::FromData(data) => {
+                let fieldnorm_id = data.as_slice()[doc_id as usize];
+                fieldnorm_id
+            }
             ReaderImplEnum::Const { fieldnorm_id, .. } => *fieldnorm_id,
         }
     }
@@ -128,7 +155,8 @@ impl FieldNormReader {
             .cloned()
             .map(FieldNormReader::fieldnorm_to_id)
             .collect::<Vec<u8>>();
-        FieldNormReader::open(FileSlice::from(field_norms_id))
+        let field_norms_data = OwnedBytes::new(field_norms_id);
+        FieldNormReader::new(field_norms_data)
     }
 }
 
