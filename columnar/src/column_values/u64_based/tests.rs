@@ -191,6 +191,11 @@ proptest! {
     fn test_proptest_small_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..10)) {
         create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
     }
+
+    #[test]
+    fn test_proptest_small_blockwise_linear_v2(data in proptest::collection::vec(num_strategy(), 1..10)) {
+        create_and_validate::<BlockwiseLinearV2Codec>(&data, "proptest multilinearinterpol v2");
+    }
 }
 
 #[test]
@@ -217,6 +222,11 @@ proptest! {
     #[test]
     fn test_proptest_large_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..6000)) {
         create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
+    }
+
+    #[test]
+    fn test_proptest_large_blockwise_linear_v2(data in proptest::collection::vec(num_strategy(), 1..6000)) {
+        create_and_validate::<BlockwiseLinearV2Codec>(&data, "proptest multilinearinterpol v2");
     }
 }
 
@@ -273,6 +283,10 @@ fn test_codec_interpolation() {
 #[test]
 fn test_codec_multi_interpolation() {
     test_codec::<BlockwiseLinearCodec>();
+}
+#[test]
+fn test_codec_multi_interpolation_v2() {
+    test_codec::<BlockwiseLinearV2Codec>();
 }
 
 use super::*;
@@ -332,7 +346,7 @@ fn test_fast_field_codec_type_to_code() {
             count_codec += 1;
         }
     }
-    assert_eq!(count_codec, 3);
+    assert_eq!(count_codec, 4);
 }
 
 fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> io::Result<()> {
@@ -371,6 +385,7 @@ fn test_fastfield_gcd_i64() -> io::Result<()> {
     for &codec_type in &[
         CodecType::Bitpacked,
         CodecType::BlockwiseLinear,
+        CodecType::BlockwiseLinearV2,
         CodecType::Linear,
     ] {
         test_fastfield_gcd_i64_with_codec(codec_type, 5500)?;
@@ -413,6 +428,7 @@ fn test_fastfield_gcd_u64() -> io::Result<()> {
     for &codec_type in &[
         CodecType::Bitpacked,
         CodecType::BlockwiseLinear,
+        CodecType::BlockwiseLinearV2,
         CodecType::Linear,
     ] {
         test_fastfield_gcd_u64_with_codec(codec_type, 5500)?;

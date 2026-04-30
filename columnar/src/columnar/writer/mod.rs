@@ -14,7 +14,7 @@ pub(crate) use serializer::ColumnarSerializer;
 use stacker::{Addr, ArenaHashMap, MemoryArena};
 
 use crate::column_index::{SerializableColumnIndex, SerializableOptionalIndex};
-use crate::column_values::{MonotonicallyMappableToU64, MonotonicallyMappableToU128};
+use crate::column_values::{CodecType, MonotonicallyMappableToU64, MonotonicallyMappableToU128};
 use crate::columnar::column_type::ColumnType;
 use crate::columnar::writer::column_writers::{
     ColumnWriter, NumericalColumnWriter, StrOrBytesColumnWriter,
@@ -44,7 +44,7 @@ struct SpareBuffers {
 /// columnar_writer.record_str(1u32 /* doc id */, "product_name", "Apple");
 /// columnar_writer.record_numerical(0u32 /* doc id */, "price", 10.5f64); //< uh oh we ended up mixing integer and floats.
 /// let mut wrt: Vec<u8> =  Vec::new();
-/// columnar_writer.serialize(2u32, None, &mut wrt).unwrap();
+/// columnar_writer.serialize(2u32, None, &tantivy_columnar::DEFAULT_CODEC_TYPES, &mut wrt).unwrap();
 /// ```
 #[derive(Default)]
 pub struct ColumnarWriter {
@@ -319,6 +319,7 @@ impl ColumnarWriter {
         &mut self,
         num_docs: RowId,
         old_to_new_row_ids: Option<&[RowId]>,
+        codec_types: &[CodecType],
         wrt: &mut dyn io::Write,
     ) -> io::Result<()> {
         let mut serializer = ColumnarSerializer::new(wrt);
@@ -383,6 +384,7 @@ impl ColumnarWriter {
                             &mut symbol_byte_buffer,
                         ),
                         buffers,
+                        codec_types,
                         &mut column_serializer,
                     )?;
                     column_serializer.finalize()?;
@@ -431,6 +433,7 @@ impl ColumnarWriter {
                         ),
                         buffers,
                         &self.arena,
+                        codec_types,
                         &mut column_serializer,
                     )?;
                     column_serializer.finalize()?;
@@ -452,6 +455,7 @@ impl ColumnarWriter {
                             &mut symbol_byte_buffer,
                         ),
                         buffers,
+                        codec_types,
                         &mut column_serializer,
                     )?;
                     column_serializer.finalize()?;
@@ -471,6 +475,7 @@ impl ColumnarWriter {
                             &mut symbol_byte_buffer,
                         ),
                         buffers,
+                        codec_types,
                         &mut column_serializer,
                     )?;
                     column_serializer.finalize()?;
@@ -543,6 +548,7 @@ fn serialize_bytes_or_str_column(
     operation_it: impl Iterator<Item = ColumnOperation<UnorderedId>>,
     buffers: &mut SpareBuffers,
     arena: &MemoryArena,
+    codec_types: &[CodecType],
     wrt: impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
@@ -572,6 +578,7 @@ fn serialize_bytes_or_str_column(
         sort_values_within_row,
         value_index_builders,
         u64_values,
+        codec_types,
         &mut wrt,
     )?;
     wrt.write_all(&dictionary_num_bytes.to_le_bytes()[..])?;
@@ -584,6 +591,7 @@ fn serialize_numerical_column(
     numerical_type: NumericalType,
     op_iterator: impl Iterator<Item = ColumnOperation<NumericalValue>>,
     buffers: &mut SpareBuffers,
+    codec_types: &[CodecType],
     wrt: &mut impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
@@ -600,6 +608,7 @@ fn serialize_numerical_column(
                 false,
                 value_index_builders,
                 u64_values,
+                codec_types,
                 wrt,
             )?;
         }
@@ -611,6 +620,7 @@ fn serialize_numerical_column(
                 false,
                 value_index_builders,
                 u64_values,
+                codec_types,
                 wrt,
             )?;
         }
@@ -622,6 +632,7 @@ fn serialize_numerical_column(
                 false,
                 value_index_builders,
                 u64_values,
+                codec_types,
                 wrt,
             )?;
         }
@@ -634,6 +645,7 @@ fn serialize_bool_column(
     num_docs: RowId,
     column_operations_it: impl Iterator<Item = ColumnOperation<bool>>,
     buffers: &mut SpareBuffers,
+    codec_types: &[CodecType],
     wrt: &mut impl io::Write,
 ) -> io::Result<()> {
     let SpareBuffers {
@@ -651,6 +663,7 @@ fn serialize_bool_column(
         false,
         value_index_builders,
         u64_values,
+        codec_types,
         wrt,
     )?;
     Ok(())
@@ -731,6 +744,7 @@ fn send_to_serialize_column_mappable_to_u64(
     sort_values_within_row: bool,
     value_index_builders: &mut PreallocatedIndexBuilders,
     values: &mut Vec<u64>,
+    codec_types: &[CodecType],
     mut wrt: impl io::Write,
 ) -> io::Result<()> {
     values.clear();
@@ -768,6 +782,7 @@ fn send_to_serialize_column_mappable_to_u64(
     crate::column::serialize_column_mappable_to_u64(
         serializable_column_index,
         &&values[..],
+        codec_types,
         &mut wrt,
     )?;
     Ok(())

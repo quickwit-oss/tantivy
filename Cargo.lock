@@ -1904,6 +1904,7 @@ dependencies = [
  "fastdivide",
  "itertools 0.14.0",
  "more-asserts",
+ "parking_lot",
  "proptest",
  "rand 0.9.4",
  "serde",

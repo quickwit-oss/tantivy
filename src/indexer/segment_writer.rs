@@ -75,6 +75,7 @@ pub struct SegmentWriter {
     term_buffer: IndexingTerm,
     schema: Schema,
     ignore_store: bool,
+    columnar_codec_types: Vec<columnar::CodecType>,
 }
 
 impl SegmentWriter {
@@ -104,6 +105,7 @@ impl SegmentWriter {
             .all_plugins()
             .map(|p| p.create_writer(&ctx))
             .collect::<crate::Result<Vec<_>>>()?;
+        let columnar_codec_types = segment.index().settings().columnar_codec_types().to_vec();
         let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
         let per_field_text_analyzers = schema
             .fields()
@@ -140,6 +142,7 @@ impl SegmentWriter {
             term_buffer: IndexingTerm::with_capacity(16),
             schema,
             ignore_store,
+            columnar_codec_types,
         })
     }
 

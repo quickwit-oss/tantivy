@@ -301,11 +301,23 @@ pub struct IndexSettings {
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
+    /// Codec types for u64-based column serialization.
+    #[serde(default = "default_codec_types")]
+    #[serde(skip_serializing_if = "is_default_codec_types")]
+    pub codec_types: Vec<columnar::CodecType>,
 }
 
 /// Must be a function to be compatible with serde defaults
 fn default_docstore_blocksize() -> usize {
     16_384
+}
+
+fn default_codec_types() -> Vec<columnar::CodecType> {
+    columnar::DEFAULT_CODEC_TYPES.to_vec()
+}
+
+fn is_default_codec_types(types: &[columnar::CodecType]) -> bool {
+    types == columnar::DEFAULT_CODEC_TYPES
 }
 
 impl Default for IndexSettings {
@@ -315,7 +327,15 @@ impl Default for IndexSettings {
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
             docstore_compress_dedicated_thread: true,
+            codec_types: default_codec_types(),
         }
+    }
+}
+
+impl IndexSettings {
+    /// Returns the codec types to use for u64-based column serialization.
+    pub fn columnar_codec_types(&self) -> &[columnar::CodecType] {
+        &self.codec_types
     }
 }
 
@@ -519,6 +539,7 @@ mod tests {
                 }),
                 docstore_blocksize: 1_000_000,
                 docstore_compress_dedicated_thread: true,
+                ..IndexSettings::default()
             },
             persisted_custom_extensions: Vec::new(),
             segments: Vec::new(),
@@ -586,7 +607,8 @@ mod tests {
                 sort_by_field: None,
                 docstore_compression: Compressor::default(),
                 docstore_compress_dedicated_thread: true,
-                docstore_blocksize: 16_384
+                docstore_blocksize: 16_384,
+                codec_types: columnar::DEFAULT_CODEC_TYPES.to_vec(),
             }
         );
         {
@@ -617,5 +639,48 @@ mod tests {
                 serde_json::from_value(index_settings_json).unwrap();
             assert_eq!(index_settings_deser, index_settings);
         }
+    }
+
+    #[test]
+    fn test_codec_types_settings() {
+        use columnar::CodecType;
+
+        // Empty codec_types = default (V1)
+        let settings = IndexSettings::default();
+        assert_eq!(
+            settings.columnar_codec_types(),
+            &[CodecType::Bitpacked, CodecType::BlockwiseLinear]
+        );
+
+        // Explicit codec_types round-trips through JSON
+        let settings = IndexSettings {
+            codec_types: vec![CodecType::Bitpacked, CodecType::BlockwiseLinearV2],
+            ..IndexSettings::default()
+        };
+        let json = serde_json::to_value(&settings).unwrap();
+        assert_eq!(
+            json["codec_types"],
+            serde_json::json!(["Bitpacked", "BlockwiseLinearV2"])
+        );
+        let deser: IndexSettings = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            deser.codec_types,
+            vec![CodecType::Bitpacked, CodecType::BlockwiseLinearV2]
+        );
+        assert_eq!(
+            deser.columnar_codec_types(),
+            &[CodecType::Bitpacked, CodecType::BlockwiseLinearV2]
+        );
+
+        // Missing codec_types in JSON = default (V1)
+        let json = serde_json::json!({
+            "docstore_compression": "none",
+            "docstore_blocksize": 16384
+        });
+        let deser: IndexSettings = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            deser.columnar_codec_types(),
+            &[CodecType::Bitpacked, CodecType::BlockwiseLinear]
+        );
     }
 }
