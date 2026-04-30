@@ -32,6 +32,25 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
             "Async read is not supported.",
         ))
     }
+
+    /// Reads a single byte without allocating OwnedBytes.
+    ///
+    /// Default implementation goes through `read_bytes()`.
+    /// Implementations backed by block caches can override this for
+    /// zero-allocation access.
+    fn read_byte(&self, offset: usize) -> io::Result<u8> {
+        let data = self.read_bytes(offset..offset + 1)?;
+        Ok(data[0])
+    }
+
+    /// Returns a direct reference to the underlying bytes if available.
+    ///
+    /// In-memory implementations can return `Some` to allow zero-copy access.
+    /// Implementations backed by external storage (e.g. Postgres, disk without mmap)
+    /// should return `None` (the default).
+    fn as_slice(&self) -> Option<&[u8]> {
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -99,6 +118,10 @@ impl FileHandle for &'static [u8] {
 
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.read_bytes(byte_range)?)
+    }
+
+    fn as_slice(&self) -> Option<&[u8]> {
+        Some(self)
     }
 }
 
@@ -235,6 +258,23 @@ impl FileSlice {
         self.data.read_bytes_async(self.range.clone()).await
     }
 
+    /// Reads a single byte without allocating OwnedBytes.
+    pub fn read_byte(&self, offset: usize) -> io::Result<u8> {
+        if let Some(slice) = self.as_slice() {
+            Ok(slice[offset])
+        } else {
+            self.data.read_byte(self.range.start + offset)
+        }
+    }
+
+    /// Returns a direct reference to the underlying bytes if the implementation supports it.
+    ///
+    /// Returns `None` if the underlying storage doesn't support zero-copy access.
+    pub fn as_slice(&self) -> Option<&[u8]> {
+        let all = self.data.as_slice()?;
+        Some(&all[self.range.clone()])
+    }
+
     /// Reads a specific slice of data.
     ///
     /// This is equivalent to running `file_slice.slice(from, to).read_bytes()`.
@@ -320,6 +360,10 @@ impl FileHandle for FileSlice {
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
+
+    fn as_slice(&self) -> Option<&[u8]> {
+        self.as_slice()
+    }
 }
 
 impl HasLen for FileSlice {
@@ -336,6 +380,10 @@ impl FileHandle for OwnedBytes {
 
     async fn read_bytes_async(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         self.read_bytes(range)
+    }
+
+    fn as_slice(&self) -> Option<&[u8]> {
+        Some(OwnedBytes::as_slice(self))
     }
 }
 

@@ -635,11 +635,10 @@ impl SegmentReader {
     #[inline]
     fn fieldnorm_readers(&self) -> &FieldNormReaders {
         self.fieldnorm_readers.get_or_init(move || {
-            FieldNormReaders::open(
-                self.open_read(SegmentComponent::FieldNorms)
-                    .expect("should be able to open field norms segment component"),
-            )
-            .expect("should be able to open field norms readers")
+            let file = self
+                .open_read(SegmentComponent::FieldNorms)
+                .expect("should be able to open field norms segment component");
+            FieldNormReaders::open(file).expect("should be able to open field norms readers")
         })
     }
 
