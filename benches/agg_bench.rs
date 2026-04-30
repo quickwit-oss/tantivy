@@ -79,13 +79,12 @@ fn bench_agg(mut group: InputGroup<Index>) {
     register!(group, composite_histogram_calendar);
 
     register!(group, cardinality_agg);
+    register!(group, cardinality_agg_high_card);
+    register!(group, cardinality_agg_low_card);
     register!(group, terms_status_with_cardinality_agg);
     register!(group, terms_100_buckets_with_cardinality_agg);
-    register!(group, terms_many_with_single_term_order_by_cardinality_agg);
-    register!(
-        group,
-        terms_many_with_nested_terms_double_order_by_cardinality_agg
-    );
+    register!(group, terms_many_with_single_term_order_by_card);
+    register!(group, terms_many_with_single_term_2_order_by_card);
 
     register!(group, range_agg);
     register!(group, range_agg_with_avg_sub_agg);
@@ -173,6 +172,32 @@ fn cardinality_agg(index: &Index) {
     });
     execute_agg(index, agg_req);
 }
+// Full-scan cardinality on a near-1M-cardinality string field.
+// Hits the dense (PagedBitset) path: every doc has a unique term,
+// so the bucket promotes from FxHashSet shortly into the scan.
+fn cardinality_agg_high_card(index: &Index) {
+    let agg_req = json!({
+        "cardinality": {
+            "cardinality": {
+                "field": "text_all_unique_terms"
+            },
+        }
+    });
+    execute_agg(index, agg_req);
+}
+// Full-scan cardinality on a tiny-cardinality string field (7 distinct
+// values). Stays on the FxHashSet path — the promotion threshold is
+// never crossed. Validates no regression on the sparse path.
+fn cardinality_agg_low_card(index: &Index) {
+    let agg_req = json!({
+        "cardinality": {
+            "cardinality": {
+                "field": "text_few_terms_status"
+            },
+        }
+    });
+    execute_agg(index, agg_req);
+}
 fn terms_status_with_cardinality_agg(index: &Index) {
     let agg_req = json!({
         "my_texts": {
@@ -205,7 +230,7 @@ fn terms_100_buckets_with_cardinality_agg(index: &Index) {
     execute_agg(index, agg_req);
 }
 
-fn terms_many_with_single_term_order_by_cardinality_agg(index: &Index) {
+fn terms_many_with_single_term_order_by_card(index: &Index) {
     let agg_req = json!({
         "my_texts": {
             "terms": { "field": "text_many_terms" },
@@ -217,7 +242,7 @@ fn terms_many_with_single_term_order_by_cardinality_agg(index: &Index) {
                     },
                     "aggs": {
                         "cardinality": {
-                            "cardinality": { "field": "text_many_terms" }
+                            "cardinality": { "field": "text_few_terms" }
                         }
                     }
                 }
@@ -230,22 +255,20 @@ fn terms_many_with_single_term_order_by_cardinality_agg(index: &Index) {
 // Two-level terms ordered by cardinality at each level: a high-card outer terms
 // (text_many_terms) ordered by a cardinality sub-agg, with a nested low-card terms
 // (text_few_terms_status) also ordered by a cardinality sub-agg, plus an avg.
-fn terms_many_with_nested_terms_double_order_by_cardinality_agg(index: &Index) {
+fn terms_many_with_single_term_2_order_by_card(index: &Index) {
     let agg_req = json!({
         "by_ip": {
             "terms": {
                 "field": "text_many_terms",
-                "size": 50,
-                "order": { "distinct_path": "desc" }
+                "order": { "card_few_terms": "desc" }
             },
             "aggs": {
-                "distinct_path": {
+                "card_few_terms": {
                     "cardinality": { "field": "text_few_terms" }
                 },
-                "by_asn": {
+                "nested_terms": {
                     "terms": {
                         "field": " single_term",
-                        "size": 10,
                         "order": { "distinct_path2": "desc" }
                     },
                     "aggs": {
