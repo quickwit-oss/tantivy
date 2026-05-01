@@ -27,9 +27,7 @@ fn generate_columnar(num_docs: u32, value_offset: u64) -> Vec<u8> {
     }
 
     let mut wrt: Vec<u8> = Vec::new();
-    columnar_writer
-        .serialize(num_docs, None, &crate::DEFAULT_CODEC_TYPES, &mut wrt)
-        .unwrap();
+    columnar_writer.serialize(num_docs, None, &mut wrt).unwrap();
 
     wrt
 }
@@ -77,7 +75,6 @@ fn test_format(path: &str) {
         &columnar_readers,
         &[],
         merge_row_order.into(),
-        &crate::DEFAULT_CODEC_TYPES,
         &mut out,
         || false,
     )

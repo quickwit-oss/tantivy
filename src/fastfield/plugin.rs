@@ -42,7 +42,6 @@ impl SegmentPlugin for FastFieldsPlugin {
         Ok(Box::new(FastFieldsPluginWriter {
             writer: Some(writer),
             fast_field_write,
-            codec_types: index.settings().columnar_codec_types().to_vec(),
         }))
     }
 
@@ -70,7 +69,6 @@ impl SegmentPlugin for FastFieldsPlugin {
             &columnars[..],
             &required_columns,
             merge_row_order,
-            ctx.settings.columnar_codec_types(),
             &mut fast_field_wrt,
             || cancel.wants_cancel(),
         )?;
@@ -99,7 +97,6 @@ pub struct FastFieldsPluginWriter {
     /// takes `self` by value. We `.take()` it during serialize.
     pub writer: Option<FastFieldsWriter>,
     fast_field_write: Option<WritePtr>,
-    codec_types: Vec<columnar::CodecType>,
 }
 
 impl FastFieldsPluginWriter {
@@ -133,7 +130,7 @@ impl PluginWriter for FastFieldsPluginWriter {
     ) -> crate::Result<()> {
         if let (Some(writer), Some(wrt)) = (self.writer.take(), self.fast_field_write.as_mut()) {
             writer
-                .serialize(&self.codec_types, wrt, doc_id_map)
+                .serialize(wrt, doc_id_map)
                 .map_err(|e| crate::TantivyError::InternalError(e.to_string()))?;
         }
         Ok(())

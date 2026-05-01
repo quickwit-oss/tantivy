@@ -28,11 +28,14 @@ pub fn serialize_column_mappable_to_u128<T: MonotonicallyMappableToU128>(
 pub fn serialize_column_mappable_to_u64<T: MonotonicallyMappableToU64>(
     column_index: SerializableColumnIndex<'_>,
     column_values: &impl Iterable<T>,
-    codec_types: &[CodecType],
     output: &mut impl Write,
 ) -> io::Result<()> {
     let column_index_num_bytes = serialize_column_index(column_index, output)?;
-    serialize_u64_based_column_values(column_values, codec_types, output)?;
+    serialize_u64_based_column_values(
+        column_values,
+        &[CodecType::Bitpacked, CodecType::BlockwiseLinear],
+        output,
+    )?;
     output.write_all(&column_index_num_bytes.to_le_bytes())?;
     Ok(())
 }
