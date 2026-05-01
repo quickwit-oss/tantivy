@@ -381,7 +381,9 @@ mod tests {
         columnar_writer.record_numerical(5, "full", u64::MAX);
 
         let mut wrt: Vec<u8> = Vec::new();
-        columnar_writer.serialize(7, None, &mut wrt).unwrap();
+        columnar_writer
+            .serialize(7, None, &crate::DEFAULT_CODEC_TYPES, &mut wrt)
+            .unwrap();
 
         let reader = ColumnarReader::open(wrt).unwrap();
         // Open the column as u64

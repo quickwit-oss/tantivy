@@ -191,6 +191,7 @@ proptest! {
     fn test_proptest_small_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..10)) {
         create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
     }
+
 }
 
 #[test]
@@ -218,6 +219,7 @@ proptest! {
     fn test_proptest_large_blockwise_linear(data in proptest::collection::vec(num_strategy(), 1..6000)) {
         create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
     }
+
 }
 
 fn num_strategy() -> impl Strategy<Value = u64> {
@@ -274,7 +276,6 @@ fn test_codec_interpolation() {
 fn test_codec_multi_interpolation() {
     test_codec::<BlockwiseLinearCodec>();
 }
-
 use super::*;
 
 fn estimate<C: ColumnCodec>(vals: &[u64]) -> Option<f32> {

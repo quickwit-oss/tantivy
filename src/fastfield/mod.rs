@@ -129,7 +129,9 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(*FIELD=>2u64))
                 .unwrap();
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -180,7 +182,9 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(*FIELD=>215u64))
                 .unwrap();
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -213,7 +217,9 @@ mod tests {
                     .add_document(&doc!(*FIELD=>100_000u64))
                     .unwrap();
             }
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -245,7 +251,9 @@ mod tests {
                     .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + doc_id))
                     .unwrap();
             }
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -278,7 +286,9 @@ mod tests {
                 doc.add_i64(i64_field, i);
                 fast_field_writers.add_document(&doc).unwrap();
             }
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -317,7 +327,9 @@ mod tests {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
 
@@ -350,7 +362,9 @@ mod tests {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
 
@@ -387,7 +401,9 @@ mod tests {
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x)).unwrap();
             }
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -772,7 +788,9 @@ mod tests {
             fast_field_writers
                 .add_document(&doc!(field=>false))
                 .unwrap();
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -804,7 +822,9 @@ mod tests {
                     .add_document(&doc!(field=>false))
                     .unwrap();
             }
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -829,7 +849,9 @@ mod tests {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
             let doc = TantivyDocument::default();
             fast_field_writers.add_document(&doc).unwrap();
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         let file = directory.open_read(path).unwrap();
@@ -857,7 +879,9 @@ mod tests {
             for doc in docs {
                 fast_field_writers.add_document(doc).unwrap();
             }
-            fast_field_writers.serialize(&mut write, None).unwrap();
+            fast_field_writers
+                .serialize(&columnar::DEFAULT_CODEC_TYPES, &mut write, None)
+                .unwrap();
             write.terminate().unwrap();
         }
         Ok(directory)

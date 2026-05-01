@@ -75,7 +75,9 @@ pub trait ColumnCodec<T: PartialOrd = u64> {
 }
 
 /// Available codecs to use to encode the u64 (via [`MonotonicallyMappableToU64`]) converted data.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[derive(
+    PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, serde::Serialize, serde::Deserialize,
+)]
 #[repr(u8)]
 pub enum CodecType {
     /// Bitpack all values in the value range. The number of bits is defined by the amplitude
@@ -97,11 +99,13 @@ pub const ALL_U64_CODEC_TYPES: [CodecType; 3] = [
 ];
 
 impl CodecType {
-    fn to_code(self) -> u8 {
+    /// Returns the u8 code for this codec type.
+    pub fn to_code(self) -> u8 {
         self as u8
     }
 
-    fn try_from_code(code: u8) -> Option<CodecType> {
+    /// Attempts to convert a u8 code to a `CodecType`. Returns `None` for unknown codes.
+    pub fn try_from_code(code: u8) -> Option<CodecType> {
         match code {
             0u8 => Some(CodecType::Bitpacked),
             1u8 => Some(CodecType::Linear),
