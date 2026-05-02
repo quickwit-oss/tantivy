@@ -58,4 +58,5 @@ name = "bench_optional_index"
 harness = false
 
 [features]
+paradedb = []
 zstd-compression = ["sstable/zstd-compression"]

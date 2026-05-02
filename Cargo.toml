@@ -133,6 +133,8 @@ columnar-zstd-compression = ["columnar/zstd-compression"]
 failpoints = ["fail", "fail/failpoints"]
 unstable = []                            # useful for benches.
 
+paradedb = ["columnar/paradedb"]
+
 quickwit = ["sstable", "futures-util", "futures-channel"]
 
 # Compares only the hash of a string when indexing data.

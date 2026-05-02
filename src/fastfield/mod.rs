@@ -270,6 +270,217 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "paradedb")]
+    const V2_CODEC_TYPES: [columnar::CodecType; 2] = [
+        columnar::CodecType::Bitpacked,
+        columnar::CodecType::BlockwiseLinearV2,
+    ];
+
+    #[cfg(feature = "paradedb")]
+    #[test]
+    fn test_intfastfield_small_v2() -> crate::Result<()> {
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+        {
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA).unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>13u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>14u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>2u64))
+                .unwrap();
+            fast_field_writers
+                .serialize(&V2_CODEC_TYPES, &mut write, None)
+                .unwrap();
+            write.terminate().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        // Small dataset: Bitpacked wins over V2, so size matches V1.
+        assert_eq!(file.len(), 80);
+        let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
+        let column = fast_field_readers
+            .u64("field")
+            .unwrap()
+            .first_or_default_col(0);
+        assert_eq!(column.get_val(0), 13u64);
+        assert_eq!(column.get_val(1), 14u64);
+        assert_eq!(column.get_val(2), 2u64);
+        Ok(())
+    }
+
+    #[cfg(feature = "paradedb")]
+    #[test]
+    fn test_intfastfield_large_v2() {
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+        {
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA).unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>4u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>14_082_001u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>3_052u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>9_002u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>15_001u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>777u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>1_002u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>1_501u64))
+                .unwrap();
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>215u64))
+                .unwrap();
+            fast_field_writers
+                .serialize(&V2_CODEC_TYPES, &mut write, None)
+                .unwrap();
+            write.terminate().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        // Small dataset: Bitpacked wins over V2, so size matches V1.
+        assert_eq!(file.len(), 108);
+        let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
+        let col = fast_field_readers
+            .u64("field")
+            .unwrap()
+            .first_or_default_col(0);
+        assert_eq!(col.get_val(0), 4u64);
+        assert_eq!(col.get_val(1), 14_082_001u64);
+        assert_eq!(col.get_val(2), 3_052u64);
+        assert_eq!(col.get_val(3), 9002u64);
+        assert_eq!(col.get_val(4), 15_001u64);
+        assert_eq!(col.get_val(5), 777u64);
+        assert_eq!(col.get_val(6), 1_002u64);
+        assert_eq!(col.get_val(7), 1_501u64);
+        assert_eq!(col.get_val(8), 215u64);
+    }
+
+    #[cfg(feature = "paradedb")]
+    #[test]
+    fn test_intfastfield_null_amplitude_v2() {
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+        {
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA).unwrap();
+            for _ in 0..10_000 {
+                fast_field_writers
+                    .add_document(&doc!(*FIELD=>100_000u64))
+                    .unwrap();
+            }
+            fast_field_writers
+                .serialize(&V2_CODEC_TYPES, &mut write, None)
+                .unwrap();
+            write.terminate().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        // Null amplitude: Bitpacked wins (bit_width=0), so size matches V1.
+        assert_eq!(file.len(), 81);
+        let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
+        let fast_field_reader = fast_field_readers
+            .u64("field")
+            .unwrap()
+            .first_or_default_col(0);
+        for doc in 0..10_000 {
+            assert_eq!(fast_field_reader.get_val(doc), 100_000u64);
+        }
+    }
+
+    #[cfg(feature = "paradedb")]
+    #[test]
+    fn test_intfastfield_large_numbers_v2() {
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+
+        {
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA).unwrap();
+            // forcing the amplitude to be high
+            fast_field_writers
+                .add_document(&doc!(*FIELD=>0u64))
+                .unwrap();
+            for doc_id in 1u64..10_000u64 {
+                fast_field_writers
+                    .add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + doc_id))
+                    .unwrap();
+            }
+            fast_field_writers
+                .serialize(&V2_CODEC_TYPES, &mut write, None)
+                .unwrap();
+            write.terminate().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        // V2 codec is selected here (BlockwiseLinearV2).
+        assert_eq!(file.len(), 4608);
+        {
+            let fast_field_readers = FastFieldReaders::open(file, SCHEMA.clone()).unwrap();
+            let col = fast_field_readers
+                .u64("field")
+                .unwrap()
+                .first_or_default_col(0);
+            for doc in 1..10_000 {
+                assert_eq!(col.get_val(doc), 5_000_000_000_000_000_000u64 + doc as u64);
+            }
+        }
+    }
+
+    #[cfg(feature = "paradedb")]
+    #[test]
+    fn test_signed_intfastfield_normal_v2() -> crate::Result<()> {
+        let path = Path::new("test");
+        let directory: RamDirectory = RamDirectory::create();
+        let mut schema_builder = Schema::builder();
+
+        let i64_field = schema_builder.add_i64_field("field", FAST);
+        let schema = schema_builder.build();
+        {
+            let mut write: WritePtr = directory.open_write(Path::new("test")).unwrap();
+            let mut fast_field_writers = FastFieldsWriter::from_schema(&schema).unwrap();
+            for i in -100i64..10_000i64 {
+                let mut doc = TantivyDocument::default();
+                doc.add_i64(i64_field, i);
+                fast_field_writers.add_document(&doc).unwrap();
+            }
+            fast_field_writers
+                .serialize(&V2_CODEC_TYPES, &mut write, None)
+                .unwrap();
+            write.terminate().unwrap();
+        }
+        let file = directory.open_read(path).unwrap();
+        // V2 codec is selected here (BlockwiseLinearV2).
+        assert_eq!(file.len(), 513);
+
+        {
+            let fast_field_readers = FastFieldReaders::open(file, schema).unwrap();
+            let col = fast_field_readers
+                .i64("field")
+                .unwrap()
+                .first_or_default_col(0);
+            assert_eq!(col.min_value(), -100i64);
+            assert_eq!(col.max_value(), 9_999i64);
+            for i in -100i64..10_000i64 {
+                assert_eq!(col.get_val((i + 100) as u32), i);
+            }
+        }
+        Ok(())
+    }
+
     #[test]
     fn test_signed_intfastfield_normal() -> crate::Result<()> {
         let path = Path::new("test");

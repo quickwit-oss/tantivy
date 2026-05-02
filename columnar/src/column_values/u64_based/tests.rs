@@ -192,6 +192,11 @@ proptest! {
         create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
     }
 
+    #[cfg(feature = "paradedb")]
+    #[test]
+    fn test_proptest_small_blockwise_linear_v2(data in proptest::collection::vec(num_strategy(), 1..10)) {
+        create_and_validate::<BlockwiseLinearV2Codec>(&data, "proptest multilinearinterpol v2");
+    }
 }
 
 #[test]
@@ -199,6 +204,15 @@ fn test_small_blockwise_linear_example() {
     create_and_validate::<BlockwiseLinearCodec>(
         &[9223372036854775808, 9223370937344622593],
         "proptest multilinearinterpol",
+    );
+}
+
+#[cfg(feature = "paradedb")]
+#[test]
+fn test_small_blockwise_linear_v2_example() {
+    create_and_validate::<BlockwiseLinearV2Codec>(
+        &[9223372036854775808, 9223370937344622593],
+        "proptest multilinearinterpol v2",
     );
 }
 
@@ -220,6 +234,11 @@ proptest! {
         create_and_validate::<BlockwiseLinearCodec>(&data, "proptest multilinearinterpol");
     }
 
+    #[cfg(feature = "paradedb")]
+    #[test]
+    fn test_proptest_large_blockwise_linear_v2(data in proptest::collection::vec(num_strategy(), 1..6000)) {
+        create_and_validate::<BlockwiseLinearV2Codec>(&data, "proptest multilinearinterpol v2");
+    }
 }
 
 fn num_strategy() -> impl Strategy<Value = u64> {
@@ -276,6 +295,12 @@ fn test_codec_interpolation() {
 fn test_codec_multi_interpolation() {
     test_codec::<BlockwiseLinearCodec>();
 }
+#[cfg(feature = "paradedb")]
+#[test]
+fn test_codec_multi_interpolation_v2() {
+    test_codec::<BlockwiseLinearV2Codec>();
+}
+
 use super::*;
 
 fn estimate<C: ColumnCodec>(vals: &[u64]) -> Option<f32> {
@@ -309,6 +334,25 @@ fn estimation_good_interpolation_case() {
     assert_lt!(linear_interpol_estimation, bitpacked_estimation);
 }
 
+#[cfg(feature = "paradedb")]
+#[test]
+fn estimation_good_interpolation_case_v2() {
+    let data = (10..=20000_u64).collect::<Vec<_>>();
+
+    let linear_interpol_estimation = estimate::<LinearCodec>(&data).unwrap();
+    assert_le!(linear_interpol_estimation, 0.01);
+
+    let multi_linear_interpol_v2_estimation = estimate::<BlockwiseLinearV2Codec>(&data).unwrap();
+    assert_le!(multi_linear_interpol_v2_estimation, 0.2);
+    assert_lt!(
+        linear_interpol_estimation,
+        multi_linear_interpol_v2_estimation
+    );
+
+    let bitpacked_estimation = estimate::<BitpackedCodec>(&data).unwrap();
+    assert_lt!(linear_interpol_estimation, bitpacked_estimation);
+}
+
 #[test]
 fn estimation_test_bad_interpolation_case_monotonically_increasing() {
     let mut data: Vec<u64> = (201..=20000_u64).collect();
@@ -316,6 +360,20 @@ fn estimation_test_bad_interpolation_case_monotonically_increasing() {
 
     // in this case the linear interpolation can't in fact not be worse than bitpacking,
     // but the estimator adds some threshold, which leads to estimated worse behavior
+    let linear_interpol_estimation = estimate::<LinearCodec>(&data[..]).unwrap();
+    assert_le!(linear_interpol_estimation, 0.35);
+
+    let bitpacked_estimation = estimate::<BitpackedCodec>(&data).unwrap();
+    assert_le!(bitpacked_estimation, 0.32);
+    assert_le!(bitpacked_estimation, linear_interpol_estimation);
+}
+
+#[cfg(feature = "paradedb")]
+#[test]
+fn estimation_test_bad_interpolation_case_monotonically_increasing_v2() {
+    let mut data: Vec<u64> = (201..=20000_u64).collect();
+    data.push(1_000_000);
+
     let linear_interpol_estimation = estimate::<LinearCodec>(&data[..]).unwrap();
     assert_le!(linear_interpol_estimation, 0.35);
 
@@ -333,6 +391,9 @@ fn test_fast_field_codec_type_to_code() {
             count_codec += 1;
         }
     }
+    #[cfg(feature = "paradedb")]
+    assert_eq!(count_codec, 4);
+    #[cfg(not(feature = "paradedb"))]
     assert_eq!(count_codec, 3);
 }
 
@@ -369,11 +430,14 @@ fn test_fastfield_gcd_i64_with_codec(codec_type: CodecType, num_vals: usize) -> 
 
 #[test]
 fn test_fastfield_gcd_i64() -> io::Result<()> {
-    for &codec_type in &[
+    let mut codec_types = vec![
         CodecType::Bitpacked,
         CodecType::BlockwiseLinear,
         CodecType::Linear,
-    ] {
+    ];
+    #[cfg(feature = "paradedb")]
+    codec_types.push(CodecType::BlockwiseLinearV2);
+    for &codec_type in &codec_types {
         test_fastfield_gcd_i64_with_codec(codec_type, 5500)?;
     }
     Ok(())
@@ -411,11 +475,14 @@ fn test_fastfield_gcd_u64_with_codec(codec_type: CodecType, num_vals: usize) -> 
 
 #[test]
 fn test_fastfield_gcd_u64() -> io::Result<()> {
-    for &codec_type in &[
+    let mut codec_types = vec![
         CodecType::Bitpacked,
         CodecType::BlockwiseLinear,
         CodecType::Linear,
-    ] {
+    ];
+    #[cfg(feature = "paradedb")]
+    codec_types.push(CodecType::BlockwiseLinearV2);
+    for &codec_type in &codec_types {
         test_fastfield_gcd_u64_with_codec(codec_type, 5500)?;
     }
     Ok(())
