@@ -20,8 +20,8 @@ use crate::aggregation::metric::{
     build_segment_stats_collector, AverageAggregation, CardinalityAggReqData,
     CardinalityAggregationReq, CountAggregation, ExtendedStatsAggregation, MaxAggregation,
     MetricAggReqData, MinAggregation, SegmentCardinalityCollector, SegmentExtendedStatsCollector,
-    SegmentPercentilesCollector, StatsAggregation, StatsType, SumAggregation, TopHitsAggReqData,
-    TopHitsSegmentCollector,
+    SegmentPercentilesCollector, StatsAggregation, StatsType, SumAggregation, TermOrdSet,
+    TopHitsAggReqData, TopHitsSegmentCollector, BITSET_MAX_TERM_ORD,
 };
 use crate::aggregation::segment_agg_result::{
     GenericSegmentAggregationResultsCollector, SegmentAggregationCollector,
@@ -413,12 +413,38 @@ pub(crate) fn build_segment_agg_collector(
         }
         AggKind::Cardinality => {
             let req_data = &mut req.get_cardinality_req_data_mut(node.idx_in_req_data);
-            Ok(Box::new(SegmentCardinalityCollector::from_req(
-                req_data.column_type,
-                node.idx_in_req_data,
-                req_data.accessor.clone(),
-                req_data.missing_value_for_accessor,
-            )))
+            // For str columns, choose the per-bucket entries representation
+            // based on the segment's column.max_value():
+            //   * small (< BITSET_MAX_TERM_ORD): `BitSet`, pre-allocated, no promotion machinery.
+            //   * large: `TermOrdSet` (sparse FxHashSet that promotes to a paged bitset).
+            // For non-str columns the `entries` field is unused (values go
+            // straight into the HLL sketch); we still pick `TermOrdSet`
+            // because its empty Sparse(FxHashSet) costs nothing.
+            let is_str = req_data.column_type == ColumnType::Str;
+            let max_term_ord_inclusive = if is_str {
+                req_data.accessor.max_value()
+            } else {
+                0
+            };
+            let collector: Box<dyn SegmentAggregationCollector> =
+                if is_str && max_term_ord_inclusive < BITSET_MAX_TERM_ORD {
+                    Box::new(SegmentCardinalityCollector::<BitSet>::from_req(
+                        req_data.column_type,
+                        node.idx_in_req_data,
+                        req_data.accessor.clone(),
+                        req_data.missing_value_for_accessor,
+                        max_term_ord_inclusive,
+                    ))
+                } else {
+                    Box::new(SegmentCardinalityCollector::<TermOrdSet>::from_req(
+                        req_data.column_type,
+                        node.idx_in_req_data,
+                        req_data.accessor.clone(),
+                        req_data.missing_value_for_accessor,
+                        max_term_ord_inclusive,
+                    ))
+                };
+            Ok(collector)
         }
         AggKind::StatsKind(stats_type) => {
             let req_data = &mut req.per_request.stats_metric_req_data[node.idx_in_req_data];
