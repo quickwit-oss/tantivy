@@ -23,6 +23,7 @@ use crate::indexer::{IndexWriter, SingleSegmentIndexWriter};
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::document::Document;
 use crate::schema::{Field, FieldType, Schema};
+use crate::spatial::spatial_index_manager::SpatialIndexManager;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::SegmentReader;
 
@@ -106,6 +107,7 @@ pub struct IndexBuilder {
     index_settings: IndexSettings,
     tokenizer_manager: TokenizerManager,
     fast_field_tokenizer_manager: TokenizerManager,
+    spatial_index_manager: SpatialIndexManager,
 }
 impl Default for IndexBuilder {
     fn default() -> Self {
@@ -120,6 +122,7 @@ impl IndexBuilder {
             index_settings: IndexSettings::default(),
             tokenizer_manager: TokenizerManager::default(),
             fast_field_tokenizer_manager: TokenizerManager::default(),
+            spatial_index_manager: SpatialIndexManager::default(),
         }
     }
 
@@ -222,6 +225,7 @@ impl IndexBuilder {
         }
         let mut index = Index::open(dir)?;
         index.set_tokenizers(self.tokenizer_manager.clone());
+        index.set_spatial_indices(self.spatial_index_manager.clone());
         if index.schema() == self.get_expect_schema()? {
             Ok(index)
         } else {
@@ -258,6 +262,7 @@ impl IndexBuilder {
         let mut index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         index.set_tokenizers(self.tokenizer_manager);
         index.set_fast_field_tokenizers(self.fast_field_tokenizer_manager);
+        index.set_spatial_indices(self.spatial_index_manager);
         Ok(index)
     }
 }
@@ -271,6 +276,7 @@ pub struct Index {
     executor: Executor,
     tokenizers: TokenizerManager,
     fast_field_tokenizers: TokenizerManager,
+    spatial_indices: SpatialIndexManager,
     inventory: SegmentMetaInventory,
 }
 
@@ -389,6 +395,7 @@ impl Index {
             schema,
             tokenizers: TokenizerManager::default(),
             fast_field_tokenizers: TokenizerManager::default(),
+            spatial_indices: SpatialIndexManager::default(),
             executor: Executor::single_thread(),
             inventory,
         }
@@ -412,6 +419,16 @@ impl Index {
     /// Accessor for the fast field tokenizer manager.
     pub fn fast_field_tokenizer(&self) -> &TokenizerManager {
         &self.fast_field_tokenizers
+    }
+
+    /// Setter for the spatial index manager.
+    pub fn set_spatial_indices(&mut self, spatial_indices: SpatialIndexManager) {
+        self.spatial_indices = spatial_indices;
+    }
+
+    /// Accessor for the spatial index manager.
+    pub fn spatial_indices(&self) -> &SpatialIndexManager {
+        &self.spatial_indices
     }
 
     /// Get the tokenizer associated with a specific field.

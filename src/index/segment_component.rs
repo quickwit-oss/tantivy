@@ -26,12 +26,16 @@ pub enum SegmentComponent {
     /// Bitset describing which document of the segment is alive.
     /// (It was representing deleted docs but changed to represent alive docs from v0.17)
     Delete,
+    /// Cell index for spatial fields.
+    SpatialCells,
+    /// Edge index for spatial fields.
+    SpatialEdges,
 }
 
 impl SegmentComponent {
     /// Iterates through the components.
     pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent; 7] = [
+        static SEGMENT_COMPONENTS: [SegmentComponent; 9] = [
             SegmentComponent::Postings,
             SegmentComponent::Positions,
             SegmentComponent::FastFields,
@@ -39,6 +43,8 @@ impl SegmentComponent {
             SegmentComponent::Terms,
             SegmentComponent::Store,
             SegmentComponent::Delete,
+            SegmentComponent::SpatialCells,
+            SegmentComponent::SpatialEdges,
         ];
         SEGMENT_COMPONENTS.iter()
     }
