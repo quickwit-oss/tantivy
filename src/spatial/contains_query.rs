@@ -21,26 +21,28 @@ use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
 use super::shape_index_region::{index_contains_point, CellIndexRegion, EdgeProvider};
 use super::sphere::Sphere;
+use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipped_shape::GeometryId;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::shape_index::ShapeIndex;
 
 /// In-memory edge provider wrapping a smashed GeometrySet. Resolves edge indices into the
-/// smashed vertex arrays. No modulo wrapping — smashed vertices include the closure vertex.
-pub struct QueryEdgeProvider {
-    pub(crate) set: GeometrySet<Sphere>,
+/// smashed vertex arrays. No modulo wrapping -- smashed vertices include the closure vertex.
+pub struct QueryEdgeProvider<S: Surface> {
+    pub(crate) set: GeometrySet<S>,
 }
 
-impl QueryEdgeProvider {
+impl<S: Surface> QueryEdgeProvider<S> {
     /// Returns the EdgeSet for the given geometry_id.
-    pub fn get_edge_set(&self, geometry_id: GeometryId) -> &EdgeSet<Sphere> {
+    pub fn get_edge_set(&self, geometry_id: GeometryId) -> &EdgeSet<S> {
         &self.set.members[geometry_id.1 as usize]
     }
 }
 
-impl EdgeProvider for QueryEdgeProvider {
-    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u32) -> ([f64; 3], [f64; 3]) {
+impl<S: Surface> EdgeProvider for QueryEdgeProvider<S> {
+    type Point = S::Point;
+    fn get_edge(&self, geometry_id: GeometryId, edge_idx: u32) -> (S::Point, S::Point) {
         let vertices = &self.set.members[geometry_id.1 as usize].vertices;
         let i = edge_idx as usize;
         (vertices[i], vertices[i + 1])
@@ -49,9 +51,11 @@ impl EdgeProvider for QueryEdgeProvider {
 
 /// Prepared contains query, built once from a query polygon and applied per-segment. Holds the
 /// query-local CellIndex, the covering, and the interior/boundary classification.
+///
+/// Currently Sphere-only. The crossing tests and index_contains_point use Sphere-specific math.
 pub struct ContainsQuery {
     query_index: ShapeIndex,
-    query_edges: QueryEdgeProvider,
+    query_edges: QueryEdgeProvider<Sphere>,
     covering: Vec<S2CellId>,
     interior: Vec<bool>,
 }
@@ -63,7 +67,7 @@ impl ContainsQuery {
         let query_index = builder.build(std::slice::from_ref(&set));
         let query_edges = QueryEdgeProvider { set };
 
-        let region = CellIndexRegion::new(&query_index, &query_edges);
+        let region = CellIndexRegion::<Sphere, _>::new(&query_index, &query_edges);
         let coverer = RegionCoverer::new(options);
         let covering = coverer.get_covering(&region);
 
@@ -186,7 +190,7 @@ impl ContainsQuery {
             return false;
         }
 
-        index_contains_point(&self.query_index, &self.query_edges, (0, 0), &vertices[0])
+        index_contains_point::<Sphere, _>(&self.query_index, &self.query_edges, (0, 0), &vertices[0])
     }
 
     /// Tests whether any candidate edge crosses any query polygon edge, narrowed to edges sharing

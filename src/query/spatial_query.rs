@@ -1,25 +1,23 @@
 //! Spatial polygon query.
 //!
 //! Finds indexed geometries that match a query polygon via contains or intersects predicates. The
-//! query polygon is specified as lon/lat vertices, converted to unit sphere coordinates, and
-//! searched against each segment's cell index and edge index.
+//! query polygon is specified as lon/lat vertices, projected onto the surface configured for the
+//! field, and searched against each segment's cell index and edge index.
 
 use common::BitSet;
 
 use crate::query::explanation::does_not_match;
 use crate::query::{BitSetDocSet, Explanation, Query, Scorer, Weight};
-use crate::schema::Field;
+use crate::schema::{Field, FieldType};
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::closest_edge_query::ClosestEdgeQuery;
-use crate::spatial::contains_query::ContainsQuery;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::geometry::Geometry;
 use crate::spatial::geometry_set::to_geometry_set;
-use crate::spatial::intersects_query::IntersectsQuery;
 use crate::spatial::plane::Plane;
-use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::s1chord_angle::S1ChordAngle;
+use crate::spatial::spatial_index_manager::PreparedSpatialQuery;
 use crate::spatial::sphere::Sphere;
 use crate::{DocId, DocSet, Score, TERMINATED};
 
@@ -106,33 +104,50 @@ impl SpatialQuery {
 impl Query for SpatialQuery {
     fn weight(
         &self,
-        _enable_scoring: super::EnableScoring<'_>,
+        enable_scoring: super::EnableScoring<'_>,
     ) -> crate::Result<Box<dyn super::Weight>> {
+        let mut ring: Vec<[f64; 2]> = self.coordinates.clone();
+        if ring.first() != ring.last() {
+            ring.push(ring[0]);
+        }
+        let plane_geometry = Geometry::<Plane>::Polygon(vec![ring]);
+
         let prepared: Box<dyn PreparedSpatialQuery> = match &self.predicate {
             SpatialPredicate::Contains | SpatialPredicate::Intersects => {
-                let mut ring: Vec<[f64; 2]> = self.coordinates.clone();
-                if ring.first() != ring.last() {
-                    ring.push(ring[0]);
-                }
-                let plane_geometry = Geometry::<Plane>::Polygon(vec![ring]);
-                let projected = plane_geometry.project::<Sphere>();
-                let set = to_geometry_set(&projected, 0);
+                // Look up the spatial index from the manager.
+                let searcher = enable_scoring.searcher().expect("searcher required for spatial query");
+                let schema = searcher.index().schema();
+                let field_entry = schema.get_field_entry(self.field);
+                let spatial_opts = match field_entry.field_type() {
+                    FieldType::Spatial(opts) => opts,
+                    _ => panic!("field is not spatial"),
+                };
+                let manager = searcher.index().spatial_indices();
+                let spatial_index = manager
+                    .get(spatial_opts.spatial_index_name())
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "spatial index '{}' not registered",
+                            spatial_opts.spatial_index_name()
+                        )
+                    });
                 match &self.predicate {
-                    SpatialPredicate::Contains => {
-                        Box::new(ContainsQuery::new(set, CovererOptions::default()))
-                    }
                     SpatialPredicate::Intersects => {
-                        Box::new(IntersectsQuery::new(set, CovererOptions::default()))
+                        spatial_index.prepare_intersects(&plane_geometry)
+                    }
+                    SpatialPredicate::Contains => {
+                        spatial_index.prepare_contains(&plane_geometry)
                     }
                     _ => unreachable!(),
                 }
             }
+            // Distance predicates remain Sphere-only for now.
             SpatialPredicate::Within(radius_radians) => {
                 let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
                 let projected = query_geometry.project::<Sphere>();
                 let set = to_geometry_set(&projected, 0);
                 let radius = S1ChordAngle::from_radians(*radius_radians);
-                Box::new(ClosestEdgeQuery::within(set, radius))
+                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::within(set, radius)))
             }
             SpatialPredicate::Between(inner_radians, outer_radians) => {
                 let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
@@ -140,13 +155,13 @@ impl Query for SpatialQuery {
                 let set = to_geometry_set(&projected, 0);
                 let inner = S1ChordAngle::from_radians(*inner_radians);
                 let outer = S1ChordAngle::from_radians(*outer_radians);
-                Box::new(ClosestEdgeQuery::between(set, inner, outer))
+                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::between(set, inner, outer)))
             }
             SpatialPredicate::Knn(k) => {
                 let query_geometry = Geometry::<Plane>::Point(self.coordinates[0]);
                 let projected = query_geometry.project::<Sphere>();
                 let set = to_geometry_set(&projected, 0);
-                Box::new(ClosestEdgeQuery::knn(set, *k))
+                Box::new(ClosestEdgeQueryAdapter(ClosestEdgeQuery::knn(set, *k)))
             }
         };
         Ok(Box::new(SpatialWeight {
@@ -156,42 +171,16 @@ impl Query for SpatialQuery {
     }
 }
 
-/// Shared interface for prepared spatial queries.
-trait PreparedSpatialQuery: Send + Sync {
-    fn search_segment<'a>(
-        &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
-    ) -> Vec<u32>;
-}
+/// Adapter for ClosestEdgeQuery to implement PreparedSpatialQuery.
+struct ClosestEdgeQueryAdapter(ClosestEdgeQuery);
 
-impl PreparedSpatialQuery for ContainsQuery {
-    fn search_segment<'a>(
-        &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
-    ) -> Vec<u32> {
-        ContainsQuery::search_segment(self, cell_reader, edge_cache)
-    }
-}
-
-impl PreparedSpatialQuery for IntersectsQuery {
-    fn search_segment<'a>(
-        &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
-    ) -> Vec<u32> {
-        IntersectsQuery::search_segment(self, cell_reader, edge_cache)
-    }
-}
-
-impl PreparedSpatialQuery for ClosestEdgeQuery {
-    fn search_segment<'a>(
-        &self,
-        cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
-    ) -> Vec<u32> {
-        ClosestEdgeQuery::search_segment(self, cell_reader, edge_cache)
+impl PreparedSpatialQuery for ClosestEdgeQueryAdapter {
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {
+        let cell_reader = CellIndexReader::open(cells_bytes);
+        let edge_reader = EdgeReader::<Sphere>::open(edges_bytes);
+        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
+        self.0
+            .search_segment(&cell_reader, &mut edge_cache)
             .into_iter()
             .map(|r| r.doc_id)
             .collect()
@@ -217,11 +206,10 @@ impl Weight for SpatialWeight {
             }
         };
 
-        let cell_reader = CellIndexReader::open(spatial_reader.cells_bytes());
-        let edge_reader = EdgeReader::<Sphere>::open(spatial_reader.edges_bytes());
-        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-
-        let doc_ids = self.query.search_segment(&cell_reader, &mut edge_cache);
+        let doc_ids = self.query.search_segment_bytes(
+            spatial_reader.cells_bytes(),
+            spatial_reader.edges_bytes(),
+        );
 
         let mut include = BitSet::with_max_value(reader.max_doc());
         for doc_id in doc_ids {

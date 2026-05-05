@@ -26,6 +26,10 @@ use crate::spatial::plane::Plane;
 use crate::spatial::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
+use crate::spatial::contains_query::ContainsQuery;
+use crate::spatial::intersects_query::IntersectsQuery;
+use crate::spatial::region_coverer::CovererOptions;
+use crate::spatial::sphere::Sphere;
 use crate::DocId;
 
 /// Default skip interval for the edge index skip list directory.
@@ -41,13 +45,12 @@ pub struct MergeSource<'a> {
     pub segment_name: String,
 }
 
-/// Factory for per-field spatial writers and mergers. Registered in `SpatialIndexManager` by name.
+/// Factory for per-field spatial writers, mergers, and queries. Registered in
+/// `SpatialIndexManager` by name.
 pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
     /// Create a writer that accumulates geometries for one field.
     fn create_field_writer(&self) -> Box<dyn SpatialFieldWriter>;
 
-    /// Merge source segments into a new segment. Returns the old-to-new geometry ID mapping
-    /// per source segment and the new geometry count.
     /// Merge source segments into a new segment.
     fn merge_field<'a>(
         &self,
@@ -57,6 +60,24 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
         edges_write: &mut CountingWriter<WritePtr>,
         doc_id_inverse: &[Vec<Option<DocId>>],
     ) -> io::Result<MergeResult>;
+
+    /// Prepare an intersects query from a query polygon in lon/lat.
+    fn prepare_intersects(
+        &self,
+        geometry: &Geometry<Plane>,
+    ) -> Box<dyn PreparedSpatialQuery>;
+
+    /// Prepare a contains query from a query polygon in lon/lat.
+    fn prepare_contains(
+        &self,
+        geometry: &Geometry<Plane>,
+    ) -> Box<dyn PreparedSpatialQuery>;
+}
+
+/// A prepared spatial query that searches one segment at a time.
+pub trait PreparedSpatialQuery: Send + Sync {
+    /// Search one segment from raw cell index and edge index bytes.
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32>;
 }
 
 /// Result of a spatial merge.
@@ -236,6 +257,57 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
             cell_count,
         })
     }
+
+    fn prepare_intersects(
+        &self,
+        geometry: &Geometry<Plane>,
+    ) -> Box<dyn PreparedSpatialQuery> {
+        let projected = geometry.project::<S>();
+        let set = to_geometry_set(&projected, 0);
+        Box::new(PreparedIntersects::<S> {
+            query: IntersectsQuery::new(set, CovererOptions::default()),
+        })
+    }
+
+    fn prepare_contains(
+        &self,
+        geometry: &Geometry<Plane>,
+    ) -> Box<dyn PreparedSpatialQuery> {
+        // ContainsQuery is Sphere-only for now.
+        let projected = geometry.project::<Sphere>();
+        let set = to_geometry_set(&projected, 0);
+        Box::new(PreparedContains {
+            query: ContainsQuery::new(set, CovererOptions::default()),
+        })
+    }
+}
+
+struct PreparedIntersects<S: Surface> {
+    query: IntersectsQuery<S>,
+}
+
+
+impl<S: Surface + 'static> PreparedSpatialQuery for PreparedIntersects<S> {
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {
+        let cell_reader = CellIndexReader::open(cells_bytes);
+        let edge_reader = EdgeReader::<S>::open(edges_bytes);
+        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
+        self.query.search_segment(&cell_reader, &mut edge_cache)
+    }
+}
+
+struct PreparedContains {
+    query: ContainsQuery,
+}
+
+
+impl PreparedSpatialQuery for PreparedContains {
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {
+        let cell_reader = CellIndexReader::open(cells_bytes);
+        let edge_reader = EdgeReader::<Sphere>::open(edges_bytes);
+        let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
+        self.query.search_segment(&cell_reader, &mut edge_cache)
+    }
 }
 
 /// Per-field writer for a given surface. Accumulates `GeometrySet<S>` and serializes them.
@@ -324,7 +396,7 @@ impl Default for SpatialIndexManager {
         let manager = SpatialIndexManager {
             indices: Arc::new(RwLock::new(HashMap::new())),
         };
-        manager.register("sphere", Box::new(SurfaceIndex::<crate::spatial::sphere::Sphere>::new()));
+        manager.register("sphere", Box::new(SurfaceIndex::<Sphere>::new()));
         manager.register("plane", Box::new(SurfaceIndex::<Plane>::new()));
         manager
     }

@@ -9,34 +9,33 @@ use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
 use super::contains_query::QueryEdgeProvider;
-use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
+use super::edge_crosser::EdgeCrosser;
 use super::geometry_set::GeometrySet;
 use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell_id::S2CellId;
 use super::shape_index_region::{index_contains_point, CellIndexRegion};
-use super::sphere::Sphere;
 use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
 use crate::spatial::shape_index::ShapeIndex;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
-pub struct IntersectsQuery {
+pub struct IntersectsQuery<S: Surface> {
     query_index: ShapeIndex,
-    query_edges: QueryEdgeProvider,
+    query_edges: QueryEdgeProvider<S>,
     covering: Vec<S2CellId>,
 }
 
-impl IntersectsQuery {
+impl<S: Surface> IntersectsQuery<S> {
     /// Build the query from a smashed GeometrySet.
-    pub fn new(set: GeometrySet<Sphere>, options: CovererOptions) -> Self {
+    pub fn new(set: GeometrySet<S>, options: CovererOptions) -> Self {
         let builder = Clipper::new(ClipOptions::default());
         let query_index = builder.build(std::slice::from_ref(&set));
 
         let query_edges = QueryEdgeProvider { set };
 
-        let region = CellIndexRegion::new(&query_index, &query_edges);
+        let region = CellIndexRegion::<S, QueryEdgeProvider<S>>::new(&query_index, &query_edges);
         let coverer = RegionCoverer::new(options);
         let covering = coverer.get_covering(&region).into_cell_ids();
 
@@ -51,7 +50,7 @@ impl IntersectsQuery {
     pub fn search_segment<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, S>,
     ) -> Vec<u32> {
         self.search_segment_inner(cell_reader, None, edge_cache)
     }
@@ -60,7 +59,7 @@ impl IntersectsQuery {
     pub fn search_segment_filtered<'a>(
         &self,
         cell_reader: &'a CellIndexReader<'a>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, S>,
         terms_filter: &BitSet,
     ) -> Vec<u32> {
         self.search_segment_inner(cell_reader, Some(terms_filter), edge_cache)
@@ -70,7 +69,7 @@ impl IntersectsQuery {
         &self,
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&BitSet>,
-        edge_cache: &mut EdgeCache<'a, Sphere>,
+        edge_cache: &mut EdgeCache<'a, S>,
     ) -> Vec<u32> {
         let geometry_count = edge_cache.geometry_count(0);
         let mut include = BitSet::with_max_value(geometry_count);
@@ -81,12 +80,16 @@ impl IntersectsQuery {
         let mut hits_query_contains = 0u64;
         let mut hits_crossing = 0u64;
         let mut total_tested = 0u64;
+        let mut crossing_tests = 0u64;
+        let mut index_cells_visited = 0u64;
+
+        eprintln!("covering: {} cells", self.covering.len());
 
         // Pre-scan: find geometries that contain the query point. A closed geometry
         // with contains_center and no edges in the query point cell fully contains the
         // query point. Include these before the covering walk.
         let query_vertex = &self.query_edges.get_edge_set((0, 0)).vertices[0];
-        let query_point_cell_id = Sphere::cell_id_from_point(query_vertex);
+        let query_point_cell_id = S::cell_id_from_point(query_vertex);
         if let Some(qpc) = reader.find(query_point_cell_id) {
             for shape in &qpc.shapes {
                 let gid = shape.geometry_id.1;
@@ -111,6 +114,7 @@ impl IntersectsQuery {
         for &covering_cell_id in &self.covering {
             let query_cell = self.query_index.find_cell(covering_cell_id);
             for index_cell in reader.scan_range(covering_cell_id) {
+                index_cells_visited += 1;
                 for clipped in &index_cell.shapes {
                     let gid = clipped.geometry_id.1;
 
@@ -139,7 +143,7 @@ impl IntersectsQuery {
 
                         // Does the query contain the candidate's first vertex?
                         let first_vertex = located.vertex(0);
-                        if index_contains_point(
+                        if index_contains_point::<S, QueryEdgeProvider<S>>(
                             &self.query_index,
                             &self.query_edges,
                             (0, 0),
@@ -165,12 +169,13 @@ impl IntersectsQuery {
                                 let crossed = 'crossing: {
                                     for &candidate_edge_idx in &clipped.edge_indices {
                                         let (cv0, cv1) = located.edge(candidate_edge_idx);
-                                        let mut crosser = S2EdgeCrosser::new(&cv0, &cv1);
+                                        let mut crosser = S::EdgeCrosser::new(&cv0, &cv1);
                                         for query_shape in &qc.shapes {
                                             for &query_edge_idx in &query_shape.edge_indices {
                                                 let qi = query_edge_idx as usize;
                                                 let qv0 = &query_vertices[qi];
                                                 let qv1 = &query_vertices[qi + 1];
+                                                crossing_tests += 1;
                                                 if crosser.crossing_sign_two(qv0, qv1) > 0 {
                                                     break 'crossing true;
                                                 }
@@ -192,12 +197,14 @@ impl IntersectsQuery {
         }
 
         eprintln!(
-            "intersects: {} tested, {} candidate_contains, {} query_contains, {} crossing, {} \
-             total hits",
+            "intersects: {} index cells visited, {} tested, {} candidate_contains, {} query_contains, \
+             {} crossing ({} tests), {} total hits",
+            index_cells_visited,
             total_tested,
             hits_candidate_contains,
             hits_query_contains,
             hits_crossing,
+            crossing_tests,
             hits_candidate_contains + hits_query_contains + hits_crossing,
         );
 

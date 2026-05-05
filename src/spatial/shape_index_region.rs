@@ -11,17 +11,17 @@ use std::collections::HashMap;
 use super::cell_index_reader::CellIndexReader;
 use super::cell_union::CellUnion;
 use super::clipped_shape::{ClippedShape, GeometryId};
-use super::crossings::S2EdgeCrosser;
 use super::edge_cache::EdgeCache;
+use super::edge_crosser::EdgeCrosser;
 use super::latlng_rect::S2LatLngRect;
 use super::region::Region;
 use super::s2cap::S2Cap;
 use super::s2cell::S2Cell;
 use super::s2cell_id::S2CellId;
-use super::s2edge_clipping::{
-    clip_to_padded_face, intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSECTS_RECT_ERROR_UV_DIST,
-};
-use super::sphere::Sphere;
+use super::r1interval::R1Interval;
+use super::r2rect::R2Rect;
+use super::s2coords::ij_to_st_min;
+use super::s2edge_clipping::{intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSECTS_RECT_ERROR_UV_DIST};
 use super::surface::Surface;
 use crate::spatial::shape_index::ShapeIndex;
 
@@ -31,8 +31,10 @@ use crate::spatial::shape_index::ShapeIndex;
 /// ingest-side indexes backed by EdgeCache, this reads from disk. For query-local indexes, this
 /// indexes into an in-memory vertex array.
 pub trait EdgeProvider {
+    /// The point type for edge vertices.
+    type Point: Copy;
     /// Returns the two endpoints of the given edge.
-    fn get_edge(&self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]);
+    fn get_edge(&self, geometry_id: GeometryId, edge_index: u32) -> (Self::Point, Self::Point);
 }
 
 /// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between
@@ -46,22 +48,21 @@ pub struct ClippedInfo {
     pub edge_indices: Vec<u32>,
 }
 
-/// Abstracts cell lookup and edge resolution for indexed point-in-polygon. Takes &mut self because
-/// the segment-side EdgeCache mutates its LRU cache.
-pub trait ContainmentIndex {
+/// Abstracts cell lookup and edge resolution for indexed point-in-polygon.
+pub trait ContainmentIndex<S: Surface> {
     /// Finds the cell containing the test point and returns the clipped shape data
     /// for the given geometry, or None if the geometry is not present in that cell.
-    fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo>;
+    fn find_clipped(&mut self, geometry_id: GeometryId, point: &S::Point) -> Option<ClippedInfo>;
     /// Resolves an edge index to its two endpoint vertices.
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]);
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> (S::Point, S::Point);
 }
 
 /// Indexed point-in-polygon through either backend. Finds the cell containing the test point,
 /// starts from contains_center, counts crossings of only the edges clipped to that cell.
-pub fn contains_point<T: ContainmentIndex>(
+pub fn contains_point<S: Surface, T: ContainmentIndex<S>>(
     index: &mut T,
     geometry_id: GeometryId,
-    point: &[f64; 3],
+    point: &S::Point,
 ) -> bool {
     let info = match index.find_clipped(geometry_id, point) {
         Some(c) => c,
@@ -69,8 +70,8 @@ pub fn contains_point<T: ContainmentIndex>(
     };
     let mut inside = info.contains_center;
     if !info.edge_indices.is_empty() {
-        let center = Sphere::cell_center(info.cell_id);
-        let mut crosser = S2EdgeCrosser::new(&center, point);
+        let center = S::cell_center(info.cell_id);
+        let mut crosser = S::EdgeCrosser::new(&center, point);
         for &edge_index in &info.edge_indices {
             let (v0, v1) = index.resolve_edge(geometry_id, edge_index);
             inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
@@ -80,16 +81,24 @@ pub fn contains_point<T: ContainmentIndex>(
 }
 
 /// In-memory containment index wrapping a ShapeIndex and an EdgeProvider.
-pub struct InMemoryIndex<'a, E: EdgeProvider> {
+pub struct InMemoryIndex<'a, S: Surface, E: EdgeProvider<Point = S::Point>> {
     /// The in-memory cell index.
     pub index: &'a ShapeIndex,
     /// The edge provider for vertex resolution.
     pub edges: &'a E,
+    _surface: std::marker::PhantomData<S>,
 }
 
-impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
-    fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo> {
-        let cell_id = Sphere::cell_id_from_point(point);
+impl<'a, S: Surface, E: EdgeProvider<Point = S::Point>> InMemoryIndex<'a, S, E> {
+    /// Create a new in-memory containment index.
+    pub fn new(index: &'a ShapeIndex, edges: &'a E) -> Self {
+        Self { index, edges, _surface: std::marker::PhantomData }
+    }
+}
+
+impl<S: Surface, E: EdgeProvider<Point = S::Point>> ContainmentIndex<S> for InMemoryIndex<'_, S, E> {
+    fn find_clipped(&mut self, geometry_id: GeometryId, point: &S::Point) -> Option<ClippedInfo> {
+        let cell_id = S::cell_id_from_point(point);
         let index_cell = self.index.find_cell(cell_id)?;
         let clipped = index_cell.find_shape(geometry_id)?;
         Some(ClippedInfo {
@@ -99,22 +108,22 @@ impl<E: EdgeProvider> ContainmentIndex for InMemoryIndex<'_, E> {
         })
     }
 
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]) {
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> (S::Point, S::Point) {
         self.edges.get_edge(geometry_id, edge_index)
     }
 }
 
 /// Segment containment index wrapping a CellIndexReader and an EdgeCache.
-pub struct SegmentIndex<'a, 'b> {
+pub struct SegmentIndex<'a, 'b, S: Surface> {
     /// The serialized cell index reader.
     pub cell_reader: &'a CellIndexReader<'a>,
     /// The edge cache for vertex resolution.
-    pub edge_cache: &'b mut EdgeCache<'a, Sphere>,
+    pub edge_cache: &'b mut EdgeCache<'a, S>,
 }
 
-impl ContainmentIndex for SegmentIndex<'_, '_> {
-    fn find_clipped(&mut self, geometry_id: GeometryId, point: &[f64; 3]) -> Option<ClippedInfo> {
-        let cell_id = Sphere::cell_id_from_point(point);
+impl<S: Surface> ContainmentIndex<S> for SegmentIndex<'_, '_, S> {
+    fn find_clipped(&mut self, geometry_id: GeometryId, point: &S::Point) -> Option<ClippedInfo> {
+        let cell_id = S::cell_id_from_point(point);
         let index_cell = self.cell_reader.find(cell_id)?;
         let clipped = index_cell
             .shapes
@@ -127,12 +136,27 @@ impl ContainmentIndex for SegmentIndex<'_, '_> {
         })
     }
 
-    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> ([f64; 3], [f64; 3]) {
+    fn resolve_edge(&mut self, geometry_id: GeometryId, edge_index: u32) -> (S::Point, S::Point) {
         let entry = self.edge_cache.get(geometry_id);
         let vertices = entry.vertices();
         let i = edge_index as usize;
         (vertices[i], vertices[i + 1])
     }
+}
+
+/// Compute a cell's UV bounding rectangle using the surface-specific st_to_uv transform.
+fn cell_bound_uv<S: Surface>(cell_id: S2CellId) -> R2Rect {
+    let (_, i, j, _) = cell_id.to_face_ij_orientation();
+    let level = cell_id.level();
+    let cell_size = S2CellId::size_ij_for_level(level);
+    let i_lo = i & -cell_size;
+    let j_lo = j & -cell_size;
+    let i_hi = i_lo + cell_size;
+    let j_hi = j_lo + cell_size;
+    R2Rect::new(
+        R1Interval::new(S::st_to_uv(ij_to_st_min(i_lo)), S::st_to_uv(ij_to_st_min(i_hi))),
+        R1Interval::new(S::st_to_uv(ij_to_st_min(j_lo)), S::st_to_uv(ij_to_st_min(j_hi))),
+    )
 }
 
 /// Maximum error in edge-cell intersection tests.
@@ -146,24 +170,19 @@ pub const ANY_EDGE_INTERSECTS_MAX_ERROR: f64 =
 ///
 /// The test uses UV-space bounds expanded by the maximum clipping error to avoid missing edges
 /// that nearly touch the cell boundary.
-///
-/// This method is conservative: it may return true for edges that are very close to (but don't
-/// actually intersect) the cell boundary. The maximum error is less than 10 * DBL_EPSILON radians
-/// (about 15 nanometers).
-pub fn any_edge_intersects<E: EdgeProvider>(
+pub fn any_edge_intersects<S: Surface, E: EdgeProvider<Point = S::Point>>(
     clipped: &ClippedShape,
     target: &S2Cell,
     edges: &E,
 ) -> bool {
-    let bound = target
-        .get_bound_uv()
+    let bound = cell_bound_uv::<S>(target.id())
         .expanded(ANY_EDGE_INTERSECTS_MAX_ERROR);
     let face = target.face();
 
     for &edge_index in &clipped.edge_indices {
         let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_index);
 
-        if let Some((p0, p1)) = clip_to_padded_face(&v0, &v1, face, ANY_EDGE_INTERSECTS_MAX_ERROR) {
+        if let Some((p0, p1)) = S::clip_to_face(&v0, &v1, face, ANY_EDGE_INTERSECTS_MAX_ERROR) {
             if intersects_rect(p0, p1, &bound) {
                 return true;
             }
@@ -174,17 +193,17 @@ pub fn any_edge_intersects<E: EdgeProvider>(
 }
 
 /// Returns true if the given geometry in the index contains the point. Uses the cell index to
-/// narrow the edge set — locates the cell containing the point, starts from contains_center, and
+/// narrow the edge set -- locates the cell containing the point, starts from contains_center, and
 /// counts crossings of only the edges in that cell.
 ///
 /// Port of S2ContainsPointQuery::ShapeContains.
-pub fn index_contains_point<E: EdgeProvider>(
+pub fn index_contains_point<S: Surface, E: EdgeProvider<Point = S::Point>>(
     index: &ShapeIndex,
     edges: &E,
     geometry_id: GeometryId,
-    point: &[f64; 3],
+    point: &S::Point,
 ) -> bool {
-    let cell_id = Sphere::cell_id_from_point(point);
+    let cell_id = S::cell_id_from_point(point);
     let index_cell = match index.find_cell(cell_id) {
         Some(cell) => cell,
         None => return false,
@@ -193,22 +212,22 @@ pub fn index_contains_point<E: EdgeProvider>(
         Some(s) => s,
         None => return false,
     };
-    clipped_shape_contains_point(index_cell.cell_id, clipped, edges, point)
+    clipped_shape_contains_point::<S, E>(index_cell.cell_id, clipped, edges, point)
 }
 
 /// Returns true if the given clipped shape contains the point. The cell_id identifies the index
-/// cell the clipped shape belongs to — its center is the reference point for the edge crossing
+/// cell the clipped shape belongs to -- its center is the reference point for the edge crossing
 /// test.
-fn clipped_shape_contains_point<E: EdgeProvider>(
+fn clipped_shape_contains_point<S: Surface, E: EdgeProvider<Point = S::Point>>(
     cell_id: S2CellId,
     clipped: &ClippedShape,
     edges: &E,
-    point: &[f64; 3],
+    point: &S::Point,
 ) -> bool {
     let mut inside = clipped.contains_center;
     if !clipped.edge_indices.is_empty() {
-        let cell_center = Sphere::cell_center(cell_id);
-        let mut crosser = S2EdgeCrosser::new(&cell_center, point);
+        let cell_center = S::cell_center(cell_id);
+        let mut crosser = S::EdgeCrosser::new(&cell_center, point);
         for &edge_index in &clipped.edge_indices {
             let (v0, v1) = edges.get_edge(clipped.geometry_id, edge_index);
             inside ^= crosser.edge_or_vertex_crossing_two(&v0, &v1);
@@ -269,15 +288,16 @@ fn locate(index: &ShapeIndex, target: S2CellId) -> CellRelation {
 /// Visits all shapes that intersect an S2Cell target.  For each shape, calls the visitor with the
 /// geometry_id and whether the shape fully contains the target cell.  The visitor returns true to
 /// continue or false to terminate early.
-pub fn visit_intersecting_shapes<E, F>(
+pub fn visit_intersecting_shapes<S, E, F>(
     index: &ShapeIndex,
     edges: &E,
     target: &S2Cell,
     mut visitor: F,
 ) -> bool
 where
-    E: EdgeProvider,
-    F: FnMut(GeometryId, bool) -> bool, // (geometry_id, contains_target) -> continue
+    S: Surface,
+    E: EdgeProvider<Point = S::Point>,
+    F: FnMut(GeometryId, bool) -> bool,
 {
     match locate(index, target.id()) {
         CellRelation::Disjoint => true,
@@ -321,22 +341,22 @@ where
             // Target is contained by (or equals) an index cell.
             let cell = &index.cells[pos];
             let index_cell_id = cell.cell_id;
-            let target_center = Sphere::cell_center(target.id());
+            let target_center = S::cell_center(target.id());
 
             for clipped in &cell.shapes {
                 let contains = if index_cell_id == target.id() {
                     // Exact match: shape contains target iff no edges AND contains_center
                     clipped.edge_indices.is_empty() && clipped.contains_center
                 } else {
-                    // Target is smaller than index cell — need finer testing
-                    if any_edge_intersects(clipped, target, edges) {
+                    // Target is smaller than index cell -- need finer testing
+                    if any_edge_intersects::<S, E>(clipped, target, edges) {
                         // Edge intersects target: shape intersects but doesn't contain
                         false
                     } else {
                         // No edges intersect: check if shape contains target's center by
                         // ray-casting from the index cell's center (where we know contains_center)
                         // to the target center, counting crossings of only the edges in this cell.
-                        if !clipped_shape_contains_point(
+                        if !clipped_shape_contains_point::<S, E>(
                             index_cell_id,
                             clipped,
                             edges,
@@ -358,13 +378,13 @@ where
 }
 
 /// Convenience method: Returns all geometry IDs that intersect the target.
-pub fn get_intersecting_shapes<E: EdgeProvider>(
+pub fn get_intersecting_shapes<S: Surface, E: EdgeProvider<Point = S::Point>>(
     index: &ShapeIndex,
     edges: &E,
     target: &S2Cell,
 ) -> Vec<(GeometryId, bool)> {
     let mut results = Vec::new();
-    visit_intersecting_shapes(index, edges, target, |geo_id, contains| {
+    visit_intersecting_shapes::<S, E, _>(index, edges, target, |geo_id, contains| {
         results.push((geo_id, contains));
         true
     });
@@ -372,28 +392,32 @@ pub fn get_intersecting_shapes<E: EdgeProvider>(
 }
 
 /// Returns true if any shape in the index intersects the target cell.
-///
-/// This is equivalent to S2ShapeIndexRegion::MayIntersect.
-pub fn may_intersect<E: EdgeProvider>(index: &ShapeIndex, edges: &E, target: &S2Cell) -> bool {
+pub fn may_intersect<S: Surface, E: EdgeProvider<Point = S::Point>>(
+    index: &ShapeIndex,
+    edges: &E,
+    target: &S2Cell,
+) -> bool {
     let mut intersects = false;
-    visit_intersecting_shapes(index, edges, target, |_geo_id, _contains| {
+    visit_intersecting_shapes::<S, E, _>(index, edges, target, |_geo_id, _contains| {
         intersects = true;
-        false // Stop after first match
+        false
     });
     intersects
 }
 
 /// Returns true if any shape in the index contains the target cell.
-///
-/// This is equivalent to S2ShapeIndexRegion::Contains(S2Cell).
-pub fn any_shape_contains<E: EdgeProvider>(index: &ShapeIndex, edges: &E, target: &S2Cell) -> bool {
+pub fn any_shape_contains<S: Surface, E: EdgeProvider<Point = S::Point>>(
+    index: &ShapeIndex,
+    edges: &E,
+    target: &S2Cell,
+) -> bool {
     let mut contains = false;
-    visit_intersecting_shapes(index, edges, target, |_geo_id, shape_contains| {
+    visit_intersecting_shapes::<S, E, _>(index, edges, target, |_geo_id, shape_contains| {
         if shape_contains {
             contains = true;
-            return false; // Stop after first containing shape
+            return false;
         }
-        true // Continue looking
+        true
     });
     contains
 }
@@ -403,19 +427,20 @@ pub fn any_shape_contains<E: EdgeProvider>(index: &ShapeIndex, edges: &E, target
 /// Wraps a ShapeIndex and an EdgeProvider to implement the Region trait, enabling RegionCoverer to
 /// produce coverings of the indexed geometry. For the contains query, this wraps the query-local
 /// ShapeIndex built from the query polygon.
-pub struct CellIndexRegion<'a, E: EdgeProvider> {
+pub struct CellIndexRegion<'a, S: Surface, E: EdgeProvider<Point = S::Point>> {
     index: &'a ShapeIndex,
     edges: &'a E,
+    _surface: std::marker::PhantomData<S>,
 }
 
-impl<'a, E: EdgeProvider> CellIndexRegion<'a, E> {
+impl<'a, S: Surface, E: EdgeProvider<Point = S::Point>> CellIndexRegion<'a, S, E> {
     /// Creates a region backed by a cell index and an edge provider.
     pub fn new(index: &'a ShapeIndex, edges: &'a E) -> Self {
-        Self { index, edges }
+        Self { index, edges, _surface: std::marker::PhantomData }
     }
 }
 
-impl<'a, E: EdgeProvider> Region for CellIndexRegion<'a, E> {
+impl<S: Surface, E: EdgeProvider<Point = S::Point>> Region for CellIndexRegion<'_, S, E> {
     fn get_cap_bound(&self) -> S2Cap {
         let cell_ids: Vec<S2CellId> = self.index.cells.iter().map(|c| c.cell_id).collect();
         let cu = CellUnion::from_cell_ids(cell_ids);
@@ -429,14 +454,15 @@ impl<'a, E: EdgeProvider> Region for CellIndexRegion<'a, E> {
     }
 
     fn contains_cell(&self, cell: &S2Cell) -> bool {
-        any_shape_contains(self.index, self.edges, cell)
+        any_shape_contains::<S, E>(self.index, self.edges, cell)
     }
 
     fn may_intersect(&self, cell: &S2Cell) -> bool {
-        may_intersect(self.index, self.edges, cell)
+        may_intersect::<S, E>(self.index, self.edges, cell)
     }
 
-    fn contains_point(&self, p: &[f64; 3]) -> bool {
-        index_contains_point(self.index, self.edges, (0, 0), p)
+    fn contains_point(&self, _p: &[f64; 3]) -> bool {
+        // The coverer does not call this method. For Sphere, use index_contains_point directly.
+        unimplemented!("contains_point on CellIndexRegion is not used by the coverer")
     }
 }
