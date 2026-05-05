@@ -1032,10 +1032,20 @@ fn build_terms_or_cardinality_nodes(
                 (idx_in_req_data, AggKind::Terms)
             }
             TermsOrCardinalityRequest::Cardinality(ref req) => {
+                // `str_dict_column` is computed once per field; for JSON paths
+                // with mixed types it's `Some` even on the numeric req_data.
+                // Cardinality only consults it for the str column path, so
+                // gate by column_type to avoid driving non-str collectors
+                // through the coupon-cache path.
+                let str_dict_column_for_req = if column_type == ColumnType::Str {
+                    str_dict_column.clone()
+                } else {
+                    None
+                };
                 let idx_in_req_data = data.push_cardinality_req_data(CardinalityAggReqData {
                     accessor,
                     column_type,
-                    str_dict_column: str_dict_column.clone(),
+                    str_dict_column: str_dict_column_for_req,
                     missing_value_for_accessor,
                     name: agg_name.to_string(),
                     req: req.clone(),

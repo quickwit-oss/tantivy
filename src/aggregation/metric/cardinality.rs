@@ -409,7 +409,7 @@ impl TermOrdAccumulator for TermOrdSet {
         let TermOrdSetInner::Sparse(set) = &mut self.inner else {
             return;
         };
-        if set.len() > 1 && set.len() as u64 * PROMOTION_RATIO <= self.max_term_ord_inclusive {
+        if set.len() as u64 * PROMOTION_RATIO <= self.max_term_ord_inclusive {
             return;
         }
         // Size for ord <= max_term_ord_inclusive plus the missing sentinel
@@ -467,16 +467,21 @@ impl<S: TermOrdAccumulator> Debug for SegmentCardinalityCollector<S> {
     }
 }
 
-pub(crate) struct SegmentCardinalityCollectorBucket<S: TermOrdAccumulator> {
-    cardinality: CardinalityCollector,
-    entries: S,
+/// Per-bucket state. Shape depends on column kind: str columns dedup
+/// term ords and only build the HLL sketch at finalization (saves the
+/// ~96 B `CardinalityCollector` per bucket during collect); numeric/IpAddr
+/// columns feed the sketch directly during collect.
+pub(crate) enum SegmentCardinalityCollectorBucket<S: TermOrdAccumulator> {
+    Str(S),
+    Numeric(CardinalityCollector),
 }
 impl<S: TermOrdAccumulator> SegmentCardinalityCollectorBucket<S> {
     #[inline(always)]
     pub fn new(column_type: ColumnType, max_term_ord_inclusive: u64) -> Self {
-        Self {
-            cardinality: CardinalityCollector::new(column_type as u8),
-            entries: S::new(max_term_ord_inclusive),
+        if column_type == ColumnType::Str {
+            Self::Str(S::new(max_term_ord_inclusive))
+        } else {
+            Self::Numeric(CardinalityCollector::new(column_type as u8))
         }
     }
 
@@ -487,19 +492,26 @@ impl<S: TermOrdAccumulator> SegmentCardinalityCollectorBucket<S> {
     //
     // If the column is str, then the values are dictionary encoded
     // and have not been added to the sketch yet.
-    // We need to resolves the term ords accumulated in self.entries
-    // with the coupon cache, and append the results to the sketch.
+    // We need to resolves the term ords accumulated in the str entries
+    // with the coupon cache, and append the results to a fresh sketch.
     fn into_intermediate_metric_result(
-        mut self,
+        self,
         coupon_cache_opt: Option<&CouponCache>,
     ) -> crate::Result<IntermediateMetricResult> {
-        if let Some(coupon_cache) = coupon_cache_opt {
-            // Sketch must be empty for str columns: coupons are appended here
-            // from the term_ord set (and not directly during collection).
-            assert!(self.cardinality.sketch.is_empty());
-            append_to_sketch(&self.entries, coupon_cache, &mut self.cardinality);
-        }
-        Ok(IntermediateMetricResult::Cardinality(self.cardinality))
+        let cardinality = match self {
+            Self::Str(entries) => {
+                let mut cardinality = CardinalityCollector::new(ColumnType::Str as u8);
+                if let Some(coupon_cache) = coupon_cache_opt {
+                    // Sketch must be empty for str columns: coupons are appended here
+                    // from the term_ord set (and not directly during collection).
+                    assert!(cardinality.sketch.is_empty());
+                    append_to_sketch(&entries, coupon_cache, &mut cardinality);
+                }
+                cardinality
+            }
+            Self::Numeric(cardinality) => cardinality,
+        };
+        Ok(IntermediateMetricResult::Cardinality(cardinality))
     }
 }
 
@@ -510,16 +522,27 @@ fn build_coupon_cache<S: TermOrdAccumulator>(
     dictionary: &Dictionary,
     missing_value_opt: Option<&Key>,
 ) -> io::Result<CouponCache> {
-    let term_ords_capacity: usize = buckets
-        .iter()
-        .flatten()
-        .map(|bucket| bucket.entries.len())
-        .max()
-        .unwrap_or(0)
-        * 2;
-    let mut term_ords_set = FxHashSet::with_capacity_and_hasher(term_ords_capacity, FxBuildHasher);
+    // Caller restricts this to str cardinality collectors, so every
+    // present bucket must be the `Str` variant. Pass 1 validates and
+    // computes the capacity hint; pass 2 inserts.
+    let mut max_bucket_len = 0usize;
     for bucket in buckets.iter().flatten() {
-        term_ords_set.extend(bucket.entries.iter_ords());
+        match bucket {
+            SegmentCardinalityCollectorBucket::Str(entries) => {
+                max_bucket_len = max_bucket_len.max(entries.len());
+            }
+            SegmentCardinalityCollectorBucket::Numeric(_) => {
+                return Err(io::Error::other(
+                    "build_coupon_cache invoked with a non-str bucket",
+                ));
+            }
+        }
+    }
+    let mut term_ords_set = FxHashSet::with_capacity_and_hasher(max_bucket_len * 2, FxBuildHasher);
+    for bucket in buckets.iter().flatten() {
+        if let SegmentCardinalityCollectorBucket::Str(entries) = bucket {
+            term_ords_set.extend(entries.iter_ords());
+        }
     }
     let mut term_ords: Vec<u64> = term_ords_set.into_iter().collect();
     term_ords.sort_unstable();
@@ -673,36 +696,41 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
             ));
         };
         let col_block_accessor = &agg_data.column_block_accessor;
-        if self.column_type == ColumnType::Str {
-            // The trait dispatches once per block (via `extend_from_iter`)
-            // for adaptive variants and inlines to a tight loop for the
-            // BitSet path. `maybe_compact` is the per-block hook for
-            // promotion.
-            bucket
-                .entries
-                .extend_from_iter(col_block_accessor.iter_vals());
-            bucket.entries.maybe_compact();
-        } else if self.column_type == ColumnType::IpAddr {
-            let compact_space_accessor = self
-                .accessor
-                .values
-                .clone()
-                .downcast_arc::<CompactSpaceU64Accessor>()
-                .map_err(|_| {
-                    TantivyError::AggregationError(
-                        crate::aggregation::AggregationError::InternalError(
-                            "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
-                                .to_string(),
-                        ),
-                    )
-                })?;
-            for val in col_block_accessor.iter_vals() {
-                let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
-                bucket.cardinality.insert(val);
+        match bucket {
+            SegmentCardinalityCollectorBucket::Str(entries) => {
+                // Promotion check runs on the pre-block state: the first call
+                // sees an empty set (no-op), and the last block of inserts
+                // doesn't trigger a promotion of a set we won't grow further.
+                // The trait dispatches once per block (via `extend_from_iter`)
+                // for adaptive variants and inlines to a tight loop for the
+                // BitSet path.
+                entries.maybe_compact();
+                entries.extend_from_iter(col_block_accessor.iter_vals());
             }
-        } else {
-            for val in col_block_accessor.iter_vals() {
-                bucket.cardinality.insert(val);
+            SegmentCardinalityCollectorBucket::Numeric(cardinality) => {
+                if self.column_type == ColumnType::IpAddr {
+                    let compact_space_accessor = self
+                        .accessor
+                        .values
+                        .clone()
+                        .downcast_arc::<CompactSpaceU64Accessor>()
+                        .map_err(|_| {
+                            TantivyError::AggregationError(
+                                crate::aggregation::AggregationError::InternalError(
+                                    "Type mismatch: Could not downcast to CompactSpaceU64Accessor"
+                                        .to_string(),
+                                ),
+                            )
+                        })?;
+                    for val in col_block_accessor.iter_vals() {
+                        let val: u128 = compact_space_accessor.compact_to_u128(val as u32);
+                        cardinality.insert(val);
+                    }
+                } else {
+                    for val in col_block_accessor.iter_vals() {
+                        cardinality.insert(val);
+                    }
+                }
             }
         }
 
@@ -739,13 +767,14 @@ impl<S: TermOrdAccumulator + 'static> SegmentAggregationCollector
             return None;
         }
         let bucket = self.buckets.get(bucket_id as usize)?.as_ref()?;
-        // For string columns the HLL sketch is empty until materialization; entries holds
-        // the deduplicated term ordinals seen, which is the exact distinct count.
-        // For numeric columns the sketch is populated during collect.
-        if self.column_type == ColumnType::Str {
-            Some(bucket.entries.len() as f64)
-        } else {
-            Some(bucket.cardinality.sketch.estimate().trunc())
+        // For string columns the sketch isn't built until finalization; the
+        // term_ord set's len is the exact distinct count. For numeric columns
+        // the sketch is populated during collect.
+        match bucket {
+            SegmentCardinalityCollectorBucket::Str(entries) => Some(entries.len() as f64),
+            SegmentCardinalityCollectorBucket::Numeric(cardinality) => {
+                Some(cardinality.sketch.estimate().trunc())
+            }
         }
     }
 }
@@ -1109,6 +1138,42 @@ mod tests {
         .unwrap();
 
         let res = exec_request(agg_req, &index)?;
+        assert_eq!(res["cardinality"]["value"], 4.0);
+
+        Ok(())
+    }
+
+    /// A JSON path that resolves to both a Str column and a numeric column
+    /// produces two collector instances per segment — one with `Str` buckets
+    /// and one with `Numeric` buckets. Their `IntermediateMetricResult`s must
+    /// merge into the union cardinality.
+    #[test]
+    fn cardinality_aggregation_json_str_and_numeric() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_json_field("json", FAST);
+        let index = Index::create_in_ram(schema_builder.build());
+        {
+            let mut writer = index.writer_for_tests()?;
+            writer.add_document(doc!(field => json!({"value": "hello"})))?;
+            writer.add_document(doc!(field => json!({"value": "world"})))?;
+            writer.add_document(doc!(field => json!({"value": "hello"})))?; // dup str
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(7u64)})))?;
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(42u64)})))?;
+            writer.add_document(doc!(field => json!({"value": i64::from_u64(7u64)})))?; // dup num
+            writer.commit()?;
+        }
+
+        let agg_req: Aggregations = serde_json::from_value(json!({
+            "cardinality": {
+                "cardinality": {
+                    "field": "json.value"
+                },
+            }
+        }))
+        .unwrap();
+
+        let res = exec_request(agg_req, &index)?;
+        // 4 distinct values: "hello", "world", 7, 42.
         assert_eq!(res["cardinality"]["value"], 4.0);
 
         Ok(())
