@@ -4,6 +4,7 @@ use tantivy_fst::raw::CompiledAddr;
 use tantivy_fst::{Automaton, Map};
 
 use super::term_set_query_fastfield::FastFieldTermSetWeight;
+use super::term_set_strategy::TermSetStrategyConfig;
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{AutomatonWeight, BooleanWeight, EnableScoring, Occur, Query, Weight};
 use crate::schema::{Field, Schema, Type};
@@ -17,6 +18,7 @@ const TERM_SET_FAST_FIELD_CARDINALITY_THRESHOLD: usize = 1024;
 #[derive(Debug, Clone)]
 pub struct TermSetQuery {
     terms_map: HashMap<Field, Vec<Term>>,
+    strategy_config: TermSetStrategyConfig,
 }
 
 impl TermSetQuery {
@@ -27,7 +29,19 @@ impl TermSetQuery {
             terms_map.entry(term.field()).or_default().push(term);
         }
 
-        TermSetQuery { terms_map }
+        TermSetQuery {
+            terms_map,
+            strategy_config: TermSetStrategyConfig::default(),
+        }
+    }
+
+    /// Override the fast-field strategy thresholds. Consumers (paradedb) build
+    /// the config from GUCs; the inner `FastFieldTermSetWeight` carries the
+    /// same config it would if constructed directly via
+    /// `FastFieldTermSetQuery::with_strategy_config`.
+    pub fn with_strategy_config(mut self, cfg: TermSetStrategyConfig) -> Self {
+        self.strategy_config = cfg;
+        self
     }
 
     fn specialized_weight(
@@ -70,7 +84,11 @@ impl TermSetQuery {
             {
                 sub_queries.push((
                     Occur::Should,
-                    Box::new(FastFieldTermSetWeight::new(field, terms.iter())?),
+                    Box::new(FastFieldTermSetWeight::new(
+                        field,
+                        terms.iter(),
+                        self.strategy_config.clone(),
+                    )?),
                 ));
             } else {
                 let mut sorted_terms: Vec<(&[u8], u64)> = terms

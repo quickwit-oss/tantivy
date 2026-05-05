@@ -3,6 +3,10 @@ use std::net::Ipv6Addr;
 use columnar::{Column, ColumnType};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use super::term_set_gallop;
+use super::term_set_strategy::{
+    select_strategy, PlannerInputs, TermSetStrategy, TermSetStrategyConfig,
+};
 use crate::query::score_combiner::DoNothingCombiner;
 use crate::query::{
     BooleanWeight, ConstScorer, EmptyScorer, EnableScoring, Explanation, Occur, Query, Scorer,
@@ -15,6 +19,7 @@ use crate::{DocId, DocSet, Score, SegmentReader, TantivyError, Term, TERMINATED}
 /// `FastFieldTermSetQuery` is the same as [TermSetQuery] but only uses the fast field.
 pub struct FastFieldTermSetQuery {
     terms_map: FxHashMap<crate::schema::Field, Vec<Term>>,
+    strategy_config: TermSetStrategyConfig,
 }
 
 impl FastFieldTermSetQuery {
@@ -25,7 +30,17 @@ impl FastFieldTermSetQuery {
             terms_map.entry(term.field()).or_default().push(term);
         }
 
-        FastFieldTermSetQuery { terms_map }
+        FastFieldTermSetQuery {
+            terms_map,
+            strategy_config: TermSetStrategyConfig::default(),
+        }
+    }
+
+    /// Override the strategy thresholds and gates used when this query runs
+    /// against fast fields. Consumers (paradedb) build the config from GUCs.
+    pub fn with_strategy_config(mut self, cfg: TermSetStrategyConfig) -> Self {
+        self.strategy_config = cfg;
+        self
     }
 }
 
@@ -35,7 +50,11 @@ impl Query for FastFieldTermSetQuery {
         for (&field, terms) in &self.terms_map {
             sub_queries.push((
                 Occur::Should,
-                Box::new(FastFieldTermSetWeight::new(field, terms)?),
+                Box::new(FastFieldTermSetWeight::new(
+                    field,
+                    terms,
+                    self.strategy_config.clone(),
+                )?),
             ));
         }
         Ok(Box::new(BooleanWeight::new(
@@ -48,39 +67,47 @@ impl Query for FastFieldTermSetQuery {
 
 // --- FastFieldTermSetWeight ---
 
+/// Validated input terms held in their post-validation type. Stored as
+/// `Vec` rather than `FxHashSet` so that strategies that don't need
+/// hash-set semantics (today: `Gallop`, which walks sorted ranges) don't
+/// pay the HashSet build cost. The non-gallop arms in `scorer()` build a
+/// `FxHashSet` locally from the Vec just before `TermSetDocSet::new`.
 #[derive(Clone, Debug)]
-enum TermSet {
-    U64(FxHashSet<u64>),
-    Ipv6Addr(FxHashSet<Ipv6Addr>),
+enum TermVec {
+    U64(Vec<u64>),
+    Ipv6Addr(Vec<Ipv6Addr>),
 }
 
 #[derive(Clone, Debug)]
 pub struct FastFieldTermSetWeight {
     field: crate::schema::Field,
-    term_set: Option<TermSet>,
+    term_vec: Option<TermVec>,
+    strategy_config: TermSetStrategyConfig,
 }
 
 impl FastFieldTermSetWeight {
     pub fn new<'a>(
         field: crate::schema::Field,
         terms: impl IntoIterator<Item = &'a Term>,
+        strategy_config: TermSetStrategyConfig,
     ) -> crate::Result<Self> {
         let mut terms_iter = terms.into_iter().peekable();
 
         if terms_iter.peek().is_none() {
             return Ok(Self {
                 field,
-                term_set: None,
+                term_vec: None,
+                strategy_config,
             });
         }
 
         let first_term_value = terms_iter.peek().unwrap().value();
-        let term_set = if first_term_value.as_ip_addr().is_some() {
-            let mut values = FxHashSet::default();
+        let term_vec = if first_term_value.as_ip_addr().is_some() {
+            let mut values = Vec::new();
             for term in terms_iter {
                 let value = term.value();
                 if let Some(val) = value.as_ip_addr() {
-                    values.insert(val);
+                    values.push(val);
                 } else {
                     return Err(crate::TantivyError::InvalidArgument(format!(
                         "Expected term with ip address, but got {:?}",
@@ -88,12 +115,12 @@ impl FastFieldTermSetWeight {
                     )));
                 }
             }
-            TermSet::Ipv6Addr(values)
+            TermVec::Ipv6Addr(values)
         } else {
             // Numeric types.
             //
             // NOTE: Keep in sync with `TermSetQuery::specialized_weight`.
-            let mut values = FxHashSet::default();
+            let mut values = Vec::new();
             for term in terms_iter {
                 let Some(val_u64) = term.value().as_u64_lenient() else {
                     return Err(crate::TantivyError::InvalidArgument(format!(
@@ -101,21 +128,22 @@ impl FastFieldTermSetWeight {
                         term
                     )));
                 };
-                values.insert(val_u64);
+                values.push(val_u64);
             }
-            TermSet::U64(values)
+            TermVec::U64(values)
         };
 
         Ok(Self {
             field,
-            term_set: Some(term_set),
+            term_vec: Some(term_vec),
+            strategy_config,
         })
     }
 }
 
 impl Weight for FastFieldTermSetWeight {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
-        let Some(term_set) = &self.term_set else {
+        let Some(term_vec) = &self.term_vec else {
             return Ok(Box::new(EmptyScorer));
         };
 
@@ -139,8 +167,8 @@ impl Weight for FastFieldTermSetWeight {
             )));
         }
 
-        match term_set {
-            TermSet::Ipv6Addr(values) => {
+        match term_vec {
+            TermVec::Ipv6Addr(values) => {
                 if !field_type.is_ip_addr() {
                     return Err(crate::TantivyError::InvalidArgument(format!(
                         "fast fields TermSet for field `{field_name}` contains IP addresses, but \
@@ -152,10 +180,13 @@ impl Weight for FastFieldTermSetWeight {
                 else {
                     return Ok(Box::new(EmptyScorer));
                 };
-                let docset = TermSetDocSet::new(ip_addr_column, values.clone());
+                // IPv6 always routes through TermSetDocSet — no Gallop strategy
+                // for IP — so the HashSet is needed unconditionally here.
+                let term_set: FxHashSet<Ipv6Addr> = values.iter().copied().collect();
+                let docset = TermSetDocSet::new(ip_addr_column, term_set);
                 Ok(Box::new(ConstScorer::new(docset, boost)))
             }
-            TermSet::U64(values) => {
+            TermVec::U64(values) => {
                 if field_type.is_ip_addr() {
                     return Err(crate::TantivyError::InvalidArgument(format!(
                         "fast fields TermSet for field `{field_name}` contains numeric values, \
@@ -175,8 +206,49 @@ impl Weight for FastFieldTermSetWeight {
                 else {
                     return Ok(Box::new(EmptyScorer));
                 };
-                let docset = TermSetDocSet::new(column, values.clone());
-                Ok(Box::new(ConstScorer::new(docset, boost)))
+
+                let strategy = select_strategy(
+                    reader,
+                    &column,
+                    PlannerInputs {
+                        field_name,
+                        candidate_size: None,
+                        avg_docs_per_term: None,
+                    },
+                    values.as_slice(),
+                    &self.strategy_config,
+                );
+
+                match strategy {
+                    TermSetStrategy::Gallop {
+                        sort_order,
+                        sorted_terms,
+                    } => {
+                        // Gallop walks the column on demand via
+                        // `TermSetGallopDocSet`; no HashSet build needed.
+                        let cardinality = column.get_cardinality();
+                        let docset = term_set_gallop::TermSetGallopDocSet::new(
+                            column,
+                            sort_order,
+                            sorted_terms,
+                            cardinality,
+                        );
+                        Ok(Box::new(ConstScorer::new(docset, boost)))
+                    }
+                    // The non-Gallop variants are planner stubs today and route
+                    // to TermSetDocSet; follow-ups A and B replace these arms
+                    // with real implementations without touching the planner.
+                    // The HashSet is built locally here so the gallop path
+                    // doesn't pay for it.
+                    TermSetStrategy::LinearScan
+                    | TermSetStrategy::BitsetFromPostings
+                    | TermSetStrategy::PostingListDirect
+                    | TermSetStrategy::HashProbe => {
+                        let term_set: FxHashSet<u64> = values.iter().copied().collect();
+                        let docset = TermSetDocSet::new(column, term_set);
+                        Ok(Box::new(ConstScorer::new(docset, boost)))
+                    }
+                }
             }
         }
     }
@@ -239,6 +311,35 @@ impl<T: Copy + Eq + std::hash::Hash + PartialOrd + std::fmt::Debug + Send + Sync
             next_doc_id += 1;
         }
 
+        self.doc_id = TERMINATED;
+        TERMINATED
+    }
+
+    /// Jump the cursor directly to `target` and resume the per-doc match loop
+    /// from there. The trait default would call `advance()` in a loop and pay
+    /// one column read + one hash probe for every doc between the current
+    /// cursor and `target`; this override skips that work entirely.
+    ///
+    /// Important for AND-intersection: when one column gallops and the other lands
+    /// here, the intersection drives `seek(target)` calls toward the
+    /// gallop-emitted DocIds. Without this override, the dumb default seek
+    /// re-scans the gaps and the gallop speedup is largely diluted.
+    fn seek(&mut self, target: DocId) -> DocId {
+        debug_assert!(target >= self.doc_id || self.doc_id == TERMINATED);
+        if target >= self.max_doc {
+            self.doc_id = TERMINATED;
+            return TERMINATED;
+        }
+        let mut next_doc_id = target;
+        while next_doc_id < self.max_doc {
+            for value in self.column.values_for_doc(next_doc_id) {
+                if self.values.contains(&value) {
+                    self.doc_id = next_doc_id;
+                    return next_doc_id;
+                }
+            }
+            next_doc_id += 1;
+        }
         self.doc_id = TERMINATED;
         TERMINATED
     }

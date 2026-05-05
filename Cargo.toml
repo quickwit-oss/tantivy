@@ -217,3 +217,7 @@ harness = false
 [[bench]]
 name = "intersection_bench"
 harness = false
+
+[[bench]]
+name = "term_set_queries"
+harness = false
