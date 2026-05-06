@@ -118,7 +118,7 @@ impl InternalValueRepr {
 pub struct SegmentCompositeCollector {
     /// One DynArrayHeapMap per parent bucket.
     parent_buckets: Vec<DynArrayHeapMap<InternalValueRepr, CompositeBucketCollector>>,
-    accessor_idx: usize,
+    req_data: CompositeAggReqData,
     sub_agg: Option<BufferedSubAggs<HighCardSubAggBuffer>>,
     bucket_id_provider: BucketIdProvider,
     /// Number of sources, needed when creating new DynArrayHeapMaps.
@@ -132,10 +132,7 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         results: &mut IntermediateAggregationResults,
         parent_bucket_id: BucketId,
     ) -> crate::Result<()> {
-        let name = agg_data
-            .get_composite_req_data(self.accessor_idx)
-            .name
-            .clone();
+        let name = self.req_data.name.clone();
 
         let buckets = self.add_intermediate_bucket_result(agg_data, parent_bucket_id)?;
         results.push(
@@ -153,12 +150,11 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
         agg_data: &mut AggregationsSegmentCtx,
     ) -> crate::Result<()> {
         let mem_pre = self.get_memory_consumption(parent_bucket_id);
-        let composite_agg_data = agg_data.take_composite_req_data(self.accessor_idx);
 
         for doc in docs {
             let mut visitor = CompositeKeyVisitor {
                 doc_id: *doc,
-                composite_agg_data: &composite_agg_data,
+                composite_agg_data: &self.req_data,
                 buckets: &mut self.parent_buckets[parent_bucket_id as usize],
                 sub_agg: &mut self.sub_agg,
                 bucket_id_provider: &mut self.bucket_id_provider,
@@ -166,7 +162,6 @@ impl SegmentAggregationCollector for SegmentCompositeCollector {
             };
             visitor.visit(0, true)?;
         }
-        agg_data.put_back_composite_req_data(self.accessor_idx, composite_agg_data);
 
         if let Some(sub_agg) = &mut self.sub_agg {
             sub_agg.check_flush_local(agg_data)?;
@@ -221,7 +216,13 @@ impl SegmentCompositeCollector {
         req_data: &mut AggregationsSegmentCtx,
         node: &AggRefNode,
     ) -> crate::Result<Self> {
-        validate_req(req_data, node.idx_in_req_data)?;
+        let composite_req_data =
+            req_data.per_request.composite_req_data[node.idx_in_req_data].clone();
+        validate_req(&composite_req_data)?;
+        req_data
+            .context
+            .limits
+            .add_memory_consumed(composite_req_data.get_memory_consumption() as u64)?;
 
         let has_sub_aggregations = !node.children.is_empty();
         let sub_agg = if has_sub_aggregations {
@@ -231,12 +232,11 @@ impl SegmentCompositeCollector {
             None
         };
 
-        let composite_req_data = req_data.get_composite_req_data(node.idx_in_req_data);
         let num_sources = composite_req_data.req.sources.len();
 
         Ok(SegmentCompositeCollector {
             parent_buckets: vec![DynArrayHeapMap::try_new(num_sources)?],
-            accessor_idx: node.idx_in_req_data,
+            req_data: composite_req_data,
             sub_agg,
             bucket_id_provider: BucketIdProvider::default(),
             num_sources,
@@ -258,7 +258,7 @@ impl SegmentCompositeCollector {
         let mut dict: FxHashMap<Vec<CompositeIntermediateKey>, IntermediateCompositeBucketEntry> =
             Default::default();
         dict.reserve(heap_map.size());
-        let composite_data = agg_data.get_composite_req_data(self.accessor_idx);
+        let composite_data = &self.req_data;
         for (key_internal_repr, agg) in heap_map.into_iter() {
             let key = resolve_key(&key_internal_repr, composite_data)?;
             let mut sub_aggregation_res = IntermediateAggregationResults::default();
@@ -298,8 +298,7 @@ impl SegmentCompositeCollector {
     }
 }
 
-fn validate_req(req_data: &mut AggregationsSegmentCtx, accessor_idx: usize) -> crate::Result<()> {
-    let composite_data = req_data.get_composite_req_data(accessor_idx);
+fn validate_req(composite_data: &CompositeAggReqData) -> crate::Result<()> {
     let req = &composite_data.req;
     if req.sources.is_empty() {
         return Err(TantivyError::InvalidArgument(
