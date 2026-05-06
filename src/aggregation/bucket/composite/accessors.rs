@@ -16,6 +16,7 @@ use crate::{SegmentReader, TantivyError};
 
 /// Contains all information required by the SegmentCompositeCollector to perform the
 /// composite aggregation on a segment.
+#[derive(Debug, Clone)]
 pub struct CompositeAggReqData {
     /// The name of the aggregation.
     pub name: String,
@@ -34,6 +35,7 @@ impl CompositeAggReqData {
 }
 
 /// Accessors for a single column in a composite source.
+#[derive(Debug, Clone)]
 pub struct CompositeAccessor {
     /// The fast field column
     pub column: Column<u64>,
@@ -48,6 +50,7 @@ pub struct CompositeAccessor {
 }
 
 /// Accessors to all the columns that belong to the field of a composite source.
+#[derive(Debug, Clone)]
 pub struct CompositeSourceAccessors {
     /// The accessors for this source
     pub accessors: Vec<CompositeAccessor>,
@@ -358,7 +361,7 @@ impl PrecomputedDateInterval {
 ///
 /// Some column types (term, IP) might not have an exact representation of the
 /// specified after key
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PrecomputedAfterKey {
     /// The after key could be exactly represented in the column space.
     Exact(u64),
