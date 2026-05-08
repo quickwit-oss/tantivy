@@ -7,7 +7,7 @@ use std::thread::available_parallelism;
 
 use super::segment::Segment;
 use super::segment_reader::merge_field_meta_data;
-use super::{FieldMetadata, IndexSettings};
+use super::{Bm25Params, FieldMetadata, IndexSettings};
 use crate::core::{Executor, META_FILEPATH};
 use crate::directory::error::OpenReadError;
 #[cfg(feature = "mmap")]
@@ -630,6 +630,19 @@ impl Index {
     /// Accessor to the index settings
     pub fn settings_mut(&mut self) -> &mut IndexSettings {
         &mut self.settings
+    }
+
+    /// Returns the BM25 parameters used for scoring.
+    ///
+    /// If not explicitly configured, returns default parameters (k1=1.2, b=0.75).
+    pub fn bm25_params(&self) -> &Bm25Params {
+        static DEFAULT_PARAMS: once_cell::sync::Lazy<Bm25Params> =
+            once_cell::sync::Lazy::new(Bm25Params::default);
+
+        self.settings
+            .bm25_params
+            .as_ref()
+            .unwrap_or(&DEFAULT_PARAMS)
     }
 
     /// Accessor to the index schema

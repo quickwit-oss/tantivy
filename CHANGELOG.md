@@ -1,13 +1,20 @@
-Tantivy 0.26.1
-================================
+# Tantivy 0.26.1
+
+## Features/Improvements
+
+- Make BM25 scoring parameters (k1, b) configurable per-index via `IndexSettings` [#2924](https://github.com/quickwit-oss/tantivy/pull/2924)
+  - Add `Bm25Params` struct with `k1` (term frequency saturation) and `b` (length normalization) fields
+  - Default values remain `(k1=1.2, b=0.75)` for backward compatibility
+  - Parameters are persisted in `meta.json` and applied consistently across index operations
 
 ## Performance
+
 - Fix quadratic runtime in nested term and composite aggregations: memory accounting scanned all parent buckets on every collect instead of just the current parent (@PSeitz @fulmicoton)
 
-Tantivy 0.26 (Unreleased)
-================================
+# Tantivy 0.26 (Unreleased)
 
 ## Bugfixes
+
 - Align float query coercion during search with the columnar coercion rules [#2692](https://github.com/quickwit-oss/tantivy/pull/2692)(@fulmicoton)
 - Fix lenient elastic range queries with trailing closing parentheses [#2816](https://github.com/quickwit-oss/tantivy/pull/2816)(@evance-br)
 - Fix intersection `seek()` advancing below current doc id [#2812](https://github.com/quickwit-oss/tantivy/pull/2812)(@fulmicoton)
@@ -19,18 +26,19 @@ Tantivy 0.26 (Unreleased)
 - Fix deduplicate doc counts in term aggregation for multi-valued fields [#2854](https://github.com/quickwit-oss/tantivy/pull/2854)(@nuri-yoo)
 
 ## Features/Improvements
+
 - **Aggregation**
-    - Add filter aggregation [#2711](https://github.com/quickwit-oss/tantivy/pull/2711)(@mdashti)
-    - Add include/exclude filtering for term aggregations [#2717](https://github.com/quickwit-oss/tantivy/pull/2717)(@PSeitz)
-    - Add public accessors for intermediate aggregation results [#2829](https://github.com/quickwit-oss/tantivy/pull/2829)(@congx4)
-    - Replace HyperLogLog++ with Apache DataSketches HLL for cardinality aggregation [#2837](https://github.com/quickwit-oss/tantivy/pull/2837) [#2842](https://github.com/quickwit-oss/tantivy/pull/2842)(@congx4)
-    - Add composite aggregation [#2856](https://github.com/quickwit-oss/tantivy/pull/2856)(@fulmicoton)
+  - Add filter aggregation [#2711](https://github.com/quickwit-oss/tantivy/pull/2711)(@mdashti)
+  - Add include/exclude filtering for term aggregations [#2717](https://github.com/quickwit-oss/tantivy/pull/2717)(@PSeitz)
+  - Add public accessors for intermediate aggregation results [#2829](https://github.com/quickwit-oss/tantivy/pull/2829)(@congx4)
+  - Replace HyperLogLog++ with Apache DataSketches HLL for cardinality aggregation [#2837](https://github.com/quickwit-oss/tantivy/pull/2837) [#2842](https://github.com/quickwit-oss/tantivy/pull/2842)(@congx4)
+  - Add composite aggregation [#2856](https://github.com/quickwit-oss/tantivy/pull/2856)(@fulmicoton)
 - **Fast Fields**
-    - Add fast field fallback for `TermQuery` when the field is not indexed [#2693](https://github.com/quickwit-oss/tantivy/pull/2693)(@PSeitz-dd)
-    - Add fast field support for `Bytes` values [#2830](https://github.com/quickwit-oss/tantivy/pull/2830)(@mdashti)
+  - Add fast field fallback for `TermQuery` when the field is not indexed [#2693](https://github.com/quickwit-oss/tantivy/pull/2693)(@PSeitz-dd)
+  - Add fast field support for `Bytes` values [#2830](https://github.com/quickwit-oss/tantivy/pull/2830)(@mdashti)
 - **Query Parser**
-    - Add support for regexes in the query grammar [#2677](https://github.com/quickwit-oss/tantivy/pull/2677) [#2818](https://github.com/quickwit-oss/tantivy/pull/2818)(@Darkheir)
-    - Deduplicate queries in query parser [#2698](https://github.com/quickwit-oss/tantivy/pull/2698)(@PSeitz-dd)
+  - Add support for regexes in the query grammar [#2677](https://github.com/quickwit-oss/tantivy/pull/2677) [#2818](https://github.com/quickwit-oss/tantivy/pull/2818)(@Darkheir)
+  - Deduplicate queries in query parser [#2698](https://github.com/quickwit-oss/tantivy/pull/2698)(@PSeitz-dd)
 - Add erased `SortKeyComputer` for sorting on column types unknown until runtime [#2770](https://github.com/quickwit-oss/tantivy/pull/2770) [#2790](https://github.com/quickwit-oss/tantivy/pull/2790)(@stuhood @PSeitz)
 - Add natural-order-with-none-highest support in `TopDocs::order_by` [#2780](https://github.com/quickwit-oss/tantivy/pull/2780)(@stuhood)
 - Move stemming behing `stemmer` feature flag [#2791](https://github.com/quickwit-oss/tantivy/pull/2791)(@fulmicoton)
@@ -40,9 +48,10 @@ Tantivy 0.26 (Unreleased)
 - Split `Term` into `Term` and `IndexingTerm` [#2744](https://github.com/quickwit-oss/tantivy/pull/2744) [#2750](https://github.com/quickwit-oss/tantivy/pull/2750)(@PSeitz-dd @PSeitz)
 
 ## Performance
+
 - **Aggregation**
-    - Large speed up and memory reduction for nested high cardinality aggregations by using one collector per request instead of one per bucket, and adding `PagedTermMap` for faster medium cardinality term aggregations [#2715](https://github.com/quickwit-oss/tantivy/pull/2715) [#2759](https://github.com/quickwit-oss/tantivy/pull/2759)(@PSeitz @PSeitz-dd)
-    - Optimize low-cardinality term aggregations by using a `Vec` instead of a `HashMap` [#2740](https://github.com/quickwit-oss/tantivy/pull/2740)(@fulmicoton-dd)
+  - Large speed up and memory reduction for nested high cardinality aggregations by using one collector per request instead of one per bucket, and adding `PagedTermMap` for faster medium cardinality term aggregations [#2715](https://github.com/quickwit-oss/tantivy/pull/2715) [#2759](https://github.com/quickwit-oss/tantivy/pull/2759)(@PSeitz @PSeitz-dd)
+  - Optimize low-cardinality term aggregations by using a `Vec` instead of a `HashMap` [#2740](https://github.com/quickwit-oss/tantivy/pull/2740)(@fulmicoton-dd)
 - Optimize `ExistsQuery` for a high number of dynamic columns [#2694](https://github.com/quickwit-oss/tantivy/pull/2694)(@PSeitz-dd)
 - Add lazy scorers to stop score evaluation early when a doc won't reach the top-K threshold [#2726](https://github.com/quickwit-oss/tantivy/pull/2726) [#2777](https://github.com/quickwit-oss/tantivy/pull/2777)(@fulmicoton @stuhood)
 - Add `DocSet::cost()` and use it to order scorers in intersections [#2707](https://github.com/quickwit-oss/tantivy/pull/2707)(@PSeitz)
@@ -53,15 +62,16 @@ Tantivy 0.26 (Unreleased)
 - Speed up exclude queries by supporting multiple excluded `DocSet`s without intermediate union [#2825](https://github.com/quickwit-oss/tantivy/pull/2825)(@PSeitz)
 - Improve union performance for non-score unions with `fill_buffer` and optimized `TinySet` [#2863](https://github.com/quickwit-oss/tantivy/pull/2863)(@PSeitz)
 
-Tantivy 0.25
-================================
+# Tantivy 0.25
 
 ## Bugfixes
+
 - fix union performance regression in tantivy 0.24 [#2663](https://github.com/quickwit-oss/tantivy/pull/2663)(@PSeitz)
 - make zstd optional in sstable [#2633](https://github.com/quickwit-oss/tantivy/pull/2633)(@Parth)
 - Fix TopDocs::order_by_string_fast_field for asc order [#2672](https://github.com/quickwit-oss/tantivy/pull/2672)(@stuhood @PSeitz)
 
 ## Features/Improvements
+
 - add docs/example and Vec<u32> values to sstable [#2660](https://github.com/quickwit-oss/tantivy/pull/2660)(@PSeitz)
 - Add string fast field support to `TopDocs`. [#2642](https://github.com/quickwit-oss/tantivy/pull/2642)(@stuhood)
 - update edition to 2024 [#2620](https://github.com/quickwit-oss/tantivy/pull/2620)(@PSeitz)
@@ -69,23 +79,24 @@ Tantivy 0.25
 - Support mixed field types in query parser [#2676](https://github.com/quickwit-oss/tantivy/pull/2676)(@trinity-1686a)
 - Add per-field size details [#2679](https://github.com/quickwit-oss/tantivy/pull/2679)(@fulmicoton)
 
-Tantivy 0.24.2
-================================
-- Fix TopNComputer for reverse order. [#2672](https://github.com/quickwit-oss/tantivy/pull/2672)(@stuhood @PSeitz) 
+# Tantivy 0.24.2
+
+- Fix TopNComputer for reverse order. [#2672](https://github.com/quickwit-oss/tantivy/pull/2672)(@stuhood @PSeitz)
 
 Affected queries are [order_by_fast_field](https://docs.rs/tantivy/latest/tantivy/collector/struct.TopDocs.html#method.order_by_fast_field) and
 [order_by_u64_field](https://docs.rs/tantivy/latest/tantivy/collector/struct.TopDocs.html#method.order_by_u64_field)
 for `Order::Asc`
 
-Tantivy 0.24.1
-================================
+# Tantivy 0.24.1
+
 - Fix: bump required rust version to 1.81
-  
-Tantivy 0.24
-================================
+
+# Tantivy 0.24
+
 Tantivy 0.24 will be backwards compatible with indices created with v0.22 and v0.21. The new minimum rust version will be 1.75. Tantivy 0.23 will be skipped.
 
 #### Bugfixes
+
 - fix potential endless loop in merge [#2457](https://github.com/quickwit-oss/tantivy/pull/2457)(@PSeitz)
 - fix bug that causes out-of-order sstable key. [#2445](https://github.com/quickwit-oss/tantivy/pull/2445)(@fulmicoton)
 - fix ReferenceValue API flaw [#2372](https://github.com/quickwit-oss/tantivy/pull/2372)(@PSeitz)
@@ -94,27 +105,29 @@ Tantivy 0.24 will be backwards compatible with indices created with v0.22 and v0
 - switch from u32 to usize in bitpacker. This enables multivalued columns larger than 4GB, which crashed during merge before. [#2581](https://github.com/quickwit-oss/tantivy/pull/2581) [#2586](https://github.com/quickwit-oss/tantivy/pull/2586)(@fulmicoton-dd @PSeitz)
 
 #### Breaking API Changes
+
 - remove index sorting [#2434](https://github.com/quickwit-oss/tantivy/pull/2434)(@PSeitz)
 
 #### Features/Improvements
+
 - **Aggregation**
-    - Support for cardinality aggregation [#2337](https://github.com/quickwit-oss/tantivy/pull/2337) [#2446](https://github.com/quickwit-oss/tantivy/pull/2446) (@raphaelcoeffic @PSeitz)
-    - Support for extended stats aggregation [#2247](https://github.com/quickwit-oss/tantivy/pull/2247)(@giovannicuccu)
-    - Add Key::I64 and Key::U64 variants in aggregation to avoid f64 precision issues [#2468](https://github.com/quickwit-oss/tantivy/pull/2468)(@PSeitz)
-    - Faster term aggregation fetch terms [#2447](https://github.com/quickwit-oss/tantivy/pull/2447)(@PSeitz)
-    - Improve custom order deserialization [#2451](https://github.com/quickwit-oss/tantivy/pull/2451)(@PSeitz)
-    - Change AggregationLimits behavior [#2495](https://github.com/quickwit-oss/tantivy/pull/2495)(@PSeitz)
-    - lower contention on AggregationLimits [#2394](https://github.com/quickwit-oss/tantivy/pull/2394)(@PSeitz)
-    - fix postcard compatibility for top_hits, add postcard test [#2346](https://github.com/quickwit-oss/tantivy/pull/2346)(@PSeitz)
-    - reduce top hits memory consumption [#2426](https://github.com/quickwit-oss/tantivy/pull/2426)(@PSeitz)
-    - check unsupported parameters top_hits [#2351](https://github.com/quickwit-oss/tantivy/pull/2351)(@PSeitz)
-    - Change AggregationLimits to AggregationLimitsGuard [#2495](https://github.com/quickwit-oss/tantivy/pull/2495)(@PSeitz)
-    - add support for counting non integer in aggregation [#2547](https://github.com/quickwit-oss/tantivy/pull/2547)(@trinity-1686a)
+  - Support for cardinality aggregation [#2337](https://github.com/quickwit-oss/tantivy/pull/2337) [#2446](https://github.com/quickwit-oss/tantivy/pull/2446) (@raphaelcoeffic @PSeitz)
+  - Support for extended stats aggregation [#2247](https://github.com/quickwit-oss/tantivy/pull/2247)(@giovannicuccu)
+  - Add Key::I64 and Key::U64 variants in aggregation to avoid f64 precision issues [#2468](https://github.com/quickwit-oss/tantivy/pull/2468)(@PSeitz)
+  - Faster term aggregation fetch terms [#2447](https://github.com/quickwit-oss/tantivy/pull/2447)(@PSeitz)
+  - Improve custom order deserialization [#2451](https://github.com/quickwit-oss/tantivy/pull/2451)(@PSeitz)
+  - Change AggregationLimits behavior [#2495](https://github.com/quickwit-oss/tantivy/pull/2495)(@PSeitz)
+  - lower contention on AggregationLimits [#2394](https://github.com/quickwit-oss/tantivy/pull/2394)(@PSeitz)
+  - fix postcard compatibility for top_hits, add postcard test [#2346](https://github.com/quickwit-oss/tantivy/pull/2346)(@PSeitz)
+  - reduce top hits memory consumption [#2426](https://github.com/quickwit-oss/tantivy/pull/2426)(@PSeitz)
+  - check unsupported parameters top_hits [#2351](https://github.com/quickwit-oss/tantivy/pull/2351)(@PSeitz)
+  - Change AggregationLimits to AggregationLimitsGuard [#2495](https://github.com/quickwit-oss/tantivy/pull/2495)(@PSeitz)
+  - add support for counting non integer in aggregation [#2547](https://github.com/quickwit-oss/tantivy/pull/2547)(@trinity-1686a)
 - **Range Queries**
-    - Support fast field range queries on json fields [#2456](https://github.com/quickwit-oss/tantivy/pull/2456)(@PSeitz)
-    - Add support for str fast field range query [#2460](https://github.com/quickwit-oss/tantivy/pull/2460) [#2452](https://github.com/quickwit-oss/tantivy/pull/2452) [#2453](https://github.com/quickwit-oss/tantivy/pull/2453)(@PSeitz)
-    - modify fastfield range query heuristic [#2375](https://github.com/quickwit-oss/tantivy/pull/2375)(@trinity-1686a)
-    - add FastFieldRangeQuery for explicit range queries on fast field (for `RangeQuery` it is autodetected) [#2477](https://github.com/quickwit-oss/tantivy/pull/2477)(@PSeitz)
+  - Support fast field range queries on json fields [#2456](https://github.com/quickwit-oss/tantivy/pull/2456)(@PSeitz)
+  - Add support for str fast field range query [#2460](https://github.com/quickwit-oss/tantivy/pull/2460) [#2452](https://github.com/quickwit-oss/tantivy/pull/2452) [#2453](https://github.com/quickwit-oss/tantivy/pull/2453)(@PSeitz)
+  - modify fastfield range query heuristic [#2375](https://github.com/quickwit-oss/tantivy/pull/2375)(@trinity-1686a)
+  - add FastFieldRangeQuery for explicit range queries on fast field (for `RangeQuery` it is autodetected) [#2477](https://github.com/quickwit-oss/tantivy/pull/2477)(@PSeitz)
 
 - add format backwards-compatibility tests [#2485](https://github.com/quickwit-oss/tantivy/pull/2485)(@PSeitz)
 - add columnar format compatibility tests [#2433](https://github.com/quickwit-oss/tantivy/pull/2433)(@PSeitz)
@@ -123,31 +136,31 @@ Tantivy 0.24 will be backwards compatible with indices created with v0.22 and v0
 - Make `BooleanQuery` support `minimum_number_should_match` [#2405](https://github.com/quickwit-oss/tantivy/pull/2405)(@LebranceBW)
 - Make `NUM_MERGE_THREADS` configurable [#2535](https://github.com/quickwit-oss/tantivy/pull/2535)(@Barre)
 
-- **RegexPhraseQuery** 
-`RegexPhraseQuery` supports phrase queries with regex. E.g. query "b.* b.* wolf" matches "big bad wolf". Slop is supported as well: "b.* wolf"~2 matches "big bad wolf" [#2516](https://github.com/quickwit-oss/tantivy/pull/2516)(@PSeitz)
+- **RegexPhraseQuery**
+  `RegexPhraseQuery` supports phrase queries with regex. E.g. query "b._ b._ wolf" matches "big bad wolf". Slop is supported as well: "b.\* wolf"~2 matches "big bad wolf" [#2516](https://github.com/quickwit-oss/tantivy/pull/2516)(@PSeitz)
 
-- **Optional Index in Multivalue Columnar Index** 
-For mostly empty multivalued indices there was a large overhead during creation when iterating all docids (merge case). 
-This is alleviated by placing an optional index in the multivalued index to mark documents that have values. 
-This will slightly increase space and access time. [#2439](https://github.com/quickwit-oss/tantivy/pull/2439)(@PSeitz)
+- **Optional Index in Multivalue Columnar Index**
+  For mostly empty multivalued indices there was a large overhead during creation when iterating all docids (merge case).
+  This is alleviated by placing an optional index in the multivalued index to mark documents that have values.
+  This will slightly increase space and access time. [#2439](https://github.com/quickwit-oss/tantivy/pull/2439)(@PSeitz)
 
 - **Store DateTime as nanoseconds in doc store** DateTime in the doc store was truncated to microseconds previously. This removes this truncation, while still keeping backwards compatibility. [#2486](https://github.com/quickwit-oss/tantivy/pull/2486)(@PSeitz)
 
 - **Performance/Memory**
-    - lift clauses in LogicalAst for optimized ast during execution [#2449](https://github.com/quickwit-oss/tantivy/pull/2449)(@PSeitz)
-    - Use Vec instead of BTreeMap to back OwnedValue object [#2364](https://github.com/quickwit-oss/tantivy/pull/2364)(@fulmicoton)
-    - Replace TantivyDocument with CompactDoc. CompactDoc is much smaller and provides similar performance. [#2402](https://github.com/quickwit-oss/tantivy/pull/2402)(@PSeitz)
-    - Recycling buffer in PrefixPhraseScorer [#2443](https://github.com/quickwit-oss/tantivy/pull/2443)(@fulmicoton)
+  - lift clauses in LogicalAst for optimized ast during execution [#2449](https://github.com/quickwit-oss/tantivy/pull/2449)(@PSeitz)
+  - Use Vec instead of BTreeMap to back OwnedValue object [#2364](https://github.com/quickwit-oss/tantivy/pull/2364)(@fulmicoton)
+  - Replace TantivyDocument with CompactDoc. CompactDoc is much smaller and provides similar performance. [#2402](https://github.com/quickwit-oss/tantivy/pull/2402)(@PSeitz)
+  - Recycling buffer in PrefixPhraseScorer [#2443](https://github.com/quickwit-oss/tantivy/pull/2443)(@fulmicoton)
 
 - **Json Type**
-    - JSON supports now all values on the root level. Previously an object was required. This enables support for flat mixed types. allow more JSON values, fix i64 special case [#2383](https://github.com/quickwit-oss/tantivy/pull/2383)(@PSeitz)
-    - add json path constructor to term [#2367](https://github.com/quickwit-oss/tantivy/pull/2367)(@PSeitz)
+  - JSON supports now all values on the root level. Previously an object was required. This enables support for flat mixed types. allow more JSON values, fix i64 special case [#2383](https://github.com/quickwit-oss/tantivy/pull/2383)(@PSeitz)
+  - add json path constructor to term [#2367](https://github.com/quickwit-oss/tantivy/pull/2367)(@PSeitz)
 
 - **QueryParser**
-    - fix de-escaping too much in query parser [#2427](https://github.com/quickwit-oss/tantivy/pull/2427)(@trinity-1686a)
-    - improve query parser [#2416](https://github.com/quickwit-oss/tantivy/pull/2416)(@trinity-1686a)
-    - Support field grouping `title:(return AND "pink panther")` [#2333](https://github.com/quickwit-oss/tantivy/pull/2333)(@trinity-1686a)
-    - allow term starting with wildcard [#2568](https://github.com/quickwit-oss/tantivy/pull/2568)(@trinity-1686a)
+  - fix de-escaping too much in query parser [#2427](https://github.com/quickwit-oss/tantivy/pull/2427)(@trinity-1686a)
+  - improve query parser [#2416](https://github.com/quickwit-oss/tantivy/pull/2416)(@trinity-1686a)
+  - Support field grouping `title:(return AND "pink panther")` [#2333](https://github.com/quickwit-oss/tantivy/pull/2333)(@trinity-1686a)
+  - allow term starting with wildcard [#2568](https://github.com/quickwit-oss/tantivy/pull/2568)(@trinity-1686a)
 
 - Exist queries match subpath fields [#2558](https://github.com/quickwit-oss/tantivy/pull/2558)(@rdettai)
 - add access benchmark for columnar [#2432](https://github.com/quickwit-oss/tantivy/pull/2432)(@PSeitz)
@@ -155,7 +168,7 @@ This will slightly increase space and access time. [#2439](https://github.com/qu
 - add bench & test for columnar merging [#2428](https://github.com/quickwit-oss/tantivy/pull/2428)(@PSeitz)
 - Change in Executor API [#2391](https://github.com/quickwit-oss/tantivy/pull/2391)(@fulmicoton)
 - Removed usage of num_cpus [#2387](https://github.com/quickwit-oss/tantivy/pull/2387)(@fulmicoton)
-- use bingang for agg and stacker benchmark [#2378](https://github.com/quickwit-oss/tantivy/pull/2378)[#2492](https://github.com/quickwit-oss/tantivy/pull/2492)(@PSeitz) 
+- use bingang for agg and stacker benchmark [#2378](https://github.com/quickwit-oss/tantivy/pull/2378)[#2492](https://github.com/quickwit-oss/tantivy/pull/2492)(@PSeitz)
 - cleanup top level exports [#2382](https://github.com/quickwit-oss/tantivy/pull/2382)(@PSeitz)
 - make convert_to_fast_value_and_append_to_json_term pub [#2370](https://github.com/quickwit-oss/tantivy/pull/2370)(@PSeitz)
 - remove JsonTermWriter [#2238](https://github.com/quickwit-oss/tantivy/pull/2238)(@PSeitz)
@@ -163,20 +176,20 @@ This will slightly increase space and access time. [#2439](https://github.com/qu
 - Fix trait bound of StoreReader::iter [#2360](https://github.com/quickwit-oss/tantivy/pull/2360)(@adamreichold)
 - remove read_postings_no_deletes [#2526](https://github.com/quickwit-oss/tantivy/pull/2526)(@PSeitz)
 
-Tantivy 0.22.1
-================================
-- Fix TopNComputer for reverse order. [#2672](https://github.com/quickwit-oss/tantivy/pull/2672)(@stuhood @PSeitz) 
+# Tantivy 0.22.1
+
+- Fix TopNComputer for reverse order. [#2672](https://github.com/quickwit-oss/tantivy/pull/2672)(@stuhood @PSeitz)
 
 Affected queries are [order_by_fast_field](https://docs.rs/tantivy/latest/tantivy/collector/struct.TopDocs.html#method.order_by_fast_field) and
 [order_by_u64_field](https://docs.rs/tantivy/latest/tantivy/collector/struct.TopDocs.html#method.order_by_u64_field)
 for `Order::Asc`
 
-Tantivy 0.22
-================================
+# Tantivy 0.22
 
 Tantivy 0.22 will be able to read indices created with Tantivy 0.21.
 
 #### Bugfixes
+
 - Fix null byte handling in JSON paths (null bytes in json keys caused panic during indexing) [#2345](https://github.com/quickwit-oss/tantivy/pull/2345)(@PSeitz)
 - Fix bug that can cause `get_docids_for_value_range` to panic. [#2295](https://github.com/quickwit-oss/tantivy/pull/2295)(@fulmicoton)
 - Avoid 1 document indices by increase min memory to 15MB for indexing [#2176](https://github.com/quickwit-oss/tantivy/pull/2176)(@PSeitz)
@@ -187,12 +200,14 @@ Tantivy 0.22 will be able to read indices created with Tantivy 0.21.
 - Handle exclusive out of bounds ranges on fastfield range queries [#2174](https://github.com/quickwit-oss/tantivy/pull/2174)(@PSeitz)
 
 #### Breaking API Changes
+
 - rename ReloadPolicy onCommit to onCommitWithDelay [#2235](https://github.com/quickwit-oss/tantivy/pull/2235)(@giovannicuccu)
 - Move exports from the root into modules [#2220](https://github.com/quickwit-oss/tantivy/pull/2220)(@PSeitz)
 - Accept field name instead of `Field` in FilterCollector [#2196](https://github.com/quickwit-oss/tantivy/pull/2196)(@PSeitz)
 - remove deprecated IntOptions and DateTime [#2353](https://github.com/quickwit-oss/tantivy/pull/2353)(@PSeitz)
 
 #### Features/Improvements
+
 - Tantivy documents as a trait: Index data directly without converting to tantivy types first [#2071](https://github.com/quickwit-oss/tantivy/pull/2071)(@ChillFish8)
 - encode some part of posting list as -1 instead of direct values (smaller inverted indices) [#2185](https://github.com/quickwit-oss/tantivy/pull/2185)(@trinity-1686a)
 - **Aggregation**
@@ -219,7 +234,7 @@ Tantivy 0.22 will be able to read indices created with Tantivy 0.21.
 - **QueryParser**
   - allow newline where we allow space in query parser [#2302](https://github.com/quickwit-oss/tantivy/pull/2302)(@trinity-1686a)
   - allow some mixing of occur and bool in strict query parser [#2323](https://github.com/quickwit-oss/tantivy/pull/2323)(@trinity-1686a)
-  - handle * inside term in lenient query parser [#2228](https://github.com/quickwit-oss/tantivy/pull/2228)(@trinity-1686a)
+  - handle \* inside term in lenient query parser [#2228](https://github.com/quickwit-oss/tantivy/pull/2228)(@trinity-1686a)
   - add support for exists query syntax in query parser [#2170](https://github.com/quickwit-oss/tantivy/pull/2170)(@trinity-1686a)
 - Add shared search executor [#2312](https://github.com/quickwit-oss/tantivy/pull/2312)(@MochiXu)
 - Truncate keys to u16::MAX in term hashmap [#2299](https://github.com/quickwit-oss/tantivy/pull/2299)(@PSeitz)
@@ -233,22 +248,28 @@ Tantivy 0.22 will be able to read indices created with Tantivy 0.21.
 - Derive Debug for SchemaBuilder [#2254](https://github.com/quickwit-oss/tantivy/pull/2254)(@GodTamIt)
 - add missing inlines to tantivy options [#2245](https://github.com/quickwit-oss/tantivy/pull/2245)(@PSeitz)
 
-Tantivy 0.21.1
-================================
+# Tantivy 0.21.1
+
 #### Bugfixes
+
 - Range queries on fast fields with less values on that field than documents had an invalid end condition, leading to missing results. [#2226](https://github.com/quickwit-oss/tantivy/issues/2226)(@appaquet @PSeitz)
 - Increase the minimum memory budget from 3MB to 15MB to avoid single doc segments (API fix). [#2176](https://github.com/quickwit-oss/tantivy/issues/2176)(@PSeitz)
 
-Tantivy 0.21
-================================
+# Tantivy 0.21
+
 #### Bugfixes
+
 - Fix track fast field memory consumption, which led to higher memory consumption than the budget allowed during indexing [#2148](https://github.com/quickwit-oss/tantivy/issues/2148)[#2147](https://github.com/quickwit-oss/tantivy/issues/2147)(@PSeitz)
 - Fix a regression from 0.20 where sort index by date wasn't working anymore [#2124](https://github.com/quickwit-oss/tantivy/issues/2124)(@PSeitz)
 - Fix getting the root facet on the `FacetCollector`. [#2086](https://github.com/quickwit-oss/tantivy/issues/2086)(@adamreichold)
 - Align numerical type priority order of columnar and query. [#2088](https://github.com/quickwit-oss/tantivy/issues/2088)(@fmassot)
+
 #### Breaking Changes
+
 - Remove support for Brotli and Snappy compression [#2123](https://github.com/quickwit-oss/tantivy/issues/2123)(@adamreichold)
+
 #### Features/Improvements
+
 - Implement lenient query parser [#2129](https://github.com/quickwit-oss/tantivy/pull/2129)(@trinity-1686a)
 - order_by_u64_field and order_by_fast_field allow sorting in ascending and descending order [#2111](https://github.com/quickwit-oss/tantivy/issues/2111)(@naveenann)
 - Allow dynamic filters in text analyzer builder [#2110](https://github.com/quickwit-oss/tantivy/issues/2110)(@fulmicoton @fmassot)
@@ -267,18 +288,19 @@ Tantivy 0.21
 - Return an error when tokenizer is not found while indexing [#2093](https://github.com/quickwit-oss/tantivy/issues/2093)(@naveenann)
 - Delayed column opening during merge [#2132](https://github.com/quickwit-oss/tantivy/issues/2132)(@PSeitz)
 
-Tantivy 0.20.2
-================================
-- Align numerical type priority order on the search side.  [#2088](https://github.com/quickwit-oss/tantivy/issues/2088) (@fmassot)
+# Tantivy 0.20.2
+
+- Align numerical type priority order on the search side. [#2088](https://github.com/quickwit-oss/tantivy/issues/2088) (@fmassot)
 - Fix is_child_of function not considering the root facet. [#2086](https://github.com/quickwit-oss/tantivy/issues/2086) (@adamreichhold)
 
-Tantivy 0.20.1
-================================
+# Tantivy 0.20.1
+
 - Fix building on windows with mmap [#2070](https://github.com/quickwit-oss/tantivy/issues/2070) (@ChillFish8)
 
-Tantivy 0.20
-================================
+# Tantivy 0.20
+
 #### Bugfixes
+
 - Fix phrase queries with slop (slop supports now transpositions, algorithm that carries slop so far for num terms > 2) [#2031](https://github.com/quickwit-oss/tantivy/issues/2031)[#2020](https://github.com/quickwit-oss/tantivy/issues/2020)(@PSeitz)
 - Handle error for exists on MMapDirectory [#1988](https://github.com/quickwit-oss/tantivy/issues/1988) (@PSeitz)
 - Aggregation
@@ -286,6 +308,7 @@ Tantivy 0.20
   - Fix: Sort order for term aggregations (sort order on key was inverted) [#1858](https://github.com/quickwit-oss/tantivy/issues/1858) (@PSeitz)
 
 #### Features/Improvements
+
 - Add PhrasePrefixQuery [#1842](https://github.com/quickwit-oss/tantivy/issues/1842) (@trinity-1686a)
 - Add `coerce` option for text and numbers types (convert the value instead of returning an error during indexing) [#1904](https://github.com/quickwit-oss/tantivy/issues/1904) (@PSeitz)
 - Add regex tokenizer [#1759](https://github.com/quickwit-oss/tantivy/issues/1759)(@mkleen)
@@ -354,14 +377,15 @@ Tantivy 0.20
   - Fix BooleanQuery document [#1999](https://github.com/quickwit-oss/tantivy/issues/1999) (@RT_Enzyme)
   - Update comments in the faceted search example [#1737](https://github.com/quickwit-oss/tantivy/issues/1737) (@DawChihLiou)
 
+# Tantivy 0.19
 
-Tantivy 0.19
-================================
 #### Bugfixes
+
 - Fix missing fieldnorms for u64, i64, f64, bool, bytes and date [#1620](https://github.com/quickwit-oss/tantivy/pull/1620) (@PSeitz)
 - Fix interpolation overflow in linear interpolation fastfield codec [#1480](https://github.com/quickwit-oss/tantivy/pull/1480) (@PSeitz @fulmicoton)
 
 #### Features/Improvements
+
 - Add support for `IN` in queryparser , e.g. `field: IN [val1 val2 val3]` [#1683](https://github.com/quickwit-oss/tantivy/pull/1683) (@trinity-1686a)
 - Skip score calculation, when no scoring is required [#1646](https://github.com/quickwit-oss/tantivy/pull/1646) (@PSeitz)
 - Limit fast fields to u32 (`get_val(u32)`) [#1644](https://github.com/quickwit-oss/tantivy/pull/1644) (@PSeitz)
@@ -390,8 +414,7 @@ Tantivy 0.19
   - [#1611](https://github.com/quickwit-oss/tantivy/pull/1611) (@PSeitz)
   - Added a pre-configured stop word filter for various language [#1666](https://github.com/quickwit-oss/tantivy/pull/1666) (@adamreichold)
 
-Tantivy 0.18
-================================
+# Tantivy 0.18
 
 - For date values `chrono` has been replaced with `time` (@uklotzde) #1304 :
   - The `time` crate is re-exported as `tantivy::time` instead of `tantivy::chrono`.
@@ -406,12 +429,11 @@ Tantivy 0.18
 - Add terms aggregation (@PSeitz)
 - Add support for zstd compression (@kryesh)
 
-Tantivy 0.18.1
-================================
-- Hotfix: positions computation.  #1629 (@fmassot, @fulmicoton, @PSeitz)
+# Tantivy 0.18.1
 
-Tantivy 0.17
-================================
+- Hotfix: positions computation. #1629 (@fmassot, @fulmicoton, @PSeitz)
+
+# Tantivy 0.17
 
 - LogMergePolicy now triggers merges if the ratio of deleted documents reaches a threshold (@shikhar @fulmicoton) [#115](https://github.com/quickwit-oss/tantivy/issues/115)
 - Adds a searcher Warmer API (@shikhar @fulmicoton)
@@ -425,45 +447,38 @@ Tantivy 0.17
 - Added a JSON schema type @fulmicoton [#1251](https://github.com/quickwit-oss/tantivy/issues/1251)
 - Added support for slop in phrase queries @halvorboe [#1068](https://github.com/quickwit-oss/tantivy/issues/1068)
 
-Tantivy 0.16.2
-================================
+# Tantivy 0.16.2
 
 - Bugfix in FuzzyTermQuery. (transposition_cost_one was not doing anything)
 
-Tantivy 0.16.1
-========================
+# Tantivy 0.16.1
 
-- Major Bugfix on multivalued fastfield.  #1151
+- Major Bugfix on multivalued fastfield. #1151
 - Demux operation (@PSeitz)
 
-Tantivy 0.16.0
-=========================
+# Tantivy 0.16.0
 
 - Bugfix in the filesum check. (@evanxg852000) #1127
 - Bugfix in positions when the index is sorted by a field. (@appaquet) #1125
 
-Tantivy 0.15.3
-=========================
+# Tantivy 0.15.3
 
 - Major bugfix. Deleting documents was broken when the index was sorted by a field. (@appaquet, @fulmicoton) #1101
 
-Tantivy 0.15.2
-========================
+# Tantivy 0.15.2
 
 - Major bugfix. DocStore still panics when a deleted doc is at the beginning of a block. (@appaquet) #1088
 
-Tantivy 0.15.1
-=========================
+# Tantivy 0.15.1
 
 - Major bugfix. DocStore panics when first block is deleted. (@appaquet) #1077
 
-Tantivy 0.15.0
-=========================
+# Tantivy 0.15.0
 
 - API Changes. Using Range instead of (start, end) in the API and internals (`FileSlice`, `OwnedBytes`, `Snippets`, ...)
   This change is breaking but migration is trivial.
 - Added an Histogram collector. (@fulmicoton) #994
-- Added support for Option<TCollector>.  (@fulmicoton)
+- Added support for Option<TCollector>. (@fulmicoton)
 - DocAddress is now a struct (@scampi) #987
 - Bugfix consistent tie break handling in facet's topk (@hardikpnsp) #357
 - Date field support for range queries (@rihardsk) #516
@@ -481,8 +496,7 @@ Tantivy 0.15.0
 - Updated TermMerger implementation to rely on the union feature of the FST (@scampi) #469
 - Add boolean marking whether position is required in the query_terms API call (@fulmicoton). #1070
 
-Tantivy 0.14.0
-=========================
+# Tantivy 0.14.0
 
 - Remove dependency to atomicwrites #833 .Implemented by @fulmicoton upon suggestion and research from @asafigan).
 - Migrated tantivy error from the now deprecated `failure` crate to `thiserror` #760. (@hirevo)
@@ -500,20 +514,17 @@ Tantivy 0.14.0
 
 This version breaks compatibility and requires users to reindex everything.
 
-Tantivy 0.13.2
-===================
+# Tantivy 0.13.2
 
 Bugfix. Acquiring a facet reader on a segment that does not contain any
 doc with this facet returns `None`. (#896)
 
-Tantivy 0.13.1
-===================
+# Tantivy 0.13.1
 
 Made `Query` and `Collector` `Send + Sync`.
 Updated misc dependency versions.
 
-Tantivy 0.13.0
-======================
+# Tantivy 0.13.0
 
 Tantivy 0.13 introduce a change in the index format that will require
 you to reindex your index (BlockWAND information are added in the skiplist).
@@ -526,9 +537,9 @@ so that we can discuss possible solutions.
 - Relaxed constraints on the custom/tweak score functions. At the segment level, they can be mut, and they are not required to be Sync + Send.
 - `MMapDirectory::open` does not return a `Result` anymore.
 - Change in the DocSet and Scorer API. (@fulmicoton).
-A freshly created DocSet point directly to their first doc. A sentinel value called TERMINATED marks the end of a DocSet.
-`.advance()` returns the new DocId. `Scorer::skip(target)` has been replaced by `Scorer::seek(target)` and returns the resulting DocId.
-As a result, iterating through DocSet now looks as follows
+  A freshly created DocSet point directly to their first doc. A sentinel value called TERMINATED marks the end of a DocSet.
+  `.advance()` returns the new DocId. `Scorer::skip(target)` has been replaced by `Scorer::seek(target)` and returns the resulting DocId.
+  As a result, iterating through DocSet now looks as follows
 
 ```rust
 let mut doc = docset.doc();
@@ -541,12 +552,11 @@ while doc != TERMINATED {
 The change made it possible to greatly simplify a lot of the docset's code.
 
 - Misc internal optimization and introduction of the `Scorer::for_each_pruning` function. (@fulmicoton)
-- Added an offset option to the Top(.*)Collectors. (@robyoung)
+- Added an offset option to the Top(.\*)Collectors. (@robyoung)
 - Added Block WAND. Performance on TOP-K on term-unions should be greatly increased. (@fulmicoton, and special thanks
-to the PISA team for answering all my questions!)
+  to the PISA team for answering all my questions!)
 
-Tantivy 0.12.0
-======================
+# Tantivy 0.12.0
 
 - Removing static dispatch in tokenizers for simplicity. (#762)
 - Added backward iteration for `TermDictionary` stream. (@halvorboe)
@@ -561,24 +571,20 @@ Crates relying on custom tokenizer, or registering tokenizer in the manager will
 minor changes. Check <https://github.com/quickwit-oss/tantivy/blob/main/examples/custom_tokenizer.rs>
 to check for some code sample.
 
-Tantivy 0.11.3
-=======================
+# Tantivy 0.11.3
 
 - Fixed DateTime as a fast field (#735)
 
-Tantivy 0.11.2
-=======================
+# Tantivy 0.11.2
 
 - The future returned by `IndexWriter::merge` does not borrow `self` mutably anymore (#732)
 - Exposing a constructor for `WatchHandle` (#731)
 
-Tantivy 0.11.1
-=====================
+# Tantivy 0.11.1
 
 - Bug fix #729
 
-Tantivy 0.11.0
-=====================
+# Tantivy 0.11.0
 
 - Added f64 field. Internally reuse u64 code the same way i64 does (@fdb-hiroshima)
 - Various bugfixes in the query parser.
@@ -599,46 +605,42 @@ Tantivy 0.11.0
 - The index format is changed. You are required to reindex your data to use tantivy 0.11.
 - `Box<dyn BoxableTokenizer>` has been replaced by a `BoxedTokenizer` struct.
 - Regex are now compiled when the `RegexQuery` instance is built. As a result, it can now return
-an error and handling the `Result` is required.
+  an error and handling the `Result` is required.
 - `tantivy::version()` now returns a `Version` object. This object implements `ToString()`
 
-Tantivy 0.10.2
-=====================
+# Tantivy 0.10.2
 
 - Closes #656. Solving memory leak.
 
-Tantivy 0.10.1
-=====================
+# Tantivy 0.10.1
 
-- Closes #544.  A few users experienced problems with the directory watching system.
-Avoid watching the mmap directory until someone effectively creates a reader that uses
-this functionality.
+- Closes #544. A few users experienced problems with the directory watching system.
+  Avoid watching the mmap directory until someone effectively creates a reader that uses
+  this functionality.
 
-Tantivy 0.10.0
-=====================
+# Tantivy 0.10.0
 
-*Tantivy 0.10.0 index format is compatible with the index format in 0.9.0.*
+_Tantivy 0.10.0 index format is compatible with the index format in 0.9.0._
 
 - Added an API to easily tweak or entirely replace the
- default score. See `TopDocs::tweak_score`and `TopScore::custom_score` (@fulmicoton)
+  default score. See `TopDocs::tweak_score`and `TopScore::custom_score` (@fulmicoton)
 - Added an ASCII folding filter (@drusellers)
 - Bugfix in `query.count` in presence of deletes (@fulmicoton)
 - Added `.explain(...)` in `Query` and `Weight` to (@fulmicoton)
 - Added an efficient way to `delete_all_documents` in `IndexWriter` (@petr-tik).
   All segments are simply removed.
 
-Minor
----------
+## Minor
 
 - Switched to Rust 2018 (@uvd)
 - Small simplification of the code.
-Calling .freq() or .doc() when .advance() has never been called
-on segment postings should panic from now on.
+  Calling .freq() or .doc() when .advance() has never been called
+  on segment postings should panic from now on.
 - Tokens exceeding `u16::max_value() - 4` chars are discarded silently instead of panicking.
 - Fast fields are now preloaded when the `SegmentReader` is created.
-- `IndexMeta` is now public.  (@hntd187)
+- `IndexMeta` is now public. (@hntd187)
 - `IndexWriter` `add_document`, `delete_term`. `IndexWriter` is `Sync`, making it possible to use it with a `Arc<RwLock<IndexWriter>>`. `add_document` and `delete_term` can
-only require a read lock. (@fulmicoton)
+  only require a read lock. (@fulmicoton)
 - Introducing `Opstamp` as an expressive type alias for `u64`. (@petr-tik)
 - Stamper now relies on `AtomicU64` on all platforms (@petr-tik)
 - Bugfix - Files get deleted slightly earlier
@@ -658,11 +660,10 @@ The API changed, you are now required to acquire your fast field reader via the
 - `.u64s()`, `.i64s()` if your field is multi-valued ;
 - `.bytes()` if your field is bytes fast field.
 
-Tantivy 0.9.0
-=====================
+# Tantivy 0.9.0
 
-*0.9.0 index format is not compatible with the
-previous index format.*
+_0.9.0 index format is not compatible with the
+previous index format._
 
 - MAJOR BUGFIX :
   Some `Mmap` objects were being leaked, and would never get released. (@fulmicoton)
@@ -684,62 +685,57 @@ previous index format.*
 tantivy 0.9 brought some API breaking change.
 To update from tantivy 0.8, you will need to go through the following steps.
 
-- `schema::INT_INDEXED` and `schema::INT_STORED`  should be replaced by `schema::INDEXED` and `schema::INT_STORED`.
+- `schema::INT_INDEXED` and `schema::INT_STORED` should be replaced by `schema::INDEXED` and `schema::INT_STORED`.
 - The index now does not hold the pool of searcher anymore. You are required to create an intermediary object called
-`IndexReader` for this.
+  `IndexReader` for this.
 
-    ```rust
-    // create the reader. You typically need to create 1 reader for the entire
-    // lifetime of you program.
-    let reader = index.reader()?;
+      ```rust
+      // create the reader. You typically need to create 1 reader for the entire
+      // lifetime of you program.
+      let reader = index.reader()?;
 
-    // Acquire a searcher (previously `index.searcher()`) is now written:
-    let searcher = reader.searcher();
+      // Acquire a searcher (previously `index.searcher()`) is now written:
+      let searcher = reader.searcher();
 
-    // With the default setting of the reader, you are not required to
-    // call `index.load_searchers()` anymore.
-    //
-    // The IndexReader will pick up that change automatically, regardless
-    // of whether the update was done in a different process or not.
-    // If this behavior is not wanted, you can create your reader with
-    // the `ReloadPolicy::Manual`, and manually decide when to reload the index
-    // by calling `reader.reload()?`.
+      // With the default setting of the reader, you are not required to
+      // call `index.load_searchers()` anymore.
+      //
+      // The IndexReader will pick up that change automatically, regardless
+      // of whether the update was done in a different process or not.
+      // If this behavior is not wanted, you can create your reader with
+      // the `ReloadPolicy::Manual`, and manually decide when to reload the index
+      // by calling `reader.reload()?`.
 
-    ```
+      ```
 
-Tantivy 0.8.2
-=====================
+# Tantivy 0.8.2
 
 Fixing build for x86_64 platforms. (#496)
 No need to update from 0.8.1 if tantivy
 is building on your platform.
 
-Tantivy 0.8.1
-=====================
+# Tantivy 0.8.1
 
 Hotfix of #476.
 
 Merge was reflecting deletes before commit was passed.
-Thanks @barrotsteindev  for reporting the bug.
+Thanks @barrotsteindev for reporting the bug.
 
-Tantivy 0.8.0
-=====================
+# Tantivy 0.8.0
 
-*No change in the index format*
+_No change in the index format_
 
 - API Breaking change in the collector API. (@jwolfe, @fulmicoton)
 - Multithreaded search (@jwolfe, @fulmicoton)
 
-Tantivy 0.7.1
-=====================
+# Tantivy 0.7.1
 
-*No change in the index format*
+_No change in the index format_
 
 - Bugfix: NGramTokenizer panics on non ascii chars
 - Added a space usage API
 
-Tantivy 0.7
-=====================
+# Tantivy 0.7
 
 - Skip data for doc ids and positions (@fulmicoton),
   greatly improving performance
@@ -748,8 +744,7 @@ Tantivy 0.7
 - Added a snippet generator with highlight (@vigneshsarma, @fulmicoton)
 - Added a `TopFieldCollector` (@pentlander)
 
-Tantivy 0.6.1
-=========================
+# Tantivy 0.6.1
 
 - Bugfix #324. GC removing was removing file that were still in useful
 - Added support for parsing AllQuery and RangeQuery via QueryParser
@@ -760,8 +755,7 @@ Tantivy 0.6.1
     - Mixed `field:[startIncl to endExcl}` and vice versa
     - Unbounded `field:[start to *]`, `field:[* to end]`
 
-Tantivy 0.6
-==========================
+# Tantivy 0.6
 
 Special thanks to @drusellers and @jason-wolfe for their contributions
 to this release!
@@ -777,22 +771,19 @@ to this release!
 - Add Stopword Filter support (@drusellers)
 - Add a FuzzyTermQuery (@drusellers)
 - Add a RegexQuery (@drusellers)
-- Various performance improvements (@fulmicoton)_
+- Various performance improvements (@fulmicoton)\_
 
-Tantivy 0.5.2
-===========================
+# Tantivy 0.5.2
 
 - bugfix #274
 - bugfix #280
 - bugfix #289
 
-Tantivy 0.5.1
-==========================
+# Tantivy 0.5.1
 
 - bugfix #254 : tantivy failed if no documents in a segment contained a specific field.
 
-Tantivy 0.5
-==========================
+# Tantivy 0.5
 
 - Faceting
 - RangeQuery
@@ -803,28 +794,24 @@ Tantivy 0.5
   - 64 bits file address
   - Smarter encoding of the `TermInfo` objects
 
-Tantivy 0.4.3
-==========================
+# Tantivy 0.4.3
 
 - Bugfix race condition when deleting files. (#198)
 
-Tantivy 0.4.2
-==========================
+# Tantivy 0.4.2
 
 - Prevent usage of AVX2 instructions (#201)
 
-Tantivy 0.4.1
-==========================
+# Tantivy 0.4.1
 
 - Bugfix for non-indexed fields. (#199)
 
-Tantivy 0.4.0
-==========================
+# Tantivy 0.4.0
 
 - Raise the limit of number of fields (previously 256 fields) (@fulmicoton)
 - Removed u32 fields. They are replaced by u64 and i64 fields (#65) (@fulmicoton)
 - Optimized skip in SegmentPostings (#130) (@lnicola)
-- Replacing rustc_serialize by serde. Kudos to  benchmark@KodrAus and @lnicola
+- Replacing rustc_serialize by serde. Kudos to benchmark@KodrAus and @lnicola
 - Using error-chain (@KodrAus)
 - QueryParser: (@fulmicoton)
   - Explicit error returned when searched for a term that is not indexed
@@ -842,13 +829,11 @@ Tantivy 0.4.0
 - Made the doc! macro public (@fulmicoton)
 - Added an alternative implementation of the streaming dictionary (@fulmicoton)
 
-Tantivy 0.3.1
-==========================
+# Tantivy 0.3.1
 
 - Expose a method to trigger files garbage collection
 
-Tantivy 0.3
-==========================
+# Tantivy 0.3
 
 Special thanks to @Kodraus @lnicola @Ameobea @manuel-woelker @celaus
 for their contribution to this release.
@@ -865,17 +850,15 @@ code and index format.
 You should not expect backward compatibility before
 tantivy 1.0.
 
-New Features
-------------
+## New Features
 
 - Delete. You can now delete documents from an index.
 - Support for windows (Thanks to @lnicola)
 
-Various Bugfixes & small improvements
-----------------------------------------
+## Various Bugfixes & small improvements
 
 - Added CI for Windows (<https://ci.appveyor.com/project/fulmicoton/tantivy>)
-Thanks to @KodrAus ! (#108)
+  Thanks to @KodrAus ! (#108)
 - Various dependy version update (Thanks to @Ameobea) #76
 - Fixed several race conditions in `Index.wait_merge_threads`
 - Fixed #72. Mmap were never released.

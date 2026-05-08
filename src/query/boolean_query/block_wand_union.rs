@@ -297,6 +297,7 @@ mod tests {
 
     use proptest::prelude::*;
 
+    use crate::index::Bm25Params;
     use crate::query::score_combiner::SumCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::{Bm25Weight, BufferedUnionScorer, Scorer};
@@ -459,6 +460,7 @@ mod tests {
             .sum();
         let average_fieldnorm = (total_fieldnorms as Score) / (fieldnorms_expanded.len() as Score);
         let max_doc = fieldnorms_expanded.len();
+        let bm25_params = Bm25Params::default();
 
         let term_scorers: Vec<TermScorer> = postings_lists_expanded
             .iter()
@@ -467,6 +469,7 @@ mod tests {
                     postings.len() as u64,
                     max_doc as u64,
                     average_fieldnorm,
+                    &bm25_params,
                 );
                 TermScorer::create_for_test(postings, &fieldnorms_expanded[..], bm25_weight)
             })

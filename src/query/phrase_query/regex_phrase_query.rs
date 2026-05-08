@@ -145,8 +145,11 @@ impl RegexPhraseQuery {
         let bm25_weight_opt = match enable_scoring {
             EnableScoring::Enabled {
                 statistics_provider,
-                ..
-            } => Some(Bm25Weight::for_terms(statistics_provider, &terms)?),
+                searcher,
+            } => {
+                let bm25_params = searcher.bm25_params();
+                Some(Bm25Weight::for_terms(statistics_provider, &terms, bm25_params)?)
+            }
             EnableScoring::Disabled { .. } => None,
         };
         let weight = RegexPhraseWeight::new(

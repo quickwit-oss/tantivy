@@ -65,12 +65,13 @@ impl SegmentPostings {
     #[cfg(test)]
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         use crate::directory::FileSlice;
+        use crate::index::Bm25Params;
         use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
         let mut buffer = Vec::new();
         {
             let mut postings_serializer =
-                PostingsSerializer::new(0.0, IndexRecordOption::Basic, None);
+                PostingsSerializer::new(0.0, IndexRecordOption::Basic, None, Bm25Params::default());
             postings_serializer.new_term(docs.len() as u32, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
@@ -97,6 +98,7 @@ impl SegmentPostings {
     ) -> SegmentPostings {
         use crate::directory::FileSlice;
         use crate::fieldnorm::FieldNormReader;
+        use crate::index::Bm25Params;
         use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
         use crate::Score;
@@ -118,6 +120,7 @@ impl SegmentPostings {
             average_field_norm,
             IndexRecordOption::WithFreqs,
             fieldnorm_reader,
+            Bm25Params::default(),
         );
         postings_serializer.new_term(doc_and_tfs.len() as u32, true);
         for &(doc, tf) in doc_and_tfs {

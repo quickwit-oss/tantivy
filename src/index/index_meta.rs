@@ -8,7 +8,7 @@ use super::SegmentComponent;
 use crate::index::SegmentId;
 use crate::schema::Schema;
 use crate::store::Compressor;
-use crate::{Inventory, Opstamp, TrackedObject};
+use crate::{Inventory, Opstamp, Score, TrackedObject};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeleteMeta {
@@ -206,11 +206,38 @@ fn is_true(val: &bool) -> bool {
     *val
 }
 
+/// BM25 scoring parameters.
+///
+/// These parameters control the term frequency saturation and length normalization
+/// in the BM25 scoring formula.
+///
+/// The default values (k1=1.2, b=0.75) work well for general text search and match
+/// Lucene/Elasticsearch defaults.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Bm25Params {
+    /// Term frequency saturation parameter (default: 1.2)
+    ///
+    /// Higher values increase the impact of term frequency.
+    /// Typical range: 1.0 to 2.0
+    pub k1: Score,
+    /// Length normalization parameter (default: 0.75)
+    ///
+    /// Lower values reduce the impact of document length normalization.
+    /// Typical range: 0.3 to 0.9
+    pub b: Score,
+}
+
+impl Default for Bm25Params {
+    fn default() -> Self {
+        Self { k1: 1.2, b: 0.75 }
+    }
+}
+
 /// Search Index Settings.
 ///
 /// Contains settings which are applied on the whole
 /// index, like presort documents.
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IndexSettings {
     /// The `Compressor` used to compress the doc store.
     #[serde(default)]
@@ -224,6 +251,9 @@ pub struct IndexSettings {
     #[serde(default = "default_docstore_blocksize")]
     /// The size of each block that will be compressed and written to disk
     pub docstore_blocksize: usize,
+    /// BM25 parameters for scoring (optional, uses defaults if None)
+    #[serde(default)]
+    pub bm25_params: Option<Bm25Params>,
 }
 
 /// Must be a function to be compatible with serde defaults
@@ -237,6 +267,7 @@ impl Default for IndexSettings {
             docstore_compression: Compressor::default(),
             docstore_blocksize: default_docstore_blocksize(),
             docstore_compress_dedicated_thread: true,
+            bm25_params: None,
         }
     }
 }
@@ -382,7 +413,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"docstore_compression":"none","docstore_blocksize":16384,"bm25_params":null},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false,"fast":false}}],"opstamp":0}"#
         );
 
         let deser_meta: UntrackedIndexMeta = serde_json::from_str(&json).unwrap();
@@ -471,7 +502,8 @@ mod tests {
             IndexSettings {
                 docstore_compression: Compressor::default(),
                 docstore_compress_dedicated_thread: true,
-                docstore_blocksize: 16_384
+                docstore_blocksize: 16_384,
+                bm25_params: None
             }
         );
         {
@@ -480,7 +512,8 @@ mod tests {
                 index_settings_json,
                 serde_json::json!({
                     "docstore_compression": "lz4",
-                    "docstore_blocksize": 16384
+                    "docstore_blocksize": 16384,
+                    "bm25_params": null
                 })
             );
             let index_settings_deser: IndexSettings =
@@ -496,11 +529,31 @@ mod tests {
                     "docstore_compression": "lz4",
                     "docstore_blocksize": 16384,
                     "docstore_compress_dedicated_thread": false,
+                    "bm25_params": null
                 })
             );
             let index_settings_deser: IndexSettings =
                 serde_json::from_value(index_settings_json).unwrap();
             assert_eq!(index_settings_deser, index_settings);
         }
+    }
+
+    #[test]
+    fn test_bm25_params_serialization() {
+        use crate::index::Bm25Params;
+
+        let params = Bm25Params { k1: 2.0, b: 0.5 };
+        let json = serde_json::to_value(&params).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "k1": 2.0,
+                "b": 0.5
+            })
+        );
+
+        let params_deser: Bm25Params = serde_json::from_value(json).unwrap();
+        assert_eq!(params_deser.k1, 2.0);
+        assert_eq!(params_deser.b, 0.5);
     }
 }
