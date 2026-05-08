@@ -15,38 +15,33 @@ use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::geometry_set::GeometrySet;
 use super::r2rect::R2Rect;
-use super::region_coverer::{CovererOptions, RegionCoverer};
+use super::region_coverer::CovererOptions;
 use super::s2cell_id::S2CellId;
 use super::s2padded_cell::S2PaddedCell;
-use super::shape_index_region::{index_contains_point, CellIndexRegion, EdgeProvider};
+use super::shape_index_region::{index_contains_point, EdgeProvider};
 use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::{Clipper, CELL_PADDING};
+use crate::spatial::s2edge_clipping::clip_edge_bound;
 use crate::spatial::shape_index::ShapeIndex;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
 pub struct IntersectsQuery<S: Surface> {
     query_index: ShapeIndex,
     query_edges: QueryEdgeProvider<S>,
-    covering: Vec<S2CellId>,
 }
 
 impl<S: Surface> IntersectsQuery<S> {
     /// Build the query from a smashed GeometrySet.
-    pub fn new(set: GeometrySet<S>, options: CovererOptions) -> Self {
+    pub fn new(set: GeometrySet<S>, _options: CovererOptions) -> Self {
         let builder = Clipper::new(ClipOptions::default());
         let query_index = builder.build(std::slice::from_ref(&set));
 
         let query_edges = QueryEdgeProvider { set };
 
-        let region = CellIndexRegion::<S, QueryEdgeProvider<S>>::new(&query_index, &query_edges);
-        let coverer = RegionCoverer::new(options);
-        let covering = coverer.get_covering(&region).into_cell_ids();
-
         Self {
             query_index,
             query_edges,
-            covering,
         }
     }
 
@@ -86,7 +81,15 @@ impl<S: Surface> IntersectsQuery<S> {
         let mut crossing_tests = 0u64;
         let mut index_cells_visited = 0u64;
 
-        eprintln!("covering: {} cells", self.covering.len());
+        eprintln!("query index: {} cells", self.query_index.cells.len());
+        for qc in &self.query_index.cells {
+            let edges: usize = qc.shapes.iter().map(|s| s.edge_indices.len()).sum();
+            let cc = qc.shapes.iter().any(|s| s.contains_center);
+            eprintln!(
+                "  cell {} face {} level {} edges {} contains_center {}",
+                qc.cell_id.0, qc.cell_id.face(), qc.cell_id.level(), edges, cc,
+            );
+        }
 
         // Pre-scan: find geometries that contain the query point. A closed geometry
         // with contains_center and no edges in the query point cell fully contains the
@@ -115,26 +118,25 @@ impl<S: Surface> IntersectsQuery<S> {
         }
 
         let mut interior_hits = 0u64;
+        let mut dropped = 0u64;
         let mut heap = BinaryHeap::new();
 
-        for &covering_cell_id in &self.covering {
-            let query_cell = self.query_index.find_cell(covering_cell_id);
+        for query_cell in &self.query_index.cells {
+            let cell_id = query_cell.cell_id;
 
             let mut query_edge_indices: Vec<u32> = Vec::new();
             let mut contains_center = false;
-            if let Some(qc) = &query_cell {
-                for shape in &qc.shapes {
-                    query_edge_indices.extend_from_slice(&shape.edge_indices);
-                    if shape.contains_center {
-                        contains_center = true;
-                    }
+            for shape in &query_cell.shapes {
+                query_edge_indices.extend_from_slice(&shape.edge_indices);
+                if shape.contains_center {
+                    contains_center = true;
                 }
             }
 
             let (index_start, index_end) =
-                reader.range_for_cell(covering_cell_id, 0, reader.cell_count());
+                reader.range_for_cell(cell_id, 0, reader.cell_count());
 
-            if index_start == index_end && query_edge_indices.is_empty() {
+            if index_start == index_end && query_edge_indices.is_empty() && !contains_center {
                 continue;
             }
 
@@ -145,7 +147,7 @@ impl<S: Surface> IntersectsQuery<S> {
             };
 
             heap.push(CoveringEntry {
-                pcell: S2PaddedCell::new(covering_cell_id, CELL_PADDING),
+                pcell: S2PaddedCell::new(cell_id, CELL_PADDING),
                 query_edges: query_edge_indices,
                 contains_center,
                 index_start,
@@ -158,6 +160,7 @@ impl<S: Surface> IntersectsQuery<S> {
             let is_interior = entry.query_edges.is_empty() && entry.contains_center;
             if is_interior {
                 for pos in entry.index_start..entry.index_end {
+                    index_cells_visited += 1;
                     let cell = reader.cell_at(pos);
                     for clipped in &cell.shapes {
                         let gid = clipped.geometry_id.1;
@@ -178,7 +181,7 @@ impl<S: Surface> IntersectsQuery<S> {
             } else if entry.pcell.level() + 1 < entry.first_index_level
                 && !entry.pcell.id().is_leaf()
             {
-                for child in subdivide_entry(&entry, &self.query_edges, reader) {
+                for child in subdivide_entry(&entry, &self.query_edges, reader, &mut dropped) {
                     heap.push(child);
                 }
             } else {
@@ -256,11 +259,12 @@ impl<S: Surface> IntersectsQuery<S> {
 
 
         eprintln!(
-            "intersects: {} index cells, {} tested, {} interior, {} candidate_contains, {} query_contains, \
+            "intersects: {} index cells, {} tested, {} interior, {} dropped, {} candidate_contains, {} query_contains, \
              {} crossing ({} tests), {} total hits",
             index_cells_visited,
             total_tested,
             interior_hits,
+            dropped,
             hits_candidate_contains,
             hits_query_contains,
             hits_crossing,
@@ -322,25 +326,34 @@ fn subdivide_entry<S: Surface>(
     entry: &CoveringEntry<S>,
     query_edges: &QueryEdgeProvider<S>,
     reader: &CellIndexReader,
+    dropped: &mut u64,
 ) -> Vec<CoveringEntry<S>> {
     if entry.pcell.id().is_leaf() {
         return vec![];
     }
 
+    let face = entry.pcell.id().face();
+    let cell_bound = entry.pcell.bound();
     let middle = entry.pcell.middle();
     let u_mid_lo = middle[0].lo();
     let u_mid_hi = middle[0].hi();
     let v_mid_lo = middle[1].lo();
     let v_mid_hi = middle[1].hi();
 
-    // Distribute query edge indices into child quadrants.
+    // Distribute query edge indices into child quadrants. Clip each edge's UV bound to the
+    // cell's padded bound before classifying, matching the interleaver's tightening step.
     let mut child_edges: [[Vec<u32>; 2]; 2] = Default::default();
 
     for &edge_idx in &entry.query_edges {
         let (v0, v1) = query_edges.get_edge((0, 0), edge_idx);
-        let a = S::point_to_face_uv(0, &v0);
-        let b = S::point_to_face_uv(0, &v1);
-        let bound = R2Rect::from_point_pair([a.0, a.1], [b.0, b.1]);
+        let (a_uv, b_uv) = match S::clip_to_face(&v0, &v1, face, CELL_PADDING) {
+            Some(ab) => ab,
+            None => continue,
+        };
+        let mut bound = R2Rect::from_point_pair(a_uv, b_uv);
+        if !clip_edge_bound(a_uv, b_uv, &cell_bound, &mut bound) {
+            continue;
+        }
 
         if bound[0].lo() < u_mid_hi && bound[1].lo() < v_mid_hi {
             child_edges[0][0].push(edge_idx);
@@ -398,8 +411,9 @@ fn subdivide_entry<S: Surface>(
 
         let is_interior = edges.is_empty() && contains_center;
 
-        // Skip exterior children: no edges, not interior, no index cells.
-        if !is_interior && edges.is_empty() && start == end {
+        // Skip: empty index range, or exterior (no query edges and not interior).
+        if start == end || (edges.is_empty() && !is_interior) {
+            *dropped += 1;
             continue;
         }
 
