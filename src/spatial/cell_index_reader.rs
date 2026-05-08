@@ -110,12 +110,77 @@ impl<'a> CellIndexReader<'a> {
         }
     }
 
+    /// Returns the cell ID at the given directory position.
+    pub fn cell_id_at(&self, index: u32) -> S2CellId {
+        let (cell_id, _) = self.read_dir_entry(index);
+        S2CellId(cell_id)
+    }
+
+    /// Returns the first position in the directory where an index cell's range overlaps the
+    /// target cell, searching only within the given bounds.
+    pub fn start_for_cell(&self, target: S2CellId, lo: u32, hi: u32) -> u32 {
+        let target_min = target.range_min();
+        let mut lo = lo;
+        let mut hi = hi;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let (cell_id, _) = self.read_dir_entry(mid);
+            if S2CellId(cell_id).range_max() < target_min {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        lo
+    }
+
+    /// Returns the start (inclusive) and end (exclusive) positions in the directory for index
+    /// cells whose ranges overlap the given target cell, searching only within the given bounds.
+    pub fn range_for_cell(&self, target: S2CellId, parent_start: u32, parent_end: u32) -> (u32, u32) {
+        let target_min = target.range_min();
+        let target_max = target.range_max();
+
+        // Binary search for the first cell whose range_max >= target_min.
+        let mut lo = parent_start;
+        let mut hi = parent_end;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let (cell_id, _) = self.read_dir_entry(mid);
+            if S2CellId(cell_id).range_max() < target_min {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        let start = lo;
+
+        // Binary search for the first cell whose range_min > target_max.
+        hi = parent_end;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let (cell_id, _) = self.read_dir_entry(mid);
+            if S2CellId(cell_id).range_min() <= target_max {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        (start, lo)
+    }
+
     /// Returns a cursor positioned at the beginning of the cell index.
     pub fn cursor(&'a self) -> CellIndexCursor<'a> {
         CellIndexCursor {
             reader: self,
             pos: 0,
         }
+    }
+
+    /// Read the cell at a directory position.
+    pub fn cell_at(&self, index: u32) -> ShapeCell {
+        let (_, offset) = self.read_dir_entry(index);
+        self.read_cell(offset as usize)
     }
 
     fn read_dir_entry(&self, index: u32) -> (u64, u64) {

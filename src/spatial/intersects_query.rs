@@ -5,6 +5,8 @@
 //! in every cell where the geometry appears. A hit bitset skips confirmed geometries. A
 //! containment-tested bitset ensures the containment tests run at most once per geometry.
 
+use std::collections::BinaryHeap;
+
 use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
@@ -12,12 +14,14 @@ use super::contains_query::QueryEdgeProvider;
 use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
 use super::geometry_set::GeometrySet;
+use super::r2rect::R2Rect;
 use super::region_coverer::{CovererOptions, RegionCoverer};
 use super::s2cell_id::S2CellId;
-use super::shape_index_region::{index_contains_point, CellIndexRegion};
+use super::s2padded_cell::S2PaddedCell;
+use super::shape_index_region::{index_contains_point, CellIndexRegion, EdgeProvider};
 use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipper::Clipper;
+use crate::spatial::clipper::{Clipper, CELL_PADDING};
 use crate::spatial::shape_index::ShapeIndex;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
@@ -72,8 +76,7 @@ impl<S: Surface> IntersectsQuery<S> {
         edge_cache: &mut EdgeCache<'a, S>,
     ) -> Vec<u32> {
         let geometry_count = edge_cache.geometry_count(0);
-        let mut include = BitSet::with_max_value(geometry_count);
-        let mut exclude = BitSet::with_max_value(geometry_count);
+        let mut seen = BitSet::with_max_value(geometry_count);
         let mut containment_tested = BitSet::with_max_value(geometry_count);
         let mut doc_ids = Vec::new();
         let mut hits_candidate_contains = 0u64;
@@ -100,85 +103,140 @@ impl<S: Surface> IntersectsQuery<S> {
                     }
                     if let Some(filter) = terms_filter {
                         if !filter.contains(located.doc_id) {
-                            exclude.insert(gid);
+                            seen.insert(gid);
                             continue;
                         }
                     }
                     hits_candidate_contains += 1;
-                    include.insert(gid);
+                    seen.insert(gid);
                     doc_ids.push(located.doc_id);
                 }
             }
         }
 
+        let mut interior_hits = 0u64;
+        let mut heap = BinaryHeap::new();
+
         for &covering_cell_id in &self.covering {
             let query_cell = self.query_index.find_cell(covering_cell_id);
-            for index_cell in reader.scan_range(covering_cell_id) {
-                index_cells_visited += 1;
-                for clipped in &index_cell.shapes {
-                    let gid = clipped.geometry_id.1;
 
-                    if include.contains(gid) || exclude.contains(gid) {
-                        continue;
+            let mut query_edge_indices: Vec<u32> = Vec::new();
+            let mut contains_center = false;
+            if let Some(qc) = &query_cell {
+                for shape in &qc.shapes {
+                    query_edge_indices.extend_from_slice(&shape.edge_indices);
+                    if shape.contains_center {
+                        contains_center = true;
                     }
+                }
+            }
 
-                    // Locate once per iteration. The containment block uses it on
-                    // first encounter. The crossing block uses it on every encounter.
-                    let mut was_located = None;
+            let (index_start, index_end) =
+                reader.range_for_cell(covering_cell_id, 0, reader.cell_count());
 
-                    // Containment tests: run once per geometry.
-                    if !containment_tested.contains(gid) {
-                        containment_tested.insert(gid);
+            if index_start == index_end && query_edge_indices.is_empty() {
+                continue;
+            }
 
-                        let located = edge_cache.locate(clipped.geometry_id);
+            let first_index_level = if index_start < index_end {
+                reader.cell_id_at(index_start).level()
+            } else {
+                0
+            };
 
+            heap.push(CoveringEntry {
+                pcell: S2PaddedCell::new(covering_cell_id, CELL_PADDING),
+                query_edges: query_edge_indices,
+                contains_center,
+                index_start,
+                index_end,
+                first_index_level,
+            });
+        }
+
+        while let Some(entry) = heap.pop() {
+            let is_interior = entry.query_edges.is_empty() && entry.contains_center;
+            if is_interior {
+                for pos in entry.index_start..entry.index_end {
+                    let cell = reader.cell_at(pos);
+                    for clipped in &cell.shapes {
+                        let gid = clipped.geometry_id.1;
+                        if seen.contains(gid) {
+                            continue;
+                        }
+                        seen.insert(gid);
+                        let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
                         if let Some(filter) = terms_filter {
-                            if !filter.contains(located.doc_id) {
-                                exclude.insert(gid);
+                            if !filter.contains(doc_id) {
+                                continue;
+                            }
+                        }
+                        doc_ids.push(doc_id);
+                        interior_hits += 1;
+                    }
+                }
+            } else if entry.pcell.level() + 1 < entry.first_index_level
+                && !entry.pcell.id().is_leaf()
+            {
+                for child in subdivide_entry(&entry, &self.query_edges, reader) {
+                    heap.push(child);
+                }
+            } else {
+                let query_vertices = &self.query_edges.get_edge_set((0, 0)).vertices;
+                for pos in entry.index_start..entry.index_end {
+                    let cell = reader.cell_at(pos);
+                    index_cells_visited += 1;
+                    for clipped in &cell.shapes {
+                        let gid = clipped.geometry_id.1;
+
+                        if seen.contains(gid) {
+                            continue;
+                        }
+
+                        // Filter check.
+                        if let Some(filter) = terms_filter {
+                            let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
+                            if !filter.contains(doc_id) {
+                                seen.insert(gid);
                                 continue;
                             }
                         }
 
-                        total_tested += 1;
+                        // Containment test: run once per geometry.
+                        if !containment_tested.contains(gid) {
+                            containment_tested.insert(gid);
+                            total_tested += 1;
 
-                        // Does the query contain the candidate's first vertex?
-                        let first_vertex = located.vertex(0);
-                        if index_contains_point::<S, QueryEdgeProvider<S>>(
-                            &self.query_index,
-                            &self.query_edges,
-                            (0, 0),
-                            &first_vertex,
-                        ) {
-                            hits_query_contains += 1;
-                            include.insert(gid);
-                            doc_ids.push(located.doc_id);
-                            continue;
+                            let located = edge_cache.locate(clipped.geometry_id);
+                            let first_vertex = located.vertex(0);
+                            if index_contains_point::<S, QueryEdgeProvider<S>>(
+                                &self.query_index,
+                                &self.query_edges,
+                                (0, 0),
+                                &first_vertex,
+                            ) {
+                                hits_query_contains += 1;
+                                seen.insert(gid);
+                                doc_ids.push(located.doc_id);
+                                continue;
+                            }
                         }
 
-                        was_located = Some(located);
-                    }
-
-                    // Edge crossing test.
-                    if !clipped.edge_indices.is_empty() {
-                        if let Some(qc) = query_cell {
-                            let located = was_located
-                                .unwrap_or_else(|| edge_cache.locate(clipped.geometry_id));
+                        // Edge crossing test: runs in each boundary child.
+                        if !clipped.edge_indices.is_empty() && !entry.query_edges.is_empty() {
+                            let located = edge_cache.locate(clipped.geometry_id);
                             if located.vertex_count >= 2 {
-                                let query_vertices =
-                                    &self.query_edges.get_edge_set((0, 0)).vertices;
                                 let crossed = 'crossing: {
                                     for &candidate_edge_idx in &clipped.edge_indices {
                                         let (cv0, cv1) = located.edge(candidate_edge_idx);
                                         let mut crosser = S::EdgeCrosser::new(&cv0, &cv1);
-                                        for query_shape in &qc.shapes {
-                                            for &query_edge_idx in &query_shape.edge_indices {
-                                                let qi = query_edge_idx as usize;
-                                                let qv0 = &query_vertices[qi];
-                                                let qv1 = &query_vertices[qi + 1];
-                                                crossing_tests += 1;
-                                                if crosser.crossing_sign_two(qv0, qv1) > 0 {
-                                                    break 'crossing true;
-                                                }
+                                        for &query_edge_idx in &entry.query_edges {
+                                            let qi = query_edge_idx as usize;
+                                            let qv0 = &query_vertices[qi];
+                                            let qv1 = &query_vertices[qi + 1];
+                                            crossing_tests += 1;
+                                            if crosser.crossing_sign_two(qv0, qv1) > 0 {
+                                                break 'crossing true;
                                             }
                                         }
                                     }
@@ -186,7 +244,7 @@ impl<S: Surface> IntersectsQuery<S> {
                                 };
                                 if crossed {
                                     hits_crossing += 1;
-                                    include.insert(gid);
+                                    seen.insert(gid);
                                     doc_ids.push(located.doc_id);
                                 }
                             }
@@ -196,18 +254,170 @@ impl<S: Surface> IntersectsQuery<S> {
             }
         }
 
+
         eprintln!(
-            "intersects: {} index cells visited, {} tested, {} candidate_contains, {} query_contains, \
+            "intersects: {} index cells, {} tested, {} interior, {} candidate_contains, {} query_contains, \
              {} crossing ({} tests), {} total hits",
             index_cells_visited,
             total_tested,
+            interior_hits,
             hits_candidate_contains,
             hits_query_contains,
             hits_crossing,
             crossing_tests,
-            hits_candidate_contains + hits_query_contains + hits_crossing,
+            hits_candidate_contains + hits_query_contains + hits_crossing + interior_hits,
         );
 
         doc_ids
     }
+}
+
+/// An entry in the covering descent. Carries the padded cell for splitting, the query edge
+/// indices that overlap it, and the range of index cells it covers in the segment directory.
+struct CoveringEntry<S: Surface> {
+    /// The padded cell. Provides UV bounds, middle for splitting, child traversal order.
+    pcell: S2PaddedCell<S>,
+    /// Indices of query polygon edges that overlap this cell.
+    query_edges: Vec<u32>,
+    /// Whether the query polygon contains the center of this cell.
+    contains_center: bool,
+    /// Start position in the segment cell index directory (inclusive).
+    index_start: u32,
+    /// End position in the segment cell index directory (exclusive).
+    index_end: u32,
+    /// Level of the first index cell in the range. Used to decide whether to split.
+    first_index_level: i32,
+}
+
+
+impl<S: Surface> PartialEq for CoveringEntry<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.pcell.id() == other.pcell.id()
+    }
+}
+
+impl<S: Surface> Eq for CoveringEntry<S> {}
+
+impl<S: Surface> PartialOrd for CoveringEntry<S> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// BinaryHeap is a max-heap. Interior cells first, then smallest cell ID.
+// Interior: no query edges and contains_center.
+impl<S: Surface> Ord for CoveringEntry<S> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let self_interior = self.query_edges.is_empty() && self.contains_center;
+        let other_interior = other.query_edges.is_empty() && other.contains_center;
+        self_interior.cmp(&other_interior)
+            .then(other.pcell.id().cmp(&self.pcell.id()))
+    }
+}
+
+/// Subdivide a covering entry into four children. Distributes query edge indices into child
+/// quadrants using UV bounds. Computes the index range for each child from the parent range.
+/// Discards exterior children (no query edges and not interior).
+fn subdivide_entry<S: Surface>(
+    entry: &CoveringEntry<S>,
+    query_edges: &QueryEdgeProvider<S>,
+    reader: &CellIndexReader,
+) -> Vec<CoveringEntry<S>> {
+    if entry.pcell.id().is_leaf() {
+        return vec![];
+    }
+
+    let middle = entry.pcell.middle();
+    let u_mid_lo = middle[0].lo();
+    let u_mid_hi = middle[0].hi();
+    let v_mid_lo = middle[1].lo();
+    let v_mid_hi = middle[1].hi();
+
+    // Distribute query edge indices into child quadrants.
+    let mut child_edges: [[Vec<u32>; 2]; 2] = Default::default();
+
+    for &edge_idx in &entry.query_edges {
+        let (v0, v1) = query_edges.get_edge((0, 0), edge_idx);
+        let a = S::point_to_face_uv(0, &v0);
+        let b = S::point_to_face_uv(0, &v1);
+        let bound = R2Rect::from_point_pair([a.0, a.1], [b.0, b.1]);
+
+        if bound[0].lo() < u_mid_hi && bound[1].lo() < v_mid_hi {
+            child_edges[0][0].push(edge_idx);
+        }
+        if bound[0].lo() < u_mid_hi && bound[1].hi() > v_mid_lo {
+            child_edges[0][1].push(edge_idx);
+        }
+        if bound[0].hi() > u_mid_lo && bound[1].lo() < v_mid_hi {
+            child_edges[1][0].push(edge_idx);
+        }
+        if bound[0].hi() > u_mid_lo && bound[1].hi() > v_mid_lo {
+            child_edges[1][1].push(edge_idx);
+        }
+    }
+
+    // Find the traversal order and child cell IDs.
+    let mut child_ij: [(usize, usize); 4] = [(0, 0); 4];
+    let mut child_ids: [S2CellId; 4] = [S2CellId(0); 4];
+    for pos in 0..4 {
+        let (i, j) = entry.pcell.get_child_ij(pos);
+        child_ij[pos as usize] = (i, j);
+        child_ids[pos as usize] = entry.pcell.id().child(pos);
+    }
+
+    // Find the 3 interior range boundaries. starts[0] is the parent's start.
+    let mut starts = [0u32; 4];
+    starts[0] = entry.index_start;
+    for k in 1..4 {
+        starts[k] = reader.start_for_cell(child_ids[k], starts[k - 1], entry.index_end);
+    }
+
+    let parent_center = entry.pcell.get_center();
+
+    let mut result = Vec::with_capacity(4);
+    for k in 0..4 {
+        let (i, j) = child_ij[k];
+        let edges = std::mem::take(&mut child_edges[i][j]);
+        let start = starts[k];
+        let end = if k < 3 { starts[k + 1] } else { entry.index_end };
+
+        // Determine contains_center for this child by testing edge crossings from
+        // parent center to child center, starting from the parent's contains_center.
+        let child_pcell = S2PaddedCell::from_parent(&entry.pcell, i, j);
+        let child_center = child_pcell.get_center();
+        let mut contains_center = entry.contains_center;
+        if !edges.is_empty() {
+            let mut crosser = S::EdgeCrosser::new(&parent_center, &child_center);
+            for &edge_idx in &edges {
+                let (v0, v1) = query_edges.get_edge((0, 0), edge_idx);
+                if crosser.edge_or_vertex_crossing_two(&v0, &v1) {
+                    contains_center = !contains_center;
+                }
+            }
+        }
+
+        let is_interior = edges.is_empty() && contains_center;
+
+        // Skip exterior children: no edges, not interior, no index cells.
+        if !is_interior && edges.is_empty() && start == end {
+            continue;
+        }
+
+        let first_index_level = if start < end {
+            reader.cell_id_at(start).level()
+        } else {
+            0
+        };
+
+        result.push(CoveringEntry {
+            pcell: child_pcell,
+            query_edges: edges,
+            contains_center,
+            index_start: start,
+            index_end: end,
+            first_index_level,
+        });
+    }
+
+    result
 }
