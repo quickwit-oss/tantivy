@@ -64,6 +64,18 @@ impl<S: Surface> IntersectsQuery<S> {
         self.search_segment_inner(cell_reader, Some(terms_filter), edge_cache)
     }
 
+    /// Search one segment using the contains predicate.
+    pub fn contains_segment<'a>(
+        &self,
+        cell_reader: &'a CellIndexReader<'a>,
+        edge_cache: &mut EdgeCache<'a, S>,
+    ) -> Vec<u32> {
+        let geometry_count = edge_cache.geometry_count(0);
+        let mut predicate = ContainsPredicate::new(geometry_count);
+        self.search_with_predicate(cell_reader, None, edge_cache, &mut predicate);
+        predicate.into_doc_ids()
+    }
+
     fn search_segment_inner<'a>(
         &self,
         reader: &'a CellIndexReader<'a>,
@@ -71,53 +83,25 @@ impl<S: Surface> IntersectsQuery<S> {
         edge_cache: &mut EdgeCache<'a, S>,
     ) -> Vec<u32> {
         let geometry_count = edge_cache.geometry_count(0);
-        let mut seen = BitSet::with_max_value(geometry_count);
+        let mut predicate = IntersectsPredicate::new(geometry_count);
+        self.search_with_predicate(reader, terms_filter, edge_cache, &mut predicate);
+        predicate.doc_ids().to_vec()
+    }
+
+    fn search_with_predicate<'a>(
+        &self,
+        reader: &'a CellIndexReader<'a>,
+        terms_filter: Option<&BitSet>,
+        edge_cache: &mut EdgeCache<'a, S>,
+        predicate: &mut impl Predicate,
+    ) {
+        let geometry_count = edge_cache.geometry_count(0);
         let mut containment_tested = BitSet::with_max_value(geometry_count);
-        let mut doc_ids = Vec::new();
-        let mut hits_candidate_contains = 0u64;
-        let mut hits_query_contains = 0u64;
-        let mut hits_crossing = 0u64;
-        let mut total_tested = 0u64;
-        let mut crossing_tests = 0u64;
-        let mut index_cells_visited = 0u64;
 
-        eprintln!("query index: {} cells", self.query_index.cells.len());
-        for qc in &self.query_index.cells {
-            let edges: usize = qc.shapes.iter().map(|s| s.edge_indices.len()).sum();
-            let cc = qc.shapes.iter().any(|s| s.contains_center);
-            eprintln!(
-                "  cell {} face {} level {} edges {} contains_center {}",
-                qc.cell_id.0, qc.cell_id.face(), qc.cell_id.level(), edges, cc,
-            );
-        }
-
-        // Pre-scan: find geometries that contain the query point. A closed geometry
-        // with contains_center and no edges in the query point cell fully contains the
-        // query point. Include these before the covering walk.
         let query_vertex = &self.query_edges.get_edge_set((0, 0)).vertices[0];
         let query_point_cell_id = S::cell_id_from_point(query_vertex);
-        if let Some(qpc) = reader.find(query_point_cell_id) {
-            for shape in &qpc.shapes {
-                let gid = shape.geometry_id.1;
-                if shape.contains_center && shape.edge_indices.is_empty() {
-                    let located = edge_cache.locate(shape.geometry_id);
-                    if !located.closed {
-                        continue;
-                    }
-                    if let Some(filter) = terms_filter {
-                        if !filter.contains(located.doc_id) {
-                            seen.insert(gid);
-                            continue;
-                        }
-                    }
-                    hits_candidate_contains += 1;
-                    seen.insert(gid);
-                    doc_ids.push(located.doc_id);
-                }
-            }
-        }
+        predicate.scan::<S>(query_point_cell_id, reader, edge_cache, terms_filter);
 
-        let mut interior_hits = 0u64;
         let mut dropped = 0u64;
         let mut heap = BinaryHeap::new();
 
@@ -160,22 +144,27 @@ impl<S: Surface> IntersectsQuery<S> {
             let is_interior = entry.query_edges.is_empty() && entry.contains_center;
             if is_interior {
                 for pos in entry.index_start..entry.index_end {
-                    index_cells_visited += 1;
                     let cell = reader.cell_at(pos);
                     for clipped in &cell.shapes {
                         let gid = clipped.geometry_id.1;
-                        if seen.contains(gid) {
+                        if predicate.is_resolved(gid) {
                             continue;
                         }
-                        seen.insert(gid);
                         let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
                         if let Some(filter) = terms_filter {
                             if !filter.contains(doc_id) {
+                                predicate.exclude(gid);
                                 continue;
                             }
                         }
-                        doc_ids.push(doc_id);
-                        interior_hits += 1;
+                        if doc_id == 5181405 {
+                            eprintln!(
+                                "TRACE doc_id=5181405 gid={} edges={} contains_center={} cell={} level={}",
+                                gid, clipped.edge_indices.len(), clipped.contains_center,
+                                cell.cell_id.0, cell.cell_id.level(),
+                            );
+                        }
+                        predicate.interior(gid, doc_id, !clipped.edge_indices.is_empty(), clipped.contains_center);
                     }
                 }
             } else if entry.pcell.level() + 1 < entry.first_index_level
@@ -188,27 +177,23 @@ impl<S: Surface> IntersectsQuery<S> {
                 let query_vertices = &self.query_edges.get_edge_set((0, 0)).vertices;
                 for pos in entry.index_start..entry.index_end {
                     let cell = reader.cell_at(pos);
-                    index_cells_visited += 1;
                     for clipped in &cell.shapes {
                         let gid = clipped.geometry_id.1;
 
-                        if seen.contains(gid) {
+                        if predicate.is_resolved(gid) {
                             continue;
                         }
 
-                        // Filter check.
                         if let Some(filter) = terms_filter {
                             let doc_id = edge_cache.doc_id_for(clipped.geometry_id);
                             if !filter.contains(doc_id) {
-                                seen.insert(gid);
+                                predicate.exclude(gid);
                                 continue;
                             }
                         }
 
-                        // Containment test: run once per geometry.
-                        if !containment_tested.contains(gid) {
+                        if predicate.test_containment() && !containment_tested.contains(gid) {
                             containment_tested.insert(gid);
-                            total_tested += 1;
 
                             let located = edge_cache.locate(clipped.geometry_id);
                             let first_vertex = located.vertex(0);
@@ -218,14 +203,11 @@ impl<S: Surface> IntersectsQuery<S> {
                                 (0, 0),
                                 &first_vertex,
                             ) {
-                                hits_query_contains += 1;
-                                seen.insert(gid);
-                                doc_ids.push(located.doc_id);
+                                predicate.interior(gid, located.doc_id, false, true);
                                 continue;
                             }
                         }
 
-                        // Edge crossing test: runs in each boundary child.
                         if !clipped.edge_indices.is_empty() && !entry.query_edges.is_empty() {
                             let located = edge_cache.locate(clipped.geometry_id);
                             if located.vertex_count >= 2 {
@@ -237,7 +219,6 @@ impl<S: Surface> IntersectsQuery<S> {
                                             let qi = query_edge_idx as usize;
                                             let qv0 = &query_vertices[qi];
                                             let qv1 = &query_vertices[qi + 1];
-                                            crossing_tests += 1;
                                             if crosser.crossing_sign_two(qv0, qv1) > 0 {
                                                 break 'crossing true;
                                             }
@@ -245,11 +226,7 @@ impl<S: Surface> IntersectsQuery<S> {
                                     }
                                     false
                                 };
-                                if crossed {
-                                    hits_crossing += 1;
-                                    seen.insert(gid);
-                                    doc_ids.push(located.doc_id);
-                                }
+                                predicate.crossing(gid, located.doc_id, crossed);
                             }
                         }
                     }
@@ -257,22 +234,174 @@ impl<S: Surface> IntersectsQuery<S> {
             }
         }
 
+    }
+}
 
-        eprintln!(
-            "intersects: {} index cells, {} tested, {} interior, {} dropped, {} candidate_contains, {} query_contains, \
-             {} crossing ({} tests), {} total hits",
-            index_cells_visited,
-            total_tested,
-            interior_hits,
-            dropped,
-            hits_candidate_contains,
-            hits_query_contains,
-            hits_crossing,
-            crossing_tests,
-            hits_candidate_contains + hits_query_contains + hits_crossing + interior_hits,
-        );
+/// Predicate for the covering descent. Implementations decide what to do with geometries
+/// encountered in interior cells, boundary cells with crossings, and filtered geometries.
+trait Predicate {
+    /// Pre-scan the segment for geometries that contain the query point.
+    fn scan<S: Surface>(
+        &mut self,
+        query_point_cell_id: S2CellId,
+        reader: &CellIndexReader,
+        edge_cache: &EdgeCache<S>,
+        terms_filter: Option<&BitSet>,
+    );
+    /// A geometry was found in an interior cell.
+    fn interior(&mut self, gid: u32, doc_id: u32, has_edges: bool, contains_center: bool);
+    /// A geometry's edge crossed a query edge in a boundary cell.
+    fn crossing(&mut self, gid: u32, doc_id: u32, crossed: bool);
+    /// Whether to run the containment test (first vertex inside query).
+    fn test_containment(&self) -> bool;
+    /// A geometry was rejected by the terms filter or other condition.
+    fn exclude(&mut self, gid: u32);
+    /// Whether this geometry has already been resolved (hit or rejected).
+    fn is_resolved(&self, gid: u32) -> bool;
+}
 
-        doc_ids
+/// Intersects predicate: interior and crossing are both hits.
+struct IntersectsPredicate {
+    seen: BitSet,
+    doc_ids: Vec<u32>,
+}
+
+impl IntersectsPredicate {
+    fn new(geometry_count: u32) -> Self {
+        IntersectsPredicate {
+            seen: BitSet::with_max_value(geometry_count),
+            doc_ids: Vec::new(),
+        }
+    }
+}
+
+impl Predicate for IntersectsPredicate {
+    fn scan<S: Surface>(
+        &mut self,
+        query_point_cell_id: S2CellId,
+        reader: &CellIndexReader,
+        edge_cache: &EdgeCache<S>,
+        terms_filter: Option<&BitSet>,
+    ) {
+        if let Some(qpc) = reader.find(query_point_cell_id) {
+            for shape in &qpc.shapes {
+                let gid = shape.geometry_id.1;
+                if shape.contains_center && shape.edge_indices.is_empty() {
+                    let located = edge_cache.locate(shape.geometry_id);
+                    if !located.closed {
+                        continue;
+                    }
+                    if let Some(filter) = terms_filter {
+                        if !filter.contains(located.doc_id) {
+                            self.exclude(gid);
+                            continue;
+                        }
+                    }
+                    self.interior(gid, located.doc_id, false, true);
+                }
+            }
+        }
+    }
+
+    fn interior(&mut self, gid: u32, doc_id: u32, _has_edges: bool, _contains_center: bool) {
+        self.seen.insert(gid);
+        self.doc_ids.push(doc_id);
+    }
+
+    fn crossing(&mut self, gid: u32, doc_id: u32, crossed: bool) {
+        if crossed {
+            self.seen.insert(gid);
+            self.doc_ids.push(doc_id);
+        }
+    }
+
+    fn test_containment(&self) -> bool {
+        true
+    }
+
+    fn exclude(&mut self, gid: u32) {
+        self.seen.insert(gid);
+    }
+
+    fn is_resolved(&self, gid: u32) -> bool {
+        self.seen.contains(gid)
+    }
+}
+
+impl IntersectsPredicate {
+    fn doc_ids(&self) -> &[u32] {
+        &self.doc_ids
+    }
+}
+
+/// Contains predicate (Lucene CONTAINS / PostGIS ST_Contains): the query polygon fully
+/// contains the indexed geometry. Interior cells include geometries with no edges. A crossing
+/// in any boundary cell rejects the geometry.
+/// Contains predicate (Lucene CONTAINS / PostGIS ST_Contains): the query polygon fully
+/// contains the indexed geometry. Interior cells include geometries with no edges — a geometry
+/// with edges in an interior cell has its boundary inside the query, so it extends beyond.
+/// A crossing in any boundary cell rejects the geometry.
+struct ContainsPredicate {
+    included: BitSet,
+    excluded: BitSet,
+    candidates: Vec<(u32, u32)>,
+}
+
+impl ContainsPredicate {
+    fn new(geometry_count: u32) -> Self {
+        ContainsPredicate {
+            included: BitSet::with_max_value(geometry_count),
+            excluded: BitSet::with_max_value(geometry_count),
+            candidates: Vec::new(),
+        }
+    }
+}
+
+impl Predicate for ContainsPredicate {
+    fn scan<S: Surface>(
+        &mut self,
+        _query_point_cell_id: S2CellId,
+        _reader: &CellIndexReader,
+        _edge_cache: &EdgeCache<S>,
+        _terms_filter: Option<&BitSet>,
+    ) {
+    }
+
+    fn interior(&mut self, gid: u32, doc_id: u32, has_edges: bool, contains_center: bool) {
+        if has_edges {
+            self.excluded.insert(gid);
+        } else if contains_center && !self.excluded.contains(gid) && !self.included.contains(gid) {
+            self.included.insert(gid);
+            self.candidates.push((gid, doc_id));
+        }
+    }
+
+    fn crossing(&mut self, gid: u32, _doc_id: u32, crossed: bool) {
+        if crossed {
+            self.excluded.insert(gid);
+        }
+    }
+
+    fn test_containment(&self) -> bool {
+        false
+    }
+
+    fn exclude(&mut self, gid: u32) {
+        self.excluded.insert(gid);
+    }
+
+    fn is_resolved(&self, gid: u32) -> bool {
+        self.excluded.contains(gid)
+    }
+}
+
+impl ContainsPredicate {
+    fn into_doc_ids(self) -> Vec<u32> {
+        self.candidates
+            .into_iter()
+            .filter(|(gid, _)| !self.excluded.contains(*gid))
+            .map(|(_, doc_id)| doc_id)
+            .collect()
     }
 }
 

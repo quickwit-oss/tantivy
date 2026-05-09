@@ -26,7 +26,6 @@ use crate::spatial::plane::Plane;
 use crate::spatial::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
-use crate::spatial::contains_query::ContainsQuery;
 use crate::spatial::intersects_query::IntersectsQuery;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::sphere::Sphere;
@@ -273,11 +272,10 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         &self,
         geometry: &Geometry<Plane>,
     ) -> Box<dyn PreparedSpatialQuery> {
-        // ContainsQuery is Sphere-only for now.
-        let projected = geometry.project::<Sphere>();
+        let projected = geometry.project::<S>();
         let set = to_geometry_set(&projected, 0);
-        Box::new(PreparedContains {
-            query: ContainsQuery::new(set, CovererOptions::default()),
+        Box::new(PreparedContainsNew::<S> {
+            query: IntersectsQuery::new(set, CovererOptions::default()),
         })
     }
 }
@@ -296,17 +294,16 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedIntersects<S> {
     }
 }
 
-struct PreparedContains {
-    query: ContainsQuery,
+struct PreparedContainsNew<S: Surface> {
+    query: IntersectsQuery<S>,
 }
 
-
-impl PreparedSpatialQuery for PreparedContains {
+impl<S: Surface + 'static> PreparedSpatialQuery for PreparedContainsNew<S> {
     fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {
         let cell_reader = CellIndexReader::open(cells_bytes);
-        let edge_reader = EdgeReader::<Sphere>::open(edges_bytes);
+        let edge_reader = EdgeReader::<S>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.query.search_segment(&cell_reader, &mut edge_cache)
+        self.query.contains_segment(&cell_reader, &mut edge_cache)
     }
 }
 
