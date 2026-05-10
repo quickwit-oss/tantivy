@@ -16,9 +16,7 @@ use super::s2padded_cell::S2PaddedCell;
 use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipped_shape::{ClippedShape, GeometryId};
-use crate::spatial::clipper::{
-    get_level_for_max_value, CELL_PADDING, CELL_SIZE_TO_LONG_EDGE_RATIO,
-};
+use crate::spatial::clipper::{get_level_for_max_value, CELL_SIZE_TO_LONG_EDGE_RATIO};
 use crate::spatial::r1interval::R1Interval;
 use crate::spatial::shape_index::ShapeCell;
 
@@ -107,7 +105,7 @@ impl<S: Surface> SpongeCell<S> {
                     Ok(_) => {}
                     Err(pos) => {
                         let (v0, v1) = cache_entry.edge(edge_index);
-                        let (a_uv, b_uv) = match S::clip_to_face(&v0, &v1, face, CELL_PADDING) {
+                        let (a_uv, b_uv) = match S::clip_to_face(&v0, &v1, face, S::CELL_PADDING) {
                             Some(ab) => ab,
                             None => continue,
                         };
@@ -186,13 +184,14 @@ impl<S: Surface> SpongeCell<S> {
         let mut cell_center: Option<S::Point> = None;
         for shape in &cell.shapes {
             let center = *cell_center.get_or_insert_with(|| {
-                S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).get_center()
+                S2PaddedCell::<S>::new(cell.cell_id, S::CELL_PADDING).get_center()
             });
             let closed = edge_cache.get(shape.geometry_id).edge_set().closed;
             assert!(
                 closed || !shape.contains_center,
                 "non-closed geometry {:?} has contains_center in source cell {}",
-                shape.geometry_id, cell.cell_id.0,
+                shape.geometry_id,
+                cell.cell_id.0,
             );
             let anchor = SpongeShape {
                 geometry_id: shape.geometry_id,
@@ -376,7 +375,7 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                     let mut merged = match sponge {
                         HeapEntry::Source { cell, .. } => {
                             let cell_bound =
-                                S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).bound();
+                                S2PaddedCell::<S>::new(cell.cell_id, S::CELL_PADDING).bound();
                             let mut m = SpongeCell::new(cell.cell_id, cell_bound);
                             m.absorb_index_cell_anchors(&cell, self.edge_cache);
                             m.absorb_index_cell_edges(&cell, self.edge_cache);
@@ -438,7 +437,7 @@ fn flatten<S: Surface>(sponge: HeapEntry<S>) -> Option<ShapeCell> {
     };
 
     let cell_id = merged.cell_id;
-    let sponge_center = S2PaddedCell::<S>::new(cell_id, CELL_PADDING).get_center();
+    let sponge_center = S2PaddedCell::<S>::new(cell_id, S::CELL_PADDING).get_center();
     let mut result = ShapeCell::new(cell_id);
     merged.anchors.sort_unstable_by_key(|a| a.geometry_id);
 
@@ -480,7 +479,8 @@ fn flatten<S: Surface>(sponge: HeapEntry<S>) -> Option<ShapeCell> {
         assert!(
             anchor.closed || !contains_center,
             "flatten: non-closed geometry {:?} produced contains_center at cell {}",
-            geometry_id, cell_id.0,
+            geometry_id,
+            cell_id.0,
         );
         if contains_center || !edge_indices.is_empty() {
             let mut shape = ClippedShape::new(geometry_id, contains_center);
@@ -761,7 +761,7 @@ fn coarse_split<S: Surface>(
             }
         }
     }
-    let padded_cell = S2PaddedCell::<S>::new(cell_id, CELL_PADDING);
+    let padded_cell = S2PaddedCell::<S>::new(cell_id, S::CELL_PADDING);
     let parent_center = padded_cell.get_center();
 
     let mut flat_edges: Vec<FlatEdge<S>> = Vec::new();
@@ -1025,7 +1025,8 @@ fn coarse_split<S: Surface>(
             assert!(
                 anchor.closed || !contains_center,
                 "coarse_split: non-closed geometry {:?} produced contains_center at child {}",
-                anchor.geometry_id, child_cell_id.0,
+                anchor.geometry_id,
+                child_cell_id.0,
             );
             if contains_center || !edge_indices.is_empty() {
                 child_anchors[pos as usize].push(SpongeShape {

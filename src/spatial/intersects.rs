@@ -22,7 +22,7 @@ use super::s2padded_cell::S2PaddedCell;
 use super::shape_index_region::index_contains_point;
 use super::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
-use crate::spatial::clipper::{Clipper, CELL_PADDING};
+use crate::spatial::clipper::Clipper;
 use crate::spatial::shape_index::ShapeIndex;
 
 /// Prepared intersects query, built once from a query polygon and applied per-segment.
@@ -107,7 +107,7 @@ impl<S: Surface> Intersects<S> {
             };
 
             heap.push(CoveringCell {
-                pcell: S2PaddedCell::new(cell_id, CELL_PADDING),
+                pcell: S2PaddedCell::new(cell_id, S::CELL_PADDING),
                 query_edges: query_edge_indices,
                 contains_center,
                 index_start,

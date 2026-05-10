@@ -317,7 +317,7 @@ impl<S: Surface> Clipper<S> {
         if a_face == b_face {
             let (a_u, a_v) = S::point_to_face_uv(a_face, v0);
             let (b_u, b_v) = S::point_to_face_uv(a_face, v1);
-            let max_uv = 1.0 - CELL_PADDING;
+            let max_uv = 1.0 - S::CELL_PADDING;
             if a_u.abs() <= max_uv
                 && a_v.abs() <= max_uv
                 && b_u.abs() <= max_uv
@@ -338,7 +338,7 @@ impl<S: Surface> Clipper<S> {
         }
 
         for face in 0..S::FACE_COUNT {
-            if let Some((a_uv, b_uv)) = S::clip_to_face(v0, v1, face, CELL_PADDING) {
+            if let Some((a_uv, b_uv)) = S::clip_to_face(v0, v1, face, S::CELL_PADDING) {
                 face_edges[face as usize].push(FaceEdge {
                     geometry_id,
                     edge_index,
@@ -372,7 +372,7 @@ impl<S: Surface> Clipper<S> {
         }
 
         let face_id = S2CellId::from_face(face);
-        let pcell = S2PaddedCell::new(face_id, CELL_PADDING);
+        let pcell = S2PaddedCell::new(face_id, S::CELL_PADDING);
 
         // shrink_to_fit skips empty levels of the hierarchy. If all edges on this face are
         // clustered in a small region the recursion can start at level 10 instead of level 0. The
@@ -384,7 +384,7 @@ impl<S: Surface> Clipper<S> {
         if shrunk_id != face_id {
             self.skip_cell_range(face_id.range_min(), shrunk_id.range_min());
 
-            let pcell = S2PaddedCell::new(shrunk_id, CELL_PADDING);
+            let pcell = S2PaddedCell::new(shrunk_id, S::CELL_PADDING);
             self.update_edges(&pcell, &mut clipped, face_edges);
 
             self.skip_cell_range(shrunk_id.range_max().next(), face_id.range_max().next());
@@ -399,7 +399,7 @@ impl<S: Surface> Clipper<S> {
         }
 
         for cell_id in cell_union_from_range(begin, end) {
-            let pcell = S2PaddedCell::new(cell_id, CELL_PADDING);
+            let pcell = S2PaddedCell::new(cell_id, S::CELL_PADDING);
             let mut empty_edges: Vec<ClippedEdge> = Vec::new();
             self.update_edges(&pcell, &mut empty_edges, &[]);
         }

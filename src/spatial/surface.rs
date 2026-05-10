@@ -41,6 +41,10 @@ pub trait Surface {
     /// Euclidean distance between two points on this surface.
     fn edge_length(a: &Self::Point, b: &Self::Point) -> f64;
 
+    /// Cell padding for edge clipping. Compensates for face clipping error on the
+    /// sphere. Zero on the plane where clip_to_face is exact.
+    const CELL_PADDING: f64;
+
     /// Number of cube faces. 6 for Sphere, 1 for Plane.
     const FACE_COUNT: i32;
 

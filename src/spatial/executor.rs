@@ -369,7 +369,8 @@ fn evaluate(
                                                 &mut probe_edge_cache,
                                                 probe_reader.max_doc(),
                                             )
-                                            .len() > 0
+                                            .len()
+                                            > 0
                                     }
                                     SpatialRelation::Contains => {
                                         todo!("contains query pending rewrite")

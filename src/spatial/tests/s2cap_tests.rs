@@ -2,6 +2,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 
 use super::*;
 use crate::spatial::math::normalize;
+use crate::spatial::sphere::Sphere;
 
 const EPS: f64 = 1e-14;
 
@@ -127,7 +128,7 @@ fn test_region_may_intersect() {
 fn test_region_singleton_may_intersect() {
     // A singleton cap at face center should intersect that face
     for face in 0..6 {
-        let center = S2Cell::from_face(face).get_center();
+        let center = Sphere::cell_center(S2Cell::from_face(face).id());
         let singleton = S2Cap::from_point(center);
 
         let root_cell = S2Cell::from_face(face);

@@ -18,6 +18,7 @@ use crate::directory::WritePtr;
 use crate::spatial::cell_index_reader::CellIndexReader;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
+use crate::spatial::contains::Contains;
 use crate::spatial::edge_cache::EdgeCache;
 use crate::spatial::edge_reader::EdgeReader;
 use crate::spatial::edge_writer::EdgeWriter;
@@ -262,7 +263,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         let projected = geometry.project::<S>();
         let set = to_geometry_set(&projected, 0);
         Box::new(PreparedContainsNew::<S> {
-            query: Intersects::new(set, CovererOptions::default()),
+            query: Contains::new(set, CovererOptions::default()),
         })
     }
 }
@@ -276,12 +277,13 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedIntersects<S> {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<S>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.query.search(&cell_reader, None, &mut edge_cache, max_doc)
+        self.query
+            .search(&cell_reader, None, &mut edge_cache, max_doc)
     }
 }
 
 struct PreparedContainsNew<S: Surface> {
-    query: Intersects<S>,
+    query: Contains<S>,
 }
 
 impl<S: Surface + 'static> PreparedSpatialQuery for PreparedContainsNew<S> {
@@ -289,7 +291,8 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedContainsNew<S> {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<S>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.query.search(&cell_reader, None, &mut edge_cache, max_doc)
+        self.query
+            .search(&cell_reader, None, &mut edge_cache, max_doc)
     }
 }
 

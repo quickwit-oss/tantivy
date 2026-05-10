@@ -44,6 +44,8 @@ impl Surface for Plane {
         false
     }
 
+    const CELL_PADDING: f64 = 0.0;
+
     const FACE_COUNT: i32 = 1;
 
     #[inline]

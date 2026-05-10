@@ -20,6 +20,10 @@ impl PlaneEdgeCrosser {
 
     /// Returns +1 if AB and CD cross in their interiors, 0 if they share a vertex, -1 otherwise.
     pub fn crossing_sign_two(&mut self, c: &[f64; 2], d: &[f64; 2]) -> i32 {
+        if self.a == *c || self.a == *d || self.b == *c || self.b == *d {
+            return 0;
+        }
+
         let d1 = orient2d(&self.a, &self.b, c);
         let d2 = orient2d(&self.a, &self.b, d);
         let d3 = orient2d(c, d, &self.a);
@@ -29,14 +33,6 @@ impl PlaneEdgeCrosser {
             && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
         {
             return 1;
-        }
-
-        if (d1 == 0.0 && on_segment(&self.a, &self.b, c))
-            || (d2 == 0.0 && on_segment(&self.a, &self.b, d))
-            || (d3 == 0.0 && on_segment(c, d, &self.a))
-            || (d4 == 0.0 && on_segment(c, d, &self.b))
-        {
-            return 0;
         }
 
         -1
@@ -53,11 +49,105 @@ impl EdgeCrosser for PlaneEdgeCrosser {
     fn crossing_sign_two(&mut self, c: &[f64; 2], d: &[f64; 2]) -> i32 {
         self.crossing_sign_two(c, d)
     }
+
+    /// Half-open crossing test for containment tracking. A vertex exactly on the line
+    /// is treated as below (strict > on both sides). Two adjacent edges at a
+    /// through-vertex produce one straddle. A touch from one side produces zero or
+    /// two, preserving parity.
+    fn edge_or_vertex_crossing_two(&mut self, c: &[f64; 2], d: &[f64; 2]) -> bool {
+        let hc = orient2d(&self.a, &self.b, c);
+        let hd = orient2d(&self.a, &self.b, d);
+        if (hc > 0.0) == (hd > 0.0) {
+            return false;
+        }
+        let ha = orient2d(c, d, &self.a);
+        let hb = orient2d(c, d, &self.b);
+        (ha > 0.0) != (hb > 0.0)
+    }
 }
 
-fn on_segment(a: &[f64; 2], b: &[f64; 2], p: &[f64; 2]) -> bool {
-    p[0] >= a[0].min(b[0])
-        && p[0] <= a[0].max(b[0])
-        && p[1] >= a[1].min(b[1])
-        && p[1] <= a[1].max(b[1])
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn count_crossings(tracker_a: &[f64; 2], tracker_b: &[f64; 2], ring: &[[f64; 2]]) -> usize {
+        let mut crosser = PlaneEdgeCrosser::new(tracker_a, tracker_b);
+        let mut count = 0;
+        for i in 0..ring.len() - 1 {
+            if crosser.edge_or_vertex_crossing_two(&ring[i], &ring[i + 1]) {
+                count += 1;
+            }
+        }
+        count
+    }
+
+    #[test]
+    fn through_vertex_produces_even_crossings() {
+        let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
+        let a = [0.0, -1.0];
+        let b = [2.0, 1.0];
+        assert_eq!(count_crossings(&a, &b, &ring) % 2, 0);
+    }
+
+    #[test]
+    fn through_vertex_parity_even_for_closed_ring() {
+        // Any tracker segment crossing a closed convex polygon must produce
+        // an even number of crossings (enter and exit).
+        let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
+
+        // Through vertex (0,0).
+        assert_eq!(count_crossings(&[-1.0, -1.0], &[2.0, 2.0], &ring) % 2, 0);
+        // Through vertex (1,1).
+        assert_eq!(count_crossings(&[0.0, 0.0], &[2.0, 2.0], &ring) % 2, 0);
+        // Through vertex (1,0).
+        assert_eq!(count_crossings(&[0.5, -1.0], &[1.5, 1.0], &ring) % 2, 0);
+        // Through vertex (0,1).
+        assert_eq!(count_crossings(&[-0.5, 0.0], &[0.5, 2.0], &ring) % 2, 0);
+    }
+
+    #[test]
+    fn touch_from_above_preserves_parity() {
+        // Tracker passes through a vertex where the polygon touches from above
+        // but does not cross (V-shape dipping down to the line).
+        // Triangle above the x-axis touching at (0.5, 0).
+        let ring = [[0.0, 1.0], [0.5, 0.0], [1.0, 1.0], [0.0, 1.0]];
+        let a = [-1.0, 0.0];
+        let b = [2.0, 0.0];
+        assert_eq!(count_crossings(&a, &b, &ring) % 2, 0);
+    }
+
+    #[test]
+    fn touch_from_below_preserves_parity() {
+        // Triangle below the x-axis touching at (0.5, 0).
+        let ring = [[0.0, -1.0], [0.5, 0.0], [1.0, -1.0], [0.0, -1.0]];
+        let a = [-1.0, 0.0];
+        let b = [2.0, 0.0];
+        assert_eq!(count_crossings(&a, &b, &ring) % 2, 0);
+    }
+
+    #[test]
+    fn interior_crossing_still_works() {
+        // No vertex on the line. Standard interior crossing.
+        let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
+        let a = [0.5, -1.0];
+        let b = [0.5, 2.0];
+        assert_eq!(count_crossings(&a, &b, &ring), 2);
+    }
+
+    #[test]
+    fn no_crossing_when_disjoint() {
+        let ring = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
+        let a = [2.0, 0.0];
+        let b = [3.0, 1.0];
+        assert_eq!(count_crossings(&a, &b, &ring), 0);
+    }
+
+    #[test]
+    fn collinear_overlap_no_crossing() {
+        // Tracker segment lies on the same line as a polygon edge.
+        let ring = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [0.0, 1.0], [0.0, 0.0]];
+        let a = [-1.0, 0.0];
+        let b = [3.0, 0.0];
+        assert_eq!(count_crossings(&a, &b, &ring) % 2, 0);
+    }
 }

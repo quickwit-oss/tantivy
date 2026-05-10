@@ -78,6 +78,8 @@ impl Surface for Sphere {
         compute_origin_inside(ring)
     }
 
+    const CELL_PADDING: f64 = crate::spatial::clipper::CELL_PADDING;
+
     const FACE_COUNT: i32 = 6;
 
     #[inline]

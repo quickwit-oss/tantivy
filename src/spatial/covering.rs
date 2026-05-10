@@ -5,7 +5,6 @@ use super::r2rect::R2Rect;
 use super::s2cell_id::S2CellId;
 use super::s2padded_cell::S2PaddedCell;
 use super::surface::Surface;
-use crate::spatial::clipper::CELL_PADDING;
 use crate::spatial::s2edge_clipping::clip_edge_bound;
 
 /// An entry in the covering descent. Carries the padded cell for splitting, the query edge
@@ -68,7 +67,7 @@ pub(crate) fn covering_split<S: Surface>(
 
     for &edge_idx in &entry.query_edges {
         let (v0, v1) = get_edge(edge_idx);
-        let (a_uv, b_uv) = match S::clip_to_face(&v0, &v1, face, CELL_PADDING) {
+        let (a_uv, b_uv) = match S::clip_to_face(&v0, &v1, face, S::CELL_PADDING) {
             Some(ab) => ab,
             None => continue,
         };
