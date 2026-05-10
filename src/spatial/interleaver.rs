@@ -189,6 +189,11 @@ impl<S: Surface> SpongeCell<S> {
                 S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).get_center()
             });
             let closed = edge_cache.get(shape.geometry_id).edge_set().closed;
+            assert!(
+                closed || !shape.contains_center,
+                "non-closed geometry {:?} has contains_center in source cell {}",
+                shape.geometry_id, cell.cell_id.0,
+            );
             let anchor = SpongeShape {
                 geometry_id: shape.geometry_id,
                 cell_id: cell.cell_id,
@@ -472,6 +477,11 @@ fn flatten<S: Surface>(sponge: HeapEntry<S>) -> Option<ShapeCell> {
             }
         }
 
+        assert!(
+            anchor.closed || !contains_center,
+            "flatten: non-closed geometry {:?} produced contains_center at cell {}",
+            geometry_id, cell_id.0,
+        );
         if contains_center || !edge_indices.is_empty() {
             let mut shape = ClippedShape::new(geometry_id, contains_center);
             shape.edge_indices = edge_indices;
@@ -1012,6 +1022,11 @@ fn coarse_split<S: Surface>(
                     sponge_edge_index += 1;
                 }
             }
+            assert!(
+                anchor.closed || !contains_center,
+                "coarse_split: non-closed geometry {:?} produced contains_center at child {}",
+                anchor.geometry_id, child_cell_id.0,
+            );
             if contains_center || !edge_indices.is_empty() {
                 child_anchors[pos as usize].push(SpongeShape {
                     geometry_id: anchor.geometry_id,
