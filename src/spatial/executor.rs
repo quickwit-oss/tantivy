@@ -168,13 +168,12 @@ fn evaluate(
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
 
-                    let doc_ids =
-                        intersects.search(&cell_reader, Some(&filter_bitset), &mut edge_cache);
-
-                    let mut bitset = BitSet::with_max_value(reader.max_doc());
-                    for doc_id in doc_ids {
-                        bitset.insert(doc_id);
-                    }
+                    let bitset = intersects.search(
+                        &cell_reader,
+                        Some(&filter_bitset),
+                        &mut edge_cache,
+                        reader.max_doc(),
+                    );
                     results.insert(reader.segment_id(), SegmentResult::Match(bitset));
                 }
             }
@@ -363,13 +362,14 @@ fn evaluate(
                                             outer_geometry.clone(),
                                             CovererOptions::default(),
                                         );
-                                        !probe
+                                        probe
                                             .search(
                                                 &probe_cell_reader,
                                                 Some(&inner_bitset),
                                                 &mut probe_edge_cache,
+                                                probe_reader.max_doc(),
                                             )
-                                            .is_empty()
+                                            .len() > 0
                                     }
                                     SpatialRelation::Contains => {
                                         todo!("contains query pending rewrite")

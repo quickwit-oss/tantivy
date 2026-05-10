@@ -179,15 +179,15 @@ impl Query for SpatialQuery {
 struct ClosestEdgeQueryAdapter(ClosestEdgeQuery);
 
 impl PreparedSpatialQuery for ClosestEdgeQueryAdapter {
-    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8], max_doc: u32) -> BitSet {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<Sphere>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.0
-            .search_segment(&cell_reader, &mut edge_cache)
-            .into_iter()
-            .map(|r| r.doc_id)
-            .collect()
+        let mut bitset = BitSet::with_max_value(max_doc);
+        for r in self.0.search_segment(&cell_reader, &mut edge_cache) {
+            bitset.insert(r.doc_id);
+        }
+        bitset
     }
 }
 
@@ -210,14 +210,11 @@ impl Weight for SpatialWeight {
             }
         };
 
-        let doc_ids = self
-            .query
-            .search_segment_bytes(spatial_reader.cells_bytes(), spatial_reader.edges_bytes());
-
-        let mut include = BitSet::with_max_value(reader.max_doc());
-        for doc_id in doc_ids {
-            include.insert(doc_id);
-        }
+        let include = self.query.search_segment_bytes(
+            spatial_reader.cells_bytes(),
+            spatial_reader.edges_bytes(),
+            reader.max_doc(),
+        );
 
         Ok(Box::new(SpatialScorer::new(boost, include)))
     }

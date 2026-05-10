@@ -51,10 +51,11 @@ impl<S: Surface> Intersects<S> {
         reader: &'a CellIndexReader<'a>,
         terms_filter: Option<&BitSet>,
         edge_cache: &mut EdgeCache<'a, S>,
-    ) -> Vec<u32> {
+        max_doc: u32,
+    ) -> BitSet {
         let geometry_count = edge_cache.geometry_count(0);
         let mut seen = BitSet::with_max_value(geometry_count);
-        let mut doc_ids = Vec::new();
+        let mut doc_ids = BitSet::with_max_value(max_doc);
         let mut containment_tested = BitSet::with_max_value(geometry_count);
 
         let query_vertex = &self.query_edges.get_edge_set((0, 0)).vertices[0];
@@ -74,7 +75,7 @@ impl<S: Surface> Intersects<S> {
                         }
                     }
                     seen.insert(gid);
-                    doc_ids.push(located.doc_id);
+                    doc_ids.insert(located.doc_id);
                 }
             }
         }
@@ -134,7 +135,7 @@ impl<S: Surface> Intersects<S> {
                                 continue;
                             }
                         }
-                        doc_ids.push(doc_id);
+                        doc_ids.insert(doc_id);
                     }
                 }
             } else if entry.pcell.level() < entry.first_index_level && !entry.pcell.id().is_leaf() {
@@ -185,7 +186,7 @@ impl<S: Surface> Intersects<S> {
                                 &first_vertex,
                             ) {
                                 seen.insert(gid);
-                                doc_ids.push(located.doc_id);
+                                doc_ids.insert(located.doc_id);
                                 continue;
                             }
                         }
@@ -210,7 +211,7 @@ impl<S: Surface> Intersects<S> {
                                 };
                                 if crossed {
                                     seen.insert(gid);
-                                    doc_ids.push(doc_id);
+                                    doc_ids.insert(doc_id);
                                 }
                             }
                         }

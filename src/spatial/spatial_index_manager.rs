@@ -12,7 +12,7 @@ use std::io;
 use std::io::Write;
 use std::sync::{Arc, RwLock};
 
-use common::{CountingWriter, ReadOnlyBitSet};
+use common::{BitSet, CountingWriter, ReadOnlyBitSet};
 
 use crate::directory::WritePtr;
 use crate::spatial::cell_index_reader::CellIndexReader;
@@ -70,7 +70,7 @@ pub trait SpatialIndex: Send + Sync + SpatialIndexClone {
 /// A prepared spatial query that searches one segment at a time.
 pub trait PreparedSpatialQuery: Send + Sync {
     /// Search one segment from raw cell index and edge index bytes.
-    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32>;
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8], max_doc: u32) -> BitSet;
 }
 
 /// Result of a spatial merge.
@@ -272,11 +272,11 @@ struct PreparedIntersects<S: Surface> {
 }
 
 impl<S: Surface + 'static> PreparedSpatialQuery for PreparedIntersects<S> {
-    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8], max_doc: u32) -> BitSet {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<S>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.query.search(&cell_reader, None, &mut edge_cache)
+        self.query.search(&cell_reader, None, &mut edge_cache, max_doc)
     }
 }
 
@@ -285,11 +285,11 @@ struct PreparedContainsNew<S: Surface> {
 }
 
 impl<S: Surface + 'static> PreparedSpatialQuery for PreparedContainsNew<S> {
-    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8]) -> Vec<u32> {
+    fn search_segment_bytes(&self, cells_bytes: &[u8], edges_bytes: &[u8], max_doc: u32) -> BitSet {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<S>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.query.search(&cell_reader, None, &mut edge_cache)
+        self.query.search(&cell_reader, None, &mut edge_cache, max_doc)
     }
 }
 
