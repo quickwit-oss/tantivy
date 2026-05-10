@@ -10,11 +10,10 @@ use common::BitSet;
 
 use super::cell_index_reader::CellIndexReader;
 use super::closest_edge_query::ClosestEdgeQuery;
-use super::contains_query::ContainsQuery;
 use super::edge_cache::EdgeCache;
 use super::edge_reader::EdgeReader;
 use super::geometry_set::GeometrySet;
-use super::intersects_query::IntersectsQuery;
+use super::intersects::Intersects;
 use super::region_coverer::CovererOptions;
 use super::s1chord_angle::S1ChordAngle;
 use super::sphere::Sphere;
@@ -154,8 +153,8 @@ fn evaluate(
             // Evaluate the filter node -> per-segment bitsets.
             let filter_output = evaluate(filter, searcher, segments)?;
 
-            // Build the IntersectsQuery once from the smashed geometry.
-            let intersects = IntersectsQuery::new(geometry.clone(), CovererOptions::default());
+            // Build the Intersects once from the smashed geometry.
+            let intersects = Intersects::new(geometry.clone(), CovererOptions::default());
 
             // For each segment, run the filtered spatial traversal.
             let mut results = HashMap::new();
@@ -169,10 +168,10 @@ fn evaluate(
                     let filter_bitset =
                         filter_output.bitset_for(&reader.segment_id(), reader.max_doc());
 
-                    let doc_ids = intersects.search_segment_filtered(
+                    let doc_ids = intersects.search(
                         &cell_reader,
+                        Some(&filter_bitset),
                         &mut edge_cache,
-                        &filter_bitset,
                     );
 
                     let mut bitset = BitSet::with_max_value(reader.max_doc());
@@ -363,30 +362,20 @@ fn evaluate(
                                             .is_empty()
                                     }
                                     SpatialRelation::Intersects => {
-                                        let probe = IntersectsQuery::new(
+                                        let probe = Intersects::new(
                                             outer_geometry.clone(),
                                             CovererOptions::default(),
                                         );
                                         !probe
-                                            .search_segment_filtered(
+                                            .search(
                                                 &probe_cell_reader,
+                                                Some(&inner_bitset),
                                                 &mut probe_edge_cache,
-                                                &inner_bitset,
                                             )
                                             .is_empty()
                                     }
                                     SpatialRelation::Contains => {
-                                        let probe = ContainsQuery::new(
-                                            outer_geometry.clone(),
-                                            CovererOptions::default(),
-                                        );
-                                        !probe
-                                            .search_segment_filtered(
-                                                &probe_cell_reader,
-                                                &mut probe_edge_cache,
-                                                &inner_bitset,
-                                            )
-                                            .is_empty()
+                                        todo!("contains query pending rewrite")
                                     }
                                     SpatialRelation::Between(inner_r, outer_r) => {
                                         let probe = ClosestEdgeQuery::any_between(

@@ -38,6 +38,7 @@ struct SpongeShape<S: Surface> {
     cell_id: S2CellId,
     center: S::Point,
     contains_center: bool,
+    closed: bool,
 }
 
 impl<S: Surface> Clone for SpongeShape<S> {
@@ -47,6 +48,7 @@ impl<S: Surface> Clone for SpongeShape<S> {
             cell_id: self.cell_id,
             center: self.center,
             contains_center: self.contains_center,
+            closed: self.closed,
         }
     }
 }
@@ -177,16 +179,18 @@ impl<S: Surface> SpongeCell<S> {
 
     // The same center that you would use if you were searching. We going to do an ordinary search
     // edge crossing to move a child geometry into a parent.
-    fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell) {
+    fn absorb_index_cell_anchors(&mut self, cell: &ShapeCell, edge_cache: &EdgeCache<'_, S>) {
         let mut cell_center: Option<S::Point> = None;
         for shape in &cell.shapes {
             let center = *cell_center
                 .get_or_insert_with(|| S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).get_center());
+            let closed = edge_cache.get(shape.geometry_id).edge_set().closed;
             let anchor = SpongeShape {
                 geometry_id: shape.geometry_id,
                 cell_id: cell.cell_id,
                 center,
                 contains_center: shape.contains_center,
+                closed,
             };
             self.anchors.push(anchor);
         }
@@ -199,6 +203,7 @@ impl<S: Surface> SpongeCell<S> {
                 cell_id: a.cell_id,
                 center: a.center,
                 contains_center: a.contains_center,
+                closed: a.closed,
             });
         }
     }
@@ -363,7 +368,7 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                         HeapEntry::Source { cell, .. } => {
                             let cell_bound = S2PaddedCell::<S>::new(cell.cell_id, CELL_PADDING).bound();
                             let mut m = SpongeCell::new(cell.cell_id, cell_bound);
-                            m.absorb_index_cell_anchors(&cell);
+                            m.absorb_index_cell_anchors(&cell, self.edge_cache);
                             m.absorb_index_cell_edges(&cell, self.edge_cache);
                             m
                         }
@@ -376,7 +381,7 @@ impl<'a, S: Surface> Iterator for Interleaver<'a, S> {
                             merged.absorb_sponge_cell_anchors(entry_merged);
                         }
                         HeapEntry::Source { cell, .. } => {
-                            merged.absorb_index_cell_anchors(cell);
+                            merged.absorb_index_cell_anchors(cell, self.edge_cache);
                             merged.absorb_index_cell_edges(cell, self.edge_cache);
                         }
                     }
@@ -443,14 +448,20 @@ fn flatten<S: Surface>(sponge: HeapEntry<S>) -> Option<ShapeCell> {
 
         // Collect edges matching our geometry_id.
         if edge_index < merged.edges.len() && merged.edges[edge_index].geometry_id == geometry_id {
-            let mut crosser = S::EdgeCrosser::new(&anchor.center, &sponge_center);
+            let mut crosser = if anchor.closed {
+                Some(S::EdgeCrosser::new(&anchor.center, &sponge_center))
+            } else {
+                None
+            };
             while edge_index < merged.edges.len()
                 && merged.edges[edge_index].geometry_id == geometry_id
             {
                 let edge = &merged.edges[edge_index];
                 edge_indices.push(edge.edge_index);
-                if crosser.edge_or_vertex_crossing_two(&edge.v0, &edge.v1) {
-                    contains_center = !contains_center;
+                if let Some(ref mut crosser) = crosser {
+                    if crosser.edge_or_vertex_crossing_two(&edge.v0, &edge.v1) {
+                        contains_center = !contains_center;
+                    }
                 }
                 edge_index += 1;
             }
@@ -953,15 +964,21 @@ fn coarse_split<S: Surface>(
                 && flat_edges[sponge_edges[sponge_edge_index]].geometry_id == anchor.geometry_id
             {
                 *crossers += 1;
-                let mut crosser = S::EdgeCrosser::new(&parent_center, &child_center);
+                let mut crosser = if anchor.closed {
+                    Some(S::EdgeCrosser::new(&parent_center, &child_center))
+                } else {
+                    None
+                };
                 while sponge_edge_index < sponge_edges.len()
                     && flat_edges[sponge_edges[sponge_edge_index]].geometry_id == anchor.geometry_id
                 {
                     let flat_edge = &flat_edges[sponge_edges[sponge_edge_index]];
                     edge_indices.push(flat_edge.edge.edge_index);
                     *crossings += 1;
-                    if crosser.edge_or_vertex_crossing_two(&flat_edge.edge.v0, &flat_edge.edge.v1) {
-                        contains_center = !contains_center;
+                    if let Some(ref mut crosser) = crosser {
+                        if crosser.edge_or_vertex_crossing_two(&flat_edge.edge.v0, &flat_edge.edge.v1) {
+                            contains_center = !contains_center;
+                        }
                     }
                     child_merged.edge_count += 1;
                     if child_level < flat_edge.edge.max_level {
@@ -994,6 +1011,7 @@ fn coarse_split<S: Surface>(
                     cell_id: child_cell_id,
                     center: child_center,
                     contains_center,
+                    closed: anchor.closed,
                 });
             }
         }

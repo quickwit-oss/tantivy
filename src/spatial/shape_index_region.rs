@@ -13,6 +13,7 @@ use super::cell_union::CellUnion;
 use super::clipped_shape::{ClippedShape, GeometryId};
 use super::edge_cache::EdgeCache;
 use super::edge_crosser::EdgeCrosser;
+use super::edge_provider::EdgeProvider;
 use super::latlng_rect::S2LatLngRect;
 use super::region::Region;
 use super::s2cap::S2Cap;
@@ -25,17 +26,6 @@ use super::s2edge_clipping::{intersects_rect, FACE_CLIP_ERROR_UV_COORD, INTERSEC
 use super::surface::Surface;
 use crate::spatial::shape_index::ShapeIndex;
 
-/// Provides vertex access for edge intersection tests.
-///
-/// Implementors resolve a (geometry_id, edge_index) pair to the two endpoints of that edge. For
-/// ingest-side indexes backed by EdgeCache, this reads from disk. For query-local indexes, this
-/// indexes into an in-memory vertex array.
-pub trait EdgeProvider {
-    /// The point type for edge vertices.
-    type Point: Copy;
-    /// Returns the two endpoints of the given edge.
-    fn get_edge(&self, geometry_id: GeometryId, edge_index: u32) -> (Self::Point, Self::Point);
-}
 
 /// Minimal clipped shape data for indexed containment. Owned to avoid lifetime mismatches between
 /// borrowed in-memory data and deserialized reader data.

@@ -26,7 +26,7 @@ use crate::spatial::plane::Plane;
 use crate::spatial::surface::Surface;
 use crate::spatial::clip_options::ClipOptions;
 use crate::spatial::clipper::Clipper;
-use crate::spatial::intersects_query::IntersectsQuery;
+use crate::spatial::intersects::Intersects;
 use crate::spatial::region_coverer::CovererOptions;
 use crate::spatial::sphere::Sphere;
 use crate::DocId;
@@ -264,7 +264,7 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         let projected = geometry.project::<S>();
         let set = to_geometry_set(&projected, 0);
         Box::new(PreparedIntersects::<S> {
-            query: IntersectsQuery::new(set, CovererOptions::default()),
+            query: Intersects::new(set, CovererOptions::default()),
         })
     }
 
@@ -275,13 +275,13 @@ impl<S: Surface + Send + Sync + Clone + 'static> SpatialIndex for SurfaceIndex<S
         let projected = geometry.project::<S>();
         let set = to_geometry_set(&projected, 0);
         Box::new(PreparedContainsNew::<S> {
-            query: IntersectsQuery::new(set, CovererOptions::default()),
+            query: Intersects::new(set, CovererOptions::default()),
         })
     }
 }
 
 struct PreparedIntersects<S: Surface> {
-    query: IntersectsQuery<S>,
+    query: Intersects<S>,
 }
 
 
@@ -290,12 +290,12 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedIntersects<S> {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<S>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.query.search_segment(&cell_reader, &mut edge_cache)
+        self.query.search(&cell_reader, None, &mut edge_cache)
     }
 }
 
 struct PreparedContainsNew<S: Surface> {
-    query: IntersectsQuery<S>,
+    query: Intersects<S>,
 }
 
 impl<S: Surface + 'static> PreparedSpatialQuery for PreparedContainsNew<S> {
@@ -303,7 +303,7 @@ impl<S: Surface + 'static> PreparedSpatialQuery for PreparedContainsNew<S> {
         let cell_reader = CellIndexReader::open(cells_bytes);
         let edge_reader = EdgeReader::<S>::open(edges_bytes);
         let mut edge_cache = EdgeCache::new(vec![edge_reader], 100_000);
-        self.query.contains_segment(&cell_reader, &mut edge_cache)
+        self.query.search(&cell_reader, None, &mut edge_cache)
     }
 }
 
